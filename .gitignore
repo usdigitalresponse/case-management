@@ -1,0 +1,8 @@
+# This is an extremely basic .gitignore file!
+#
+# As you start building out your project, you'll probably want to add more here.
+# For some good, language/tool-specific .gitignore examples, check out:
+# https://github.com/github/gitignore
+
+.DS_Store
+scratch.*
