@@ -61,7 +61,7 @@ This project wouldn’t exist without the hard work of many people. Thanks to th
 
 **Additional Contributors:**
 
-- [@{YOUR_GITHUB_USERNAME}](https://github.com/{YOUR_GITHUB_USERNAME})
+- [@gideonkdavis](https://github.com/gideonkdavis)
 - [@{YOUR_GITHUB_USERNAME}](https://github.com/{YOUR_GITHUB_USERNAME})
 
 ## License & Copyright
