@@ -17,9 +17,16 @@ platform silently redefine the domain model.
 
 ## Current phase
 
-The repository is at an early design stage. Prefer small, reviewable changes that
-establish the specification, acceptance scenarios, documentation, and project
-conventions before adding implementation-specific code.
+The repository is at an early design and prototyping stage. The current
+prototyping direction is Power Platform: Dataverse, Solutions, and model-driven
+apps using standard forms and views by default. Preserve enough separation for
+a future fully custom web implementation of the same shared specification.
+
+Use supported Microsoft capabilities and `pac`/Solution tooling for packaging
+and deployment. Introduce Custom Pages, PCF, flows, environment variables, and
+connection references when the workflow or integration needs them. Do not build
+custom CRUD interfaces or speculative portability infrastructure. See
+`docs/architecture-assessment.md` for the assessment and incremental plan.
 
 Do not select a production platform, framework, database, or cloud architecture
 unless the user explicitly asks for that decision.
@@ -91,6 +98,12 @@ Before changing files:
 1. Read this file and the relevant existing documentation and specifications.
 2. Inspect the working tree and preserve unrelated user changes.
 3. Identify which artifact is authoritative for the requested change.
+4. Before provisioning a new Dataverse app, solution, or table as a fix, run
+   `inspect` (or `pac model list`) and check the target environment in
+   `make.powerapps.com` for an existing app or an earlier troubleshooting
+   attempt with a similar name. Prefer repairing the existing app over
+   creating a parallel one; duplicate apps from separate sessions are hard to
+   reconcile later and the user has to notice and remove them manually.
 
 While working:
 
@@ -131,6 +144,29 @@ Before handing work back:
 
 ## Commands
 
-No application stack or standard validation commands have been established yet.
-Add commands here when they become part of the project's normal workflow, and do
-not claim verification that was not actually performed.
+The initial Dataverse prototype and its mapping live in
+`implementations/dataverse/`; canonical form definitions live in
+`model/forms.yaml`, with acceptance scenarios in `scenarios/`.
+
+For changes to the provisioning tool, run from the repository root:
+
+```sh
+dotnet build implementations/dataverse/Provision/Provision.csproj
+dotnet run --no-build --project implementations/dataverse/Provision -- --check
+dotnet run --project implementations/dataverse/SetupTests/SetupTests.csproj
+```
+
+See the implementation README before any deployment. `deploy` changes the
+target environment and replaces prototype form layouts; `upgrade-client` patches
+and publishes the existing app's client setting only. App creation and verification
+must enforce Unified Interface (`clienttype = 4`). `smoke` creates and
+retains synthetic test cases; `inspect` and `verify` are read-only. Keep
+environment configuration, authentication caches, logs,
+exports, and build output out of Git. Do not mistake form-level requiredness
+for server-side validation or native auditing for a complete domain event model.
+
+`setup.command` (Mac/Linux) and `setup.cmd` (Windows) launch the guided setup.
+The wizard must inspect and display the target before deployment, default to
+read-only verification for existing installations, pass input as process arguments
+without shell evaluation, and keep entered configuration out of repository files.
+Its offline tests must not authenticate or mutate a live environment.

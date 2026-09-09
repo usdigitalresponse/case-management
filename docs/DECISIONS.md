@@ -7,6 +7,24 @@ entry when a decision materially changes.
 
 ## Current Decisions
 
+### Initial Dataverse Intake Prototype
+
+- **Status:** Active
+- **Decided:** 2026-09-08
+
+Evaluate a Dataverse implementation with one case intake form for an existing
+client, using synthetic reference data. Keep the shared model authoritative and
+record mappings, commands, and gaps under `implementations/dataverse/`. This
+does not select a production platform. Client creation and the full case
+lifecycle remain outside the first intake slice.
+
+The current prototyping direction is Power Platform, using its built-in
+capabilities wherever appropriate. Standard model-driven forms and views are
+the default; specialized interfaces require a demonstrated workflow need.
+Preserve the option to compare this prototype with a hybrid or fully custom
+web implementation of the same specification. See the
+[assessment and incremental plan](architecture-assessment.md).
+
 ### Prototype Direction
 
 - **Status:** Active
@@ -64,5 +82,5 @@ support them:
 - detailed product scope and domain model;
 - YAML schema, formatting, and validation tooling;
 - continuous integration and required checks;
-- implementation-specific directory structure; and
+- additional implementation-specific directory structures; and
 - design-tool export and handoff conventions.

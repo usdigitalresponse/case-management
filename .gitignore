@@ -6,3 +6,10 @@
 
 .DS_Store
 scratch.*
+
+# Local Dataverse builds, exports, and connection configuration.
+implementations/dataverse/**/bin/
+implementations/dataverse/**/obj/
+implementations/dataverse/artifacts/
+.env
+.env.*

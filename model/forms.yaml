@@ -1,0 +1,29 @@
+spec_version: "0.1.0"
+status: draft
+kind: forms
+
+forms:
+  new_case:
+    entity: case
+    purpose: Create a case for an existing client.
+    fields:
+      - client_id
+      - status_id
+      - external_reference
+      - county_id
+      - case_category_id
+      - opened_on
+    requirements:
+      - Inherit field types, references, and requiredness from schema.yaml.
+      - Select an existing client; do not duplicate client details on the case.
+      - Select a configured status; no initial status default is defined yet.
+      - Generate the case identifier automatically.
+      - Leave omitted optional fields empty; do not default the opened date.
+      - Make the saved case available for reopening.
+    excluded:
+      - Client creation and duplicate-client review.
+      - Closure and status-transition workflows.
+      - Assignments, billing, and payments.
+    unresolved:
+      - Allowed case statuses and categories, and their initial defaults.
+      - Intake roles and permitted actions.

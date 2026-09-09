@@ -25,9 +25,11 @@ technology stores or implements them.
 - `schema.yaml` defines entities, fields, and relationships.
 - `rules.yaml` defines business requirements that implementations must enforce
   or explicitly document as gaps.
+- `forms.yaml` defines the initial case intake form using schema field keys.
 
-Workflow, form, scenario, and reference-data files will be added when their
-formats and contents are ready for review.
+Acceptance scenarios live in `../scenarios/`. Workflow and reference-data files
+will be added when their formats and contents are ready for review. Synthetic
+implementation fixtures do not establish canonical reference values.
 
 ## Professional qualification levels
 

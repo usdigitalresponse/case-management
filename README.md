@@ -37,13 +37,23 @@ acceptance scenarios before committing to a production technology stack.
 
 ## Setup & Installation
 
-There is no runnable application or installation process yet. Setup instructions
-will be added when the first implementation stack is selected.
+For guided setup, double-click **setup.command** on Mac or **setup.cmd** on
+Windows in this repository's folder. The wizard explains where to find your
+Power Apps environment information; no shell-variable commands are required.
+See [guided setup](docs/deployment.md#guided-setup-recommended) for prerequisites.
+
+The first implementation is a small Dataverse case intake prototype. See
+[its setup and documented gaps](implementations/dataverse/README.md). The shared
+model remains platform-neutral; this prototype does not select a production
+technology stack.
+
+See [deployment instructions](docs/deployment.md) and the
+[Power Platform architecture assessment](docs/architecture-assessment.md).
 
 
 ## Developing Locally
 
-The repository currently contains project documentation and conventions. Before
+The repository contains the shared model and a Dataverse provisioning tool. Before
 contributing, read [AGENTS.md](./AGENTS.md) for the source-of-truth, privacy,
 working-practice, and Git guidance that applies to this project.
 
