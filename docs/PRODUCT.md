@@ -1,5 +1,6 @@
 # Case Management Prototype
 
+## Purpose
 
 This project explores how a modern case-management and billing system could
 support public-sector organizations with complex assignments, financial
