@@ -104,6 +104,8 @@ While working:
   instructions. Mark unresolved decisions clearly.
 - Update documentation when behavior, structure, commands, or architectural
   decisions change. Stale documentation is a defect.
+- Keep model `spec_version` values unchanged until the initial model has been
+  pushed; then follow the versioning convention in `model/README.md`.
 
 Before handing work back:
 

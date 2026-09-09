@@ -1,0 +1,110 @@
+spec_version: "0.1.0"
+status: draft
+kind: business_rules
+
+rules:
+  flag_possible_duplicate_client:
+    description: Identify possible existing client records before creating another.
+    applies_to: client
+    trigger: before_create
+    outcome: warning
+    requirements:
+      - Show possible matches to the user.
+      - Do not merge records automatically.
+
+  require_qualification_for_assignment:
+    description: Evaluate professional qualifications before assigning a case.
+    applies_to: case_assignment
+    trigger: before_create
+    outcome: configurable
+    requirements:
+      - Compare the case category with active professional qualifications.
+      - Record any permitted override with its actor, reason, and timestamp.
+
+  review_workload_before_assignment:
+    description: Show current workload before assigning another case.
+    applies_to: case_assignment
+    trigger: before_create
+    outcome: configurable
+    requirements:
+      - Calculate workload from active assignments and configurable policy data.
+      - Record any permitted override with its actor, reason, and timestamp.
+
+  validate_invoice_total:
+    description: Compare the submitted invoice total with its calculated lines.
+    applies_to: invoice
+    trigger: before_submit
+    outcome: blocking
+    requirements:
+      - Calculate the total from eligible invoice lines.
+      - Explain any discrepancy to the user.
+
+  flag_overlapping_invoice_period:
+    description: Identify possible duplicate billing for the same case and party.
+    applies_to: invoice
+    trigger: before_submit
+    outcome: warning
+    requirements:
+      - Compare the proposed billing period with relevant submitted or paid invoices.
+      - Show the potentially overlapping records to the user.
+
+  configure_invoice_approval_chain:
+    description: Establish the required ordered review for an invoice.
+    applies_to: invoice_approval_chain
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Allow only one non-superseded chain per invoice.
+      - Require at least one line-review step in every chain.
+      - Require positive sequence numbers unique within the chain.
+      - Include invoice pre-approval steps before line-review steps when required by configured policy.
+      - Assign each step to an active user authorized for that review.
+      - Assign pre-approval to a user other than the invoice submitter.
+
+  enforce_invoice_approval_sequence:
+    description: Record decisions only at the current authorized approval step.
+    applies_to: invoice_approval_decision
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Reject decisions for superseded chains.
+      - Require the deciding user to be the active, authorized user assigned to the step.
+      - Require every earlier step in the chain to be approved before accepting a decision.
+      - For invoice pre-approval, omit invoice_line_id and allow one decision per step.
+      - For line review, require invoice_line_id and allow one decision per line per step.
+      - Require the reviewed line to belong to the invoice referenced by the chain.
+      - Treat a line-review step as approved only when every invoice line has an approval at that step.
+      - Require a reason for rejection or a request for changes; either outcome blocks advancement.
+      - Record the actual deciding user and decision timestamp.
+
+  require_completed_invoice_approval:
+    description: Complete approval only after the invoice and all its lines pass the chain.
+    applies_to: invoice
+    trigger: before_approve
+    outcome: blocking
+    requirements:
+      - Require a non-superseded approval chain and at least one invoice line.
+      - Require approval at every pre-approval step and for every line at every line-review step.
+      - Derive approval progress from decisions in the non-superseded chain.
+
+  preserve_invoice_approval_history:
+    description: Preserve decisions and prevent changed invoices from retaining stale approvals.
+    applies_to: invoice_approval_chain
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Do not overwrite or delete recorded decisions.
+      - Freeze the invoice, its lines, and the chain steps while the chain is non-superseded.
+      - Before editing or resubmitting, supersede the chain and invalidate its approval for current use.
+      - Preserve the reviewed invoice and line values in immutable history before permitting edits.
+      - Start a new chain for renewed review; do not carry forward prior approvals automatically.
+      - Audit chain creation and supersession with actor and timestamp.
+
+  preserve_significant_history:
+    description: Record significant case, assignment, approval, and payment changes.
+    applies_to: audit_event
+    trigger: after_change
+    outcome: required
+    requirements:
+      - Record the affected record, event type, actor, and timestamp.
+      - Prevent ordinary users from changing or deleting audit events.

@@ -1,0 +1,473 @@
+spec_version: "0.1.0"
+status: draft
+kind: domain_schema
+
+entities:
+  user_account:
+    display_name: User Account
+    description: An authenticated user who can perform actions in the system.
+    primary_key: user_account_id
+    fields:
+      user_account_id:
+        type: uuid
+        required: true
+        generated: true
+      display_name:
+        type: string
+        required: true
+      active:
+        type: boolean
+        required: true
+
+  client:
+    display_name: Client
+    description: A person associated with one or more cases.
+    primary_key: client_id
+    fields:
+      client_id:
+        type: uuid
+        required: true
+        generated: true
+      given_name:
+        type: string
+        required: true
+      middle_name:
+        type: string
+        required: false
+      family_name:
+        type: string
+        required: true
+      date_of_birth:
+        type: date
+        required: false
+
+  county:
+    display_name: County
+    description: A geographic administrative area that can be associated with a case.
+    primary_key: county_id
+    fields:
+      county_id:
+        type: uuid
+        required: true
+        generated: true
+      display_name:
+        type: string
+        required: true
+      active:
+        type: boolean
+        required: true
+
+  case:
+    display_name: Case
+    description: A matter managed through its lifecycle.
+    primary_key: case_id
+    fields:
+      case_id:
+        type: uuid
+        required: true
+        generated: true
+      client_id:
+        type: uuid
+        required: true
+        references: client.client_id
+      county_id:
+        type: uuid
+        required: false
+        references: county.county_id
+      external_reference:
+        type: string
+        required: false
+      case_category_id:
+        type: reference
+        required: false
+        reference_data: case_categories
+      status_id:
+        type: reference
+        required: true
+        reference_data: case_statuses
+      opened_on:
+        type: date
+        required: false
+      closed_on:
+        type: date
+        required: false
+
+  office:
+    display_name: Office
+    description: A unit that professionals can be associated with.
+    primary_key: office_id
+    fields:
+      office_id:
+        type: uuid
+        required: true
+        generated: true
+      display_name:
+        type: string
+        required: true
+      active:
+        type: boolean
+        required: true
+
+  professional:
+    display_name: Professional
+    description: A person eligible to receive a case assignment.
+    primary_key: professional_id
+    fields:
+      professional_id:
+        type: uuid
+        required: true
+        generated: true
+      user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+      display_name:
+        type: string
+        required: true
+      qualification_level_id:
+        type: reference
+        required: false
+        reference_data: qualification_levels
+      office_id:
+        type: uuid
+        required: false
+        references: office.office_id
+      active:
+        type: boolean
+        required: true
+
+  professional_qualification:
+    display_name: Professional Qualification
+    description: A qualification held by a professional for a case category.
+    primary_key: professional_qualification_id
+    fields:
+      professional_qualification_id:
+        type: uuid
+        required: true
+        generated: true
+      professional_id:
+        type: uuid
+        required: true
+        references: professional.professional_id
+      case_category_id:
+        type: reference
+        required: true
+        reference_data: case_categories
+      effective_on:
+        type: date
+        required: false
+      expires_on:
+        type: date
+        required: false
+
+  case_assignment:
+    display_name: Case Assignment
+    description: A time-bounded assignment of a professional to a case.
+    primary_key: case_assignment_id
+    fields:
+      case_assignment_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      professional_id:
+        type: uuid
+        required: true
+        references: professional.professional_id
+      assigned_at:
+        type: datetime
+        required: true
+      ended_at:
+        type: datetime
+        required: false
+
+  time_entry:
+    display_name: Time Entry
+    description: Time recorded for work associated with a case.
+    primary_key: time_entry_id
+    fields:
+      time_entry_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      professional_id:
+        type: uuid
+        required: true
+        references: professional.professional_id
+      activity_type_id:
+        type: reference
+        required: true
+        reference_data: activity_types
+      activity_on:
+        type: date
+        required: true
+      duration_hours:
+        type: decimal
+        required: true
+      description:
+        type: string
+        required: true
+
+  expense:
+    display_name: Expense
+    description: A cost associated with work on a case.
+    primary_key: expense_id
+    fields:
+      expense_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      expense_type_id:
+        type: reference
+        required: true
+        reference_data: expense_types
+      incurred_on:
+        type: date
+        required: true
+      amount:
+        type: money
+        required: true
+
+  invoice:
+    display_name: Invoice
+    description: A request for payment that moves through review and payment.
+    primary_key: invoice_id
+    fields:
+      invoice_id:
+        type: uuid
+        required: true
+        generated: true
+      submitted_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      status_id:
+        type: reference
+        required: true
+        reference_data: invoice_statuses
+      submitted_at:
+        type: datetime
+        required: false
+      submitted_total:
+        type: money
+        required: true
+
+  invoice_line:
+    display_name: Invoice Line
+    description: An amount on an invoice associated with a case and billable item.
+    primary_key: invoice_line_id
+    fields:
+      invoice_line_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      line_type_id:
+        type: reference
+        required: true
+        reference_data: invoice_line_types
+      source_record_id:
+        type: uuid
+        required: false
+      source_record_type:
+        type: string
+        required: false
+      amount:
+        type: money
+        required: true
+
+  invoice_approval_chain:
+    display_name: Invoice Approval Chain
+    description: An ordered review of an invoice and its lines for one approval attempt.
+    primary_key: invoice_approval_chain_id
+    fields:
+      invoice_approval_chain_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      created_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      created_at:
+        type: datetime
+        required: true
+      superseded_at:
+        type: datetime
+        required: false
+
+  invoice_approval_step:
+    display_name: Invoice Approval Step
+    description: A user-assigned stage in an invoice approval chain.
+    primary_key: invoice_approval_step_id
+    fields:
+      invoice_approval_step_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_approval_chain_id:
+        type: uuid
+        required: true
+        references: invoice_approval_chain.invoice_approval_chain_id
+      sequence_number:
+        type: integer
+        required: true
+      step_type_id:
+        type: reference
+        required: true
+        reference_data: invoice_approval_step_types
+      assigned_to_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+
+  invoice_approval_decision:
+    display_name: Invoice Approval Decision
+    description: An immutable decision on an invoice or one of its lines at a review step.
+    primary_key: invoice_approval_decision_id
+    fields:
+      invoice_approval_decision_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_approval_step_id:
+        type: uuid
+        required: true
+        references: invoice_approval_step.invoice_approval_step_id
+      invoice_line_id:
+        type: uuid
+        required: false
+        references: invoice_line.invoice_line_id
+      outcome_id:
+        type: reference
+        required: true
+        reference_data: invoice_approval_outcomes
+      decided_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      decided_at:
+        type: datetime
+        required: true
+      reason:
+        type: string
+        required: false
+
+  payment:
+    display_name: Payment
+    description: A payment or payment confirmation associated with an invoice.
+    primary_key: payment_id
+    fields:
+      payment_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      amount:
+        type: money
+        required: true
+      paid_on:
+        type: date
+        required: false
+      external_reference:
+        type: string
+        required: false
+
+  service_provider:
+    display_name: Service Provider
+    description: An external provider of services associated with a case.
+    primary_key: service_provider_id
+    fields:
+      service_provider_id:
+        type: uuid
+        required: true
+        generated: true
+      user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+      display_name:
+        type: string
+        required: true
+      active:
+        type: boolean
+        required: true
+
+  preauthorization:
+    display_name: Preauthorization
+    description: Approval requested before an external service is performed.
+    primary_key: preauthorization_id
+    fields:
+      preauthorization_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      service_provider_id:
+        type: uuid
+        required: false
+        references: service_provider.service_provider_id
+      status_id:
+        type: reference
+        required: true
+        reference_data: preauthorization_statuses
+      requested_amount:
+        type: money
+        required: false
+      requested_at:
+        type: datetime
+        required: true
+
+  audit_event:
+    display_name: Audit Event
+    description: An immutable record of a significant action or state change.
+    primary_key: audit_event_id
+    fields:
+      audit_event_id:
+        type: uuid
+        required: true
+        generated: true
+      entity_type:
+        type: string
+        required: true
+      entity_id:
+        type: uuid
+        required: true
+      event_type:
+        type: string
+        required: true
+      actor_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      occurred_at:
+        type: datetime
+        required: true
