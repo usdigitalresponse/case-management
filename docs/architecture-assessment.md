@@ -52,6 +52,14 @@ must enforce the same domain transitions and access rules at the service boundar
 A future complete web implementation remains supported by these specifications;
 this review does not require creating a web project now.
 
+**2026-09-10 addendum:** a bounded comparison is planned for new-case intake:
+standard model-driven form, Power Fx Custom Page, and React web UI, all using the
+same Dataverse backend and authoritative save behavior. See the
+[implementation plan](case-intake-comparison-plan.md) and
+[comparison worksheet](case-intake-ui-comparison.md). This authorizes a focused
+React experiment, not a complete web application or a production-stack choice.
+Until results are recorded in `docs/DECISIONS.md`, standard forms remain the default.
+
 ## Deployment assessment
 
 The live prototype is packaged in `CaseIntakePrototype`, and its bootstrap is
@@ -126,8 +134,9 @@ Maintain these distinctions as the implementation grows:
 
 Do now: preserve the current boundaries, complete intake verification, capture
 the Solution, and document/test deployment. Defer a directory reorganization,
-full YAML-to-platform generators, custom UI components, a standalone web stack,
-and organization-wide production architecture until a concrete need is established.
+full YAML-to-platform generators, unrelated custom UI components, and
+organization-wide production architecture. The bounded React intake experiment
+is described in the comparison plan above.
 
 For cross-implementation comparisons, reuse the acceptance scenarios and record
 development effort, task success/usability, performance, deployment effort,
