@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<savedqueries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <savedquery>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <isquickfindquery>0</isquickfindquery>
+    <isprivate>0</isprivate>
+    <isdefault>1</isdefault>
+    <savedqueryid>{e97c5727-0b9d-498e-aea1-b21164a3a121}</savedqueryid>
+    <layoutxml>
+      <grid name="resultset" jump="cm_name" select="1" icon="1" preview="1">
+        <row name="result" id="cm_case_identifierid">
+          <cell name="cm_name" width="180" />
+          <cell name="cm_case_id" width="180" />
+          <cell name="cm_identifier_type_id" width="180" />
+          <cell name="cm_issuer" width="180" />
+          <cell name="cm_value" width="180" />
+          <cell name="cm_is_primary" width="180" />
+        </row>
+      </grid>
+    </layoutxml>
+    <querytype>0</querytype>
+    <fetchxml>
+      <fetch>
+        <entity name="cm_case_identifier">
+          <attribute name="cm_case_identifierid" />
+          <attribute name="cm_name" />
+          <attribute name="cm_case_id" />
+          <attribute name="cm_identifier_type_id" />
+          <attribute name="cm_issuer" />
+          <attribute name="cm_value" />
+          <attribute name="cm_is_primary" />
+          <order attribute="cm_name" descending="false" />
+        </entity>
+      </fetch>
+    </fetchxml>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic Case Identifier records" languagecode="1033" />
+    </LocalizedNames>
+  </savedquery>
+</savedqueries>

@@ -148,6 +148,9 @@ Before handing work back:
 
 ## Git workflow
 
+- Before editing, create a focused feature branch. Do not work directly
+  on `main`; reuse the current feature branch when continuing the same change.
+- The user opens pull requests and merges manually after reviewing the branch.
 - Never push commits or branches to a remote. All pushes are performed manually
   by the user.
 - Do not create pull requests or otherwise publish repository changes.
@@ -189,10 +192,15 @@ For the expanded 0.2 synthetic Dataverse review, read the implementation README
 and use `prepare_review.py` plus `--check-review`, `deploy-review`, `seed-review`
 and `verify-review`. The 0.1 guided baseline must not overwrite the expanded app.
 Review forms and seeded projections do not establish runtime workflow enforcement.
+Read `implementations/dataverse/SOLUTION.md` for the export/unpack/pack/import
+workflow. `Solution/` preserves privacy-reviewed maker customizations; export
+current maker edits before changing it. Existing forms must preserve their
+layouts and events; append missing fields rather than deleting/regenerating forms.
+App update failures must stop without deleting/recreating the existing app.
 Prepared packages, raw Solution exports and environment data stay outside Git.
 
 See the implementation README before any deployment. `deploy` changes the
-target environment and replaces prototype form layouts; `upgrade-client` patches
+target environment and adds missing form fields while preserving existing layouts; `upgrade-client` patches
 and publishes the existing app's client setting only. App creation and verification
 must enforce Unified Interface (`clienttype = 4`). `smoke` creates and
 retains synthetic test cases; `inspect` and `verify` are read-only. Keep

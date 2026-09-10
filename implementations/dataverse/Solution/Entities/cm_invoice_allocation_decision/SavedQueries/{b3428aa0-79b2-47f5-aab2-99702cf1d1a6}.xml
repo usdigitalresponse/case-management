@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<savedqueries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <savedquery>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <isquickfindquery>0</isquickfindquery>
+    <isprivate>0</isprivate>
+    <isdefault>1</isdefault>
+    <savedqueryid>{b3428aa0-79b2-47f5-aab2-99702cf1d1a6}</savedqueryid>
+    <layoutxml>
+      <grid name="resultset" jump="cm_name" select="1" icon="1" preview="1">
+        <row name="result" id="cm_invoice_allocation_decisionid">
+          <cell name="cm_name" width="180" />
+          <cell name="cm_invoice_approval_decision_id" width="180" />
+          <cell name="cm_invoice_authorization_allocation_id" width="180" />
+          <cell name="cm_approved_amount" width="180" />
+        </row>
+      </grid>
+    </layoutxml>
+    <querytype>0</querytype>
+    <fetchxml>
+      <fetch>
+        <entity name="cm_invoice_allocation_decision">
+          <attribute name="cm_invoice_allocation_decisionid" />
+          <attribute name="cm_name" />
+          <attribute name="cm_invoice_approval_decision_id" />
+          <attribute name="cm_invoice_authorization_allocation_id" />
+          <attribute name="cm_approved_amount" />
+          <order attribute="cm_name" descending="false" />
+        </entity>
+      </fetch>
+    </fetchxml>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic Invoice Allocation Decision records" languagecode="1033" />
+    </LocalizedNames>
+  </savedquery>
+</savedqueries>

@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<AppModuleSiteMap xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <SiteMapUniqueName>cm_caseintake_sitemap</SiteMapUniqueName>
+  <EnableCollapsibleGroups>False</EnableCollapsibleGroups>
+  <ShowHome>True</ShowHome>
+  <ShowPinned>True</ShowPinned>
+  <ShowRecents>True</ShowRecents>
+  <SiteMap>
+    <Area Id="intake">
+      <Titles>
+        <Title LCID="1033" Title="Case intake" />
+      </Titles>
+      <Group Id="cases" IsProfile="false">
+        <Titles>
+          <Title LCID="1033" Title="Work" />
+        </Titles>
+        <SubArea Id="user_account_list" Entity="cm_user_account" />
+        <SubArea Id="county_list" Entity="cm_county" />
+        <SubArea Id="case_list" Entity="cm_case" />
+        <SubArea Id="office_list" Entity="cm_office" />
+        <SubArea Id="professional_list" Entity="cm_professional" />
+        <SubArea Id="case_assignment_list" Entity="cm_case_assignment" />
+        <SubArea Id="time_entry_list" Entity="cm_time_entry" />
+        <SubArea Id="invoice_list" Entity="cm_invoice" />
+        <SubArea Id="invoice_line_list" Entity="cm_invoice_line" />
+        <SubArea Id="invoice_approval_chain_list" Entity="cm_invoice_approval_chain" />
+        <SubArea Id="invoice_approval_decision_list" Entity="cm_invoice_approval_decision" />
+        <SubArea Id="payment_list" Entity="cm_payment" />
+        <SubArea Id="service_provider_list" Entity="cm_service_provider" />
+        <SubArea Id="preauthorization_list" Entity="cm_preauthorization" />
+        <SubArea Id="person_list" Entity="cm_person" />
+        <SubArea Id="organization_list" Entity="cm_organization" />
+        <SubArea Id="role_list" Entity="cm_role" />
+        <SubArea Id="person_affiliation_list" Entity="cm_person_affiliation" />
+        <SubArea Id="case_participant_list" Entity="cm_case_participant" />
+        <SubArea Id="case_identifier_list" Entity="cm_case_identifier" />
+        <SubArea Id="case_issue_list" Entity="cm_case_issue" />
+        <SubArea Id="case_lifecycle_event_list" Entity="cm_case_lifecycle_event" />
+        <SubArea Id="activity_list" Entity="cm_activity" />
+        <SubArea Id="supporting_invoice_list" Entity="cm_supporting_invoice" />
+        <SubArea Id="invoice_authorization_allocation_list" Entity="cm_invoice_authorization_allocation" />
+        <SubArea Id="invoice_allocation_decision_list" Entity="cm_invoice_allocation_decision" />
+        <SubArea Id="invoice_attestation_list" Entity="cm_invoice_attestation" />
+        <SubArea Id="invoice_event_list" Entity="cm_invoice_event" />
+        <SubArea Id="preauthorization_decision_list" Entity="cm_preauthorization_decision" />
+      </Group>
+    </Area>
+  </SiteMap>
+  <LocalizedNames>
+    <LocalizedName description="Case Intake" languagecode="1033" />
+  </LocalizedNames>
+</AppModuleSiteMap>

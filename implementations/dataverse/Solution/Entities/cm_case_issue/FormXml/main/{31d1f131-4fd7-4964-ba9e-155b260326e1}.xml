@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{31d1f131-4fd7-4964-ba9e-155b260326e1}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{c6c966dc-ae5c-40d5-92a4-e8813a74b9b4}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{f24a93ca-aeee-45d3-81ef-b89f9b9b7867}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{5f7ef909-6f71-4712-825a-b9e0d886a0f2}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{6932fa77-fa85-4631-a7fa-63a89fbea2e2}">
+                        <labels>
+                          <label description="Case id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_case_id" datafieldname="cm_case_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{8e96a04c-cafb-4963-84ef-9a9092e4ea84}">
+                        <labels>
+                          <label description="Issue type id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_issue_type_id" datafieldname="cm_issue_type_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{c608af14-80d2-4f2e-b665-141c1493d84d}">
+                        <labels>
+                          <label description="Code" languagecode="1033" />
+                        </labels>
+                        <control id="cm_code" datafieldname="cm_code" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{db462963-d029-4fcb-b090-4049a54e39c0}">
+                        <labels>
+                          <label description="Statute reference" languagecode="1033" />
+                        </labels>
+                        <control id="cm_statute_reference" datafieldname="cm_statute_reference" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{d648d1e1-807d-4ec9-a09b-ee004b9ecb8c}">
+                        <labels>
+                          <label description="Description" languagecode="1033" />
+                        </labels>
+                        <control id="cm_description" datafieldname="cm_description" classid="{E0DECE4B-6FC8-4A8F-A065-082708572369}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{25cf2578-3937-46fa-ad8e-ad2bb308acc1}">
+                        <labels>
+                          <label description="Occurred on" languagecode="1033" />
+                        </labels>
+                        <control id="cm_occurred_on" datafieldname="cm_occurred_on" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{e1bced5e-8407-4954-adc3-46e7010c3038}">
+                        <labels>
+                          <label description="Is primary" languagecode="1033" />
+                        </labels>
+                        <control id="cm_is_primary" datafieldname="cm_is_primary" classid="{67FAC785-CD58-4F9F-ABB3-4B7DDC6ED5ED}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

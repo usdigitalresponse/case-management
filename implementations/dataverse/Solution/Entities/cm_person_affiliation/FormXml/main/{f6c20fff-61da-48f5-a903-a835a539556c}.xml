@@ -1,0 +1,95 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{f6c20fff-61da-48f5-a903-a835a539556c}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{b79c3ea2-741b-4c48-9c8c-74f104f883dd}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{c07d66be-e69a-4d06-94ae-93c159a97542}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{04e3ac95-776e-456e-94b4-ffe88077c974}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{f302a5a9-10fb-49a2-8765-a266ebb3f4e6}">
+                        <labels>
+                          <label description="Person id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_person_id" datafieldname="cm_person_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{92206357-c805-4a2c-9517-cc54c29ed318}">
+                        <labels>
+                          <label description="Organization id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_organization_id" datafieldname="cm_organization_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{0f1fed5f-891c-483c-9016-7663a94b3cc8}">
+                        <labels>
+                          <label description="Office id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_office_id" datafieldname="cm_office_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{d194d3cb-5713-4c94-8fc9-b2f28e22185f}">
+                        <labels>
+                          <label description="Affiliation role id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_affiliation_role_id" datafieldname="cm_affiliation_role_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{6a11e7a7-6f15-4ddc-8809-eb34b3805d2e}">
+                        <labels>
+                          <label description="Started at" languagecode="1033" />
+                        </labels>
+                        <control id="cm_started_at" datafieldname="cm_started_at" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{cdeaf4f7-aa06-4480-95d8-a2fc3ecd8739}">
+                        <labels>
+                          <label description="Ended at" languagecode="1033" />
+                        </labels>
+                        <control id="cm_ended_at" datafieldname="cm_ended_at" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

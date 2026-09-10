@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{fce41eaf-3ad1-4f73-9b62-3f115344e7fb}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{3e634e9f-bc44-4fc3-9e9e-ed74bb1b1425}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{a92928dd-3b40-4d27-933e-faa8dcf3233c}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{bcdcf332-3c1e-466d-8e54-eccb820e62f7}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{3383a86f-898c-4a6f-b52d-d932406bfe9e}">
+                        <labels>
+                          <label description="Storage reference" languagecode="1033" />
+                        </labels>
+                        <control id="cm_storage_reference" datafieldname="cm_storage_reference" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{8c07361a-8883-4c63-ad16-f0eb169bff22}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_display_name" datafieldname="cm_display_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{5ee0c370-399e-4037-8995-565e950a6ca7}">
+                        <labels>
+                          <label description="Media type" languagecode="1033" />
+                        </labels>
+                        <control id="cm_media_type" datafieldname="cm_media_type" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{0161e393-34f3-4dd2-935c-cde9a9002422}">
+                        <labels>
+                          <label description="Content hash" languagecode="1033" />
+                        </labels>
+                        <control id="cm_content_hash" datafieldname="cm_content_hash" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{bf23c955-c55a-4c66-88a9-1cd257ce060d}">
+                        <labels>
+                          <label description="Recorded at" languagecode="1033" />
+                        </labels>
+                        <control id="cm_recorded_at" datafieldname="cm_recorded_at" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{eabe3ae2-9ba2-4f2c-9369-f6b8e590b301}">
+                        <labels>
+                          <label description="Recorded by user account id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_recorded_by_user_account_id" datafieldname="cm_recorded_by_user_account_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{9b9cf7f0-af44-467c-8396-6c86cdf18f0f}">
+                        <labels>
+                          <label description="Supersedes document id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_supersedes_document_id" datafieldname="cm_supersedes_document_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

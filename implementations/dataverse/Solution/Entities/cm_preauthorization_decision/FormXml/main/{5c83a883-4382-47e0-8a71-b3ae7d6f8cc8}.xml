@@ -1,0 +1,111 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{5c83a883-4382-47e0-8a71-b3ae7d6f8cc8}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{cf6e55e8-bb02-4b09-a835-2a130715de28}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{319ce4f6-f4aa-4e0d-9544-574635f922ad}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{ea407c49-62c9-4609-abf0-a00b09a9a181}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{2a4c2778-9735-4d5d-bb0c-6c9a42565abe}">
+                        <labels>
+                          <label description="Preauthorization id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_preauthorization_id" datafieldname="cm_preauthorization_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{4567178d-e5c7-405e-9371-3f3245552075}">
+                        <labels>
+                          <label description="Sequence number" languagecode="1033" />
+                        </labels>
+                        <control id="cm_sequence_number" datafieldname="cm_sequence_number" classid="{C6D124CA-7EDA-4A60-AEA9-7FB8D318B68F}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{aedbb426-c405-493d-80d8-4c542a29e647}">
+                        <labels>
+                          <label description="Outcome id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_outcome_id" datafieldname="cm_outcome_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{f43158a5-71a8-4870-a2ab-966a936767b8}">
+                        <labels>
+                          <label description="Approved amount" languagecode="1033" />
+                        </labels>
+                        <control id="cm_approved_amount" datafieldname="cm_approved_amount" classid="{C3EFE0C3-0EC6-42BE-8349-CBD9079C5A6F}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{9bc77022-673d-4b80-aa34-e96fe6b52583}">
+                        <labels>
+                          <label description="Effective at" languagecode="1033" />
+                        </labels>
+                        <control id="cm_effective_at" datafieldname="cm_effective_at" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{75ef73de-34dc-4196-8315-b062ae2f04c1}">
+                        <labels>
+                          <label description="Decided at" languagecode="1033" />
+                        </labels>
+                        <control id="cm_decided_at" datafieldname="cm_decided_at" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{4bba174e-7687-451b-981b-abfb72760a8f}">
+                        <labels>
+                          <label description="Decided by user account id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_decided_by_user_account_id" datafieldname="cm_decided_by_user_account_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{72f54675-3a61-444a-b635-89663159d34b}">
+                        <labels>
+                          <label description="Reason" languagecode="1033" />
+                        </labels>
+                        <control id="cm_reason" datafieldname="cm_reason" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

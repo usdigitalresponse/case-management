@@ -47,9 +47,9 @@ external completion amount/date. Required metadata uses Business Required and is
 not an API-level guarantee. Historical decisions/snapshots are physically separate
 records, but runtime immutability has not been implemented.
 
-Legacy client name columns and older sample records are not deleted. Obsolete
-requiredness is relaxed so new person/profile relationships can be reviewed.
-Unused legacy data does not require conversion. The seed operation writes only
+Legacy client name columns and older sample records are not deleted. Mapped
+requiredness is synchronized for the current person/profile relationships.
+Unused legacy data does not require conversion. Unmapped columns are left alone. The seed operation writes only
 the UUIDs in its prepared synthetic package and does not reset other records.
 
 ## Prepare, check, deploy and seed
@@ -70,6 +70,9 @@ dotnet run --no-build --project implementations/dataverse/Provision -- inspect "
 dotnet run --no-build --project implementations/dataverse/Provision -- deploy-review "$DATAVERSE_URL" /tmp/case-review.json
 ```
 
+Use the [Solution source workflow](SOLUTION.md) for command customizations and
+subsequent maker changes.
+
 Before deployment, inspect the environment's existing apps in `make.powerapps.com`
 as well. Reuse the existing app; do not create a parallel troubleshooting copy.
 `deploy-review` adds missing schema and lookups, updates app navigation,
@@ -78,15 +81,12 @@ It can resume a partial deployment. Changes are incremental, not one
 transaction. It does not grant security roles or change account permissions;
 auditing is enabled if needed.
 
-Each table's main form is populated once, the first time it is deployed
-(adopting Dataverse's freshly generated default form). After that,
-`deploy-review` never overwrites it again, so hand-customizing a form in the
-maker portal is safe from being clobbered by a later schema push — but the
-reverse also holds: a field added to a table's schema after its form already
-exists will **not** appear on that form. The console output says so explicitly
-for any table whose form was left alone. Delete the form (it will regenerate
-Dataverse's default on the next deploy) to pick up new fields, or add them by
-hand. Views are unaffected by this and already behaved this way.
+Existing main forms retain their identities, layouts, scripts and controls.
+When the schema adds a field, deployment appends only missing fields in an
+**Additional schema fields** tab. It does not delete or regenerate a form.
+Unmapped maker columns retain their requiredness. Views remain maker-owned;
+update them in the designer or unpacked Solution source when their columns change.
+An app update failure stops deployment without deleting the app.
 
 For seed-only or read-only verification after schema deployment:
 
@@ -157,11 +157,14 @@ this review bootstrap into an application backend.
 
 ## Packaging
 
-Use `pac solution export` and `pac solution unpack` for the actual updated Solution.
+The privacy-reviewed unpacked [Solution source](Solution) captures the actual
+app, forms, views, relationships and command customizations. Use `pac solution
+export` and `pac solution unpack` to capture subsequent maker changes.
 Keep raw exports, connection details and logs under ignored `artifacts/` or outside
 the repository. Review unpacked content for private environment metadata before
 adding any Solution source to Git. The canonical YAML remains the requirements
-source; Solution source should capture the actual Power Platform implementation.
+source; Solution source captures the actual Power Platform implementation. See
+[SOLUTION.md](SOLUTION.md) for the supported build and maintenance commands.
 See [deployment guidance](../../docs/deployment.md).
 
 ## Microsoft references

@@ -58,17 +58,19 @@ The live prototype is packaged in `CaseIntakePrototype`, and its bootstrap is
 repeatable in the limited sense that it can resume after partial creation. That
 is not yet a proven clean-environment deployment process.
 
-The main gap is that the repository currently contains imperative provisioning
-code rather than the unpacked Solution as the supported source representation.
-The code duplicates a subset of the YAML model, reconstructs form XML, requires
-a separate API sign-in, and can replace maker edits on rerun. Keep it as the
-initial bootstrap, but avoid growing it into a general deployment framework.
+The repository now includes the privacy-reviewed unpacked Solution under
+`implementations/dataverse/Solution`. This captures maker forms, views, navigation
+and command customizations alongside the canonical YAML. The provisioning tool
+remains a bounded bootstrap and schema maintenance tool; it preserves app IDs and
+existing form layouts, adding only missing fields. Do not grow it into a general
+deployment framework.
 
-Use `pac` and Solution tooling for the durable export/unpack/build/import path.
-Keep the platform-neutral specification authoritative for intended behavior;
-use Solution source to capture the actual Power Platform implementation, including
-changes made with Microsoft's designers. Unmanaged development source and managed
-downstream deployment artifacts have distinct roles.
+Use `pac` and Solution tooling for export/unpack/pack/import. Export maker changes
+before editing Solution source, review for private metadata, then retain the
+result in Git. The canonical specification remains authoritative for intended
+behavior; the Solution records the actual Power Platform implementation.
+Unmanaged development source and managed downstream artifacts have distinct roles.
+
 [Microsoft Solution concepts](https://learn.microsoft.com/en-us/power-platform/alm/solution-concepts-alm)
 
 Clean deployment must separately account for reference data, environment-level
@@ -107,10 +109,9 @@ Maintain these distinctions as the implementation grows:
 1. **Finish and record the intake baseline.** Publish and validate the app;
    record API and UI test results separately. Keep ordinary-user access and
    missing duplicate validation explicit. Do not call the slice production-ready.
-2. **Capture the Solution as source.** Export using `pac`, inspect for private
-   content and unwanted dependencies, and unpack beneath the existing Dataverse
-   implementation. Establish a designer-change/export/review loop and a build
-   command. Preserve native component identities; avoid wholesale renaming.
+2. **Maintain the captured Solution source.** The initial export is now captured.
+   Continue the designer-change/export/privacy-review loop documented in
+   `implementations/dataverse/SOLUTION.md`, preserving native component identities.
 3. **Make deployment complete.** Add a small deployment wrapper and configuration
    template with explicit source/target selection. Separate reference-data seeding
    and environment setup from Solution import. Prefer a tenant-owned deployment

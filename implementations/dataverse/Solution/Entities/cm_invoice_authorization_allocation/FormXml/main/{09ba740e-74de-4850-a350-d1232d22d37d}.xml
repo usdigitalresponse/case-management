@@ -1,0 +1,71 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{09ba740e-74de-4850-a350-d1232d22d37d}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{c91b6849-aa05-4d39-ad65-a7b25880da55}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{c744e1a4-e9ef-4032-b373-00cbb8666975}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{8768fa19-2669-493c-8271-410633ee3821}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{45d5b639-7140-404b-8f59-3dcaf36a5719}">
+                        <labels>
+                          <label description="Invoice id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_invoice_id" datafieldname="cm_invoice_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{f26e005e-0913-4fc5-9d86-02e013de6be1}">
+                        <labels>
+                          <label description="Preauthorization id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_preauthorization_id" datafieldname="cm_preauthorization_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{1f8b35d8-dbe4-4a91-9432-42ed62259aee}">
+                        <labels>
+                          <label description="Requested amount" languagecode="1033" />
+                        </labels>
+                        <control id="cm_requested_amount" datafieldname="cm_requested_amount" classid="{C3EFE0C3-0EC6-42BE-8349-CBD9079C5A6F}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

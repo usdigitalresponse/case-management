@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<savedqueries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <savedquery>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <isquickfindquery>0</isquickfindquery>
+    <isprivate>0</isprivate>
+    <isdefault>1</isdefault>
+    <savedqueryid>{c923b3a2-16a2-4ef4-9f6d-5b73eee26d60}</savedqueryid>
+    <layoutxml>
+      <grid name="resultset" jump="cm_name" select="1" icon="1" preview="1">
+        <row name="result" id="cm_case_fundingid">
+          <cell name="cm_name" width="180" />
+          <cell name="cm_case_id" width="180" />
+          <cell name="cm_funding_source_id" width="180" />
+          <cell name="cm_case_program_id" width="180" />
+        </row>
+      </grid>
+    </layoutxml>
+    <querytype>0</querytype>
+    <fetchxml>
+      <fetch>
+        <entity name="cm_case_funding">
+          <attribute name="cm_case_fundingid" />
+          <attribute name="cm_name" />
+          <attribute name="cm_case_id" />
+          <attribute name="cm_funding_source_id" />
+          <attribute name="cm_case_program_id" />
+          <order attribute="cm_name" descending="false" />
+        </entity>
+      </fetch>
+    </fetchxml>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic Case Funding records" languagecode="1033" />
+    </LocalizedNames>
+  </savedquery>
+</savedqueries>

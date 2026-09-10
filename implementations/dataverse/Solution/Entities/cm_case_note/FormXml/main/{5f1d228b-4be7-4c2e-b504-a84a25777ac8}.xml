@@ -1,0 +1,87 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{5f1d228b-4be7-4c2e-b504-a84a25777ac8}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{42ba1964-139e-4fb2-adb1-db04cc686e1c}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{5aff215e-2b11-4e64-bd62-3c767ce18555}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{a3b6d16a-4f11-4a91-b72a-546fb44aad86}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{344d7461-75f6-4d03-8d4c-3e9c96ac4626}">
+                        <labels>
+                          <label description="Case id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_case_id" datafieldname="cm_case_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{0dce7482-0578-4308-881a-23e5fa83398e}">
+                        <labels>
+                          <label description="Author user account id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_author_user_account_id" datafieldname="cm_author_user_account_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{7a3ec2cb-e908-4b21-8a24-d76e1b53d279}">
+                        <labels>
+                          <label description="Occurred at" languagecode="1033" />
+                        </labels>
+                        <control id="cm_occurred_at" datafieldname="cm_occurred_at" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{ea97d497-8693-4d6b-9dec-a91dede8b397}">
+                        <labels>
+                          <label description="Recorded at" languagecode="1033" />
+                        </labels>
+                        <control id="cm_recorded_at" datafieldname="cm_recorded_at" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{12c64807-321b-468f-9c2a-21e195e1031c}">
+                        <labels>
+                          <label description="Body" languagecode="1033" />
+                        </labels>
+                        <control id="cm_body" datafieldname="cm_body" classid="{E0DECE4B-6FC8-4A8F-A065-082708572369}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

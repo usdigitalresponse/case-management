@@ -9,7 +9,9 @@ For the expanded model and shared synthetic data, follow the
 [current implementation commands](../implementations/dataverse/README.md#prepare-check-deploy-and-seed).
 Use `prepare_review.py`, `deploy-review`, `seed-review` and `verify-review`.
 The review uses the existing app/Solution and adds related tables; it is not yet
-an operational workflow implementation. Fields are displayed read-only for review.
+an operational workflow implementation. Fields are displayed read-only for review;
+this is a usability boundary, not server-side enforcement. See
+[Solution maintenance](../implementations/dataverse/SOLUTION.md).
 The older guided setup does not deploy this slice and cannot overwrite it.
 
 The original five-table bootstrap and guided setup documentation below describes
@@ -74,7 +76,7 @@ The wizard then walks you through:
 4. Completing Microsoft sign-in and checking the returned environment name.
 5. Confirming setup in the intended development environment. If the prototype
    already exists, the default is read-only verification. Explicit `REBUILD`
-   resumes/recreates the prototype configuration and replaces main form layouts.
+   resumes prototype configuration and adds missing fields while preserving existing forms.
 6. Opening the app link and trying a synthetic case.
 
 You do not need to set shell variables or edit configuration files for this path.
@@ -194,7 +196,8 @@ Never replace the placeholders in this document with actual tenant values.
    This also enables environment auditing if it is disabled, which activates
    auditing for other tables already marked for auditing. It does not assign
    security roles. Deployment is incremental; inspect errors before resuming.
-   A rerun replaces prototype form layouts, so preserve maker edits first.
+   A rerun preserves existing form layouts and adds missing fields. Export maker
+   edits before further Solution customization.
 
 5. Verify the metadata and run the synthetic data checks:
 
@@ -264,10 +267,9 @@ Solution import transports the included component definitions. Separately handle
 - user provisioning, security-role assignments, and app access;
 - future environment-variable values and connection-reference bindings.
 
-The present bootstrap bundles schema creation and seeding; there is not yet a
-standalone configuration/seed command suitable for this import-only route. Do not
-run the full bootstrap after import merely to seed data, because it can replace
-forms. Split that small step out when validating the native deployment path.
+For the 0.2 review, `seed-review` restores the prepared synthetic package after
+Solution import without rebuilding schema or forms. Do not run the full
+bootstrap merely to seed data. The 0.1 baseline does not support this route.
 
 There are currently no flows or external connections requiring connection
 references. Introduce them with the relevant integration, and use
@@ -276,9 +278,9 @@ environment-specific bindings when applicable.
 
 ## Source control and completion criteria
 
-The next increment should use `pac solution unpack` to capture a privacy-reviewed
-Solution source representation beneath the existing implementation directory, then
-validate its rebuild with `pac solution pack` or a Solution project. Preserve
+The privacy-reviewed source is now under `implementations/dataverse/Solution`.
+Capture subsequent changes with `pac solution export` and `pac solution unpack`,
+then validate the rebuild with `pac solution pack`. Preserve
 component identities and maker changes. Raw exports can contain environment
 metadata; review them before adding any representation to Git.
 

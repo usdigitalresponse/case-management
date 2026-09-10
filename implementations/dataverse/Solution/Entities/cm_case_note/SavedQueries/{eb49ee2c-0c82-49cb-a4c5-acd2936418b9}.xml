@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<savedqueries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <savedquery>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <isquickfindquery>0</isquickfindquery>
+    <isprivate>0</isprivate>
+    <isdefault>1</isdefault>
+    <savedqueryid>{eb49ee2c-0c82-49cb-a4c5-acd2936418b9}</savedqueryid>
+    <layoutxml>
+      <grid name="resultset" jump="cm_name" select="1" icon="1" preview="1">
+        <row name="result" id="cm_case_noteid">
+          <cell name="cm_name" width="180" />
+          <cell name="cm_case_id" width="180" />
+          <cell name="cm_author_user_account_id" width="180" />
+          <cell name="cm_occurred_at" width="180" />
+          <cell name="cm_recorded_at" width="180" />
+        </row>
+      </grid>
+    </layoutxml>
+    <querytype>0</querytype>
+    <fetchxml>
+      <fetch>
+        <entity name="cm_case_note">
+          <attribute name="cm_case_noteid" />
+          <attribute name="cm_name" />
+          <attribute name="cm_case_id" />
+          <attribute name="cm_author_user_account_id" />
+          <attribute name="cm_occurred_at" />
+          <attribute name="cm_recorded_at" />
+          <order attribute="cm_name" descending="false" />
+        </entity>
+      </fetch>
+    </fetchxml>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic Case Note records" languagecode="1033" />
+    </LocalizedNames>
+  </savedquery>
+</savedqueries>

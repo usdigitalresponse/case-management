@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<savedqueries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <savedquery>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <isquickfindquery>0</isquickfindquery>
+    <isprivate>0</isprivate>
+    <isdefault>1</isdefault>
+    <savedqueryid>{3885d9b5-46a4-4ead-a3d7-ebe6ffb8cb48}</savedqueryid>
+    <layoutxml>
+      <grid name="resultset" jump="cm_name" select="1" icon="1" preview="1">
+        <row name="result" id="cm_case_programid">
+          <cell name="cm_name" width="180" />
+          <cell name="cm_case_id" width="180" />
+          <cell name="cm_program_id" width="180" />
+          <cell name="cm_started_on" width="180" />
+          <cell name="cm_ended_on" width="180" />
+        </row>
+      </grid>
+    </layoutxml>
+    <querytype>0</querytype>
+    <fetchxml>
+      <fetch>
+        <entity name="cm_case_program">
+          <attribute name="cm_case_programid" />
+          <attribute name="cm_name" />
+          <attribute name="cm_case_id" />
+          <attribute name="cm_program_id" />
+          <attribute name="cm_started_on" />
+          <attribute name="cm_ended_on" />
+          <order attribute="cm_name" descending="false" />
+        </entity>
+      </fetch>
+    </fetchxml>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic Case Program records" languagecode="1033" />
+    </LocalizedNames>
+  </savedquery>
+</savedqueries>

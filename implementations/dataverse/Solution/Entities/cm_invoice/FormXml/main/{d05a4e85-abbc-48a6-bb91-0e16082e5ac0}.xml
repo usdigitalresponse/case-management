@@ -1,0 +1,119 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{d05a4e85-abbc-48a6-bb91-0e16082e5ac0}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{6e1be144-38f9-4403-896d-879f3107eb5f}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{18695abd-ebf4-4ea5-9fd9-c1e6aaee1a3c}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{66a5fc35-dbc4-4488-8d83-5f3c9a803ac4}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{f25d128c-f403-41b1-bf19-83336398c2e9}">
+                        <labels>
+                          <label description="Submitted by user account id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_submitted_by_user_account_id" datafieldname="cm_submitted_by_user_account_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{dbe8f88a-4225-4995-8d59-27cdc0bb0091}">
+                        <labels>
+                          <label description="Status id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_status_id" datafieldname="cm_status_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{1f545901-5478-480e-8fbc-5f8995024eb4}">
+                        <labels>
+                          <label description="Submitted at" languagecode="1033" />
+                        </labels>
+                        <control id="cm_submitted_at" datafieldname="cm_submitted_at" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{883f3267-d6cb-4f2a-a7e6-f26a14caf912}">
+                        <labels>
+                          <label description="Submitted total" languagecode="1033" />
+                        </labels>
+                        <control id="cm_submitted_total" datafieldname="cm_submitted_total" classid="{C3EFE0C3-0EC6-42BE-8349-CBD9079C5A6F}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{c791228c-7af8-4d11-810c-5aded9fdf19f}">
+                        <labels>
+                          <label description="Case id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_case_id" datafieldname="cm_case_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{8a1638d3-dcde-4e24-a825-6c695cc5f1e5}">
+                        <labels>
+                          <label description="Service provider id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_service_provider_id" datafieldname="cm_service_provider_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{dda2ca36-ea65-4978-b210-72f3d000af8f}">
+                        <labels>
+                          <label description="Period start" languagecode="1033" />
+                        </labels>
+                        <control id="cm_period_start" datafieldname="cm_period_start" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{902b2ca6-3938-4f13-9e5f-586870ee3e3c}">
+                        <labels>
+                          <label description="Period end" languagecode="1033" />
+                        </labels>
+                        <control id="cm_period_end" datafieldname="cm_period_end" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{5086e290-05d6-4ddb-a706-74c0e32d62a9}">
+                        <labels>
+                          <label description="Currency code" languagecode="1033" />
+                        </labels>
+                        <control id="cm_currency_code" datafieldname="cm_currency_code" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

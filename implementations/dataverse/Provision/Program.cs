@@ -15,6 +15,7 @@ if (args.Length == 0 || (args.Length == 1 && args[0] == "setup")) {
 const string solution = "CaseIntakePrototype";
 const string publisher = "caseprototype";
 const string appName = "cm_caseintake";
+var createdTables = new HashSet<string>();
 var tables = new Table[] {
   new("client", "Client", "Clients", true, [
     new("given_name", "Given name", "text", true),
@@ -37,7 +38,7 @@ var tables = new Table[] {
 var reviewMode = args[0].EndsWith("-review");
 ReviewPackage? review = null;
 if (reviewMode) {
-  var file = args[0] == "--check-review" && args.Length == 2 ? args[1] : args.Length == 3 ? args[2] : null;
+  var file = args[0] == "--check-review" && args.Length == 2 ? args[1] : args.Length >= 3 ? args[2] : null;
   if (file == null) throw new ArgumentException("Review commands require a prepared package path.");
   review = JsonSerializer.Deserialize<ReviewPackage>(File.ReadAllText(file))!;
   tables = review.Tables;
@@ -303,6 +304,7 @@ async Task DeployTablesAndRelationships(bool reviewMode) {
         ["IsActivity"] = false, ["HasActivities"] = false, ["HasNotes"] = false,
         ["IsAuditEnabled"] = new JsonObject { ["Value"] = true }, ["Attributes"] = attrs
       });
+      createdTables.Add(table.Name);
     }
     var meta = await Api("GET", $"EntityDefinitions(LogicalName='{table.Name}')?$select=MetadataId,OwnershipType&$expand=Attributes($select=LogicalName)");
     if (meta!["OwnershipType"]!.GetValue<string>() != (table.Owned ? "UserOwned" : "OrganizationOwned"))
@@ -339,6 +341,7 @@ async Task SyncRequiredLevels(Table table) {
     var logical = attribute!["LogicalName"]!.GetValue<string>();
     if (!logical.StartsWith("cm_") || logical == "cm_name" || logical == table.Name + "id") continue;
     var desired = table.Fields.FirstOrDefault(f => "cm_" + f.Key == logical);
+    if (desired == null) continue; // Unmapped maker columns are outside this package.
     var level = desired?.Required == true ? "ApplicationRequired" : "None";
     if (attribute["RequiredLevel"]!["Value"]!.GetValue<string>() == level) continue;
     var full = (await Api("GET", $"EntityDefinitions(LogicalName='{table.Name}')/Attributes({attribute["MetadataId"]})"))!.AsObject();
@@ -351,18 +354,16 @@ async Task<(List<string> FormIds, List<string> ViewIds)> DeployFormsAndViews(boo
   var formIds = new List<string>();
   var viewIds = new List<string>();
   foreach (var table in tables) {
-    var forms = await Api("GET", $"systemforms?$select=formid,name&$filter=objecttypecode eq '{table.Name}' and type eq 2");
+    var forms = await Api("GET", $"systemforms?$select=formid,name,formxml&$filter=objecttypecode eq '{table.Name}' and type eq 2");
     var candidates = forms!["value"]!.AsArray();
     var targetName = reviewMode ? "Synthetic model review" : table.Key == "case" ? "New case" : "Prototype details";
     var chosen = candidates.FirstOrDefault(x => x!["name"]!.GetValue<string>() == targetName) ?? candidates.FirstOrDefault(x => x!["name"]!.GetValue<string>() == (table.Key == "case" ? "New case" : "Prototype details")) ?? candidates.FirstOrDefault();
     if (chosen == null) throw new Exception($"No generated main form for {table.Name}.");
     var formId = chosen["formid"]!.GetValue<string>();
-    // Only adopt Dataverse's freshly generated default form once. After that, a schema
-    // change to this table's fields will NOT appear on this form until it is deleted so
-    // a fresh one can be generated in its place — this deliberately stops overwriting
-    // a form once someone may have hand-customized it.
-    if (chosen["name"]!.GetValue<string>() == targetName) {
-      Console.WriteLine($"  Form for {table.Name} already managed; leaving it as deployed. Field changes to this table will not appear on it until the form is deleted and regenerated.");
+    if (!createdTables.Contains(table.Name)) {
+      var original = chosen["formxml"]!.GetValue<string>();
+      var merged = FormMaintenance.AddMissingFields(original, Form(table, reviewMode));
+      if (merged != original) await Api("PATCH", $"systemforms({formId})", new { formxml = merged });
     } else {
       await Api("PATCH", $"systemforms({formId})", new { name = targetName, formxml = Form(table, reviewMode) });
     }
@@ -400,17 +401,9 @@ async Task<string> DeployAppAndSiteMap(bool reviewMode, List<string> formIds, Li
   var defaultIconId = icons[0]!["webresourceid"]!.GetValue<string>();
   var appBody = new JsonObject { ["uniquename"] = appName, ["name"] = "Case Intake Prototype", ["description"] = reviewMode ? "Synthetic domain model review; workflow enforcement gaps documented in the repository." : "Synthetic case intake: select an existing client and create a case.", ["webresourceid"] = defaultIconId, ["clienttype"] = 4 };
   var appId = await EnsureRecord("appmodules", "appmoduleid", "uniquename", appName, appBody);
-  // A healthy app takes a normal PATCH, keeping its stable id and bookmarked URL.
-  // If the PATCH fails, the found record is an unpatchable half-created draft from an
-  // earlier partial run (create-validation rejects it for a missing required field);
-  // delete it and recreate a complete one from appBody.
-  try {
-    await Api("PATCH", $"appmodules({appId})", new { name = "Case Intake Prototype", clienttype = 4, webresourceid = defaultIconId });
-  } catch (Exception) {
-    await Api("DELETE", $"appmodules({appId})");
-    Console.WriteLine("Removed an unpatchable app record from an earlier partial run; recreating.");
-    appId = await EnsureRecord("appmodules", "appmoduleid", "uniquename", appName, appBody);
-  }
+  // An update failure does not establish corruption. Preserve the app and its ID;
+  // let the error stop deployment so a transient failure cannot destroy maker work.
+  await Api("PATCH", $"appmodules({appId})", new { name = "Case Intake Prototype", clienttype = 4, webresourceid = defaultIconId });
   var mapXml = new XElement("SiteMap", new XElement("Area", new XAttribute("Id", "intake"),
     new XElement("Titles", new XElement("Title", new XAttribute("LCID", "1033"), new XAttribute("Title", "Case intake"))),
     new XElement("Group", new XAttribute("Id", "cases"), new XAttribute("IsProfile", "false"),
