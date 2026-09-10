@@ -80,6 +80,23 @@ generic requirement in the repository.
 - Separate entity structure, business rules, workflows, forms, reference data,
   and acceptance scenarios rather than burying them in prose or platform code.
 - Preserve audit history for important state, assignment, and financial changes.
+- Use `person` for identity and `case_participant` for case roles. Client and
+  professional records are profiles; do not restore flattened client identity.
+- The stable `invoice` key denotes a payment request; extend its review chain
+  rather than introducing a competing payment-request aggregate.
+- Actual payments happen outside this system. `payment` records external
+  completion evidence only; do not introduce payment execution or bank transfers.
+- Closing a case atomically ends all active assignment roles; reopening does
+  not reactivate them. Preserve endings and create new records for reassignment.
+- Case/request status and dates, external reference, current client, and
+  professional display/office are plain fields for now, not enforced
+  projections — do not mark a field `data_role: derived` until a real
+  mechanism keeps it in sync with its source history; see "Deferred: fields
+  that should become read models" in `model/README.md`. Lifecycle events and
+  immutable submission snapshots are required independently of native
+  platform auditing.
+- Read `docs/model-review.md` for the 0.2 migration, open decisions and current
+  implementation gaps; `model/workflows.yaml` is authoritative for transitions.
 - Prefer validation at data entry over downstream cleanup.
 - Do not silently merge probable duplicate records.
 - Do not overwrite historical facts when requirements call for an audit trail.
@@ -148,6 +165,18 @@ The initial Dataverse prototype and its mapping live in
 `implementations/dataverse/`; canonical form definitions live in
 `model/forms.yaml`, with acceptance scenarios in `scenarios/`.
 
+Synthetic portable examples live in `scenarios/fixtures/`; offline model checks
+live in `tests/`. These fixtures do not establish reference values or policy.
+For model or fixture changes, run from the repository root (Python and PyYAML;
+see `tests/README.md`):
+
+```sh
+python3 -B -m unittest discover -s tests -v
+```
+
+The suite checks structure and selected examples; do not treat it as proof of
+runtime permissions, immutable storage or concurrent financial enforcement.
+
 For changes to the provisioning tool, run from the repository root:
 
 ```sh
@@ -155,6 +184,12 @@ dotnet build implementations/dataverse/Provision/Provision.csproj
 dotnet run --no-build --project implementations/dataverse/Provision -- --check
 dotnet run --project implementations/dataverse/SetupTests/SetupTests.csproj
 ```
+
+For the expanded 0.2 synthetic Dataverse review, read the implementation README
+and use `prepare_review.py` plus `--check-review`, `deploy-review`, `seed-review`
+and `verify-review`. The 0.1 guided baseline must not overwrite the expanded app.
+Review forms and seeded projections do not establish runtime workflow enforcement.
+Prepared packages, raw Solution exports and environment data stay outside Git.
 
 See the implementation README before any deployment. `deploy` changes the
 target environment and replaces prototype form layouts; `upgrade-client` patches

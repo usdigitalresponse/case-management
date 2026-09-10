@@ -1,0 +1,535 @@
+spec_version: 0.2.0
+description: Synthetic offline examples only; sample vocabularies and amounts are not policy defaults.
+  Fields that prepare_review.py computes from event/participant/affiliation
+  history are intentionally omitted; see model/README.md.
+as_of: '2026-02-02T00:00:00Z'
+reference_data:
+  case_identifier_types:
+  - sample_reference
+  issue_types:
+  - sample_issue
+  case_lifecycle_event_types:
+  - sample_close
+  - sample_open
+  - sample_reopen
+  case_statuses:
+  - sample_closed
+  - sample_open
+  activity_types:
+  - sample_research
+  preauthorization_outcomes:
+  - sample_approved
+  invoice_line_types:
+  - sample_manual
+  invoice_approval_step_types:
+  - sample_line_review
+  invoice_approval_outcomes:
+  - sample_approved
+  invoice_event_types:
+  - sample_approved
+  - sample_draft
+  - sample_submitted
+  - sample_under_review
+  invoice_statuses:
+  - sample_approved
+  - sample_draft
+  - sample_submitted
+  - sample_under_review
+records:
+  person:
+  - person_id: e8d01a74-457b-5ff9-b951-5828ad2226be
+    display_name: Synthetic Person Contact
+  - person_id: 957600ac-1ded-54c0-bb49-8cb14bdebacb
+    display_name: Synthetic Person Submitter
+  - person_id: ae9ed4bf-4894-5509-9df4-a3c182b8528f
+    display_name: Synthetic Person Reviewer
+  user_account:
+  - user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+    person_id: 957600ac-1ded-54c0-bb49-8cb14bdebacb
+    display_name: Synthetic Account Submitter
+    active: true
+  - user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    person_id: ae9ed4bf-4894-5509-9df4-a3c182b8528f
+    display_name: Synthetic Account Reviewer
+    active: true
+  professional:
+  - professional_id: f6955057-fe19-509d-b1ab-be7585b4026b
+    person_id: 957600ac-1ded-54c0-bb49-8cb14bdebacb
+    user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+    active: true
+  - professional_id: e70445f8-5f17-5ac2-b684-c59347d3db2f
+    person_id: ae9ed4bf-4894-5509-9df4-a3c182b8528f
+    user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    active: true
+  role:
+  - role_id: 11111111-1111-5111-8111-111111111111
+    display_name: Client
+    role_context: case_participant
+    active: true
+  - role_id: 22222222-2222-5222-8222-222222222222
+    display_name: Contact
+    role_context: case_participant
+    active: true
+  - role_id: 33333333-3333-5333-8333-333333333333
+    display_name: Primary
+    role_context: case_assignment
+    active: true
+  - role_id: 44444444-4444-5444-8444-444444444444
+    display_name: Staff
+    role_context: case_assignment
+    active: true
+  organization:
+  - organization_id: 8e482b63-497b-5fa3-a22e-f2d490e66db6
+    display_name: Synthetic Organization A
+    active: true
+  office:
+  - office_id: 60964c37-45dd-573a-a5fc-3ba5cdc3c612
+    display_name: Synthetic Office A
+    organization_id: 8e482b63-497b-5fa3-a22e-f2d490e66db6
+    active: true
+  person_affiliation:
+  - person_affiliation_id: 4236cee0-bba4-5a09-a1b3-13ab300d0b9f
+    person_id: 957600ac-1ded-54c0-bb49-8cb14bdebacb
+    organization_id: 8e482b63-497b-5fa3-a22e-f2d490e66db6
+    office_id: 60964c37-45dd-573a-a5fc-3ba5cdc3c612
+    started_at: '2026-01-01T10:00:00Z'
+  - person_affiliation_id: 64f5c54e-b40a-5f4e-972d-7d251cdbed60
+    person_id: ae9ed4bf-4894-5509-9df4-a3c182b8528f
+    organization_id: 8e482b63-497b-5fa3-a22e-f2d490e66db6
+    office_id: 60964c37-45dd-573a-a5fc-3ba5cdc3c612
+    started_at: '2026-01-01T10:00:00Z'
+  county:
+  - county_id: aee694f5-ed41-52b7-9f2a-e2b97dc59096
+    display_name: Synthetic County A
+    active: true
+  case:
+  - case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    county_id: aee694f5-ed41-52b7-9f2a-e2b97dc59096
+    organization_id: 8e482b63-497b-5fa3-a22e-f2d490e66db6
+    office_id: 60964c37-45dd-573a-a5fc-3ba5cdc3c612
+  - case_id: 03ca23f1-845b-517f-bd61-44f51ec2f074
+    county_id: aee694f5-ed41-52b7-9f2a-e2b97dc59096
+    organization_id: 8e482b63-497b-5fa3-a22e-f2d490e66db6
+    office_id: 60964c37-45dd-573a-a5fc-3ba5cdc3c612
+  case_participant:
+  - case_participant_id: ee3bb088-5e95-5045-aa69-37ff4d950757
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    person_id: e8d01a74-457b-5ff9-b951-5828ad2226be
+    participant_role_id: 11111111-1111-5111-8111-111111111111
+    started_at: '2026-01-01T10:00:00Z'
+  - case_participant_id: a44a939c-f518-5a27-a826-fdf42455b8fd
+    case_id: 03ca23f1-845b-517f-bd61-44f51ec2f074
+    person_id: e8d01a74-457b-5ff9-b951-5828ad2226be
+    participant_role_id: 22222222-2222-5222-8222-222222222222
+    started_at: '2026-01-01T10:00:00Z'
+  case_identifier:
+  - case_identifier_id: 82d9a3ae-8476-5813-9148-7e62a2005922
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    identifier_type_id: sample_reference
+    issuer: Synthetic Registry
+    value: SAMPLE-CASE-A
+    is_primary: true
+  case_issue:
+  - case_issue_id: 5007417c-1b5c-5f8c-ab15-dd9d27e2f1ca
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    issue_type_id: sample_issue
+    code: SAMPLE-ISSUE-1
+    occurred_on: '2026-01-01'
+    is_primary: true
+  - case_issue_id: 3c4ec73d-7da3-5dad-a10e-1284d6c2079f
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    issue_type_id: sample_issue
+    code: SAMPLE-ISSUE-2
+    occurred_on: '2026-01-01'
+    is_primary: false
+  case_assignment:
+  - case_assignment_id: 44a14bb5-91b5-547c-85ec-0e7fc4380993
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    professional_id: f6955057-fe19-509d-b1ab-be7585b4026b
+    assigned_at: '2026-01-01T10:00:00Z'
+    assignment_role_id: 33333333-3333-5333-8333-333333333333
+    affiliation_id: 4236cee0-bba4-5a09-a1b3-13ab300d0b9f
+    assigned_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    ended_at: '2026-01-05T10:00:00Z'
+    ended_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    end_reason: Synthetic reassignment
+  - case_assignment_id: c9ed2333-a9b9-5c41-b0c8-de03010861bd
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    professional_id: e70445f8-5f17-5ac2-b684-c59347d3db2f
+    assigned_at: '2026-01-05T10:00:00Z'
+    assignment_role_id: 33333333-3333-5333-8333-333333333333
+    affiliation_id: 64f5c54e-b40a-5f4e-972d-7d251cdbed60
+    assigned_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    ended_at: '2026-01-10T10:00:00Z'
+    ended_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    end_reason: Synthetic case closure
+  - case_assignment_id: 0c073198-39ce-5ffd-8f7c-c28ac03085b8
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    professional_id: e70445f8-5f17-5ac2-b684-c59347d3db2f
+    assigned_at: '2026-01-06T10:00:00Z'
+    assignment_role_id: 44444444-4444-5444-8444-444444444444
+    affiliation_id: 64f5c54e-b40a-5f4e-972d-7d251cdbed60
+    assigned_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    ended_at: '2026-01-10T10:00:00Z'
+    ended_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    end_reason: Synthetic case closure
+  - case_assignment_id: 52e30ef5-790d-5eec-9bb4-edbd312b825f
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    professional_id: e70445f8-5f17-5ac2-b684-c59347d3db2f
+    assigned_at: '2026-01-15T10:00:00Z'
+    assignment_role_id: 33333333-3333-5333-8333-333333333333
+    affiliation_id: 64f5c54e-b40a-5f4e-972d-7d251cdbed60
+    assigned_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    ended_at: '2026-02-01T10:00:00Z'
+    ended_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    end_reason: Synthetic case closure
+  case_lifecycle_event:
+  - case_lifecycle_event_id: 572cd93b-9776-5515-b001-72dd575a8d5d
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    sequence_number: 1
+    event_type_id: sample_open
+    resulting_status_id: sample_open
+    effective_at: '2026-01-01T10:00:00Z'
+    recorded_at: '2026-01-01T10:00:00Z'
+    actor_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+  - case_lifecycle_event_id: 6fc38358-e734-537b-8077-105a76e8f2c4
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    sequence_number: 2
+    event_type_id: sample_close
+    resulting_status_id: sample_closed
+    effective_at: '2026-01-10T10:00:00Z'
+    recorded_at: '2026-01-10T10:00:00Z'
+    actor_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    reason_detail: Synthetic lifecycle reason
+  - case_lifecycle_event_id: 16c2cfbf-f94b-5ff9-ba9f-dce96a134b60
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    sequence_number: 3
+    event_type_id: sample_reopen
+    resulting_status_id: sample_open
+    effective_at: '2026-01-15T10:00:00Z'
+    recorded_at: '2026-01-15T10:00:00Z'
+    actor_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    reason_detail: Synthetic lifecycle reason
+  - case_lifecycle_event_id: 561a5bb0-271f-52d9-98ca-24a639be3b25
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    sequence_number: 4
+    event_type_id: sample_close
+    resulting_status_id: sample_closed
+    effective_at: '2026-02-01T10:00:00Z'
+    recorded_at: '2026-02-01T10:00:00Z'
+    actor_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    reason_detail: Synthetic lifecycle reason
+  - case_lifecycle_event_id: 3c11416f-04ca-5326-b00b-6eaa40463319
+    case_id: 03ca23f1-845b-517f-bd61-44f51ec2f074
+    sequence_number: 1
+    event_type_id: sample_open
+    resulting_status_id: sample_open
+    effective_at: '2026-01-01T10:00:00Z'
+    recorded_at: '2026-01-01T10:00:00Z'
+    actor_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+  activity:
+  - activity_id: ba1f1307-9358-5226-a3fa-a313a01b4f55
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    actor_person_id: 957600ac-1ded-54c0-bb49-8cb14bdebacb
+    recorded_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+    occurred_at: '2026-01-05T10:00:00Z'
+    recorded_at: '2026-01-05T10:00:00Z'
+    activity_type_id: sample_research
+    detail: Synthetic research activity
+  time_entry:
+  - time_entry_id: 02cf9832-8f3a-52fb-869f-425d7fff7657
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    professional_id: f6955057-fe19-509d-b1ab-be7585b4026b
+    activity_type_id: sample_research
+    activity_on: '2026-01-05'
+    duration_hours: 1
+    description: Synthetic time entry
+    activity_id: ba1f1307-9358-5226-a3fa-a313a01b4f55
+  - time_entry_id: 6c995ac3-9de2-5105-ac04-14f25ead7e3f
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    professional_id: f6955057-fe19-509d-b1ab-be7585b4026b
+    activity_type_id: sample_research
+    activity_on: '2026-01-05'
+    duration_hours: 1
+    description: Synthetic time entry
+  service_provider:
+  - service_provider_id: 99e132c4-c785-5ae8-b9e1-f427736785b2
+    organization_id: 8e482b63-497b-5fa3-a22e-f2d490e66db6
+    display_name: Synthetic Payee A
+    email: payee@example.invalid
+    active: true
+  preauthorization:
+  - preauthorization_id: 89c2eea9-cf31-5fa5-a1d8-8861824d7f63
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    service_provider_id: 99e132c4-c785-5ae8-b9e1-f427736785b2
+    requested_amount: 100
+    requested_at: '2026-01-01T10:00:00Z'
+    authorization_number: SAMPLE-AUTH-1
+    currency_code: XXX
+  - preauthorization_id: 357b666f-d352-59ef-bfc8-e5663c4dc8a9
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    service_provider_id: 99e132c4-c785-5ae8-b9e1-f427736785b2
+    requested_amount: 100
+    requested_at: '2026-01-01T10:00:00Z'
+    authorization_number: SAMPLE-AUTH-2
+    currency_code: XXX
+  preauthorization_decision:
+  - preauthorization_decision_id: 4a2184aa-6603-5c0c-85bc-2204a8b2a2ec
+    preauthorization_id: 89c2eea9-cf31-5fa5-a1d8-8861824d7f63
+    sequence_number: 1
+    outcome_id: sample_approved
+    approved_amount: 100
+    effective_at: '2026-01-01T10:00:00Z'
+    decided_at: '2026-01-01T10:00:00Z'
+    decided_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+  - preauthorization_decision_id: da04d87d-9bb6-5f7f-b1e1-4ac884dd3cca
+    preauthorization_id: 357b666f-d352-59ef-bfc8-e5663c4dc8a9
+    sequence_number: 1
+    outcome_id: sample_approved
+    approved_amount: 100
+    effective_at: '2026-01-01T10:00:00Z'
+    decided_at: '2026-01-01T10:00:00Z'
+    decided_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+  invoice:
+  - invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    submitted_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+    submitted_total: 120
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    service_provider_id: 99e132c4-c785-5ae8-b9e1-f427736785b2
+    period_start: '2026-01-01'
+    period_end: '2026-01-09'
+    currency_code: XXX
+  invoice_line:
+  - invoice_line_id: 212af256-c25c-5557-94c8-f265d3b6010f
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    line_type_id: sample_manual
+    amount: 70
+  - invoice_line_id: eaad09d0-d203-5ab2-85a9-6b70f59a9e37
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    line_type_id: sample_manual
+    amount: 50
+  invoice_authorization_allocation:
+  - invoice_authorization_allocation_id: 71981f3a-7b2d-52db-b312-b80691b7121f
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    preauthorization_id: 89c2eea9-cf31-5fa5-a1d8-8861824d7f63
+    requested_amount: 70
+  - invoice_authorization_allocation_id: 30516140-0d5a-5f67-802e-288b0016e82c
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    preauthorization_id: 357b666f-d352-59ef-bfc8-e5663c4dc8a9
+    requested_amount: 50
+  supporting_invoice:
+  - supporting_invoice_id: 05c3e144-b9cf-5cc2-89e4-750fddb94a5b
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    invoice_number: SAMPLE-INVOICE-A
+    period_start: '2026-01-01'
+    period_end: '2026-01-09'
+  invoice_approval_chain:
+  - invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    created_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+    created_at: '2026-01-10T12:00:00Z'
+    submission_snapshot:
+      spec_version: 0.2.0
+      captured_at: '2026-01-10T12:00:00Z'
+      invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+      invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
+      records:
+        case:
+        - case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          county_id: aee694f5-ed41-52b7-9f2a-e2b97dc59096
+          organization_id: 8e482b63-497b-5fa3-a22e-f2d490e66db6
+          office_id: 60964c37-45dd-573a-a5fc-3ba5cdc3c612
+        case_participant:
+        - case_participant_id: ee3bb088-5e95-5045-aa69-37ff4d950757
+          case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          person_id: e8d01a74-457b-5ff9-b951-5828ad2226be
+          participant_role_id: 11111111-1111-5111-8111-111111111111
+          started_at: '2026-01-01T10:00:00Z'
+        case_identifier:
+        - case_identifier_id: 82d9a3ae-8476-5813-9148-7e62a2005922
+          case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          identifier_type_id: sample_reference
+          issuer: Synthetic Registry
+          value: SAMPLE-CASE-A
+          is_primary: true
+        case_issue:
+        - case_issue_id: 5007417c-1b5c-5f8c-ab15-dd9d27e2f1ca
+          case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          issue_type_id: sample_issue
+          code: SAMPLE-ISSUE-1
+          occurred_on: '2026-01-01'
+          is_primary: true
+        - case_issue_id: 3c4ec73d-7da3-5dad-a10e-1284d6c2079f
+          case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          issue_type_id: sample_issue
+          code: SAMPLE-ISSUE-2
+          occurred_on: '2026-01-01'
+          is_primary: false
+        case_assignment:
+        - case_assignment_id: 44a14bb5-91b5-547c-85ec-0e7fc4380993
+          case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          professional_id: f6955057-fe19-509d-b1ab-be7585b4026b
+          assigned_at: '2026-01-01T10:00:00Z'
+          assignment_role_id: 33333333-3333-5333-8333-333333333333
+          affiliation_id: 4236cee0-bba4-5a09-a1b3-13ab300d0b9f
+          assigned_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+          ended_at: '2026-01-05T10:00:00Z'
+          ended_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+          end_reason: Synthetic reassignment
+        - case_assignment_id: c9ed2333-a9b9-5c41-b0c8-de03010861bd
+          case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          professional_id: e70445f8-5f17-5ac2-b684-c59347d3db2f
+          assigned_at: '2026-01-05T10:00:00Z'
+          assignment_role_id: 33333333-3333-5333-8333-333333333333
+          affiliation_id: 64f5c54e-b40a-5f4e-972d-7d251cdbed60
+          assigned_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+          ended_at: '2026-01-10T10:00:00Z'
+          ended_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+          end_reason: Synthetic case closure
+        - case_assignment_id: 0c073198-39ce-5ffd-8f7c-c28ac03085b8
+          case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          professional_id: e70445f8-5f17-5ac2-b684-c59347d3db2f
+          assigned_at: '2026-01-06T10:00:00Z'
+          assignment_role_id: 44444444-4444-5444-8444-444444444444
+          affiliation_id: 64f5c54e-b40a-5f4e-972d-7d251cdbed60
+          assigned_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+          ended_at: '2026-01-10T10:00:00Z'
+          ended_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+          end_reason: Synthetic case closure
+        service_provider:
+        - service_provider_id: 99e132c4-c785-5ae8-b9e1-f427736785b2
+          organization_id: 8e482b63-497b-5fa3-a22e-f2d490e66db6
+          display_name: Synthetic Payee A
+          email: payee@example.invalid
+          active: true
+        invoice:
+        - invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+          submitted_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+          submitted_total: 120
+          case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          service_provider_id: 99e132c4-c785-5ae8-b9e1-f427736785b2
+          period_start: '2026-01-01'
+          period_end: '2026-01-09'
+          currency_code: XXX
+        invoice_line:
+        - invoice_line_id: 212af256-c25c-5557-94c8-f265d3b6010f
+          invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+          case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          line_type_id: sample_manual
+          amount: 70
+        - invoice_line_id: eaad09d0-d203-5ab2-85a9-6b70f59a9e37
+          invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+          case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+          line_type_id: sample_manual
+          amount: 50
+        invoice_authorization_allocation:
+        - invoice_authorization_allocation_id: 71981f3a-7b2d-52db-b312-b80691b7121f
+          invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+          preauthorization_id: 89c2eea9-cf31-5fa5-a1d8-8861824d7f63
+          requested_amount: 70
+        - invoice_authorization_allocation_id: 30516140-0d5a-5f67-802e-288b0016e82c
+          invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+          preauthorization_id: 357b666f-d352-59ef-bfc8-e5663c4dc8a9
+          requested_amount: 50
+        supporting_invoice:
+        - supporting_invoice_id: 05c3e144-b9cf-5cc2-89e4-750fddb94a5b
+          invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+          invoice_number: SAMPLE-INVOICE-A
+          period_start: '2026-01-01'
+          period_end: '2026-01-09'
+        invoice_attestation:
+        - invoice_attestation_id: 50bfd933-7e08-5f3f-938b-663421514a11
+          invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
+          attestor_person_id: 957600ac-1ded-54c0-bb49-8cb14bdebacb
+          recorded_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+          attested_at: '2026-01-10T12:00:00Z'
+          statement: Synthetic attestation for model testing only.
+  invoice_attestation:
+  - invoice_attestation_id: 50bfd933-7e08-5f3f-938b-663421514a11
+    invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
+    attestor_person_id: 957600ac-1ded-54c0-bb49-8cb14bdebacb
+    recorded_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+    attested_at: '2026-01-10T12:00:00Z'
+    statement: Synthetic attestation for model testing only.
+  invoice_approval_decision:
+  - invoice_approval_decision_id: afc5dc5e-7ba4-51de-8f0d-33902201f3ae
+    invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
+    sequence_number: 1
+    step_type_id: sample_line_review
+    invoice_line_id: 212af256-c25c-5557-94c8-f265d3b6010f
+    outcome_id: sample_approved
+    approved_amount: 60
+    decided_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    decided_at: '2026-01-11T12:00:00Z'
+  - invoice_approval_decision_id: d49cbedc-ac6a-55ee-844c-f42737f11954
+    invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
+    sequence_number: 1
+    step_type_id: sample_line_review
+    invoice_line_id: eaad09d0-d203-5ab2-85a9-6b70f59a9e37
+    outcome_id: sample_approved
+    approved_amount: 40
+    decided_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    decided_at: '2026-01-11T12:00:00Z'
+  invoice_allocation_decision:
+  - invoice_allocation_decision_id: 65c4e4f7-705b-5824-b5f4-255dc5223a2f
+    invoice_approval_decision_id: afc5dc5e-7ba4-51de-8f0d-33902201f3ae
+    invoice_authorization_allocation_id: 71981f3a-7b2d-52db-b312-b80691b7121f
+    approved_amount: 60
+  - invoice_allocation_decision_id: ed42cb63-8086-5b54-a229-97b6bccf95b2
+    invoice_approval_decision_id: d49cbedc-ac6a-55ee-844c-f42737f11954
+    invoice_authorization_allocation_id: 30516140-0d5a-5f67-802e-288b0016e82c
+    approved_amount: 40
+  invoice_event:
+  - invoice_event_id: 740cf07a-c219-52fd-a1c4-5e0df0d582ea
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    sequence_number: 1
+    event_type_id: sample_draft
+    resulting_status_id: sample_draft
+    occurred_at: '2026-01-09T12:00:00Z'
+    actor_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+  - invoice_event_id: 59e75099-cc43-5c3a-972f-1842468e6055
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    sequence_number: 2
+    event_type_id: sample_submitted
+    resulting_status_id: sample_submitted
+    occurred_at: '2026-01-10T12:00:00Z'
+    actor_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+    invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
+  - invoice_event_id: f7a5e483-f598-5361-9057-290abc17b0fb
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    sequence_number: 3
+    event_type_id: sample_under_review
+    resulting_status_id: sample_under_review
+    occurred_at: '2026-01-11T11:00:00Z'
+    actor_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
+  - invoice_event_id: ce1e6fba-a5b9-53ce-a05a-528b36735dbc
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    sequence_number: 4
+    event_type_id: sample_approved
+    resulting_status_id: sample_approved
+    occurred_at: '2026-01-11T12:00:00Z'
+    actor_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
+  payment:
+  - payment_id: 4a8726ff-a7e1-5cb7-a4a1-dc1990f520f4
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
+    recorded_at: '2026-01-20T12:00:00Z'
+    recorded_by_user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
+    confirmation_source: Synthetic external completion report
+    detail: Completion reported; actual date and amount were not provided.
+expected:
+  case_a_status: sample_closed
+  case_a_opened_on: '2026-01-01'
+  case_a_closed_on: '2026-02-01'
+  requested_amount: 120
+  approved_amount: 100
+  authorization_balances:
+  - 40
+  - 60
+  completion: confirmed
+  active_assignments_after_reopen_before_reassignment: 0
+  active_assignments_after_final_close: 0

@@ -1,29 +1,37 @@
-spec_version: "0.1.0"
+spec_version: "0.2.0"
 status: draft
 kind: forms
 
 forms:
   new_case:
     entity: case
-    purpose: Create a case for an existing client.
+    purpose: Create a case with an existing person in a client participant role and an opening event.
     fields:
-      - client_id
-      - status_id
-      - external_reference
       - county_id
       - case_category_id
-      - opened_on
+      - organization_id
+      - office_id
+      - jurisdiction_id
+      - preferred_language_id
+    related_inputs:
+      case_participant:
+        fields: [person_id, participant_role_id]
+      case_lifecycle_event:
+        fields: [resulting_status_id, effective_at]
+      case_identifier:
+        fields: [identifier_type_id, issuer, value, is_primary]
     requirements:
-      - Inherit field types, references, and requiredness from schema.yaml.
-      - Select an existing client; do not duplicate client details on the case.
-      - Select a configured status; no initial status default is defined yet.
-      - Generate the case identifier automatically.
-      - Leave omitted optional fields empty; do not default the opened date.
-      - Make the saved case available for reopening.
+      - Inherit field types and references from schema.yaml; derived fields are read-only projections.
+      - Require an existing person in a configured client participant role for this intake journey; other intake journeys may have different participant policy.
+      - Require an explicit opening status and effective timestamp; no default status or opening date is assumed.
+      - Generate the case and child identifiers; record the authenticated actor, recording timestamp, opening event type and first sequence number.
+      - Start the participant relationship at the opening effective timestamp.
+      - Create the case, participant and lifecycle event atomically; optional identifier input must be complete if supplied.
+      - Leave omitted optional values empty and make the saved case available for viewing again.
     excluded:
-      - Client creation and duplicate-client review.
-      - Closure and status-transition workflows.
+      - Person creation and duplicate-person review.
+      - Closing and reopening transitions after intake.
       - Assignments, billing, and payments.
     unresolved:
-      - Allowed case statuses and categories, and their initial defaults.
+      - Allowed case statuses and categories, initial defaults and permitted backdating.
       - Intake roles and permitted actions.

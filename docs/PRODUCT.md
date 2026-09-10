@@ -58,7 +58,7 @@ The prototype should demonstrate how a system could:
 3. Track assignments and access throughout the case lifecycle.
 4. Capture structured time, activities, and expenses.
 5. Receive, review, approve, and track invoices digitally.
-6. Support configurable payment categories and routing rules.
+6. Support configurable approval categories and review routing rules.
 7. Manage external-service requests and related billing.
 8. Give users visibility into work status and required actions.
 9. Preserve an auditable history of important decisions and changes.
@@ -103,7 +103,7 @@ The prototype should demonstrate how a system could:
 - Duplicate or overlapping billing checks
 - Review and approval workflow
 - Requests for additional information
-- Payment routing and confirmation
+- External payment completion tracking; actual payment occurs outside this system
 - Pipeline status and aging
 
 

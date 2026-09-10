@@ -45,7 +45,10 @@ See [guided setup](docs/deployment.md#guided-setup-recommended) for prerequisite
 The first implementation is a small Dataverse case intake prototype. See
 [its setup and documented gaps](implementations/dataverse/README.md). The shared
 model remains platform-neutral; this prototype does not select a production
-technology stack.
+technology stack. The [domain model review](docs/model-review.md) describes the
+expanded 0.2 specification. The Dataverse [schema-review commands](implementations/dataverse/README.md#prepare-check-deploy-and-seed)
+load the synthetic relationships into the existing app; runtime workflows remain
+implementation work.
 
 See [deployment instructions](docs/deployment.md) and the
 [Power Platform architecture assessment](docs/architecture-assessment.md).
@@ -57,6 +60,10 @@ The repository contains the shared model and a Dataverse provisioning tool. Befo
 contributing, read [AGENTS.md](./AGENTS.md) for the source-of-truth, privacy,
 working-practice, and Git guidance that applies to this project.
 
+
+The [offline test guide](tests/README.md) explains how to validate the shared
+specification against [synthetic sample records](scenarios/fixtures/README.md)
+before updating a platform implementation.
 
 ## Code of Conduct
 
