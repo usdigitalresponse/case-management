@@ -1,0 +1,95 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{9c2cb23b-a219-45cd-bb6a-00ef00b5159f}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{c8b6f16c-0833-43a1-9a10-7c8084d65da3}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{c0e79c0c-b29e-413c-bf8a-bd97849b9587}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{110e3af7-1e6d-43cb-a055-1b8dbc4d16ad}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{f0e9bb70-fc1b-4dde-8836-ae4d3ff880fb}">
+                        <labels>
+                          <label description="Invoice id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_invoice_id" datafieldname="cm_invoice_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{fba96ad0-ae86-45b7-8b1d-6d8c8dca2690}">
+                        <labels>
+                          <label description="Invoice number" languagecode="1033" />
+                        </labels>
+                        <control id="cm_invoice_number" datafieldname="cm_invoice_number" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{baf23b3b-4b20-4c92-bea4-321fefc7ad7b}">
+                        <labels>
+                          <label description="Issued on" languagecode="1033" />
+                        </labels>
+                        <control id="cm_issued_on" datafieldname="cm_issued_on" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{b7f83b92-7466-4e11-b2d2-97b9d1d99c6a}">
+                        <labels>
+                          <label description="Period start" languagecode="1033" />
+                        </labels>
+                        <control id="cm_period_start" datafieldname="cm_period_start" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{9a2cfe2f-8e36-4649-b7e7-6876a9f91678}">
+                        <labels>
+                          <label description="Period end" languagecode="1033" />
+                        </labels>
+                        <control id="cm_period_end" datafieldname="cm_period_end" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{73dd7b1f-a04f-47e2-850a-7f9ba9ac3203}">
+                        <labels>
+                          <label description="Document id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_document_id" datafieldname="cm_document_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

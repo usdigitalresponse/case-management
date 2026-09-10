@@ -1,0 +1,71 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{f53f81a1-0c2a-46eb-90d0-47c9c774e5f9}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{2121ea75-ac81-4bab-91ec-253d825cd290}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{7e5e52a6-f638-4bff-a5d9-6d2a278dfb54}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{461b455f-9e9a-4b1b-a451-a0a8b3777498}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{9d0f2120-f2e5-4a06-8510-bcac99f6d8df}">
+                        <labels>
+                          <label description="Invoice approval decision id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_invoice_approval_decision_id" datafieldname="cm_invoice_approval_decision_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{b52f7f66-6b95-4c8d-9d91-d29cad56e896}">
+                        <labels>
+                          <label description="Invoice authorization allocation id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_invoice_authorization_allocation_id" datafieldname="cm_invoice_authorization_allocation_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{fe34c9de-61de-4428-be62-876f2a807aff}">
+                        <labels>
+                          <label description="Approved amount" languagecode="1033" />
+                        </labels>
+                        <control id="cm_approved_amount" datafieldname="cm_approved_amount" classid="{C3EFE0C3-0EC6-42BE-8349-CBD9079C5A6F}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

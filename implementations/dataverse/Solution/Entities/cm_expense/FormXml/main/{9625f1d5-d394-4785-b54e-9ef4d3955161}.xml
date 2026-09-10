@@ -1,0 +1,79 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{9625f1d5-d394-4785-b54e-9ef4d3955161}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{9da28ec6-db73-4c33-b795-46e71613e4a1}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{21017477-51e6-4d62-a207-c7374a6c23a4}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{8368bb56-f022-4ad1-98e4-6a50a561325c}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{ba7ada77-be31-4757-8fbe-4491e961456c}">
+                        <labels>
+                          <label description="Case id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_case_id" datafieldname="cm_case_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{663ef791-d504-4cce-b437-a478903084e8}">
+                        <labels>
+                          <label description="Expense type id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_expense_type_id" datafieldname="cm_expense_type_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{470d00bb-4964-4225-9623-71e6a82831bd}">
+                        <labels>
+                          <label description="Incurred on" languagecode="1033" />
+                        </labels>
+                        <control id="cm_incurred_on" datafieldname="cm_incurred_on" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{0f132384-3f5a-48d2-9f94-51c2cade2dfc}">
+                        <labels>
+                          <label description="Amount" languagecode="1033" />
+                        </labels>
+                        <control id="cm_amount" datafieldname="cm_amount" classid="{C3EFE0C3-0EC6-42BE-8349-CBD9079C5A6F}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

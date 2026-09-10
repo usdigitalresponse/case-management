@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Provision/Setup.cs" Link="Setup.cs" />
+    <Compile Include="../Provision/FormMaintenance.cs" Link="FormMaintenance.cs" />
   </ItemGroup>
 </Project>

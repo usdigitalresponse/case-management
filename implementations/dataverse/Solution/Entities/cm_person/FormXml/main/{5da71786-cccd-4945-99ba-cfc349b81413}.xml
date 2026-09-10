@@ -1,0 +1,95 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{5da71786-cccd-4945-99ba-cfc349b81413}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{17b9613a-7686-4eb0-bc59-e2805236f798}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{84af29a6-06c6-4db3-9650-57273799d94d}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{6a9e1be0-2d4d-46d6-a984-90b280228562}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{66cc187c-dc0a-4cfe-93be-d8b7e94e66c3}">
+                        <labels>
+                          <label description="Given name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_given_name" datafieldname="cm_given_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{9cfd2cce-b0f8-4f7d-8963-19e2e0da7a81}">
+                        <labels>
+                          <label description="Middle name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_middle_name" datafieldname="cm_middle_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{10ca344e-f32e-43a5-86bf-0c135a393145}">
+                        <labels>
+                          <label description="Family name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_family_name" datafieldname="cm_family_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{45bae798-6659-4ebe-9e9f-369c181dc968}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_display_name" datafieldname="cm_display_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{f32c5649-c46a-4938-9eb8-3a231469927d}">
+                        <labels>
+                          <label description="Date of birth" languagecode="1033" />
+                        </labels>
+                        <control id="cm_date_of_birth" datafieldname="cm_date_of_birth" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{448a99c5-7fdf-4f62-ae8d-31888ea1bf9e}">
+                        <labels>
+                          <label description="Email" languagecode="1033" />
+                        </labels>
+                        <control id="cm_email" datafieldname="cm_email" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

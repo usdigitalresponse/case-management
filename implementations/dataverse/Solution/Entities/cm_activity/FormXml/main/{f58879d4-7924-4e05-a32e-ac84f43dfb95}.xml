@@ -1,0 +1,111 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<forms xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <systemform>
+    <formid>{f58879d4-7924-4e05-a32e-ac84f43dfb95}</formid>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <FormPresentation>1</FormPresentation>
+    <FormActivationState>1</FormActivationState>
+    <form>
+      <tabs>
+        <tab name="intake" id="{81319199-7151-47ce-83f2-220851ffcb21}" IsUserDefined="1">
+          <labels>
+            <label description="Synthetic data review (read only)" languagecode="1033" />
+          </labels>
+          <columns>
+            <column width="100%">
+              <sections>
+                <section name="details" id="{295630e3-0b9c-4a37-ac49-21956a6fcc61}" showlabel="false" showbar="false" columns="1">
+                  <labels>
+                    <label description="Details" languagecode="1033" />
+                  </labels>
+                  <rows>
+                    <row>
+                      <cell id="{e60aded0-7f14-4ab2-a010-0dae02e82668}">
+                        <labels>
+                          <label description="Display name" languagecode="1033" />
+                        </labels>
+                        <control id="cm_name" datafieldname="cm_name" classid="{4273EDBD-AC1D-40D3-9FB2-095C621B552D}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{ffb6cac1-fd81-46e5-8a9c-753e75ef838a}">
+                        <labels>
+                          <label description="Case id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_case_id" datafieldname="cm_case_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{55d3206e-1b95-452e-9062-1536271bc234}">
+                        <labels>
+                          <label description="Actor person id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_actor_person_id" datafieldname="cm_actor_person_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{c09462d9-d36e-4741-a0af-dd1dc8b3bd30}">
+                        <labels>
+                          <label description="Recorded by user account id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_recorded_by_user_account_id" datafieldname="cm_recorded_by_user_account_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{769cf627-31cd-445c-bdf9-aa1b370d5f7d}">
+                        <labels>
+                          <label description="Occurred at" languagecode="1033" />
+                        </labels>
+                        <control id="cm_occurred_at" datafieldname="cm_occurred_at" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{51485fde-66b3-4f67-a633-c31b93546853}">
+                        <labels>
+                          <label description="Recorded at" languagecode="1033" />
+                        </labels>
+                        <control id="cm_recorded_at" datafieldname="cm_recorded_at" classid="{5B773807-9FB2-42DB-97C3-7A91EFF8ADFF}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{b6d4ea06-89fe-4a61-a2bf-eb548a482052}">
+                        <labels>
+                          <label description="Activity type id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_activity_type_id" datafieldname="cm_activity_type_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{43863615-c548-4671-9b69-b717243624bc}">
+                        <labels>
+                          <label description="Activity item id" languagecode="1033" />
+                        </labels>
+                        <control id="cm_activity_item_id" datafieldname="cm_activity_item_id" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" disabled="true" />
+                      </cell>
+                    </row>
+                    <row>
+                      <cell id="{a9578b70-cac6-46bb-8e3b-41fc1f707f99}">
+                        <labels>
+                          <label description="Detail" languagecode="1033" />
+                        </labels>
+                        <control id="cm_detail" datafieldname="cm_detail" classid="{E0DECE4B-6FC8-4A8F-A065-082708572369}" disabled="true" />
+                      </cell>
+                    </row>
+                  </rows>
+                </section>
+              </sections>
+            </column>
+          </columns>
+        </tab>
+      </tabs>
+    </form>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic model review" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="A form for this entity." languagecode="1033" />
+    </Descriptions>
+  </systemform>
+</forms>

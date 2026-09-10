@@ -73,7 +73,7 @@ static class Setup
     if (inspected.Exists)
     {
       output.WriteLine("The prototype already exists. Press Enter to verify it without changing it.");
-      output.WriteLine("Type REBUILD only to resume or deliberately rebuild this prototype. Rebuilding replaces its main form layouts.");
+      output.WriteLine("Type REBUILD only to resume or deliberately rebuild this prototype. Rebuilding adds missing fields and preserves existing form layouts.");
     }
     else output.WriteLine("The prototype is not installed here yet.");
     output.WriteLine("Setup creates sample data and publishes the app. It enables environment auditing, including other tables already marked for auditing.");
@@ -91,7 +91,7 @@ static class Setup
     if (result.ExitCode != 0)
     {
       output.WriteLine("\nThe operation did not finish. Deployment can leave partially created components.");
-      output.WriteLine("Keep the error above for troubleshooting. Check the target before rerunning; REBUILD replaces form layouts.");
+      output.WriteLine("Keep the error above for troubleshooting. Check the target before rerunning; REBUILD preserves existing layouts and adds missing fields.");
       return 1;
     }
     output.WriteLine("\nFinished. Open the App link above, or select this environment in Power Apps and open Apps → Case Intake Prototype.");

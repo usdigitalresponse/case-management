@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<savedqueries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <savedquery>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <isquickfindquery>0</isquickfindquery>
+    <isprivate>0</isprivate>
+    <isdefault>1</isdefault>
+    <savedqueryid>{61ab8873-d1dd-4c09-b17f-592094015410}</savedqueryid>
+    <layoutxml>
+      <grid name="resultset" jump="cm_name" select="1" icon="1" preview="1">
+        <row name="result" id="cm_supporting_invoiceid">
+          <cell name="cm_name" width="180" />
+          <cell name="cm_invoice_id" width="180" />
+          <cell name="cm_invoice_number" width="180" />
+          <cell name="cm_issued_on" width="180" />
+          <cell name="cm_period_start" width="180" />
+          <cell name="cm_period_end" width="180" />
+        </row>
+      </grid>
+    </layoutxml>
+    <querytype>0</querytype>
+    <fetchxml>
+      <fetch>
+        <entity name="cm_supporting_invoice">
+          <attribute name="cm_supporting_invoiceid" />
+          <attribute name="cm_name" />
+          <attribute name="cm_invoice_id" />
+          <attribute name="cm_invoice_number" />
+          <attribute name="cm_issued_on" />
+          <attribute name="cm_period_start" />
+          <attribute name="cm_period_end" />
+          <order attribute="cm_name" descending="false" />
+        </entity>
+      </fetch>
+    </fetchxml>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic Supporting Invoice records" languagecode="1033" />
+    </LocalizedNames>
+  </savedquery>
+</savedqueries>

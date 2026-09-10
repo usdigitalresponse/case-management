@@ -3,6 +3,18 @@ static void Check(bool condition, string message)
   if (!condition) throw new Exception(message);
 }
 
+var existingForm = "<form><events><event name='onload' /></events><tabs><tab name='maker' id='preserved'><labels><label description='Maker layout' /></labels><columns><column><sections><section><rows><row><cell><control id='old' datafieldname='cm_old' /></cell></row></rows></section></sections></column></columns></tab></tabs></form>";
+var generatedForm = "<form><tabs><tab name='generated'><labels><label description='Generated' /></labels><columns><column><sections><section><rows><row><cell><control id='old' datafieldname='cm_old' /></cell></row><row><cell><control id='new' datafieldname='cm_new' disabled='true' /></cell></row></rows></section></sections></column></columns></tab></tabs></form>";
+var mergedForm = FormMaintenance.AddMissingFields(existingForm, generatedForm);
+var mergedXml = System.Xml.Linq.XDocument.Parse(mergedForm);
+Check(mergedXml.Descendants("event").Single().Attribute("name")!.Value == "onload", "Maker event lost.");
+Check(mergedXml.Descendants("tab").First().Attribute("id")!.Value == "preserved", "Maker tab replaced.");
+Check(mergedXml.Descendants("control").Count() == 2, "Missing or duplicate fields after merge.");
+Check(mergedXml.Descendants("control").Last().Attribute("disabled")!.Value == "true", "Review field unlocked.");
+Check(FormMaintenance.AddMissingFields(mergedForm, generatedForm) == mergedForm, "Form merge is not idempotent.");
+Check(FormMaintenance.AddMissingFields(existingForm, existingForm) == existingForm, "Unchanged form rewritten.");
+Console.WriteLine("PASS: form additions preserve maker layout/events, remain locked, and do not duplicate on rerun.");
+
 foreach (var (input, expected) in new[] {
   (" https://sample.crm.dynamics.com/ ", "https://sample.crm.dynamics.com"),
   ("https://sample.api.crm4.dynamics.com/api/data/v9.2/", "https://sample.crm4.dynamics.com"),

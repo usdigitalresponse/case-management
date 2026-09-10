@@ -1,0 +1,226 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<AppModule>
+  <UniqueName>cm_caseintake</UniqueName>
+  <IntroducedVersion>0.2.0.0</IntroducedVersion>
+  <WebResourceId>13bc95d2-8ee3-e811-815b-000d3a47f23f</WebResourceId>
+  <OptimizedFor></OptimizedFor>
+  <statecode>0</statecode>
+  <statuscode>1</statuscode>
+  <FormFactor>1</FormFactor>
+  <ClientType>4</ClientType>
+  <NavigationType>0</NavigationType>
+  <AppModuleComponents>
+    <AppModuleComponent type="1" schemaName="cm_activity" />
+    <AppModuleComponent type="1" schemaName="cm_activity_items" />
+    <AppModuleComponent type="1" schemaName="cm_activity_types" />
+    <AppModuleComponent type="1" schemaName="cm_audit_event" />
+    <AppModuleComponent type="1" schemaName="cm_calendar_event" />
+    <AppModuleComponent type="1" schemaName="cm_calendar_event_statuses" />
+    <AppModuleComponent type="1" schemaName="cm_case" />
+    <AppModuleComponent type="1" schemaName="cm_case_assignment" />
+    <AppModuleComponent type="1" schemaName="cm_case_category" />
+    <AppModuleComponent type="1" schemaName="cm_case_funding" />
+    <AppModuleComponent type="1" schemaName="cm_case_identifier" />
+    <AppModuleComponent type="1" schemaName="cm_case_identifier_types" />
+    <AppModuleComponent type="1" schemaName="cm_case_issue" />
+    <AppModuleComponent type="1" schemaName="cm_case_lifecycle_event" />
+    <AppModuleComponent type="1" schemaName="cm_case_lifecycle_event_types" />
+    <AppModuleComponent type="1" schemaName="cm_case_lifecycle_reasons" />
+    <AppModuleComponent type="1" schemaName="cm_case_note" />
+    <AppModuleComponent type="1" schemaName="cm_case_participant" />
+    <AppModuleComponent type="1" schemaName="cm_case_program" />
+    <AppModuleComponent type="1" schemaName="cm_case_status" />
+    <AppModuleComponent type="1" schemaName="cm_communication" />
+    <AppModuleComponent type="1" schemaName="cm_communication_channels" />
+    <AppModuleComponent type="1" schemaName="cm_communication_directions" />
+    <AppModuleComponent type="1" schemaName="cm_county" />
+    <AppModuleComponent type="1" schemaName="cm_document" />
+    <AppModuleComponent type="1" schemaName="cm_document_link" />
+    <AppModuleComponent type="1" schemaName="cm_document_purposes" />
+    <AppModuleComponent type="1" schemaName="cm_expense" />
+    <AppModuleComponent type="1" schemaName="cm_expense_types" />
+    <AppModuleComponent type="1" schemaName="cm_funding_sources" />
+    <AppModuleComponent type="1" schemaName="cm_invoice" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_allocation_decision" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_approval_chain" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_approval_decision" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_approval_outcomes" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_approval_step_types" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_attestation" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_authorization_allocation" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_event" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_event_types" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_line" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_line_types" />
+    <AppModuleComponent type="1" schemaName="cm_invoice_statuses" />
+    <AppModuleComponent type="1" schemaName="cm_issue_types" />
+    <AppModuleComponent type="1" schemaName="cm_jurisdictions" />
+    <AppModuleComponent type="1" schemaName="cm_languages" />
+    <AppModuleComponent type="1" schemaName="cm_office" />
+    <AppModuleComponent type="1" schemaName="cm_organization" />
+    <AppModuleComponent type="1" schemaName="cm_organization_types" />
+    <AppModuleComponent type="1" schemaName="cm_payment" />
+    <AppModuleComponent type="1" schemaName="cm_person" />
+    <AppModuleComponent type="1" schemaName="cm_person_affiliation" />
+    <AppModuleComponent type="1" schemaName="cm_preauthorization" />
+    <AppModuleComponent type="1" schemaName="cm_preauthorization_decision" />
+    <AppModuleComponent type="1" schemaName="cm_preauthorization_outcomes" />
+    <AppModuleComponent type="1" schemaName="cm_preauthorization_statuses" />
+    <AppModuleComponent type="1" schemaName="cm_professional" />
+    <AppModuleComponent type="1" schemaName="cm_professional_qualification" />
+    <AppModuleComponent type="1" schemaName="cm_programs" />
+    <AppModuleComponent type="1" schemaName="cm_qualification_levels" />
+    <AppModuleComponent type="1" schemaName="cm_role" />
+    <AppModuleComponent type="1" schemaName="cm_service_provider" />
+    <AppModuleComponent type="1" schemaName="cm_supporting_invoice" />
+    <AppModuleComponent type="1" schemaName="cm_time_entry" />
+    <AppModuleComponent type="1" schemaName="cm_user_account" />
+    <AppModuleComponent type="26" id="{04b75494-e8c8-47e2-ae20-054c7e5d5f22}" />
+    <AppModuleComponent type="26" id="{a1a35447-b290-4da0-84bf-05ebcd8d48bb}" />
+    <AppModuleComponent type="26" id="{31cf673c-d13c-4961-923c-05ff78ee8069}" />
+    <AppModuleComponent type="26" id="{69808a33-0a36-4351-9a61-06980b9cab55}" />
+    <AppModuleComponent type="26" id="{d14647f6-7f9d-49ec-a186-07e3bfded796}" />
+    <AppModuleComponent type="26" id="{ad1cfeb8-75e3-4584-8600-0ee5101db315}" />
+    <AppModuleComponent type="26" id="{02ff0948-cc4a-41d2-8165-1c5afabfe15c}" />
+    <AppModuleComponent type="26" id="{f89bcd70-fbd0-4890-857c-1ef1a2e88873}" />
+    <AppModuleComponent type="26" id="{671f3fdc-e897-4732-a2db-207bcd6fba76}" />
+    <AppModuleComponent type="26" id="{8b246089-4ac1-4389-aee0-215bb1ec22f8}" />
+    <AppModuleComponent type="26" id="{0690060e-b348-4f5e-9fc9-23769aceb051}" />
+    <AppModuleComponent type="26" id="{0b311927-b1a1-4322-9d10-27f50c40d09b}" />
+    <AppModuleComponent type="26" id="{d032b95d-debd-45ae-834a-292ea9e3d31f}" />
+    <AppModuleComponent type="26" id="{0abf97b9-d1aa-4171-a197-2d64c4238b43}" />
+    <AppModuleComponent type="26" id="{532f94f8-4097-42e6-b14c-2ef23da9db85}" />
+    <AppModuleComponent type="26" id="{5406e719-cf63-42f7-8106-2f342a944a6c}" />
+    <AppModuleComponent type="26" id="{b7a8e1f9-19cc-4137-8b86-2f8aba51325d}" />
+    <AppModuleComponent type="26" id="{1a84653d-ee87-44be-8c89-2ff60f2be011}" />
+    <AppModuleComponent type="26" id="{e24e921f-d3c1-4597-8d20-3172ccdac2b7}" />
+    <AppModuleComponent type="26" id="{e511b789-b0be-463d-863e-45de16e46646}" />
+    <AppModuleComponent type="26" id="{f359be08-e813-4191-9b8a-4ed6b32153f0}" />
+    <AppModuleComponent type="26" id="{ff025d3c-9eb4-4c98-9aee-5086d1bd1d16}" />
+    <AppModuleComponent type="26" id="{61ab8873-d1dd-4c09-b17f-592094015410}" />
+    <AppModuleComponent type="26" id="{b9cf42a0-65a9-4124-9c51-5978a9bd37a3}" />
+    <AppModuleComponent type="26" id="{66e89990-447f-40b2-85a8-59d14358bf35}" />
+    <AppModuleComponent type="26" id="{eca5d987-c973-4a25-abba-5a2f36206bac}" />
+    <AppModuleComponent type="26" id="{c923b3a2-16a2-4ef4-9f6d-5b73eee26d60}" />
+    <AppModuleComponent type="26" id="{f6842527-8854-468f-a787-618204a73492}" />
+    <AppModuleComponent type="26" id="{fdac9f3f-8516-4d14-ac39-638c3b270976}" />
+    <AppModuleComponent type="26" id="{66e49aff-ca57-42d8-bb10-6694141a1892}" />
+    <AppModuleComponent type="26" id="{a1731ad3-883c-4467-a282-681caf457f05}" />
+    <AppModuleComponent type="26" id="{97ba4c3c-fac1-4d9d-bea4-68afac8247e6}" />
+    <AppModuleComponent type="26" id="{d7734fc9-8745-4ed1-99c3-6c8b6d262dec}" />
+    <AppModuleComponent type="26" id="{6c0dd725-75e5-40fb-aeb7-722a010714c5}" />
+    <AppModuleComponent type="26" id="{b3676ca0-2c42-46cb-87bf-7cb08cd5c1f0}" />
+    <AppModuleComponent type="26" id="{b51b5b95-ec66-458d-a9ae-7d5dec7f4e3b}" />
+    <AppModuleComponent type="26" id="{ec32e7df-6b6f-4968-861e-7ef810c6bf40}" />
+    <AppModuleComponent type="26" id="{52312641-afc3-492e-aa33-7fd10030cc6f}" />
+    <AppModuleComponent type="26" id="{64c91368-f0cd-4538-84e6-81bd6dacdb15}" />
+    <AppModuleComponent type="26" id="{6d59463c-a337-45ce-9274-826f4ca3f8ef}" />
+    <AppModuleComponent type="26" id="{36c32ee0-a670-404d-825d-85bc50b68ea4}" />
+    <AppModuleComponent type="26" id="{d5c376f6-3985-45d4-bc94-90f6136c5c11}" />
+    <AppModuleComponent type="26" id="{b3428aa0-79b2-47f5-aab2-99702cf1d1a6}" />
+    <AppModuleComponent type="26" id="{c6271d1b-171b-47f5-970a-9d595b4d0e87}" />
+    <AppModuleComponent type="26" id="{35e4846e-bcb7-44f7-843a-9f4055b4e34a}" />
+    <AppModuleComponent type="26" id="{df386692-2304-4755-aa51-9f760de5f60a}" />
+    <AppModuleComponent type="26" id="{b0cc2524-563f-44b1-bd43-a10372128c80}" />
+    <AppModuleComponent type="26" id="{dff278f0-1fbc-4cb9-a3cc-ab6bbaad60d5}" />
+    <AppModuleComponent type="26" id="{eb49ee2c-0c82-49cb-a4c5-acd2936418b9}" />
+    <AppModuleComponent type="26" id="{ffa05da4-167f-4b0b-8348-b1b44a6af9b5}" />
+    <AppModuleComponent type="26" id="{e97c5727-0b9d-498e-aea1-b21164a3a121}" />
+    <AppModuleComponent type="26" id="{50f61d93-43b1-4674-8a71-b4cf43706b2b}" />
+    <AppModuleComponent type="26" id="{663e067b-9852-42ae-b609-b75d16355ef8}" />
+    <AppModuleComponent type="26" id="{09892ae2-2952-4dbf-b812-c63239869864}" />
+    <AppModuleComponent type="26" id="{0f548406-167f-43ef-ae6c-c8c8f0402778}" />
+    <AppModuleComponent type="26" id="{e337bbdc-3070-4277-bce8-de5a84b93b47}" />
+    <AppModuleComponent type="26" id="{61251d0a-c5d4-46c8-801a-e1d760535efb}" />
+    <AppModuleComponent type="26" id="{ac13be1e-1c48-4a50-9d19-e85e14a719d5}" />
+    <AppModuleComponent type="26" id="{3885d9b5-46a4-4ead-a3d7-ebe6ffb8cb48}" />
+    <AppModuleComponent type="26" id="{253b6e0d-c20d-4d4c-ada2-f2abf0ee78b0}" />
+    <AppModuleComponent type="26" id="{8d6dfc7a-1b34-43e9-857a-f6d0dde85cda}" />
+    <AppModuleComponent type="26" id="{9bcd743b-f2f5-45b4-9a17-f87e48ff604d}" />
+    <AppModuleComponent type="26" id="{e0d0764e-34c8-4fa7-9b81-f88e8b14b932}" />
+    <AppModuleComponent type="26" id="{59935af1-c745-4acb-a13a-fb8af1d10f69}" />
+    <AppModuleComponent type="26" id="{0f7d8144-79f6-4c55-b2ec-fbb2a62edeb2}" />
+    <AppModuleComponent type="60" id="{9c2cb23b-a219-45cd-bb6a-00ef00b5159f}" />
+    <AppModuleComponent type="60" id="{64a96003-5be7-4220-91cd-00fa5934b731}" />
+    <AppModuleComponent type="60" id="{d1de9991-8421-4dc4-a05d-02e04d325ab0}" />
+    <AppModuleComponent type="60" id="{57b0a820-344e-4622-ac64-048f7e9ff604}" />
+    <AppModuleComponent type="60" id="{533b4f06-55ea-47eb-bf70-06b307524d9d}" />
+    <AppModuleComponent type="60" id="{d05a4e85-abbc-48a6-bb91-0e16082e5ac0}" />
+    <AppModuleComponent type="60" id="{27811e6a-2b0f-4ce0-9beb-1070d30eb9a4}" />
+    <AppModuleComponent type="60" id="{aff29dd3-e674-49eb-a28b-117a9f5f1f65}" />
+    <AppModuleComponent type="60" id="{31d1f131-4fd7-4964-ba9e-155b260326e1}" />
+    <AppModuleComponent type="60" id="{1b5c6146-8e87-4135-815c-1580ff494639}" />
+    <AppModuleComponent type="60" id="{2bb9f245-9ba0-4e28-b8ab-188e79e989a9}" />
+    <AppModuleComponent type="60" id="{03811259-1e10-405a-80b9-2c63b35d9498}" />
+    <AppModuleComponent type="60" id="{b6e623b3-96a9-4f98-b15d-371def5b0124}" />
+    <AppModuleComponent type="60" id="{cba7ca08-fc85-4d31-926f-3de2c2f9130f}" />
+    <AppModuleComponent type="60" id="{fce41eaf-3ad1-4f73-9b62-3f115344e7fb}" />
+    <AppModuleComponent type="60" id="{5d03fa05-1d39-4d0b-a1a7-411b327ff0da}" />
+    <AppModuleComponent type="60" id="{5b5c9955-70c7-4084-8c6f-47b5cb45d340}" />
+    <AppModuleComponent type="60" id="{f53f81a1-0c2a-46eb-90d0-47c9c774e5f9}" />
+    <AppModuleComponent type="60" id="{4fe084e4-8063-41e4-94ea-4e8648185965}" />
+    <AppModuleComponent type="60" id="{796ad180-8682-45ce-b86a-4fefd4aabeda}" />
+    <AppModuleComponent type="60" id="{abefaec4-0cf7-4075-82c1-58f64163c4ce}" />
+    <AppModuleComponent type="60" id="{5221ea8b-7626-4f17-bc2e-630efd22384c}" />
+    <AppModuleComponent type="60" id="{439febd0-7c5c-4a8a-908b-6b0889356c11}" />
+    <AppModuleComponent type="60" id="{fde049d2-f4a2-422e-9b7f-6b16849be4ca}" />
+    <AppModuleComponent type="60" id="{1a712583-7427-4fad-857f-6d8f75447446}" />
+    <AppModuleComponent type="60" id="{ef1b9352-b6cb-47c3-b4f7-7759fe002cc7}" />
+    <AppModuleComponent type="60" id="{8d655117-7e77-43f6-ae62-7afab503ec93}" />
+    <AppModuleComponent type="60" id="{19fbfdd0-ba94-4d5f-bd05-7b59854719d0}" />
+    <AppModuleComponent type="60" id="{29cfbf48-1e47-41e7-b381-7f2203568d03}" />
+    <AppModuleComponent type="60" id="{55d0830a-332e-4325-808e-8513503466ac}" />
+    <AppModuleComponent type="60" id="{40866d6e-46a4-4b44-a090-8625a30215dd}" />
+    <AppModuleComponent type="60" id="{cc267238-ad99-4984-b8fb-8a8733031ea0}" />
+    <AppModuleComponent type="60" id="{bbaa7891-44d8-42a0-8ac7-8c166ea3e0b7}" />
+    <AppModuleComponent type="60" id="{a896da19-85ae-4531-a182-8e56cec5b23f}" />
+    <AppModuleComponent type="60" id="{21cc3ba8-a044-45c4-bfd8-91e846bb7d4e}" />
+    <AppModuleComponent type="60" id="{ff827965-3a2e-4a56-a409-9242c2b3e98c}" />
+    <AppModuleComponent type="60" id="{cd0441da-4c46-4d15-b727-929c3a8bb539}" />
+    <AppModuleComponent type="60" id="{3e5467a9-b26d-40e2-8c77-983a7f2066f3}" />
+    <AppModuleComponent type="60" id="{9625f1d5-d394-4785-b54e-9ef4d3955161}" />
+    <AppModuleComponent type="60" id="{5d4d6fcb-1853-4bc6-b4ea-9f8b83d2a5ad}" />
+    <AppModuleComponent type="60" id="{820186c9-d8a6-4ff0-8dae-a257bf5b567b}" />
+    <AppModuleComponent type="60" id="{3883d8a1-6dd1-4c32-86ce-a54018cde620}" />
+    <AppModuleComponent type="60" id="{d6158753-b1c0-46bd-b8e4-a54383f30292}" />
+    <AppModuleComponent type="60" id="{69339c92-1423-4362-a975-a6204ad4d8a9}" />
+    <AppModuleComponent type="60" id="{f6c20fff-61da-48f5-a903-a835a539556c}" />
+    <AppModuleComponent type="60" id="{5f1d228b-4be7-4c2e-b504-a84a25777ac8}" />
+    <AppModuleComponent type="60" id="{698758a8-952f-45aa-b836-a8e293cb7596}" />
+    <AppModuleComponent type="60" id="{f58879d4-7924-4e05-a32e-ac84f43dfb95}" />
+    <AppModuleComponent type="60" id="{36e14377-bb6c-4aa7-8911-b08baf8b8fc3}" />
+    <AppModuleComponent type="60" id="{6659ecbb-d6ef-4bea-a768-b25440dd704d}" />
+    <AppModuleComponent type="60" id="{5c83a883-4382-47e0-8a71-b3ae7d6f8cc8}" />
+    <AppModuleComponent type="60" id="{5f594993-0849-4ef0-aa88-be57092c710d}" />
+    <AppModuleComponent type="60" id="{738ead65-fb1f-4538-9715-bf609b545afb}" />
+    <AppModuleComponent type="60" id="{1ecf8168-49bd-445c-8cb0-c34b26da1229}" />
+    <AppModuleComponent type="60" id="{9b7516b9-029d-4370-91dd-c73c94a70b3f}" />
+    <AppModuleComponent type="60" id="{5da71786-cccd-4945-99ba-cfc349b81413}" />
+    <AppModuleComponent type="60" id="{09ba740e-74de-4850-a350-d1232d22d37d}" />
+    <AppModuleComponent type="60" id="{35bac880-b6d0-458b-ac93-dce60407ead9}" />
+    <AppModuleComponent type="60" id="{4388347e-569d-4089-ae77-e45515978c8e}" />
+    <AppModuleComponent type="60" id="{58e2e283-e32a-4814-baa1-e6fba21922f3}" />
+    <AppModuleComponent type="60" id="{bae67636-70a8-4b85-a10b-ecaed430e5b9}" />
+    <AppModuleComponent type="60" id="{8ee17af6-1a9c-4cbc-a6fd-ed41d2138f0e}" />
+    <AppModuleComponent type="60" id="{17d52b5f-b07d-4865-bf5b-ee824c371ac2}" />
+    <AppModuleComponent type="60" id="{e5ddb8a6-74c7-4e7d-a2d8-f173be5172c4}" />
+    <AppModuleComponent type="60" id="{29e91610-264b-496e-b031-fa55b6bc8478}" />
+    <AppModuleComponent type="62" schemaName="cm_caseintake_sitemap" />
+  </AppModuleComponents>
+  <AppModuleRoleMaps>
+    <Role id="{627090ff-40a3-4053-8790-584edc5be201}" />
+    <Role id="{119f245c-3cc8-4b62-b31c-d1a046ced15d}" />
+  </AppModuleRoleMaps>
+  <LocalizedNames>
+    <LocalizedName description="Case Intake Prototype" languagecode="1033" />
+  </LocalizedNames>
+  <Descriptions>
+    <Description description="Synthetic domain model review; workflow enforcement gaps documented in the repository." languagecode="1033" />
+  </Descriptions>
+  <appsettings>
+    <appsetting settingdefinitionid.uniquename="AppChannel">
+      <iscustomizable>1</iscustomizable>
+      <value>1</value>
+    </appsetting>
+  </appsettings>
+</AppModule>

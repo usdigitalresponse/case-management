@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<savedqueries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <savedquery>
+    <IsCustomizable>1</IsCustomizable>
+    <CanBeDeleted>1</CanBeDeleted>
+    <isquickfindquery>0</isquickfindquery>
+    <isprivate>0</isprivate>
+    <isdefault>1</isdefault>
+    <savedqueryid>{b0cc2524-563f-44b1-bd43-a10372128c80}</savedqueryid>
+    <layoutxml>
+      <grid name="resultset" jump="cm_name" select="1" icon="1" preview="1">
+        <row name="result" id="cm_preauthorizationid">
+          <cell name="cm_name" width="180" />
+          <cell name="cm_case_id" width="180" />
+          <cell name="cm_service_provider_id" width="180" />
+          <cell name="cm_status_id" width="180" />
+          <cell name="cm_requested_amount" width="180" />
+          <cell name="cm_requested_at" width="180" />
+        </row>
+      </grid>
+    </layoutxml>
+    <querytype>0</querytype>
+    <fetchxml>
+      <fetch>
+        <entity name="cm_preauthorization">
+          <attribute name="cm_preauthorizationid" />
+          <attribute name="cm_name" />
+          <attribute name="cm_case_id" />
+          <attribute name="cm_service_provider_id" />
+          <attribute name="cm_status_id" />
+          <attribute name="cm_requested_amount" />
+          <attribute name="cm_requested_at" />
+          <order attribute="cm_name" descending="false" />
+        </entity>
+      </fetch>
+    </fetchxml>
+    <IntroducedVersion>0.2.0.0</IntroducedVersion>
+    <LocalizedNames>
+      <LocalizedName description="Synthetic Preauthorization records" languagecode="1033" />
+    </LocalizedNames>
+  </savedquery>
+</savedqueries>
