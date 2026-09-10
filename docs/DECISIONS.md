@@ -106,6 +106,19 @@ from existing contributors for changes that benefit from discussion or affect
 shared project conventions.
 
 
+### New-case intake UI comparison (in progress)
+
+- **Status:** In progress — not yet a decision
+- **Started:** 2026-09-10
+
+Plan to compare standard model-driven intake, a Power Fx Custom Page and a React
+web interface against the same Dataverse backend and shared transactional intake
+behavior. See [the plan](case-intake-comparison-plan.md) and
+[comparison worksheet](case-intake-ui-comparison.md). This records the experiment's
+scope, not a UI winner or production-platform decision. Standard forms remain the
+default until evidence supports a subsequent decision.
+
+
 ## Deferred Decisions
 
 The following decisions will be made when the project has enough information to

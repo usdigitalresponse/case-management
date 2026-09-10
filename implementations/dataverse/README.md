@@ -18,6 +18,14 @@ Form-level disabling is a usability boundary, **not server-side security**.
 Administrators and API writers can still change records. Do not use this slice to
 claim intake, approval, closure or permission scenarios pass end to end.
 
+The temporary review-only write guard was disabled in the development environment
+on 2026-09-10: all 299 registered steps were verified disabled. Its assembly and
+step registrations remain for reversibility; its source is shelved. A future
+Solution export may therefore include these disabled components. Review them
+before copying exports into Git or importing an older package that could
+re-enable the guard. This change does not enable form controls, remove earlier
+command-hiding customizations, or implement domain workflow enforcement.
+
 No payment execution is implemented. `payment` contains external completion
 evidence only. Synthetic user-account records represent fixture actors and are
 not provisioned logins, native security principals or impersonation.
