@@ -1,11 +1,11 @@
-spec_version: "0.1.0"
+spec_version: "0.2.0"
 status: draft
 kind: business_rules
 
 rules:
   flag_possible_duplicate_client:
-    description: Identify possible existing client records before creating another.
-    applies_to: client
+    description: Identify possible existing people before creating a person or professional profile; the retained key applies to person identity generally, not only a client role.
+    applies_to: person
     trigger: before_create
     outcome: warning
     requirements:
@@ -49,33 +49,32 @@ rules:
       - Show the potentially overlapping records to the user.
 
   configure_invoice_approval_chain:
-    description: Establish the required ordered review for an invoice.
+    description: Establish the required review for an invoice.
     applies_to: invoice_approval_chain
     trigger: before_create
     outcome: blocking
     requirements:
       - Allow only one non-superseded chain per invoice.
-      - Require at least one line-review step in every chain.
-      - Require positive sequence numbers unique within the chain.
-      - Include invoice pre-approval steps before line-review steps when required by configured policy.
-      - Assign each step to an active user authorized for that review.
-      - Assign pre-approval to a user other than the invoice submitter.
 
   enforce_invoice_approval_sequence:
-    description: Record decisions only at the current authorized approval step.
+    description: Record decisions only at the current authorized stage, in order, since there is no separate
+      pre-assigned step record to check against.
     applies_to: invoice_approval_decision
     trigger: before_create
     outcome: blocking
     requirements:
       - Reject decisions for superseded chains.
-      - Require the deciding user to be the active, authorized user assigned to the step.
-      - Require every earlier step in the chain to be approved before accepting a decision.
-      - For invoice pre-approval, omit invoice_line_id and allow one decision per step.
-      - For line review, require invoice_line_id and allow one decision per line per step.
+      - Require a positive sequence_number, unique within the chain.
+      - Include invoice pre-approval decisions before line-review decisions when required by configured policy.
+      - Require the deciding user to be an active user authorized for that step_type; a user other than the invoice submitter for pre-approval.
+      - Require every earlier sequence_number in the chain to be approved before accepting a decision.
+      - For invoice pre-approval, omit invoice_line_id and allow one decision per sequence_number.
+      - For line review, require invoice_line_id and allow one decision per line per sequence_number.
       - Require the reviewed line to belong to the invoice referenced by the chain.
-      - Treat a line-review step as approved only when every invoice line has an approval at that step.
+      - Treat a line-review stage as approved only when every invoice line has an approval at that sequence_number.
       - Require a reason for rejection or a request for changes; either outcome blocks advancement.
       - Record the actual deciding user and decision timestamp.
+      - Apply record_approved_request_amounts to every decision and final allocation draw.
 
   require_completed_invoice_approval:
     description: Complete approval only after the invoice and all its lines pass the chain.
@@ -84,7 +83,7 @@ rules:
     outcome: blocking
     requirements:
       - Require a non-superseded approval chain and at least one invoice line.
-      - Require approval at every pre-approval step and for every line at every line-review step.
+      - Require approval at every pre-approval decision and for every line at every line-review sequence_number.
       - Derive approval progress from decisions in the non-superseded chain.
 
   preserve_invoice_approval_history:
@@ -94,7 +93,7 @@ rules:
     outcome: blocking
     requirements:
       - Do not overwrite or delete recorded decisions.
-      - Freeze the invoice, its lines, and the chain steps while the chain is non-superseded.
+      - Freeze the invoice, its lines, and the chain's decisions while the chain is non-superseded.
       - Before editing or resubmitting, supersede the chain and invalidate its approval for current use.
       - Preserve the reviewed invoice and line values in immutable history before permitting edits.
       - Start a new chain for renewed review; do not carry forward prior approvals automatically.
@@ -108,3 +107,179 @@ rules:
     requirements:
       - Record the affected record, event type, actor, and timestamp.
       - Prevent ordinary users from changing or deleting audit events.
+
+  preserve_person_identity:
+    description: Preserve person identity.
+    applies_to: person
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Require a usable display name without assuming all people have given and family names.
+      - A person may have at most one professional profile, which is not required for case participation; client is a case_participant role, not a profile.
+      - A user account may link to a person; a person need not have an account. Account linkage alone grants no case access.
+      - When professional.user_account_id is present, its person must match professional.person_id.
+      - Provider profiles reference exactly one of person_id or organization_id. Display name is the payee label, not an independent person identity.
+      - Warn on probable duplicate people, including creation through case-participant or professional workflows; never merge automatically.
+
+  validate_effective_relationships:
+    description: Validate effective relationships.
+    applies_to: case_assignment
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Apply interval validation to assignments, affiliations, participants and case programs; an end must be later than its start. Case funding has no interval of its own; it is effective exactly when its case_program is.
+      - Intervals are start-inclusive and end-exclusive. Current state is calculated at an explicit as-of time, not independently editable.
+      - Assignment affiliation must belong to the assigned professional person; participant affiliation must belong to its person.
+      - An affiliation office must belong to its organization. Retain historical affiliations after transfers.
+      - At relationship start the referenced affiliation must be effective; later affiliation changes must not rewrite assignment or participant history.
+      - Assignment roles are configured, including a primary role. Permit at most one overlapping primary assignment per case; other roles may overlap.
+      - Ending an assignment records the ending actor and reason. Corrections preserve previous values, actor and timestamp in audit history.
+      - Case office must belong to case organization when both are present; program/funding context changes preserve audit history.
+      - Qualification policy applies by assignment role; do not assume every staff assignment requires professional qualifications.
+      - A referenced role must be active and its role_context must match the field: participant_role_id requires case_participant, affiliation_role_id requires person_affiliation, assignment_role_id requires case_assignment.
+      - Access is granted only through configured roles and effective assignments, never by contact participation or office membership alone.
+
+  validate_case_children:
+    description: Validate case children.
+    applies_to: case
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Every reference must resolve to its declared entity or configured reference set; restrict deletion of referenced or historical records.
+      - Permit multiple participant roles per person per case, but reject duplicate overlapping relationships for the same case, person, role and affiliation.
+      - Allow at most one primary case identifier and one primary issue per case; primary is optional.
+      - Case identifier uniqueness is evaluated within issuer and identifier type; repeated identifiers require explicit duplicate review rather than merging cases.
+      - Case funding's case_program must belong to the same case as the funding record.
+
+  preserve_case_lifecycle:
+    description: Preserve case lifecycle.
+    applies_to: case_lifecycle_event
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Use configured transitions with explicit allowed source status, target status, event type and authorized actor role.
+      - Opening requires no prior lifecycle; closing requires an open state and a reason; reopening requires a closed state and a reason.
+      - Other status changes must not bypass opening, closing or reopening guards.
+      - Closing ends every assignment active at the closure effective timestamp, regardless of assignment role; write ended_at at that timestamp, the closing actor as ended_by_user_account_id, and a case-closure end reason.
+      - Commit the closing event, assignment endings and status projections atomically; reject concurrent assignment creation that would leave an assignment active on a closed case.
+      - New assignments must begin while the case is open and may not span a closed interval. Reject future assignment starts on closed cases rather than creating active closed-case assignments.
+      - Reopening does not reactivate ended assignments; any renewed assignment requires a new record and normal eligibility checks.
+      - Closure corrections must revalidate assignment intervals and preserve all prior ending facts; never silently reactivate assignments.
+      - Serialize events with a positive sequence unique within the case and retain effective and recording timestamps.
+      - Ordinary transitions cannot precede the latest effective transition. Backdated corrections reference the same-case corrected event and require authorized correction with a reason and replay validation.
+      - Events are immutable. Corrections append history and must leave the effective transition sequence valid.
+      - Create the opening event and case together; refresh current status and date projections in the same logical transaction.
+      - Interpret calendar dates in configured reporting time zone; preserve original instants. Lifecycle event configuration must classify statuses as open or closed.
+
+  validate_activity_and_time_context:
+    description: Validate activity and time context.
+    applies_to: time_entry
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Time entries may exist without activities; one activity may have multiple time entries.
+      - Linked activity and time entry must reference the same case. Staff on time is the worker, not necessarily the activity actor.
+      - Duration must be positive; service date remains activity_on. Activity items must belong to the selected activity type.
+      - Apply activity item/type validation to activities as well as timekeeping.
+      - Referenced program and funding associations must belong to the time entry case and be effective on the service date.
+      - Time entry office is the office for that work, not a copy of current professional office; do not copy mutable case classification.
+      - Calendar end must follow start; linked activity must belong to the same case. Scheduled events do not prove completed work.
+      - Preserve changes to time, activity, notes, communications and calendar records with actor, timestamp and prior values.
+
+  validate_payment_request:
+    description: Validate payment request.
+    applies_to: invoice
+    trigger: before_submit
+    outcome: blocking
+    requirements:
+      - Require one case, one provider/payee, at least one line and a currency for each request; all lines belong to that case.
+      - Require both billing period bounds or neither and reject inverted periods, including supporting invoices.
+      - Requested line and allocation amounts must be positive; submitted_total equals the sum of request lines.
+      - An invoice line sets at most one of source_time_entry_id or source_expense_id, and the referenced time_entry or expense must be on the same case; a manual line sets neither.
+      - Currency applies to all request amounts; referenced preauthorizations must use the same currency. Do not infer exchange rates.
+      - Supporting supplier invoice numbers are scoped to the request payee; warn on duplicates across requests rather than silently merging.
+      - Freeze a schema-versioned submission_snapshot when creating the review chain; bind attestations and evidence to that attempt.
+      - Record a draft creation event and each submission, review and final outcome with actual actor and timestamp. Status projections cannot bypass approval guards.
+      - Request events are immutable with positive sequence unique per request; any referenced chain must belong to that request. Events and their triggering decisions are persisted atomically.
+      - Preserve all old attempts, allocations and evidence before correction or resubmission; old attestations and approvals cannot authorize changed values.
+
+  record_approved_request_amounts:
+    description: Record approved request amounts.
+    applies_to: invoice_approval_decision
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Approving a line requires approved_amount between zero and that line requested amount. Pre-approval and non-approval outcomes omit approved_amount.
+      - The approved request amount is the sum of approved line amounts at the final required line-review sequence_number of the current chain; it is not submitted_total.
+      - A later review decision cannot increase an earlier approved line amount; changes require a new review attempt.
+      - Final decisions, allocation decisions and completion events are recorded atomically; final approval requires all requested lines reviewed.
+      - Denial requires a reason and preserves requested values; a denied attempt has no spendable approved amount.
+      - Attestation policy specifies required attestor roles and evidence; verify their case relationship as of attestation time without assuming all attestors have accounts.
+
+  validate_authorization_draws:
+    description: Validate authorization draws.
+    applies_to: invoice_authorization_allocation
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Allow one allocation per request and preauthorization; a request may use multiple preauthorizations and a preauthorization may support multiple requests.
+      - Allocation case must match the preauthorization case; any restricted provider must match the request payee.
+      - Sum of requested allocations must not exceed requested total. Whether full coverage is mandatory is configured, not assumed.
+      - At final review, allocation decisions reference approving final-sequence line decisions and allocations from that same request and frozen attempt.
+      - For each line the allocated approved amounts must not exceed its approved amount; for each allocation their sum must not exceed its requested amount.
+      - At approval, require each drawn authorization to have an effective approving decision and atomically check its ceiling minus effective approved draws across requests; prevent concurrent requests from overspending.
+      - Allocation decisions are immutable and unique per final line decision and request allocation; a later review attempt cannot reuse an earlier draw decision.
+      - Uncovered amounts, reservations for pending requests, expiry and permitted overrides require explicit policy before enabling the affected workflow.
+      - Superseding an unpaid approval removes it from current commitment only as an audited atomic transition; approvals with external completion confirmation cannot be superseded until reconciliation policy exists.
+      - Historical draws remain queryable even when an attempt is superseded; never sum every historical attempt as current consumption.
+
+  preserve_authorization_decisions:
+    description: Preserve authorization decisions.
+    applies_to: preauthorization_decision
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Use positive sequence numbers unique within each preauthorization and record the actual reviewer and effective timestamp.
+      - An approval or revision specifies a nonnegative ceiling; denial omits approved_amount and requires a reason.
+      - Ceilings are replacement amounts, not additive approvals; the latest effective decision determines the ceiling.
+      - Denial cannot revoke a ceiling with committed draws; resolve commitments under explicit policy first.
+      - Reject a reduction below effective committed approved draws. Preserve decisions immutably and serialize ceiling changes with draw approvals.
+      - Configured status and outcome mappings distinguish pending, approved and denied; external preauthorization is separate from invoice-chain pre-approval.
+
+  validate_payment_confirmation:
+    description: Validate payment confirmation.
+    applies_to: payment
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Require a completed current invoice approval chain belonging to the referenced request and an authorized recording user.
+      - Record external completion evidence, source, recording actor and timestamp; paid_on is the reported payment date, not the recording date.
+      - Recording confirmation must never initiate, schedule, authorize a bank transfer or execute payment through an integration.
+      - Allow one completion confirmation per request; serialize creation and reject duplicate external references within the confirmation source when supplied.
+      - Amount is optional reported evidence in the request currency; do not substitute the approved amount when it is unknown.
+      - Flag any reported amount differing from approval for reconciliation without discarding the external evidence or changing approved amounts.
+      - Absence of confirmation means completion unconfirmed, not proof of nonpayment. Approval and external completion are separate read states.
+      - Preserve confirmation facts and audit history; corrections require explicit reconciliation policy and cannot silently overwrite evidence.
+      - Partial settlement and external refund/reversal reporting require a later reconciliation design; executing payments, refunds or reversals is outside scope.
+      - Never restore authorization capacity merely because external payment is confirmed.
+
+  validate_documents:
+    description: Validate documents.
+    applies_to: document_link
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Require exactly one target among case_id, invoice_id and preauthorization_id. All target and document references must resolve.
+      - Supporting invoice and signature documents must be linked to the same request or its case; evidence cannot be silently replaced after submission.
+      - Document versions are immutable and identify their predecessor; content hashes and storage references must resolve to the retained version.
+      - Authorize document retrieval through the target domain record. A link or storage identifier alone does not grant access.
+
+  recommend_configured_resources:
+    description: Recommend configured resources.
+    applies_to: case
+    trigger: on_read
+    outcome: optional
+    requirements:
+      - Optional implementation configuration may evaluate typed case paths including issue codes, county, jurisdiction, language, effective programs and funding.
+      - Rules return authorized resource or template version identifiers with an explanation; recommendations do not mutate the case or grant access.
+      - No canonical executable rules language or recommendation catalog is selected. Define versioning, precedence and missing-value behavior before implementation.

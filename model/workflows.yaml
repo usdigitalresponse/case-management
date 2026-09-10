@@ -1,0 +1,73 @@
+spec_version: "0.2.0"
+status: draft
+kind: workflows
+
+workflows:
+  case_lifecycle:
+    entity: case
+    history_entity: case_lifecycle_event
+    transitions:
+      - action: open
+        from: absent
+        to: configured_open_status
+        requires: [authorized_actor, effective_timestamp, initial_participant_for_intake]
+      - action: close
+        from: configured_open_status
+        to: configured_closed_status
+        requires: [authorized_actor, effective_timestamp, reason, atomic_ending_of_all_active_assignments]
+      - action: reopen
+        from: configured_closed_status
+        to: configured_open_status
+        requires: [authorized_actor, effective_timestamp, reason]
+    requirements:
+      - State names above are semantic categories, not seeded reference IDs.
+      - Additional within-state transitions and corrections follow preserve_case_lifecycle.
+      - Closing atomically ends all active assignment roles at the closure effective timestamp with closing actor and reason.
+      - Reopening leaves ended assignments inactive; reassignment creates new history records.
+      - Closing does not cancel financial requests; any cancellation policy remains unresolved.
+  payment_request:
+    entity: invoice
+    history_entity: invoice_event
+    transitions:
+      - action: submit
+        from: draft
+        to: submitted
+        requires: [authorized_submitter, validated_lines, frozen_review_attempt, configured_attestation]
+      - action: review
+        from: [submitted, under_review]
+        to: under_review
+        requires: [current_assigned_reviewer, earlier_steps_complete, immutable_decision]
+      - action: approve
+        from: under_review
+        to: approved
+        requires: [all_required_reviews_complete, approved_line_amounts, atomic_authorization_draw_check]
+      - action: deny
+        from: [submitted, under_review]
+        to: denied
+        requires: [current_assigned_reviewer, rejection_decision, reason]
+      - action: request_changes
+        from: [submitted, under_review]
+        to: changes_requested
+        requires: [current_assigned_reviewer, change_request_decision, reason]
+      - action: revise
+        from: [changes_requested, denied, approved]
+        to: draft
+        requires: [authorized_submitter, no_external_completion_confirmation, supersede_attempt, preserve_snapshot_and_decisions]
+    requirements:
+      - Configure reference status mappings and actor permissions before enabling transitions.
+      - Reviewed timestamps and reviewers come from decisions; final approval cannot be asserted by editing status.
+      - External completion confirmation references the approved attempt and leaves approval status unchanged; it never executes payment.
+      - Withdrawal, delegation and correction after external completion need product decisions before implementation.
+  external_payment_completion:
+    entity: invoice
+    history_entity: payment
+    transitions:
+      - action: record_external_completion
+        from: completion_unconfirmed
+        to: completion_confirmed
+        requires: [approved_request, authorized_recording_user, external_completion_evidence]
+    requirements:
+      - Completion states are read-model labels separate from invoice approval status.
+      - Record the source, actor, timestamp and approved attempt; optional reported date and amount remain unknown when absent.
+      - This transition records a fact about payment elsewhere and does not move money.
+      - Partial settlement, mistaken confirmation and external reversal reconciliation require explicit policy before implementation.

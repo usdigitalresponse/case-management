@@ -1,4 +1,4 @@
-spec_version: "0.1.0"
+spec_version: "0.2.0"
 status: draft
 kind: domain_schema
 
@@ -18,28 +18,10 @@ entities:
       active:
         type: boolean
         required: true
-
-  client:
-    display_name: Client
-    description: A person associated with one or more cases.
-    primary_key: client_id
-    fields:
-      client_id:
+      person_id:
         type: uuid
-        required: true
-        generated: true
-      given_name:
-        type: string
-        required: true
-      middle_name:
-        type: string
         required: false
-      family_name:
-        type: string
-        required: true
-      date_of_birth:
-        type: date
-        required: false
+        references: person.person_id
 
   county:
     display_name: County
@@ -68,8 +50,9 @@ entities:
         generated: true
       client_id:
         type: uuid
-        required: true
-        references: client.client_id
+        required: false
+        description: Compatibility reference to the person in the case's client role; case_participant is authoritative.
+        references: person.person_id
       county_id:
         type: uuid
         required: false
@@ -91,6 +74,22 @@ entities:
       closed_on:
         type: date
         required: false
+      organization_id:
+        type: uuid
+        required: false
+        references: organization.organization_id
+      office_id:
+        type: uuid
+        required: false
+        references: office.office_id
+      jurisdiction_id:
+        type: reference
+        required: false
+        reference_data: jurisdictions
+      preferred_language_id:
+        type: reference
+        required: false
+        reference_data: languages
 
   office:
     display_name: Office
@@ -107,10 +106,14 @@ entities:
       active:
         type: boolean
         required: true
+      organization_id:
+        type: uuid
+        required: false
+        references: organization.organization_id
 
   professional:
     display_name: Professional
-    description: A person eligible to receive a case assignment.
+    description: An assignment-eligible professional or staff profile linked to a person.
     primary_key: professional_id
     fields:
       professional_id:
@@ -123,7 +126,7 @@ entities:
         references: user_account.user_account_id
       display_name:
         type: string
-        required: true
+        required: false
       qualification_level_id:
         type: reference
         required: false
@@ -135,6 +138,10 @@ entities:
       active:
         type: boolean
         required: true
+      person_id:
+        type: uuid
+        required: true
+        references: person.person_id
 
   professional_qualification:
     display_name: Professional Qualification
@@ -183,6 +190,25 @@ entities:
       ended_at:
         type: datetime
         required: false
+      assignment_role_id:
+        type: uuid
+        required: true
+        references: role.role_id
+      affiliation_id:
+        type: uuid
+        required: false
+        references: person_affiliation.person_affiliation_id
+      assigned_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      ended_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+      end_reason:
+        type: string
+        required: false
 
   time_entry:
     display_name: Time Entry
@@ -214,6 +240,22 @@ entities:
       description:
         type: string
         required: true
+      activity_id:
+        type: uuid
+        required: false
+        references: activity.activity_id
+      office_id:
+        type: uuid
+        required: false
+        references: office.office_id
+      case_program_id:
+        type: uuid
+        required: false
+        references: case_program.case_program_id
+      case_funding_id:
+        type: uuid
+        required: false
+        references: case_funding.case_funding_id
 
   expense:
     display_name: Expense
@@ -240,8 +282,8 @@ entities:
         required: true
 
   invoice:
-    display_name: Invoice
-    description: A request for payment that moves through review and payment.
+    display_name: Payment Request
+    description: The existing payment-request aggregate, retaining its stable invoice key; supporting supplier invoices are separate references.
     primary_key: invoice_id
     fields:
       invoice_id:
@@ -260,7 +302,26 @@ entities:
         type: datetime
         required: false
       submitted_total:
+        data_role: snapshot
+        description: Requested total frozen for each submitted review attempt, validated against lines.
         type: money
+        required: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      service_provider_id:
+        type: uuid
+        required: true
+        references: service_provider.service_provider_id
+      period_start:
+        type: date
+        required: false
+      period_end:
+        type: date
+        required: false
+      currency_code:
+        type: string
         required: true
 
   invoice_line:
@@ -284,12 +345,14 @@ entities:
         type: reference
         required: true
         reference_data: invoice_line_types
-      source_record_id:
+      source_time_entry_id:
         type: uuid
         required: false
-      source_record_type:
-        type: string
+        references: time_entry.time_entry_id
+      source_expense_id:
+        type: uuid
         required: false
+        references: expense.expense_id
       amount:
         type: money
         required: true
@@ -317,13 +380,20 @@ entities:
       superseded_at:
         type: datetime
         required: false
+      submission_snapshot:
+        type: object
+        required: true
+        data_role: snapshot
+        description: Immutable schema-versioned request, line, allocation, payee, supporting invoice and attestation values; contract in model/README.md.
 
-  invoice_approval_step:
-    display_name: Invoice Approval Step
-    description: A user-assigned stage in an invoice approval chain.
-    primary_key: invoice_approval_step_id
+  invoice_approval_decision:
+    display_name: Invoice Approval Decision
+    description: An immutable decision on an invoice or one of its lines at one stage of a review chain. There is
+      no separate step entity; sequence_number and step_type_id place each decision within its chain directly,
+      since nothing assigns or routes a stage ahead of the decision that resolves it.
+    primary_key: invoice_approval_decision_id
     fields:
-      invoice_approval_step_id:
+      invoice_approval_decision_id:
         type: uuid
         required: true
         generated: true
@@ -338,24 +408,6 @@ entities:
         type: reference
         required: true
         reference_data: invoice_approval_step_types
-      assigned_to_user_account_id:
-        type: uuid
-        required: true
-        references: user_account.user_account_id
-
-  invoice_approval_decision:
-    display_name: Invoice Approval Decision
-    description: An immutable decision on an invoice or one of its lines at a review step.
-    primary_key: invoice_approval_decision_id
-    fields:
-      invoice_approval_decision_id:
-        type: uuid
-        required: true
-        generated: true
-      invoice_approval_step_id:
-        type: uuid
-        required: true
-        references: invoice_approval_step.invoice_approval_step_id
       invoice_line_id:
         type: uuid
         required: false
@@ -374,10 +426,14 @@ entities:
       reason:
         type: string
         required: false
+      approved_amount:
+        type: money
+        required: false
+        description: Required for an approving line decision; not an invoice pre-approval amount.
 
   payment:
-    display_name: Payment
-    description: A payment or payment confirmation associated with an invoice.
+    display_name: External Payment Confirmation
+    description: Evidence that an approved request was paid outside this system; recording confirmation never initiates a transfer.
     primary_key: payment_id
     fields:
       payment_id:
@@ -390,11 +446,29 @@ entities:
         references: invoice.invoice_id
       amount:
         type: money
-        required: true
+        required: false
+        description: Reported external amount, when known; never inferred from the approved amount.
       paid_on:
         type: date
         required: false
       external_reference:
+        type: string
+        required: false
+      invoice_approval_chain_id:
+        type: uuid
+        required: true
+        references: invoice_approval_chain.invoice_approval_chain_id
+      recorded_at:
+        type: datetime
+        required: true
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      confirmation_source:
+        type: string
+        required: true
+      detail:
         type: string
         required: false
 
@@ -417,6 +491,23 @@ entities:
       active:
         type: boolean
         required: true
+      person_id:
+        type: uuid
+        required: false
+        references: person.person_id
+      organization_id:
+        type: uuid
+        required: false
+        references: organization.organization_id
+      email:
+        type: string
+        required: false
+      vendor_identifier:
+        type: string
+        required: false
+      vendor_identifier_issuer:
+        type: string
+        required: false
 
   preauthorization:
     display_name: Preauthorization
@@ -445,6 +536,12 @@ entities:
       requested_at:
         type: datetime
         required: true
+      authorization_number:
+        type: string
+        required: false
+      currency_code:
+        type: string
+        required: true
 
   audit_event:
     display_name: Audit Event
@@ -471,3 +568,686 @@ entities:
       occurred_at:
         type: datetime
         required: true
+
+  person:
+    display_name: Person
+    description: A contact identity independent of client, professional, provider and account profiles.
+    primary_key: person_id
+    fields:
+      person_id:
+        type: uuid
+        required: true
+        generated: true
+      given_name:
+        type: string
+        required: false
+      middle_name:
+        type: string
+        required: false
+      family_name:
+        type: string
+        required: false
+      display_name:
+        type: string
+        required: true
+      date_of_birth:
+        type: date
+        required: false
+      email:
+        type: string
+        required: false
+
+  organization:
+    display_name: Organization
+    description: An organization distinct from its offices, programs and payee profile.
+    primary_key: organization_id
+    fields:
+      organization_id:
+        type: uuid
+        required: true
+        generated: true
+      display_name:
+        type: string
+        required: true
+      organization_type_id:
+        type: reference
+        required: false
+        reference_data: organization_types
+      active:
+        type: boolean
+        required: true
+
+  role:
+    display_name: Role
+    description: A configured role, scoped to the one relationship context where it can
+      be assigned. A future role-to-permission mapping keys off role_id rather than
+      each context defining its own disconnected role vocabulary.
+    primary_key: role_id
+    fields:
+      role_id:
+        type: uuid
+        required: true
+        generated: true
+      display_name:
+        type: string
+        required: true
+      role_context:
+        type: string
+        required: true
+        description: One of case_participant, person_affiliation or case_assignment; must match the field referencing this role.
+      active:
+        type: boolean
+        required: true
+
+  person_affiliation:
+    display_name: Person Affiliation
+    description: Effective membership of a person in an organization and optionally one of its offices.
+    primary_key: person_affiliation_id
+    fields:
+      person_affiliation_id:
+        type: uuid
+        required: true
+        generated: true
+      person_id:
+        type: uuid
+        required: true
+        references: person.person_id
+      organization_id:
+        type: uuid
+        required: true
+        references: organization.organization_id
+      office_id:
+        type: uuid
+        required: false
+        references: office.office_id
+      affiliation_role_id:
+        type: uuid
+        required: false
+        references: role.role_id
+      started_at:
+        type: datetime
+        required: true
+      ended_at:
+        type: datetime
+        required: false
+
+  case_participant:
+    display_name: Case Participant
+    description: A person in a configured role on a case; multiple people and roles are supported.
+    primary_key: case_participant_id
+    fields:
+      case_participant_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      person_id:
+        type: uuid
+        required: true
+        references: person.person_id
+      participant_role_id:
+        type: uuid
+        required: true
+        references: role.role_id
+      affiliation_id:
+        type: uuid
+        required: false
+        references: person_affiliation.person_affiliation_id
+      started_at:
+        type: datetime
+        required: true
+      ended_at:
+        type: datetime
+        required: false
+
+  case_identifier:
+    display_name: Case Identifier
+    description: An external or business identifier with an explicit namespace.
+    primary_key: case_identifier_id
+    fields:
+      case_identifier_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      identifier_type_id:
+        type: reference
+        required: true
+        reference_data: case_identifier_types
+      issuer:
+        type: string
+        required: true
+      value:
+        type: string
+        required: true
+      is_primary:
+        type: boolean
+        required: true
+
+  case_issue:
+    display_name: Case Issue
+    description: A charge, allegation, count or other case issue; domain labels are configurable.
+    primary_key: case_issue_id
+    fields:
+      case_issue_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      issue_type_id:
+        type: reference
+        required: true
+        reference_data: issue_types
+      code:
+        type: string
+        required: false
+      statute_reference:
+        type: string
+        required: false
+      description:
+        type: string
+        required: false
+      occurred_on:
+        type: date
+        required: false
+      is_primary:
+        type: boolean
+        required: true
+
+  case_program:
+    display_name: Case Program
+    description: An effective association of a case with a configured program.
+    primary_key: case_program_id
+    fields:
+      case_program_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      program_id:
+        type: reference
+        required: true
+        reference_data: programs
+      started_on:
+        type: date
+        required: true
+      ended_on:
+        type: date
+        required: false
+
+  case_funding:
+    display_name: Case Funding
+    description: A funding source attached to a case through a case_program; it has no
+      interval of its own and is effective exactly when that case_program is.
+    primary_key: case_funding_id
+    fields:
+      case_funding_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      funding_source_id:
+        type: reference
+        required: true
+        reference_data: funding_sources
+      case_program_id:
+        type: uuid
+        required: true
+        references: case_program.case_program_id
+
+  case_lifecycle_event:
+    display_name: Case Lifecycle Event
+    description: An immutable opening, status change, closing, reopening or correction event.
+    primary_key: case_lifecycle_event_id
+    fields:
+      case_lifecycle_event_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      sequence_number:
+        type: integer
+        required: true
+      event_type_id:
+        type: reference
+        required: true
+        reference_data: case_lifecycle_event_types
+      resulting_status_id:
+        type: reference
+        required: true
+        reference_data: case_statuses
+      effective_at:
+        type: datetime
+        required: true
+      recorded_at:
+        type: datetime
+        required: true
+      actor_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      reason_id:
+        type: reference
+        required: false
+        reference_data: case_lifecycle_reasons
+      reason_detail:
+        type: string
+        required: false
+      reference_number:
+        type: string
+        required: false
+      corrects_event_id:
+        type: uuid
+        required: false
+        references: case_lifecycle_event.case_lifecycle_event_id
+
+  activity:
+    display_name: Activity
+    description: A structured occurrence distinct from its billable time.
+    primary_key: activity_id
+    fields:
+      activity_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      actor_person_id:
+        type: uuid
+        required: true
+        references: person.person_id
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      occurred_at:
+        type: datetime
+        required: true
+      recorded_at:
+        type: datetime
+        required: true
+      activity_type_id:
+        type: reference
+        required: true
+        reference_data: activity_types
+      activity_item_id:
+        type: reference
+        required: false
+        reference_data: activity_items
+      detail:
+        type: string
+        required: false
+
+  case_note:
+    display_name: Case Note
+    description: A dated authored narrative; corrections preserve previous content in audit history.
+    primary_key: case_note_id
+    fields:
+      case_note_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      author_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      occurred_at:
+        type: datetime
+        required: true
+      recorded_at:
+        type: datetime
+        required: true
+      body:
+        type: string
+        required: true
+
+  communication:
+    display_name: Communication
+    description: A communication record; recording it does not send a message.
+    primary_key: communication_id
+    fields:
+      communication_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      channel_id:
+        type: reference
+        required: true
+        reference_data: communication_channels
+      direction_id:
+        type: reference
+        required: true
+        reference_data: communication_directions
+      occurred_at:
+        type: datetime
+        required: true
+      recorded_at:
+        type: datetime
+        required: true
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      sender_person_id:
+        type: uuid
+        required: false
+        references: person.person_id
+      recipient_person_id:
+        type: uuid
+        required: false
+        references: person.person_id
+      detail:
+        type: string
+        required: false
+      external_reference:
+        type: string
+        required: false
+
+  calendar_event:
+    display_name: Calendar Event
+    description: A scheduled case event, distinct from an activity that actually occurred.
+    primary_key: calendar_event_id
+    fields:
+      calendar_event_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      starts_at:
+        type: datetime
+        required: true
+      ends_at:
+        type: datetime
+        required: false
+      recorded_at:
+        type: datetime
+        required: true
+      created_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      status_id:
+        type: reference
+        required: true
+        reference_data: calendar_event_statuses
+      detail:
+        type: string
+        required: false
+      activity_id:
+        type: uuid
+        required: false
+        references: activity.activity_id
+
+  supporting_invoice:
+    display_name: Supporting Invoice
+    description: Supplier invoice metadata supporting a payment request; no separate approval workflow.
+    primary_key: supporting_invoice_id
+    fields:
+      supporting_invoice_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      invoice_number:
+        type: string
+        required: true
+      issued_on:
+        type: date
+        required: false
+      period_start:
+        type: date
+        required: false
+      period_end:
+        type: date
+        required: false
+      document_id:
+        type: uuid
+        required: false
+        references: document.document_id
+
+  invoice_authorization_allocation:
+    display_name: Invoice Authorization Allocation
+    description: A portion of a payment request drawn against a preauthorization.
+    primary_key: invoice_authorization_allocation_id
+    fields:
+      invoice_authorization_allocation_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      preauthorization_id:
+        type: uuid
+        required: true
+        references: preauthorization.preauthorization_id
+      requested_amount:
+        type: money
+        required: true
+
+  invoice_allocation_decision:
+    display_name: Invoice Allocation Decision
+    description: An approved authorization draw attached to a final line-review decision.
+    primary_key: invoice_allocation_decision_id
+    fields:
+      invoice_allocation_decision_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_approval_decision_id:
+        type: uuid
+        required: true
+        references: invoice_approval_decision.invoice_approval_decision_id
+      invoice_authorization_allocation_id:
+        type: uuid
+        required: true
+        references: invoice_authorization_allocation.invoice_authorization_allocation_id
+      approved_amount:
+        type: money
+        required: true
+
+  invoice_attestation:
+    display_name: Invoice Attestation
+    description: An immutable attestation bound to the exact submitted review attempt.
+    primary_key: invoice_attestation_id
+    fields:
+      invoice_attestation_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_approval_chain_id:
+        type: uuid
+        required: true
+        references: invoice_approval_chain.invoice_approval_chain_id
+      attestor_person_id:
+        type: uuid
+        required: true
+        references: person.person_id
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      attested_at:
+        type: datetime
+        required: true
+      statement:
+        type: string
+        required: true
+      signature_document_id:
+        type: uuid
+        required: false
+        references: document.document_id
+
+  invoice_event:
+    display_name: Invoice Event
+    description: Immutable submitted, reviewed, approved, denied, withdrawn or superseded request history.
+    primary_key: invoice_event_id
+    fields:
+      invoice_event_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      invoice_approval_chain_id:
+        type: uuid
+        required: false
+        references: invoice_approval_chain.invoice_approval_chain_id
+      sequence_number:
+        type: integer
+        required: true
+      event_type_id:
+        type: reference
+        required: true
+        reference_data: invoice_event_types
+      resulting_status_id:
+        type: reference
+        required: true
+        reference_data: invoice_statuses
+      occurred_at:
+        type: datetime
+        required: true
+      actor_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      reason:
+        type: string
+        required: false
+
+  preauthorization_decision:
+    display_name: Preauthorization Decision
+    description: An immutable approval, denial or revision of the authorized ceiling.
+    primary_key: preauthorization_decision_id
+    fields:
+      preauthorization_decision_id:
+        type: uuid
+        required: true
+        generated: true
+      preauthorization_id:
+        type: uuid
+        required: true
+        references: preauthorization.preauthorization_id
+      sequence_number:
+        type: integer
+        required: true
+      outcome_id:
+        type: reference
+        required: true
+        reference_data: preauthorization_outcomes
+      approved_amount:
+        type: money
+        required: false
+      effective_at:
+        type: datetime
+        required: true
+      decided_at:
+        type: datetime
+        required: true
+      decided_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      reason:
+        type: string
+        required: false
+
+  document:
+    display_name: Document
+    description: Metadata for an immutable document version; content storage is implementation-specific.
+    primary_key: document_id
+    fields:
+      document_id:
+        type: uuid
+        required: true
+        generated: true
+      storage_reference:
+        type: string
+        required: true
+      display_name:
+        type: string
+        required: true
+      media_type:
+        type: string
+        required: true
+      content_hash:
+        type: string
+        required: true
+      recorded_at:
+        type: datetime
+        required: true
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      supersedes_document_id:
+        type: uuid
+        required: false
+        references: document.document_id
+
+  document_link:
+    display_name: Document Link
+    description: A typed association to supporting evidence; target integrity must be enforced.
+    primary_key: document_link_id
+    fields:
+      document_link_id:
+        type: uuid
+        required: true
+        generated: true
+      document_id:
+        type: uuid
+        required: true
+        references: document.document_id
+      case_id:
+        type: uuid
+        required: false
+        references: case.case_id
+      invoice_id:
+        type: uuid
+        required: false
+        references: invoice.invoice_id
+      preauthorization_id:
+        type: uuid
+        required: false
+        references: preauthorization.preauthorization_id
+      purpose_id:
+        type: reference
+        required: true
+        reference_data: document_purposes

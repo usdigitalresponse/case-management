@@ -7,6 +7,39 @@ entry when a decision materially changes.
 
 ## Current Decisions
 
+### Case closure ends assignments
+
+- **Status:** Active
+- **Decided:** 2026-09-09
+
+Closing a case atomically ends every active assignment role at the effective
+closure time, preserving history and recording the closing actor and reason.
+Reopening does not reactivate assignments; renewed assignments use new records.
+
+### External payment completion
+
+- **Status:** Active
+- **Decided:** 2026-09-09
+
+The application owns approval and tracks confirmation of payment completed
+elsewhere. Retain `payment` for audited external completion evidence; do not
+implement payment execution. Approval and completion are separate states.
+
+### Domain relationships and history review
+
+- **Status:** Active
+- **Decided:** 2026-09-09
+
+Adopt the platform-neutral 0.2 model described in [the model review](model-review.md).
+Separate person identity from case roles and preserve typed lifecycle, assignment
+and financial history. Retain `invoice` as the payment-request aggregate and
+`service_provider` as payee rather than creating parallel names. Existing
+Dataverse now has a schema/data review path; operational workflows and
+server-side enforcement remain documented implementation gaps.
+Support platform forms, custom web journeys, and future complete custom
+implementations from the same contracts without selecting a production stack.
+
+
 ### Initial Dataverse Intake Prototype
 
 - **Status:** Active

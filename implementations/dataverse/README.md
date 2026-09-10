@@ -1,172 +1,171 @@
-# Dataverse case intake prototype
+# Dataverse prototype
 
-This implementation evaluates the case intake slice in `model/forms.yaml`.
-The canonical schema and rules remain in `model/`; this is not a production
-platform decision. Use only synthetic data in a development environment.
+The existing **Case Intake Prototype** app and `CaseIntakePrototype` unmanaged
+Solution are extended in place for a **0.2 synthetic model review**. The canonical
+schema, rules and scenarios remain authoritative. This is a development prototype,
+not a production platform decision or full workflow implementation.
 
-See [deployment to another environment](../../docs/deployment.md) and the
-[architecture assessment](../../docs/architecture-assessment.md).
+## Current review slice
 
-## Contents and mapping
+`prepare_review.py` reads the canonical schema and the shared synthetic fixture.
+It prepares a local, bounded review package for the provisioning tool: 39 domain
+tables, 26 reference tables, and 78 synthetic rows. It is not a general platform
+migration framework or a canonical reference-data generator.
 
-The unmanaged solution is `CaseIntakePrototype`, with publisher `caseprototype`
-and prefix `cm`. The model-driven app is **Case Intake Prototype**.
+The app exposes populated domain tables through standard lists and forms. Review
+form controls are disabled; related-record navigation exposes child relationships.
+Form-level disabling is a usability boundary, **not server-side security**.
+Administrators and API writers can still change records. Do not use this slice to
+claim intake, approval, closure or permission scenarios pass end to end.
 
-| Canonical artifact | Dataverse mapping |
+No payment execution is implemented. `payment` contains external completion
+evidence only. Synthetic user-account records represent fixture actors and are
+not provisioned logins, native security principals or impersonation.
+
+## Mapping
+
+| Canonical concept | Review mapping |
 | --- | --- |
-| `client` | Custom user/team-owned table `cm_client` |
-| `case` | Custom user/team-owned table `cm_case` |
-| `county` | Custom organization-owned table `cm_county` |
-| `case_categories` | Custom organization-owned reference table `cm_case_category` |
-| `case_statuses` | Custom organization-owned reference table `cm_case_status` |
-| Entity UUID | Native generated primary key, such as `cm_caseid` |
-| Non-reference fields | `cm_` plus the canonical field key |
-| `county.display_name` | Primary name column `cm_name` |
-| Four case references | Lookup columns retaining canonical field keys, such as `cm_client_id` |
-| Canonical date | Date Only column with Date Only behavior, without time-zone conversion |
-| Required field | Dataverse Business Required (`ApplicationRequired`) metadata |
-| `audit_event` | Native Dataverse auditing; no custom audit table in this slice |
+| Domain entity/key | `cm_` plus entity key; native primary UUID retains fixture ID |
+| Stable field key | `cm_` plus field key; primary UUID uses the native primary key |
+| UUID relationship | Lookup to the mapped entity, with restricted delete and no ownership/sharing cascade |
+| Reference data | Organization-owned lookup tables; old `cm_case_status` and `cm_case_category` names are retained |
+| Other domain tables | User/team owned, except organization-owned county and role |
+| Source date | Date Only with Date Only behavior |
+| Timestamp | Date And Time, User Local behavior; API values retain UTC instants |
+| Money/decimal | Decimal with four fractional digits and range 0–100,000,000,000; request currency is explicit text, no exchange or payment processing |
+| Integer | Nonnegative whole number |
+| Object / long narrative | Memo; snapshots are serialized JSON, maximum 1,048,576 characters |
+| Other string / nonrelationship UUID | Text, maximum 200 characters |
+| Primary name | Human-readable fixture label; operational source fields retain their own keys |
+| Assignment native Active/Inactive | Materialized from ending intervals at the fixture as-of instant; native state is not the authoritative assignment history |
+| Case/request status, dates, external reference, current client, professional display/office | Plain fields in the canonical model; this review's values are computed once by `prepare_review.py` from lifecycle/participant/affiliation history, not maintained by any runtime rule — see "Deferred: fields that should become read models" in `model/README.md` |
+| `audit_event` | Explicit domain table plus native auditing; empty in the sample; native import provenance is separate from synthetic event actors |
 
-Strings currently have a 200-character implementation limit. Reference deletes
-are restricted while referenced by a case; sharing, reparenting, and assignment
-do not cascade. Native Active/Inactive record state is separate from the case's
-configurable `cm_status_id` lookup.
+Optional fields omitted in the shared source fixture remain absent, including the
+external completion amount/date. Required metadata uses Business Required and is
+not an API-level guarantee. Historical decisions/snapshots are physically separate
+records, but runtime immutability has not been implemented.
 
-Dataverse requires primary display columns. Case `cm_name` is an implementation
-autonumber (`CASE-{SEQNUM:6}`), separate from the canonical UUID and optional
-external reference. Client `cm_name` is a display label populated for fixtures;
-the separate given/middle/family name fields remain authoritative. Reference
-tables use `cm_name` and `cm_active`; those reference-table structures are
-implementation scaffolding pending a canonical reference-data specification.
+Legacy client name columns and older sample records are not deleted. Obsolete
+requiredness is relaxed so new person/profile relationships can be reviewed.
+Unused legacy data does not require conversion. The seed operation writes only
+the UUIDs in its prepared synthetic package and does not reset other records.
 
-## First form
+## Prepare, check, deploy and seed
 
-The **New case** main form shows the generated case number read-only, followed
-by client, case status, external reference, county, case category, and opened
-date. Client and status are required. Status and opened date have no default.
-Closed date exists in the table but is excluded from this intake form.
-
-The app navigation exposes a Cases list. Supporting tables have simple main
-forms for prototype administration and lookup navigation. The intended intake
-path selects an existing client. Client creation, duplicate-client review,
-closure, assignments, and billing are outside this slice.
-
-Fixtures consist of two synthetic clients and one record each labeled
-`Synthetic County A`, `Sample Category A`, and `Sample Intake`. These are demo
-values, not approved workflow or jurisdiction configuration. Reruns preserve
-existing records rather than overwriting their values.
-
-## Run
-
-For guided setup, double-click `setup.command` (Mac) or `setup.cmd` (Windows) in
-the repository root. It explains how to find your environment information and
-handles the build, sign-in, target confirmation, and deployment/verification.
-See [guided setup](../../docs/deployment.md#guided-setup-recommended) for details.
-
-Prerequisites: .NET 10, network access to NuGet and Microsoft, an English-base
-Dataverse development environment, and an account with sufficient customization
-and auditing privileges. Power Platform CLI is useful for solution export; its
-authentication profile is separate from this tool's API session.
+Requirements: .NET 10, Python 3.9+ with PyYAML 6.x, and an English-base Dataverse
+development environment. See [offline test dependencies](../../tests/README.md).
+Set `DATAVERSE_URL` to the intended environment origin in your local shell, not in
+repository files. The protected sign-in cache and device-code flow are unchanged.
 
 From the repository root:
 
 ```sh
+python3 -B -m unittest discover -s tests -v
+python3 -B implementations/dataverse/prepare_review.py /tmp/case-review.json
 dotnet build implementations/dataverse/Provision/Provision.csproj
-dotnet run --no-build --project implementations/dataverse/Provision -- --check
+dotnet run --no-build --project implementations/dataverse/Provision -- --check-review /tmp/case-review.json
 dotnet run --no-build --project implementations/dataverse/Provision -- inspect "$DATAVERSE_URL"
-dotnet run --no-build --project implementations/dataverse/Provision -- deploy "$DATAVERSE_URL"
-dotnet run --no-build --project implementations/dataverse/Provision -- verify "$DATAVERSE_URL"
-dotnet run --no-build --project implementations/dataverse/Provision -- smoke "$DATAVERSE_URL"
+dotnet run --no-build --project implementations/dataverse/Provision -- deploy-review "$DATAVERSE_URL" /tmp/case-review.json
 ```
 
-Set `DATAVERSE_URL` only in your local shell to the environment origin, without
-an API path. Never commit environment URLs, tenant details, credentials, exports,
-or deployment logs. On Homebrew installations, .NET tools may also require
-`DOTNET_ROOT` to point to Homebrew's `dotnet/libexec` directory.
+Before deployment, inspect the environment's existing apps in `make.powerapps.com`
+as well. Reuse the existing app; do not create a parallel troubleshooting copy.
+`deploy-review` adds missing schema and lookups, updates app navigation,
+publishes, seeds, and verifies. It retains Unified Interface (`clienttype = 4`).
+It can resume a partial deployment. Changes are incremental, not one
+transaction. It does not grant security roles or change account permissions;
+auditing is enabled if needed.
 
-The tool uses Microsoft device-code sign-in. The default public application ID
-is Microsoft's documented development example client; set `DATAVERSE_CLIENT_ID`
-to use a tenant-owned public client with Dataverse delegated permissions. It does
-not accept passwords or client secrets. Tokens are cached with Microsoft's MSAL
-extension using macOS Keychain or Windows protected storage. On other systems,
-the cache is in memory only. There is no plaintext-cache fallback.
+Each table's main form is populated once, the first time it is deployed
+(adopting Dataverse's freshly generated default form). After that,
+`deploy-review` never overwrites it again, so hand-customizing a form in the
+maker portal is safe from being clobbered by a later schema push — but the
+reverse also holds: a field added to a table's schema after its form already
+exists will **not** appear on that form. The console output says so explicitly
+for any table whose form was left alone. Delete the form (it will regenerate
+Dataverse's default on the next deploy) to pick up new fields, or add them by
+hand. Views are unaffected by this and already behaved this way.
 
-`upgrade-client` updates the existing app's client setting to Unified Interface
-(`clienttype = 4`), publishes it, republishes all customizations to clear the
-UCI manifest cache, then runs verification. Use it to repair the legacy web
-client warning without rebuilding forms. `verify` rejects legacy client
-settings; `deploy` explicitly selects Unified Interface. If the browser
-warning persists after `upgrade-client` reports success, it is a client-side
-cache issue, not a server-side setting; try a private/incognito window against
-the app URL.
+For seed-only or read-only verification after schema deployment:
 
-`inspect` and `verify` read environment data. `deploy` creates missing prototype
-components, updates prototype main forms, enables environment auditing if needed,
-seeds synthetic records, and publishes the prototype tables and app. Enabling
-environment auditing also activates auditing for any other tables already marked
-for auditing. No security roles are assigned or expanded by the tool.
+```sh
+dotnet run --no-build --project implementations/dataverse/Provision -- seed-review "$DATAVERSE_URL" /tmp/case-review.json
+dotnet run --no-build --project implementations/dataverse/Provision -- verify-review "$DATAVERSE_URL" /tmp/case-review.json
+```
 
-Deployment is incremental, not transactional. A failure can leave some components
-created; inspect the error and rerun after correction. Do not point the bootstrap
-at an environment with unrelated `cm_*` tables. Rerunning `deploy` replaces the
-prototype main form layout; preserve any maker edits before doing so. It is not
-a general schema-migration tool.
+## Resetting the review environment
 
-`smoke` creates two synthetic cases with fixed fixture UUIDs, updates the complete
-case once, rereads their values and relationships, checks client reuse, and reads
-audit entries. It leaves those cases available for inspection and never deletes
-records. Reruns only verify existing fixture cases; they do not overwrite edits.
-Run this only against the intended prototype development environment.
+`deploy-review` is additive only — it never deletes a table, column or
+relationship, so a schema revision that renames or removes an entity (for
+example, an earlier `client` table or an old role reference table) leaves the
+previous version's metadata behind. A leftover relationship can then collide
+with a same-named new one and block the next `deploy-review`.
 
-## Gaps and validation
+`reset-review` clears that by deleting **every** `cm_`-prefixed custom table
+(and therefore all of its records) and relationship in the target environment,
+then runs the normal `deploy-review` sequence to rebuild and reseed from
+nothing:
 
-- Business Required metadata enforces required fields in model-driven forms;
-  it is not a server-side guarantee for API/import writes. A server-side rule or
-  plug-in remains necessary before exposing alternate write paths.
-- No ordinary-user intake role or assignment-derived access is implemented.
-  This initial app is for authorized administrators/customizers; do not broadly
-  share it until roles and permitted actions are defined and tested.
-- Native audit history approximates the canonical event model. Event naming,
-  retention, administrator deletion, and access by ordinary users need explicit
-  policy and acceptance testing. Creation/modification columns alone are not
-  treated as sufficient audit history.
-- Creating clients from supporting administration forms does not yet implement
-  the duplicate warning rule. Use seeded clients for the intake demonstration.
-- The reference lifecycle, active-only lookup filtering, default status, status
-  transitions, and client display-label maintenance remain unresolved.
-- `--check` validates generated form XML and the intake field mapping offline.
-  `verify` checks deployed field requiredness, table auditing, and app dependency
-  validation. Those checks do not replace the UI acceptance scenarios in
-  `scenarios/new-case.md`.
+```sh
+dotnet run --no-build --project implementations/dataverse/Provision -- reset-review "$DATAVERSE_URL" /tmp/case-review.json
+```
 
-## Verification of the initial baseline
+This is **irreversible** and is not scoped to the current review package — it
+removes any `cm_`-prefixed table in the environment, including the 0.1
+baseline's tables and anything left over from a prior schema revision. Only
+run it against a disposable development environment you are prepared to lose
+entirely, never anything with real or shared data. Before it deletes anything
+it prints every table it found with a best-effort record count and requires
+two separate typed confirmations — the exact organization name, then a random
+one-time code it generates on the spot — so it cannot be triggered by a
+pasted command, a stray keypress, or a scripted/non-interactive run.
 
-- Build completed without warnings or errors; offline form checks passed.
-- All model YAML files parsed; the intake form references existing case fields
-  and includes every required, non-generated case field.
-- Live metadata checks passed, and Dataverse app validation returned success
-  with no validation issues.
-- Two synthetic cases were created and reread through the API. Minimum and
-  complete values persisted; both referenced one existing client; client count
-  did not change. Creation/update audit entries included actor and timestamp.
-- The unmanaged Solution exported and unpacked successfully with `pac`.
-- Full interactive form testing, required-field error messages, ordinary-user
-  access, and a second-environment deployment have not been verified. Browser
-  verification did not get past Microsoft sign-in in the available browser.
+Seeding uses two passes: create/update scalar values, then bind relationships.
+This supports cycles and stable IDs but is **not atomic**. It is suitable only for
+this disposable synthetic review dataset. Rerunning resets included fields at
+fixture IDs, including snapshots, to the package values; do not edit these sample
+rows expecting them to survive reseeding. Read verification compares every
+packaged value and foreign key with live rows, including unknown date/amount.
 
-The wizard's offline interaction tests can be run with:
+The original `deploy`, `smoke`, `verify`, `--check` and guided setup are the 0.1
+intake baseline; use the explicit review commands for 0.2. Original offline
+checks remain useful regression coverage for that baseline. Run setup tests with:
 
 ```sh
 dotnet run --project implementations/dataverse/SetupTests/SetupTests.csproj
 ```
 
-They use synthetic input and a fake provisioning runner. They test URL handling,
-confirmation/cancellation, existing-installation defaults, and failure handling
-without signing in or changing any environment.
+## Remaining workflow gaps
+
+- Atomic new-case creation with person participation and opening event.
+- Server-side closure ending all active assignment roles and rejecting concurrent
+  assignment creation; fixture ending timestamps alone do not establish this.
+- Recalculation of projections after edits; access and workload effects.
+- Immutable lifecycle, review, attestation and document evidence across all writers.
+- Approval routing, identity authorization, duplicate detection and qualified
+  assignment rules; synthetic actor IDs are not authentication.
+- Atomic authorization balances and concurrency; correct sample totals are not
+  financial enforcement.
+- Permission-filtered timeline UI, secure document storage and electronic signatures.
+- Native-user mapping, ordinary-user roles, and alternate/custom web write paths.
+
+Next workflow work should implement these using supported Dataverse capabilities
+and Solution tooling, with shared scenarios and server-side checks. Avoid growing
+this review bootstrap into an application backend.
+
+## Packaging
+
+Use `pac solution export` and `pac solution unpack` for the actual updated Solution.
+Keep raw exports, connection details and logs under ignored `artifacts/` or outside
+the repository. Review unpacked content for private environment metadata before
+adding any Solution source to Git. The canonical YAML remains the requirements
+source; Solution source should capture the actual Power Platform implementation.
+See [deployment guidance](../../docs/deployment.md).
 
 ## Microsoft references
 
-- [Create table definitions through the Web API](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-entity-definitions-using-web-api)
-- [Create table relationships](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-entity-relationships-using-web-api)
-- [Create and publish model-driven apps](https://learn.microsoft.com/en-us/power-apps/developer/model-driven-apps/create-manage-model-driven-apps-using-code)
-- [Protected MSAL token caching](https://learn.microsoft.com/en-us/entra/msal/dotnet/how-to/token-cache-serialization)
+- [Table relationships through the Web API](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-entity-relationships-using-web-api)
+- [Create table definitions](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/create-update-entity-definitions-using-web-api)
+- [Solution commands](https://learn.microsoft.com/en-us/power-platform/developer/cli/reference/solution)

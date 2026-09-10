@@ -3,6 +3,18 @@
 The current prototype targets an English-base Dataverse development environment.
 The production architecture is not selected. Use synthetic data only.
 
+## 0.2 synthetic review deployment
+
+For the expanded model and shared synthetic data, follow the
+[current implementation commands](../implementations/dataverse/README.md#prepare-check-deploy-and-seed).
+Use `prepare_review.py`, `deploy-review`, `seed-review` and `verify-review`.
+The review uses the existing app/Solution and adds related tables; it is not yet
+an operational workflow implementation. Fields are displayed read-only for review.
+The older guided setup does not deploy this slice and cannot overwrite it.
+
+The original five-table bootstrap and guided setup documentation below describes
+the 0.1 baseline. Use it only when specifically evaluating that earlier slice.
+
 ## Current status
 
 The bootstrap has been exercised in the initial development environment. It
