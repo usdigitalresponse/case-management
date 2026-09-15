@@ -26,6 +26,8 @@ technology stores or implements them.
 - `rules.yaml` defines business requirements that implementations must enforce
   or explicitly document as gaps.
 - `forms.yaml` defines case intake using case fields and related-record inputs.
+- `create-case.md` proposes the shared intake request/result, atomic effects,
+  retry and error contract; it is not yet a deployed operation.
 - `workflows.yaml` defines lifecycle and payment-request transitions.
 
 Acceptance scenarios live in `../scenarios/`. Reference sets named by
@@ -109,13 +111,16 @@ create an organization for each program, or a separate person for each
 professional role.
 
 `case_participant.participant_role_id`, `person_affiliation.affiliation_role_id`,
-and `case_assignment.assignment_role_id` all reference the single `role` entity
-rather than three disconnected reference-data vocabularies, each tagged with a
-`role_context` naming which of the three it belongs to. This exists so a future
-role-to-permission mapping has one stable key (`role_id`) to attach to, instead
-of reimplementing access logic per relationship type. Adding a new relationship
-that needs configurable roles should add a new `role_context` value, not a new
-parallel role entity.
+`case_assignment.assignment_role_id`, and `user_account.system_role_id` all
+reference the single `role` entity rather than disconnected reference-data
+vocabularies, each tagged with a `role_context` naming which relationship it
+belongs to. This exists so a role-to-permission mapping has one stable key
+(`role_id`) to attach to, instead of reimplementing access logic per
+relationship type. `system_role_id` (`role_context: user_account`) is that key
+for authenticated accounts; it configures a permission role but grants no
+permission by itself until an actor-permission mapping resolves it — see
+`docs/DECISIONS.md`. Adding a new relationship that needs configurable roles
+should add a new `role_context` value, not a new parallel role entity.
 
 ## Field semantics and calculations
 

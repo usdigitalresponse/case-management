@@ -121,6 +121,15 @@ rules:
       - Provider profiles reference exactly one of person_id or organization_id. Display name is the payee label, not an independent person identity.
       - Warn on probable duplicate people, including creation through case-participant or professional workflows; never merge automatically.
 
+  validate_system_role:
+    description: Validate a user account's configured system role.
+    applies_to: user_account
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - A referenced system_role_id must be active and its role_context must be user_account.
+      - system_role_id configures a permission role; it grants no permission by itself until an actor-permission mapping resolves it. Absence is a configuration gap, not an implicit grant or denial.
+
   validate_effective_relationships:
     description: Validate effective relationships.
     applies_to: case_assignment
@@ -136,7 +145,7 @@ rules:
       - Ending an assignment records the ending actor and reason. Corrections preserve previous values, actor and timestamp in audit history.
       - Case office must belong to case organization when both are present; program/funding context changes preserve audit history.
       - Qualification policy applies by assignment role; do not assume every staff assignment requires professional qualifications.
-      - A referenced role must be active and its role_context must match the field: participant_role_id requires case_participant, affiliation_role_id requires person_affiliation, assignment_role_id requires case_assignment.
+      - A referenced role must be active and its role_context must match the field: participant_role_id requires case_participant, affiliation_role_id requires person_affiliation, assignment_role_id requires case_assignment (system_role_id on user_account is validated separately by validate_system_role).
       - Access is granted only through configured roles and effective assignments, never by contact participation or office membership alone.
 
   validate_case_children:

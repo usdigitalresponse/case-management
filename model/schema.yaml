@@ -22,6 +22,14 @@ entities:
         type: uuid
         required: false
         references: person.person_id
+      system_role_id:
+        type: uuid
+        required: false
+        references: role.role_id
+        description: The account's configured permission role (role_context
+          user_account), distinct from any domain role it holds on a specific
+          case. Absent means no system permission role is configured yet;
+          absence is a configuration gap, not an implicit permission grant.
 
   county:
     display_name: County
@@ -620,8 +628,9 @@ entities:
   role:
     display_name: Role
     description: A configured role, scoped to the one relationship context where it can
-      be assigned. A future role-to-permission mapping keys off role_id rather than
-      each context defining its own disconnected role vocabulary.
+      be assigned. user_account.system_role_id keys a role-to-permission mapping off
+      role_id rather than each context defining its own disconnected role vocabulary;
+      the mapping from a system role to actual permissions remains a deferred decision.
     primary_key: role_id
     fields:
       role_id:
@@ -634,7 +643,7 @@ entities:
       role_context:
         type: string
         required: true
-        description: One of case_participant, person_affiliation or case_assignment; must match the field referencing this role.
+        description: One of case_participant, person_affiliation, case_assignment or user_account; must match the field referencing this role.
       active:
         type: boolean
         required: true
