@@ -106,6 +106,25 @@ from existing contributors for changes that benefit from discussion or affect
 shared project conventions.
 
 
+### User accounts carry a system role via the shared role table
+
+- **Status:** Active
+- **Decided:** 2026-09-11
+
+`user_account` gained `system_role_id`, a reference to `role.role_id` with a new
+`role_context` value `user_account`. This reuses the role table's existing
+documented purpose ("a future role-to-permission mapping keys off role_id")
+rather than inventing a parallel permission vocabulary or hand-editing display
+names to imply a role, as the synthetic fixture had been doing.
+
+This only adds a configuration hook; it grants no permission by itself. The
+actual mapping from a system role to enforced permissions remains an open,
+unresolved decision (see `model/create-case.md`'s "Decisions before enabling
+writes" and the comparison plan's "actor-account mapping, intake permissions").
+An account with no `system_role_id` is a configuration gap, not an implicit
+grant or denial — do not treat absence as "administrator" or "no access" without
+resolving that decision first.
+
 ### New-case intake UI comparison (in progress)
 
 - **Status:** In progress — not yet a decision

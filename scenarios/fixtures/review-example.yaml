@@ -48,10 +48,12 @@ records:
     person_id: 957600ac-1ded-54c0-bb49-8cb14bdebacb
     display_name: Synthetic Account Submitter
     active: true
+    system_role_id: 55555555-5555-5555-8555-555555555555
   - user_account_id: bd4ab9fd-9aae-5f90-a0d9-29d557ff0e21
     person_id: ae9ed4bf-4894-5509-9df4-a3c182b8528f
     display_name: Synthetic Account Reviewer
     active: true
+    system_role_id: 66666666-6666-5666-8666-666666666666
   professional:
   - professional_id: f6955057-fe19-509d-b1ab-be7585b4026b
     person_id: 957600ac-1ded-54c0-bb49-8cb14bdebacb
@@ -77,6 +79,14 @@ records:
   - role_id: 44444444-4444-5444-8444-444444444444
     display_name: Staff
     role_context: case_assignment
+    active: true
+  - role_id: 55555555-5555-5555-8555-555555555555
+    display_name: Submitter
+    role_context: user_account
+    active: true
+  - role_id: 66666666-6666-5666-8666-666666666666
+    display_name: Reviewer
+    role_context: user_account
     active: true
   organization:
   - organization_id: 8e482b63-497b-5fa3-a22e-f2d490e66db6
