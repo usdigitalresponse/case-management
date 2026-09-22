@@ -142,6 +142,13 @@ npm run build   # production build; verifies USWDS asset resolution
 `API_PROXY_TARGET` defaults to `http://localhost:3000`, so it can usually be
 omitted when the server is running locally too (not in a container).
 
+## CI
+
+`.github/workflows/postgres-aws.yml` runs on PRs/pushes touching this
+directory: `server` (typecheck, migrate, test, schema-mapping check),
+`client` (typecheck, build), and `compose-smoke-test` (a real
+`docker compose up` + health check + dev-login/list-cases round trip).
+
 ## Deploy
 
 _To be filled in alongside the Terraform configuration (not yet built)._

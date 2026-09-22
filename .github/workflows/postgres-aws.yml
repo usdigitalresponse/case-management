@@ -1,0 +1,100 @@
+name: postgres-aws
+
+on:
+  pull_request:
+    paths:
+      - "implementations/postgres-aws/**"
+      - ".github/workflows/postgres-aws.yml"
+  push:
+    branches: [main]
+    paths:
+      - "implementations/postgres-aws/**"
+      - ".github/workflows/postgres-aws.yml"
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: case_management_postgres_aws_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/case_management_postgres_aws_test
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/case_management_postgres_aws_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: implementations/postgres-aws/server/.node-version
+          cache: npm
+          cache-dependency-path: implementations/postgres-aws/server/package-lock.json
+      - working-directory: implementations/postgres-aws/server
+        run: npm ci
+      - working-directory: implementations/postgres-aws/server
+        run: npm run typecheck
+      - working-directory: implementations/postgres-aws/server
+        run: npm run migrate
+      - working-directory: implementations/postgres-aws/server
+        run: npm test
+      - working-directory: implementations/postgres-aws/server
+        run: npm run verify-schema-mapping
+
+  client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: implementations/postgres-aws/client/package-lock.json
+      - working-directory: implementations/postgres-aws/client
+        run: npm ci
+      - working-directory: implementations/postgres-aws/client
+        run: npm run typecheck
+      - working-directory: implementations/postgres-aws/client
+        # Also verifies USWDS's font/image asset resolution (see MAPPING.md).
+        run: npm run build
+
+  compose-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # No `build:` step in the compose file (both services use the plain
+      # node:20-alpine image), so `docker compose build` would be a no-op —
+      # a real `up` + health check exercises the same startup sequence a
+      # contributor's `docker compose up` would run.
+      - name: docker compose up
+        working-directory: implementations/postgres-aws
+        run: docker compose up -d
+      - name: Wait for the server to become healthy
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -sf http://localhost:3000/healthz; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server did not become healthy in time" >&2
+          exit 1
+      - name: Smoke test the API through the client's proxy
+        run: |
+          curl -sf -c cookies.txt -X POST http://localhost:5173/auth/dev-login
+          curl -sf -b cookies.txt http://localhost:5173/api/cases
+      - name: docker compose logs (on failure)
+        if: failure()
+        working-directory: implementations/postgres-aws
+        run: docker compose logs
+      - name: docker compose down
+        if: always()
+        working-directory: implementations/postgres-aws
+        run: docker compose down -v
