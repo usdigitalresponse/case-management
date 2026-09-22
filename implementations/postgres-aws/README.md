@@ -13,11 +13,12 @@ Knex; see `MAPPING.md`'s "Stack" section for why.
 
 ## Status
 
-Server-side data layer, intake handler, HTTP API (routes + auth), and local
-Docker Compose loop are built and tested. Not yet built: the React client
-and Terraform. See `MAPPING.md` for the schema subset in scope and
-documented gaps, and `../../docs/case-intake-comparison-plan.md` for how
-this relates to the Dataverse comparison.
+Server-side data layer, intake handler, HTTP API (routes + auth), the React
+client (case list/detail, intake form), and local Docker Compose loop are
+built and tested. Not yet built: Terraform. See `MAPPING.md` for the schema
+subset in scope and documented gaps, and
+`../../docs/case-intake-comparison-plan.md` for how this relates to the
+Dataverse comparison.
 
 ## Scope
 
@@ -38,13 +39,18 @@ Fastest path — requires only Docker:
 docker compose up
 ```
 
-This starts Postgres and the server together; the server container runs
-`npm install`, applies migrations, seeds synthetic reference data, then
-starts `npm run dev` (file-watching) on http://localhost:3000. Both steps
-are idempotent, so `docker compose restart server` (or a fresh `up`) is
-always safe. Without a `.env` file (copy `.env.example`), Google sign-in is
-disabled and only `/auth/dev-login` works — see "Running the API server"
-below.
+This starts Postgres, the server, and the client together: the server
+container runs `npm install`, applies migrations, seeds synthetic reference
+data plus 10 demo cases, then starts `npm run dev` (file-watching) on
+http://localhost:3000; the client container runs `npm install && npm run
+dev` on http://localhost:5173, proxying `/api` and `/auth` to the server
+container. Both server steps are idempotent, so `docker compose restart
+server` (or a fresh `up`) is always safe. Without a `.env` file (copy
+`.env.example`), Google sign-in is disabled and only the "Dev sign-in"
+button (client) / `/auth/dev-login` (API) works.
+
+Open http://localhost:5173, click "Dev sign-in," and you should see 10
+seeded cases with synthetic (Faker-generated) client names.
 
 `docker compose down -v` stops everything and removes the Postgres volume
 (a clean-slate reset); drop `-v` to keep data across restarts.
@@ -119,8 +125,22 @@ curl -b cookies.txt http://localhost:3000/api/cases
 Routes: `POST /api/cases` (intake), `GET /api/cases` (list, optional
 `countyId`/`statusId`/`caseCategoryId` query filters), `GET /api/cases/:id`
 (detail with participants/lifecycle events/identifiers), `GET /api/people?q=`
-(existing-person search for the intake form). All require a session
+(existing-person search for the intake form), `GET /api/reference-data`
+(statuses/categories/roles/etc. for building forms). All require a session
 (`requireAuth`).
+
+### Running the client without Docker Compose
+
+```sh
+cd client
+npm install
+API_PROXY_TARGET=http://localhost:3000 npm run dev   # http://localhost:5173
+npm run typecheck
+npm run build   # production build; verifies USWDS asset resolution
+```
+
+`API_PROXY_TARGET` defaults to `http://localhost:3000`, so it can usually be
+omitted when the server is running locally too (not in a container).
 
 ## Deploy
 
@@ -130,5 +150,5 @@ _To be filled in alongside the Terraform configuration (not yet built)._
 
 See `MAPPING.md` for the full list (auth, person creation, infrastructure,
 reference data). In short: this is a dev/demo-scoped prototype, not a
-production deployment — there is no React client or infra yet, only the API
-server (`server/src/app.ts`) and its data layer.
+production deployment — there is no Terraform/AWS infra yet, only the local
+Docker Compose loop.

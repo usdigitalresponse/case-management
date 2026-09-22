@@ -1,13 +1,33 @@
 import { Router } from 'express';
 import { and, asc, eq, type SQL } from 'drizzle-orm';
 import { db } from '../db/client';
-import { caseTable, caseParticipant, caseLifecycleEvent, caseIdentifier } from '../db/schema';
+import { caseTable, caseParticipant, caseLifecycleEvent, caseIdentifier, person } from '../db/schema';
 import { createCase, CreateCaseValidationError, CreateCaseConfigurationError } from '../intake/createCase';
 import { getSessionUser, requireAuth } from '../auth/session';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
 router.use(requireAuth);
+
+// Shared between the list and detail routes below. clientDisplayName is
+// joined in for display only (e.g. the case list's "Client" column) —
+// client_id is a compatibility field, case_participant is authoritative
+// (model/schema.yaml).
+const caseColumnsWithClientName = {
+  caseId: caseTable.caseId,
+  clientId: caseTable.clientId,
+  clientDisplayName: person.displayName,
+  countyId: caseTable.countyId,
+  externalReference: caseTable.externalReference,
+  caseCategoryId: caseTable.caseCategoryId,
+  statusId: caseTable.statusId,
+  openedOn: caseTable.openedOn,
+  closedOn: caseTable.closedOn,
+  organizationId: caseTable.organizationId,
+  officeId: caseTable.officeId,
+  jurisdictionId: caseTable.jurisdictionId,
+  preferredLanguageId: caseTable.preferredLanguageId,
+};
 
 router.post(
   '/',
@@ -50,8 +70,9 @@ router.get(
     }
 
     const rows = await db
-      .select()
+      .select(caseColumnsWithClientName)
       .from(caseTable)
+      .leftJoin(person, eq(caseTable.clientId, person.personId))
       .where(filters.length > 0 ? and(...filters) : undefined);
     res.json({ cases: rows });
   }),
@@ -63,13 +84,30 @@ router.get(
     // Express guarantees `id` is present for a matched `:id` route;
     // noUncheckedIndexedAccess just can't see that.
     const caseId = req.params.id as string;
-    const [caseRow] = await db.select().from(caseTable).where(eq(caseTable.caseId, caseId));
+    const [caseRow] = await db
+      .select(caseColumnsWithClientName)
+      .from(caseTable)
+      .leftJoin(person, eq(caseTable.clientId, person.personId))
+      .where(eq(caseTable.caseId, caseId));
     if (!caseRow) {
       res.status(404).json({ error: 'not_found' });
       return;
     }
     const [participants, lifecycleEvents, identifiers] = await Promise.all([
-      db.select().from(caseParticipant).where(eq(caseParticipant.caseId, caseId)),
+      db
+        .select({
+          caseParticipantId: caseParticipant.caseParticipantId,
+          caseId: caseParticipant.caseId,
+          personId: caseParticipant.personId,
+          personDisplayName: person.displayName,
+          participantRoleId: caseParticipant.participantRoleId,
+          affiliationId: caseParticipant.affiliationId,
+          startedAt: caseParticipant.startedAt,
+          endedAt: caseParticipant.endedAt,
+        })
+        .from(caseParticipant)
+        .leftJoin(person, eq(caseParticipant.personId, person.personId))
+        .where(eq(caseParticipant.caseId, caseId)),
       db
         .select()
         .from(caseLifecycleEvent)

@@ -6,7 +6,7 @@ model. Update this file whenever a mapping decision or gap changes.
 
 ## Stack
 
-TypeScript throughout (server and, later, client). The server uses Express,
+TypeScript throughout (server and client). The server uses Express,
 Drizzle ORM (`src/db/schema.ts` is the single source of truth for table
 definitions; `drizzle-kit generate` derives SQL migrations from it into
 `migrations/`), and `pg` as the driver. Vitest is the test runner. Node 20+
@@ -18,6 +18,44 @@ and migrations both derive from one definition, rather than hand-written
 migrations plus separately hand-written types) was judged the better fit for
 current TypeScript-ecosystem practice, despite being a less-proven library
 and a deviation from those sibling apps' tooling.
+
+The client is Vite + React, using `@trussworks/react-uswds` (the accessible
+React component library implementing USWDS) and `@uswds/uswds` for the
+compiled CSS/fonts — the user chose the U.S. Web Design System over the
+originally-planned Tailwind default, appropriate for a government-facing
+app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
+`url()` references automatically; no static-asset-copy plugin was needed.
+
+## Frontend design notes
+
+- **No collapsible mobile nav**: `client/src/App.tsx`'s header deliberately
+  doesn't use USWDS's `NavMenuButton`/responsive-collapse pattern. An
+  earlier version wired `NavMenuButton` without actually managing its
+  toggle state, which silently hid the sign-in controls behind a
+  non-functional hamburger button below the desktop breakpoint (worked in
+  a wide Chrome window, not in a narrower Safari window — found via live
+  browser testing, not a code review). There are no nav links yet to
+  justify the responsive collapse; revisit if real navigation is added.
+- **Reference-data endpoint**: `GET /api/reference-data` returns every
+  lookup list the intake form needs (statuses, categories, roles,
+  jurisdictions, languages, identifier types, counties, organizations,
+  offices) in one response, rather than one endpoint per table — none of
+  this data is large or paginated, and the form needs all of it together.
+- **Display names joined server-side**: `GET /api/cases` and
+  `GET /api/cases/:id` left-join `person` to include `clientDisplayName`/
+  `personDisplayName` alongside the raw `person_id` — added specifically so
+  the client shows a readable name instead of a UUID (the Faker-generated
+  synthetic names are otherwise invisible in the UI).
+- **Person search is a plain search-then-select list**, not USWDS's
+  `ComboBox` (which filters a static client-side option list) — the person
+  list comes from an async server search, which doesn't fit ComboBox's
+  model without extra work not justified at this scale (a handful of
+  seeded people).
+- **10 demo cases** are seeded by `src/db/seed.ts` (not the test-shared
+  `src/db/fixtures.ts`) via the real `createCase` handler, each with a
+  distinct Faker-generated client and a rotating LSC case category, so the
+  UI has something realistic to show without any test depending on that
+  data existing.
 
 ## Intake handler design notes
 

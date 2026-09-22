@@ -6,6 +6,7 @@ import { configureGoogleAuth } from './auth/googleStrategy';
 import { createAuthRouter } from './routes/auth';
 import casesRouter from './routes/cases';
 import peopleRouter from './routes/people';
+import referenceDataRouter from './routes/referenceData';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -36,6 +37,7 @@ export function createApp() {
   app.use('/auth', createAuthRouter({ googleEnabled, devLoginEnabled: !isProduction }));
   app.use('/api/cases', casesRouter);
   app.use('/api/people', peopleRouter);
+  app.use('/api/reference-data', referenceDataRouter);
 
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
 

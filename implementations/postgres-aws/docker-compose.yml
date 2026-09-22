@@ -40,6 +40,23 @@ services:
     # starting the dev server with file-watching.
     command: sh -c "npm install && npm run migrate && npm run seed && npm run dev"
 
+  client:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./client:/app
+      - client-node-modules:/app/node_modules
+    environment:
+      # "localhost" inside this container means the container itself, not
+      # the server container — see vite.config.ts.
+      API_PROXY_TARGET: http://server:3000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - server
+    command: sh -c "npm install && npm run dev"
+
 volumes:
   postgres-data:
   server-node-modules:
+  client-node-modules:
