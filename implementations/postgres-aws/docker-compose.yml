@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: case_management_postgres_aws
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  server:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./server:/app
+      - server-node-modules:/app/node_modules
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/case_management_postgres_aws
+      NODE_ENV: development
+      PORT: 3000
+      # Optional: set in a .env file next to this docker-compose.yml (never
+      # committed — see .gitignore) to enable real Google sign-in locally.
+      # Without these, only /auth/dev-login is available (see MAPPING.md).
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Runs migrate+seed on every start (both are idempotent — migrate skips
+    # already-applied migrations, seed truncates and reseeds) before
+    # starting the dev server with file-watching.
+    command: sh -c "npm install && npm run migrate && npm run seed && npm run dev"
+
+volumes:
+  postgres-data:
+  server-node-modules:

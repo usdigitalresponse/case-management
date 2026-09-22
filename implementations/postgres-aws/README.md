@@ -13,11 +13,11 @@ Knex; see `MAPPING.md`'s "Stack" section for why.
 
 ## Status
 
-Server-side data layer, intake handler, and HTTP API (routes + auth) are
-built and tested. Not yet built: the React client, Docker Compose, and
-Terraform. See `MAPPING.md` for the schema subset in scope and documented
-gaps, and `../../docs/case-intake-comparison-plan.md` for how this relates
-to the Dataverse comparison.
+Server-side data layer, intake handler, HTTP API (routes + auth), and local
+Docker Compose loop are built and tested. Not yet built: the React client
+and Terraform. See `MAPPING.md` for the schema subset in scope and
+documented gaps, and `../../docs/case-intake-comparison-plan.md` for how
+this relates to the Dataverse comparison.
 
 ## Scope
 
@@ -32,8 +32,26 @@ auth/SSO. See `MAPPING.md` for details.
 
 ## Setup
 
-Requires Node 20+ (see `server/.node-version`) and a local Postgres — easiest
-via Docker, since no `docker-compose.yml` exists yet:
+Fastest path — requires only Docker:
+
+```sh
+docker compose up
+```
+
+This starts Postgres and the server together; the server container runs
+`npm install`, applies migrations, seeds synthetic reference data, then
+starts `npm run dev` (file-watching) on http://localhost:3000. Both steps
+are idempotent, so `docker compose restart server` (or a fresh `up`) is
+always safe. Without a `.env` file (copy `.env.example`), Google sign-in is
+disabled and only `/auth/dev-login` works — see "Running the API server"
+below.
+
+`docker compose down -v` stops everything and removes the Postgres volume
+(a clean-slate reset); drop `-v` to keep data across restarts.
+
+### Without Docker Compose
+
+Requires Node 20+ (see `server/.node-version`) and a local Postgres:
 
 ```sh
 docker run -d --name case-management-postgres-aws-db \
@@ -80,7 +98,8 @@ npm run db:generate            # regenerate migrations/*.sql after editing src/d
 
 ### Running the API server
 
-Against the dev DB from Setup above:
+`docker compose up` already does this. Without Docker Compose, against the
+dev DB from Setup above:
 
 ```sh
 cd server
