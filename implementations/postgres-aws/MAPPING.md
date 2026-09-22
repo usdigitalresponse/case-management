@@ -132,6 +132,26 @@ caught as duplicates by this index. Acceptable for now since affiliation is
 optional and rarely absent-but-duplicated in practice; revisit if a future
 form relies on this being airtight.
 
+### Synthetic seed data provenance
+
+- **Person names** (`src/db/fixtures.ts`): generated with `@faker-js/faker`
+  (`faker.person.firstName()`/`lastName()`), seeded with a fixed value
+  (`faker.seed(20260115)`) so output stays deterministic across runs rather
+  than changing every time. Not derived from, or resembling, any real
+  dataset — chosen specifically so demo/test data looks realistic without
+  any provenance link to real records (e.g. a LegalServer export). Prior
+  to this, person rows used placeholder names like "Synthetic Person
+  Client"; those remain a fine pattern elsewhere in the repo (see
+  `scenarios/fixtures/`) but this implementation's seed data now
+  prioritizes visual realism for demo purposes.
+- **Case categories** (`src/db/fixtures.ts`: `LSC_CASE_CATEGORIES`): named
+  after LSC's (Legal Services Corporation) Case Service Report major
+  problem categories and the general shape of NCSC case-type standards —
+  published, sector-wide taxonomies, not any organization's confidential
+  configuration. Using the real category names (Housing, Family, etc.)
+  here is intentional and safe, unlike person names or case identifiers,
+  which must stay synthetic.
+
 ### Implementation-specific additions
 
 - `user_account.email`: not in `model/schema.yaml`. Used to match Google

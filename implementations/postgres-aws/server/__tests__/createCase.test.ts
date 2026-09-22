@@ -162,7 +162,7 @@ describe('complete intake', () => {
       actor,
       baseInput({
         countyId: fixtures.countyId,
-        caseCategoryId: fixtures.caseCategoryGeneralId,
+        caseCategoryId: fixtures.caseCategoryHousingId,
         organizationId: fixtures.organizationId,
         officeId: fixtures.officeId,
         jurisdictionId: fixtures.jurisdictionSampleId,
@@ -178,7 +178,7 @@ describe('complete intake', () => {
 
     const [savedCase] = await testDb.select().from(caseTable).where(eq(caseTable.caseId, result.caseId));
     expect(savedCase?.countyId).toBe(fixtures.countyId);
-    expect(savedCase?.caseCategoryId).toBe(fixtures.caseCategoryGeneralId);
+    expect(savedCase?.caseCategoryId).toBe(fixtures.caseCategoryHousingId);
     expect(savedCase?.organizationId).toBe(fixtures.organizationId);
     expect(savedCase?.officeId).toBe(fixtures.officeId);
     expect(savedCase?.externalReference).toBe('SAMPLE-0001');

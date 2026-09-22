@@ -2,6 +2,7 @@
 // (src/db/seed.ts) and the intake handler tests (__tests__/), so both reset
 // to the same known state rather than maintaining two copies.
 import { sql } from 'drizzle-orm';
+import { faker } from '@faker-js/faker';
 import type { Database } from './client';
 import { firstRow } from './rowHelpers';
 import {
@@ -28,10 +29,28 @@ import {
   USER_ACCOUNT_IDS,
 } from './syntheticIds';
 
+// LSC (Legal Services Corporation) Case Service Report major problem
+// categories, matching the general shape of NCSC case-type standards —
+// published, sector-wide taxonomies, not any organization's confidential
+// configuration, so real category names are safe here.
+const LSC_CASE_CATEGORIES = [
+  { code: 'consumer_finance', displayName: 'Consumer/Finance' },
+  { code: 'education', displayName: 'Education' },
+  { code: 'employment', displayName: 'Employment' },
+  { code: 'family', displayName: 'Family' },
+  { code: 'health', displayName: 'Health' },
+  { code: 'housing', displayName: 'Housing' },
+  { code: 'individual_rights', displayName: 'Individual Rights' },
+  { code: 'juvenile', displayName: 'Juvenile' },
+  { code: 'income_maintenance', displayName: 'Income Maintenance' },
+  { code: 'miscellaneous', displayName: 'Miscellaneous' },
+  { code: 'utilities', displayName: 'Utilities' },
+];
+
 export interface BaselineFixtureIds {
   caseStatusOpenId: string;
   caseStatusClosedId: string;
-  caseCategoryGeneralId: string;
+  caseCategoryHousingId: string;
   jurisdictionSampleId: string;
   languageSampleId: string;
   identifierTypeSampleId: string;
@@ -52,6 +71,10 @@ export interface BaselineFixtureIds {
 // TRUNCATE ... CASCADE resolves FK dependencies itself, so table order here
 // doesn't matter (unlike a manually-ordered sequence of DELETEs).
 export async function resetAndSeedBaselineFixtures(db: Database): Promise<BaselineFixtureIds> {
+  // Fixed seed so Faker output (below) is deterministic across runs,
+  // rather than changing every time this function is called.
+  faker.seed(20260115);
+
   await db.execute(sql`
     TRUNCATE TABLE
       intake_request, case_identifier, case_lifecycle_event, case_participant, "case",
@@ -71,9 +94,11 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   if (!openStatus || !closedStatus) {
     throw new Error('Expected case_statuses insert to return two rows.');
   }
-  const category = firstRow(
-    await db.insert(caseCategories).values([{ code: 'sample_general', displayName: 'Sample General' }]).returning(),
-  );
+  const insertedCategories = await db.insert(caseCategories).values(LSC_CASE_CATEGORIES).returning();
+  const housingCategory = insertedCategories.find((row) => row.code === 'housing');
+  if (!housingCategory) {
+    throw new Error('Expected an LSC_CASE_CATEGORIES row with code "housing".');
+  }
   const jurisdiction = firstRow(
     await db
       .insert(jurisdictions)
@@ -132,11 +157,26 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     },
   ]);
 
-  // Synthetic contacts only; person creation is out of scope for this
-  // implementation slice (see ../../MAPPING.md).
+  // Faker-generated names — no provenance link to any real dataset. Person
+  // creation is out of scope for this slice (see ../../MAPPING.md); these
+  // are the only two person rows that exist.
+  const clientGivenName = faker.person.firstName();
+  const clientFamilyName = faker.person.lastName();
+  const staffGivenName = faker.person.firstName();
+  const staffFamilyName = faker.person.lastName();
   await db.insert(person).values([
-    { personId: PERSON_IDS.SYNTHETIC_CLIENT, displayName: 'Synthetic Person Client' },
-    { personId: PERSON_IDS.SYNTHETIC_STAFF, displayName: 'Synthetic Person Staff' },
+    {
+      personId: PERSON_IDS.SYNTHETIC_CLIENT,
+      givenName: clientGivenName,
+      familyName: clientFamilyName,
+      displayName: `${clientGivenName} ${clientFamilyName}`,
+    },
+    {
+      personId: PERSON_IDS.SYNTHETIC_STAFF,
+      givenName: staffGivenName,
+      familyName: staffFamilyName,
+      displayName: `${staffGivenName} ${staffFamilyName}`,
+    },
   ]);
 
   // A synthetic dev-only account (example.invalid domain, per
@@ -157,7 +197,7 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   return {
     caseStatusOpenId: openStatus.id,
     caseStatusClosedId: closedStatus.id,
-    caseCategoryGeneralId: category.id,
+    caseCategoryHousingId: housingCategory.id,
     jurisdictionSampleId: jurisdiction.id,
     languageSampleId: language.id,
     identifierTypeSampleId: identifierType.id,
