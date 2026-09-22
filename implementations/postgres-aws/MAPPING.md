@@ -28,14 +28,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 
 ## Frontend design notes
 
-- **No collapsible mobile nav**: `client/src/App.tsx`'s header deliberately
-  doesn't use USWDS's `NavMenuButton`/responsive-collapse pattern. An
-  earlier version wired `NavMenuButton` without actually managing its
-  toggle state, which silently hid the sign-in controls behind a
-  non-functional hamburger button below the desktop breakpoint (worked in
-  a wide Chrome window, not in a narrower Safari window — found via live
-  browser testing, not a code review). There are no nav links yet to
-  justify the responsive collapse; revisit if real navigation is added.
+- **Overview home**: `/` shows five stage columns; `/cases` retains the full list.
+  Every case is temporarily displayed in Awaiting assignment. This is a UI-only
+  grouping, not persisted status or inferred assignment eligibility. The preview
+  note makes that limitation visible. Other stages remain empty until workflow
+  classification is defined. Cards use existing case data, with three previews
+  and a link to the complete list. Unimplemented navigation and tools are disabled.
+  The sidebar condenses on small screens and columns wrap into a vertical layout.
 - **Reference-data endpoint**: `GET /api/reference-data` returns every
   lookup list the intake form needs (statuses, categories, roles,
   jurisdictions, languages, identifier types, counties, organizations,
@@ -142,8 +141,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 
 ### Client (React) design notes
 
-- **`RequireAuth`** (`src/AuthContext.tsx`) wraps each protected route in
-  `App.tsx`'s `<Routes>`, centralizing the loading/not-signed-in gate that
+- **`RequireAuth`** (`src/AuthContext.tsx`) wraps the protected application layout in
+  `App.tsx`, centralizing the loading/not-signed-in gate that
   `CaseList`/`CaseDetail`/`NewCaseIntake` each used to repeat individually.
 - **`useApiResource`** (`src/hooks/useApiResource.ts`) is the shared
   fetch/loading/error mechanics behind every mount-effect data load (case

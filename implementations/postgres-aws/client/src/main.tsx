@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import '@uswds/uswds/css/uswds.min.css';
 import '@trussworks/react-uswds/lib/index.css';
 import App from './App';
+import './app.css';
 
 const container = document.getElementById('root');
 if (!container) {

@@ -18,7 +18,7 @@ export default function CaseDetail() {
 
   return (
     <div>
-      <RouterLink to="/">&larr; Back to cases</RouterLink>
+      <RouterLink to="/cases">&larr; Back to cases</RouterLink>
       <h1>
         {detail.case.clientDisplayName ?? 'Case'} ({detail.case.caseId})
       </h1>
