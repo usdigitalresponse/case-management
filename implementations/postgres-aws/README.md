@@ -15,8 +15,8 @@ Knex; see `MAPPING.md`'s "Stack" section for why.
 
 Server-side data layer, intake handler, HTTP API (routes + auth), the React
 client (case list/detail, intake form), and local Docker Compose loop are
-built and tested. Not yet built: Terraform. See `MAPPING.md` for the schema
-subset in scope and documented gaps, and
+built. Terraform is an undeployed infrastructure skeleton. See `MAPPING.md`
+for the schema subset in scope and documented gaps, and
 `../../docs/case-intake-comparison-plan.md` for how this relates to the
 Dataverse comparison.
 
@@ -40,12 +40,22 @@ docker compose up
 ```
 
 This starts Postgres, the server, and the client together: the server
-container runs `npm install`, applies migrations, seeds synthetic reference
-data plus 10 demo cases, then starts `npm run dev` (file-watching) on
+container runs `npm install`, applies migrations, then starts `npm run dev`
+(file-watching) on
 http://localhost:3000; the client container runs `npm install && npm run
 dev` on http://localhost:5173, proxying `/api` and `/auth` to the server
-container. Both server steps are idempotent, so `docker compose restart
-server` (or a fresh `up`) is always safe. Without a `.env` file (copy
+container. Restarts preserve existing records. Once the server is running,
+initialize demo data explicitly in a second terminal:
+
+```sh
+docker compose exec server npm run seed
+```
+
+**`npm run seed` is a destructive demo reset:** it deletes all application
+data and creates synthetic reference data plus 10 demo cases. Run it only
+for initial setup or when intentionally resetting the demo database.
+
+Without a `.env` file (copy
 `.env.example`), Google sign-in is disabled and only the "Dev sign-in"
 button (client) / `/auth/dev-login` (API) works.
 
@@ -68,7 +78,7 @@ docker run -d --name case-management-postgres-aws-db \
 cd server
 npm install
 npm run migrate   # applies migrations/*.sql (generated from src/db/schema.ts)
-npm run seed       # loads synthetic reference data + fixture people/accounts
+npm run seed       # DESTRUCTIVE reset: replaces all application data with demo fixtures
 ```
 
 Default connection strings (overridable via `DATABASE_URL`) assume
@@ -147,7 +157,8 @@ omitted when the server is running locally too (not in a container).
 `.github/workflows/postgres-aws.yml` runs on PRs/pushes touching this
 directory: `server` (typecheck, migrate, test, schema-mapping check),
 `client` (typecheck, build), and `compose-smoke-test` (a real
-`docker compose up` + health check + dev-login/list-cases round trip).
+`docker compose up` + explicit demo seed + dev-login/list-cases round trip,
+followed by a restart check that verifies case IDs are preserved).
 
 ## Deploy
 
@@ -171,5 +182,5 @@ Applying this creates real AWS resources and costs money — don't run
 
 See `MAPPING.md` for the full list (auth, person creation, infrastructure,
 reference data). In short: this is a dev/demo-scoped prototype, not a
-production deployment — there is no Terraform/AWS infra yet, only the local
-Docker Compose loop.
+production deployment. Terraform is an undeployed skeleton; Docker Compose
+is the runnable development environment.

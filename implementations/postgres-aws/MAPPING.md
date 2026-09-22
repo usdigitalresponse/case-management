@@ -61,10 +61,17 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 
 - **Request validation**: `src/intake/validation.ts` defines a Zod schema for
   `createCase`'s input (uuid format, required fields, identifier
-  completeness). Malformed input (e.g. a non-UUID `personId`) is rejected
+  completeness, explicit ISO timestamp or internal Date). Malformed input (e.g. a non-UUID `personId`) is rejected
   there, before any query runs — the DB layer never sees a value that could
   otherwise surface as a raw driver error instead of a field-level
   `CreateCaseValidationError`.
+- **Retry handling**: the form retains its request ID for retries of an unchanged
+  payload. The handler recovers the original result after either request-ID or
+  identifier uniqueness conflicts from concurrent replays.
+- **Office compatibility**: when both organization and office are supplied, the
+  office must belong to that organization.
+- **Demo seeding**: `npm run seed` explicitly resets all application data; normal
+  Docker Compose startup only migrates and starts the server, preserving records.
 - **Reference/active checks run via the pool, not inside the transaction**:
   `createCase` validates that every referenced id exists and (where the
   table has an `active` flag) is active, via `Promise.all` over the

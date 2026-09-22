@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Alert, Button, Checkbox, ErrorMessage, Fieldset, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
 import {
@@ -42,6 +42,7 @@ export default function NewCaseIntake() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const pendingRequest = useRef<{ payload: string; requestId: string } | null>(null);
 
   async function handlePersonSearch() {
     if (!personQuery.trim()) {
@@ -66,8 +67,7 @@ export default function NewCaseIntake() {
 
     setSubmitting(true);
     try {
-      const result = await createCase({
-        requestId: generateRequestId(),
+      const input = {
         personId: selectedPerson.personId,
         participantRoleId,
         statusId,
@@ -86,7 +86,12 @@ export default function NewCaseIntake() {
               isPrimary: identifierIsPrimary,
             }
           : undefined,
-      });
+      };
+      const payload = JSON.stringify(input);
+      if (pendingRequest.current?.payload !== payload) {
+        pendingRequest.current = { payload, requestId: generateRequestId() };
+      }
+      const result = await createCase({ ...input, requestId: pendingRequest.current.requestId });
       navigate(`/cases/${result.caseId}`);
     } catch (error) {
       if (error instanceof ApiError && error.status === 400 && isValidationErrorBody(error.body)) {
@@ -190,6 +195,7 @@ export default function NewCaseIntake() {
         <ReferenceSelect
           id="countyId"
           label="County"
+          error={fieldErrors.countyId}
           value={countyId}
           onChange={setCountyId}
           options={referenceData.counties.map((county) => ({
@@ -200,6 +206,7 @@ export default function NewCaseIntake() {
         <ReferenceSelect
           id="caseCategoryId"
           label="Case category"
+          error={fieldErrors.caseCategoryId}
           value={caseCategoryId}
           onChange={setCaseCategoryId}
           options={referenceData.caseCategories.map((category) => ({ id: category.id, label: category.displayName }))}
@@ -207,6 +214,7 @@ export default function NewCaseIntake() {
         <ReferenceSelect
           id="organizationId"
           label="Organization"
+          error={fieldErrors.organizationId}
           value={organizationId}
           onChange={setOrganizationId}
           options={referenceData.organizations.map((organization) => ({
@@ -217,6 +225,7 @@ export default function NewCaseIntake() {
         <ReferenceSelect
           id="officeId"
           label="Office"
+          error={fieldErrors.officeId}
           value={officeId}
           onChange={setOfficeId}
           options={referenceData.offices.map((office) => ({
@@ -227,6 +236,7 @@ export default function NewCaseIntake() {
         <ReferenceSelect
           id="jurisdictionId"
           label="Jurisdiction"
+          error={fieldErrors.jurisdictionId}
           value={jurisdictionId}
           onChange={setJurisdictionId}
           options={referenceData.jurisdictions.map((jurisdiction) => ({
@@ -237,6 +247,7 @@ export default function NewCaseIntake() {
         <ReferenceSelect
           id="preferredLanguageId"
           label="Preferred language"
+          error={fieldErrors.preferredLanguageId}
           value={preferredLanguageId}
           onChange={setPreferredLanguageId}
           options={referenceData.languages.map((language) => ({ id: language.id, label: language.displayName }))}
@@ -252,8 +263,9 @@ export default function NewCaseIntake() {
           error={fieldErrors.identifier ?? fieldErrors['identifier.identifierTypeId']}
           options={referenceData.caseIdentifierTypes.map((type) => ({ id: type.id, label: type.displayName }))}
         />
-        <FormGroup>
+        <FormGroup error={Boolean(fieldErrors['identifier.issuer'])}>
           <Label htmlFor="identifierIssuer">Issuer</Label>
+          {fieldErrors['identifier.issuer'] && <ErrorMessage>{fieldErrors['identifier.issuer']}</ErrorMessage>}
           <TextInput
             id="identifierIssuer"
             name="identifierIssuer"
@@ -262,8 +274,9 @@ export default function NewCaseIntake() {
             onChange={(event) => setIdentifierIssuer(event.target.value)}
           />
         </FormGroup>
-        <FormGroup>
+        <FormGroup error={Boolean(fieldErrors['identifier.value'])}>
           <Label htmlFor="identifierValue">Value</Label>
+          {fieldErrors['identifier.value'] && <ErrorMessage>{fieldErrors['identifier.value']}</ErrorMessage>}
           <TextInput
             id="identifierValue"
             name="identifierValue"

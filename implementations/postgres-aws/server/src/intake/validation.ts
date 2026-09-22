@@ -17,11 +17,8 @@ export const createCaseInputSchema = z.object({
   personId: z.string().uuid(),
   participantRoleId: z.string().uuid(),
   statusId: z.string().uuid(),
-  // Coerce, not z.date(): JSON has no Date type, so real requests send an
-  // ISO string. z.date() only accepts an actual Date instance — it passed
-  // every unit test (which construct input with `new Date(...)`) but
-  // rejected the first real HTTP request.
-  effectiveAt: z.coerce.date(),
+  // HTTP callers send an explicit instant; internal callers may pass a Date.
+  effectiveAt: z.union([z.date(), z.iso.datetime({ offset: true })]).pipe(z.coerce.date()),
   countyId: z.string().uuid().optional(),
   caseCategoryId: z.string().uuid().optional(),
   organizationId: z.string().uuid().optional(),

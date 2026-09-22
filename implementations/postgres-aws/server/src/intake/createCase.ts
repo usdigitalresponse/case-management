@@ -1,7 +1,4 @@
-// Shared intake handler for model/forms.yaml:new_case. One function, one
-// transaction, mirroring the Dataverse comparison plan's shared-handler
-// requirements (docs/case-intake-comparison-plan.md) despite being a
-// separate implementation track.
+// Intake for model/forms.yaml:new_case; all writes share one transaction.
 import { eq, and } from 'drizzle-orm';
 import type { PgTable, AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Database } from '../db/client';
@@ -34,17 +31,10 @@ import {
 
 export type { CreateCaseInput, CreateCaseIdentifierInput } from './validation';
 
-// The seeded code for the "opening" lifecycle event type. The server derives
-// this, not the caller, per forms.yaml — a synthetic default, not a resolved
-// product decision (see MAPPING.md).
+// Server-selected synthetic opening event type; see MAPPING.md.
 const OPENING_EVENT_TYPE_CODE = 'sample_open';
 
-// The IANA time zone used to derive calendar dates (e.g. opened_on) from an
-// effective instant. UTC is a synthetic single-environment default pending
-// an actual per-organization decision — time zone is explicitly named as an
-// open configurable choice in docs/case-intake-comparison-plan.md. Kept as
-// one named constant so a real per-org value is a one-line change, not a
-// logic rewrite.
+// Synthetic reporting zone pending per-organization configuration (MAPPING.md).
 const REPORTING_TIME_ZONE = 'UTC';
 
 function calendarDateInReportingTimeZone(date: Date): string {
@@ -77,9 +67,6 @@ export class CreateCaseValidationError extends Error {
   }
 }
 
-// Server misconfiguration (e.g. a required seeded reference row is
-// missing) — distinct from a bad request, since no client input could have
-// avoided it.
 export class CreateCaseConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -87,9 +74,7 @@ export class CreateCaseConfigurationError extends Error {
   }
 }
 
-// drizzle-orm wraps the raw pg error (.code/.constraint) in a
-// DrizzleQueryError with the original on .cause — verified against the
-// actual thrown shape.
+// Drizzle wraps PostgreSQL errors in .cause.
 function uniqueViolationConstraint(error: unknown): string | null {
   const candidates = [error, (error as { cause?: unknown } | null)?.cause];
   for (const candidate of candidates) {
@@ -138,14 +123,6 @@ async function findExistingResult(
   };
 }
 
-// `table`/`idColumn` are typed as real Drizzle table/column types (not
-// `any`), so passing something that isn't a valid table or column is still
-// a type error — an earlier version type-erased both to `any` for a
-// data-driven list of checks, trading away exactly the type safety FK
-// reference correctness depends on, for a modest line-count saving;
-// reverted after a second review flagged it. `validate`'s row is untyped
-// per-table (Drizzle's `.from()` typing doesn't support that generically
-// here) but is still a real row object, not `any`.
 async function checkReferenceExists(
   db: Database,
   table: PgTable,
@@ -174,32 +151,19 @@ export async function createCase(
   }
   const input: CreateCaseInput = parsed.data;
 
-  // Idempotency: a retried request with the same request_id returns the
-  // original result instead of creating a second case (scenario: repeated
-  // submissions in scenarios/new-case.md).
   const existing = await findExistingResult(db, input.requestId);
   if (existing) {
     return existing;
   }
 
-  // Every reference must resolve to its declared entity, and be active
-  // where applicable (model/rules.yaml: validate_case_children,
-  // validate_effective_relationships). Run via `db` (the connection pool),
-  // not inside the transaction below: a single Postgres connection can't
-  // usefully run queries concurrently (drizzle/pg will warn or serialize
-  // them anyway), so genuine concurrency here means separate pool
-  // connections, issued before the transaction opens. These are read-only
-  // pre-checks for a friendly field error; the FK constraints in
-  // src/db/schema.ts are the actual integrity boundary enforced at insert
-  // time regardless.
+  // Validate concurrently via the pool before opening the transaction.
+  // Foreign keys enforce existence at write time; pre-checks give field errors.
   const checks: Array<[string, Promise<string | null>]> = [
     ['personId', checkReferenceExists(db, person, person.personId, input.personId)],
     [
       'participantRoleId',
       checkReferenceExists(db, role, role.roleId, input.participantRoleId, {
         requireActive: true,
-        // model/rules.yaml validate_effective_relationships: the referenced
-        // role must match this field's context.
         validate: (row) =>
           row.roleContext !== 'case_participant'
             ? 'Role must have role_context "case_participant".'
@@ -238,7 +202,13 @@ export async function createCase(
   if (input.officeId) {
     checks.push([
       'officeId',
-      checkReferenceExists(db, office, office.officeId, input.officeId, { requireActive: true }),
+      checkReferenceExists(db, office, office.officeId, input.officeId, {
+        requireActive: true,
+        validate: (row) =>
+          input.organizationId && row.organizationId !== input.organizationId
+            ? "Office must belong to the selected organization."
+            : null,
+      }),
     ]);
   }
   if (input.jurisdictionId) {
@@ -270,8 +240,6 @@ export async function createCase(
     ]);
   }
 
-  // Independent of the reference checks above; batched into the same
-  // Promise.all so it doesn't cost an extra serialized round-trip.
   const openingEventTypePromise = db
     .select()
     .from(caseLifecycleEventTypes)
@@ -306,9 +274,7 @@ export async function createCase(
         await tx
           .insert(caseTable)
           .values({
-            // Compatibility reference to the client-role person; this intake
-            // journey always creates the client participant (model/schema.yaml:
-            // case.client_id; case_participant is authoritative).
+            // Compatibility field; case_participant remains authoritative.
             clientId: input.personId,
             countyId: input.countyId,
             caseCategoryId: input.caseCategoryId,
@@ -318,9 +284,7 @@ export async function createCase(
             officeId: input.officeId,
             jurisdictionId: input.jurisdictionId,
             preferredLanguageId: input.preferredLanguageId,
-            // Write-time sync, not a live projection (external_reference is
-            // a plain field per AGENTS.md). scenarios/new-case.md scenario 3
-            // requires it to match the primary identifier at intake.
+            // Intake snapshot; later identifier edits do not update this field automatically.
             externalReference: input.identifier?.isPrimary ? input.identifier.value : undefined,
           })
           .returning(),
@@ -370,10 +334,7 @@ export async function createCase(
         insertedIdentifierId = insertedIdentifier.caseIdentifierId;
       }
 
-      // If a concurrent request with the same request_id committed first,
-      // this insert throws a unique violation; the outer catch below
-      // treats it as a retry and returns the winner's result (scenario:
-      // concurrent submissions in scenarios/new-case.md).
+      // A duplicate request ID rolls back these writes; the catch returns the winner.
       await tx.insert(intakeRequest).values({
         requestId: input.requestId,
         caseId: insertedCase.caseId,
@@ -387,16 +348,13 @@ export async function createCase(
       };
     });
   } catch (error) {
-    // Deliberate asymmetry: identifier *existence* is pre-checked above
-    // (cheap, and needed before the insert can even be attempted), but
-    // identifier *uniqueness* (issuer+type+value) is only knowable by
-    // attempting the write — a pre-check here would just duplicate the
-    // unique index below without removing the need for this catch (a
-    // concurrent request could still collide between the two). So
-    // uniqueness is handled reactively, via the same constraint-matching
-    // mechanism as idempotent replay.
+    // A concurrent replay can collide on its identifier before reaching the
+    // request-ID insert. Recover the committed result for either conflict.
     const constraint = uniqueViolationConstraint(error);
-    if (constraint === INTAKE_REQUEST_PRIMARY_KEY_CONSTRAINT) {
+    if (
+      constraint === INTAKE_REQUEST_PRIMARY_KEY_CONSTRAINT ||
+      constraint === CASE_IDENTIFIER_ISSUER_TYPE_VALUE_UNIQUE_CONSTRAINT
+    ) {
       const concurrentResult = await findExistingResult(db, input.requestId);
       if (concurrentResult) {
         return concurrentResult;

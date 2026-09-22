@@ -35,10 +35,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    # Runs migrate+seed on every start (both are idempotent — migrate skips
-    # already-applied migrations, seed truncates and reseeds) before
-    # starting the dev server with file-watching.
-    command: sh -c "npm install && npm run migrate && npm run seed && npm run dev"
+    # Keep restarts non-destructive. Seed/reset demo data explicitly (see README).
+    command: sh -c "npm install && npm run migrate && npm run dev"
 
   client:
     image: node:20-alpine

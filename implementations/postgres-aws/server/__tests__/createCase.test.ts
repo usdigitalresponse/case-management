@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { beforeEach, afterAll, describe, expect, it } from 'vitest';
+import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import {
@@ -16,6 +16,7 @@ import {
   person,
   role,
   caseStatuses,
+  organization,
 } from '../src/db/schema';
 
 let fixtures: BaselineFixtureIds;
@@ -303,5 +304,49 @@ describe('request_id idempotency', () => {
 
     expect(retried.caseId).toBe(first.caseId);
     expect(await testDb.select().from(caseTable)).toHaveLength(1);
+  });
+});
+
+
+describe('organization and office compatibility', () => {
+  it('rejects an office belonging to another organization without saving a case', async () => {
+    const [other] = await testDb.insert(organization).values({ displayName: 'Other organization' }).returning();
+    await expect(createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseInput({
+      organizationId: other!.organizationId,
+      officeId: fixtures.officeId,
+    }))).rejects.toMatchObject({ fieldErrors: { officeId: 'Office must belong to the selected organization.' } });
+    expect(await testDb.select().from(caseTable)).toHaveLength(0);
+  });
+});
+
+describe('concurrent request replay', () => {
+  it('returns the same complete result for concurrent requests with an identifier', async () => {
+    const input = baseInput({ identifier: {
+      identifierTypeId: fixtures.identifierTypeSampleId,
+      issuer: 'sample-issuer', value: 'CONCURRENT-0001', isPrimary: true,
+    } });
+    // Hold both callers after their initial request lookup, before either writes.
+    const transaction = testDb.transaction.bind(testDb);
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => { release = resolve; });
+    let arrivals = 0;
+    const spy = vi.spyOn(testDb, 'transaction').mockImplementation(async (...args) => {
+      if (++arrivals === 2) release();
+      await ready;
+      return transaction(...args);
+    });
+    try {
+      const actor = { userAccountId: fixtures.staffUserAccountId };
+      const [first, second] = await Promise.all([
+        createCase(testDb, actor, input), createCase(testDb, actor, input),
+      ]);
+      expect(second).toEqual(first);
+      expect(await testDb.select().from(caseTable)).toHaveLength(1);
+      expect(await testDb.select().from(caseIdentifier)).toHaveLength(1);
+      expect(await testDb.select().from(caseParticipant)).toHaveLength(1);
+      expect(await testDb.select().from(caseLifecycleEvent)).toHaveLength(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -213,3 +213,11 @@ The wizard must inspect and display the target before deployment, default to
 read-only verification for existing installations, pass input as process arguments
 without shell evaluation, and keep entered configuration out of repository files.
 Its offline tests must not authenticate or mutate a live environment.
+
+
+The separate Postgres/AWS prototype lives in `implementations/postgres-aws/`.
+Docker Compose startup must preserve application data. `docker compose exec
+server npm run seed` is an explicit destructive demo reset, never a startup
+step. Run server/client `npm run typecheck`, client `npm run build`, and server
+`npm test` against a separate migrated test database (see its README). The server
+build entry point is `dist/src/app.js`.

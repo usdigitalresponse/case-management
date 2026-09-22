@@ -86,10 +86,29 @@ jobs:
           done
           echo "Server did not become healthy in time" >&2
           exit 1
+      - name: Seed synthetic demo data
+        working-directory: implementations/postgres-aws
+        run: docker compose exec -T server npm run seed
       - name: Smoke test the API through the client's proxy
         run: |
           curl -sf -c cookies.txt -X POST http://localhost:5173/auth/dev-login
-          curl -sf -b cookies.txt http://localhost:5173/api/cases
+          curl -sf -b cookies.txt http://localhost:5173/api/cases -o cases-before.json
+      - name: Restart preserves saved cases
+        run: |
+          docker compose -f implementations/postgres-aws/docker-compose.yml restart server
+          ready=false
+          for _ in $(seq 1 30); do
+            if curl -sf http://localhost:3000/healthz; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = true
+          curl -sf -b cookies.txt http://localhost:3000/api/cases -o cases-after.json
+          jq -S '.cases | map(.caseId) | sort' cases-before.json > ids-before.json
+          jq -S '.cases | map(.caseId) | sort' cases-after.json > ids-after.json
+          cmp ids-before.json ids-after.json
       - name: docker compose logs (on failure)
         if: failure()
         working-directory: implementations/postgres-aws

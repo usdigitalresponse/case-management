@@ -3,13 +3,13 @@
   "private": true,
   "version": "0.1.0",
   "description": "Express/Drizzle/Postgres API for the postgres-aws case-management implementation.",
-  "main": "dist/app.js",
+  "main": "dist/src/app.js",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/app.js",
+    "start": "node dist/src/app.js",
     "dev": "tsx watch src/app.ts",
     "db:generate": "drizzle-kit generate",
     "migrate": "tsx src/db/migrate.ts",
