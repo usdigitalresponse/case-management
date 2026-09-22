@@ -1,5 +1,5 @@
 {
-  "id": "152ed8f0-b1f1-4fbb-ae88-9bfb32f6fc9b",
+  "id": "5b186208-0a01-41ff-9fed-b10d6d6a31da",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -134,6 +134,21 @@
           ],
           "isUnique": true,
           "where": "is_primary",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "case_identifier_case_id_idx": {
+          "name": "case_identifier_case_id_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -583,6 +598,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "case_participant_case_id_idx": {
+          "name": "case_participant_case_id_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -770,7 +800,53 @@
           "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "case_county_id_idx": {
+          "name": "case_county_id_idx",
+          "columns": [
+            {
+              "expression": "county_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "case_status_id_idx": {
+          "name": "case_status_id_idx",
+          "columns": [
+            {
+              "expression": "status_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "case_category_id_idx": {
+          "name": "case_category_id_idx",
+          "columns": [
+            {
+              "expression": "case_category_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "case_client_id_person_person_id_fk": {
           "name": "case_client_id_person_person_id_fk",

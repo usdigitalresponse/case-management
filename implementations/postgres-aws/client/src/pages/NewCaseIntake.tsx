@@ -1,17 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Alert,
-  Button,
-  Checkbox,
-  ErrorMessage,
-  Fieldset,
-  Form,
-  FormGroup,
-  Label,
-  Select,
-  TextInput,
-} from '@trussworks/react-uswds';
+import { Alert, Button, Checkbox, ErrorMessage, Fieldset, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
 import {
   ApiError,
   createCase,
@@ -19,20 +8,17 @@ import {
   isValidationErrorBody,
   searchPeople,
   type PersonRecord,
-  type ReferenceData,
 } from '../api/client';
-import { useAuth } from '../AuthContext';
+import { useApiResource } from '../hooks/useApiResource';
+import { ReferenceSelect } from '../components/ReferenceSelect';
 
 function generateRequestId(): string {
   return crypto.randomUUID();
 }
 
 export default function NewCaseIntake() {
-  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-
-  const [referenceData, setReferenceData] = useState<ReferenceData | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const { data: referenceData, error: loadError } = useApiResource(getReferenceData, []);
 
   const [personQuery, setPersonQuery] = useState('');
   const [personResults, setPersonResults] = useState<PersonRecord[]>([]);
@@ -56,15 +42,6 @@ export default function NewCaseIntake() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    getReferenceData()
-      .then(setReferenceData)
-      .catch(() => setLoadError('Failed to load reference data.'));
-  }, [user]);
 
   async function handlePersonSearch() {
     if (!personQuery.trim()) {
@@ -122,14 +99,8 @@ export default function NewCaseIntake() {
     }
   }
 
-  if (authLoading) {
-    return null;
-  }
-  if (!user) {
-    return <Alert type="info">Sign in to create a case.</Alert>;
-  }
   if (loadError) {
-    return <Alert type="error">{loadError}</Alert>;
+    return <Alert type="error">Failed to load reference data.</Alert>;
   }
   if (!referenceData) {
     return <p>Loading form…</p>;
@@ -181,41 +152,25 @@ export default function NewCaseIntake() {
       </Fieldset>
 
       <Fieldset legend="Case opening" legendStyle="large">
-        <FormGroup error={Boolean(fieldErrors.participantRoleId)}>
-          <Label htmlFor="participantRoleId">Participant role</Label>
-          {fieldErrors.participantRoleId && <ErrorMessage>{fieldErrors.participantRoleId}</ErrorMessage>}
-          <Select
-            id="participantRoleId"
-            name="participantRoleId"
-            value={participantRoleId}
-            onChange={(event) => setParticipantRoleId(event.target.value)}
-          >
-            <option value="">Select a role</option>
-            {referenceData.participantRoles.map((option) => (
-              <option key={option.roleId} value={option.roleId}>
-                {option.displayName}
-              </option>
-            ))}
-          </Select>
-        </FormGroup>
+        <ReferenceSelect
+          id="participantRoleId"
+          label="Participant role"
+          value={participantRoleId}
+          onChange={setParticipantRoleId}
+          placeholder="Select a role"
+          error={fieldErrors.participantRoleId}
+          options={referenceData.participantRoles.map((role) => ({ id: role.roleId, label: role.displayName }))}
+        />
 
-        <FormGroup error={Boolean(fieldErrors.statusId)}>
-          <Label htmlFor="statusId">Opening status</Label>
-          {fieldErrors.statusId && <ErrorMessage>{fieldErrors.statusId}</ErrorMessage>}
-          <Select
-            id="statusId"
-            name="statusId"
-            value={statusId}
-            onChange={(event) => setStatusId(event.target.value)}
-          >
-            <option value="">Select a status</option>
-            {referenceData.caseStatuses.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.displayName}
-              </option>
-            ))}
-          </Select>
-        </FormGroup>
+        <ReferenceSelect
+          id="statusId"
+          label="Opening status"
+          value={statusId}
+          onChange={setStatusId}
+          placeholder="Select a status"
+          error={fieldErrors.statusId}
+          options={referenceData.caseStatuses.map((status) => ({ id: status.id, label: status.displayName }))}
+        />
 
         <FormGroup error={Boolean(fieldErrors.effectiveAt)}>
           <Label htmlFor="effectiveAt">Effective date and time</Label>
@@ -232,119 +187,71 @@ export default function NewCaseIntake() {
       </Fieldset>
 
       <Fieldset legend="Optional context" legendStyle="large">
-        <FormGroup>
-          <Label htmlFor="countyId">County</Label>
-          <Select id="countyId" name="countyId" value={countyId} onChange={(event) => setCountyId(event.target.value)}>
-            <option value="">None</option>
-            {referenceData.counties.map((option) => (
-              <option key={option.countyId} value={option.countyId}>
-                {option.displayName}
-              </option>
-            ))}
-          </Select>
-        </FormGroup>
-
-        <FormGroup>
-          <Label htmlFor="caseCategoryId">Case category</Label>
-          <Select
-            id="caseCategoryId"
-            name="caseCategoryId"
-            value={caseCategoryId}
-            onChange={(event) => setCaseCategoryId(event.target.value)}
-          >
-            <option value="">None</option>
-            {referenceData.caseCategories.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.displayName}
-              </option>
-            ))}
-          </Select>
-        </FormGroup>
-
-        <FormGroup>
-          <Label htmlFor="organizationId">Organization</Label>
-          <Select
-            id="organizationId"
-            name="organizationId"
-            value={organizationId}
-            onChange={(event) => setOrganizationId(event.target.value)}
-          >
-            <option value="">None</option>
-            {referenceData.organizations.map((option) => (
-              <option key={option.organizationId} value={option.organizationId}>
-                {option.displayName}
-              </option>
-            ))}
-          </Select>
-        </FormGroup>
-
-        <FormGroup>
-          <Label htmlFor="officeId">Office</Label>
-          <Select id="officeId" name="officeId" value={officeId} onChange={(event) => setOfficeId(event.target.value)}>
-            <option value="">None</option>
-            {referenceData.offices.map((option) => (
-              <option key={option.officeId} value={option.officeId}>
-                {option.displayName}
-              </option>
-            ))}
-          </Select>
-        </FormGroup>
-
-        <FormGroup>
-          <Label htmlFor="jurisdictionId">Jurisdiction</Label>
-          <Select
-            id="jurisdictionId"
-            name="jurisdictionId"
-            value={jurisdictionId}
-            onChange={(event) => setJurisdictionId(event.target.value)}
-          >
-            <option value="">None</option>
-            {referenceData.jurisdictions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.displayName}
-              </option>
-            ))}
-          </Select>
-        </FormGroup>
-
-        <FormGroup>
-          <Label htmlFor="preferredLanguageId">Preferred language</Label>
-          <Select
-            id="preferredLanguageId"
-            name="preferredLanguageId"
-            value={preferredLanguageId}
-            onChange={(event) => setPreferredLanguageId(event.target.value)}
-          >
-            <option value="">None</option>
-            {referenceData.languages.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.displayName}
-              </option>
-            ))}
-          </Select>
-        </FormGroup>
+        <ReferenceSelect
+          id="countyId"
+          label="County"
+          value={countyId}
+          onChange={setCountyId}
+          options={referenceData.counties.map((county) => ({
+            id: county.countyId as string,
+            label: county.displayName,
+          }))}
+        />
+        <ReferenceSelect
+          id="caseCategoryId"
+          label="Case category"
+          value={caseCategoryId}
+          onChange={setCaseCategoryId}
+          options={referenceData.caseCategories.map((category) => ({ id: category.id, label: category.displayName }))}
+        />
+        <ReferenceSelect
+          id="organizationId"
+          label="Organization"
+          value={organizationId}
+          onChange={setOrganizationId}
+          options={referenceData.organizations.map((organization) => ({
+            id: organization.organizationId as string,
+            label: organization.displayName,
+          }))}
+        />
+        <ReferenceSelect
+          id="officeId"
+          label="Office"
+          value={officeId}
+          onChange={setOfficeId}
+          options={referenceData.offices.map((office) => ({
+            id: office.officeId as string,
+            label: office.displayName,
+          }))}
+        />
+        <ReferenceSelect
+          id="jurisdictionId"
+          label="Jurisdiction"
+          value={jurisdictionId}
+          onChange={setJurisdictionId}
+          options={referenceData.jurisdictions.map((jurisdiction) => ({
+            id: jurisdiction.id,
+            label: jurisdiction.displayName,
+          }))}
+        />
+        <ReferenceSelect
+          id="preferredLanguageId"
+          label="Preferred language"
+          value={preferredLanguageId}
+          onChange={setPreferredLanguageId}
+          options={referenceData.languages.map((language) => ({ id: language.id, label: language.displayName }))}
+        />
       </Fieldset>
 
       <Fieldset legend="Case identifier (optional)" legendStyle="large">
-        <FormGroup error={Boolean(fieldErrors.identifier || fieldErrors['identifier.identifierTypeId'])}>
-          <Label htmlFor="identifierTypeId">Identifier type</Label>
-          {(fieldErrors.identifier || fieldErrors['identifier.identifierTypeId']) && (
-            <ErrorMessage>{fieldErrors.identifier ?? fieldErrors['identifier.identifierTypeId']}</ErrorMessage>
-          )}
-          <Select
-            id="identifierTypeId"
-            name="identifierTypeId"
-            value={identifierTypeId}
-            onChange={(event) => setIdentifierTypeId(event.target.value)}
-          >
-            <option value="">None</option>
-            {referenceData.caseIdentifierTypes.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.displayName}
-              </option>
-            ))}
-          </Select>
-        </FormGroup>
+        <ReferenceSelect
+          id="identifierTypeId"
+          label="Identifier type"
+          value={identifierTypeId}
+          onChange={setIdentifierTypeId}
+          error={fieldErrors.identifier ?? fieldErrors['identifier.identifierTypeId']}
+          options={referenceData.caseIdentifierTypes.map((type) => ({ id: type.id, label: type.displayName }))}
+        />
         <FormGroup>
           <Label htmlFor="identifierIssuer">Issuer</Label>
           <TextInput

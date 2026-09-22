@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   date,
+  index,
   integer,
   pgTable,
   text,
@@ -108,22 +109,32 @@ export const userAccount = pgTable('user_account', {
   systemRoleId: uuid('system_role_id').references(() => role.roleId),
 });
 
-export const caseTable = pgTable('case', {
-  caseId: uuid('case_id').primaryKey().defaultRandom(),
-  // Compatibility reference to the person in the case's client role;
-  // case_participant is authoritative (model/schema.yaml: case.client_id).
-  clientId: uuid('client_id').references(() => person.personId),
-  countyId: uuid('county_id').references(() => county.countyId),
-  externalReference: text('external_reference'),
-  caseCategoryId: uuid('case_category_id').references(() => caseCategories.id),
-  statusId: uuid('status_id').notNull().references(() => caseStatuses.id),
-  openedOn: date('opened_on'),
-  closedOn: date('closed_on'),
-  organizationId: uuid('organization_id').references(() => organization.organizationId),
-  officeId: uuid('office_id').references(() => office.officeId),
-  jurisdictionId: uuid('jurisdiction_id').references(() => jurisdictions.id),
-  preferredLanguageId: uuid('preferred_language_id').references(() => languages.id),
-});
+export const caseTable = pgTable(
+  'case',
+  {
+    caseId: uuid('case_id').primaryKey().defaultRandom(),
+    // Compatibility reference to the person in the case's client role;
+    // case_participant is authoritative (model/schema.yaml: case.client_id).
+    clientId: uuid('client_id').references(() => person.personId),
+    countyId: uuid('county_id').references(() => county.countyId),
+    externalReference: text('external_reference'),
+    caseCategoryId: uuid('case_category_id').references(() => caseCategories.id),
+    statusId: uuid('status_id').notNull().references(() => caseStatuses.id),
+    openedOn: date('opened_on'),
+    closedOn: date('closed_on'),
+    organizationId: uuid('organization_id').references(() => organization.organizationId),
+    officeId: uuid('office_id').references(() => office.officeId),
+    jurisdictionId: uuid('jurisdiction_id').references(() => jurisdictions.id),
+    preferredLanguageId: uuid('preferred_language_id').references(() => languages.id),
+  },
+  (table) => [
+    // Postgres doesn't auto-index FK columns; GET /api/cases filters on all
+    // three (server/src/routes/cases.ts).
+    index('case_county_id_idx').on(table.countyId),
+    index('case_status_id_idx').on(table.statusId),
+    index('case_category_id_idx').on(table.caseCategoryId),
+  ],
+);
 
 export const caseParticipant = pgTable(
   'case_participant',
@@ -144,6 +155,10 @@ export const caseParticipant = pgTable(
     uniqueIndex('case_participant_open_unique')
       .on(table.caseId, table.personId, table.participantRoleId, table.affiliationId)
       .where(sql`ended_at IS NULL`),
+    // The unique index above is partial (WHERE ended_at IS NULL) and can't
+    // serve a plain case_id lookup (GET /api/cases/:id) — a separate plain
+    // index is needed for that.
+    index('case_participant_case_id_idx').on(table.caseId),
   ],
 );
 
@@ -208,6 +223,10 @@ export const caseIdentifier = pgTable(
     uniqueIndex('case_identifier_one_primary_per_case')
       .on(table.caseId)
       .where(sql`is_primary`),
+    // The above is partial (WHERE is_primary) and can't serve a plain
+    // case_id lookup (GET /api/cases/:id) — a separate plain index is
+    // needed for that.
+    index('case_identifier_case_id_idx').on(table.caseId),
   ],
 );
 

@@ -1,35 +1,13 @@
-import { useEffect, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Table } from '@trussworks/react-uswds';
-import { ApiError, listCases, type CaseRecord } from '../api/client';
-import { useAuth } from '../AuthContext';
+import { listCases } from '../api/client';
+import { useApiResource } from '../hooks/useApiResource';
 
 export default function CaseList() {
-  const { user, loading: authLoading } = useAuth();
-  const [cases, setCases] = useState<CaseRecord[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-    listCases()
-      .then((result) => setCases(result.cases))
-      .catch((err: unknown) => {
-        setError(err instanceof ApiError ? `Failed to load cases (${err.status}).` : 'Failed to load cases.');
-      });
-  }, [user]);
-
-  if (authLoading) {
-    return null;
-  }
-
-  if (!user) {
-    return <Alert type="info">Sign in to view cases.</Alert>;
-  }
+  const { data: cases, error } = useApiResource(() => listCases().then((result) => result.cases), []);
 
   if (error) {
-    return <Alert type="error">{error}</Alert>;
+    return <Alert type="error">Failed to load cases.</Alert>;
   }
 
   if (!cases) {

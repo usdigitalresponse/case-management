@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Link as RouterLink } from 'react-router-dom';
 import { GridContainer, Title, Header, Button } from '@trussworks/react-uswds';
-import { AuthProvider, useAuth } from './AuthContext';
+import { AuthProvider, RequireAuth, useAuth } from './AuthContext';
 import CaseList from './pages/CaseList';
 import CaseDetail from './pages/CaseDetail';
 import NewCaseIntake from './pages/NewCaseIntake';
@@ -49,9 +49,30 @@ export default function App() {
         <TopBar />
         <GridContainer className="padding-y-4">
           <Routes>
-            <Route path="/" element={<CaseList />} />
-            <Route path="/cases/new" element={<NewCaseIntake />} />
-            <Route path="/cases/:caseId" element={<CaseDetail />} />
+            <Route
+              path="/"
+              element={
+                <RequireAuth>
+                  <CaseList />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/cases/new"
+              element={
+                <RequireAuth>
+                  <NewCaseIntake />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/cases/:caseId"
+              element={
+                <RequireAuth>
+                  <CaseDetail />
+                </RequireAuth>
+              }
+            />
           </Routes>
         </GridContainer>
       </BrowserRouter>

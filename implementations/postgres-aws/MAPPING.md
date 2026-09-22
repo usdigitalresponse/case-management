@@ -110,15 +110,49 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 - **Dev-login bypass**: `POST /auth/dev-login` logs in as the seeded
   synthetic staff account (`staff@example.invalid`) without any real Google
   credentials, so local dev/tests don't need `GOOGLE_CLIENT_ID`/
-  `GOOGLE_CLIENT_SECRET` configured. Only mounted when
-  `NODE_ENV !== 'production'` (`src/app.ts`); never available in
-  production regardless of any other flag.
+  `GOOGLE_CLIENT_SECRET` configured. `src/app.ts` only mounts it when
+  `NODE_ENV !== 'production'`, and `createAuthRouter` itself also throws if
+  ever asked to enable it under `NODE_ENV=production` — enforced by the
+  auth module, not just by the one current caller's discipline, so a future
+  second call site can't silently reopen the bypass.
 - **Routes**: `src/routes/cases.ts` (`POST /`, `GET /`, `GET /:id`) and
   `src/routes/people.ts` (`GET /?q=`, existing-person search only — no
   duplicate-person warning here, since no person is ever created by this
   endpoint). All require a session (`requireAuth`). Async handlers are
   wrapped in `src/routes/asyncHandler.ts` since Express 4 doesn't forward a
   rejected promise to error middleware on its own.
+- **Indexes**: FK columns used as query filters/joins
+  (`case.county_id`/`status_id`/`case_category_id`,
+  `case_participant.case_id`, `case_identifier.case_id`) have plain B-tree
+  indexes in `src/db/schema.ts` — Postgres doesn't create these
+  automatically, and the existing unique indexes on those tables are
+  partial (`WHERE ended_at IS NULL`, `WHERE is_primary`) so they don't
+  serve a plain lookup. `GET /api/people`'s `ilike` search on
+  `person.display_name`/`email` has no supporting index (a `pg_trgm` GIN
+  index would be needed, since leading-wildcard `ilike` can't use a plain
+  B-tree) — deferred since the person table is a handful of seeded rows in
+  this scope; revisit if that search becomes real-data-sized.
+
+### Client (React) design notes
+
+- **`RequireAuth`** (`src/AuthContext.tsx`) wraps each protected route in
+  `App.tsx`'s `<Routes>`, centralizing the loading/not-signed-in gate that
+  `CaseList`/`CaseDetail`/`NewCaseIntake` each used to repeat individually.
+- **`useApiResource`** (`src/hooks/useApiResource.ts`) is the shared
+  fetch/loading/error mechanics behind every mount-effect data load (case
+  list, case detail, intake's reference data) — error *message* wording
+  stays per-page (e.g. mapping a 404 to "Case not found."), since that's
+  genuinely page-specific.
+- **`ReferenceSelect`** and **`RecordTable`** (`src/components/`) collapse
+  the repeated "label + select + reference-data options" and "empty vs.
+  bordered table" shapes that `NewCaseIntake`/`CaseDetail` previously
+  hand-rolled per field/section.
+- **Client/server type duplication**: `client/src/api/client.ts`'s
+  `CaseRecord`/`CaseParticipant`/etc. mirror shapes from
+  `server/src/db/schema.ts` by hand, with no shared types package across
+  the client/server boundary. Accepted as the ordinary cost of a
+  boundary between two separately-deployed apps, not a reuse bug —
+  revisit only if a shared-types package becomes a concrete need.
 
 ## Schema-mapping drift check
 
@@ -171,6 +205,13 @@ Known gaps, all deliberate for a skeleton rather than oversights:
   unlike the same-origin Vite proxy used in dev — `cookie-session`'s
   cookie and CORS aren't configured for that yet. Resolve before actually
   deploying the client to point at the ALB.
+- **IAM/security-group/ECS resources are hardcoded for one service**
+  (`iam.tf`, `ecs.tf`, `alb.tf`): a code review noted these aren't
+  parameterized by service (e.g. a reusable `module "ecs_service"`), so
+  adding a second ECS service later means copying and renaming these
+  blocks rather than reusing a shared shape. Deliberately not generalized
+  now — there is exactly one service, and building that abstraction ahead
+  of a second real service would be speculative; revisit when one exists.
 
 ## Entities in scope
 

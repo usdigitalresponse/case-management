@@ -195,5 +195,10 @@ ALTER TABLE "user_account" ADD CONSTRAINT "user_account_person_id_person_person_
 ALTER TABLE "user_account" ADD CONSTRAINT "user_account_system_role_id_role_role_id_fk" FOREIGN KEY ("system_role_id") REFERENCES "public"."role"("role_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "case_identifier_issuer_type_value_unique" ON "case_identifier" USING btree ("issuer","identifier_type_id","value");--> statement-breakpoint
 CREATE UNIQUE INDEX "case_identifier_one_primary_per_case" ON "case_identifier" USING btree ("case_id") WHERE is_primary;--> statement-breakpoint
+CREATE INDEX "case_identifier_case_id_idx" ON "case_identifier" USING btree ("case_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "case_lifecycle_event_case_sequence_unique" ON "case_lifecycle_event" USING btree ("case_id","sequence_number");--> statement-breakpoint
-CREATE UNIQUE INDEX "case_participant_open_unique" ON "case_participant" USING btree ("case_id","person_id","participant_role_id","affiliation_id") WHERE ended_at IS NULL;
+CREATE UNIQUE INDEX "case_participant_open_unique" ON "case_participant" USING btree ("case_id","person_id","participant_role_id","affiliation_id") WHERE ended_at IS NULL;--> statement-breakpoint
+CREATE INDEX "case_participant_case_id_idx" ON "case_participant" USING btree ("case_id");--> statement-breakpoint
+CREATE INDEX "case_county_id_idx" ON "case" USING btree ("county_id");--> statement-breakpoint
+CREATE INDEX "case_status_id_idx" ON "case" USING btree ("status_id");--> statement-breakpoint
+CREATE INDEX "case_category_id_idx" ON "case" USING btree ("case_category_id");

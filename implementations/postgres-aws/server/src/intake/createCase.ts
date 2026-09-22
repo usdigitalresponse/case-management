@@ -3,6 +3,7 @@
 // requirements (docs/case-intake-comparison-plan.md) despite being a
 // separate implementation track.
 import { eq, and } from 'drizzle-orm';
+import type { PgTable, AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Database } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import {
@@ -137,14 +138,20 @@ async function findExistingResult(
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// `table`/`idColumn` are typed as real Drizzle table/column types (not
+// `any`), so passing something that isn't a valid table or column is still
+// a type error — an earlier version type-erased both to `any` for a
+// data-driven list of checks, trading away exactly the type safety FK
+// reference correctness depends on, for a modest line-count saving;
+// reverted after a second review flagged it. `validate`'s row is untyped
+// per-table (Drizzle's `.from()` typing doesn't support that generically
+// here) but is still a real row object, not `any`.
 async function checkReferenceExists(
   db: Database,
-  table: any,
-  idColumn: any,
+  table: PgTable,
+  idColumn: AnyPgColumn,
   id: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  options: { requireActive?: boolean; validate?: (row: any) => string | null } = {},
+  options: { requireActive?: boolean; validate?: (row: Record<string, unknown>) => string | null } = {},
 ): Promise<string | null> {
   const [row] = await db.select().from(table).where(eq(idColumn, id));
   if (!row) {
@@ -153,7 +160,7 @@ async function checkReferenceExists(
   if (options.requireActive && !(row as { active?: boolean }).active) {
     return 'Record is not active.';
   }
-  return options.validate?.(row) ?? null;
+  return options.validate?.(row as Record<string, unknown>) ?? null;
 }
 
 export async function createCase(
@@ -185,45 +192,6 @@ export async function createCase(
   // pre-checks for a friendly field error; the FK constraints in
   // src/db/schema.ts are the actual integrity boundary enforced at insert
   // time regardless.
-  // Optional references: one data-driven entry per field instead of a
-  // copy-pasted `if (input.x) checks.push(...)` block per field. Adding or
-  // removing an optional reference is now a one-line change to this table.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const optionalReferenceChecks: Array<{ field: string; value?: string; table: any; idColumn: any }> = [
-    { field: 'countyId', value: input.countyId, table: county, idColumn: county.countyId },
-    {
-      field: 'caseCategoryId',
-      value: input.caseCategoryId,
-      table: caseCategories,
-      idColumn: caseCategories.id,
-    },
-    {
-      field: 'organizationId',
-      value: input.organizationId,
-      table: organization,
-      idColumn: organization.organizationId,
-    },
-    { field: 'officeId', value: input.officeId, table: office, idColumn: office.officeId },
-    {
-      field: 'jurisdictionId',
-      value: input.jurisdictionId,
-      table: jurisdictions,
-      idColumn: jurisdictions.id,
-    },
-    {
-      field: 'preferredLanguageId',
-      value: input.preferredLanguageId,
-      table: languages,
-      idColumn: languages.id,
-    },
-    {
-      field: 'identifier.identifierTypeId',
-      value: input.identifier?.identifierTypeId,
-      table: caseIdentifierTypes,
-      idColumn: caseIdentifierTypes.id,
-    },
-  ];
-
   const checks: Array<[string, Promise<string | null>]> = [
     ['personId', checkReferenceExists(db, person, person.personId, input.personId)],
     [
@@ -232,7 +200,7 @@ export async function createCase(
         requireActive: true,
         // model/rules.yaml validate_effective_relationships: the referenced
         // role must match this field's context.
-        validate: (row: { roleContext: string }) =>
+        validate: (row) =>
           row.roleContext !== 'case_participant'
             ? 'Role must have role_context "case_participant".'
             : null,
@@ -244,15 +212,63 @@ export async function createCase(
         requireActive: true,
       }),
     ],
-    ...optionalReferenceChecks
-      .filter(({ value }) => value)
-      .map(
-        ({ field, value, table, idColumn }): [string, Promise<string | null>] => [
-          field,
-          checkReferenceExists(db, table, idColumn, value as string, { requireActive: true }),
-        ],
-      ),
   ];
+  if (input.countyId) {
+    checks.push([
+      'countyId',
+      checkReferenceExists(db, county, county.countyId, input.countyId, { requireActive: true }),
+    ]);
+  }
+  if (input.caseCategoryId) {
+    checks.push([
+      'caseCategoryId',
+      checkReferenceExists(db, caseCategories, caseCategories.id, input.caseCategoryId, {
+        requireActive: true,
+      }),
+    ]);
+  }
+  if (input.organizationId) {
+    checks.push([
+      'organizationId',
+      checkReferenceExists(db, organization, organization.organizationId, input.organizationId, {
+        requireActive: true,
+      }),
+    ]);
+  }
+  if (input.officeId) {
+    checks.push([
+      'officeId',
+      checkReferenceExists(db, office, office.officeId, input.officeId, { requireActive: true }),
+    ]);
+  }
+  if (input.jurisdictionId) {
+    checks.push([
+      'jurisdictionId',
+      checkReferenceExists(db, jurisdictions, jurisdictions.id, input.jurisdictionId, {
+        requireActive: true,
+      }),
+    ]);
+  }
+  if (input.preferredLanguageId) {
+    checks.push([
+      'preferredLanguageId',
+      checkReferenceExists(db, languages, languages.id, input.preferredLanguageId, {
+        requireActive: true,
+      }),
+    ]);
+  }
+  if (input.identifier) {
+    checks.push([
+      'identifier.identifierTypeId',
+      checkReferenceExists(
+        db,
+        caseIdentifierTypes,
+        caseIdentifierTypes.id,
+        input.identifier.identifierTypeId,
+        { requireActive: true },
+      ),
+    ]);
+  }
 
   // Independent of the reference checks above; batched into the same
   // Promise.all so it doesn't cost an extra serialized round-trip.

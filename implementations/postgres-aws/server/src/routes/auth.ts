@@ -10,13 +10,20 @@ import { asyncHandler } from './asyncHandler';
 export interface AuthRouterOptions {
   googleEnabled: boolean;
   // Bypasses Google entirely, logging in as the seeded synthetic staff
-  // account (see src/db/fixtures.ts). Never enabled in production — see
-  // the NODE_ENV check in ../app.ts, not just this flag, since this file
-  // has no way to enforce that on its own.
+  // account (see src/db/fixtures.ts).
   devLoginEnabled: boolean;
 }
 
 export function createAuthRouter(options: AuthRouterOptions): Router {
+  // Enforced here, not just by the NODE_ENV check the one current caller
+  // (../app.ts) happens to apply before setting this flag — a future
+  // second call site (a script, a test harness against a real DB) could
+  // otherwise pass devLoginEnabled: true with no NODE_ENV guard and
+  // silently reopen an auth bypass in production.
+  if (options.devLoginEnabled && process.env.NODE_ENV === 'production') {
+    throw new Error('devLoginEnabled must never be true when NODE_ENV=production.');
+  }
+
   const router = Router();
 
   if (options.googleEnabled) {
