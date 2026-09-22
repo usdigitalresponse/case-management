@@ -13,11 +13,11 @@ Knex; see `MAPPING.md`'s "Stack" section for why.
 
 ## Status
 
-Server-side data layer and intake handler are built and tested (schema,
-migrations, seeds, `createCase`). Not yet built: HTTP routes/auth, the React
-client, Docker Compose, and Terraform. See `MAPPING.md` for the schema subset
-in scope and documented gaps, and `../../docs/case-intake-comparison-plan.md`
-for how this relates to the Dataverse comparison.
+Server-side data layer, intake handler, and HTTP API (routes + auth) are
+built and tested. Not yet built: the React client, Docker Compose, and
+Terraform. See `MAPPING.md` for the schema subset in scope and documented
+gaps, and `../../docs/case-intake-comparison-plan.md` for how this relates
+to the Dataverse comparison.
 
 ## Scope
 
@@ -78,6 +78,31 @@ npm run verify-schema-mapping  # checks src/db/schema.ts against model/schema.ya
 npm run db:generate            # regenerate migrations/*.sql after editing src/db/schema.ts
 ```
 
+### Running the API server
+
+Against the dev DB from Setup above:
+
+```sh
+cd server
+npm run dev   # tsx watch src/app.ts, http://localhost:3000
+```
+
+Without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` set, Google sign-in is
+disabled and only `/auth/dev-login` is available (see MAPPING.md — this
+bypass never mounts when `NODE_ENV=production`). A quick smoke test:
+
+```sh
+curl -c cookies.txt -X POST http://localhost:3000/auth/dev-login
+curl -b cookies.txt http://localhost:3000/auth/me
+curl -b cookies.txt http://localhost:3000/api/cases
+```
+
+Routes: `POST /api/cases` (intake), `GET /api/cases` (list, optional
+`countyId`/`statusId`/`caseCategoryId` query filters), `GET /api/cases/:id`
+(detail with participants/lifecycle events/identifiers), `GET /api/people?q=`
+(existing-person search for the intake form). All require a session
+(`requireAuth`).
+
 ## Deploy
 
 _To be filled in alongside the Terraform configuration (not yet built)._
@@ -86,5 +111,5 @@ _To be filled in alongside the Terraform configuration (not yet built)._
 
 See `MAPPING.md` for the full list (auth, person creation, infrastructure,
 reference data). In short: this is a dev/demo-scoped prototype, not a
-production deployment — there is no HTTP server, client, or infra yet, only
-the data layer and business-rule core (`server/src/intake/createCase.ts`).
+production deployment — there is no React client or infra yet, only the API
+server (`server/src/app.ts`) and its data layer.

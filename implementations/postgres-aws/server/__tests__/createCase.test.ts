@@ -280,6 +280,19 @@ describe('history integrity', () => {
   });
 });
 
+describe('HTTP-shaped input', () => {
+  it('accepts effectiveAt as a JSON string, not just a Date instance', async () => {
+    // Every other test passes a real Date (baseInput() constructs one);
+    // real HTTP bodies never do (JSON has no Date type). Caught a real bug:
+    // z.date() rejected every actual request despite passing all these
+    // Date-based unit tests.
+    const actor = { userAccountId: fixtures.staffUserAccountId };
+    const rawInput = { ...baseInput(), effectiveAt: '2026-01-15T12:00:00Z' };
+    const result = await createCase(testDb, actor, rawInput);
+    expect(result.caseId).toBeDefined();
+  });
+});
+
 describe('request_id idempotency', () => {
   it('returns the original result for a retried request_id instead of creating a second case', async () => {
     const actor = { userAccountId: fixtures.staffUserAccountId };

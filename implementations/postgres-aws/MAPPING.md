@@ -55,6 +55,33 @@ and a deviation from those sibling apps' tooling.
   synthetic single-environment default, not a resolved product decision —
   changing it to a real IANA zone is a one-line change, not a logic rewrite.
 
+## API / auth design notes
+
+- **Session**: `cookie-session` (signed cookie, no server-side session
+  store — the small `AuthenticatedUser` object lives entirely in the
+  cookie). Passport is used only for the Google OAuth handshake
+  (`session: false`); the callback route writes the session itself
+  (`src/auth/session.ts`), rather than using `passport.session()` /
+  serialize-deserialize, avoiding known compatibility rough edges between
+  newer Passport versions and non-`express-session` stores.
+- **Google OAuth allowlist**: enforced by checking the authenticated
+  email's domain against `ALLOWED_EMAIL_DOMAINS` in
+  `src/auth/googleStrategy.ts` (not the OAuth `hd` claim, which isn't
+  always present depending on Workspace configuration) — see "Known gaps"
+  below for what this gate is (and isn't).
+- **Dev-login bypass**: `POST /auth/dev-login` logs in as the seeded
+  synthetic staff account (`staff@example.invalid`) without any real Google
+  credentials, so local dev/tests don't need `GOOGLE_CLIENT_ID`/
+  `GOOGLE_CLIENT_SECRET` configured. Only mounted when
+  `NODE_ENV !== 'production'` (`src/app.ts`); never available in
+  production regardless of any other flag.
+- **Routes**: `src/routes/cases.ts` (`POST /`, `GET /`, `GET /:id`) and
+  `src/routes/people.ts` (`GET /?q=`, existing-person search only — no
+  duplicate-person warning here, since no person is ever created by this
+  endpoint). All require a session (`requireAuth`). Async handlers are
+  wrapped in `src/routes/asyncHandler.ts` since Express 4 doesn't forward a
+  rejected promise to error middleware on its own.
+
 ## Schema-mapping drift check
 
 `npm run verify-schema-mapping` (`scripts/verify-schema-mapping.ts`) is a
