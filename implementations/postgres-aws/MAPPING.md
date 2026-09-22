@@ -130,6 +130,48 @@ representation invites silent drift; it does not check types or catch
 anything beyond a field disappearing entirely. Run it after any change to
 either `model/schema.yaml` or `src/db/schema.ts`.
 
+## Infrastructure (Terraform)
+
+`terraform/` is a single-environment (`sandbox.tfvars`) skeleton: VPC (2
+public + 2 private subnets across 2 AZs, one NAT gateway), RDS Postgres
+(single instance), ECS Fargate running the server behind an ALB, an ECR
+repo for the server image, S3 + CloudFront for the built client, and
+Secrets Manager for DB credentials / `SESSION_SECRET` / Google OAuth
+credentials. `terraform validate` and `terraform plan` (43 resources,
+0 errors) were verified locally against fake credentials
+(`skip_credentials_validation`, etc., in a local-only override file,
+never committed) — no real AWS environment has been applied.
+
+Known gaps, all deliberate for a skeleton rather than oversights:
+
+- **No CI/CD image pipeline**: nothing builds/pushes the server image to
+  ECR or syncs the client build to S3. The ECS service and CloudFront
+  distribution exist but won't serve a working app until someone does
+  this manually at least once.
+- **No production Dockerfile**: the server currently only has a dev
+  setup (`node:20-alpine` + bind mount + `tsx watch`, see
+  `docker-compose.yml`); a real multi-stage build (`tsc` → `dist/` →
+  slim runtime image) doesn't exist yet and is needed before the ECR
+  push above is possible.
+- **Google OAuth credentials start empty**: `terraform/secrets.tf`
+  creates the secret with blank `google_client_id`/`google_client_secret`
+  (Terraform can't know them) and `ignore_changes` so a manual fill-in
+  survives future applies. Combined with `NODE_ENV=production` disabling
+  `/auth/dev-login`, a freshly-applied environment has **no way to log
+  in** until someone sets real Google OAuth values.
+- **HTTP only**: no ACM certificate/custom domain, so both the ALB and
+  CloudFront use their default AWS domains over HTTP (CloudFront defaults
+  to HTTPS at the edge, but the ALB origin is HTTP-only). Not
+  production-appropriate.
+- **Single NAT gateway, RDS not Multi-AZ, no autoscaling, no remote
+  Terraform state** (local state only, matching `versions.tf`'s note): all
+  reasonable for a low-cost sandbox, all gaps for anything more than that.
+- **Cross-origin auth in production**: the client and server would sit on
+  different domains (CloudFront vs. the ALB) with the current design,
+  unlike the same-origin Vite proxy used in dev — `cookie-session`'s
+  cookie and CORS aren't configured for that yet. Resolve before actually
+  deploying the client to point at the ALB.
+
 ## Entities in scope
 
 Only the entities needed for `model/forms.yaml:new_case` and read-only case

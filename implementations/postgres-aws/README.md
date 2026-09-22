@@ -151,7 +151,21 @@ directory: `server` (typecheck, migrate, test, schema-mapping check),
 
 ## Deploy
 
-_To be filled in alongside the Terraform configuration (not yet built)._
+`terraform/` is a single-environment (`sandbox.tfvars`) infra skeleton —
+VPC, RDS Postgres, ECS Fargate + ALB, ECR, S3 + CloudFront, Secrets
+Manager. It has been `validate`d and `plan`-checked but **never applied**;
+see `MAPPING.md`'s "Infrastructure" section for what's deliberately missing
+before this could serve real traffic (no CI/CD image pipeline, no
+production Dockerfile, empty Google OAuth secrets, HTTP-only, etc.).
+
+```sh
+cd terraform
+terraform init
+terraform plan -var-file=sandbox.tfvars    # review before ever applying
+```
+
+Applying this creates real AWS resources and costs money — don't run
+`terraform apply` without deciding that deliberately.
 
 ## Documented gaps
 
