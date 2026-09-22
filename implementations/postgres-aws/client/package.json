@@ -1,0 +1,32 @@
+{
+  "name": "case-management-postgres-aws-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@trussworks/react-uswds": "^12.0.0",
+    "@uswds/uswds": "^3.13.0",
+    "focus-trap-react": "^11.0.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "sass": "^1.79.3",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.6"
+  }
+}

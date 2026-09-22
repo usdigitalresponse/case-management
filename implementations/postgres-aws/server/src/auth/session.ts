@@ -1,0 +1,23 @@
+// Thin session helpers over cookie-session's plain signed-cookie store (no
+// server-side session store) — the whole AuthenticatedUser is small enough
+// to live in the cookie itself, so there's no per-request DB lookup.
+import type { Request, Response, NextFunction } from 'express';
+import type { AuthenticatedUser } from './googleStrategy';
+
+export function getSessionUser(req: Request): AuthenticatedUser | undefined {
+  return req.session?.user as AuthenticatedUser | undefined;
+}
+
+export function setSessionUser(req: Request, user: AuthenticatedUser): void {
+  if (req.session) {
+    req.session.user = user;
+  }
+}
+
+export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  if (getSessionUser(req)) {
+    next();
+    return;
+  }
+  res.status(401).json({ error: 'Authentication required.' });
+}
