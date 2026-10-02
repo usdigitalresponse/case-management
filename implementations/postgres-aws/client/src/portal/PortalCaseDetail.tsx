@@ -4,12 +4,16 @@ import { Alert, Button, Form, FormGroup, Label, TextInput } from '@trussworks/re
 import {
   createInvoice,
   createTimeEntry,
+  listMyCases,
   listMyInvoices,
   listMyTimeEntries,
   type CreateInvoiceLineInput,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { RecordTable } from '../components/RecordTable';
+import { PageHeading } from '../components/PageHeading';
+import { caseDisplayLabel } from '../caseDisplayLabel';
+import { formatDateTime } from '../formatDateTime';
 
 function TimeEntrySection({ caseId, onLogged }: { caseId: string; onLogged: () => void }) {
   const { data, error } = useApiResource(() => listMyTimeEntries(caseId).then((result) => result.timeEntries), [caseId]);
@@ -146,9 +150,9 @@ function InvoiceSection({ caseId }: { caseId: string }) {
           rowKey={(invoiceRecord) => invoiceRecord.invoiceId}
           emptyMessage="No invoices submitted yet."
           columns={[
-            { header: 'Submitted', render: (i) => i.submittedAt ?? '—' },
+            { header: 'Submitted', render: (i) => (i.submittedAt ? formatDateTime(i.submittedAt) : '—') },
             { header: 'Total', render: (i) => `$${i.submittedTotal}` },
-            { header: 'Status', render: (i) => i.statusId },
+            { header: 'Status', render: (i) => <span className="status-pill">{i.statusDisplayName}</span> },
           ]}
         />
       )}
@@ -185,15 +189,23 @@ function InvoiceSection({ caseId }: { caseId: string }) {
 export default function PortalCaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
   const [timeEntryVersion, setTimeEntryVersion] = useState(0);
+  // Only listMyCases() carries externalReference/clientDisplayName, needed for the heading label.
+  const { data: myCases } = useApiResource(() => listMyCases().then((result) => result.cases), []);
 
   if (!caseId) {
     return null;
   }
 
+  const myCase = myCases?.find((c) => c.caseId === caseId);
+  const title = caseDisplayLabel(
+    [myCase?.externalReference, myCase?.clientDisplayName],
+    myCase ? { label: 'Case assigned', date: myCase.assignedAt } : undefined,
+  );
+
   return (
     <div>
       <RouterLink to="/">&larr; Back to your cases</RouterLink>
-      <h1>Case {caseId}</h1>
+      <PageHeading eyebrow="Case" title={title} description={caseId} />
       <TimeEntrySection key={timeEntryVersion} caseId={caseId} onLogged={() => setTimeEntryVersion((v) => v + 1)} />
       <InvoiceSection caseId={caseId} />
     </div>

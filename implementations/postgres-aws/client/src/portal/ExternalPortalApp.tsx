@@ -21,7 +21,7 @@ export default function ExternalPortalApp() {
       </header>
       <main id="main-content" className="app-main portal-main" tabIndex={-1}>
         <Routes>
-          <Route path="/" element={<><h1>Your cases</h1><PortalCaseList /></>} />
+          <Route path="/" element={<PortalCaseList />} />
           <Route path="/portal/cases/:caseId" element={<PortalCaseDetail />} />
           <Route path="*" element={<><h1>Page not found</h1><Link to="/">Back to your cases</Link></>} />
         </Routes>

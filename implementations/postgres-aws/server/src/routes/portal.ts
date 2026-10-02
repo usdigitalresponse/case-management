@@ -9,7 +9,7 @@
 import { Router, type Request, type Response } from 'express';
 import { and, eq } from 'drizzle-orm';
 import { db } from '../db/client';
-import { timeEntry, invoice } from '../db/schema';
+import { timeEntry, invoice, invoiceStatuses } from '../db/schema';
 import { getSessionUser, requireAuth } from '../auth/session';
 import { getProfessionalIdForUserAccount } from '../professionals/ensureProfessional';
 import {
@@ -141,8 +141,18 @@ router.get(
       conditions.push(eq(invoice.caseId, caseId));
     }
     const rows = await db
-      .select()
+      .select({
+        invoiceId: invoice.invoiceId,
+        caseId: invoice.caseId,
+        statusId: invoice.statusId,
+        statusDisplayName: invoiceStatuses.displayName,
+        submittedAt: invoice.submittedAt,
+        submittedTotal: invoice.submittedTotal,
+        periodStart: invoice.periodStart,
+        periodEnd: invoice.periodEnd,
+      })
       .from(invoice)
+      .leftJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
       .where(and(...conditions));
     res.json({ invoices: rows });
   }),

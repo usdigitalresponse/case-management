@@ -8,9 +8,12 @@ import { useState, type FormEvent } from 'react';
 import { Alert, Button, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
 import { listAuthProviders, requestMagicLink } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { useAuth } from '../AuthContext';
 
 export default function LoginPage() {
-  const { data: providers } = useApiResource(listAuthProviders, []);
+  const { data } = useApiResource(listAuthProviders, []);
+  const providers = data?.providers;
+  const { devLogin } = useAuth();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [requested, setRequested] = useState(false);
@@ -40,6 +43,11 @@ export default function LoginPage() {
             Sign in with {provider.displayName}
           </a>
         ))}
+        {data?.devLoginEnabled && (
+          <Button type="button" outline onClick={() => void devLogin()}>
+            Dev sign-in
+          </Button>
+        )}
       </section>
 
       <section className="login-panel">

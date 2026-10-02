@@ -3,6 +3,7 @@ import { Alert } from '@trussworks/react-uswds';
 import { listCases } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { overviewStages } from '../overviewStages';
+import { PageHeading } from '../components/PageHeading';
 
 export default function Overview() {
   const { data, error } = useApiResource(listCases, []);
@@ -14,11 +15,11 @@ export default function Overview() {
 
   return (
     <>
-      <div className="page-heading">
-        <p className="eyebrow">Case overview</p>
-        <h1>Where every case is right now</h1>
-        <p className="page-description">{cases.length} {cases.length === 1 ? 'case' : 'cases'} across your workspace.</p>
-      </div>
+      <PageHeading
+        eyebrow="Case overview"
+        title="Where every case is right now"
+        description={`${cases.length} ${cases.length === 1 ? 'case' : 'cases'} across your workspace.`}
+      />
       <p className="overview-note"><span className="prototype-badge">Preview</span> All cases are shown under Awaiting assignment until stage tracking is available.</p>
       <div className="stage-board">
         {overviewStages.map((stage) => {
@@ -35,10 +36,12 @@ export default function Overview() {
                     <ul className="case-cards">
                       {cases.slice(0, 3).map((record) => (
                         <li key={record.caseId}>
-                          <Link to={`/cases/${record.caseId}`} className="case-card">
-                            <strong>{record.clientDisplayName || 'Unnamed client'}</strong>
-                            <span>{record.externalReference || 'No external reference'}</span>
-                            {record.openedOn && <span className="card-date">Opened {record.openedOn}</span>}
+                          <Link to={`/cases/${record.caseId}`} className="row-card case-card">
+                            <span className="row-card-title">{record.clientDisplayName || 'Unnamed client'}</span>
+                            <span className="row-card-meta">
+                              <span>{record.externalReference || 'No external reference'}</span>
+                              {record.openedOn && <span>Opened {record.openedOn}</span>}
+                            </span>
                           </Link>
                         </li>
                       ))}

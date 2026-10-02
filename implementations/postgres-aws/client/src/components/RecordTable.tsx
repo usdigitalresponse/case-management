@@ -25,25 +25,27 @@ export function RecordTable<T>({
   }
 
   return (
-    <Table bordered fullWidth>
-      <thead>
-        <tr>
-          {columns.map((column) => (
-            <th scope="col" key={column.header}>
-              {column.header}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={rowKey(row)}>
+    <div className="data-card">
+      <Table bordered fullWidth>
+        <thead>
+          <tr>
             {columns.map((column) => (
-              <td key={column.header}>{column.render(row)}</td>
+              <th scope="col" key={column.header}>
+                {column.header}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </Table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={rowKey(row)}>
+              {columns.map((column) => (
+                <td key={column.header}>{column.render(row)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </div>
   );
 }

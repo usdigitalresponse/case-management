@@ -11,6 +11,7 @@ import {
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { ReferenceSelect } from '../components/ReferenceSelect';
+import { PageHeading } from '../components/PageHeading';
 
 function generateRequestId(): string {
   return crypto.randomUUID();
@@ -104,15 +105,30 @@ export default function NewCaseIntake() {
     }
   }
 
+  const heading = <PageHeading eyebrow="New case" title="Start a new case" />;
+
   if (loadError) {
-    return <Alert type="error">Failed to load reference data.</Alert>;
+    return (
+      <>
+        {heading}
+        <Alert type="error">Failed to load reference data.</Alert>
+      </>
+    );
   }
   if (!referenceData) {
-    return <p>Loading form…</p>;
+    return (
+      <>
+        {heading}
+        <p role="status">Loading form…</p>
+      </>
+    );
   }
 
   return (
-    <Form onSubmit={(event) => void handleSubmit(event)}>
+    <>
+      {heading}
+      <Form className="case-intake-form" onSubmit={(event) => void handleSubmit(event)}>
+      <div className="form-card">
       <Fieldset legend="Client" legendStyle="large">
         <FormGroup error={Boolean(fieldErrors.personId)}>
           <Label htmlFor="personQuery">Search for an existing person</Label>
@@ -155,27 +171,31 @@ export default function NewCaseIntake() {
           )}
         </FormGroup>
       </Fieldset>
+      </div>
 
+      <div className="form-card">
       <Fieldset legend="Case opening" legendStyle="large">
-        <ReferenceSelect
-          id="participantRoleId"
-          label="Participant role"
-          value={participantRoleId}
-          onChange={setParticipantRoleId}
-          placeholder="Select a role"
-          error={fieldErrors.participantRoleId}
-          options={referenceData.participantRoles.map((role) => ({ id: role.roleId, label: role.displayName }))}
-        />
+        <div className="form-grid">
+          <ReferenceSelect
+            id="participantRoleId"
+            label="Participant role"
+            value={participantRoleId}
+            onChange={setParticipantRoleId}
+            placeholder="Select a role"
+            error={fieldErrors.participantRoleId}
+            options={referenceData.participantRoles.map((role) => ({ id: role.roleId, label: role.displayName }))}
+          />
 
-        <ReferenceSelect
-          id="statusId"
-          label="Opening status"
-          value={statusId}
-          onChange={setStatusId}
-          placeholder="Select a status"
-          error={fieldErrors.statusId}
-          options={referenceData.caseStatuses.map((status) => ({ id: status.id, label: status.displayName }))}
-        />
+          <ReferenceSelect
+            id="statusId"
+            label="Opening status"
+            value={statusId}
+            onChange={setStatusId}
+            placeholder="Select a status"
+            error={fieldErrors.statusId}
+            options={referenceData.caseStatuses.map((status) => ({ id: status.id, label: status.displayName }))}
+          />
+        </div>
 
         <FormGroup error={Boolean(fieldErrors.effectiveAt)}>
           <Label htmlFor="effectiveAt">Effective date and time</Label>
@@ -190,101 +210,109 @@ export default function NewCaseIntake() {
           />
         </FormGroup>
       </Fieldset>
+      </div>
 
+      <div className="form-card">
       <Fieldset legend="Optional context" legendStyle="large">
-        <ReferenceSelect
-          id="countyId"
-          label="County"
-          error={fieldErrors.countyId}
-          value={countyId}
-          onChange={setCountyId}
-          options={referenceData.counties.map((county) => ({
-            id: county.countyId as string,
-            label: county.displayName,
-          }))}
-        />
-        <ReferenceSelect
-          id="caseCategoryId"
-          label="Case category"
-          error={fieldErrors.caseCategoryId}
-          value={caseCategoryId}
-          onChange={setCaseCategoryId}
-          options={referenceData.caseCategories.map((category) => ({ id: category.id, label: category.displayName }))}
-        />
-        <ReferenceSelect
-          id="organizationId"
-          label="Organization"
-          error={fieldErrors.organizationId}
-          value={organizationId}
-          onChange={setOrganizationId}
-          options={referenceData.organizations.map((organization) => ({
-            id: organization.organizationId as string,
-            label: organization.displayName,
-          }))}
-        />
-        <ReferenceSelect
-          id="officeId"
-          label="Office"
-          error={fieldErrors.officeId}
-          value={officeId}
-          onChange={setOfficeId}
-          options={referenceData.offices.map((office) => ({
-            id: office.officeId as string,
-            label: office.displayName,
-          }))}
-        />
-        <ReferenceSelect
-          id="jurisdictionId"
-          label="Jurisdiction"
-          error={fieldErrors.jurisdictionId}
-          value={jurisdictionId}
-          onChange={setJurisdictionId}
-          options={referenceData.jurisdictions.map((jurisdiction) => ({
-            id: jurisdiction.id,
-            label: jurisdiction.displayName,
-          }))}
-        />
-        <ReferenceSelect
-          id="preferredLanguageId"
-          label="Preferred language"
-          error={fieldErrors.preferredLanguageId}
-          value={preferredLanguageId}
-          onChange={setPreferredLanguageId}
-          options={referenceData.languages.map((language) => ({ id: language.id, label: language.displayName }))}
-        />
+        <div className="form-grid">
+          <ReferenceSelect
+            id="countyId"
+            label="County"
+            error={fieldErrors.countyId}
+            value={countyId}
+            onChange={setCountyId}
+            options={referenceData.counties.map((county) => ({
+              id: county.countyId as string,
+              label: county.displayName,
+            }))}
+          />
+          <ReferenceSelect
+            id="caseCategoryId"
+            label="Case category"
+            error={fieldErrors.caseCategoryId}
+            value={caseCategoryId}
+            onChange={setCaseCategoryId}
+            options={referenceData.caseCategories.map((category) => ({ id: category.id, label: category.displayName }))}
+          />
+          <ReferenceSelect
+            id="organizationId"
+            label="Organization"
+            error={fieldErrors.organizationId}
+            value={organizationId}
+            onChange={setOrganizationId}
+            options={referenceData.organizations.map((organization) => ({
+              id: organization.organizationId as string,
+              label: organization.displayName,
+            }))}
+          />
+          <ReferenceSelect
+            id="officeId"
+            label="Office"
+            error={fieldErrors.officeId}
+            value={officeId}
+            onChange={setOfficeId}
+            options={referenceData.offices.map((office) => ({
+              id: office.officeId as string,
+              label: office.displayName,
+            }))}
+          />
+          <ReferenceSelect
+            id="jurisdictionId"
+            label="Jurisdiction"
+            error={fieldErrors.jurisdictionId}
+            value={jurisdictionId}
+            onChange={setJurisdictionId}
+            options={referenceData.jurisdictions.map((jurisdiction) => ({
+              id: jurisdiction.id,
+              label: jurisdiction.displayName,
+            }))}
+          />
+          <ReferenceSelect
+            id="preferredLanguageId"
+            label="Preferred language"
+            error={fieldErrors.preferredLanguageId}
+            value={preferredLanguageId}
+            onChange={setPreferredLanguageId}
+            options={referenceData.languages.map((language) => ({ id: language.id, label: language.displayName }))}
+          />
+        </div>
       </Fieldset>
+      </div>
 
+      <div className="form-card">
       <Fieldset legend="Case identifier (optional)" legendStyle="large">
-        <ReferenceSelect
-          id="identifierTypeId"
-          label="Identifier type"
-          value={identifierTypeId}
-          onChange={setIdentifierTypeId}
-          error={fieldErrors.identifier ?? fieldErrors['identifier.identifierTypeId']}
-          options={referenceData.caseIdentifierTypes.map((type) => ({ id: type.id, label: type.displayName }))}
-        />
-        <FormGroup error={Boolean(fieldErrors['identifier.issuer'])}>
-          <Label htmlFor="identifierIssuer">Issuer</Label>
-          {fieldErrors['identifier.issuer'] && <ErrorMessage>{fieldErrors['identifier.issuer']}</ErrorMessage>}
-          <TextInput
-            id="identifierIssuer"
-            name="identifierIssuer"
-            type="text"
-            value={identifierIssuer}
-            onChange={(event) => setIdentifierIssuer(event.target.value)}
+        <div className="form-grid">
+          <ReferenceSelect
+            id="identifierTypeId"
+            label="Identifier type"
+            value={identifierTypeId}
+            onChange={setIdentifierTypeId}
+            error={fieldErrors.identifier ?? fieldErrors['identifier.identifierTypeId']}
+            options={referenceData.caseIdentifierTypes.map((type) => ({ id: type.id, label: type.displayName }))}
           />
-        </FormGroup>
-        <FormGroup error={Boolean(fieldErrors['identifier.value'])}>
-          <Label htmlFor="identifierValue">Value</Label>
-          {fieldErrors['identifier.value'] && <ErrorMessage>{fieldErrors['identifier.value']}</ErrorMessage>}
-          <TextInput
-            id="identifierValue"
-            name="identifierValue"
-            type="text"
-            value={identifierValue}
-            onChange={(event) => setIdentifierValue(event.target.value)}
-          />
-        </FormGroup>
+          <FormGroup error={Boolean(fieldErrors['identifier.issuer'])}>
+            <Label htmlFor="identifierIssuer">Issuer</Label>
+            {fieldErrors['identifier.issuer'] && <ErrorMessage>{fieldErrors['identifier.issuer']}</ErrorMessage>}
+            <TextInput
+              id="identifierIssuer"
+              name="identifierIssuer"
+              type="text"
+              value={identifierIssuer}
+              onChange={(event) => setIdentifierIssuer(event.target.value)}
+            />
+          </FormGroup>
+          <FormGroup error={Boolean(fieldErrors['identifier.value'])}>
+            <Label htmlFor="identifierValue">Value</Label>
+            {fieldErrors['identifier.value'] && <ErrorMessage>{fieldErrors['identifier.value']}</ErrorMessage>}
+            <TextInput
+              id="identifierValue"
+              name="identifierValue"
+              type="text"
+              value={identifierValue}
+              onChange={(event) => setIdentifierValue(event.target.value)}
+            />
+          </FormGroup>
+        </div>
         <Checkbox
           id="identifierIsPrimary"
           name="identifierIsPrimary"
@@ -293,12 +321,16 @@ export default function NewCaseIntake() {
           onChange={(event) => setIdentifierIsPrimary(event.target.checked)}
         />
       </Fieldset>
+      </div>
 
       {submitError && <Alert type="error">{submitError}</Alert>}
 
-      <Button type="submit" disabled={submitting}>
-        {submitting ? 'Creating…' : 'Create case'}
-      </Button>
-    </Form>
+      <div className="form-actions">
+        <Button type="submit" disabled={submitting}>
+          {submitting ? 'Creating…' : 'Create case'}
+        </Button>
+      </div>
+      </Form>
+    </>
   );
 }

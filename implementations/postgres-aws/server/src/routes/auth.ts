@@ -35,7 +35,10 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
   const router = Router();
 
   router.get('/providers', (_req, res) => {
-    res.json(options.oidcProviders.map(({ id, displayName }) => ({ id, displayName })));
+    res.json({
+      providers: options.oidcProviders.map(({ id, displayName }) => ({ id, displayName })),
+      devLoginEnabled: options.devLoginEnabled,
+    });
   });
 
   for (const provider of options.oidcProviders) {

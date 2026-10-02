@@ -50,11 +50,15 @@ export interface AuthProvider {
   displayName: string;
 }
 
-// Configured full-user SSO providers (see ../../server/src/auth/oidcProviders.ts)
-// — only those with credentials set come back, so the login page never
-// hardcodes "Google" or offers a provider that isn't actually usable.
-export function listAuthProviders(): Promise<AuthProvider[]> {
-  return request<AuthProvider[]>('/auth/providers');
+export interface AuthProvidersResponse {
+  // Only providers with credentials configured (see ../../server/src/auth/oidcProviders.ts).
+  providers: AuthProvider[];
+  // Whether the dev-login bypass is available (never true in production).
+  devLoginEnabled: boolean;
+}
+
+export function listAuthProviders(): Promise<AuthProvidersResponse> {
+  return request<AuthProvidersResponse>('/auth/providers');
 }
 
 // Always resolves (the server responds 202 whether or not the email is
@@ -73,6 +77,7 @@ export interface CaseRecord {
   externalReference: string | null;
   caseCategoryId: string | null;
   statusId: string;
+  statusDisplayName: string;
   openedOn: string | null;
   closedOn: string | null;
   organizationId: string | null;
@@ -91,6 +96,7 @@ export interface CaseParticipant {
   personId: string;
   personDisplayName: string | null;
   participantRoleId: string;
+  participantRoleDisplayName: string | null;
   affiliationId: string | null;
   startedAt: string;
   endedAt: string | null;
@@ -102,6 +108,7 @@ export interface CaseLifecycleEvent {
   sequenceNumber: number;
   eventTypeId: string;
   resultingStatusId: string;
+  resultingStatusDisplayName: string;
   effectiveAt: string;
   recordedAt: string;
   actorUserAccountId: string;
@@ -129,6 +136,11 @@ export interface CaseDetail {
 
 export function getCase(caseId: string): Promise<CaseDetail> {
   return request<CaseDetail>(`/api/cases/${caseId}`);
+}
+
+// Viewing only — approving a submitted invoice needs invoice_approval_chain, a separate future pass.
+export function getCaseInvoices(caseId: string): Promise<{ invoices: InvoiceRecord[] }> {
+  return request<{ invoices: InvoiceRecord[] }>(`/api/cases/${caseId}/invoices`);
 }
 
 export interface PersonRecord {
@@ -234,7 +246,9 @@ export function createCase(input: CreateCaseInput): Promise<CreateCaseResult> {
 export interface MyCaseRecord {
   caseId: string;
   statusId: string;
+  statusDisplayName: string;
   externalReference: string | null;
+  clientDisplayName: string | null;
   assignedAt: string;
 }
 
@@ -274,6 +288,7 @@ export interface InvoiceRecord {
   invoiceId: string;
   caseId: string;
   statusId: string;
+  statusDisplayName: string;
   submittedAt: string | null;
   submittedTotal: string;
   periodStart: string | null;

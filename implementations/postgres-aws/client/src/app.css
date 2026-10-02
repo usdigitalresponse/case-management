@@ -20,9 +20,15 @@ button, input { font: inherit; }
 .nav-group button:disabled { color: #78818b; cursor: not-allowed; }
 .sidebar-note { margin: 2rem .7rem; font-size: .78rem; color: #66717d; }
 .app-main { min-width: 0; padding: 2.5rem 2rem; }
+/* <main tabIndex={-1}> is a skip-link landing target, not an interactive
+   control — once it's focused (e.g. via "Skip to main content"), the
+   default outline would otherwise persist across every client-side route
+   change, since an SPA navigation never reloads the page to clear it. */
+.app-main:focus { outline: none; }
 .app-main h1 { font-size: 2rem; letter-spacing: -.025em; margin: 0 0 .7rem; line-height: 1.2; }
+.page-heading { margin-bottom: 1.5rem; }
 .eyebrow { color: #66717d; text-transform: uppercase; font-size: .72rem; font-weight: 700; letter-spacing: .09em; margin: 0 0 .65rem; }
-.page-description { margin: 0; color: #66717d; }
+.page-description { margin: 0; color: #66717d; font-size: .85rem; }
 .overview-note { display: flex; align-items: center; gap: .65rem; color: #596576; font-size: .85rem; margin: 1.2rem 0 2.2rem; }
 .prototype-badge { background: #e8edf5; border-radius: 20px; padding: .25rem .7rem; font-size: .73rem; font-weight: 700; }
 .stage-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; }
@@ -37,16 +43,13 @@ button, input { font: inherit; }
 .stage-column-active .stage-count { background: #e5ecff; color: #214eca; }
 .case-cards { list-style: none; padding: 0; margin: 0; }
 .case-cards li + li { margin-top: .8rem; }
-.case-card { display: flex; flex-direction: column; gap: .4rem; padding: 1rem .85rem; min-height: 106px; text-decoration: none; border: 1px solid #dce1e8; border-radius: 7px; background: #fafbfe; overflow-wrap: anywhere; }
-.case-card:hover { border-color: #527cdd; background: #f1f5ff; }
-.case-card strong { font-size: .95rem; }
-.case-card span { color: #67727f; font-size: .8rem; line-height: 1.4; }
-.case-card .card-date { font-size: .75rem; }
+/* Overview's stage-board cards are a .row-card (see below) plus this one
+   modifier — equal-height cards keep the grid's columns aligned. */
+.case-card { min-height: 106px; }
 .view-all { display: inline-block; font-size: .85rem; font-weight: 700; text-decoration: none; margin: 1.5rem .2rem .5rem; }
 .stage-empty { padding: 2rem .3rem; text-align: center; color: #687480; font-size: .85rem; }
 .empty-mark { color: #bac3ce; font-size: 1.5rem; }
 .placeholder-link { border: 0; background: transparent; color: #7b8591; font-size: .8rem; }
-.app-main .usa-table { display: block; max-width: 100%; overflow-x: auto; }
 .login-page { display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: center; padding: 3rem 1.5rem; }
 .login-panel { flex: 1 1 320px; max-width: 420px; background: white; border: 1px solid #dce1e8; border-radius: 9px; padding: 1.8rem; }
 .login-panel h1 { font-size: 1.3rem; margin: 0 0 .6rem; }
@@ -54,8 +57,78 @@ button, input { font: inherit; }
 .login-panel p { color: #66717d; margin: 0 0 1.1rem; }
 .login-panel a.usa-button { display: block; margin: 0 0 .6rem; text-align: center; }
 .portal-main section { margin-top: 2rem; }
-.portal-case-list { list-style: none; padding: 0; margin: 0; }
-.portal-case-list li + li { margin-top: .5rem; }
+
+/* Status pill — used anywhere a case/invoice status is shown. */
+.status-pill { display: inline-flex; align-items: center; padding: .2rem .7rem; border-radius: 20px; background: #eef1f6; color: #434b55; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+
+/* List toolbar: result count + client-side filter. */
+.list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin: 1.2rem 0 1.1rem; }
+.list-toolbar .usa-input { max-width: 300px; margin: 0; }
+.list-count { color: #66717d; font-size: .85rem; white-space: nowrap; }
+
+/* The single place a table gets its box: rounded/clipped corners, full
+   width, and horizontal scroll on overflow. .row-cards renders the same
+   rows as a mobile fallback below 760px — CSS picks one. */
+.data-card { background: white; border: 1px solid #dce1e8; border-radius: 9px; overflow-x: auto; overflow-y: hidden; }
+.data-card .usa-table { margin: 0; width: 100%; }
+/* USWDS's base .usa-table styles every cell with a 1px #1b1b1b border and
+   every <th> (including a tbody row header) with a gray background — the
+   harsh grid and stray-shaded-column look. We own this card's table
+   chrome entirely instead: no per-cell borders, a single row divider,
+   header styling applied only where we actually want it. */
+.data-card table td, .data-card table th { padding: .85rem 1.1rem; border: none; border-bottom: 1px solid #dce1e8; background: transparent; }
+.data-card table tbody tr:last-child td, .data-card table tbody tr:last-child th { border-bottom: none; }
+.data-card table thead th { background: #f7f8fa; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: #5c6774; }
+.data-card table tbody tr:hover { background: #f7f9fd; }
+.data-card table th[scope="row"] a { color: #242a31; font-weight: 700; text-decoration: none; }
+.data-card table th[scope="row"] a:hover, .data-card table th[scope="row"] a:focus { text-decoration: underline; }
+/* Cases list: let Client take the lion's share instead of leaving the
+   table's unused columns to stretch into dead space at the card's edge. */
+.case-table th:nth-child(1), .case-table td:nth-child(1) { width: 34%; }
+.case-table th:nth-child(2), .case-table td:nth-child(2) { width: 20%; }
+.case-table th:nth-child(3), .case-table td:nth-child(3) { width: 20%; }
+.case-table th:nth-child(4), .case-table td:nth-child(4) { width: 26%; }
+/* Case detail: visually separates "this case's own facts" (.fact-grid,
+   below) from "related records" (.data-card tables) — previously both
+   rendered as identical bordered tables with no way to tell them apart. */
+.detail-section { margin-top: 2.2rem; }
+.detail-section h2 { font-size: 1.1rem; margin: 0 0 .85rem; }
+.fact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1.2rem; background: white; border: 1px solid #dce1e8; border-radius: 9px; padding: 1.2rem 1.4rem; }
+.fact dt { margin: 0 0 .3rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: #5c6774; }
+.fact dd { margin: 0; font-size: .95rem; }
+
+.row-cards { display: none; list-style: none; margin: 0; padding: 0; }
+.row-card { display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.1rem; text-decoration: none; color: inherit; border: 1px solid #dce1e8; border-radius: 9px; background: white; overflow-wrap: anywhere; }
+.row-card:hover { border-color: #527cdd; background: #f1f5ff; }
+.row-card + .row-card { margin-top: .75rem; }
+.row-card-title { font-weight: 700; font-size: .95rem; }
+.row-card-meta { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: #66717d; font-size: .82rem; }
+@media (max-width: 760px) {
+  /* Only a .data-card paired with a .row-cards fallback (Cases list) hides
+     below this breakpoint — a bare .data-card (RecordTable) has no card
+     equivalent to fall back to, so it just scrolls horizontally instead
+     (.data-card's own overflow-x handles that). */
+  .data-card:has(+ .row-cards) { display: none; }
+  .row-cards { display: block; }
+}
+
+/* Form layout: each Fieldset in its own card, short-field sections in a responsive 2-column grid. */
+/* react-uswds's <Form> applies .usa-form, which caps max-width at 20rem —
+   fine for a single-column form, but it squeezes .form-grid's 2-column
+   layout into a sliver. Override it for the one form that needs room. */
+form.case-intake-form { max-width: 52rem; }
+.form-card { background: white; border: 1px solid #dce1e8; border-radius: 9px; padding: 1.6rem 1.7rem; margin-bottom: 1.3rem; }
+.form-card .usa-fieldset { margin: 0; }
+.form-card legend { padding: 0 0 .3rem; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1.5rem; }
+.form-grid > .usa-form-group { margin-top: 1rem; }
+.form-actions { display: flex; align-items: center; gap: 1rem; }
+@media (max-width: 700px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
+
+/* Portal's case list: same .row-card as Cases/Overview, arranged as a grid. */
+.portal-case-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
 @media (max-width: 1250px) {
   .app-header { flex-wrap: wrap; gap: 1rem; }
   .header-actions { gap: 1rem; }

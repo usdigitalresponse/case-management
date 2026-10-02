@@ -54,7 +54,15 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   `src/db/fixtures.ts`) via the real `createCase` handler, each with a
   distinct Faker-generated client and a rotating LSC case category, so the
   UI has something realistic to show without any test depending on that
-  data existing.
+  data existing. 6 of the 10 also get an external-submitter
+  `case_assignment` to one of 3 Faker-generated demo vendor
+  professionals (bootstrapped through the same `ensureUserAccountForEmail`/
+  `ensureProfessionalForUserAccount` path a real magic-link login takes,
+  not a seed-only shortcut), with 1-3 `time_entry` rows logged against
+  each and an invoice submitted for all but the last two (one left as a
+  `draft`-status invoice, one left with no invoice at all) — so both the
+  external portal and the staff case page's Invoices section have
+  realistic, status-varied data on a fresh seed instead of an empty state.
 
 ## Intake handler design notes
 
@@ -116,7 +124,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   authenticated email, not the OAuth `hd`/`tid` claim, which isn't always
   present) so a domain can't sign in through the wrong IdP — see "Known
   gaps" below for what this gate is (and isn't). `GET /auth/providers`
-  lists the configured providers so the client doesn't hardcode one;
+  returns `{ providers, devLoginEnabled }` — `providers` so the client
+  doesn't hardcode one, `devLoginEnabled` so the login page only offers
+  the dev-login bypass where the server actually allows it (never in
+  production — see the `NODE_ENV` guard in `src/routes/auth.ts`);
   `GET /auth/:providerId` / `:providerId/callback` are generated per
   provider. `AuthenticatedUser.authType` is `'sso'` for any configured
   provider (which one is in `ssoProvider`, display/audit only) or

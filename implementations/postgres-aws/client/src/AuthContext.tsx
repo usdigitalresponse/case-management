@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, devLogin, getCurrentUser, logout as apiLogout, type AuthenticatedUser } from './api/client';
-import LoginPage from './pages/LoginPage';
 
 interface AuthContextValue {
   user: AuthenticatedUser | null;
@@ -51,18 +50,4 @@ export function useAuth(): AuthContextValue {
     throw new Error('useAuth must be used within an AuthProvider.');
   }
   return context;
-}
-
-// Centralizes the loading/not-signed-in gate every protected route
-// previously repeated individually — wrap a route's element with this
-// instead of re-checking `loading`/`user` in each page component.
-export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) {
-    return null;
-  }
-  if (!user) {
-    return <LoginPage />;
-  }
-  return <>{children}</>;
 }

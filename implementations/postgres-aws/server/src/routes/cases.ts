@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { and, asc, eq, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { db } from '../db/client';
 import {
   caseTable,
@@ -10,6 +11,9 @@ import {
   professional,
   person,
   invoice,
+  invoiceStatuses,
+  caseStatuses,
+  role,
   CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT,
 } from '../db/schema';
 import { createCase, CreateCaseValidationError, CreateCaseConfigurationError } from '../intake/createCase';
@@ -36,6 +40,7 @@ const caseColumnsWithClientName = {
   externalReference: caseTable.externalReference,
   caseCategoryId: caseTable.caseCategoryId,
   statusId: caseTable.statusId,
+  statusDisplayName: caseStatuses.displayName,
   openedOn: caseTable.openedOn,
   closedOn: caseTable.closedOn,
   organizationId: caseTable.organizationId,
@@ -88,6 +93,7 @@ router.get(
       .select(caseColumnsWithClientName)
       .from(caseTable)
       .leftJoin(person, eq(caseTable.clientId, person.personId))
+      .leftJoin(caseStatuses, eq(caseTable.statusId, caseStatuses.id))
       .where(filters.length > 0 ? and(...filters) : undefined);
     res.json({ cases: rows });
   }),
@@ -103,11 +109,13 @@ router.get(
       .select(caseColumnsWithClientName)
       .from(caseTable)
       .leftJoin(person, eq(caseTable.clientId, person.personId))
+      .leftJoin(caseStatuses, eq(caseTable.statusId, caseStatuses.id))
       .where(eq(caseTable.caseId, caseId));
     if (!caseRow) {
       res.status(404).json({ error: 'not_found' });
       return;
     }
+    const resultingStatuses = alias(caseStatuses, 'resulting_statuses');
     const [participants, lifecycleEvents, identifiers] = await Promise.all([
       db
         .select({
@@ -116,16 +124,33 @@ router.get(
           personId: caseParticipant.personId,
           personDisplayName: person.displayName,
           participantRoleId: caseParticipant.participantRoleId,
+          participantRoleDisplayName: role.displayName,
           affiliationId: caseParticipant.affiliationId,
           startedAt: caseParticipant.startedAt,
           endedAt: caseParticipant.endedAt,
         })
         .from(caseParticipant)
         .leftJoin(person, eq(caseParticipant.personId, person.personId))
+        .leftJoin(role, eq(caseParticipant.participantRoleId, role.roleId))
         .where(eq(caseParticipant.caseId, caseId)),
       db
-        .select()
+        .select({
+          caseLifecycleEventId: caseLifecycleEvent.caseLifecycleEventId,
+          caseId: caseLifecycleEvent.caseId,
+          sequenceNumber: caseLifecycleEvent.sequenceNumber,
+          eventTypeId: caseLifecycleEvent.eventTypeId,
+          resultingStatusId: caseLifecycleEvent.resultingStatusId,
+          resultingStatusDisplayName: resultingStatuses.displayName,
+          effectiveAt: caseLifecycleEvent.effectiveAt,
+          recordedAt: caseLifecycleEvent.recordedAt,
+          actorUserAccountId: caseLifecycleEvent.actorUserAccountId,
+          reasonId: caseLifecycleEvent.reasonId,
+          reasonDetail: caseLifecycleEvent.reasonDetail,
+          referenceNumber: caseLifecycleEvent.referenceNumber,
+          correctsEventId: caseLifecycleEvent.correctsEventId,
+        })
         .from(caseLifecycleEvent)
+        .leftJoin(resultingStatuses, eq(caseLifecycleEvent.resultingStatusId, resultingStatuses.id))
         .where(eq(caseLifecycleEvent.caseId, caseId))
         .orderBy(asc(caseLifecycleEvent.sequenceNumber)),
       db.select().from(caseIdentifier).where(eq(caseIdentifier.caseId, caseId)),
@@ -202,7 +227,20 @@ router.get(
   '/:id/invoices',
   asyncHandler(async (req, res) => {
     const caseId = req.params.id as string;
-    const rows = await db.select().from(invoice).where(eq(invoice.caseId, caseId));
+    const rows = await db
+      .select({
+        invoiceId: invoice.invoiceId,
+        caseId: invoice.caseId,
+        statusId: invoice.statusId,
+        statusDisplayName: invoiceStatuses.displayName,
+        submittedAt: invoice.submittedAt,
+        submittedTotal: invoice.submittedTotal,
+        periodStart: invoice.periodStart,
+        periodEnd: invoice.periodEnd,
+      })
+      .from(invoice)
+      .leftJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+      .where(eq(invoice.caseId, caseId));
     res.json({ invoices: rows });
   }),
 );
