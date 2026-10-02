@@ -7,11 +7,13 @@ import { Router } from 'express';
 import { ilike, or } from 'drizzle-orm';
 import { db } from '../db/client';
 import { person } from '../db/schema';
-import { requireAuth } from '../auth/session';
+import { requireFullUser } from '../auth/session';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
-router.use(requireAuth);
+// Full staff access only — the person directory isn't something an
+// external (magic-link) user should be able to search.
+router.use(requireFullUser);
 
 router.get(
   '/',

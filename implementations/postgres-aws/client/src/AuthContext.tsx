@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Alert } from '@trussworks/react-uswds';
 import { ApiError, devLogin, getCurrentUser, logout as apiLogout, type AuthenticatedUser } from './api/client';
+import LoginPage from './pages/LoginPage';
 
 interface AuthContextValue {
   user: AuthenticatedUser | null;
@@ -62,7 +62,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     return null;
   }
   if (!user) {
-    return <Alert type="info">Sign in to continue.</Alert>;
+    return <LoginPage />;
   }
   return <>{children}</>;
 }

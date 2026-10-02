@@ -47,6 +47,15 @@ button, input { font: inherit; }
 .empty-mark { color: #bac3ce; font-size: 1.5rem; }
 .placeholder-link { border: 0; background: transparent; color: #7b8591; font-size: .8rem; }
 .app-main .usa-table { display: block; max-width: 100%; overflow-x: auto; }
+.login-page { display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: center; padding: 3rem 1.5rem; }
+.login-panel { flex: 1 1 320px; max-width: 420px; background: white; border: 1px solid #dce1e8; border-radius: 9px; padding: 1.8rem; }
+.login-panel h1 { font-size: 1.3rem; margin: 0 0 .6rem; }
+.login-panel h2 { font-size: 1.1rem; margin: 0 0 .6rem; }
+.login-panel p { color: #66717d; margin: 0 0 1.1rem; }
+.login-panel a.usa-button { display: block; margin: 0 0 .6rem; text-align: center; }
+.portal-main section { margin-top: 2rem; }
+.portal-case-list { list-style: none; padding: 0; margin: 0; }
+.portal-case-list li + li { margin-top: .5rem; }
 @media (max-width: 1250px) {
   .app-header { flex-wrap: wrap; gap: 1rem; }
   .header-actions { gap: 1rem; }

@@ -1,13 +1,28 @@
 import { Router } from 'express';
 import { and, asc, eq, type SQL } from 'drizzle-orm';
 import { db } from '../db/client';
-import { caseTable, caseParticipant, caseLifecycleEvent, caseIdentifier, person } from '../db/schema';
+import {
+  caseTable,
+  caseParticipant,
+  caseLifecycleEvent,
+  caseIdentifier,
+  caseAssignment,
+  professional,
+  person,
+  invoice,
+  CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT,
+} from '../db/schema';
 import { createCase, CreateCaseValidationError, CreateCaseConfigurationError } from '../intake/createCase';
-import { getSessionUser, requireAuth } from '../auth/session';
+import { getSessionUser, requireFullUser } from '../auth/session';
+import { getExternalSubmitterRoleId } from '../professionals/externalSubmitterRole';
+import { uniqueViolationConstraint } from '../db/rowHelpers';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
-router.use(requireAuth);
+// Full staff access only: external (magic-link) users get their own
+// narrower endpoints (GET /api/my-cases, POST .../external-assignments
+// only via a full user) rather than this general case list/detail API.
+router.use(requireFullUser);
 
 // Shared between the list and detail routes below. clientDisplayName is
 // joined in for display only (e.g. the case list's "Client" column) —
@@ -34,7 +49,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const actor = getSessionUser(req);
     if (!actor) {
-      // requireAuth already guards this; satisfies the type checker.
+      // requireFullUser already guards this; satisfies the type checker.
       res.status(401).json({ error: 'Authentication required.' });
       return;
     }
@@ -116,6 +131,79 @@ router.get(
       db.select().from(caseIdentifier).where(eq(caseIdentifier.caseId, caseId)),
     ]);
     res.json({ case: caseRow, participants, lifecycleEvents, identifiers });
+  }),
+);
+
+// Scoped specifically to assigning an external (magic-link) professional
+// to a case with the "External Submitter" role - not a general-purpose
+// assignment endpoint (staff assignment, role choice, qualification/
+// workload checks are all out of scope here; see
+// ../professionals/externalSubmitterRole.ts and ../../MAPPING.md).
+router.post(
+  '/:id/external-assignments',
+  asyncHandler(async (req, res) => {
+    const actor = getSessionUser(req);
+    if (!actor) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+    const caseId = req.params.id as string;
+    const professionalId = typeof req.body?.professionalId === 'string' ? req.body.professionalId : undefined;
+    if (!professionalId) {
+      res.status(400).json({ error: 'validation_error', message: 'professionalId is required.' });
+      return;
+    }
+
+    const [[caseRow], [professionalRow]] = await Promise.all([
+      db.select({ caseId: caseTable.caseId }).from(caseTable).where(eq(caseTable.caseId, caseId)),
+      db
+        .select({ professionalId: professional.professionalId })
+        .from(professional)
+        .where(eq(professional.professionalId, professionalId)),
+    ]);
+    if (!caseRow) {
+      res.status(404).json({ error: 'not_found', message: 'Case not found.' });
+      return;
+    }
+    if (!professionalRow) {
+      res.status(400).json({ error: 'validation_error', message: 'professionalId does not exist.' });
+      return;
+    }
+
+    const assignmentRoleId = await getExternalSubmitterRoleId(db);
+    let assignment;
+    try {
+      [assignment] = await db
+        .insert(caseAssignment)
+        .values({
+          caseId,
+          professionalId,
+          assignedAt: new Date(),
+          assignmentRoleId,
+          assignedByUserAccountId: actor.userAccountId,
+        })
+        .returning();
+    } catch (error) {
+      // A double-click/retry collides with case_assignment_open_unique
+      // (../db/schema.ts) rather than creating a second open assignment.
+      if (uniqueViolationConstraint(error) === CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT) {
+        res.status(409).json({ error: 'already_assigned', message: 'Already assigned to this case.' });
+        return;
+      }
+      throw error;
+    }
+    res.status(201).json({ assignment });
+  }),
+);
+
+// Viewing only — approving/rejecting a submitted invoice needs
+// invoice_approval_chain, a separate future pass (see ../../MAPPING.md).
+router.get(
+  '/:id/invoices',
+  asyncHandler(async (req, res) => {
+    const caseId = req.params.id as string;
+    const rows = await db.select().from(invoice).where(eq(invoice.caseId, caseId));
+    res.json({ invoices: rows });
   }),
 );
 

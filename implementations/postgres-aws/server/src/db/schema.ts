@@ -8,6 +8,7 @@ import {
   date,
   index,
   integer,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -36,18 +37,30 @@ export const languages = referenceTable('languages');
 export const caseIdentifierTypes = referenceTable('case_identifier_types');
 export const caseLifecycleEventTypes = referenceTable('case_lifecycle_event_types');
 export const caseLifecycleReasons = referenceTable('case_lifecycle_reasons');
+export const activityTypes = referenceTable('activity_types');
+export const invoiceStatuses = referenceTable('invoice_statuses');
+export const invoiceLineTypes = referenceTable('invoice_line_types');
 
 // --- core entities ----------------------------------------------------------
 
 // model/schema.yaml: role.role_context must be one of case_participant,
 // person_affiliation, case_assignment or user_account. Only
 // case_participant and user_account contexts are exercised by this scope.
-export const role = pgTable('role', {
-  roleId: uuid('role_id').primaryKey().defaultRandom(),
-  displayName: text('display_name').notNull(),
-  roleContext: text('role_context').notNull(),
-  active: boolean('active').notNull().default(true),
-});
+export const role = pgTable(
+  'role',
+  {
+    roleId: uuid('role_id').primaryKey().defaultRandom(),
+    displayName: text('display_name').notNull(),
+    roleContext: text('role_context').notNull(),
+    active: boolean('active').notNull().default(true),
+  },
+  (table) => [
+    // Lets ../db/ensureReferenceData.ts seed a role idempotently
+    // (insert ... on conflict do nothing) instead of the select-then-insert
+    // race ../professionals/externalSubmitterRole.ts used to need.
+    uniqueIndex('role_display_name_role_context_unique').on(table.displayName, table.roleContext),
+  ],
+);
 
 export const county = pgTable('county', {
   countyId: uuid('county_id').primaryKey().defaultRandom(),
@@ -109,6 +122,36 @@ export const userAccount = pgTable('user_account', {
   systemRoleId: uuid('system_role_id').references(() => role.roleId),
 });
 
+// Named explicitly so ../professionals/ensureProfessional.ts can recover
+// from the constraint violation a concurrent first-login race produces,
+// rather than silently creating two professional rows for one account.
+export const PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT = 'professional_user_account_id_unique';
+
+// model/schema.yaml: professional.qualification_level_id (a reference_data
+// classification) is deliberately omitted — qualification-based assignment
+// checks (require_qualification_for_assignment in model/rules.yaml) aren't
+// implemented yet; see ../../MAPPING.md. Every professional row here is
+// bootstrapped on first login (either kind, see ../auth), not created
+// through a dedicated form.
+export const professional = pgTable(
+  'professional',
+  {
+    professionalId: uuid('professional_id').primaryKey().defaultRandom(),
+    userAccountId: uuid('user_account_id').references(() => userAccount.userAccountId),
+    personId: uuid('person_id').notNull().references(() => person.personId),
+    displayName: text('display_name'),
+    active: boolean('active').notNull().default(true),
+    officeId: uuid('office_id').references(() => office.officeId),
+  },
+  (table) => [
+    // Postgres unique indexes treat NULL as distinct from every other
+    // value, so multiple professional rows with no user_account_id (a
+    // future staff-created profile with no login yet) remain possible —
+    // only a concurrent bootstrap for the *same* account is prevented.
+    uniqueIndex(PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT).on(table.userAccountId),
+  ],
+);
+
 export const caseTable = pgTable(
   'case',
   {
@@ -134,6 +177,117 @@ export const caseTable = pgTable(
     index('case_status_id_idx').on(table.statusId),
     index('case_category_id_idx').on(table.caseCategoryId),
   ],
+);
+
+// Named explicitly so ../routes/cases.ts can recognize a double-click/
+// retry collision on POST /:id/external-assignments and recover instead
+// of surfacing a raw constraint-violation error.
+export const CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT = 'case_assignment_open_unique';
+
+// model/rules.yaml's require_qualification_for_assignment and
+// review_workload_before_assignment (both `outcome: configurable`) are not
+// implemented — any professional can be assigned to any case here; see
+// ../../MAPPING.md. validate_effective_relationships' "at most one
+// overlapping primary assignment per case" is also not enforced yet (would
+// need a partial unique index keyed on a to-be-added "primary" flag).
+export const caseAssignment = pgTable(
+  'case_assignment',
+  {
+    caseAssignmentId: uuid('case_assignment_id').primaryKey().defaultRandom(),
+    caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+    professionalId: uuid('professional_id').notNull().references(() => professional.professionalId),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }).notNull(),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    assignmentRoleId: uuid('assignment_role_id').notNull().references(() => role.roleId),
+    affiliationId: uuid('affiliation_id').references(() => personAffiliation.personAffiliationId),
+    assignedByUserAccountId: uuid('assigned_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    endedByUserAccountId: uuid('ended_by_user_account_id').references(() => userAccount.userAccountId),
+    endReason: text('end_reason'),
+  },
+  (table) => [
+    // GET /api/my-cases filters by professionalId; the assignment route
+    // filters by caseId.
+    index('case_assignment_professional_id_idx').on(table.professionalId),
+    index('case_assignment_case_id_idx').on(table.caseId),
+    // At most one open assignment per case/professional pair — the same
+    // "open relationship" pattern as case_participant_open_unique below,
+    // guarding against a double-click/retry on
+    // POST /:id/external-assignments creating two open rows (and the
+    // case appearing twice in GET /api/my-cases).
+    uniqueIndex(CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT)
+      .on(table.caseId, table.professionalId)
+      .where(sql`ended_at IS NULL`),
+  ],
+);
+
+// model/schema.yaml: time_entry.activity_id/office_id/case_program_id/
+// case_funding_id are deliberately omitted — none of those concepts
+// (activities, programs, funding) have tables here yet; see
+// ../../MAPPING.md.
+export const timeEntry = pgTable(
+  'time_entry',
+  {
+    timeEntryId: uuid('time_entry_id').primaryKey().defaultRandom(),
+    caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+    professionalId: uuid('professional_id').notNull().references(() => professional.professionalId),
+    activityTypeId: uuid('activity_type_id').notNull().references(() => activityTypes.id),
+    activityOn: date('activity_on').notNull(),
+    durationHours: numeric('duration_hours', { precision: 6, scale: 2 }).notNull(),
+    description: text('description').notNull(),
+  },
+  (table) => [
+    // GET /api/portal/time-entries filters by caseId for the caller's own
+    // entries.
+    index('time_entry_case_id_idx').on(table.caseId),
+    index('time_entry_professional_id_idx').on(table.professionalId),
+  ],
+);
+
+// model/schema.yaml: invoice.service_provider_id (required, references a
+// service_provider entity) has no table here — professional already
+// plays that role for external submitters (see
+// ../professionals/ensureProfessional.ts), so professionalId stands in
+// for it. invoice_line.source_expense_id is omitted (no expense table;
+// out of scope for this slice — time and invoices only, no expense
+// tracking).
+export const invoice = pgTable(
+  'invoice',
+  {
+    invoiceId: uuid('invoice_id').primaryKey().defaultRandom(),
+    submittedByUserAccountId: uuid('submitted_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    professionalId: uuid('professional_id').notNull().references(() => professional.professionalId),
+    statusId: uuid('status_id').notNull().references(() => invoiceStatuses.id),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    // Frozen at submit time, computed from invoice_line amounts rather
+    // than trusted from the client (model/rules.yaml:
+    // validate_invoice_total) — see ../portal/createInvoice.ts.
+    submittedTotal: numeric('submitted_total', { precision: 12, scale: 2 }).notNull(),
+    caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+    currencyCode: text('currency_code').notNull().default('USD'),
+    periodStart: date('period_start'),
+    periodEnd: date('period_end'),
+  },
+  (table) => [index('invoice_professional_id_idx').on(table.professionalId), index('invoice_case_id_idx').on(table.caseId)],
+);
+
+export const invoiceLine = pgTable(
+  'invoice_line',
+  {
+    invoiceLineId: uuid('invoice_line_id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
+    caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+    lineTypeId: uuid('line_type_id').notNull().references(() => invoiceLineTypes.id),
+    // Context only, not used to derive `amount` — the submitter states
+    // the amount directly (there's no billing-rate entity to derive it
+    // from); see ../portal/createInvoice.ts.
+    sourceTimeEntryId: uuid('source_time_entry_id').references(() => timeEntry.timeEntryId),
+    amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  },
+  (table) => [index('invoice_line_invoice_id_idx').on(table.invoiceId)],
 );
 
 export const caseParticipant = pgTable(
@@ -242,5 +396,19 @@ export const INTAKE_REQUEST_PRIMARY_KEY_CONSTRAINT = 'intake_request_pkey';
 export const intakeRequest = pgTable('intake_request', {
   requestId: uuid('request_id').primaryKey(),
   caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Implementation-specific addition, not in model/schema.yaml (see
+// ../../MAPPING.md "Implementation-specific additions") — backs the
+// external-user magic-link sign-in (../auth/magicLink.ts). Stores only a
+// hash of the token, never the token itself, so a DB read (backup, replica,
+// leaked row) can't be replayed into a session.
+export const magicLinkToken = pgTable('magic_link_token', {
+  magicLinkTokenId: uuid('magic_link_token_id').primaryKey().defaultRandom(),
+  email: text('email').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

@@ -2,7 +2,7 @@
 import { eq, and } from 'drizzle-orm';
 import type { PgTable, AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Database } from '../db/client';
-import { firstRow } from '../db/rowHelpers';
+import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
 import {
   caseTable,
   caseParticipant,
@@ -72,21 +72,6 @@ export class CreateCaseConfigurationError extends Error {
     super(message);
     this.name = 'CreateCaseConfigurationError';
   }
-}
-
-// Drizzle wraps PostgreSQL errors in .cause.
-function uniqueViolationConstraint(error: unknown): string | null {
-  const candidates = [error, (error as { cause?: unknown } | null)?.cause];
-  for (const candidate of candidates) {
-    if (
-      typeof candidate === 'object' &&
-      candidate !== null &&
-      (candidate as { code?: unknown }).code === '23505'
-    ) {
-      return (candidate as { constraint?: string }).constraint ?? '';
-    }
-  }
-  return null;
 }
 
 async function findExistingResult(

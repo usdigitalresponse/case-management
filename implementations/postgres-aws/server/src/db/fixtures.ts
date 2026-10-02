@@ -13,6 +13,9 @@ import {
   caseIdentifierTypes,
   caseLifecycleEventTypes,
   caseLifecycleReasons,
+  activityTypes,
+  invoiceStatuses,
+  invoiceLineTypes,
   role,
   county,
   organization,
@@ -58,6 +61,11 @@ export interface BaselineFixtureIds {
   lifecycleReasonIntakeId: string;
   clientParticipantRoleId: string;
   intakeStaffRoleId: string;
+  externalSubmitterAssignmentRoleId: string;
+  activityTypeSampleId: string;
+  invoiceStatusDraftId: string;
+  invoiceStatusSubmittedId: string;
+  invoiceLineTypeSampleId: string;
   countyId: string;
   organizationId: string;
   officeId: string;
@@ -77,10 +85,11 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
 
   await db.execute(sql`
     TRUNCATE TABLE
-      intake_request, case_identifier, case_lifecycle_event, case_participant, "case",
-      user_account, person_affiliation, office, person, role, organization, county,
-      case_categories, case_statuses, jurisdictions, languages, case_identifier_types,
-      case_lifecycle_event_types, case_lifecycle_reasons
+      intake_request, case_identifier, case_lifecycle_event, invoice_line, invoice, time_entry,
+      case_assignment, case_participant, professional, magic_link_token, "case", user_account,
+      person_affiliation, office, person, role, organization, county, case_categories,
+      case_statuses, jurisdictions, languages, case_identifier_types, case_lifecycle_event_types,
+      case_lifecycle_reasons, activity_types, invoice_statuses, invoice_line_types
     RESTART IDENTITY CASCADE
   `);
 
@@ -126,6 +135,22 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
       .values([{ code: 'sample_intake', displayName: 'Sample Intake' }])
       .returning(),
   );
+  const activityType = firstRow(
+    await db.insert(activityTypes).values([{ code: 'legal_services', displayName: 'Legal Services' }]).returning(),
+  );
+  const [invoiceStatusDraft, invoiceStatusSubmitted] = await db
+    .insert(invoiceStatuses)
+    .values([
+      { code: 'draft', displayName: 'Draft' },
+      { code: 'submitted', displayName: 'Submitted' },
+    ])
+    .returning();
+  if (!invoiceStatusDraft || !invoiceStatusSubmitted) {
+    throw new Error('Expected invoice_statuses insert to return two rows.');
+  }
+  const invoiceLineType = firstRow(
+    await db.insert(invoiceLineTypes).values([{ code: 'service', displayName: 'Service' }]).returning(),
+  );
 
   await db.insert(role).values([
     {
@@ -138,6 +163,12 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
       roleId: ROLE_IDS.INTAKE_STAFF_ACCOUNT,
       displayName: 'Intake Staff',
       roleContext: 'user_account',
+      active: true,
+    },
+    {
+      roleId: ROLE_IDS.EXTERNAL_SUBMITTER_ASSIGNMENT,
+      displayName: 'External Submitter',
+      roleContext: 'case_assignment',
       active: true,
     },
   ]);
@@ -205,6 +236,11 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     lifecycleReasonIntakeId: reason.id,
     clientParticipantRoleId: ROLE_IDS.CLIENT_PARTICIPANT,
     intakeStaffRoleId: ROLE_IDS.INTAKE_STAFF_ACCOUNT,
+    externalSubmitterAssignmentRoleId: ROLE_IDS.EXTERNAL_SUBMITTER_ASSIGNMENT,
+    activityTypeSampleId: activityType.id,
+    invoiceStatusDraftId: invoiceStatusDraft.id,
+    invoiceStatusSubmittedId: invoiceStatusSubmitted.id,
+    invoiceLineTypeSampleId: invoiceLineType.id,
     countyId: COUNTY_IDS.SAMPLE_COUNTY_A,
     organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A,
     officeId: OFFICE_IDS.SAMPLE_OFFICE_A,

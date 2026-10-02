@@ -6,6 +6,7 @@ import CaseDetail from './pages/CaseDetail';
 import NewCaseIntake from './pages/NewCaseIntake';
 import Overview from './pages/Overview';
 import { overviewStages } from './overviewStages';
+import ExternalPortalApp from './portal/ExternalPortalApp';
 
 function TopBar() {
   const { user, loading, devLogin, logout } = useAuth();
@@ -14,7 +15,7 @@ function TopBar() {
       {user && <a className="usa-skipnav" href="#main-content">Skip to main content</a>}
       <header className="app-header">
         <Link className="app-brand" to="/">Case Management</Link>
-        <input className="global-search" aria-label="Search everything (coming soon)" placeholder="Search everything · coming soon" disabled />
+        {user && <input className="global-search" aria-label="Search everything (coming soon)" placeholder="Search everything · coming soon" disabled />}
         <div className="header-actions">
           {!loading && !user && <Button type="button" onClick={() => void devLogin()}>Dev sign-in</Button>}
           {!loading && user && <>
@@ -56,25 +57,41 @@ function Sidebar() {
   );
 }
 
+// External (magic-link) users get their own narrow shell
+// (ExternalPortalApp: just view/log time, submit invoices), never this
+// staff layout — checked here, before TopBar/Sidebar render at all, so an
+// external session never even sees staff-only chrome flash by.
+function AppContent() {
+  const { user } = useAuth();
+  if (user?.authType === 'magic-link') {
+    return <ExternalPortalApp />;
+  }
+  return (
+    <>
+      <TopBar />
+      <RequireAuth>
+        <div className="app-layout">
+          <Sidebar />
+          <main id="main-content" className="app-main" tabIndex={-1}>
+            <Routes>
+              <Route path="/" element={<Overview />} />
+              <Route path="/cases" element={<><h1>Cases</h1><CaseList /></>} />
+              <Route path="/cases/new" element={<NewCaseIntake />} />
+              <Route path="/cases/:caseId" element={<CaseDetail />} />
+              <Route path="*" element={<><h1>Page not found</h1><Link to="/">Back to overview</Link></>} />
+            </Routes>
+          </main>
+        </div>
+      </RequireAuth>
+    </>
+  );
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <TopBar />
-        <RequireAuth>
-          <div className="app-layout">
-            <Sidebar />
-            <main id="main-content" className="app-main" tabIndex={-1}>
-              <Routes>
-                <Route path="/" element={<Overview />} />
-                <Route path="/cases" element={<><h1>Cases</h1><CaseList /></>} />
-                <Route path="/cases/new" element={<NewCaseIntake />} />
-                <Route path="/cases/:caseId" element={<CaseDetail />} />
-                <Route path="*" element={<><h1>Page not found</h1><Link to="/">Back to overview</Link></>} />
-              </Routes>
-            </main>
-          </div>
-        </RequireAuth>
+        <AppContent />
       </BrowserRouter>
     </AuthProvider>
   );

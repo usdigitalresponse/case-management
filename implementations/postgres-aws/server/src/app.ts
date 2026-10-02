@@ -2,10 +2,13 @@ import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import cookieSession from 'cookie-session';
 import passport from 'passport';
-import { configureGoogleAuth } from './auth/googleStrategy';
+import { configureOidcProviders } from './auth/oidcProviders';
 import { createAuthRouter } from './routes/auth';
 import casesRouter from './routes/cases';
 import peopleRouter from './routes/people';
+import professionalsRouter from './routes/professionals';
+import myCasesRouter from './routes/myCases';
+import portalRouter from './routes/portal';
 import referenceDataRouter from './routes/referenceData';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -28,15 +31,18 @@ export function createApp() {
   );
   app.use(passport.initialize());
 
-  const googleEnabled = configureGoogleAuth();
-  if (!googleEnabled) {
+  const oidcProviders = configureOidcProviders();
+  if (oidcProviders.length === 0) {
     // eslint-disable-next-line no-console
-    console.warn('GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not set; Google sign-in is disabled.');
+    console.warn('No OIDC provider credentials configured; SSO sign-in is disabled.');
   }
 
-  app.use('/auth', createAuthRouter({ googleEnabled, devLoginEnabled: !isProduction }));
+  app.use('/auth', createAuthRouter({ oidcProviders, devLoginEnabled: !isProduction }));
   app.use('/api/cases', casesRouter);
   app.use('/api/people', peopleRouter);
+  app.use('/api/professionals', professionalsRouter);
+  app.use('/api/my-cases', myCasesRouter);
+  app.use('/api/portal', portalRouter);
   app.use('/api/reference-data', referenceDataRouter);
 
   app.get('/healthz', (_req, res) => res.json({ ok: true }));

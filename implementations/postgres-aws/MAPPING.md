@@ -103,20 +103,72 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 
 - **Session**: `cookie-session` (signed cookie, no server-side session
   store — the small `AuthenticatedUser` object lives entirely in the
-  cookie). Passport is used only for the Google OAuth handshake
-  (`session: false`); the callback route writes the session itself
+  cookie). Passport is used only for the OIDC handshake (`session:
+  false`); the callback route writes the session itself
   (`src/auth/session.ts`), rather than using `passport.session()` /
   serialize-deserialize, avoiding known compatibility rough edges between
   newer Passport versions and non-`express-session` stores.
-- **Google OAuth allowlist**: enforced by checking the authenticated
-  email's domain against `ALLOWED_EMAIL_DOMAINS` in
-  `src/auth/googleStrategy.ts` (not the OAuth `hd` claim, which isn't
-  always present depending on Workspace configuration) — see "Known gaps"
-  below for what this gate is (and isn't).
+- **Multi-IdP SSO**: one generic OIDC strategy (`passport-openidconnect`),
+  registered once per configured provider, rather than a
+  provider-specific library per IdP (`src/auth/oidcProviders.ts`). Google
+  and Microsoft Entra ID both authenticate through the same code path;
+  each provider declares its own `allowedDomains` (checked against the
+  authenticated email, not the OAuth `hd`/`tid` claim, which isn't always
+  present) so a domain can't sign in through the wrong IdP — see "Known
+  gaps" below for what this gate is (and isn't). `GET /auth/providers`
+  lists the configured providers so the client doesn't hardcode one;
+  `GET /auth/:providerId` / `:providerId/callback` are generated per
+  provider. `AuthenticatedUser.authType` is `'sso'` for any configured
+  provider (which one is in `ssoProvider`, display/audit only) or
+  `'magic-link'` for an external user. **Deploy note**: the session cookie
+  carries this shape directly (`cookie-session`, no server-side store —
+  see "Session" above), so a cookie issued before this change (`authType:
+  'google'`, or the dev-login/magic-link literals before they were
+  renamed to `'sso'`) won't satisfy `requireFullUser`'s `authType ===
+  'sso'` check until the holder logs in again. Self-heals within
+  `maxAge` (24h, `src/app.ts`) with no code needed — not yet a concern
+  since no real environment has live sessions (see "Known gaps" below),
+  but worth remembering before any future session-shape change ships to
+  a deployment with real users.
+- **Magic-link sign-in for external users**: `POST /auth/magic-link/request`
+  (body: `{ email }`) issues a single-use, 15-minute token
+  (`src/auth/magicLink.ts`) if `email` is in `EXTERNAL_EMAIL_WHITELIST`
+  (`src/auth/externalEmailWhitelist.ts`) — it responds identically either
+  way, so the endpoint can't be used to enumerate whitelisted addresses.
+  `GET /auth/magic-link/verify?token=` consumes the token, creates/reuses
+  the `user_account`, bootstraps a `professional` profile for it
+  (`src/professionals/ensureProfessional.ts`), and sets the session.
+  `requireFullUser` (`src/auth/session.ts`) checks `authType === 'sso'`
+  to gate actions only a full user may take.
+  **Email delivery**: `src/email/sendEmail.ts` sends via AWS SES when
+  `SES_SENDER_EMAIL` is set, falling back to logging the link to the
+  console when it isn't (so local dev needs no AWS setup). Verifying a
+  sender identity in SES is a manual AWS console/DNS step this code can't
+  do for you — same category of manual prerequisite as filling in real
+  Google OAuth credentials (see "Known gaps" below).
+- **Case assignment, scoped to external submitters**: `professional` and
+  `case_assignment` map the canonical entities, but only the one workflow
+  needed so far is built: `POST /api/cases/:id/external-assignments`
+  (`requireFullUser`) assigns an existing professional (found via
+  `GET /api/professionals?q=<email>`, which only finds professionals with
+  a `user_account_id` — i.e. someone who has logged in via magic link at
+  least once) to a case, with a fixed "External Submitter" role
+  (`src/professionals/externalSubmitterRole.ts`, a plain lookup — the row
+  itself is provisioned the same way in every environment by
+  `src/db/ensureReferenceData.ts`, run at `migrate` time; see "Reference
+  data" below). `GET /api/my-cases` lists the current
+  session's open assignments. Deliberately not implemented:
+  `require_qualification_for_assignment` and
+  `review_workload_before_assignment` (both `model/rules.yaml`
+  `outcome: configurable`), the "at most one overlapping primary
+  assignment per case" rule, and any staff-assignment UI/role choice —
+  every assignment created this way uses the one fixed role. Also not
+  implemented: `person`'s `flag_possible_duplicate_client` check, since a
+  `professional` here is always auto-created from a unique `user_account`,
+  not user-entered.
 - **Dev-login bypass**: `POST /auth/dev-login` logs in as the seeded
-  synthetic staff account (`staff@example.invalid`) without any real Google
-  credentials, so local dev/tests don't need `GOOGLE_CLIENT_ID`/
-  `GOOGLE_CLIENT_SECRET` configured. `src/app.ts` only mounts it when
+  synthetic staff account (`staff@example.invalid`) without any real SSO
+  provider credentials configured. `src/app.ts` only mounts it when
   `NODE_ENV !== 'production'`, and `createAuthRouter` itself also throws if
   ever asked to enable it under `NODE_ENV=production` — enforced by the
   auth module, not just by the one current caller's discipline, so a future
@@ -159,6 +211,26 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   the client/server boundary. Accepted as the ordinary cost of a
   boundary between two separately-deployed apps, not a reuse bug —
   revisit only if a shared-types package becomes a concrete need.
+
+## Reference data
+
+`src/db/ensureReferenceData.ts` idempotently seeds the small
+reference/config rows the external portal needs to function at all
+(`activity_types`, `invoice_statuses`, `invoice_line_types`, and the
+"External Submitter" `case_assignment`-context role) via
+`insert ... on conflict do nothing`, keyed by each table's unique `code`
+column (or, for `role`, a unique index added on `(display_name,
+role_context)` specifically so this can be idempotent). `src/db/migrate.ts`
+runs it right after applying migrations, so it executes in every
+environment — including production, where `resetAndSeedBaselineFixtures`
+(destructive, test/dev-only) never runs. Before this existed, only the
+"External Submitter" role had a workaround for that gap (a lazy
+create-on-first-use in `externalSubmitterRole.ts`); the other three rows
+had none, so logging time or submitting an invoice would 500 in any real
+deployment. All four rows are now provisioned the same single way, and
+`externalSubmitterRole.ts`/`createTimeEntry.ts`/`createInvoice.ts` all
+just look the rows up and throw a configuration error if one is somehow
+still missing, instead of one of them special-casing its own repair.
 
 ## Schema-mapping drift check
 
@@ -226,10 +298,14 @@ list/detail views are implemented as tables:
 
 `user_account`, `county`, `organization`, `office`, `role`, `person`,
 `person_affiliation`, `case`, `case_participant`, `case_lifecycle_event`,
-`case_identifier`, plus lookup tables for the `reference_data` sets these
-entities use (`case_categories`, `case_statuses`, `jurisdictions`,
-`languages`, `case_identifier_types`, `case_lifecycle_event_types`,
-`case_lifecycle_reasons`).
+`case_identifier`, `professional`, `case_assignment`, plus lookup tables
+for the `reference_data` sets these entities use (`case_categories`,
+`case_statuses`, `jurisdictions`, `languages`, `case_identifier_types`,
+`case_lifecycle_event_types`, `case_lifecycle_reasons`).
+
+`professional`/`case_assignment` were added narrowly, for the external
+magic-link submitter workflow above — not as general staff
+assignment/scheduling support (see "API / auth design notes").
 
 `person_affiliation` (and `case_participant.affiliation_id`) were added ahead
 of an immediate need: adding them after case data exists would mean
@@ -281,18 +357,20 @@ form relies on this being airtight.
 
 ### Implementation-specific additions
 
-- `user_account.email`: not in `model/schema.yaml`. Used to match Google
-  OAuth logins (see Auth below); real accounts are created on first login,
+- `user_account.email`: not in `model/schema.yaml`. Used to match SSO
+  logins (see Auth below); real accounts are created on first login,
   matched by email, not seeded with real addresses.
 
 ## Known gaps / placeholders
 
 - **Auth**: Google OAuth restricted to a hosted-domain allowlist
-  (`usdigitalresponse.org`, `usdrvolunteers.org`) gates access for USDR's own
-  team while building/demoing the prototype. This is **not** the government
-  partner's production login — their actual case-management users need their
-  own auth (their own IdP/domain), which is an unresolved decision, matching
-  the Dataverse comparison plan's "intake roles and permitted actions" gap.
+  (`usdigitalresponse.org`, `usdrvolunteers.org`) gates access for USDR's
+  own team while building/demoing the prototype; Microsoft Entra ID is
+  also supported (`src/auth/oidcProviders.ts`) for a government partner
+  whose staff sign in with Microsoft instead. Whether either is actually
+  that partner's *production* login, versus their own separate IdP
+  decision, remains open — matching the Dataverse comparison plan's
+  "intake roles and permitted actions" gap.
 - **Person creation**: `person` rows are seeded synthetic fixtures only; there
   is no create-person or duplicate-review UI in this slice.
 - **Infrastructure**: Terraform provisions a single (`sandbox`) environment

@@ -29,6 +29,8 @@ export interface AuthenticatedUser {
   userAccountId: string;
   email: string;
   displayName: string;
+  authType: 'sso' | 'magic-link';
+  ssoProvider?: string;
 }
 
 export function getCurrentUser(): Promise<AuthenticatedUser> {
@@ -41,6 +43,26 @@ export function devLogin(): Promise<AuthenticatedUser> {
 
 export function logout(): Promise<void> {
   return request<void>('/auth/logout', { method: 'POST' });
+}
+
+export interface AuthProvider {
+  id: string;
+  displayName: string;
+}
+
+// Configured full-user SSO providers (see ../../server/src/auth/oidcProviders.ts)
+// — only those with credentials set come back, so the login page never
+// hardcodes "Google" or offers a provider that isn't actually usable.
+export function listAuthProviders(): Promise<AuthProvider[]> {
+  return request<AuthProvider[]>('/auth/providers');
+}
+
+// Always resolves (the server responds 202 whether or not the email is
+// recognized, to avoid revealing which external addresses are allowed in)
+// — there is no success/failure branch to handle here beyond a network/5xx
+// error.
+export function requestMagicLink(email: string): Promise<void> {
+  return request<void>('/auth/magic-link/request', { method: 'POST', body: JSON.stringify({ email }) });
 }
 
 export interface CaseRecord {
@@ -205,4 +227,78 @@ export function isValidationErrorBody(body: unknown): body is ValidationErrorBod
 
 export function createCase(input: CreateCaseInput): Promise<CreateCaseResult> {
   return request<CreateCaseResult>('/api/cases', { method: 'POST', body: JSON.stringify(input) });
+}
+
+// --- External portal (view/log time, submit invoices) ---------------------
+
+export interface MyCaseRecord {
+  caseId: string;
+  statusId: string;
+  externalReference: string | null;
+  assignedAt: string;
+}
+
+export function listMyCases(): Promise<{ cases: MyCaseRecord[] }> {
+  return request<{ cases: MyCaseRecord[] }>('/api/my-cases');
+}
+
+export interface TimeEntryRecord {
+  timeEntryId: string;
+  caseId: string;
+  professionalId: string;
+  activityTypeId: string;
+  activityOn: string;
+  durationHours: string;
+  description: string;
+}
+
+export interface CreateTimeEntryInput {
+  caseId: string;
+  activityOn: string;
+  durationHours: number;
+  description: string;
+}
+
+export function listMyTimeEntries(caseId: string): Promise<{ timeEntries: TimeEntryRecord[] }> {
+  return request<{ timeEntries: TimeEntryRecord[] }>(`/api/portal/time-entries?caseId=${encodeURIComponent(caseId)}`);
+}
+
+export function createTimeEntry(input: CreateTimeEntryInput): Promise<{ timeEntryId: string }> {
+  return request<{ timeEntryId: string }>('/api/portal/time-entries', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export interface InvoiceRecord {
+  invoiceId: string;
+  caseId: string;
+  statusId: string;
+  submittedAt: string | null;
+  submittedTotal: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+}
+
+export interface CreateInvoiceLineInput {
+  amount: number;
+  sourceTimeEntryId?: string;
+}
+
+export interface CreateInvoiceInput {
+  caseId: string;
+  periodStart?: string;
+  periodEnd?: string;
+  lines: CreateInvoiceLineInput[];
+}
+
+export function listMyInvoices(caseId: string): Promise<{ invoices: InvoiceRecord[] }> {
+  return request<{ invoices: InvoiceRecord[] }>(`/api/portal/invoices?caseId=${encodeURIComponent(caseId)}`);
+}
+
+export function createInvoice(input: CreateInvoiceInput): Promise<{ invoiceId: string; submittedTotal: string }> {
+  return request<{ invoiceId: string; submittedTotal: string }>('/api/portal/invoices', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
