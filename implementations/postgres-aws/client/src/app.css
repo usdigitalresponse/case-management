@@ -84,15 +84,15 @@ button, input { font: inherit; }
 .data-card table tbody tr:hover { background: #f7f9fd; }
 .data-card table th[scope="row"] a { color: #242a31; font-weight: 700; text-decoration: none; }
 .data-card table th[scope="row"] a:hover, .data-card table th[scope="row"] a:focus { text-decoration: underline; }
-/* Cases list: let Client take the lion's share instead of leaving the
-   table's unused columns to stretch into dead space at the card's edge. */
-.case-table th:nth-child(1), .case-table td:nth-child(1) { width: 26%; }
-.case-table th:nth-child(2), .case-table td:nth-child(2) { width: 12%; }
-.case-table th:nth-child(3), .case-table td:nth-child(3) { width: 22%; }
-.case-table th:nth-child(4), .case-table td:nth-child(4) { width: 15%; white-space: nowrap; }
-.case-table th:nth-child(5), .case-table td:nth-child(5) { width: 25%; }
-/* Fixed layout: wrap a pill rather than overflow into the next column. */
-.case-table .status-pill { white-space: normal; max-width: 100%; }
+/* Cases list: Status, Stage and Opened shrink to their one-line content;
+   Client and External reference share the rest. */
+.case-table th:nth-child(2), .case-table td:nth-child(2),
+.case-table th:nth-child(3), .case-table td:nth-child(3),
+.case-table th:nth-child(4), .case-table td:nth-child(4) { width: 1%; white-space: nowrap; }
+/* Line pill-column headers up with the pill text, not the pill edge. */
+.case-table thead th:nth-child(2), .case-table thead th:nth-child(3) { padding-left: calc(1.1rem + .7rem); }
+.case-table th:nth-child(1), .case-table td:nth-child(1),
+.case-table th:nth-child(5), .case-table td:nth-child(5) { overflow-wrap: anywhere; }
 /* Case detail: visually separates "this case's own facts" (.fact-grid,
    below) from "related records" (.data-card tables). */
 .detail-section { margin-top: 2.2rem; }

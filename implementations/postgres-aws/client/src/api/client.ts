@@ -76,7 +76,7 @@ export function verifyMagicLink(token: string): Promise<AuthenticatedUser> {
 
 // Mirrors server/src/cases/caseStage.ts's CASE_STAGES; null once a case
 // is closed (case.closedOn set) — it has left the working board.
-export type CaseStage = 'awaiting-assignment' | 'represented' | 'billing' | 'closing';
+export type CaseStage = 'needs-assignment' | 'represented' | 'billing' | 'closing';
 
 export interface CaseRecord {
   caseId: string;

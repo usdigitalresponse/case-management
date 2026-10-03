@@ -3,7 +3,7 @@ import { Alert, Button, Label } from '@trussworks/react-uswds';
 import { ApiError, createStaffAssignment, searchStaff, type StaffAccount } from '../api/client';
 import { TypeAheadPicker } from './TypeAheadPicker';
 
-// The "assign staff to a case" action behind the awaiting-assignment ->
+// The "assign staff to a case" action behind the needs-assignment ->
 // represented transition (server/src/cases/assignStaffToCase.ts).
 export function AssignStaffForm({ caseId, onAssigned }: { caseId: string; onAssigned: () => void }) {
   const [selectedStaff, setSelectedStaff] = useState<StaffAccount | null>(null);

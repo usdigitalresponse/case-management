@@ -28,14 +28,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 
 ## Frontend design notes
 
-- **Overview home**: `/` shows four stage columns (Awaiting assignment,
+- **Overview home**: `/` shows four stage columns (Needs assignment,
   Represented, Billing, Closing); `/cases` retains the full list, now
   with its own Stage column. Every column buckets real cases by their
   actual derived stage (`server/src/cases/caseStage.ts` —
-  awaiting-assignment / represented / billing / closing /
-  none-if-closed, computed from assignment/invoice state, not stored) —
-  there is no more "everything shows under Awaiting assignment"
-  placeholder, and the preview badge that disclosed it is gone. Starting
+  needs-assignment / represented / billing / closing /
+  none-if-closed, computed from assignment/invoice state, not stored).
+  Starting
   a case isn't a stage with cases in it (a case already has its client
   participant from the moment it's created — see
   `src/intake/createCase.ts`), so it isn't a board column at all; it's
@@ -260,7 +259,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   data" below). `GET /api/my-cases` lists the current session's open
   assignments; `GET /api/cases/:id` includes an `assignments` array (both
   kinds, joined with professional/role display names) and a computed
-  `stage` (`src/cases/caseStage.ts` — awaiting-assignment / represented /
+  `stage` (`src/cases/caseStage.ts` — needs-assignment / represented /
   billing / closing / none-if-closed, derived from assignment/invoice
   state rather than stored). Deliberately not implemented:
   `require_qualification_for_assignment` and

@@ -38,9 +38,9 @@ async function stageOf(caseId: string): Promise<string | null> {
 }
 
 describe('caseStageExpression', () => {
-  it('buckets a freshly opened case as awaiting-assignment', async () => {
+  it('buckets a freshly opened case as needs-assignment', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
-    expect(await stageOf(caseId)).toBe('awaiting-assignment');
+    expect(await stageOf(caseId)).toBe('needs-assignment');
   });
 
   it('buckets an open-assignment case as represented', async () => {
@@ -55,7 +55,7 @@ describe('caseStageExpression', () => {
     expect(await stageOf(caseId)).toBe('represented');
   });
 
-  it('ignores an ended assignment and falls back to awaiting-assignment', async () => {
+  it('ignores an ended assignment and falls back to needs-assignment', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
     await testDb.insert(caseAssignment).values({
       caseId,
@@ -65,7 +65,7 @@ describe('caseStageExpression', () => {
       assignmentRoleId: fixtures.externalSubmitterAssignmentRoleId,
       assignedByUserAccountId: fixtures.staffUserAccountId,
     });
-    expect(await stageOf(caseId)).toBe('awaiting-assignment');
+    expect(await stageOf(caseId)).toBe('needs-assignment');
   });
 
   it('buckets a case with a submitted invoice as billing, even if also assigned', async () => {
@@ -98,7 +98,7 @@ describe('caseStageExpression', () => {
       submittedTotal: '0.00',
       caseId,
     });
-    expect(await stageOf(caseId)).toBe('awaiting-assignment');
+    expect(await stageOf(caseId)).toBe('needs-assignment');
   });
 
   it('buckets a case whose only reviewed invoice was approved as closing', async () => {
