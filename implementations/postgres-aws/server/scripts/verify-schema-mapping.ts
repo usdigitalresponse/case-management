@@ -53,8 +53,6 @@ const DELIBERATELY_OMITTED_FIELDS: Record<string, string> = {
   'invoice_line.source_expense_id': 'no expense entity/table exists yet; out of scope (time and invoices only)',
   'invoice_approval_chain.submission_snapshot':
     'immutable schema-versioned snapshot not implemented; this slice records only the decision, not a frozen copy of the invoice/lines/payee at review time',
-  'invoice_approval_decision.approved_amount':
-    'per-line/invoice approved-amount tracking not implemented; this slice never does per-line review (see comment on invoiceApprovalChain in src/db/schema.ts)',
 };
 
 interface SchemaYaml {

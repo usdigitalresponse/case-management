@@ -1,0 +1,3 @@
+ALTER TABLE "invoice_approval_decision" ADD COLUMN "approved_amount" numeric(12, 2);--> statement-breakpoint
+CREATE UNIQUE INDEX "invoice_approval_chain_current_uidx" ON "invoice_approval_chain" USING btree ("invoice_id") WHERE superseded_at IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "invoice_approval_decision_line_uidx" ON "invoice_approval_decision" USING btree ("invoice_approval_chain_id","sequence_number","invoice_line_id");

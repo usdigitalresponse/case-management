@@ -271,18 +271,24 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   implemented: `person`'s `flag_possible_duplicate_client` check, since a
   `professional` here is always auto-created from a unique `user_account`,
   not user-entered.
-- **Invoice review**: `POST /api/invoices/:id/review` (`requireFullUser`,
-  `src/billing/reviewInvoice.ts`) approves or rejects a `submitted`
-  invoice; `GET /api/invoices?status=` (`src/routes/invoices.ts`) is the
-  cross-case queue behind it (unlike `GET /api/cases/:id/invoices`, one
-  case). Rejecting requires a `reason` (`model/rules.yaml`
-  `enforce_invoice_approval_sequence`); approving moves the case into the
-  `closing` stage (`src/cases/caseStage.ts`). This is a narrow slice of
-  the canonical `invoice_approval_chain`/`invoice_approval_decision`
-  model — see the comment on those tables in `src/db/schema.ts` for
-  exactly what's simplified (one chain, one whole-invoice decision, no
-  pre-approval, no per-line review, no "requests changes" outcome, no
-  chain superseding).
+- **Invoice review** is line by line (`src/billing/reviewInvoiceLine.ts`,
+  `src/routes/invoices.ts`, `client/src/pages/InvoiceReview.tsx`):
+  - `GET /api/invoices?status=` is the cross-case queue; `GET
+    /api/invoices/:id` returns lines with source time entries and decisions;
+    `POST /api/invoices/:id/lines/:lineId/review` decides one line.
+  - Approval records `approved_amount` (default: requested; lower allowed,
+    higher not). Rejection requires a `reason` (`model/rules.yaml`
+    `enforce_invoice_approval_sequence`).
+  - One immutable decision per line (unique index); the invoice row is
+    locked per decision, so concurrent reviewers share one chain.
+  - The invoice stays `submitted` until every line is decided, then becomes
+    `approved` (case moves to `closing`) or `rejected` (any line rejected).
+    `submitted_total` is unchanged; the approved total is the sum of line
+    amounts, not stored.
+  - Not implemented: pre-approval, further stages, "requests changes",
+    chain superseding, `under_review` status, allocation draws, submission
+    snapshot. Pre-existing whole-invoice decisions (null `invoice_line_id`)
+    aren't shown in the line view.
 - **Closing a case**: `POST /api/cases/:id/close` (`requireFullUser`,
   `src/cases/closeCase.ts`) is the counterpart to opening
   (`src/intake/createCase.ts`): it requires a reason, records the next
@@ -445,8 +451,8 @@ two workflows" above) — not general scheduling/workload support.
 `invoice_approval_chain`/`invoice_approval_decision` implement a narrow
 slice of the canonical multi-stage, configurable approval routing: see
 the comment on these tables in `src/db/schema.ts` for exactly what's
-simplified (one chain, one whole-invoice decision, no pre-approval, no
-per-line review).
+simplified (one chain, a single line-review stage with one decision per
+line, no pre-approval, no further stages).
 
 `person_affiliation` (and `case_participant.affiliation_id`) were added ahead
 of an immediate need: adding them after case data exists would mean

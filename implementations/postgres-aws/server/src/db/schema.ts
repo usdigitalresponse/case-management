@@ -294,50 +294,57 @@ export const invoiceLine = pgTable(
   (table) => [index('invoice_line_invoice_id_idx').on(table.invoiceId)],
 );
 
-// model/schema.yaml's invoice_approval_chain/invoice_approval_decision
-// support an ordered, configurable, multi-stage review (optional invoice
-// pre-approval before line review, one decision per line per stage,
-// chain superseding on a changed invoice) — none of that routing exists
-// here. This implementation makes one simplification throughout: every
-// invoice gets exactly one chain with exactly one line_review-stage
-// decision covering the whole invoice (never a line), recorded by
-// ../billing/reviewInvoice.ts. Deliberately not implemented: pre-approval
-// steps, per-line decisions, "requests changes" as a third outcome,
-// chain superseding, and model/rules.yaml's require_completed_invoice_approval
-// (no separate invoice.approve step - the decision's outcome directly
-// becomes the invoice's status); see ../../MAPPING.md.
-export const invoiceApprovalChain = pgTable('invoice_approval_chain', {
-  invoiceApprovalChainId: uuid('invoice_approval_chain_id').primaryKey().defaultRandom(),
-  invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
-  createdByUserAccountId: uuid('created_by_user_account_id')
-    .notNull()
-    .references(() => userAccount.userAccountId),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
-  // Never set — no chain is ever superseded in this implementation (see
-  // comment above); the column exists so the shape matches
-  // model/schema.yaml and a future pass doesn't need a migration to add it.
-  supersededAt: timestamp('superseded_at', { withTimezone: true }),
-});
+// Single-stage slice of the canonical approval chain: one chain per invoice,
+// one line_review decision (sequence_number 1) per line. No pre-approval,
+// further stages, "requests changes" or superseding; see ../../MAPPING.md.
+export const invoiceApprovalChain = pgTable(
+  'invoice_approval_chain',
+  {
+    invoiceApprovalChainId: uuid('invoice_approval_chain_id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
+    createdByUserAccountId: uuid('created_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    // Never set yet; kept to match model/schema.yaml.
+    supersededAt: timestamp('superseded_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('invoice_approval_chain_current_uidx')
+      .on(table.invoiceId)
+      .where(sql`superseded_at IS NULL`),
+  ],
+);
 
-export const invoiceApprovalDecision = pgTable('invoice_approval_decision', {
-  invoiceApprovalDecisionId: uuid('invoice_approval_decision_id').primaryKey().defaultRandom(),
-  invoiceApprovalChainId: uuid('invoice_approval_chain_id')
-    .notNull()
-    .references(() => invoiceApprovalChain.invoiceApprovalChainId),
-  sequenceNumber: integer('sequence_number').notNull(),
-  stepTypeId: uuid('step_type_id').notNull().references(() => invoiceApprovalStepTypes.id),
-  // Always null (every decision covers the whole invoice, never one
-  // line) — see comment on invoiceApprovalChain above.
-  invoiceLineId: uuid('invoice_line_id').references(() => invoiceLine.invoiceLineId),
-  outcomeId: uuid('outcome_id').notNull().references(() => invoiceApprovalOutcomes.id),
-  decidedByUserAccountId: uuid('decided_by_user_account_id')
-    .notNull()
-    .references(() => userAccount.userAccountId),
-  decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
-  // model/rules.yaml enforce_invoice_approval_sequence: required for a
-  // rejection, enforced in ../billing/reviewInvoice.ts rather than here.
-  reason: text('reason'),
-});
+export const invoiceApprovalDecision = pgTable(
+  'invoice_approval_decision',
+  {
+    invoiceApprovalDecisionId: uuid('invoice_approval_decision_id').primaryKey().defaultRandom(),
+    invoiceApprovalChainId: uuid('invoice_approval_chain_id')
+      .notNull()
+      .references(() => invoiceApprovalChain.invoiceApprovalChainId),
+    sequenceNumber: integer('sequence_number').notNull(),
+    stepTypeId: uuid('step_type_id').notNull().references(() => invoiceApprovalStepTypes.id),
+    // Null only on legacy whole-invoice decisions.
+    invoiceLineId: uuid('invoice_line_id').references(() => invoiceLine.invoiceLineId),
+    outcomeId: uuid('outcome_id').notNull().references(() => invoiceApprovalOutcomes.id),
+    decidedByUserAccountId: uuid('decided_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+    // Rejection reason and approved amount (at most the line amount) are
+    // required per outcome by ../billing/reviewInvoiceLine.ts.
+    reason: text('reason'),
+    approvedAmount: numeric('approved_amount', { precision: 12, scale: 2 }),
+  },
+  (table) => [
+    uniqueIndex('invoice_approval_decision_line_uidx').on(
+      table.invoiceApprovalChainId,
+      table.sequenceNumber,
+      table.invoiceLineId,
+    ),
+  ],
+);
 
 export const caseParticipant = pgTable(
   'case_participant',

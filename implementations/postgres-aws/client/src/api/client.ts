@@ -160,8 +160,7 @@ export function getCase(caseId: string): Promise<CaseDetail> {
   return request<CaseDetail>(`/api/cases/${caseId}`);
 }
 
-// Viewing only, scoped to one case — reviewInvoice below (via the
-// cross-case queue, ../pages/BillingQueue.tsx) does the approve/reject.
+// Read-only, one case; review happens via reviewInvoiceLine below.
 export function getCaseInvoices(caseId: string): Promise<{ invoices: InvoiceRecord[] }> {
   return request<{ invoices: InvoiceRecord[] }>(`/api/cases/${caseId}/invoices`);
 }
@@ -394,9 +393,12 @@ export interface QueuedInvoice {
   professionalId: string;
   professionalDisplayName: string | null;
   statusId: string;
+  statusCode: string;
   statusDisplayName: string;
   submittedAt: string | null;
   submittedTotal: string;
+  periodStart: string | null;
+  periodEnd: string | null;
 }
 
 export function listInvoices(status?: string): Promise<{ invoices: QueuedInvoice[] }> {
@@ -406,15 +408,41 @@ export function listInvoices(status?: string): Promise<{ invoices: QueuedInvoice
 
 export type ReviewOutcome = 'approved' | 'rejected';
 
-export function reviewInvoice(
+// Decision fields are null until the line is reviewed.
+export interface InvoiceReviewLine {
+  invoiceLineId: string;
+  amount: string;
+  sourceTimeEntryId: string | null;
+  sourceActivityOn: string | null;
+  sourceDurationHours: string | null;
+  sourceDescription: string | null;
+  decisionOutcomeCode: ReviewOutcome | null;
+  decisionOutcomeDisplayName: string | null;
+  decisionApprovedAmount: string | null;
+  decisionReason: string | null;
+  decidedByDisplayName: string | null;
+  decidedAt: string | null;
+}
+
+export function getInvoiceForReview(invoiceId: string): Promise<{ invoice: QueuedInvoice; lines: InvoiceReviewLine[] }> {
+  return request<{ invoice: QueuedInvoice; lines: InvoiceReviewLine[] }>(`/api/invoices/${invoiceId}`);
+}
+
+export interface ReviewInvoiceLineInput {
+  outcome: ReviewOutcome;
+  approvedAmount?: number;
+  reason?: string;
+}
+
+export function reviewInvoiceLine(
   invoiceId: string,
-  outcome: ReviewOutcome,
-  reason?: string,
-): Promise<{ invoiceId: string; statusId: string }> {
-  return request<{ invoiceId: string; statusId: string }>(`/api/invoices/${invoiceId}/review`, {
-    method: 'POST',
-    body: JSON.stringify({ outcome, reason }),
-  });
+  invoiceLineId: string,
+  input: ReviewInvoiceLineInput,
+): Promise<{ invoiceId: string; invoiceLineId: string; statusId: string }> {
+  return request<{ invoiceId: string; invoiceLineId: string; statusId: string }>(
+    `/api/invoices/${invoiceId}/lines/${invoiceLineId}/review`,
+    { method: 'POST', body: JSON.stringify(input) },
+  );
 }
 
 export function closeCase(
