@@ -147,6 +147,22 @@ describe('reviewInvoice', () => {
     ).rejects.toThrow(InvoiceNotSubmittedError);
   });
 
+  it('lets exactly one of two concurrent reviews decide the invoice', async () => {
+    const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
+    const invoiceId = await createSubmittedInvoice(caseId);
+
+    const results = await Promise.allSettled([
+      reviewInvoice(testDb, fixtures.staffUserAccountId, invoiceId, { outcome: 'approved' }),
+      reviewInvoice(testDb, fixtures.staffUserAccountId, invoiceId, { outcome: 'rejected', reason: 'Duplicate.' }),
+    ]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((result) => result.status === 'rejected');
+    expect(rejected?.reason).toBeInstanceOf(InvoiceNotSubmittedError);
+    const chains = await testDb.select().from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
+    expect(chains).toHaveLength(1);
+  });
+
   it('rejects an invalid outcome value', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
     const invoiceId = await createSubmittedInvoice(caseId);

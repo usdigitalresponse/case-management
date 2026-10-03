@@ -5,7 +5,7 @@
 // line_review decision covering the whole invoice, recorded here, with no
 // pre-approval step and no per-line granularity.
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
@@ -85,22 +85,22 @@ export async function reviewInvoice(
     throw new ReviewInvoiceValidationError({ reason: 'A reason is required to reject an invoice.' });
   }
 
-  const [[invoiceRow], [submittedStatus], [lineReviewStepType], [outcomeRow]] = await Promise.all([
-    db.select({ invoiceId: invoice.invoiceId, statusId: invoice.statusId }).from(invoice).where(eq(invoice.invoiceId, invoiceId)),
+  // The invoice's new status shares the outcome's code (both seeded as
+  // "approved"/"rejected" — see ../db/ensureReferenceData.ts), so it is
+  // looked up by that code instead of through a code-to-code mapping.
+  const [[submittedStatus], [resultStatus], [lineReviewStepType], [outcomeRow]] = await Promise.all([
     db.select().from(invoiceStatuses).where(eq(invoiceStatuses.code, SUBMITTED_INVOICE_STATUS_CODE)),
+    db.select().from(invoiceStatuses).where(eq(invoiceStatuses.code, input.outcome)),
     db.select().from(invoiceApprovalStepTypes).where(eq(invoiceApprovalStepTypes.code, LINE_REVIEW_STEP_TYPE_CODE)),
     db.select().from(invoiceApprovalOutcomes).where(eq(invoiceApprovalOutcomes.code, input.outcome)),
   ]);
-  if (!invoiceRow) {
-    throw new InvoiceNotFoundError();
-  }
   if (!submittedStatus) {
     throw new ReviewInvoiceConfigurationError(
       `Missing required seeded invoice_statuses row with code "${SUBMITTED_INVOICE_STATUS_CODE}".`,
     );
   }
-  if (invoiceRow.statusId !== submittedStatus.id) {
-    throw new InvoiceNotSubmittedError();
+  if (!resultStatus) {
+    throw new ReviewInvoiceConfigurationError(`Missing required seeded invoice_statuses row with code "${input.outcome}".`);
   }
   if (!lineReviewStepType) {
     throw new ReviewInvoiceConfigurationError(
@@ -112,15 +112,21 @@ export async function reviewInvoice(
       `Missing required seeded invoice_approval_outcomes row with code "${input.outcome}".`,
     );
   }
-  // The invoice's new status shares the outcome's code (both seeded as
-  // "approved"/"rejected" — see ../db/ensureReferenceData.ts), so one more
-  // lookup resolves it instead of a code-to-code mapping table.
-  const [resultStatus] = await db.select().from(invoiceStatuses).where(eq(invoiceStatuses.code, input.outcome));
-  if (!resultStatus) {
-    throw new ReviewInvoiceConfigurationError(`Missing required seeded invoice_statuses row with code "${input.outcome}".`);
-  }
 
   return db.transaction(async (tx) => {
+    // Conditional on still being submitted, so of two concurrent reviews
+    // only one updates a row; the other blocks on the row lock, then
+    // matches nothing and is rejected.
+    const [updated] = await tx
+      .update(invoice)
+      .set({ statusId: resultStatus.id })
+      .where(and(eq(invoice.invoiceId, invoiceId), eq(invoice.statusId, submittedStatus.id)))
+      .returning({ invoiceId: invoice.invoiceId });
+    if (!updated) {
+      const [existing] = await tx.select({ invoiceId: invoice.invoiceId }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+      throw existing ? new InvoiceNotSubmittedError() : new InvoiceNotFoundError();
+    }
+
     const chain = firstRow(
       await tx
         .insert(invoiceApprovalChain)
@@ -136,7 +142,6 @@ export async function reviewInvoice(
       decidedAt: new Date(),
       reason: input.reason,
     });
-    await tx.update(invoice).set({ statusId: resultStatus.id }).where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, statusId: resultStatus.id };
   });
 }
