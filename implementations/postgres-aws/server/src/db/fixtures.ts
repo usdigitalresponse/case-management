@@ -5,6 +5,10 @@ import { sql } from 'drizzle-orm';
 import { faker } from '@faker-js/faker';
 import type { Database } from './client';
 import { firstRow } from './rowHelpers';
+import { ensureReferenceData } from './ensureReferenceData';
+import { getStaffAccountRoleId } from '../auth/staffAccountRole';
+import { getExternalSubmitterRoleId } from '../professionals/externalSubmitterRole';
+import { getStaffAssignmentRoleId } from '../cases/staffAssignmentRole';
 import {
   caseCategories,
   caseStatuses,
@@ -51,6 +55,14 @@ const LSC_CASE_CATEGORIES = [
   { code: 'miscellaneous', displayName: 'Miscellaneous' },
   { code: 'utilities', displayName: 'Utilities' },
 ];
+
+function idForCode(rows: { id: string; code: string }[], code: string): string {
+  const row = rows.find((candidate) => candidate.code === code);
+  if (!row) {
+    throw new Error(`Expected a reference row with code "${code}".`);
+  }
+  return row.id;
+}
 
 export interface BaselineFixtureIds {
   caseStatusOpenId: string;
@@ -155,63 +167,35 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   if (!reason || !closureReason) {
     throw new Error('Expected case_lifecycle_reasons insert to return two rows.');
   }
-  const activityType = firstRow(
-    await db.insert(activityTypes).values([{ code: 'legal_services', displayName: 'Legal Services' }]).returning(),
-  );
-  const [invoiceStatusDraft, invoiceStatusSubmitted, invoiceStatusApproved, invoiceStatusRejected] = await db
-    .insert(invoiceStatuses)
-    .values([
-      { code: 'draft', displayName: 'Draft' },
-      { code: 'submitted', displayName: 'Submitted' },
-      { code: 'approved', displayName: 'Approved' },
-      { code: 'rejected', displayName: 'Rejected' },
-    ])
-    .returning();
-  if (!invoiceStatusDraft || !invoiceStatusSubmitted || !invoiceStatusApproved || !invoiceStatusRejected) {
-    throw new Error('Expected invoice_statuses insert to return four rows.');
-  }
-  const invoiceLineType = firstRow(
-    await db.insert(invoiceLineTypes).values([{ code: 'service', displayName: 'Service' }]).returning(),
-  );
-  const invoiceApprovalStepTypeLineReview = firstRow(
-    await db.insert(invoiceApprovalStepTypes).values([{ code: 'line_review', displayName: 'Line Review' }]).returning(),
-  );
-  const [invoiceApprovalOutcomeApproved, invoiceApprovalOutcomeRejected] = await db
-    .insert(invoiceApprovalOutcomes)
-    .values([
-      { code: 'approved', displayName: 'Approved' },
-      { code: 'rejected', displayName: 'Rejected' },
-    ])
-    .returning();
-  if (!invoiceApprovalOutcomeApproved || !invoiceApprovalOutcomeRejected) {
-    throw new Error('Expected invoice_approval_outcomes insert to return two rows.');
-  }
 
-  await db.insert(role).values([
-    {
-      roleId: ROLE_IDS.CLIENT_PARTICIPANT,
-      displayName: 'Client',
-      roleContext: 'case_participant',
-      active: true,
-    },
-    {
-      roleId: ROLE_IDS.INTAKE_STAFF_ACCOUNT,
-      displayName: 'Intake Staff',
-      roleContext: 'user_account',
-      active: true,
-    },
-    {
-      roleId: ROLE_IDS.EXTERNAL_SUBMITTER_ASSIGNMENT,
-      displayName: 'External Submitter',
-      roleContext: 'case_assignment',
-      active: true,
-    },
-    {
-      roleId: ROLE_IDS.ASSIGNED_STAFF,
-      displayName: 'Assigned Staff',
-      roleContext: 'case_assignment',
-      active: true,
-    },
+  await db.insert(role).values({
+    roleId: ROLE_IDS.CLIENT_PARTICIPANT,
+    displayName: 'Client',
+    roleContext: 'case_participant',
+    active: true,
+  });
+
+  // Rows every environment needs come from the same provisioning code
+  // production runs at migrate time, not a second hand-maintained copy.
+  await ensureReferenceData(db);
+  const [
+    activityTypeRows,
+    invoiceStatusRows,
+    invoiceLineTypeRows,
+    invoiceApprovalStepTypeRows,
+    invoiceApprovalOutcomeRows,
+    intakeStaffRoleId,
+    externalSubmitterAssignmentRoleId,
+    assignedStaffRoleId,
+  ] = await Promise.all([
+    db.select().from(activityTypes),
+    db.select().from(invoiceStatuses),
+    db.select().from(invoiceLineTypes),
+    db.select().from(invoiceApprovalStepTypes),
+    db.select().from(invoiceApprovalOutcomes),
+    getStaffAccountRoleId(db),
+    getExternalSubmitterRoleId(db),
+    getStaffAssignmentRoleId(db),
   ]);
 
   await db
@@ -253,8 +237,8 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
 
   // A synthetic dev-only account (example.invalid domain, per
   // scenarios/fixtures conventions) used for local testing without a real
-  // Google OAuth login. Real accounts are created on first OAuth login,
-  // matched by email (see ../auth).
+  // SSO login. Real accounts are created on first login, matched by email
+  // (see ../auth).
   await db.insert(userAccount).values([
     {
       userAccountId: USER_ACCOUNT_IDS.SYNTHETIC_STAFF,
@@ -262,7 +246,7 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
       active: true,
       email: 'staff@example.invalid',
       personId: PERSON_IDS.SYNTHETIC_STAFF,
-      systemRoleId: ROLE_IDS.INTAKE_STAFF_ACCOUNT,
+      systemRoleId: intakeStaffRoleId,
     },
   ]);
 
@@ -278,18 +262,18 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     lifecycleReasonIntakeId: reason.id,
     lifecycleReasonClosureId: closureReason.id,
     clientParticipantRoleId: ROLE_IDS.CLIENT_PARTICIPANT,
-    intakeStaffRoleId: ROLE_IDS.INTAKE_STAFF_ACCOUNT,
-    externalSubmitterAssignmentRoleId: ROLE_IDS.EXTERNAL_SUBMITTER_ASSIGNMENT,
-    assignedStaffRoleId: ROLE_IDS.ASSIGNED_STAFF,
-    activityTypeSampleId: activityType.id,
-    invoiceStatusDraftId: invoiceStatusDraft.id,
-    invoiceStatusSubmittedId: invoiceStatusSubmitted.id,
-    invoiceStatusApprovedId: invoiceStatusApproved.id,
-    invoiceStatusRejectedId: invoiceStatusRejected.id,
-    invoiceLineTypeSampleId: invoiceLineType.id,
-    invoiceApprovalStepTypeLineReviewId: invoiceApprovalStepTypeLineReview.id,
-    invoiceApprovalOutcomeApprovedId: invoiceApprovalOutcomeApproved.id,
-    invoiceApprovalOutcomeRejectedId: invoiceApprovalOutcomeRejected.id,
+    intakeStaffRoleId,
+    externalSubmitterAssignmentRoleId,
+    assignedStaffRoleId,
+    activityTypeSampleId: idForCode(activityTypeRows, 'legal_services'),
+    invoiceStatusDraftId: idForCode(invoiceStatusRows, 'draft'),
+    invoiceStatusSubmittedId: idForCode(invoiceStatusRows, 'submitted'),
+    invoiceStatusApprovedId: idForCode(invoiceStatusRows, 'approved'),
+    invoiceStatusRejectedId: idForCode(invoiceStatusRows, 'rejected'),
+    invoiceLineTypeSampleId: idForCode(invoiceLineTypeRows, 'service'),
+    invoiceApprovalStepTypeLineReviewId: idForCode(invoiceApprovalStepTypeRows, 'line_review'),
+    invoiceApprovalOutcomeApprovedId: idForCode(invoiceApprovalOutcomeRows, 'approved'),
+    invoiceApprovalOutcomeRejectedId: idForCode(invoiceApprovalOutcomeRows, 'rejected'),
     countyId: COUNTY_IDS.SAMPLE_COUNTY_A,
     organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A,
     officeId: OFFICE_IDS.SAMPLE_OFFICE_A,

@@ -1,16 +1,9 @@
-// Idempotent seeding of the small reference/config rows the external
-// portal needs to function at all (activity_types, invoice_statuses,
-// invoice_line_types, and the "External Submitter" case_assignment
-// role) — unlike resetAndSeedBaselineFixtures (../db/fixtures.ts,
-// destructive, test/dev-only), this is safe to run in every environment,
-// including production, and is meant to be. Previously only the role got
-// a lazy-create-on-first-use workaround (see git history of
-// ../professionals/externalSubmitterRole.ts) because production never
-// runs the fixture reset; the other three rows had no such workaround and
-// would 500 on first use in any real deployment. Call this once from
-// ./migrate.ts instead, so every environment provisions these rows the
-// same way and none of the portal code needs a fallback for "what if this
-// reference row doesn't exist yet."
+// Idempotent seeding of the reference/config rows the app needs to
+// function at all (activity_types, invoice statuses/line types/approval
+// step types/outcomes, and the fixed staff and assignment roles). Safe to
+// run in every environment, including production, and is: ./migrate.ts
+// calls it, and ./fixtures.ts calls it after its reset, so there is one
+// definition of these rows.
 import type { Database } from './client';
 import {
   activityTypes,

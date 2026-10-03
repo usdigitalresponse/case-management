@@ -342,23 +342,19 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 
 ## Reference data
 
-`src/db/ensureReferenceData.ts` idempotently seeds the small
-reference/config rows the external portal needs to function at all
-(`activity_types`, `invoice_statuses`, `invoice_line_types`, and the
-"External Submitter" `case_assignment`-context role) via
-`insert ... on conflict do nothing`, keyed by each table's unique `code`
-column (or, for `role`, a unique index added on `(display_name,
-role_context)` specifically so this can be idempotent). `src/db/migrate.ts`
-runs it right after applying migrations, so it executes in every
-environment — including production, where `resetAndSeedBaselineFixtures`
-(destructive, test/dev-only) never runs. Before this existed, only the
-"External Submitter" role had a workaround for that gap (a lazy
-create-on-first-use in `externalSubmitterRole.ts`); the other three rows
-had none, so logging time or submitting an invoice would 500 in any real
-deployment. All four rows are now provisioned the same single way, and
-`externalSubmitterRole.ts`/`createTimeEntry.ts`/`createInvoice.ts` all
-just look the rows up and throw a configuration error if one is somehow
-still missing, instead of one of them special-casing its own repair.
+`src/db/ensureReferenceData.ts` idempotently seeds the reference/config
+rows the app needs to function at all (`activity_types`,
+`invoice_statuses`, `invoice_line_types`, `invoice_approval_step_types`,
+`invoice_approval_outcomes`, and the "Intake Staff", "External Submitter"
+and "Assigned Staff" roles) via `insert ... on conflict do nothing`,
+keyed by each table's unique `code` column (or, for `role`, a unique
+index on `(display_name, role_context)`). `src/db/migrate.ts` runs it
+right after applying migrations, so it executes in every environment,
+including production. `resetAndSeedBaselineFixtures` (destructive,
+test/dev-only) calls it too after truncating, so there is a single
+definition of these rows; the fixtures add only test/dev-only reference
+rows on top. Code that needs one of these rows looks it up and throws a
+configuration error if it is somehow missing.
 
 ## Schema-mapping drift check
 

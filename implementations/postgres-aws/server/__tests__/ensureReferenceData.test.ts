@@ -7,9 +7,8 @@ import { EXTERNAL_SUBMITTER_ROLE_DISPLAY_NAME } from '../src/professionals/exter
 import { activityTypes, invoiceLineTypes, invoiceStatuses, role } from '../src/db/schema';
 
 beforeEach(async () => {
-  // Start from a baseline that already has these rows (fixtures.ts seeds
-  // them independently) to prove ensureReferenceData is a true no-op on
-  // top of existing data, not just a from-empty seed.
+  // The baseline already has these rows (fixtures.ts runs
+  // ensureReferenceData), so a further run must be a no-op.
   await resetAndSeedBaselineFixtures(testDb);
 });
 
