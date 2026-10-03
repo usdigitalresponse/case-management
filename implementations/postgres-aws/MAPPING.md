@@ -283,7 +283,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - The invoice stays `submitted` until every line is decided, then becomes
     `approved` (case moves to `closing`) or `rejected` (any line rejected).
     `submitted_total` is unchanged; the approved total is the sum of line
-    amounts, not stored.
+    `approved_amount`s, not stored.
   - Not implemented: pre-approval, further stages, "requests changes",
     chain superseding, `under_review` status, allocation draws, submission
     snapshot. Pre-existing whole-invoice decisions (null `invoice_line_id`)

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import { Alert } from '@trussworks/react-uswds';
 import { ApiError, getInvoiceForReview, type InvoiceReviewLine } from '../api/client';
@@ -33,11 +33,28 @@ export default function InvoiceReview() {
   // inputs aren't unmounted by a loading state.
   const [refreshed, setRefreshed] = useState<Awaited<ReturnType<typeof getInvoiceForReview>> | null>(null);
   const [refreshFailed, setRefreshFailed] = useState(false);
+  // Only the latest request may apply, so a slow earlier refresh can't
+  // overwrite newer decisions.
+  const latestRequest = useRef(0);
   const data = refreshed?.invoice.invoiceId === invoiceId ? refreshed : loaded;
 
-  function refresh() {
+  useEffect(() => {
+    latestRequest.current += 1;
+    setRefreshed(null);
     setRefreshFailed(false);
-    getInvoiceForReview(invoiceId as string).then(setRefreshed, () => setRefreshFailed(true));
+  }, [invoiceId]);
+
+  function refresh() {
+    const request = ++latestRequest.current;
+    setRefreshFailed(false);
+    getInvoiceForReview(invoiceId as string).then(
+      (result) => {
+        if (request === latestRequest.current) setRefreshed(result);
+      },
+      () => {
+        if (request === latestRequest.current) setRefreshFailed(true);
+      },
+    );
   }
 
   if (error) {
