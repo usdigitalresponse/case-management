@@ -18,8 +18,7 @@ import {
 import { createCase } from '../intake/createCase';
 import { caseStageExpression } from '../cases/caseStage';
 import { getSessionUser, requireFullUser } from '../auth/session';
-import { getExternalSubmitterRoleId } from '../professionals/externalSubmitterRole';
-import { assignProfessionalToCase } from '../cases/assignProfessionalToCase';
+import { assignExternalSubmitterToCase } from '../cases/assignExternalSubmitterToCase';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase } from '../cases/closeCase';
 import { asyncHandler } from './asyncHandler';
@@ -166,11 +165,9 @@ router.get(
   }),
 );
 
-// Scoped specifically to assigning an external (magic-link) professional
-// to a case with the "External Submitter" role - not a general-purpose
-// assignment endpoint (staff assignment, role choice, qualification/
-// workload checks are all out of scope here; see
-// ../professionals/externalSubmitterRole.ts and ../../MAPPING.md).
+// The two assignment workflows (../cases/assignExternalSubmitterToCase.ts,
+// ../cases/assignStaffToCase.ts), both built on
+// ../cases/assignProfessionalToCase.ts.
 router.post(
   '/:id/external-assignments',
   asyncHandler(async (req, res) => {
@@ -179,42 +176,11 @@ router.post(
       res.status(401).json({ error: 'Authentication required.' });
       return;
     }
-    const caseId = req.params.id as string;
-    const professionalId = typeof req.body?.professionalId === 'string' ? req.body.professionalId : undefined;
-    if (!professionalId) {
-      res.status(400).json({ error: 'validation_error', message: 'professionalId is required.' });
-      return;
-    }
-
-    const [[caseRow], [professionalRow]] = await Promise.all([
-      db.select({ caseId: caseTable.caseId }).from(caseTable).where(eq(caseTable.caseId, caseId)),
-      db
-        .select({ professionalId: professional.professionalId })
-        .from(professional)
-        .where(eq(professional.professionalId, professionalId)),
-    ]);
-    if (!caseRow) {
-      res.status(404).json({ error: 'not_found', message: 'Case not found.' });
-      return;
-    }
-    if (!professionalRow) {
-      res.status(400).json({ error: 'validation_error', message: 'professionalId does not exist.' });
-      return;
-    }
-
-    const assignmentRoleId = await getExternalSubmitterRoleId(db);
-    const assignment = await assignProfessionalToCase(db, caseId, professionalId, assignmentRoleId, actor.userAccountId);
+    const assignment = await assignExternalSubmitterToCase(db, actor.userAccountId, req.params.id as string, req.body);
     res.status(201).json({ assignment });
   }),
 );
 
-// Assigns a staff (SSO) user to a case — the internal-assignment
-// counterpart to /:id/external-assignments above. Staff has no
-// professional profile until their first assignment (unlike a vendor's,
-// bootstrapped at magic-link login; see
-// ../professionals/ensureProfessional.ts), so one is created lazily by
-// ../cases/assignStaffToCase.ts, the first time they're assigned to
-// anything.
 router.post(
   '/:id/staff-assignments',
   asyncHandler(async (req, res) => {
@@ -223,14 +189,7 @@ router.post(
       res.status(401).json({ error: 'Authentication required.' });
       return;
     }
-    const caseId = req.params.id as string;
-    const userAccountId = typeof req.body?.userAccountId === 'string' ? req.body.userAccountId : undefined;
-    if (!userAccountId) {
-      res.status(400).json({ error: 'validation_error', message: 'userAccountId is required.' });
-      return;
-    }
-
-    const assignment = await assignStaffToCase(db, actor.userAccountId, { caseId, userAccountId });
+    const assignment = await assignStaffToCase(db, actor.userAccountId, req.params.id as string, req.body);
     res.status(201).json({ assignment });
   }),
 );

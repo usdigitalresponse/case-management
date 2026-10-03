@@ -232,12 +232,14 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   closed cases and recovers from a double-click/retry hitting
   `case_assignment_open_unique` rather than creating a second open
   assignment):
-  - `POST /api/cases/:id/external-assignments` (`requireFullUser`)
-    assigns an existing professional (found via
-    `GET /api/professionals?q=<email>`, which only finds professionals
-    with a `user_account_id` — i.e. someone who has logged in via magic
-    link at least once) to a case, with a fixed "External Submitter" role
-    (`src/professionals/externalSubmitterRole.ts`).
+  - `POST /api/cases/:id/external-assignments` (`requireFullUser`,
+    `src/cases/assignExternalSubmitterToCase.ts`) assigns an existing
+    professional (found via `GET /api/professionals?q=<email>`, which only
+    finds professionals with a `user_account_id` — i.e. someone who has
+    logged in via magic link at least once) to a case, with a fixed
+    "External Submitter" role (`src/professionals/externalSubmitterRole.ts`).
+    A staff member's professional profile is rejected; staff go through
+    the staff endpoint below.
   - `POST /api/cases/:id/staff-assignments` (`requireFullUser`,
     `src/cases/assignStaffToCase.ts`) assigns a staff (SSO) user, found
     via `GET /api/staff?q=<email>` (`src/routes/staff.ts`), with a fixed

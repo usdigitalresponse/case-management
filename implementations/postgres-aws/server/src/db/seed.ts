@@ -208,7 +208,7 @@ async function seedStaffAssignment(
   if (!caseId || !staffUserAccountId) {
     throw new Error('Expected an unassigned demo case and a demo staff account.');
   }
-  await assignStaffToCase(db, fixtures.staffUserAccountId, { caseId, userAccountId: staffUserAccountId });
+  await assignStaffToCase(db, fixtures.staffUserAccountId, caseId, { userAccountId: staffUserAccountId });
 }
 
 async function main(): Promise<void> {
