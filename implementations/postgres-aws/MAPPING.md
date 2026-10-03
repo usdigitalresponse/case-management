@@ -238,11 +238,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     no professional profile until their first assignment (unlike a
     vendor's, bootstrapped at magic-link login), so one is lazily created
     here. "Staff" means a user_account whose `system_role_id` is the
-    "Intake Staff" role (`src/auth/staffAccountRole.ts`), set only when
-    the SSO verify callback (`src/auth/oidcProviders.ts`) creates a
-    brand-new account — a magic-link account never gets it, which is how
-    the two populations stay distinguishable in the same `user_account`
-    table.
+    "Intake Staff" role (`src/auth/staffAccountRole.ts`), set by the SSO
+    verify callback (`src/auth/oidcProviders.ts`) on any account that has
+    no role yet — including one first created by magic link — and never
+    replaced once set. Magic-link login never sets it, which is how the
+    two populations stay distinguishable in the same `user_account`
+    table. Emails are lowercased (`normalizeEmail` in
+    `src/auth/emailLists.ts`) before being stored or matched.
 
   Both roles above are provisioned the same way in every environment by
   `src/db/ensureReferenceData.ts`, run at `migrate` time (see "Reference

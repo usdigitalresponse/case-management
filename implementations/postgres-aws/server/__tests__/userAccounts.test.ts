@@ -47,7 +47,7 @@ describe('ensureUserAccountForEmail', () => {
     expect(account.systemRoleId).toBe(fixtures.intakeStaffRoleId);
   });
 
-  it('never overwrites systemRoleId on an existing account', async () => {
+  it('gives an existing account with no role the role it is called with', async () => {
     const fixtures = await resetAndSeedBaselineFixtures(testDb);
     const first = await ensureUserAccountForEmail(testDb, 'staff6@usdigitalresponse.org');
     expect(first.systemRoleId).toBeNull();
@@ -58,6 +58,32 @@ describe('ensureUserAccountForEmail', () => {
       'Staff Six',
       fixtures.intakeStaffRoleId,
     );
-    expect(second.systemRoleId).toBeNull();
+    expect(second.userAccountId).toBe(first.userAccountId);
+    expect(second.systemRoleId).toBe(fixtures.intakeStaffRoleId);
+  });
+
+  it('never clears or replaces an existing role', async () => {
+    const fixtures = await resetAndSeedBaselineFixtures(testDb);
+    await ensureUserAccountForEmail(testDb, 'staff7@usdigitalresponse.org', 'Staff Seven', fixtures.intakeStaffRoleId);
+
+    const again = await ensureUserAccountForEmail(testDb, 'staff7@usdigitalresponse.org');
+    expect(again.systemRoleId).toBe(fixtures.intakeStaffRoleId);
+  });
+
+  it('matches emails case-insensitively, storing them lowercased', async () => {
+    const first = await ensureUserAccountForEmail(testDb, 'Jane.Doe@USDigitalResponse.org');
+    const second = await ensureUserAccountForEmail(testDb, ' jane.doe@usdigitalresponse.org ');
+
+    expect(first.email).toBe('jane.doe@usdigitalresponse.org');
+    expect(second.userAccountId).toBe(first.userAccountId);
+  });
+
+  it('creates one account when two first logins race', async () => {
+    const [first, second] = await Promise.all([
+      ensureUserAccountForEmail(testDb, 'staff8@usdigitalresponse.org'),
+      ensureUserAccountForEmail(testDb, 'staff8@usdigitalresponse.org'),
+    ]);
+
+    expect(second.userAccountId).toBe(first.userAccountId);
   });
 });

@@ -7,6 +7,7 @@ import { getSessionUser, setSessionUser } from '../auth/session';
 import type { AuthenticatedUser, OidcProviderConfig } from '../auth/oidcProviders';
 import { passportStrategyName } from '../auth/oidcProviders';
 import { isWhitelistedExternalEmail } from '../auth/externalEmailWhitelist';
+import { normalizeEmail } from '../auth/emailLists';
 import { issueMagicLinkToken, consumeMagicLinkToken } from '../auth/magicLink';
 import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
@@ -58,7 +59,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
   router.post(
     '/magic-link/request',
     asyncHandler(async (req, res) => {
-      const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+      const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : '';
       // Always respond the same way whether or not the email is
       // whitelisted, so this endpoint can't be used to enumerate which
       // external addresses are allowed in.

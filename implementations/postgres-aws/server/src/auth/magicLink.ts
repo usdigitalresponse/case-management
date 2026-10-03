@@ -6,6 +6,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import { eq, isNull, and } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { magicLinkToken } from '../db/schema';
+import { normalizeEmail } from './emailLists';
 
 // Short-lived: the link is meant to be used immediately after requesting
 // it, not saved for later — shorter windows shrink the damage if an email
@@ -19,7 +20,7 @@ function hashToken(rawToken: string): string {
 // Returns the raw token (to put in the emailed link); only its hash is
 // persisted, so reading the table never yields a usable token.
 export async function issueMagicLinkToken(db: Database, email: string): Promise<string> {
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = normalizeEmail(email);
   const rawToken = randomBytes(32).toString('hex');
 
   // Invalidate any earlier unused link for this email first, so a repeat
