@@ -36,7 +36,7 @@ export default function BillingQueue() {
             { header: 'Submitted by', render: (i) => i.professionalDisplayName ?? 'Unknown' },
             { header: 'Submitted', render: (i) => (i.submittedAt ? formatDateTime(i.submittedAt) : '—') },
             { header: 'Total', render: (i) => `$${i.submittedTotal}` },
-            { header: 'Review', render: (i) => <RouterLink to={`/billing/${i.invoiceId}`}>Review lines</RouterLink> },
+            { header: 'Review', render: (i) => <RouterLink to={`/billing/${i.invoiceId}`}>Review</RouterLink> },
           ]}
         />
       )}

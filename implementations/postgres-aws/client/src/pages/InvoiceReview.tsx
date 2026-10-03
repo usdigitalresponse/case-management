@@ -88,7 +88,7 @@ export default function InvoiceReview() {
           <dd>${(approvedCents / 100).toFixed(2)}</dd>
         </div>
         <div className="fact">
-          <dt>Lines reviewed</dt>
+          <dt>Invoice items reviewed</dt>
           <dd>{decidedCount} of {lines.length}</dd>
         </div>
       </dl>
@@ -98,12 +98,12 @@ export default function InvoiceReview() {
       </p>
 
       <div className="detail-section">
-        <h2>Lines</h2>
+        <h2>Invoice items</h2>
         {refreshFailed && <Alert type="warning" slim>Decision saved, but the page failed to refresh. Reload to see it.</Alert>}
         <RecordTable
           rows={lines}
           rowKey={(line) => line.invoiceLineId}
-          emptyMessage="This invoice has no lines."
+          emptyMessage="This invoice has no items."
           columns={[
             { header: 'Date', render: (l) => l.sourceActivityOn ?? '—' },
             { header: 'Hours', render: (l) => l.sourceDurationHours ?? '—' },

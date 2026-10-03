@@ -38,7 +38,7 @@ export function InvoiceLineReviewActions({
       await reviewInvoiceLine(invoiceId, invoiceLineId, { outcome: 'approved', approvedAmount: Number(approvedAmount) });
       onReviewed();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to approve line.'));
+      setError(errorMessage(err, 'Failed to approve invoice item.'));
     } finally {
       setSubmitting(false);
     }
@@ -52,7 +52,7 @@ export function InvoiceLineReviewActions({
       await reviewInvoiceLine(invoiceId, invoiceLineId, { outcome: 'rejected', reason });
       onReviewed();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to reject line.'));
+      setError(errorMessage(err, 'Failed to reject invoice item.'));
     } finally {
       setSubmitting(false);
     }

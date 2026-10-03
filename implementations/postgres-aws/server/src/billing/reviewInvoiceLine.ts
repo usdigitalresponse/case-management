@@ -43,7 +43,7 @@ export class InvoiceNotFoundError extends NotFoundError {
 
 export class InvoiceLineNotFoundError extends NotFoundError {
   constructor() {
-    super('Invoice line not found on this invoice.');
+    super('Invoice item not found on this invoice.');
   }
 }
 
@@ -55,7 +55,7 @@ export class InvoiceNotSubmittedError extends ConflictError {
 
 export class InvoiceLineAlreadyReviewedError extends ConflictError {
   constructor() {
-    super('already_reviewed', 'This invoice line has already been reviewed.');
+    super('already_reviewed', 'This invoice item has already been reviewed.');
   }
 }
 
@@ -92,10 +92,10 @@ export async function reviewInvoiceLine(
   const input = parsed.data;
   if (input.outcome === 'rejected') {
     if (!input.reason) {
-      throw new ValidationError({ reason: 'A reason is required to reject an invoice line.' });
+      throw new ValidationError({ reason: 'A reason is required to reject an invoice item.' });
     }
     if (input.approvedAmount !== undefined) {
-      throw new ValidationError({ approvedAmount: 'A rejected line has no approved amount.' });
+      throw new ValidationError({ approvedAmount: 'A rejected invoice item has no approved amount.' });
     }
   }
 
