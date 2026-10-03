@@ -26,11 +26,10 @@ export function AssignStaffForm({ caseId, onAssigned }: { caseId: string; onAssi
       setResetKey((key) => key + 1);
       onAssigned();
     } catch (err) {
-      setError(
-        err instanceof ApiError && err.status === 409
-          ? 'That staff member is already assigned to this case.'
-          : 'Failed to assign staff member.',
-      );
+      // 409 is already_assigned or already_closed; the server's message says which.
+      const conflictMessage =
+        err instanceof ApiError && err.status === 409 ? (err.body as { message?: string } | undefined)?.message : undefined;
+      setError(conflictMessage ?? 'Failed to assign staff member.');
     } finally {
       setAssigning(false);
     }

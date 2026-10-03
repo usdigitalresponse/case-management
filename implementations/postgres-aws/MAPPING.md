@@ -221,8 +221,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   Google OAuth credentials (see "Known gaps" below).
 - **Case assignment, two workflows**: `professional` and `case_assignment`
   map the canonical entities, with two assignment endpoints built on a
-  shared insert (`src/cases/assignProfessionalToCase.ts`, which also
-  recovers from a double-click/retry hitting
+  shared insert (`src/cases/assignProfessionalToCase.ts`, which rejects
+  closed cases and recovers from a double-click/retry hitting
   `case_assignment_open_unique` rather than creating a second open
   assignment):
   - `POST /api/cases/:id/external-assignments` (`requireFullUser`)
@@ -285,12 +285,12 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   so (like the opening code) this only exists in `src/db/fixtures.ts`
   (test/dev), not `src/db/ensureReferenceData.ts`; a real deployment
   needs its own configured codes before this (or case creation) will
-  work. Deliberately not implemented: reopening/corrections (a closed
-  case stays closed), and the rule's "reject concurrent assignment
-  creation that would leave an assignment active on a closed case" /
-  "new assignments must begin while the case is open" guards — neither
-  `src/cases/assignProfessionalToCase.ts` nor `src/cases/assignStaffToCase.ts`
-  checks the case's open/closed state before assigning.
+  work. The rule's "new assignments must begin while the case is open"
+  guard lives in `src/cases/assignProfessionalToCase.ts`, which
+  share-locks the case row while `closeCase` update-locks it, so a
+  concurrent assignment and close can't leave an open assignment on a
+  closed case (rejected with 409 `already_closed`). Deliberately not
+  implemented: reopening/corrections (a closed case stays closed).
 - **Dev-login bypass**: `POST /auth/dev-login` logs in as the seeded
   synthetic staff account (`staff@example.invalid`) without any real SSO
   provider credentials configured. `src/app.ts` only mounts it when

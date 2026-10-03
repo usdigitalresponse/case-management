@@ -4,12 +4,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase, type CreateCaseInput } from '../src/intake/createCase';
-import {
-  closeCase,
-  CloseCaseValidationError,
-  CaseAlreadyClosedError,
-} from '../src/cases/closeCase';
-import { CaseNotFoundError } from '../src/cases/errors';
+import { closeCase, CloseCaseValidationError } from '../src/cases/closeCase';
+import { CaseAlreadyClosedError, CaseNotFoundError } from '../src/cases/errors';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { caseTable, caseAssignment, caseLifecycleEvent, userAccount } from '../src/db/schema';
 
@@ -139,6 +135,19 @@ describe('closeCase', () => {
     await expect(
       closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Second closure.' }),
     ).rejects.toThrow(CaseAlreadyClosedError);
+  });
+
+  it('lets exactly one of two concurrent closes win', async () => {
+    const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
+
+    const results = await Promise.allSettled([
+      closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'First.' }),
+      closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Second.' }),
+    ]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((result) => result.status === 'rejected');
+    expect(rejected?.reason).toBeInstanceOf(CaseAlreadyClosedError);
   });
 
   it('uses the next sequence number after the opening event', async () => {

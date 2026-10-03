@@ -5,7 +5,8 @@ import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase, type CreateCaseInput } from '../src/intake/createCase';
 import { assignStaffToCase, NotStaffAccountError } from '../src/cases/assignStaffToCase';
-import { CaseNotFoundError } from '../src/cases/errors';
+import { CaseAlreadyClosedError, CaseNotFoundError } from '../src/cases/errors';
+import { closeCase } from '../src/cases/closeCase';
 import { AlreadyAssignedError } from '../src/cases/assignProfessionalToCase';
 import { ensureUserAccountForEmail } from '../src/auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
@@ -138,5 +139,23 @@ describe('assignStaffToCase', () => {
 
     const rows = await testDb.select().from(caseAssignment).where(eq(caseAssignment.caseId, caseId));
     expect(rows).toHaveLength(1);
+  });
+
+  it('rejects assignment to a closed case', async () => {
+    const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
+    await closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Done.' });
+    const staffAccount = await ensureUserAccountForEmail(
+      testDb,
+      'attorney6@usdigitalresponse.org',
+      'Attorney Six',
+      fixtures.intakeStaffRoleId,
+    );
+
+    await expect(
+      assignStaffToCase(testDb, fixtures.staffUserAccountId, { caseId, userAccountId: staffAccount.userAccountId }),
+    ).rejects.toThrow(CaseAlreadyClosedError);
+
+    const rows = await testDb.select().from(caseAssignment).where(eq(caseAssignment.caseId, caseId));
+    expect(rows).toHaveLength(0);
   });
 });

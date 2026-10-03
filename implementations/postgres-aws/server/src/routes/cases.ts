@@ -21,8 +21,8 @@ import { getSessionUser, requireFullUser } from '../auth/session';
 import { getExternalSubmitterRoleId } from '../professionals/externalSubmitterRole';
 import { assignProfessionalToCase, AlreadyAssignedError } from '../cases/assignProfessionalToCase';
 import { assignStaffToCase, NotStaffAccountError } from '../cases/assignStaffToCase';
-import { CaseNotFoundError } from '../cases/errors';
-import { closeCase, CloseCaseValidationError, CaseAlreadyClosedError, CloseCaseConfigurationError } from '../cases/closeCase';
+import { CaseAlreadyClosedError, CaseNotFoundError } from '../cases/errors';
+import { closeCase, CloseCaseValidationError, CloseCaseConfigurationError } from '../cases/closeCase';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -220,6 +220,10 @@ router.post(
       const assignment = await assignProfessionalToCase(db, caseId, professionalId, assignmentRoleId, actor.userAccountId);
       res.status(201).json({ assignment });
     } catch (error) {
+      if (error instanceof CaseAlreadyClosedError) {
+        res.status(409).json({ error: 'already_closed', message: error.message });
+        return;
+      }
       if (error instanceof AlreadyAssignedError) {
         res.status(409).json({ error: 'already_assigned', message: error.message });
         return;
@@ -261,6 +265,10 @@ router.post(
       }
       if (error instanceof NotStaffAccountError) {
         res.status(400).json({ error: 'validation_error', message: error.message });
+        return;
+      }
+      if (error instanceof CaseAlreadyClosedError) {
+        res.status(409).json({ error: 'already_closed', message: error.message });
         return;
       }
       if (error instanceof AlreadyAssignedError) {
