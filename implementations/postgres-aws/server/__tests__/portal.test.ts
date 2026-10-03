@@ -5,8 +5,9 @@ import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase, type CreateCaseInput } from '../src/intake/createCase';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
-import { createTimeEntry, CreateTimeEntryValidationError } from '../src/portal/createTimeEntry';
-import { createInvoice, CreateInvoiceValidationError } from '../src/portal/createInvoice';
+import { createTimeEntry } from '../src/portal/createTimeEntry';
+import { createInvoice } from '../src/portal/createInvoice';
+import { ValidationError } from '../src/errors';
 import { NotAssignedToCaseError } from '../src/portal/caseAssignmentAuthorization';
 import { caseAssignment, invoiceLine, timeEntry, userAccount } from '../src/db/schema';
 
@@ -92,7 +93,7 @@ describe('createTimeEntry', () => {
 
     await expect(
       createTimeEntry(testDb, { professionalId }, { caseId: 'not-a-uuid', durationHours: -1 }),
-    ).rejects.toThrow(CreateTimeEntryValidationError);
+    ).rejects.toThrow(ValidationError);
   });
 });
 
@@ -149,7 +150,7 @@ describe('createInvoice', () => {
         caseId,
         lines: [{ amount: 100, sourceTimeEntryId: othersTimeEntryId }],
       }),
-    ).rejects.toThrow(CreateInvoiceValidationError);
+    ).rejects.toThrow(ValidationError);
   });
 
   it('rejects a case the professional is not assigned to', async () => {

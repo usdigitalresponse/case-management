@@ -13,6 +13,7 @@ import invoicesRouter from './routes/invoices';
 import myCasesRouter from './routes/myCases';
 import portalRouter from './routes/portal';
 import referenceDataRouter from './routes/referenceData';
+import { AppError } from './errors';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -55,6 +56,14 @@ export function createApp() {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof AppError) {
+      if (err.status >= 500) {
+        // eslint-disable-next-line no-console
+        console.error(err);
+      }
+      res.status(err.status).json(err.toResponseBody());
+      return;
+    }
     // eslint-disable-next-line no-console
     console.error(err);
     res.status(500).json({ error: 'internal_error' });

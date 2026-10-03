@@ -9,6 +9,8 @@ import { z } from 'zod';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
+import { getReferenceId } from '../db/referenceLookups';
+import { ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { invoice, invoiceLine, invoiceLineTypes, invoiceStatuses, timeEntry } from '../db/schema';
 import { SUBMITTED_INVOICE_STATUS_CODE } from '../billing/invoiceStatusCodes';
@@ -46,23 +48,6 @@ export interface CreateInvoiceResult {
   submittedTotal: string;
 }
 
-export class CreateInvoiceValidationError extends Error {
-  fieldErrors: Record<string, string>;
-
-  constructor(fieldErrors: Record<string, string>) {
-    super('Invalid invoice');
-    this.name = 'CreateInvoiceValidationError';
-    this.fieldErrors = fieldErrors;
-  }
-}
-
-export class CreateInvoiceConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CreateInvoiceConfigurationError';
-  }
-}
-
 export async function createInvoice(
   db: Database,
   actor: CreateInvoiceActor,
@@ -70,7 +55,7 @@ export async function createInvoice(
 ): Promise<CreateInvoiceResult> {
   const parsed = createInvoiceInputSchema.safeParse(rawInput);
   if (!parsed.success) {
-    throw new CreateInvoiceValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
+    throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
   const input = parsed.data;
 
@@ -94,26 +79,16 @@ export async function createInvoice(
       );
     const ownedIds = new Set(ownedTimeEntries.map((row) => row.timeEntryId));
     if (sourceTimeEntryIds.some((id) => !ownedIds.has(id))) {
-      throw new CreateInvoiceValidationError({
+      throw new ValidationError({
         lines: 'One or more sourceTimeEntryId values are not your own time entries on this case.',
       });
     }
   }
 
-  const [[submittedStatus], [defaultLineType]] = await Promise.all([
-    db.select().from(invoiceStatuses).where(eq(invoiceStatuses.code, SUBMITTED_INVOICE_STATUS_CODE)),
-    db.select().from(invoiceLineTypes).where(eq(invoiceLineTypes.code, DEFAULT_INVOICE_LINE_TYPE_CODE)),
+  const [submittedStatusId, lineTypeId] = await Promise.all([
+    getReferenceId(db, invoiceStatuses, SUBMITTED_INVOICE_STATUS_CODE),
+    getReferenceId(db, invoiceLineTypes, DEFAULT_INVOICE_LINE_TYPE_CODE),
   ]);
-  if (!submittedStatus) {
-    throw new CreateInvoiceConfigurationError(
-      `Missing required seeded invoice_statuses row with code "${SUBMITTED_INVOICE_STATUS_CODE}".`,
-    );
-  }
-  if (!defaultLineType) {
-    throw new CreateInvoiceConfigurationError(
-      `Missing required seeded invoice_line_types row with code "${DEFAULT_INVOICE_LINE_TYPE_CODE}".`,
-    );
-  }
 
   // Each line is rounded to cents once, up front, and that same rounded
   // value is used both for the persisted invoice_line.amount and for the
@@ -137,7 +112,7 @@ export async function createInvoice(
         .values({
           submittedByUserAccountId: actor.userAccountId,
           professionalId: actor.professionalId,
-          statusId: submittedStatus.id,
+          statusId: submittedStatusId,
           submittedAt: new Date(),
           submittedTotal: submittedTotal.toFixed(2),
           caseId: input.caseId,
@@ -151,7 +126,7 @@ export async function createInvoice(
       roundedLines.map((line) => ({
         invoiceId: insertedInvoice.invoiceId,
         caseId: input.caseId,
-        lineTypeId: defaultLineType.id,
+        lineTypeId,
         sourceTimeEntryId: line.sourceTimeEntryId,
         amount: line.amount.toFixed(2),
       })),

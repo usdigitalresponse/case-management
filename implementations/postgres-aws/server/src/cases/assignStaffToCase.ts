@@ -10,12 +10,12 @@ import { ensureProfessionalForUserAccount } from '../professionals/ensureProfess
 import { getStaffAccountRoleId } from '../auth/staffAccountRole';
 import { getStaffAssignmentRoleId } from './staffAssignmentRole';
 import { assignProfessionalToCase } from './assignProfessionalToCase';
+import { ValidationError } from '../errors';
 import { CaseNotFoundError } from './errors';
 
-export class NotStaffAccountError extends Error {
+export class NotStaffAccountError extends ValidationError {
   constructor() {
-    super('userAccountId is not a staff account.');
-    this.name = 'NotStaffAccountError';
+    super({ userAccountId: 'userAccountId is not a staff account.' });
   }
 }
 

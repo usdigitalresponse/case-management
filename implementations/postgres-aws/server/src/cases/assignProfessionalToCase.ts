@@ -12,12 +12,12 @@ import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { caseAssignment, caseTable, CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT } from '../db/schema';
 import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
+import { ConflictError } from '../errors';
 import { CaseAlreadyClosedError, CaseNotFoundError } from './errors';
 
-export class AlreadyAssignedError extends Error {
+export class AlreadyAssignedError extends ConflictError {
   constructor() {
-    super('Already assigned to this case.');
-    this.name = 'AlreadyAssignedError';
+    super('already_assigned', 'Already assigned to this case.');
   }
 }
 

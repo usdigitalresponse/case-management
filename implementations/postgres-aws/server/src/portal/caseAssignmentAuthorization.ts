@@ -5,6 +5,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { caseAssignment } from '../db/schema';
+import { ForbiddenError } from '../errors';
 
 export async function hasOpenAssignment(db: Database, professionalId: string, caseId: string): Promise<boolean> {
   const [assignment] = await db
@@ -24,9 +25,8 @@ export async function hasOpenAssignment(db: Database, professionalId: string, ca
 // caller has no open case_assignment for this case — the actual
 // authorization check (see model/schema.yaml case_assignment and
 // ../../MAPPING.md "Case assignment, scoped to external submitters").
-export class NotAssignedToCaseError extends Error {
+export class NotAssignedToCaseError extends ForbiddenError {
   constructor() {
-    super('Not assigned to this case.');
-    this.name = 'NotAssignedToCaseError';
+    super('not_assigned', 'Not assigned to this case.');
   }
 }

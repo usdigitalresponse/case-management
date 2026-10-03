@@ -4,7 +4,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase, type CreateCaseInput } from '../src/intake/createCase';
-import { closeCase, CloseCaseValidationError } from '../src/cases/closeCase';
+import { closeCase } from '../src/cases/closeCase';
+import { ValidationError } from '../src/errors';
 import { CaseAlreadyClosedError, CaseNotFoundError } from '../src/cases/errors';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { calendarDateInReportingTimeZone } from '../src/reportingTimeZone';
@@ -133,7 +134,7 @@ describe('closeCase', () => {
   it('requires a reason', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
 
-    await expect(closeCase(testDb, fixtures.staffUserAccountId, caseId, {})).rejects.toThrow(CloseCaseValidationError);
+    await expect(closeCase(testDb, fixtures.staffUserAccountId, caseId, {})).rejects.toThrow(ValidationError);
   });
 
   it('rejects an unknown case', async () => {

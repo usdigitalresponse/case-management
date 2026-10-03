@@ -15,14 +15,13 @@ import {
   caseStatuses,
   role,
 } from '../db/schema';
-import { createCase, CreateCaseValidationError, CreateCaseConfigurationError } from '../intake/createCase';
+import { createCase } from '../intake/createCase';
 import { caseStageExpression } from '../cases/caseStage';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { getExternalSubmitterRoleId } from '../professionals/externalSubmitterRole';
-import { assignProfessionalToCase, AlreadyAssignedError } from '../cases/assignProfessionalToCase';
-import { assignStaffToCase, NotStaffAccountError } from '../cases/assignStaffToCase';
-import { CaseAlreadyClosedError, CaseNotFoundError } from '../cases/errors';
-import { closeCase, CloseCaseValidationError, CloseCaseConfigurationError } from '../cases/closeCase';
+import { assignProfessionalToCase } from '../cases/assignProfessionalToCase';
+import { assignStaffToCase } from '../cases/assignStaffToCase';
+import { closeCase } from '../cases/closeCase';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -62,20 +61,8 @@ router.post(
       res.status(401).json({ error: 'Authentication required.' });
       return;
     }
-    try {
-      const result = await createCase(db, { userAccountId: actor.userAccountId }, req.body);
-      res.status(201).json(result);
-    } catch (error) {
-      if (error instanceof CreateCaseValidationError) {
-        res.status(400).json({ error: 'validation_error', fieldErrors: error.fieldErrors });
-        return;
-      }
-      if (error instanceof CreateCaseConfigurationError) {
-        res.status(500).json({ error: 'configuration_error', message: error.message });
-        return;
-      }
-      throw error;
-    }
+    const result = await createCase(db, { userAccountId: actor.userAccountId }, req.body);
+    res.status(201).json(result);
   }),
 );
 
@@ -216,20 +203,8 @@ router.post(
     }
 
     const assignmentRoleId = await getExternalSubmitterRoleId(db);
-    try {
-      const assignment = await assignProfessionalToCase(db, caseId, professionalId, assignmentRoleId, actor.userAccountId);
-      res.status(201).json({ assignment });
-    } catch (error) {
-      if (error instanceof CaseAlreadyClosedError) {
-        res.status(409).json({ error: 'already_closed', message: error.message });
-        return;
-      }
-      if (error instanceof AlreadyAssignedError) {
-        res.status(409).json({ error: 'already_assigned', message: error.message });
-        return;
-      }
-      throw error;
-    }
+    const assignment = await assignProfessionalToCase(db, caseId, professionalId, assignmentRoleId, actor.userAccountId);
+    res.status(201).json({ assignment });
   }),
 );
 
@@ -255,28 +230,8 @@ router.post(
       return;
     }
 
-    try {
-      const assignment = await assignStaffToCase(db, actor.userAccountId, { caseId, userAccountId });
-      res.status(201).json({ assignment });
-    } catch (error) {
-      if (error instanceof CaseNotFoundError) {
-        res.status(404).json({ error: 'not_found', message: error.message });
-        return;
-      }
-      if (error instanceof NotStaffAccountError) {
-        res.status(400).json({ error: 'validation_error', message: error.message });
-        return;
-      }
-      if (error instanceof CaseAlreadyClosedError) {
-        res.status(409).json({ error: 'already_closed', message: error.message });
-        return;
-      }
-      if (error instanceof AlreadyAssignedError) {
-        res.status(409).json({ error: 'already_assigned', message: error.message });
-        return;
-      }
-      throw error;
-    }
+    const assignment = await assignStaffToCase(db, actor.userAccountId, { caseId, userAccountId });
+    res.status(201).json({ assignment });
   }),
 );
 
@@ -291,28 +246,8 @@ router.post(
       return;
     }
     const caseId = req.params.id as string;
-    try {
-      const result = await closeCase(db, actor.userAccountId, caseId, req.body);
-      res.json(result);
-    } catch (error) {
-      if (error instanceof CloseCaseValidationError) {
-        res.status(400).json({ error: 'validation_error', fieldErrors: error.fieldErrors });
-        return;
-      }
-      if (error instanceof CaseNotFoundError) {
-        res.status(404).json({ error: 'not_found', message: error.message });
-        return;
-      }
-      if (error instanceof CaseAlreadyClosedError) {
-        res.status(409).json({ error: 'already_closed', message: error.message });
-        return;
-      }
-      if (error instanceof CloseCaseConfigurationError) {
-        res.status(500).json({ error: 'configuration_error', message: error.message });
-        return;
-      }
-      throw error;
-    }
+    const result = await closeCase(db, actor.userAccountId, caseId, req.body);
+    res.json(result);
   }),
 );
 

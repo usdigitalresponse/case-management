@@ -5,9 +5,10 @@
 // seeded activity type for now; revisit if the UI needs field-level
 // errors here.
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
+import { getReferenceId } from '../db/referenceLookups';
+import { ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { activityTypes, timeEntry } from '../db/schema';
 import { hasOpenAssignment, NotAssignedToCaseError } from './caseAssignmentAuthorization';
@@ -35,23 +36,6 @@ export interface CreateTimeEntryResult {
   timeEntryId: string;
 }
 
-export class CreateTimeEntryValidationError extends Error {
-  fieldErrors: Record<string, string>;
-
-  constructor(fieldErrors: Record<string, string>) {
-    super('Invalid time entry');
-    this.name = 'CreateTimeEntryValidationError';
-    this.fieldErrors = fieldErrors;
-  }
-}
-
-export class CreateTimeEntryConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CreateTimeEntryConfigurationError';
-  }
-}
-
 export async function createTimeEntry(
   db: Database,
   actor: CreateTimeEntryActor,
@@ -59,7 +43,7 @@ export async function createTimeEntry(
 ): Promise<CreateTimeEntryResult> {
   const parsed = createTimeEntryInputSchema.safeParse(rawInput);
   if (!parsed.success) {
-    throw new CreateTimeEntryValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
+    throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
   const input = parsed.data;
 
@@ -67,12 +51,7 @@ export async function createTimeEntry(
     throw new NotAssignedToCaseError();
   }
 
-  const [defaultActivityType] = await db.select().from(activityTypes).where(eq(activityTypes.code, DEFAULT_ACTIVITY_TYPE_CODE));
-  if (!defaultActivityType) {
-    throw new CreateTimeEntryConfigurationError(
-      `Missing required seeded activity_types row with code "${DEFAULT_ACTIVITY_TYPE_CODE}".`,
-    );
-  }
+  const activityTypeId = await getReferenceId(db, activityTypes, DEFAULT_ACTIVITY_TYPE_CODE);
 
   const inserted = firstRow(
     await db
@@ -80,7 +59,7 @@ export async function createTimeEntry(
       .values({
         caseId: input.caseId,
         professionalId: actor.professionalId,
-        activityTypeId: defaultActivityType.id,
+        activityTypeId,
         activityOn: input.activityOn,
         durationHours: input.durationHours.toString(),
         description: input.description,

@@ -4,7 +4,7 @@
 // so ../routes/staff.ts can search "who is staff" without inferring it
 // from the presence/absence of a professional row.
 import type { Database } from '../db/client';
-import { getSeededRoleId } from '../db/seededRole';
+import { getSeededRoleId } from '../db/referenceLookups';
 
 export const STAFF_ACCOUNT_ROLE_DISPLAY_NAME = 'Intake Staff';
 

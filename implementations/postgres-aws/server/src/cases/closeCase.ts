@@ -12,6 +12,8 @@ import { z } from 'zod';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
+import { getReferenceId } from '../db/referenceLookups';
+import { ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { caseTable, caseAssignment, caseLifecycleEvent, caseLifecycleEventTypes, caseStatuses } from '../db/schema';
 import { calendarDateInReportingTimeZone } from '../reportingTimeZone';
@@ -33,23 +35,6 @@ export const closeCaseInputSchema = z.object({
 
 export type CloseCaseInput = z.infer<typeof closeCaseInputSchema>;
 
-export class CloseCaseValidationError extends Error {
-  fieldErrors: Record<string, string>;
-
-  constructor(fieldErrors: Record<string, string>) {
-    super('Invalid case closure');
-    this.name = 'CloseCaseValidationError';
-    this.fieldErrors = fieldErrors;
-  }
-}
-
-export class CloseCaseConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CloseCaseConfigurationError';
-  }
-}
-
 export interface CloseCaseResult {
   caseId: string;
   caseLifecycleEventId: string;
@@ -64,25 +49,17 @@ export async function closeCase(
 ): Promise<CloseCaseResult> {
   const parsed = closeCaseInputSchema.safeParse(rawInput);
   if (!parsed.success) {
-    throw new CloseCaseValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
+    throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
   const input = parsed.data;
   // Always now: a backdated close could end assignments before they began
   // or set closed_on before the case opened.
   const effectiveAt = new Date();
 
-  const [[closedStatus], [closingEventType]] = await Promise.all([
-    db.select().from(caseStatuses).where(eq(caseStatuses.code, CLOSED_CASE_STATUS_CODE)),
-    db.select().from(caseLifecycleEventTypes).where(eq(caseLifecycleEventTypes.code, CLOSING_EVENT_TYPE_CODE)),
+  const [closedStatusId, closingEventTypeId] = await Promise.all([
+    getReferenceId(db, caseStatuses, CLOSED_CASE_STATUS_CODE),
+    getReferenceId(db, caseLifecycleEventTypes, CLOSING_EVENT_TYPE_CODE),
   ]);
-  if (!closedStatus) {
-    throw new CloseCaseConfigurationError(`Missing required seeded case_statuses row with code "${CLOSED_CASE_STATUS_CODE}".`);
-  }
-  if (!closingEventType) {
-    throw new CloseCaseConfigurationError(
-      `Missing required seeded case_lifecycle_event_types row with code "${CLOSING_EVENT_TYPE_CODE}".`,
-    );
-  }
   const closedOn = calendarDateInReportingTimeZone(effectiveAt);
 
   return db.transaction(async (tx) => {
@@ -112,8 +89,8 @@ export async function closeCase(
         .values({
           caseId,
           sequenceNumber: nextSequenceNumber,
-          eventTypeId: closingEventType.id,
-          resultingStatusId: closedStatus.id,
+          eventTypeId: closingEventTypeId,
+          resultingStatusId: closedStatusId,
           effectiveAt,
           recordedAt: effectiveAt,
           actorUserAccountId,
@@ -122,7 +99,7 @@ export async function closeCase(
         .returning(),
     );
 
-    await tx.update(caseTable).set({ statusId: closedStatus.id, closedOn }).where(eq(caseTable.caseId, caseId));
+    await tx.update(caseTable).set({ statusId: closedStatusId, closedOn }).where(eq(caseTable.caseId, caseId));
 
     await tx
       .update(caseAssignment)

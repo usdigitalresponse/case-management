@@ -4,12 +4,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase, type CreateCaseInput } from '../src/intake/createCase';
-import {
-  reviewInvoice,
-  ReviewInvoiceValidationError,
-  InvoiceNotFoundError,
-  InvoiceNotSubmittedError,
-} from '../src/billing/reviewInvoice';
+import { reviewInvoice, InvoiceNotFoundError, InvoiceNotSubmittedError } from '../src/billing/reviewInvoice';
+import { ValidationError } from '../src/errors';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { invoice, invoiceApprovalChain, invoiceApprovalDecision, userAccount } from '../src/db/schema';
 
@@ -109,7 +105,7 @@ describe('reviewInvoice', () => {
 
     await expect(
       reviewInvoice(testDb, fixtures.staffUserAccountId, invoiceId, { outcome: 'rejected' }),
-    ).rejects.toThrow(ReviewInvoiceValidationError);
+    ).rejects.toThrow(ValidationError);
   });
 
   it('rejects an unknown invoice', async () => {
@@ -169,6 +165,6 @@ describe('reviewInvoice', () => {
 
     await expect(
       reviewInvoice(testDb, fixtures.staffUserAccountId, invoiceId, { outcome: 'maybe' }),
-    ).rejects.toThrow(ReviewInvoiceValidationError);
+    ).rejects.toThrow(ValidationError);
   });
 });

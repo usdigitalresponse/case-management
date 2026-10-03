@@ -3,6 +3,8 @@ import { eq, and } from 'drizzle-orm';
 import type { PgTable, AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Database } from '../db/client';
 import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
+import { getReferenceId } from '../db/referenceLookups';
+import { ValidationError } from '../errors';
 import { calendarDateInReportingTimeZone } from '../reportingTimeZone';
 import {
   caseTable,
@@ -44,23 +46,6 @@ export interface CreateCaseResult {
   caseParticipantId: string;
   caseLifecycleEventId: string;
   caseIdentifierId: string | null;
-}
-
-export class CreateCaseValidationError extends Error {
-  fieldErrors: Record<string, string>;
-
-  constructor(fieldErrors: Record<string, string>) {
-    super('Invalid create-case request');
-    this.name = 'CreateCaseValidationError';
-    this.fieldErrors = fieldErrors;
-  }
-}
-
-export class CreateCaseConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CreateCaseConfigurationError';
-  }
 }
 
 async function findExistingResult(
@@ -121,7 +106,7 @@ export async function createCase(
 ): Promise<CreateCaseResult> {
   const parsed = createCaseInputSchema.safeParse(rawInput);
   if (!parsed.success) {
-    throw new CreateCaseValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
+    throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
   const input: CreateCaseInput = parsed.data;
 
@@ -214,14 +199,9 @@ export async function createCase(
     ]);
   }
 
-  const openingEventTypePromise = db
-    .select()
-    .from(caseLifecycleEventTypes)
-    .where(eq(caseLifecycleEventTypes.code, OPENING_EVENT_TYPE_CODE));
-
-  const [checkResults, [openingEventType]] = await Promise.all([
+  const [checkResults, openingEventTypeId] = await Promise.all([
     Promise.all(checks.map(async ([field, check]) => [field, await check] as const)),
-    openingEventTypePromise,
+    getReferenceId(db, caseLifecycleEventTypes, OPENING_EVENT_TYPE_CODE),
   ]);
 
   const fieldErrors: Record<string, string> = {};
@@ -231,13 +211,7 @@ export async function createCase(
     }
   }
   if (Object.keys(fieldErrors).length > 0) {
-    throw new CreateCaseValidationError(fieldErrors);
-  }
-
-  if (!openingEventType) {
-    throw new CreateCaseConfigurationError(
-      `Missing required seeded case_lifecycle_event_types row with code "${OPENING_EVENT_TYPE_CODE}".`,
-    );
+    throw new ValidationError(fieldErrors);
   }
 
   try {
@@ -282,7 +256,7 @@ export async function createCase(
           .values({
             caseId: insertedCase.caseId,
             sequenceNumber: 1,
-            eventTypeId: openingEventType.id,
+            eventTypeId: openingEventTypeId,
             resultingStatusId: input.statusId,
             effectiveAt: input.effectiveAt,
             recordedAt,
@@ -335,7 +309,7 @@ export async function createCase(
       }
     }
     if (constraint === CASE_IDENTIFIER_ISSUER_TYPE_VALUE_UNIQUE_CONSTRAINT) {
-      throw new CreateCaseValidationError({
+      throw new ValidationError({
         identifier: 'A matching case identifier already exists for this issuer and type.',
       });
     }

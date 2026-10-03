@@ -6,6 +6,7 @@ import { faker } from '@faker-js/faker';
 import type { Database } from './client';
 import { firstRow } from './rowHelpers';
 import { ensureReferenceData } from './ensureReferenceData';
+import { getReferenceId } from './referenceLookups';
 import { getStaffAccountRoleId } from '../auth/staffAccountRole';
 import { getExternalSubmitterRoleId } from '../professionals/externalSubmitterRole';
 import { getStaffAssignmentRoleId } from '../cases/staffAssignmentRole';
@@ -55,14 +56,6 @@ const LSC_CASE_CATEGORIES = [
   { code: 'miscellaneous', displayName: 'Miscellaneous' },
   { code: 'utilities', displayName: 'Utilities' },
 ];
-
-function idForCode(rows: { id: string; code: string }[], code: string): string {
-  const row = rows.find((candidate) => candidate.code === code);
-  if (!row) {
-    throw new Error(`Expected a reference row with code "${code}".`);
-  }
-  return row.id;
-}
 
 export interface BaselineFixtureIds {
   caseStatusOpenId: string;
@@ -179,20 +172,28 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   // production runs at migrate time, not a second hand-maintained copy.
   await ensureReferenceData(db);
   const [
-    activityTypeRows,
-    invoiceStatusRows,
-    invoiceLineTypeRows,
-    invoiceApprovalStepTypeRows,
-    invoiceApprovalOutcomeRows,
+    activityTypeSampleId,
+    invoiceStatusDraftId,
+    invoiceStatusSubmittedId,
+    invoiceStatusApprovedId,
+    invoiceStatusRejectedId,
+    invoiceLineTypeSampleId,
+    invoiceApprovalStepTypeLineReviewId,
+    invoiceApprovalOutcomeApprovedId,
+    invoiceApprovalOutcomeRejectedId,
     intakeStaffRoleId,
     externalSubmitterAssignmentRoleId,
     assignedStaffRoleId,
   ] = await Promise.all([
-    db.select().from(activityTypes),
-    db.select().from(invoiceStatuses),
-    db.select().from(invoiceLineTypes),
-    db.select().from(invoiceApprovalStepTypes),
-    db.select().from(invoiceApprovalOutcomes),
+    getReferenceId(db, activityTypes, 'legal_services'),
+    getReferenceId(db, invoiceStatuses, 'draft'),
+    getReferenceId(db, invoiceStatuses, 'submitted'),
+    getReferenceId(db, invoiceStatuses, 'approved'),
+    getReferenceId(db, invoiceStatuses, 'rejected'),
+    getReferenceId(db, invoiceLineTypes, 'service'),
+    getReferenceId(db, invoiceApprovalStepTypes, 'line_review'),
+    getReferenceId(db, invoiceApprovalOutcomes, 'approved'),
+    getReferenceId(db, invoiceApprovalOutcomes, 'rejected'),
     getStaffAccountRoleId(db),
     getExternalSubmitterRoleId(db),
     getStaffAssignmentRoleId(db),
@@ -265,15 +266,15 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     intakeStaffRoleId,
     externalSubmitterAssignmentRoleId,
     assignedStaffRoleId,
-    activityTypeSampleId: idForCode(activityTypeRows, 'legal_services'),
-    invoiceStatusDraftId: idForCode(invoiceStatusRows, 'draft'),
-    invoiceStatusSubmittedId: idForCode(invoiceStatusRows, 'submitted'),
-    invoiceStatusApprovedId: idForCode(invoiceStatusRows, 'approved'),
-    invoiceStatusRejectedId: idForCode(invoiceStatusRows, 'rejected'),
-    invoiceLineTypeSampleId: idForCode(invoiceLineTypeRows, 'service'),
-    invoiceApprovalStepTypeLineReviewId: idForCode(invoiceApprovalStepTypeRows, 'line_review'),
-    invoiceApprovalOutcomeApprovedId: idForCode(invoiceApprovalOutcomeRows, 'approved'),
-    invoiceApprovalOutcomeRejectedId: idForCode(invoiceApprovalOutcomeRows, 'rejected'),
+    activityTypeSampleId,
+    invoiceStatusDraftId,
+    invoiceStatusSubmittedId,
+    invoiceStatusApprovedId,
+    invoiceStatusRejectedId,
+    invoiceLineTypeSampleId,
+    invoiceApprovalStepTypeLineReviewId,
+    invoiceApprovalOutcomeApprovedId,
+    invoiceApprovalOutcomeRejectedId,
     countyId: COUNTY_IDS.SAMPLE_COUNTY_A,
     organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A,
     officeId: OFFICE_IDS.SAMPLE_OFFICE_A,

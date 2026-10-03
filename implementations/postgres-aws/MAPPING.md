@@ -130,7 +130,14 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   completeness, explicit ISO timestamp or internal Date). Malformed input (e.g. a non-UUID `personId`) is rejected
   there, before any query runs — the DB layer never sees a value that could
   otherwise surface as a raw driver error instead of a field-level
-  `CreateCaseValidationError`.
+  `ValidationError`.
+- **Error responses**: domain actions throw subclasses of `AppError`
+  (`src/errors.ts`: `ValidationError` 400, `ForbiddenError` 403,
+  `NotFoundError` 404, `ConflictError` 409, `ConfigurationError` 500), and
+  the error middleware in `src/app.ts` turns them into JSON responses, so
+  routes have no per-action catch blocks. Reference rows are looked up with
+  `getReferenceId`/`getSeededRoleId` (`src/db/referenceLookups.ts`), which
+  throw `ConfigurationError` when a provisioned row is missing.
 - **Retry handling**: the form retains its request ID for retries of an unchanged
   payload. The handler recovers the original result after either request-ID or
   identifier uniqueness conflicts from concurrent replays.

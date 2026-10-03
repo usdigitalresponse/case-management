@@ -21,6 +21,8 @@ import {
 // Simple code/display_name tables so seeded values stay traceable to
 // model/schema.yaml `reference_data` fields, rather than hardcoded enums.
 
+export type ReferenceTable = ReturnType<typeof referenceTable>;
+
 function referenceTable(name: string) {
   return pgTable(name, {
     id: uuid('id').primaryKey().defaultRandom(),
