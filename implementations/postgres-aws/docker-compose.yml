@@ -25,11 +25,27 @@ services:
       NODE_ENV: development
       PORT: 3000
       # Optional: set in a .env file next to this docker-compose.yml (never
-      # committed — see .gitignore) to enable real Google sign-in locally.
-      # Without these, only /auth/dev-login is available (see MAPPING.md).
+      # committed — see .gitignore) to enable real SSO sign-in locally.
+      # Without any of these, only /auth/dev-login is available (see
+      # MAPPING.md).
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-}
+      GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-}
+      MICROSOFT_TENANT_ID: ${MICROSOFT_TENANT_ID:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_CALLBACK_URL: ${MICROSOFT_CALLBACK_URL:-}
+      MICROSOFT_ALLOWED_DOMAINS: ${MICROSOFT_ALLOWED_DOMAINS:-}
+      # Comma-separated external emails — see .env.example.
+      EXTERNAL_EMAIL_WHITELIST: ${EXTERNAL_EMAIL_WHITELIST:-}
+      # The client (browser-facing) origin, not this server's own — see
+      # .env.example.
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:5173}
+      SES_SENDER_EMAIL: ${SES_SENDER_EMAIL:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     ports:
       - "3000:3000"
     depends_on:

@@ -3,7 +3,6 @@
 // can reference each other predictably across both the dev seed and tests.
 export const ROLE_IDS = {
   CLIENT_PARTICIPANT: '11111111-1111-5111-8111-111111111111',
-  INTAKE_STAFF_ACCOUNT: '22222222-2222-5222-8222-222222222222',
 };
 
 export const ORGANIZATION_IDS = {

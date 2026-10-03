@@ -19,12 +19,13 @@
     "verify-schema-mapping": "tsx scripts/verify-schema-mapping.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "^3.1145.0",
     "cookie-session": "^2.1.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.45.3",
     "express": "^4.19.2",
     "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0",
+    "passport-openidconnect": "^0.1.2",
     "pg": "^8.11.5",
     "zod": "^4.6.5"
   },
@@ -35,7 +36,6 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.14.2",
     "@types/passport": "^1.0.16",
-    "@types/passport-google-oauth20": "^2.0.16",
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.11",
     "js-yaml": "^4.1.0",

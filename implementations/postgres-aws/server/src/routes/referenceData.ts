@@ -16,11 +16,13 @@ import {
   organization,
   office,
 } from '../db/schema';
-import { requireAuth } from '../auth/session';
+import { requireFullUser } from '../auth/session';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
-router.use(requireAuth);
+// Full staff access only — this backs the intake form, which external
+// (magic-link) users never see.
+router.use(requireFullUser);
 
 router.get(
   '/',

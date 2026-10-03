@@ -5,6 +5,11 @@ import { sql } from 'drizzle-orm';
 import { faker } from '@faker-js/faker';
 import type { Database } from './client';
 import { firstRow } from './rowHelpers';
+import { ensureReferenceData } from './ensureReferenceData';
+import { getReferenceId } from './referenceLookups';
+import { getStaffAccountRoleId } from '../auth/staffAccountRole';
+import { getExternalSubmitterRoleId } from '../professionals/externalSubmitterRole';
+import { getStaffAssignmentRoleId } from '../cases/staffAssignmentRole';
 import {
   caseCategories,
   caseStatuses,
@@ -13,6 +18,11 @@ import {
   caseIdentifierTypes,
   caseLifecycleEventTypes,
   caseLifecycleReasons,
+  activityTypes,
+  invoiceStatuses,
+  invoiceLineTypes,
+  invoiceApprovalStepTypes,
+  invoiceApprovalOutcomes,
   role,
   county,
   organization,
@@ -55,9 +65,22 @@ export interface BaselineFixtureIds {
   languageSampleId: string;
   identifierTypeSampleId: string;
   lifecycleEventTypeOpenId: string;
+  lifecycleEventTypeClosedId: string;
   lifecycleReasonIntakeId: string;
+  lifecycleReasonClosureId: string;
   clientParticipantRoleId: string;
   intakeStaffRoleId: string;
+  externalSubmitterAssignmentRoleId: string;
+  assignedStaffRoleId: string;
+  activityTypeSampleId: string;
+  invoiceStatusDraftId: string;
+  invoiceStatusSubmittedId: string;
+  invoiceStatusApprovedId: string;
+  invoiceStatusRejectedId: string;
+  invoiceLineTypeSampleId: string;
+  invoiceApprovalStepTypeLineReviewId: string;
+  invoiceApprovalOutcomeApprovedId: string;
+  invoiceApprovalOutcomeRejectedId: string;
   countyId: string;
   organizationId: string;
   officeId: string;
@@ -77,18 +100,21 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
 
   await db.execute(sql`
     TRUNCATE TABLE
-      intake_request, case_identifier, case_lifecycle_event, case_participant, "case",
-      user_account, person_affiliation, office, person, role, organization, county,
-      case_categories, case_statuses, jurisdictions, languages, case_identifier_types,
-      case_lifecycle_event_types, case_lifecycle_reasons
+      intake_request, case_identifier, case_lifecycle_event, invoice_approval_decision,
+      invoice_approval_chain, invoice_line, invoice, time_entry,
+      case_assignment, case_participant, professional, magic_link_token, "case", user_account,
+      person_affiliation, office, person, role, organization, county, case_categories,
+      case_statuses, jurisdictions, languages, case_identifier_types, case_lifecycle_event_types,
+      case_lifecycle_reasons, activity_types, invoice_statuses, invoice_line_types,
+      invoice_approval_step_types, invoice_approval_outcomes
     RESTART IDENTITY CASCADE
   `);
 
   const [openStatus, closedStatus] = await db
     .insert(caseStatuses)
     .values([
-      { code: 'sample_open', displayName: 'Sample Open' },
-      { code: 'sample_closed', displayName: 'Sample Closed' },
+      { code: 'sample_open', displayName: 'Open' },
+      { code: 'sample_closed', displayName: 'Closed' },
     ])
     .returning();
   if (!openStatus || !closedStatus) {
@@ -102,59 +128,126 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   const jurisdiction = firstRow(
     await db
       .insert(jurisdictions)
-      .values([{ code: 'sample_jurisdiction', displayName: 'Sample Jurisdiction' }])
+      .values([
+        { code: 'sample_jurisdiction', displayName: 'Statewide' },
+        { code: 'sample_district_court', displayName: 'District Court' },
+        { code: 'sample_superior_court', displayName: 'Superior Court' },
+        { code: 'sample_federal_court', displayName: 'Federal Court' },
+      ])
       .returning(),
   );
   const language = firstRow(
-    await db.insert(languages).values([{ code: 'sample_english', displayName: 'Sample English' }]).returning(),
+    await db
+      .insert(languages)
+      .values([
+        { code: 'sample_english', displayName: 'English' },
+        { code: 'sample_spanish', displayName: 'Spanish' },
+        { code: 'sample_vietnamese', displayName: 'Vietnamese' },
+        { code: 'sample_mandarin', displayName: 'Mandarin' },
+        { code: 'sample_arabic', displayName: 'Arabic' },
+      ])
+      .returning(),
   );
   const identifierType = firstRow(
     await db
       .insert(caseIdentifierTypes)
-      .values([{ code: 'sample_reference', displayName: 'Sample Reference' }])
+      .values([
+        { code: 'sample_reference', displayName: 'Case Number' },
+        { code: 'sample_docket', displayName: 'Court Docket Number' },
+        { code: 'sample_client_id', displayName: 'Client ID' },
+      ])
       .returning(),
   );
-  const eventType = firstRow(
-    await db
-      .insert(caseLifecycleEventTypes)
-      .values([{ code: 'sample_open', displayName: 'Sample Open' }])
-      .returning(),
-  );
-  const reason = firstRow(
-    await db
-      .insert(caseLifecycleReasons)
-      .values([{ code: 'sample_intake', displayName: 'Sample Intake' }])
-      .returning(),
-  );
+  const [eventType, closingEventType] = await db
+    .insert(caseLifecycleEventTypes)
+    .values([
+      { code: 'sample_open', displayName: 'Opened' },
+      { code: 'sample_closed', displayName: 'Closed' },
+    ])
+    .returning();
+  if (!eventType || !closingEventType) {
+    throw new Error('Expected case_lifecycle_event_types insert to return two rows.');
+  }
+  const [reason, closureReason] = await db
+    .insert(caseLifecycleReasons)
+    .values([
+      { code: 'sample_intake', displayName: 'Intake' },
+      { code: 'sample_closure', displayName: 'Closure' },
+    ])
+    .returning();
+  if (!reason || !closureReason) {
+    throw new Error('Expected case_lifecycle_reasons insert to return two rows.');
+  }
 
-  await db.insert(role).values([
-    {
-      roleId: ROLE_IDS.CLIENT_PARTICIPANT,
-      displayName: 'Client',
-      roleContext: 'case_participant',
-      active: true,
-    },
-    {
-      roleId: ROLE_IDS.INTAKE_STAFF_ACCOUNT,
-      displayName: 'Intake Staff',
-      roleContext: 'user_account',
-      active: true,
-    },
+  await db.insert(role).values({
+    roleId: ROLE_IDS.CLIENT_PARTICIPANT,
+    displayName: 'Client',
+    roleContext: 'case_participant',
+    active: true,
+  });
+
+  // Rows every environment needs come from the same provisioning code
+  // production runs at migrate time, not a second hand-maintained copy.
+  await ensureReferenceData(db);
+  const [
+    activityTypeSampleId,
+    invoiceStatusDraftId,
+    invoiceStatusSubmittedId,
+    invoiceStatusApprovedId,
+    invoiceStatusRejectedId,
+    invoiceLineTypeSampleId,
+    invoiceApprovalStepTypeLineReviewId,
+    invoiceApprovalOutcomeApprovedId,
+    invoiceApprovalOutcomeRejectedId,
+    intakeStaffRoleId,
+    externalSubmitterAssignmentRoleId,
+    assignedStaffRoleId,
+  ] = await Promise.all([
+    getReferenceId(db, activityTypes, 'legal_services'),
+    getReferenceId(db, invoiceStatuses, 'draft'),
+    getReferenceId(db, invoiceStatuses, 'submitted'),
+    getReferenceId(db, invoiceStatuses, 'approved'),
+    getReferenceId(db, invoiceStatuses, 'rejected'),
+    getReferenceId(db, invoiceLineTypes, 'service'),
+    getReferenceId(db, invoiceApprovalStepTypes, 'line_review'),
+    getReferenceId(db, invoiceApprovalOutcomes, 'approved'),
+    getReferenceId(db, invoiceApprovalOutcomes, 'rejected'),
+    getStaffAccountRoleId(db),
+    getExternalSubmitterRoleId(db),
+    getStaffAssignmentRoleId(db),
   ]);
 
-  await db
-    .insert(county)
-    .values([{ countyId: COUNTY_IDS.SAMPLE_COUNTY_A, displayName: 'Sample County A', active: true }]);
-  await db.insert(organization).values([
-    { organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A, displayName: 'Sample Organization A', active: true },
+  // The first row of each list has a stable ID (returned below and used by
+  // tests and the demo seed); the rest only give the intake dropdowns
+  // realistic choices.
+  await db.insert(county).values([
+    { countyId: COUNTY_IDS.SAMPLE_COUNTY_A, displayName: 'County A', active: true },
+    { displayName: 'County B', active: true },
+    { displayName: 'County C', active: true },
+    { displayName: 'County D', active: true },
+    { displayName: 'County E', active: true },
   ]);
+  const [, publicDefender, familyJusticeCenter] = await db
+    .insert(organization)
+    .values([
+      { organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A, displayName: 'Legal Aid', active: true },
+      { displayName: 'Public Defender', active: true },
+      { displayName: 'Family Justice Center', active: true },
+    ])
+    .returning();
+  if (!publicDefender || !familyJusticeCenter) {
+    throw new Error('Expected organization insert to return three rows.');
+  }
   await db.insert(office).values([
     {
       officeId: OFFICE_IDS.SAMPLE_OFFICE_A,
-      displayName: 'Sample Office A',
+      displayName: 'Main Office',
       organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A,
       active: true,
     },
+    { displayName: 'North Office', organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A, active: true },
+    { displayName: 'Downtown Office', organizationId: publicDefender.organizationId, active: true },
+    { displayName: 'Eastside Office', organizationId: familyJusticeCenter.organizationId, active: true },
   ]);
 
   // Faker-generated names — no provenance link to any real dataset. Person
@@ -181,8 +274,8 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
 
   // A synthetic dev-only account (example.invalid domain, per
   // scenarios/fixtures conventions) used for local testing without a real
-  // Google OAuth login. Real accounts are created on first OAuth login,
-  // matched by email (see ../auth).
+  // SSO login. Real accounts are created on first login, matched by email
+  // (see ../auth).
   await db.insert(userAccount).values([
     {
       userAccountId: USER_ACCOUNT_IDS.SYNTHETIC_STAFF,
@@ -190,7 +283,7 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
       active: true,
       email: 'staff@example.invalid',
       personId: PERSON_IDS.SYNTHETIC_STAFF,
-      systemRoleId: ROLE_IDS.INTAKE_STAFF_ACCOUNT,
+      systemRoleId: intakeStaffRoleId,
     },
   ]);
 
@@ -202,9 +295,22 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     languageSampleId: language.id,
     identifierTypeSampleId: identifierType.id,
     lifecycleEventTypeOpenId: eventType.id,
+    lifecycleEventTypeClosedId: closingEventType.id,
     lifecycleReasonIntakeId: reason.id,
+    lifecycleReasonClosureId: closureReason.id,
     clientParticipantRoleId: ROLE_IDS.CLIENT_PARTICIPANT,
-    intakeStaffRoleId: ROLE_IDS.INTAKE_STAFF_ACCOUNT,
+    intakeStaffRoleId,
+    externalSubmitterAssignmentRoleId,
+    assignedStaffRoleId,
+    activityTypeSampleId,
+    invoiceStatusDraftId,
+    invoiceStatusSubmittedId,
+    invoiceStatusApprovedId,
+    invoiceStatusRejectedId,
+    invoiceLineTypeSampleId,
+    invoiceApprovalStepTypeLineReviewId,
+    invoiceApprovalOutcomeApprovedId,
+    invoiceApprovalOutcomeRejectedId,
     countyId: COUNTY_IDS.SAMPLE_COUNTY_A,
     organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A,
     officeId: OFFICE_IDS.SAMPLE_OFFICE_A,

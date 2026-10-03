@@ -2,11 +2,18 @@ import 'dotenv/config';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import cookieSession from 'cookie-session';
 import passport from 'passport';
-import { configureGoogleAuth } from './auth/googleStrategy';
+import { configureOidcProviders } from './auth/oidcProviders';
 import { createAuthRouter } from './routes/auth';
 import casesRouter from './routes/cases';
 import peopleRouter from './routes/people';
+import clientsRouter from './routes/clients';
+import professionalsRouter from './routes/professionals';
+import staffRouter from './routes/staff';
+import invoicesRouter from './routes/invoices';
+import myCasesRouter from './routes/myCases';
+import portalRouter from './routes/portal';
 import referenceDataRouter from './routes/referenceData';
+import { AppError } from './errors';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -28,21 +35,35 @@ export function createApp() {
   );
   app.use(passport.initialize());
 
-  const googleEnabled = configureGoogleAuth();
-  if (!googleEnabled) {
+  const oidcProviders = configureOidcProviders();
+  if (oidcProviders.length === 0) {
     // eslint-disable-next-line no-console
-    console.warn('GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET not set; Google sign-in is disabled.');
+    console.warn('No OIDC provider credentials configured; SSO sign-in is disabled.');
   }
 
-  app.use('/auth', createAuthRouter({ googleEnabled, devLoginEnabled: !isProduction }));
+  app.use('/auth', createAuthRouter({ oidcProviders, devLoginEnabled: !isProduction }));
   app.use('/api/cases', casesRouter);
   app.use('/api/people', peopleRouter);
+  app.use('/api/clients', clientsRouter);
+  app.use('/api/professionals', professionalsRouter);
+  app.use('/api/staff', staffRouter);
+  app.use('/api/invoices', invoicesRouter);
+  app.use('/api/my-cases', myCasesRouter);
+  app.use('/api/portal', portalRouter);
   app.use('/api/reference-data', referenceDataRouter);
 
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    if (err instanceof AppError) {
+      if (err.status >= 500) {
+        // eslint-disable-next-line no-console
+        console.error(err);
+      }
+      res.status(err.status).json(err.toResponseBody());
+      return;
+    }
     // eslint-disable-next-line no-console
     console.error(err);
     res.status(500).json({ error: 'internal_error' });

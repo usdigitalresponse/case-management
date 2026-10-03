@@ -3,11 +3,8 @@ import { eq } from 'drizzle-orm';
 import { beforeEach, afterAll, describe, expect, it, vi } from 'vitest';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
-import {
-  createCase,
-  CreateCaseValidationError,
-  type CreateCaseInput,
-} from '../src/intake/createCase';
+import { createCase, type CreateCaseInput } from '../src/intake/createCase';
+import { ValidationError } from '../src/errors';
 import {
   caseTable,
   caseParticipant,
@@ -80,9 +77,7 @@ describe('required input', () => {
     ['participantRoleId', { participantRoleId: '' }],
     ['statusId', { statusId: '' }],
   ])('rejects a missing %s and leaves no orphan case or event', async (_label, overrides) => {
-    await expect(createCase(testDb, actor, baseInput(overrides))).rejects.toBeInstanceOf(
-      CreateCaseValidationError,
-    );
+    await expect(createCase(testDb, actor, baseInput(overrides))).rejects.toBeInstanceOf(ValidationError);
 
     const remainingCases = await testDb.select().from(caseTable);
     expect(remainingCases).toHaveLength(0);
@@ -94,21 +89,21 @@ describe('required input', () => {
     const input = baseInput();
     // @ts-expect-error deliberately omitting a required field
     delete input.effectiveAt;
-    await expect(createCase(testDb, actor, input)).rejects.toBeInstanceOf(CreateCaseValidationError);
+    await expect(createCase(testDb, actor, input)).rejects.toBeInstanceOf(ValidationError);
     expect(await testDb.select().from(caseTable)).toHaveLength(0);
   });
 
   it('rejects an unknown statusId (invalid reference, not just missing)', async () => {
     await expect(
       createCase(testDb, actor, baseInput({ statusId: randomUUID() })),
-    ).rejects.toBeInstanceOf(CreateCaseValidationError);
+    ).rejects.toBeInstanceOf(ValidationError);
     expect(await testDb.select().from(caseTable)).toHaveLength(0);
   });
 
   it('rejects a malformed (non-UUID) personId as a validation error, not a raw driver error', async () => {
     await expect(
       createCase(testDb, actor, baseInput({ personId: 'not-a-uuid' })),
-    ).rejects.toBeInstanceOf(CreateCaseValidationError);
+    ).rejects.toBeInstanceOf(ValidationError);
     expect(await testDb.select().from(caseTable)).toHaveLength(0);
   });
 });
@@ -122,7 +117,7 @@ describe('reference activeness', () => {
       .returning();
     await expect(
       createCase(testDb, actor, baseInput({ participantRoleId: inactiveRole?.roleId })),
-    ).rejects.toBeInstanceOf(CreateCaseValidationError);
+    ).rejects.toBeInstanceOf(ValidationError);
     expect(await testDb.select().from(caseTable)).toHaveLength(0);
   });
 
@@ -134,7 +129,7 @@ describe('reference activeness', () => {
       .returning();
     await expect(
       createCase(testDb, actor, baseInput({ statusId: inactiveStatus?.id })),
-    ).rejects.toBeInstanceOf(CreateCaseValidationError);
+    ).rejects.toBeInstanceOf(ValidationError);
     expect(await testDb.select().from(caseTable)).toHaveLength(0);
   });
 });
@@ -207,7 +202,7 @@ describe('complete intake', () => {
           },
         }),
       ),
-    ).rejects.toBeInstanceOf(CreateCaseValidationError);
+    ).rejects.toBeInstanceOf(ValidationError);
     expect(await testDb.select().from(caseTable)).toHaveLength(0);
   });
 });
@@ -277,7 +272,7 @@ describe('history integrity', () => {
 
     await expect(
       createCase(testDb, actor, baseInput({ identifier: { ...identifier, isPrimary: false } })),
-    ).rejects.toBeInstanceOf(CreateCaseValidationError);
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 });
 

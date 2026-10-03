@@ -4,53 +4,157 @@ a { color: #2455db; }
 button, input { font: inherit; }
 .app-header { display: flex; align-items: center; gap: 2rem; min-height: 88px; padding: 1rem 2rem; background: white; border-bottom: 1px solid #dce1e8; }
 .app-brand { color: #242a31; text-decoration: none; font-size: 1.2rem; font-weight: 700; white-space: nowrap; }
-.global-search { width: min(30vw, 440px); padding: .65rem 1rem; border: 1px solid #dce1e8; border-radius: 6px; background: #f1f3f6; color: #69737e; }
 .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 1.2rem; margin-left: auto; }
-.header-placeholder { border: 0; background: transparent; padding: 0; }
-.header-placeholder:disabled { color: #767e88; cursor: not-allowed; }
 .create-button { white-space: nowrap; margin: 0; }
 .user-name { font-size: .9rem; max-width: 140px; overflow-wrap: anywhere; }
 .app-layout { display: grid; grid-template-columns: 235px minmax(0, 1fr); min-height: calc(100vh - 88px); }
 .app-sidebar { padding: 1.5rem 1rem; border-right: 1px solid #dce1e8; background: #f1f3f5; }
-.app-sidebar a, .nav-group button { display: block; width: 100%; padding: .6rem .7rem; text-align: left; border: 0; border-radius: 5px; text-decoration: none; color: #343b44; background: transparent; }
+.app-sidebar a:not(.usa-button), .nav-group button { display: block; width: 100%; padding: .6rem .7rem; text-align: left; border: 0; border-radius: 5px; text-decoration: none; color: #343b44; background: transparent; }
+.app-sidebar .sidebar-new-case { width: 100%; text-align: center; margin: .6rem 0 0; }
 .app-sidebar a:hover { background: #e6ebf2; }
-.app-sidebar a.active { background: #e5ecff; color: #214eca; font-weight: 700; }
+.app-sidebar a.active { background: #e5ecff; color: #214eca; }
 .nav-group { margin-top: 1.8rem; }
 .nav-group h2 { padding: 0 .7rem; margin: 0 0 .45rem; font-size: .72rem; line-height: 1.5; text-transform: uppercase; letter-spacing: .045em; color: #606b78; }
 .nav-group button:disabled { color: #78818b; cursor: not-allowed; }
 .sidebar-note { margin: 2rem .7rem; font-size: .78rem; color: #66717d; }
 .app-main { min-width: 0; padding: 2.5rem 2rem; }
+/* <main tabIndex={-1}> is a skip-link landing target, not an interactive
+   control — once it's focused (e.g. via "Skip to main content"), the
+   default outline would otherwise persist across every client-side route
+   change, since an SPA navigation never reloads the page to clear it. */
+.app-main:focus { outline: none; }
 .app-main h1 { font-size: 2rem; letter-spacing: -.025em; margin: 0 0 .7rem; line-height: 1.2; }
+.page-heading { margin-bottom: 1.5rem; }
+
+.case-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.case-heading-row .page-heading { flex: 1; }
+.close-case-form { display: flex; flex-direction: column; gap: .5rem; min-width: 240px; }
+.close-case-form .usa-input { margin: 0; }
+.close-case-buttons { display: flex; gap: .5rem; }
+.close-case-buttons .usa-button { margin: 0; }
 .eyebrow { color: #66717d; text-transform: uppercase; font-size: .72rem; font-weight: 700; letter-spacing: .09em; margin: 0 0 .65rem; }
-.page-description { margin: 0; color: #66717d; }
-.overview-note { display: flex; align-items: center; gap: .65rem; color: #596576; font-size: .85rem; margin: 1.2rem 0 2.2rem; }
-.prototype-badge { background: #e8edf5; border-radius: 20px; padding: .25rem .7rem; font-size: .73rem; font-weight: 700; }
-.stage-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; }
+.page-description { margin: 0; color: #66717d; font-size: .85rem; }
+.stage-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
 .stage-column { display: flex; flex-direction: column; min-width: 0; }
 .stage-heading { min-height: 110px; }
 .stage-title { display: flex; align-items: flex-start; justify-content: space-between; gap: .35rem; }
 .stage-title h2 { font-size: 1rem; margin: 0; line-height: 1.4; }
-.stage-count { border-radius: 20px; background: #e9ecf1; padding: .2rem .7rem; font-size: .8rem; color: #5e6977; }
+.stage-count { border-radius: 20px; background: #e5ecff; padding: .2rem .7rem; font-size: .8rem; color: #214eca; }
 .stage-heading p { font-size: .85rem; line-height: 1.45; color: #65717e; margin: .65rem 0 1.2rem; }
-.stage-content { flex: 1; min-height: 410px; background: white; border: 1px solid #dce1e8; border-radius: 9px; padding: .8rem; }
-.stage-column-active .stage-content { border-color: #aabfec; }
-.stage-column-active .stage-count { background: #e5ecff; color: #214eca; }
+.stage-content { flex: 1; min-height: 410px; background: white; border: 1px solid #aabfec; border-radius: 9px; padding: .8rem; }
 .case-cards { list-style: none; padding: 0; margin: 0; }
 .case-cards li + li { margin-top: .8rem; }
-.case-card { display: flex; flex-direction: column; gap: .4rem; padding: 1rem .85rem; min-height: 106px; text-decoration: none; border: 1px solid #dce1e8; border-radius: 7px; background: #fafbfe; overflow-wrap: anywhere; }
-.case-card:hover { border-color: #527cdd; background: #f1f5ff; }
-.case-card strong { font-size: .95rem; }
-.case-card span { color: #67727f; font-size: .8rem; line-height: 1.4; }
-.case-card .card-date { font-size: .75rem; }
+/* Overview's stage-board cards are a .row-card (see below) plus this one
+   modifier — equal-height cards keep the grid's columns aligned. */
+.case-card { min-height: 106px; }
 .view-all { display: inline-block; font-size: .85rem; font-weight: 700; text-decoration: none; margin: 1.5rem .2rem .5rem; }
 .stage-empty { padding: 2rem .3rem; text-align: center; color: #687480; font-size: .85rem; }
 .empty-mark { color: #bac3ce; font-size: 1.5rem; }
-.placeholder-link { border: 0; background: transparent; color: #7b8591; font-size: .8rem; }
-.app-main .usa-table { display: block; max-width: 100%; overflow-x: auto; }
+.login-page { display: flex; flex-wrap: wrap; gap: 1.5rem; justify-content: center; padding: 3rem 1.5rem; }
+.login-panel { flex: 1 1 320px; max-width: 420px; background: white; border: 1px solid #dce1e8; border-radius: 9px; padding: 1.8rem; }
+.login-panel h1 { font-size: 1.3rem; margin: 0 0 .6rem; }
+.login-panel h2 { font-size: 1.1rem; margin: 0 0 .6rem; }
+.login-panel p { color: #66717d; margin: 0 0 1.1rem; }
+.login-panel a.usa-button { display: block; margin: 0 0 .6rem; text-align: center; }
+.portal-main section { margin-top: 2rem; }
+
+/* Status pill — used anywhere a case/invoice status is shown. */
+.status-pill { display: inline-flex; align-items: center; padding: .2rem .7rem; border-radius: 20px; background: #eef1f6; color: #434b55; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+
+/* List toolbar: result count + client-side filter. */
+.stage-filter-note { color: #596576; font-size: .85rem; margin: 1.2rem 0 0; }
+.list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin: 1.2rem 0 1.1rem; }
+.list-toolbar .clearable { flex: 0 1 300px; }
+.list-toolbar .usa-input { margin: 0; }
+.list-count { color: #66717d; font-size: .85rem; white-space: nowrap; }
+
+/* The single place a table gets its box: rounded/clipped corners, full
+   width, and horizontal scroll on overflow. .row-cards renders the same
+   rows as a mobile fallback below 760px — CSS picks one. */
+.data-card { background: white; border: 1px solid #dce1e8; border-radius: 9px; overflow-x: auto; overflow-y: hidden; }
+.data-card .usa-table { margin: 0; width: 100%; }
+/* USWDS's base .usa-table styles every cell with a 1px #1b1b1b border and
+   every <th> (including a tbody row header) with a gray background — the
+   harsh grid and stray-shaded-column look. We own this card's table
+   chrome entirely instead: no per-cell borders, a single row divider,
+   header styling applied only where we actually want it. */
+.data-card table td, .data-card table th { padding: .85rem 1.1rem; border: none; border-bottom: 1px solid #dce1e8; background: transparent; }
+.data-card table tbody tr:last-child td, .data-card table tbody tr:last-child th { border-bottom: none; }
+.data-card table thead th { background: #f7f8fa; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: #5c6774; }
+.data-card table tbody tr:hover { background: #f7f9fd; }
+.data-card table th[scope="row"] a { color: #242a31; font-weight: 700; text-decoration: none; }
+.data-card table th[scope="row"] a:hover, .data-card table th[scope="row"] a:focus { text-decoration: underline; }
+/* Cases list: let Client take the lion's share instead of leaving the
+   table's unused columns to stretch into dead space at the card's edge. */
+.case-table th:nth-child(1), .case-table td:nth-child(1) { width: 28%; }
+.case-table th:nth-child(2), .case-table td:nth-child(2) { width: 16%; }
+.case-table th:nth-child(3), .case-table td:nth-child(3) { width: 16%; }
+.case-table th:nth-child(4), .case-table td:nth-child(4) { width: 16%; }
+.case-table th:nth-child(5), .case-table td:nth-child(5) { width: 24%; }
+/* Case detail: visually separates "this case's own facts" (.fact-grid,
+   below) from "related records" (.data-card tables). */
+.detail-section { margin-top: 2.2rem; }
+.detail-section h2 { font-size: 1.1rem; margin: 0 0 .85rem; }
+.fact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1.2rem; background: white; border: 1px solid #dce1e8; border-radius: 9px; padding: 1.2rem 1.4rem; }
+.fact dt { margin: 0 0 .3rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: #5c6774; }
+.fact dd { margin: 0; font-size: .95rem; }
+
+.type-ahead { position: relative; max-width: 30rem; }
+.clearable { position: relative; }
+.clearable__input { max-width: none; padding-right: 2.5rem; }
+.clearable__clear { position: absolute; right: 0; bottom: 0; width: 2.5rem; height: 2.5rem; border: 0; background: none; color: #565c65; font-size: 1rem; cursor: pointer; }
+.clearable__clear:hover { color: #1b1b1b; }
+.type-ahead__menu { position: absolute; z-index: 10; left: 0; right: 0; margin: 0; padding: 0; list-style: none; max-height: 16rem; overflow-y: auto; background: white; border: 1px solid #565c65; border-top: 0; box-shadow: 0 4px 10px rgba(0, 0, 0, .08); }
+.type-ahead__option, .type-ahead__message { padding: .5rem .75rem; }
+.type-ahead__option { cursor: pointer; }
+.type-ahead__option--highlighted { background: #e5ecff; }
+.type-ahead__message { color: #66717d; }
+.assign-staff-form { margin-top: 1rem; }
+.assign-staff-row { display: flex; align-items: flex-start; gap: .75rem; }
+.assign-staff-row .type-ahead { flex: 1; max-width: 400px; }
+.assign-staff-row .clearable__input { margin-top: 0; }
+.assign-staff-row .usa-button { margin: 0; }
+
+.invoice-review-buttons { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.invoice-review-buttons .usa-button { margin: 0; }
+.invoice-review-reject { display: flex; flex-direction: column; gap: .5rem; min-width: 220px; }
+.invoice-review-reject .usa-input { margin: 0; }
+
+.row-cards { display: none; list-style: none; margin: 0; padding: 0; }
+.row-card { display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.1rem; text-decoration: none; color: inherit; border: 1px solid #dce1e8; border-radius: 9px; background: white; overflow-wrap: anywhere; }
+.row-card:hover { border-color: #527cdd; background: #f1f5ff; }
+.row-card + .row-card { margin-top: .75rem; }
+.row-card-title { font-weight: 700; font-size: .95rem; }
+.row-card-meta { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: #66717d; font-size: .82rem; }
+@media (max-width: 760px) {
+  /* Only a .data-card paired with a .row-cards fallback (Cases list) hides
+     below this breakpoint — a bare .data-card (RecordTable) has no card
+     equivalent to fall back to, so it just scrolls horizontally instead
+     (.data-card's own overflow-x handles that). */
+  .data-card:has(+ .row-cards) { display: none; }
+  .row-cards { display: block; }
+}
+
+/* Form layout: each Fieldset in its own card, short-field sections in a responsive 2-column grid. */
+/* react-uswds's <Form> applies .usa-form, which caps max-width at 20rem —
+   fine for a single-column form, but it squeezes .form-grid's 2-column
+   layout into a sliver. Override it for the one form that needs room. */
+form.case-intake-form { max-width: 52rem; }
+.form-card { background: white; border: 1px solid #dce1e8; border-radius: 9px; padding: 1.6rem 1.7rem; margin-bottom: 1.3rem; }
+.form-card .usa-fieldset { margin: 0; }
+.form-card legend { padding: 0 0 .3rem; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1.5rem; }
+.form-grid > .usa-form-group { margin-top: 1rem; }
+.form-actions { display: flex; align-items: center; gap: 1rem; }
+@media (max-width: 700px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
+
+/* Portal's case list: same .row-card as Cases/Overview, arranged as a grid. */
+.portal-case-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
 @media (max-width: 1250px) {
   .app-header { flex-wrap: wrap; gap: 1rem; }
   .header-actions { gap: 1rem; }
-  .global-search { flex: 1; }
   .app-layout { grid-template-columns: 195px minmax(0, 1fr); }
   .app-main { padding: 2rem 1.2rem; }
   .stage-board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -58,7 +162,6 @@ button, input { font: inherit; }
 }
 @media (max-width: 760px) {
   .app-header { padding: 1rem; }
-  .global-search { display: none; }
   .header-actions { flex-wrap: wrap; justify-content: flex-start; margin: 0; }
   .app-layout { display: block; }
   .app-sidebar { border-right: 0; border-bottom: 1px solid #dce1e8; padding: .7rem 1rem; }
@@ -67,7 +170,6 @@ button, input { font: inherit; }
   .nav-group { margin: 0; }
   .nav-group h2, .nav-group button, .sidebar-note { display: none; }
   .stage-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .overview-note { align-items: flex-start; }
 }
 @media (max-width: 480px) {
   .stage-board { grid-template-columns: 1fr; }

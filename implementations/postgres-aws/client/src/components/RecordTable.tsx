@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
 import { Table } from '@trussworks/react-uswds';
 
-// Shared "empty vs. bordered table" shape — CaseDetail previously repeated
-// this three times (participants, lifecycle events, identifiers) with only
-// the columns/row cells differing.
+// Shared "empty vs. bordered table" shape for CaseDetail's related-record
+// sections, which differ only in their columns/row cells.
 export interface RecordTableColumn<T> {
   header: string;
   render: (row: T) => ReactNode;
@@ -25,25 +24,27 @@ export function RecordTable<T>({
   }
 
   return (
-    <Table bordered fullWidth>
-      <thead>
-        <tr>
-          {columns.map((column) => (
-            <th scope="col" key={column.header}>
-              {column.header}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={rowKey(row)}>
+    <div className="data-card">
+      <Table bordered fullWidth>
+        <thead>
+          <tr>
             {columns.map((column) => (
-              <td key={column.header}>{column.render(row)}</td>
+              <th scope="col" key={column.header}>
+                {column.header}
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </Table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={rowKey(row)}>
+              {columns.map((column) => (
+                <td key={column.header}>{column.render(row)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </div>
   );
 }

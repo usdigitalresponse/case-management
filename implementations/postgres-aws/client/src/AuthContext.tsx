@@ -1,11 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Alert } from '@trussworks/react-uswds';
-import { ApiError, devLogin, getCurrentUser, logout as apiLogout, type AuthenticatedUser } from './api/client';
+import {
+  ApiError,
+  devLogin,
+  getCurrentUser,
+  logout as apiLogout,
+  verifyMagicLink,
+  type AuthenticatedUser,
+} from './api/client';
 
 interface AuthContextValue {
   user: AuthenticatedUser | null;
   loading: boolean;
   devLogin: () => Promise<void>;
+  verifyMagicLink: (token: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -33,13 +40,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(nextUser);
   }, []);
 
+  const handleVerifyMagicLink = useCallback(async (token: string) => {
+    const nextUser = await verifyMagicLink(token);
+    setUser(nextUser);
+  }, []);
+
   const handleLogout = useCallback(async () => {
     await apiLogout();
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, devLogin: handleDevLogin, logout: handleLogout }}>
+    <AuthContext.Provider
+      value={{ user, loading, devLogin: handleDevLogin, verifyMagicLink: handleVerifyMagicLink, logout: handleLogout }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -51,18 +65,4 @@ export function useAuth(): AuthContextValue {
     throw new Error('useAuth must be used within an AuthProvider.');
   }
   return context;
-}
-
-// Centralizes the loading/not-signed-in gate every protected route
-// previously repeated individually — wrap a route's element with this
-// instead of re-checking `loading`/`user` in each page component.
-export function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) {
-    return null;
-  }
-  if (!user) {
-    return <Alert type="info">Sign in to continue.</Alert>;
-  }
-  return <>{children}</>;
 }

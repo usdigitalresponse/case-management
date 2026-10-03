@@ -26,6 +26,13 @@ const IN_SCOPE_ENTITIES = [
   'case_participant',
   'case_identifier',
   'case_lifecycle_event',
+  'professional',
+  'case_assignment',
+  'time_entry',
+  'invoice',
+  'invoice_line',
+  'invoice_approval_chain',
+  'invoice_approval_decision',
 ];
 
 // Fields on in-scope entities that are deliberately not mapped, with the
@@ -35,6 +42,19 @@ const IN_SCOPE_ENTITIES = [
 const DELIBERATELY_OMITTED_FIELDS: Record<string, string> = {
   'organization.organization_type_id':
     'reference_data classification not needed for intake/read scope',
+  'professional.qualification_level_id':
+    'qualification-based assignment checks (require_qualification_for_assignment) not implemented yet',
+  'time_entry.activity_id': 'no activity entity/table exists yet',
+  'time_entry.office_id': 'no office scoping on time entries in this slice',
+  'time_entry.case_program_id': 'no case_program entity/table exists yet',
+  'time_entry.case_funding_id': 'no case_funding entity/table exists yet',
+  'invoice.service_provider_id':
+    'no service_provider table exists; professional plays that role for external submitters (invoice.professional_id)',
+  'invoice_line.source_expense_id': 'no expense entity/table exists yet; out of scope (time and invoices only)',
+  'invoice_approval_chain.submission_snapshot':
+    'immutable schema-versioned snapshot not implemented; this slice records only the decision, not a frozen copy of the invoice/lines/payee at review time',
+  'invoice_approval_decision.approved_amount':
+    'per-line/invoice approved-amount tracking not implemented; this slice never does per-line review (see comment on invoiceApprovalChain in src/db/schema.ts)',
 };
 
 interface SchemaYaml {
