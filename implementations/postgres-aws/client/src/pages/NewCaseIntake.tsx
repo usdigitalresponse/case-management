@@ -207,7 +207,14 @@ export default function NewCaseIntake() {
             label="Organization"
             error={fieldErrors.organizationId}
             value={organizationId}
-            onChange={setOrganizationId}
+            onChange={(nextOrganizationId) => {
+              setOrganizationId(nextOrganizationId);
+              // The server rejects an office outside the chosen organization.
+              const selectedOffice = referenceData.offices.find((office) => office.officeId === officeId);
+              if (nextOrganizationId && selectedOffice?.organizationId !== nextOrganizationId) {
+                setOfficeId('');
+              }
+            }}
             options={referenceData.organizations.map((organization) => ({
               id: organization.organizationId as string,
               label: organization.displayName,
@@ -219,10 +226,12 @@ export default function NewCaseIntake() {
             error={fieldErrors.officeId}
             value={officeId}
             onChange={setOfficeId}
-            options={referenceData.offices.map((office) => ({
-              id: office.officeId as string,
-              label: office.displayName,
-            }))}
+            options={referenceData.offices
+              .filter((office) => !organizationId || office.organizationId === organizationId)
+              .map((office) => ({
+                id: office.officeId as string,
+                label: office.displayName,
+              }))}
           />
           <ReferenceSelect
             id="jurisdictionId"

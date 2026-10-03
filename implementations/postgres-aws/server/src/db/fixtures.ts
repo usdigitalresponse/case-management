@@ -128,16 +128,34 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   const jurisdiction = firstRow(
     await db
       .insert(jurisdictions)
-      .values([{ code: 'sample_jurisdiction', displayName: 'Statewide' }])
+      .values([
+        { code: 'sample_jurisdiction', displayName: 'Statewide' },
+        { code: 'sample_district_court', displayName: 'District Court' },
+        { code: 'sample_superior_court', displayName: 'Superior Court' },
+        { code: 'sample_federal_court', displayName: 'Federal Court' },
+      ])
       .returning(),
   );
   const language = firstRow(
-    await db.insert(languages).values([{ code: 'sample_english', displayName: 'English' }]).returning(),
+    await db
+      .insert(languages)
+      .values([
+        { code: 'sample_english', displayName: 'English' },
+        { code: 'sample_spanish', displayName: 'Spanish' },
+        { code: 'sample_vietnamese', displayName: 'Vietnamese' },
+        { code: 'sample_mandarin', displayName: 'Mandarin' },
+        { code: 'sample_arabic', displayName: 'Arabic' },
+      ])
+      .returning(),
   );
   const identifierType = firstRow(
     await db
       .insert(caseIdentifierTypes)
-      .values([{ code: 'sample_reference', displayName: 'Case Number' }])
+      .values([
+        { code: 'sample_reference', displayName: 'Case Number' },
+        { code: 'sample_docket', displayName: 'Court Docket Number' },
+        { code: 'sample_client_id', displayName: 'Client ID' },
+      ])
       .returning(),
   );
   const [eventType, closingEventType] = await db
@@ -199,12 +217,27 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     getStaffAssignmentRoleId(db),
   ]);
 
-  await db
-    .insert(county)
-    .values([{ countyId: COUNTY_IDS.SAMPLE_COUNTY_A, displayName: 'County A', active: true }]);
-  await db.insert(organization).values([
-    { organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A, displayName: 'Legal Aid', active: true },
+  // The first row of each list has a stable ID (returned below and used by
+  // tests and the demo seed); the rest only give the intake dropdowns
+  // realistic choices.
+  await db.insert(county).values([
+    { countyId: COUNTY_IDS.SAMPLE_COUNTY_A, displayName: 'County A', active: true },
+    { displayName: 'County B', active: true },
+    { displayName: 'County C', active: true },
+    { displayName: 'County D', active: true },
+    { displayName: 'County E', active: true },
   ]);
+  const [, publicDefender, familyJusticeCenter] = await db
+    .insert(organization)
+    .values([
+      { organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A, displayName: 'Legal Aid', active: true },
+      { displayName: 'Public Defender', active: true },
+      { displayName: 'Family Justice Center', active: true },
+    ])
+    .returning();
+  if (!publicDefender || !familyJusticeCenter) {
+    throw new Error('Expected organization insert to return three rows.');
+  }
   await db.insert(office).values([
     {
       officeId: OFFICE_IDS.SAMPLE_OFFICE_A,
@@ -212,6 +245,9 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
       organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A,
       active: true,
     },
+    { displayName: 'North Office', organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A, active: true },
+    { displayName: 'Downtown Office', organizationId: publicDefender.organizationId, active: true },
+    { displayName: 'Eastside Office', organizationId: familyJusticeCenter.organizationId, active: true },
   ]);
 
   // Faker-generated names — no provenance link to any real dataset. Person
