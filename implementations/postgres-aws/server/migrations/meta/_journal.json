@@ -43,6 +43,13 @@
       "when": 1790908555692,
       "tag": "0005_ambitious_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790977967348,
+      "tag": "0006_tricky_blue_blade",
+      "breakpoints": true
     }
   ]
 }

@@ -11,13 +11,12 @@ import type { Database } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { invoice, invoiceLine, invoiceLineTypes, invoiceStatuses, timeEntry } from '../db/schema';
+import { SUBMITTED_INVOICE_STATUS_CODE } from '../billing/invoiceStatusCodes';
 import { hasOpenAssignment, NotAssignedToCaseError } from './caseAssignmentAuthorization';
 
-// Server-selected synthetic rows, the same pattern as
-// ../intake/createCase.ts's OPENING_EVENT_TYPE_CODE: a single seeded line
-// type/status exists today (see ../db/fixtures.ts), so the client doesn't
-// need to pick one.
-const SUBMITTED_INVOICE_STATUS_CODE = 'submitted';
+// Server-selected, the same pattern as ../intake/createCase.ts's
+// OPENING_EVENT_TYPE_CODE: an invoice is always created submitted, with
+// the single seeded line type, so the client doesn't pick either.
 const DEFAULT_INVOICE_LINE_TYPE_CODE = 'service';
 
 const createInvoiceLineInputSchema = z.object({

@@ -1,9 +1,11 @@
-// Bootstraps a professional profile for an external (magic-link)
-// user_account on first login, the same way oidcProviders.ts bootstraps
-// the user_account itself — so there's something case_assignment can point
-// at without a separate "create professional" form. Only called from the
-// magic-link flow (../routes/auth.ts): staff (SSO-login) professional
-// profiles are a separate, not-yet-built decision (see ../../MAPPING.md).
+// Bootstraps a professional profile for a user_account on first use, the
+// same way oidcProviders.ts bootstraps the user_account itself — so
+// there's something case_assignment can point at without a separate
+// "create professional" form. Called both at magic-link login (every
+// external vendor gets one immediately, ../routes/auth.ts) and lazily,
+// the first time a staff user is assigned to a case
+// (../routes/cases.ts POST /:id/staff-assignments) — staff otherwise has
+// no reason to need one.
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { person, professional, PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT } from '../db/schema';

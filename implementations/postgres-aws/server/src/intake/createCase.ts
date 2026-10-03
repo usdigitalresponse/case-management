@@ -3,6 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import type { PgTable, AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Database } from '../db/client';
 import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
+import { calendarDateInReportingTimeZone } from '../reportingTimeZone';
 import {
   caseTable,
   caseParticipant,
@@ -33,18 +34,6 @@ export type { CreateCaseInput, CreateCaseIdentifierInput } from './validation';
 
 // Server-selected synthetic opening event type; see MAPPING.md.
 const OPENING_EVENT_TYPE_CODE = 'sample_open';
-
-// Synthetic reporting zone pending per-organization configuration (MAPPING.md).
-const REPORTING_TIME_ZONE = 'UTC';
-
-function calendarDateInReportingTimeZone(date: Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: REPORTING_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-}
 
 export interface CreateCaseActor {
   userAccountId: string;

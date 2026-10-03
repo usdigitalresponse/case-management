@@ -14,12 +14,15 @@ import {
   invoiceStatuses,
   caseStatuses,
   role,
-  CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT,
 } from '../db/schema';
 import { createCase, CreateCaseValidationError, CreateCaseConfigurationError } from '../intake/createCase';
+import { caseStageExpression } from '../cases/caseStage';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { getExternalSubmitterRoleId } from '../professionals/externalSubmitterRole';
-import { uniqueViolationConstraint } from '../db/rowHelpers';
+import { assignProfessionalToCase, AlreadyAssignedError } from '../cases/assignProfessionalToCase';
+import { assignStaffToCase, NotStaffAccountError } from '../cases/assignStaffToCase';
+import { CaseNotFoundError } from '../cases/errors';
+import { closeCase, CloseCaseValidationError, CaseAlreadyClosedError, CloseCaseConfigurationError } from '../cases/closeCase';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -47,6 +50,7 @@ const caseColumnsWithClientName = {
   officeId: caseTable.officeId,
   jurisdictionId: caseTable.jurisdictionId,
   preferredLanguageId: caseTable.preferredLanguageId,
+  stage: caseStageExpression,
 };
 
 router.post(
@@ -116,7 +120,7 @@ router.get(
       return;
     }
     const resultingStatuses = alias(caseStatuses, 'resulting_statuses');
-    const [participants, lifecycleEvents, identifiers] = await Promise.all([
+    const [participants, lifecycleEvents, identifiers, assignments] = await Promise.all([
       db
         .select({
           caseParticipantId: caseParticipant.caseParticipantId,
@@ -154,8 +158,24 @@ router.get(
         .where(eq(caseLifecycleEvent.caseId, caseId))
         .orderBy(asc(caseLifecycleEvent.sequenceNumber)),
       db.select().from(caseIdentifier).where(eq(caseIdentifier.caseId, caseId)),
+      db
+        .select({
+          caseAssignmentId: caseAssignment.caseAssignmentId,
+          caseId: caseAssignment.caseId,
+          professionalId: caseAssignment.professionalId,
+          professionalDisplayName: professional.displayName,
+          assignmentRoleId: caseAssignment.assignmentRoleId,
+          assignmentRoleDisplayName: role.displayName,
+          assignedAt: caseAssignment.assignedAt,
+          endedAt: caseAssignment.endedAt,
+        })
+        .from(caseAssignment)
+        .leftJoin(professional, eq(caseAssignment.professionalId, professional.professionalId))
+        .leftJoin(role, eq(caseAssignment.assignmentRoleId, role.roleId))
+        .where(eq(caseAssignment.caseId, caseId))
+        .orderBy(asc(caseAssignment.assignedAt)),
     ]);
-    res.json({ case: caseRow, participants, lifecycleEvents, identifiers });
+    res.json({ case: caseRow, participants, lifecycleEvents, identifiers, assignments });
   }),
 );
 
@@ -196,33 +216,101 @@ router.post(
     }
 
     const assignmentRoleId = await getExternalSubmitterRoleId(db);
-    let assignment;
     try {
-      [assignment] = await db
-        .insert(caseAssignment)
-        .values({
-          caseId,
-          professionalId,
-          assignedAt: new Date(),
-          assignmentRoleId,
-          assignedByUserAccountId: actor.userAccountId,
-        })
-        .returning();
+      const assignment = await assignProfessionalToCase(db, caseId, professionalId, assignmentRoleId, actor.userAccountId);
+      res.status(201).json({ assignment });
     } catch (error) {
-      // A double-click/retry collides with case_assignment_open_unique
-      // (../db/schema.ts) rather than creating a second open assignment.
-      if (uniqueViolationConstraint(error) === CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT) {
-        res.status(409).json({ error: 'already_assigned', message: 'Already assigned to this case.' });
+      if (error instanceof AlreadyAssignedError) {
+        res.status(409).json({ error: 'already_assigned', message: error.message });
         return;
       }
       throw error;
     }
-    res.status(201).json({ assignment });
   }),
 );
 
-// Viewing only — approving/rejecting a submitted invoice needs
-// invoice_approval_chain, a separate future pass (see ../../MAPPING.md).
+// Assigns a staff (SSO) user to a case — the internal-assignment
+// counterpart to /:id/external-assignments above. Staff has no
+// professional profile until their first assignment (unlike a vendor's,
+// bootstrapped at magic-link login; see
+// ../professionals/ensureProfessional.ts), so one is created lazily by
+// ../cases/assignStaffToCase.ts, the first time they're assigned to
+// anything.
+router.post(
+  '/:id/staff-assignments',
+  asyncHandler(async (req, res) => {
+    const actor = getSessionUser(req);
+    if (!actor) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+    const caseId = req.params.id as string;
+    const userAccountId = typeof req.body?.userAccountId === 'string' ? req.body.userAccountId : undefined;
+    if (!userAccountId) {
+      res.status(400).json({ error: 'validation_error', message: 'userAccountId is required.' });
+      return;
+    }
+
+    try {
+      const assignment = await assignStaffToCase(db, actor.userAccountId, { caseId, userAccountId });
+      res.status(201).json({ assignment });
+    } catch (error) {
+      if (error instanceof CaseNotFoundError) {
+        res.status(404).json({ error: 'not_found', message: error.message });
+        return;
+      }
+      if (error instanceof NotStaffAccountError) {
+        res.status(400).json({ error: 'validation_error', message: error.message });
+        return;
+      }
+      if (error instanceof AlreadyAssignedError) {
+        res.status(409).json({ error: 'already_assigned', message: error.message });
+        return;
+      }
+      throw error;
+    }
+  }),
+);
+
+// Closes a case — ends every open assignment and records the closing
+// lifecycle event atomically (../cases/closeCase.ts).
+router.post(
+  '/:id/close',
+  asyncHandler(async (req, res) => {
+    const actor = getSessionUser(req);
+    if (!actor) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+    const caseId = req.params.id as string;
+    try {
+      const result = await closeCase(db, actor.userAccountId, caseId, req.body);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof CloseCaseValidationError) {
+        res.status(400).json({ error: 'validation_error', fieldErrors: error.fieldErrors });
+        return;
+      }
+      if (error instanceof CaseNotFoundError) {
+        res.status(404).json({ error: 'not_found', message: error.message });
+        return;
+      }
+      if (error instanceof CaseAlreadyClosedError) {
+        res.status(409).json({ error: 'already_closed', message: error.message });
+        return;
+      }
+      if (error instanceof CloseCaseConfigurationError) {
+        res.status(500).json({ error: 'configuration_error', message: error.message });
+        return;
+      }
+      throw error;
+    }
+  }),
+);
+
+// Viewing only, scoped to one case — the review action itself
+// (approve/reject) lives on the cross-case queue, ../routes/invoices.ts,
+// since reviewing isn't done case-by-case.
 router.get(
   '/:id/invoices',
   asyncHandler(async (req, res) => {

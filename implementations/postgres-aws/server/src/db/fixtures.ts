@@ -16,6 +16,8 @@ import {
   activityTypes,
   invoiceStatuses,
   invoiceLineTypes,
+  invoiceApprovalStepTypes,
+  invoiceApprovalOutcomes,
   role,
   county,
   organization,
@@ -58,14 +60,22 @@ export interface BaselineFixtureIds {
   languageSampleId: string;
   identifierTypeSampleId: string;
   lifecycleEventTypeOpenId: string;
+  lifecycleEventTypeClosedId: string;
   lifecycleReasonIntakeId: string;
+  lifecycleReasonClosureId: string;
   clientParticipantRoleId: string;
   intakeStaffRoleId: string;
   externalSubmitterAssignmentRoleId: string;
+  assignedStaffRoleId: string;
   activityTypeSampleId: string;
   invoiceStatusDraftId: string;
   invoiceStatusSubmittedId: string;
+  invoiceStatusApprovedId: string;
+  invoiceStatusRejectedId: string;
   invoiceLineTypeSampleId: string;
+  invoiceApprovalStepTypeLineReviewId: string;
+  invoiceApprovalOutcomeApprovedId: string;
+  invoiceApprovalOutcomeRejectedId: string;
   countyId: string;
   organizationId: string;
   officeId: string;
@@ -85,11 +95,13 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
 
   await db.execute(sql`
     TRUNCATE TABLE
-      intake_request, case_identifier, case_lifecycle_event, invoice_line, invoice, time_entry,
+      intake_request, case_identifier, case_lifecycle_event, invoice_approval_decision,
+      invoice_approval_chain, invoice_line, invoice, time_entry,
       case_assignment, case_participant, professional, magic_link_token, "case", user_account,
       person_affiliation, office, person, role, organization, county, case_categories,
       case_statuses, jurisdictions, languages, case_identifier_types, case_lifecycle_event_types,
-      case_lifecycle_reasons, activity_types, invoice_statuses, invoice_line_types
+      case_lifecycle_reasons, activity_types, invoice_statuses, invoice_line_types,
+      invoice_approval_step_types, invoice_approval_outcomes
     RESTART IDENTITY CASCADE
   `);
 
@@ -123,34 +135,57 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
       .values([{ code: 'sample_reference', displayName: 'Sample Reference' }])
       .returning(),
   );
-  const eventType = firstRow(
-    await db
-      .insert(caseLifecycleEventTypes)
-      .values([{ code: 'sample_open', displayName: 'Sample Open' }])
-      .returning(),
-  );
-  const reason = firstRow(
-    await db
-      .insert(caseLifecycleReasons)
-      .values([{ code: 'sample_intake', displayName: 'Sample Intake' }])
-      .returning(),
-  );
+  const [eventType, closingEventType] = await db
+    .insert(caseLifecycleEventTypes)
+    .values([
+      { code: 'sample_open', displayName: 'Sample Open' },
+      { code: 'sample_closed', displayName: 'Sample Closed' },
+    ])
+    .returning();
+  if (!eventType || !closingEventType) {
+    throw new Error('Expected case_lifecycle_event_types insert to return two rows.');
+  }
+  const [reason, closureReason] = await db
+    .insert(caseLifecycleReasons)
+    .values([
+      { code: 'sample_intake', displayName: 'Sample Intake' },
+      { code: 'sample_closure', displayName: 'Sample Closure' },
+    ])
+    .returning();
+  if (!reason || !closureReason) {
+    throw new Error('Expected case_lifecycle_reasons insert to return two rows.');
+  }
   const activityType = firstRow(
     await db.insert(activityTypes).values([{ code: 'legal_services', displayName: 'Legal Services' }]).returning(),
   );
-  const [invoiceStatusDraft, invoiceStatusSubmitted] = await db
+  const [invoiceStatusDraft, invoiceStatusSubmitted, invoiceStatusApproved, invoiceStatusRejected] = await db
     .insert(invoiceStatuses)
     .values([
       { code: 'draft', displayName: 'Draft' },
       { code: 'submitted', displayName: 'Submitted' },
+      { code: 'approved', displayName: 'Approved' },
+      { code: 'rejected', displayName: 'Rejected' },
     ])
     .returning();
-  if (!invoiceStatusDraft || !invoiceStatusSubmitted) {
-    throw new Error('Expected invoice_statuses insert to return two rows.');
+  if (!invoiceStatusDraft || !invoiceStatusSubmitted || !invoiceStatusApproved || !invoiceStatusRejected) {
+    throw new Error('Expected invoice_statuses insert to return four rows.');
   }
   const invoiceLineType = firstRow(
     await db.insert(invoiceLineTypes).values([{ code: 'service', displayName: 'Service' }]).returning(),
   );
+  const invoiceApprovalStepTypeLineReview = firstRow(
+    await db.insert(invoiceApprovalStepTypes).values([{ code: 'line_review', displayName: 'Line Review' }]).returning(),
+  );
+  const [invoiceApprovalOutcomeApproved, invoiceApprovalOutcomeRejected] = await db
+    .insert(invoiceApprovalOutcomes)
+    .values([
+      { code: 'approved', displayName: 'Approved' },
+      { code: 'rejected', displayName: 'Rejected' },
+    ])
+    .returning();
+  if (!invoiceApprovalOutcomeApproved || !invoiceApprovalOutcomeRejected) {
+    throw new Error('Expected invoice_approval_outcomes insert to return two rows.');
+  }
 
   await db.insert(role).values([
     {
@@ -168,6 +203,12 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     {
       roleId: ROLE_IDS.EXTERNAL_SUBMITTER_ASSIGNMENT,
       displayName: 'External Submitter',
+      roleContext: 'case_assignment',
+      active: true,
+    },
+    {
+      roleId: ROLE_IDS.ASSIGNED_STAFF,
+      displayName: 'Assigned Staff',
       roleContext: 'case_assignment',
       active: true,
     },
@@ -233,14 +274,22 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     languageSampleId: language.id,
     identifierTypeSampleId: identifierType.id,
     lifecycleEventTypeOpenId: eventType.id,
+    lifecycleEventTypeClosedId: closingEventType.id,
     lifecycleReasonIntakeId: reason.id,
+    lifecycleReasonClosureId: closureReason.id,
     clientParticipantRoleId: ROLE_IDS.CLIENT_PARTICIPANT,
     intakeStaffRoleId: ROLE_IDS.INTAKE_STAFF_ACCOUNT,
     externalSubmitterAssignmentRoleId: ROLE_IDS.EXTERNAL_SUBMITTER_ASSIGNMENT,
+    assignedStaffRoleId: ROLE_IDS.ASSIGNED_STAFF,
     activityTypeSampleId: activityType.id,
     invoiceStatusDraftId: invoiceStatusDraft.id,
     invoiceStatusSubmittedId: invoiceStatusSubmitted.id,
+    invoiceStatusApprovedId: invoiceStatusApproved.id,
+    invoiceStatusRejectedId: invoiceStatusRejected.id,
     invoiceLineTypeSampleId: invoiceLineType.id,
+    invoiceApprovalStepTypeLineReviewId: invoiceApprovalStepTypeLineReview.id,
+    invoiceApprovalOutcomeApprovedId: invoiceApprovalOutcomeApproved.id,
+    invoiceApprovalOutcomeRejectedId: invoiceApprovalOutcomeRejected.id,
     countyId: COUNTY_IDS.SAMPLE_COUNTY_A,
     organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A,
     officeId: OFFICE_IDS.SAMPLE_OFFICE_A,

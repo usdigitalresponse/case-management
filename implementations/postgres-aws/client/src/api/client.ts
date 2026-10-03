@@ -69,6 +69,10 @@ export function requestMagicLink(email: string): Promise<void> {
   return request<void>('/auth/magic-link/request', { method: 'POST', body: JSON.stringify({ email }) });
 }
 
+// Mirrors server/src/cases/caseStage.ts's CASE_STAGES; null once a case
+// is closed (case.closedOn set) — it has left the working board.
+export type CaseStage = 'awaiting-assignment' | 'represented' | 'billing' | 'closing';
+
 export interface CaseRecord {
   caseId: string;
   clientId: string | null;
@@ -84,6 +88,7 @@ export interface CaseRecord {
   officeId: string | null;
   jurisdictionId: string | null;
   preferredLanguageId: string | null;
+  stage: CaseStage | null;
 }
 
 export function listCases(): Promise<{ cases: CaseRecord[] }> {
@@ -127,20 +132,51 @@ export interface CaseIdentifier {
   isPrimary: boolean;
 }
 
+export interface CaseAssignment {
+  caseAssignmentId: string;
+  caseId: string;
+  professionalId: string;
+  professionalDisplayName: string | null;
+  assignmentRoleId: string;
+  assignmentRoleDisplayName: string | null;
+  assignedAt: string;
+  endedAt: string | null;
+}
+
 export interface CaseDetail {
   case: CaseRecord;
   participants: CaseParticipant[];
   lifecycleEvents: CaseLifecycleEvent[];
   identifiers: CaseIdentifier[];
+  assignments: CaseAssignment[];
 }
 
 export function getCase(caseId: string): Promise<CaseDetail> {
   return request<CaseDetail>(`/api/cases/${caseId}`);
 }
 
-// Viewing only — approving a submitted invoice needs invoice_approval_chain, a separate future pass.
+// Viewing only, scoped to one case — reviewInvoice below (via the
+// cross-case queue, ../pages/BillingQueue.tsx) does the approve/reject.
 export function getCaseInvoices(caseId: string): Promise<{ invoices: InvoiceRecord[] }> {
   return request<{ invoices: InvoiceRecord[] }>(`/api/cases/${caseId}/invoices`);
+}
+
+export interface StaffAccount {
+  userAccountId: string;
+  displayName: string;
+  email: string;
+  active: boolean;
+}
+
+export function searchStaff(query: string): Promise<{ staff: StaffAccount[] }> {
+  return request<{ staff: StaffAccount[] }>(`/api/staff?q=${encodeURIComponent(query)}`);
+}
+
+export function createStaffAssignment(caseId: string, userAccountId: string): Promise<{ assignment: CaseAssignment }> {
+  return request<{ assignment: CaseAssignment }>(`/api/cases/${caseId}/staff-assignments`, {
+    method: 'POST',
+    body: JSON.stringify({ userAccountId }),
+  });
 }
 
 export interface PersonRecord {
@@ -155,6 +191,31 @@ export interface PersonRecord {
 
 export function searchPeople(query: string): Promise<{ people: PersonRecord[] }> {
   return request<{ people: PersonRecord[] }>(`/api/people?q=${encodeURIComponent(query)}`);
+}
+
+// People who hold the "Client" role on at least one case — the sidebar's
+// Clients directory, distinct from searchPeople above (any existing
+// person, used to pick one for a new case participant).
+export interface ClientRecord {
+  personId: string;
+  displayName: string;
+  email: string | null;
+}
+
+export function listClients(query: string): Promise<{ clients: ClientRecord[] }> {
+  return request<{ clients: ClientRecord[] }>(`/api/clients?q=${encodeURIComponent(query)}`);
+}
+
+// External vendors (professionals) — the sidebar's Vendors directory.
+export interface VendorRecord {
+  professionalId: string;
+  displayName: string | null;
+  active: boolean;
+  email: string;
+}
+
+export function listVendors(query: string): Promise<{ professionals: VendorRecord[] }> {
+  return request<{ professionals: VendorRecord[] }>(`/api/professionals?q=${encodeURIComponent(query)}`);
 }
 
 export interface ReferenceOption {
@@ -315,5 +376,48 @@ export function createInvoice(input: CreateInvoiceInput): Promise<{ invoiceId: s
   return request<{ invoiceId: string; submittedTotal: string }>('/api/portal/invoices', {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+// The staff-facing billing review queue (../pages/BillingQueue.tsx) — a
+// cross-case listing, unlike getCaseInvoices above (one case).
+export interface QueuedInvoice {
+  invoiceId: string;
+  caseId: string;
+  caseClientDisplayName: string | null;
+  caseExternalReference: string | null;
+  professionalId: string;
+  professionalDisplayName: string | null;
+  statusId: string;
+  statusDisplayName: string;
+  submittedAt: string | null;
+  submittedTotal: string;
+}
+
+export function listInvoices(status?: string): Promise<{ invoices: QueuedInvoice[] }> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : '';
+  return request<{ invoices: QueuedInvoice[] }>(`/api/invoices${query}`);
+}
+
+export type ReviewOutcome = 'approved' | 'rejected';
+
+export function reviewInvoice(
+  invoiceId: string,
+  outcome: ReviewOutcome,
+  reason?: string,
+): Promise<{ invoiceId: string; statusId: string }> {
+  return request<{ invoiceId: string; statusId: string }>(`/api/invoices/${invoiceId}/review`, {
+    method: 'POST',
+    body: JSON.stringify({ outcome, reason }),
+  });
+}
+
+export function closeCase(
+  caseId: string,
+  reasonDetail: string,
+): Promise<{ caseId: string; caseLifecycleEventId: string; closedOn: string }> {
+  return request<{ caseId: string; caseLifecycleEventId: string; closedOn: string }>(`/api/cases/${caseId}/close`, {
+    method: 'POST',
+    body: JSON.stringify({ reasonDetail }),
   });
 }

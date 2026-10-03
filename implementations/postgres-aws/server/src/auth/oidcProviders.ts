@@ -6,6 +6,7 @@ import { Strategy as OidcStrategy, type Profile } from 'passport-openidconnect';
 import { db } from '../db/client';
 import { parseCommaSeparatedList } from './emailLists';
 import { ensureUserAccountForEmail } from './userAccounts';
+import { getStaffAccountRoleId } from './staffAccountRole';
 
 export interface AuthenticatedUser {
   userAccountId: string;
@@ -190,7 +191,8 @@ export function configureOidcProviders(): OidcProviderConfig[] {
                 return;
               }
 
-              const account = await ensureUserAccountForEmail(db, email, profile.displayName || email);
+              const staffAccountRoleId = await getStaffAccountRoleId(db);
+              const account = await ensureUserAccountForEmail(db, email, profile.displayName || email, staffAccountRoleId);
 
               const user: AuthenticatedUser = {
                 userAccountId: account.userAccountId,

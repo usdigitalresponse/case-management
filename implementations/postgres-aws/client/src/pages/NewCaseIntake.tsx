@@ -12,6 +12,7 @@ import {
 import { useApiResource } from '../hooks/useApiResource';
 import { ReferenceSelect } from '../components/ReferenceSelect';
 import { PageHeading } from '../components/PageHeading';
+import { TypeAheadPicker } from '../components/TypeAheadPicker';
 
 function generateRequestId(): string {
   return crypto.randomUUID();
@@ -21,8 +22,6 @@ export default function NewCaseIntake() {
   const navigate = useNavigate();
   const { data: referenceData, error: loadError } = useApiResource(getReferenceData, []);
 
-  const [personQuery, setPersonQuery] = useState('');
-  const [personResults, setPersonResults] = useState<PersonRecord[]>([]);
   const [selectedPerson, setSelectedPerson] = useState<PersonRecord | null>(null);
 
   const [participantRoleId, setParticipantRoleId] = useState('');
@@ -44,15 +43,6 @@ export default function NewCaseIntake() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const pendingRequest = useRef<{ payload: string; requestId: string } | null>(null);
-
-  async function handlePersonSearch() {
-    if (!personQuery.trim()) {
-      setPersonResults([]);
-      return;
-    }
-    const result = await searchPeople(personQuery);
-    setPersonResults(result.people);
-  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -131,44 +121,22 @@ export default function NewCaseIntake() {
       <div className="form-card">
       <Fieldset legend="Client" legendStyle="large">
         <FormGroup error={Boolean(fieldErrors.personId)}>
-          <Label htmlFor="personQuery">Search for an existing person</Label>
+          <Label htmlFor="personQuery" id="personQuery-label">Search for an existing person</Label>
           {fieldErrors.personId && <ErrorMessage>{fieldErrors.personId}</ErrorMessage>}
-          <TextInput
+          <TypeAheadPicker
             id="personQuery"
-            name="personQuery"
-            type="text"
-            value={personQuery}
-            onChange={(event) => setPersonQuery(event.target.value)}
+            placeholder="Search by name or email"
+            noResults="No people found."
+            search={(query) =>
+              searchPeople(query).then((result) =>
+                result.people.map((person) => ({
+                  value: person.personId,
+                  label: person.email ? `${person.displayName} (${person.email})` : person.displayName,
+                  item: person,
+                })))
+            }
+            onSelect={(person) => setSelectedPerson(person ?? null)}
           />
-          <Button type="button" onClick={() => void handlePersonSearch()}>
-            Search
-          </Button>
-          {selectedPerson && (
-            <p>
-              Selected: <strong>{selectedPerson.displayName}</strong>{' '}
-              <Button type="button" unstyled onClick={() => setSelectedPerson(null)}>
-                Clear
-              </Button>
-            </p>
-          )}
-          {!selectedPerson && personResults.length > 0 && (
-            <ul className="usa-list usa-list--unstyled">
-              {personResults.map((personResult) => (
-                <li key={personResult.personId}>
-                  <Button
-                    type="button"
-                    unstyled
-                    onClick={() => {
-                      setSelectedPerson(personResult);
-                      setPersonResults([]);
-                    }}
-                  >
-                    {personResult.displayName}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
         </FormGroup>
       </Fieldset>
       </div>

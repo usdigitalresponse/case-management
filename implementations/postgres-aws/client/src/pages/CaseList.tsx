@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
-import { Table, TextInput } from '@trussworks/react-uswds';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { Table } from '@trussworks/react-uswds';
 import { listCases, type CaseRecord } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { PageHeading } from '../components/PageHeading';
+import { SearchInput } from '../components/SearchInput';
 import { ResourceList } from '../components/ResourceList';
 import { caseDisplayLabel } from '../caseDisplayLabel';
+import { stageLabel } from '../overviewStages';
 
 function matchesQuery(caseRecord: CaseRecord, query: string): boolean {
   const haystack = `${caseRecord.clientDisplayName ?? ''} ${caseRecord.externalReference ?? ''}`.toLowerCase();
@@ -15,10 +17,15 @@ function matchesQuery(caseRecord: CaseRecord, query: string): boolean {
 export default function CaseList() {
   const { data: cases, error } = useApiResource(() => listCases().then((result) => result.cases), []);
   const [query, setQuery] = useState('');
+  // ?stage=<id> narrows to one board stage (sidebar/Overview "View all"
+  // links set it). An unrecognized value just matches nothing, same as a
+  // typo'd filter text.
+  const [searchParams] = useSearchParams();
+  const stageParam = searchParams.get('stage');
 
   return (
     <ResourceList
-      heading={<PageHeading eyebrow="Cases" title="All cases" />}
+      heading={<PageHeading eyebrow="Cases" title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'} />}
       error={error}
       data={cases}
       errorMessage="Failed to load cases."
@@ -26,21 +33,27 @@ export default function CaseList() {
       emptyMessage="No cases yet."
     >
       {(cases) => {
-        const filtered = cases.filter((caseRecord) => matchesQuery(caseRecord, query));
+        const stageCases = stageParam ? cases.filter((caseRecord) => caseRecord.stage === stageParam) : cases;
+        const filtered = stageCases.filter((caseRecord) => matchesQuery(caseRecord, query));
         return (
           <>
+            {stageParam && (
+              <p className="stage-filter-note">
+                Showing only <strong>{stageLabel(stageParam)}</strong> cases.{' '}
+                <RouterLink to="/cases">Show all cases</RouterLink>
+              </p>
+            )}
             <div className="list-toolbar">
-              <TextInput
+              <SearchInput
                 id="case-filter"
                 name="caseFilter"
-                type="text"
                 aria-label="Filter cases by client or external reference"
                 placeholder="Filter by client or external reference"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={setQuery}
               />
               <span className="list-count">
-                {filtered.length} of {cases.length} {cases.length === 1 ? 'case' : 'cases'}
+                {filtered.length} of {stageCases.length} {stageCases.length === 1 ? 'case' : 'cases'}
               </span>
             </div>
 
@@ -50,6 +63,7 @@ export default function CaseList() {
                   <tr>
                     <th scope="col">Client</th>
                     <th scope="col">Status</th>
+                    <th scope="col">Stage</th>
                     <th scope="col">Opened</th>
                     <th scope="col">External reference</th>
                   </tr>
@@ -63,6 +77,7 @@ export default function CaseList() {
                         </RouterLink>
                       </th>
                       <td><span className="status-pill">{caseRecord.statusDisplayName}</span></td>
+                      <td><span className="status-pill">{stageLabel(caseRecord.stage)}</span></td>
                       <td>{caseRecord.openedOn ?? '—'}</td>
                       <td>{caseRecord.externalReference ?? '—'}</td>
                     </tr>
@@ -80,6 +95,7 @@ export default function CaseList() {
                     </span>
                     <span className="row-card-meta">
                       <span className="status-pill">{caseRecord.statusDisplayName}</span>
+                      <span className="status-pill">{stageLabel(caseRecord.stage)}</span>
                       <span>Opened {caseRecord.openedOn ?? '—'}</span>
                       {caseRecord.externalReference && <span>{caseRecord.externalReference}</span>}
                     </span>

@@ -9,6 +9,8 @@ import { createTimeEntry } from '../portal/createTimeEntry';
 import { createInvoice } from '../portal/createInvoice';
 import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
+import { assignStaffToCase } from '../cases/assignStaffToCase';
+import { closeCase } from '../cases/closeCase';
 import { firstRow } from './rowHelpers';
 
 // Dev/demo data only — deliberately not part of resetAndSeedBaselineFixtures,
@@ -16,6 +18,7 @@ import { firstRow } from './rowHelpers';
 // assert zero pre-existing cases).
 const DEMO_CASE_COUNT = 10;
 const DEMO_PROFESSIONAL_COUNT = 3;
+const DEMO_STAFF_COUNT = 2;
 // How many demo cases get an external-submitter assignment; the rest stay unassigned.
 const ASSIGNED_CASE_COUNT = 6;
 
@@ -78,6 +81,24 @@ async function seedDemoProfessionals(): Promise<DemoProfessional[]> {
     professionals.push({ professionalId, userAccountId: account.userAccountId });
   }
   return professionals;
+}
+
+// Other full (SSO) users to search for and assign in the "Assign staff"
+// form (client/src/components/AssignStaffForm.tsx) — distinct from
+// fixtures.staffUserAccountId, the one synthetic account every demo case
+// is already created by, so there's someone else to find and assign.
+async function seedDemoStaff(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+): Promise<string[]> {
+  const userAccountIds: string[] = [];
+  for (let i = 0; i < DEMO_STAFF_COUNT; i += 1) {
+    const displayName = faker.person.fullName();
+    const email = `demo-staff-${i + 1}@usdigitalresponse.org`;
+    // eslint-disable-next-line no-await-in-loop
+    const account = await ensureUserAccountForEmail(db, email, displayName, fixtures.intakeStaffRoleId);
+    userAccountIds.push(account.userAccountId);
+  }
+  return userAccountIds;
 }
 
 interface DemoAssignment extends DemoProfessional {
@@ -159,15 +180,50 @@ async function seedDemoTimeEntriesAndInvoices(
   }
 }
 
+// Closes one never-assigned case via the same path as the "Close case"
+// UI, so the demo data covers a case that has left the overview board
+// entirely (../cases/caseStage.ts: a closed case has no stage).
+async function seedClosedCase(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+  caseIds: string[],
+): Promise<void> {
+  const caseId = caseIds[caseIds.length - 1];
+  if (!caseId) {
+    throw new Error('Expected at least one demo case to close.');
+  }
+  await closeCase(db, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Demo closure' });
+}
+
+// Assigns one of the still-unassigned demo cases (index ASSIGNED_CASE_COUNT,
+// just past seedDemoAssignments' range) to a demo staff member via the
+// same path the "Assign staff" UI uses, so the represented stage has an
+// example reached through internal assignment, not only external.
+async function seedStaffAssignment(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+  caseIds: string[],
+  staffUserAccountIds: string[],
+): Promise<void> {
+  const caseId = caseIds[ASSIGNED_CASE_COUNT];
+  const staffUserAccountId = staffUserAccountIds[0];
+  if (!caseId || !staffUserAccountId) {
+    throw new Error('Expected an unassigned demo case and a demo staff account.');
+  }
+  await assignStaffToCase(db, fixtures.staffUserAccountId, { caseId, userAccountId: staffUserAccountId });
+}
+
 async function main(): Promise<void> {
   const fixtures = await resetAndSeedBaselineFixtures(db);
   const caseIds = await seedDemoCases(fixtures);
   const professionals = await seedDemoProfessionals();
+  const staffUserAccountIds = await seedDemoStaff(fixtures);
   const assignments = await seedDemoAssignments(fixtures, caseIds, professionals);
   await seedDemoTimeEntriesAndInvoices(fixtures, assignments);
+  await seedClosedCase(fixtures, caseIds);
+  await seedStaffAssignment(fixtures, caseIds, staffUserAccountIds);
   // eslint-disable-next-line no-console
   console.log(
-    `Seed complete (${DEMO_CASE_COUNT} demo cases, ${assignments.length} external assignments with time/invoices).`,
+    `Seed complete (${DEMO_CASE_COUNT} demo cases, ${assignments.length} external assignments with time/invoices, ` +
+      `${staffUserAccountIds.length} demo staff, 1 closed).`,
   );
 }
 

@@ -35,4 +35,29 @@ describe('ensureUserAccountForEmail', () => {
     const rows = await testDb.select().from(userAccount).where(eq(userAccount.email, 'staff4@usdigitalresponse.org'));
     expect(rows).toHaveLength(1);
   });
+
+  it('sets systemRoleId on a brand-new account when given one', async () => {
+    const fixtures = await resetAndSeedBaselineFixtures(testDb);
+    const account = await ensureUserAccountForEmail(
+      testDb,
+      'staff5@usdigitalresponse.org',
+      'Staff Five',
+      fixtures.intakeStaffRoleId,
+    );
+    expect(account.systemRoleId).toBe(fixtures.intakeStaffRoleId);
+  });
+
+  it('never overwrites systemRoleId on an existing account', async () => {
+    const fixtures = await resetAndSeedBaselineFixtures(testDb);
+    const first = await ensureUserAccountForEmail(testDb, 'staff6@usdigitalresponse.org');
+    expect(first.systemRoleId).toBeNull();
+
+    const second = await ensureUserAccountForEmail(
+      testDb,
+      'staff6@usdigitalresponse.org',
+      'Staff Six',
+      fixtures.intakeStaffRoleId,
+    );
+    expect(second.systemRoleId).toBeNull();
+  });
 });

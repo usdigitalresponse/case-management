@@ -28,13 +28,62 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 
 ## Frontend design notes
 
-- **Overview home**: `/` shows five stage columns; `/cases` retains the full list.
-  Every case is temporarily displayed in Awaiting assignment. This is a UI-only
-  grouping, not persisted status or inferred assignment eligibility. The preview
-  note makes that limitation visible. Other stages remain empty until workflow
-  classification is defined. Cards use existing case data, with three previews
-  and a link to the complete list. Unimplemented navigation and tools are disabled.
-  The sidebar condenses on small screens and columns wrap into a vertical layout.
+- **Overview home**: `/` shows four stage columns (Awaiting assignment,
+  Represented, Billing, Closing); `/cases` retains the full list, now
+  with its own Stage column. Every column buckets real cases by their
+  actual derived stage (`server/src/cases/caseStage.ts` —
+  awaiting-assignment / represented / billing / closing /
+  none-if-closed, computed from assignment/invoice state, not stored) —
+  there is no more "everything shows under Awaiting assignment"
+  placeholder, and the preview badge that disclosed it is gone. Starting
+  a case isn't a stage with cases in it (a case already has its client
+  participant from the moment it's created — see
+  `src/intake/createCase.ts`), so it isn't a board column at all; it's
+  the sidebar's "New case" link and the header's "+ New case" button,
+  both going to `/cases/new`. Cards use existing case data, with three
+  previews and a link onward: Billing's "View all" goes to its real
+  queue (`/billing`, `client/src/pages/BillingQueue.tsx`); Awaiting
+  assignment, Represented, and Closing all go to `/cases?stage=<id>` —
+  `client/src/pages/CaseList.tsx` reads that query param and filters to
+  just that stage (with a "Show all cases" link back out), since none of
+  the three has a dedicated page of its own. Their sidebar links use the
+  same `?stage=` routes, as plain `Link`s rather than `NavLink`s — every
+  one of them (plus "Cases") shares the `/cases` pathname, and `NavLink`
+  only compares pathname by default, so all four would otherwise light up
+  together regardless of which `?stage=` is actually active. The sidebar
+  condenses on small screens and columns wrap into a vertical layout. The
+  header's `Messages`/`Timer` placeholders and "Search everything" box
+  were removed outright (disabled controls with no planned near-term
+  feature).
+- **Lookup directories**: the sidebar's People (`/people`), Clients
+  (`/clients`), Vendors (`/vendors`), and Organizations (`/organizations`)
+  all share one component, `client/src/components/SearchDirectory.tsx`
+  (search box + results table), each wired to a different fetch:
+  - People/Clients/Vendors hit a server search endpoint
+    (`GET /api/people`, `/api/clients`, `/api/professionals` — all
+    `requireFullUser`). People and Clients require a query first (the
+    person table could be large); Vendors loads everything up front
+    (a small table).
+  - `GET /api/clients` (`src/routes/clients.ts`) is new: people who hold
+    the "Client" `case_participant`-context role on at least one case,
+    distinct, optionally filtered by name/email. The role name is a
+    server-selected synthetic lookup (`'Client'`), the same
+    simplification as `OPENING_EVENT_TYPE_CODE` — `case_participant`
+    roles are organization-configurable, only seeded by `src/db/fixtures.ts`
+    (test/dev), not `src/db/ensureReferenceData.ts`.
+  - `GET /api/professionals` (`src/routes/professionals.ts`) used to
+    return `[]` without a query and was otherwise unused by the client;
+    it now also backs the Vendors directory, listing everyone when no
+    query is given. It excludes professionals created for internal staff
+    (`src/cases/assignStaffToCase.ts` lazily creates one on first staff
+    assignment) via the same staff-account system role
+    `src/routes/staff.ts` filters on — otherwise a staff member assigned
+    to a case would show up as a "vendor."
+  - Organizations has no new endpoint: `GET /api/reference-data` already
+    returns the full organization list (small, unpaginated), so
+    `OrganizationsDirectory.tsx` just filters that client-side, the same
+    way `CaseList.tsx` filters its own full case list.
+  - Reports has no backend at all and stays disabled.
 - **Reference-data endpoint**: `GET /api/reference-data` returns every
   lookup list the intake form needs (statuses, categories, roles,
   jurisdictions, languages, identifier types, counties, organizations,
@@ -45,11 +94,21 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   `personDisplayName` alongside the raw `person_id` — added specifically so
   the client shows a readable name instead of a UUID (the Faker-generated
   synthetic names are otherwise invisible in the UI).
-- **Person search is a plain search-then-select list**, not USWDS's
-  `ComboBox` (which filters a static client-side option list) — the person
-  list comes from an async server search, which doesn't fit ComboBox's
-  model without extra work not justified at this scale (a handful of
-  seeded people).
+- **Type-ahead pickers**: the person picker (`NewCaseIntake`) and the
+  staff picker (`AssignStaffForm`) share
+  `client/src/components/TypeAheadPicker.tsx`, built on Downshift's
+  `useCombobox` (keyboard handling and ARIA wiring) with its own minimal
+  styling. It searches the server (`GET /api/people?q=` /
+  `GET /api/staff?q=`) once typing pauses for 300ms, shows "Searching…"
+  meanwhile, and ignores out-of-order responses. The field's text is the
+  selection: editing it after picking an option deselects, and the ✕
+  button (shown whenever there's text) clears both. USWDS's `ComboBox`
+  was tried first and dropped: it only filters a pre-loaded list
+  instantly, can't wait for a pause in typing, only shows its clear button
+  after a selection, and when fed server results it shows matches for the
+  previous keystroke. The sidebar's directory pages (People/Clients/Vendors)
+  keep their own search-then-list-as-table UI, since they show every
+  match at once rather than picking one.
 - **10 demo cases** are seeded by `src/db/seed.ts` (not the test-shared
   `src/db/fixtures.ts`) via the real `createCase` handler, each with a
   distinct Faker-generated client and a rotating LSC case category, so the
@@ -157,26 +216,78 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   sender identity in SES is a manual AWS console/DNS step this code can't
   do for you — same category of manual prerequisite as filling in real
   Google OAuth credentials (see "Known gaps" below).
-- **Case assignment, scoped to external submitters**: `professional` and
-  `case_assignment` map the canonical entities, but only the one workflow
-  needed so far is built: `POST /api/cases/:id/external-assignments`
-  (`requireFullUser`) assigns an existing professional (found via
-  `GET /api/professionals?q=<email>`, which only finds professionals with
-  a `user_account_id` — i.e. someone who has logged in via magic link at
-  least once) to a case, with a fixed "External Submitter" role
-  (`src/professionals/externalSubmitterRole.ts`, a plain lookup — the row
-  itself is provisioned the same way in every environment by
-  `src/db/ensureReferenceData.ts`, run at `migrate` time; see "Reference
-  data" below). `GET /api/my-cases` lists the current
-  session's open assignments. Deliberately not implemented:
+- **Case assignment, two workflows**: `professional` and `case_assignment`
+  map the canonical entities, with two assignment endpoints built on a
+  shared insert (`src/cases/assignProfessionalToCase.ts`, which also
+  recovers from a double-click/retry hitting
+  `case_assignment_open_unique` rather than creating a second open
+  assignment):
+  - `POST /api/cases/:id/external-assignments` (`requireFullUser`)
+    assigns an existing professional (found via
+    `GET /api/professionals?q=<email>`, which only finds professionals
+    with a `user_account_id` — i.e. someone who has logged in via magic
+    link at least once) to a case, with a fixed "External Submitter" role
+    (`src/professionals/externalSubmitterRole.ts`).
+  - `POST /api/cases/:id/staff-assignments` (`requireFullUser`,
+    `src/cases/assignStaffToCase.ts`) assigns a staff (SSO) user, found
+    via `GET /api/staff?q=<email>` (`src/routes/staff.ts`), with a fixed
+    "Assigned Staff" role (`src/cases/staffAssignmentRole.ts`). Staff has
+    no professional profile until their first assignment (unlike a
+    vendor's, bootstrapped at magic-link login), so one is lazily created
+    here. "Staff" means a user_account whose `system_role_id` is the
+    "Intake Staff" role (`src/auth/staffAccountRole.ts`), set only when
+    the SSO verify callback (`src/auth/oidcProviders.ts`) creates a
+    brand-new account — a magic-link account never gets it, which is how
+    the two populations stay distinguishable in the same `user_account`
+    table.
+
+  Both roles above are provisioned the same way in every environment by
+  `src/db/ensureReferenceData.ts`, run at `migrate` time (see "Reference
+  data" below). `GET /api/my-cases` lists the current session's open
+  assignments; `GET /api/cases/:id` includes an `assignments` array (both
+  kinds, joined with professional/role display names) and a computed
+  `stage` (`src/cases/caseStage.ts` — awaiting-assignment / represented /
+  billing / closing / none-if-closed, derived from assignment/invoice
+  state rather than stored). Deliberately not implemented:
   `require_qualification_for_assignment` and
   `review_workload_before_assignment` (both `model/rules.yaml`
-  `outcome: configurable`), the "at most one overlapping primary
-  assignment per case" rule, and any staff-assignment UI/role choice —
-  every assignment created this way uses the one fixed role. Also not
+  `outcome: configurable`) and the "at most one overlapping primary
+  assignment per case" rule — every assignment of a given kind uses the
+  one fixed role for that kind, with no further role choice. Also not
   implemented: `person`'s `flag_possible_duplicate_client` check, since a
   `professional` here is always auto-created from a unique `user_account`,
   not user-entered.
+- **Invoice review**: `POST /api/invoices/:id/review` (`requireFullUser`,
+  `src/billing/reviewInvoice.ts`) approves or rejects a `submitted`
+  invoice; `GET /api/invoices?status=` (`src/routes/invoices.ts`) is the
+  cross-case queue behind it (unlike `GET /api/cases/:id/invoices`, one
+  case). Rejecting requires a `reason` (`model/rules.yaml`
+  `enforce_invoice_approval_sequence`); approving moves the case into the
+  `closing` stage (`src/cases/caseStage.ts`). This is a narrow slice of
+  the canonical `invoice_approval_chain`/`invoice_approval_decision`
+  model — see the comment on those tables in `src/db/schema.ts` for
+  exactly what's simplified (one chain, one whole-invoice decision, no
+  pre-approval, no per-line review, no "requests changes" outcome, no
+  chain superseding).
+- **Closing a case**: `POST /api/cases/:id/close` (`requireFullUser`,
+  `src/cases/closeCase.ts`) is the counterpart to opening
+  (`src/intake/createCase.ts`): it requires a reason, records the next
+  lifecycle event, projects `case.status_id`/`closed_on`, and ends every
+  open `case_assignment` at the closure's effective timestamp —
+  atomically, per `model/rules.yaml`'s `preserve_case_lifecycle`. The
+  closing event type and resulting status are server-selected synthetic
+  codes (`sample_closed`, mirroring `createCase.ts`'s
+  `OPENING_EVENT_TYPE_CODE`) — `case_lifecycle_event_types`/`case_statuses`
+  are organization-configurable reference data in the canonical model,
+  so (like the opening code) this only exists in `src/db/fixtures.ts`
+  (test/dev), not `src/db/ensureReferenceData.ts`; a real deployment
+  needs its own configured codes before this (or case creation) will
+  work. Deliberately not implemented: reopening/corrections (a closed
+  case stays closed), and the rule's "reject concurrent assignment
+  creation that would leave an assignment active on a closed case" /
+  "new assignments must begin while the case is open" guards — neither
+  `src/cases/assignProfessionalToCase.ts` nor `src/cases/assignStaffToCase.ts`
+  checks the case's open/closed state before assigning.
 - **Dev-login bypass**: `POST /auth/dev-login` logs in as the seeded
   synthetic staff account (`staff@example.invalid`) without any real SSO
   provider credentials configured. `src/app.ts` only mounts it when
@@ -309,23 +420,33 @@ list/detail views are implemented as tables:
 
 `user_account`, `county`, `organization`, `office`, `role`, `person`,
 `person_affiliation`, `case`, `case_participant`, `case_lifecycle_event`,
-`case_identifier`, `professional`, `case_assignment`, plus lookup tables
-for the `reference_data` sets these entities use (`case_categories`,
-`case_statuses`, `jurisdictions`, `languages`, `case_identifier_types`,
-`case_lifecycle_event_types`, `case_lifecycle_reasons`).
+`case_identifier`, `professional`, `case_assignment`, `time_entry`,
+`invoice`, `invoice_line`, `invoice_approval_chain`,
+`invoice_approval_decision`, plus lookup tables for the `reference_data`
+sets these entities use (`case_categories`, `case_statuses`,
+`jurisdictions`, `languages`, `case_identifier_types`,
+`case_lifecycle_event_types`, `case_lifecycle_reasons`, `activity_types`,
+`invoice_statuses`, `invoice_line_types`, `invoice_approval_step_types`,
+`invoice_approval_outcomes`).
 
-`professional`/`case_assignment` were added narrowly, for the external
-magic-link submitter workflow above — not as general staff
-assignment/scheduling support (see "API / auth design notes").
+`professional`/`case_assignment` cover both the external magic-link
+submitter workflow and internal staff assignment (see "Case assignment,
+two workflows" above) — not general scheduling/workload support.
+
+`invoice_approval_chain`/`invoice_approval_decision` implement a narrow
+slice of the canonical multi-stage, configurable approval routing: see
+the comment on these tables in `src/db/schema.ts` for exactly what's
+simplified (one chain, one whole-invoice decision, no pre-approval, no
+per-line review).
 
 `person_affiliation` (and `case_participant.affiliation_id`) were added ahead
 of an immediate need: adding them after case data exists would mean
 revisiting the `case_participant` uniqueness constraint under live data, so
 it was cheaper to include now while the schema is still empty.
 
-Every other entity in `schema.yaml` (assignments, billing/invoicing, time and
-expense, documents, audit_event, etc.) is out of scope for this slice and has
-no table here.
+Every other entity in `schema.yaml` (expense, documents, audit_event,
+service_provider, payment, etc.) is out of scope for this slice and has no
+table here.
 
 ### Deliberately omitted fields on in-scope entities
 

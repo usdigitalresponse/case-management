@@ -12,8 +12,17 @@
 // same way and none of the portal code needs a fallback for "what if this
 // reference row doesn't exist yet."
 import type { Database } from './client';
-import { activityTypes, invoiceLineTypes, invoiceStatuses, role } from './schema';
+import {
+  activityTypes,
+  invoiceLineTypes,
+  invoiceStatuses,
+  invoiceApprovalStepTypes,
+  invoiceApprovalOutcomes,
+  role,
+} from './schema';
 import { EXTERNAL_SUBMITTER_ROLE_DISPLAY_NAME } from '../professionals/externalSubmitterRole';
+import { STAFF_ACCOUNT_ROLE_DISPLAY_NAME } from '../auth/staffAccountRole';
+import { STAFF_ASSIGNMENT_ROLE_DISPLAY_NAME } from '../cases/staffAssignmentRole';
 
 export async function ensureReferenceData(db: Database): Promise<void> {
   await Promise.all([
@@ -26,6 +35,8 @@ export async function ensureReferenceData(db: Database): Promise<void> {
       .values([
         { code: 'draft', displayName: 'Draft' },
         { code: 'submitted', displayName: 'Submitted' },
+        { code: 'approved', displayName: 'Approved' },
+        { code: 'rejected', displayName: 'Rejected' },
       ])
       .onConflictDoNothing({ target: invoiceStatuses.code }),
     db
@@ -33,8 +44,27 @@ export async function ensureReferenceData(db: Database): Promise<void> {
       .values({ code: 'service', displayName: 'Service' })
       .onConflictDoNothing({ target: invoiceLineTypes.code }),
     db
+      .insert(invoiceApprovalStepTypes)
+      .values({ code: 'line_review', displayName: 'Line Review' })
+      .onConflictDoNothing({ target: invoiceApprovalStepTypes.code }),
+    db
+      .insert(invoiceApprovalOutcomes)
+      .values([
+        { code: 'approved', displayName: 'Approved' },
+        { code: 'rejected', displayName: 'Rejected' },
+      ])
+      .onConflictDoNothing({ target: invoiceApprovalOutcomes.code }),
+    db
       .insert(role)
       .values({ displayName: EXTERNAL_SUBMITTER_ROLE_DISPLAY_NAME, roleContext: 'case_assignment', active: true })
+      .onConflictDoNothing({ target: [role.displayName, role.roleContext] }),
+    db
+      .insert(role)
+      .values({ displayName: STAFF_ASSIGNMENT_ROLE_DISPLAY_NAME, roleContext: 'case_assignment', active: true })
+      .onConflictDoNothing({ target: [role.displayName, role.roleContext] }),
+    db
+      .insert(role)
+      .values({ displayName: STAFF_ACCOUNT_ROLE_DISPLAY_NAME, roleContext: 'user_account', active: true })
       .onConflictDoNothing({ target: [role.displayName, role.roleContext] }),
   ]);
 }

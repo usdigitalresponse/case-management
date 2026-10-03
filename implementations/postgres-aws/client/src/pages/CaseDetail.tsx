@@ -1,14 +1,20 @@
+import { useState } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import { Alert } from '@trussworks/react-uswds';
 import { ApiError, getCase, getCaseInvoices } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { RecordTable } from '../components/RecordTable';
 import { PageHeading } from '../components/PageHeading';
+import { AssignStaffForm } from '../components/AssignStaffForm';
+import { CloseCaseAction } from '../components/CloseCaseAction';
 import { formatDateTime } from '../formatDateTime';
 
 export default function CaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
-  const { data: detail, error } = useApiResource(() => getCase(caseId as string), [caseId]);
+  // Bumped after an assignment or closure to re-run getCase, since
+  // useApiResource only refetches when one of its deps changes.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { data: detail, error } = useApiResource(() => getCase(caseId as string), [caseId, refreshKey]);
   const { data: invoices, error: invoicesError } = useApiResource(
     () => getCaseInvoices(caseId as string).then((r) => r.invoices),
     [caseId],
@@ -25,7 +31,12 @@ export default function CaseDetail() {
   return (
     <div>
       <RouterLink to="/cases">&larr; Back to cases</RouterLink>
-      <PageHeading eyebrow="Case" title={detail.case.clientDisplayName ?? 'Case'} description={detail.case.caseId} />
+      <div className="case-heading-row">
+        <PageHeading eyebrow="Case" title={detail.case.clientDisplayName ?? 'Case'} description={detail.case.caseId} />
+        {!detail.case.closedOn && (
+          <CloseCaseAction caseId={detail.case.caseId} onClosed={() => setRefreshKey((key) => key + 1)} />
+        )}
+      </div>
 
       <dl className="fact-grid">
         <div className="fact">
@@ -54,6 +65,24 @@ export default function CaseDetail() {
             { header: 'Ended', render: (p) => (p.endedAt ? formatDateTime(p.endedAt) : '—') },
           ]}
         />
+      </div>
+
+      <div className="detail-section">
+        <h2>Assignments</h2>
+        <RecordTable
+          rows={detail.assignments}
+          rowKey={(assignment) => assignment.caseAssignmentId}
+          emptyMessage="No one is assigned to this case yet."
+          columns={[
+            { header: 'Assigned to', render: (a) => a.professionalDisplayName ?? 'Unknown' },
+            { header: 'Role', render: (a) => a.assignmentRoleDisplayName },
+            { header: 'Assigned', render: (a) => formatDateTime(a.assignedAt) },
+            { header: 'Ended', render: (a) => (a.endedAt ? formatDateTime(a.endedAt) : '—') },
+          ]}
+        />
+        {!detail.case.closedOn && (
+          <AssignStaffForm caseId={detail.case.caseId} onAssigned={() => setRefreshKey((key) => key + 1)} />
+        )}
       </div>
 
       <div className="detail-section">
