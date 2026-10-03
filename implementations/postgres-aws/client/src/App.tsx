@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Link, NavLink, useLocation } from 'react-
 import { Button } from '@trussworks/react-uswds';
 import { AuthProvider, useAuth } from './AuthContext';
 import LoginPage from './pages/LoginPage';
+import MagicLinkConfirm from './pages/MagicLinkConfirm';
 import CaseList from './pages/CaseList';
 import CaseDetail from './pages/CaseDetail';
 import NewCaseIntake from './pages/NewCaseIntake';
@@ -77,15 +78,20 @@ function Sidebar() {
 }
 
 // Order matters: loading (render nothing, don't flash the login screen),
-// signed out (LoginPage owns the screen), magic-link (narrow portal shell),
-// else staff layout.
+// signed out (LoginPage, or the emailed link's confirm page), magic-link
+// (narrow portal shell), else staff layout.
 function AppContent() {
   const { user, loading, logout } = useAuth();
   if (loading) {
     return null;
   }
   if (!user) {
-    return <LoginPage />;
+    return (
+      <Routes>
+        <Route path="/sign-in/verify" element={<MagicLinkConfirm />} />
+        <Route path="*" element={<LoginPage />} />
+      </Routes>
+    );
   }
   if (user.authType === 'magic-link') {
     return <ExternalPortalApp />;

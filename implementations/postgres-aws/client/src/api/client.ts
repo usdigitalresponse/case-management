@@ -69,6 +69,11 @@ export function requestMagicLink(email: string): Promise<void> {
   return request<void>('/auth/magic-link/request', { method: 'POST', body: JSON.stringify({ email }) });
 }
 
+// Consumes the single-use token; 401 if it is invalid, expired, or used.
+export function verifyMagicLink(token: string): Promise<AuthenticatedUser> {
+  return request<AuthenticatedUser>('/auth/magic-link/verify', { method: 'POST', body: JSON.stringify({ token }) });
+}
+
 // Mirrors server/src/cases/caseStage.ts's CASE_STAGES; null once a case
 // is closed (case.closedOn set) — it has left the working board.
 export type CaseStage = 'awaiting-assignment' | 'represented' | 'billing' | 'closing';

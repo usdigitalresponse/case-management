@@ -64,13 +64,12 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
       // external addresses are allowed in.
       if (email && isWhitelistedExternalEmail(email)) {
         const token = await issueMagicLinkToken(db, email);
-        // Must be the origin the browser should end up on (the client dev
-        // server in local dev, which proxies /auth to this server — see
-        // ../../client/vite.config.ts), not this server's own origin: the
-        // verify route below ends with res.redirect('/'), which needs to
-        // resolve against the client, not a bare API server with no '/'.
+        // Points at the client's confirm page, not at the verify endpoint:
+        // email link scanners (Safe Links, Gmail) GET every link before the
+        // user clicks, so the token must only be consumed by the page's
+        // POST to /magic-link/verify below.
         const baseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
-        const link = `${baseUrl}/auth/magic-link/verify?token=${token}`;
+        const link = `${baseUrl}/sign-in/verify?token=${encodeURIComponent(token)}`;
         // Not awaited: the response below is identical either way, so
         // there's no reason to hold the request open for an SES round
         // trip. Send failures are swallowed for the same reason they're
@@ -89,13 +88,13 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     }),
   );
 
-  router.get(
+  router.post(
     '/magic-link/verify',
     asyncHandler(async (req, res) => {
-      const token = typeof req.query.token === 'string' ? req.query.token : '';
+      const token = typeof req.body?.token === 'string' ? req.body.token : '';
       const email = token ? await consumeMagicLinkToken(db, token) : undefined;
       if (!email) {
-        res.redirect('/auth/failure');
+        res.status(401).json({ error: 'This sign-in link is invalid, expired, or already used.' });
         return;
       }
 
@@ -109,7 +108,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
         authType: 'magic-link',
       };
       setSessionUser(req, user);
-      res.redirect('/');
+      res.json(user);
     }),
   );
 

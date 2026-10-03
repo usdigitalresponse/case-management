@@ -205,7 +205,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   (`src/auth/magicLink.ts`) if `email` is in `EXTERNAL_EMAIL_WHITELIST`
   (`src/auth/externalEmailWhitelist.ts`) — it responds identically either
   way, so the endpoint can't be used to enumerate whitelisted addresses.
-  `GET /auth/magic-link/verify?token=` consumes the token, creates/reuses
+  The emailed link opens the client's `/sign-in/verify?token=` confirm
+  page (`client/src/pages/MagicLinkConfirm.tsx`), and only its explicit
+  `POST /auth/magic-link/verify` (body: `{ token }`) — never a GET, which
+  email link scanners would trigger — consumes the token, creates/reuses
   the `user_account`, bootstraps a `professional` profile for it
   (`src/professionals/ensureProfessional.ts`), and sets the session.
   `requireFullUser` (`src/auth/session.ts`) checks `authType === 'sso'`
