@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
 import { Table } from '@trussworks/react-uswds';
 
-// Shared "empty vs. bordered table" shape — CaseDetail previously repeated
-// this three times (participants, lifecycle events, identifiers) with only
-// the columns/row cells differing.
+// Shared "empty vs. bordered table" shape for CaseDetail's related-record
+// sections, which differ only in their columns/row cells.
 export interface RecordTableColumn<T> {
   header: string;
   render: (row: T) => ReactNode;

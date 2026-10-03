@@ -1,9 +1,7 @@
 import { ErrorMessage, FormGroup, Label, Select } from '@trussworks/react-uswds';
 
-// NewCaseIntake previously repeated this exact label/select/options shape
-// nine times (role, status, identifier type, plus six optional-context
-// fields), each pointing at a different reference-data array with a
-// different id-column name. Call sites normalize their options to
+// Label + select + reference-data options, shared by NewCaseIntake's
+// reference-data fields. Call sites normalize their options to
 // `{ id, label }[]` (a one-line `.map()`), keeping this component itself
 // free of any reference-data-specific typing.
 export interface ReferenceSelectOption {

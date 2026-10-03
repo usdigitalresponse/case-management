@@ -1,2 +1,0 @@
-CREATE UNIQUE INDEX "case_assignment_open_unique" ON "case_assignment" USING btree ("case_id","professional_id") WHERE ended_at IS NULL;--> statement-breakpoint
-CREATE UNIQUE INDEX "professional_user_account_id_unique" ON "professional" USING btree ("user_account_id");

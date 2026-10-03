@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX "role_display_name_role_context_unique" ON "role" USING btree ("display_name","role_context");

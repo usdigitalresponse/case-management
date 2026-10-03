@@ -92,8 +92,7 @@ button, input { font: inherit; }
 .case-table th:nth-child(4), .case-table td:nth-child(4) { width: 16%; }
 .case-table th:nth-child(5), .case-table td:nth-child(5) { width: 24%; }
 /* Case detail: visually separates "this case's own facts" (.fact-grid,
-   below) from "related records" (.data-card tables) — previously both
-   rendered as identical bordered tables with no way to tell them apart. */
+   below) from "related records" (.data-card tables). */
 .detail-section { margin-top: 2.2rem; }
 .detail-section h2 { font-size: 1.1rem; margin: 0 0 .85rem; }
 .fact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1.2rem; background: white; border: 1px solid #dce1e8; border-radius: 9px; padding: 1.2rem 1.4rem; }

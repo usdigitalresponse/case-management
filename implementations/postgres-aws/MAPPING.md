@@ -330,18 +330,16 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 
 ### Client (React) design notes
 
-- **`RequireAuth`** (`src/AuthContext.tsx`) wraps the protected application layout in
-  `App.tsx`, centralizing the loading/not-signed-in gate that
-  `CaseList`/`CaseDetail`/`NewCaseIntake` each used to repeat individually.
+- **`AppContent`** (`src/App.tsx`) is the single loading/signed-out/
+  portal/staff gate, so individual pages don't check auth themselves.
 - **`useApiResource`** (`src/hooks/useApiResource.ts`) is the shared
   fetch/loading/error mechanics behind every mount-effect data load (case
   list, case detail, intake's reference data) — error *message* wording
   stays per-page (e.g. mapping a 404 to "Case not found."), since that's
   genuinely page-specific.
-- **`ReferenceSelect`** and **`RecordTable`** (`src/components/`) collapse
-  the repeated "label + select + reference-data options" and "empty vs.
-  bordered table" shapes that `NewCaseIntake`/`CaseDetail` previously
-  hand-rolled per field/section.
+- **`ReferenceSelect`** and **`RecordTable`** (`src/components/`) are the
+  shared "label + select + reference-data options" and "empty vs.
+  bordered table" shapes used by `NewCaseIntake`/`CaseDetail`.
 - **Client/server type duplication**: `client/src/api/client.ts`'s
   `CaseRecord`/`CaseParticipant`/etc. mirror shapes from
   `server/src/db/schema.ts` by hand, with no shared types package across

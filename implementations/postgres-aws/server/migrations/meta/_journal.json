@@ -5,50 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1790043091389,
-      "tag": "0000_flowery_scarecrow",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1790887649935,
-      "tag": "0001_cultured_beast",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1790888070671,
-      "tag": "0002_naive_iron_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1790895728981,
-      "tag": "0003_reflective_wolverine",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1790898950459,
-      "tag": "0004_absent_sage",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1790908555692,
-      "tag": "0005_ambitious_prowler",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1790977967348,
-      "tag": "0006_tricky_blue_blade",
+      "when": 1790996002900,
+      "tag": "0000_baseline",
       "breakpoints": true
     }
   ]

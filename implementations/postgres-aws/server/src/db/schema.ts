@@ -60,8 +60,7 @@ export const role = pgTable(
   },
   (table) => [
     // Lets ../db/ensureReferenceData.ts seed a role idempotently
-    // (insert ... on conflict do nothing) instead of the select-then-insert
-    // race ../professionals/externalSubmitterRole.ts used to need.
+    // (insert ... on conflict do nothing).
     uniqueIndex('role_display_name_role_context_unique').on(table.displayName, table.roleContext),
   ],
 );
@@ -113,8 +112,9 @@ export const personAffiliation = pgTable('person_affiliation', {
 // user_account.system_role_id configures a permission role; it grants no
 // permission by itself (model/rules.yaml: validate_system_role). `email` is
 // an implementation-specific addition (not in model/schema.yaml) used to
-// match Google OAuth logins restricted to the USDR domain allowlist; rows
-// are created on first successful login, not seeded with real addresses.
+// match logins (SSO, restricted to each provider's domain allowlist, or
+// magic link); rows are created on first successful login, not seeded with
+// real addresses.
 // This dev/demo login gate is not the government partner's production auth
 // (see ../../MAPPING.md).
 export const userAccount = pgTable('user_account', {
