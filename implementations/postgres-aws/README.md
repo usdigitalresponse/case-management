@@ -70,7 +70,7 @@ Unavailable tools and stages are shown as disabled controls.
 
 ### Without Docker Compose
 
-Requires Node 20+ (see `server/.node-version`) and a local Postgres:
+Requires Node 20+ (pinned in `mise.toml` for mise users; `server/.nvmrc` for nvm) and a local Postgres:
 
 ```sh
 docker run -d --name case-management-postgres-aws-db \
