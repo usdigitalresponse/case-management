@@ -29,7 +29,6 @@ const CLOSED_CASE_STATUS_CODE = 'sample_closed';
 export const closeCaseInputSchema = z.object({
   // model/rules.yaml: closing requires a reason.
   reasonDetail: z.string().trim().min(1),
-  effectiveAt: z.coerce.date().optional(),
 });
 
 export type CloseCaseInput = z.infer<typeof closeCaseInputSchema>;
@@ -68,7 +67,9 @@ export async function closeCase(
     throw new CloseCaseValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
   const input = parsed.data;
-  const effectiveAt = input.effectiveAt ?? new Date();
+  // Always now: a backdated close could end assignments before they began
+  // or set closed_on before the case opened.
+  const effectiveAt = new Date();
 
   const [[closedStatus], [closingEventType]] = await Promise.all([
     db.select().from(caseStatuses).where(eq(caseStatuses.code, CLOSED_CASE_STATUS_CODE)),
@@ -105,7 +106,6 @@ export async function closeCase(
       .limit(1);
     const nextSequenceNumber = (latestEvent?.sequenceNumber ?? 0) + 1;
 
-    const recordedAt = new Date();
     const event = firstRow(
       await tx
         .insert(caseLifecycleEvent)
@@ -115,7 +115,7 @@ export async function closeCase(
           eventTypeId: closingEventType.id,
           resultingStatusId: closedStatus.id,
           effectiveAt,
-          recordedAt,
+          recordedAt: effectiveAt,
           actorUserAccountId,
           reasonDetail: input.reasonDetail,
         })

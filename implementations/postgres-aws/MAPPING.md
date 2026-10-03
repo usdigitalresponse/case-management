@@ -276,7 +276,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   `src/cases/closeCase.ts`) is the counterpart to opening
   (`src/intake/createCase.ts`): it requires a reason, records the next
   lifecycle event, projects `case.status_id`/`closed_on`, and ends every
-  open `case_assignment` at the closure's effective timestamp —
+  open `case_assignment` at the closure's effective timestamp (always
+  the server's current time — closes can't be backdated) —
   atomically, per `model/rules.yaml`'s `preserve_case_lifecycle`. The
   closing event type and resulting status are server-selected synthetic
   codes (`sample_closed`, mirroring `createCase.ts`'s

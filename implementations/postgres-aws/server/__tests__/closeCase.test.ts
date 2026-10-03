@@ -7,6 +7,7 @@ import { createCase, type CreateCaseInput } from '../src/intake/createCase';
 import { closeCase, CloseCaseValidationError } from '../src/cases/closeCase';
 import { CaseAlreadyClosedError, CaseNotFoundError } from '../src/cases/errors';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
+import { calendarDateInReportingTimeZone } from '../src/reportingTimeZone';
 import { caseTable, caseAssignment, caseLifecycleEvent, userAccount } from '../src/db/schema';
 
 let fixtures: BaselineFixtureIds;
@@ -43,14 +44,12 @@ describe('closeCase', () => {
   it('sets closedOn, the closed status, and records a lifecycle event', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
 
-    const result = await closeCase(testDb, fixtures.staffUserAccountId, caseId, {
-      reasonDetail: 'Matter resolved.',
-      effectiveAt: new Date('2026-03-01T00:00:00Z'),
-    });
+    const before = new Date();
+    const result = await closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Matter resolved.' });
 
-    expect(result.closedOn).toBe('2026-03-01');
+    expect(result.closedOn).toBe(calendarDateInReportingTimeZone(before));
     const [caseRow] = await testDb.select().from(caseTable).where(eq(caseTable.caseId, caseId));
-    expect(caseRow?.closedOn).toBe('2026-03-01');
+    expect(caseRow?.closedOn).toBe(result.closedOn);
     expect(caseRow?.statusId).toBe(fixtures.caseStatusClosedId);
 
     const [event] = await testDb
@@ -60,9 +59,21 @@ describe('closeCase', () => {
     expect(event?.sequenceNumber).toBe(2);
     expect(event?.reasonDetail).toBe('Matter resolved.');
     expect(event?.resultingStatusId).toBe(fixtures.caseStatusClosedId);
+    expect(event?.effectiveAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
   });
 
-  it('ends every open assignment at the closure effective timestamp', async () => {
+  it('ignores a client-supplied effectiveAt', async () => {
+    const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
+
+    const result = await closeCase(testDb, fixtures.staffUserAccountId, caseId, {
+      reasonDetail: 'Done.',
+      effectiveAt: '2020-01-01T00:00:00Z',
+    });
+
+    expect(result.closedOn).not.toBe('2020-01-01');
+  });
+
+  it('ends every open assignment at the closure timestamp', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
     const professionalId = await createProfessional();
     const [assignment] = await testDb
@@ -76,14 +87,17 @@ describe('closeCase', () => {
       })
       .returning();
 
-    const effectiveAt = new Date('2026-03-01T00:00:00Z');
-    await closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Done.', effectiveAt });
+    const result = await closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Done.' });
+    const [event] = await testDb
+      .select()
+      .from(caseLifecycleEvent)
+      .where(eq(caseLifecycleEvent.caseLifecycleEventId, result.caseLifecycleEventId));
 
     const [row] = await testDb
       .select()
       .from(caseAssignment)
       .where(eq(caseAssignment.caseAssignmentId, assignment!.caseAssignmentId));
-    expect(row?.endedAt).toEqual(effectiveAt);
+    expect(row?.endedAt).toEqual(event?.effectiveAt);
     expect(row?.endedByUserAccountId).toBe(fixtures.staffUserAccountId);
     expect(row?.endReason).toBe('Case closed');
   });
