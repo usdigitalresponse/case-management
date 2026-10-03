@@ -113,8 +113,8 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   const [openStatus, closedStatus] = await db
     .insert(caseStatuses)
     .values([
-      { code: 'sample_open', displayName: 'Sample Open' },
-      { code: 'sample_closed', displayName: 'Sample Closed' },
+      { code: 'sample_open', displayName: 'Open' },
+      { code: 'sample_closed', displayName: 'Closed' },
     ])
     .returning();
   if (!openStatus || !closedStatus) {
@@ -128,23 +128,23 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   const jurisdiction = firstRow(
     await db
       .insert(jurisdictions)
-      .values([{ code: 'sample_jurisdiction', displayName: 'Sample Jurisdiction' }])
+      .values([{ code: 'sample_jurisdiction', displayName: 'Statewide' }])
       .returning(),
   );
   const language = firstRow(
-    await db.insert(languages).values([{ code: 'sample_english', displayName: 'Sample English' }]).returning(),
+    await db.insert(languages).values([{ code: 'sample_english', displayName: 'English' }]).returning(),
   );
   const identifierType = firstRow(
     await db
       .insert(caseIdentifierTypes)
-      .values([{ code: 'sample_reference', displayName: 'Sample Reference' }])
+      .values([{ code: 'sample_reference', displayName: 'Case Number' }])
       .returning(),
   );
   const [eventType, closingEventType] = await db
     .insert(caseLifecycleEventTypes)
     .values([
-      { code: 'sample_open', displayName: 'Sample Open' },
-      { code: 'sample_closed', displayName: 'Sample Closed' },
+      { code: 'sample_open', displayName: 'Opened' },
+      { code: 'sample_closed', displayName: 'Closed' },
     ])
     .returning();
   if (!eventType || !closingEventType) {
@@ -153,8 +153,8 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   const [reason, closureReason] = await db
     .insert(caseLifecycleReasons)
     .values([
-      { code: 'sample_intake', displayName: 'Sample Intake' },
-      { code: 'sample_closure', displayName: 'Sample Closure' },
+      { code: 'sample_intake', displayName: 'Intake' },
+      { code: 'sample_closure', displayName: 'Closure' },
     ])
     .returning();
   if (!reason || !closureReason) {
@@ -201,14 +201,14 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
 
   await db
     .insert(county)
-    .values([{ countyId: COUNTY_IDS.SAMPLE_COUNTY_A, displayName: 'Sample County A', active: true }]);
+    .values([{ countyId: COUNTY_IDS.SAMPLE_COUNTY_A, displayName: 'County A', active: true }]);
   await db.insert(organization).values([
-    { organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A, displayName: 'Sample Organization A', active: true },
+    { organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A, displayName: 'Legal Aid', active: true },
   ]);
   await db.insert(office).values([
     {
       officeId: OFFICE_IDS.SAMPLE_OFFICE_A,
-      displayName: 'Sample Office A',
+      displayName: 'Main Office',
       organizationId: ORGANIZATION_IDS.SAMPLE_ORG_A,
       active: true,
     },

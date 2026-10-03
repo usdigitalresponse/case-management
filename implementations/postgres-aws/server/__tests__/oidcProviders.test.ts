@@ -3,19 +3,15 @@ import { emailFromProfile } from '../src/auth/oidcProviders';
 
 describe('emailFromProfile', () => {
   it('reads a Google-shaped profile (emails array)', () => {
-    expect(emailFromProfile({ emails: [{ value: 'staff@usdigitalresponse.org' }] })).toBe(
-      'staff@usdigitalresponse.org',
-    );
+    expect(emailFromProfile({ emails: [{ value: 'staff@example.com' }] })).toBe('staff@example.com');
   });
 
   it('falls back to the raw email claim (e.g. a Microsoft-shaped profile)', () => {
-    expect(emailFromProfile({ _json: { email: 'staff@partner-agency.gov' } })).toBe('staff@partner-agency.gov');
+    expect(emailFromProfile({ _json: { email: 'staff@agency.example' } })).toBe('staff@agency.example');
   });
 
   it('falls back to preferred_username when no email claim is present', () => {
-    expect(emailFromProfile({ _json: { preferred_username: 'staff@partner-agency.gov' } })).toBe(
-      'staff@partner-agency.gov',
-    );
+    expect(emailFromProfile({ _json: { preferred_username: 'staff@agency.example' } })).toBe('staff@agency.example');
   });
 
   it('returns undefined when no claim yields an email', () => {
@@ -63,7 +59,7 @@ describe('configureOidcProviders', () => {
     vi.stubEnv('MICROSOFT_TENANT_ID', 'tenant-123');
     vi.stubEnv('MICROSOFT_CLIENT_ID', 'ms-client-id');
     vi.stubEnv('MICROSOFT_CLIENT_SECRET', 'ms-client-secret');
-    vi.stubEnv('MICROSOFT_ALLOWED_DOMAINS', 'partner-agency.gov');
+    vi.stubEnv('MICROSOFT_ALLOWED_DOMAINS', 'agency.example');
     const { configureOidcProviders } = await import('../src/auth/oidcProviders');
 
     const providers = configureOidcProviders();
@@ -71,6 +67,6 @@ describe('configureOidcProviders', () => {
     const google = providers.find((p) => p.id === 'google');
     const microsoft = providers.find((p) => p.id === 'microsoft');
     expect(google?.allowedDomains).toEqual(['usdigitalresponse.org', 'usdrvolunteers.org']);
-    expect(microsoft?.allowedDomains).toEqual(['partner-agency.gov']);
+    expect(microsoft?.allowedDomains).toEqual(['agency.example']);
   });
 });

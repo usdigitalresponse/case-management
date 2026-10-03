@@ -64,7 +64,7 @@ function assignExternal(caseId: string, professionalId: string) {
 describe('assignStaffToCase', () => {
   it('bootstraps a professional profile for a staff account that has never had one', async () => {
     const caseId = await openCase();
-    const userAccountId = await createStaffAccount('attorney1@usdigitalresponse.org');
+    const userAccountId = await createStaffAccount('attorney1@example.com');
 
     const assignment = await assignStaff(caseId, userAccountId);
 
@@ -74,7 +74,7 @@ describe('assignStaffToCase', () => {
   });
 
   it('reuses the existing professional profile on a second assignment', async () => {
-    const userAccountId = await createStaffAccount('attorney2@usdigitalresponse.org');
+    const userAccountId = await createStaffAccount('attorney2@example.com');
 
     const first = await assignStaff(await openCase(), userAccountId);
     const second = await assignStaff(await openCase(), userAccountId);
@@ -83,7 +83,7 @@ describe('assignStaffToCase', () => {
   });
 
   it('uses the "Assigned Staff" role, distinct from "External Submitter"', async () => {
-    const assignment = await assignStaff(await openCase(), await createStaffAccount('attorney3@usdigitalresponse.org'));
+    const assignment = await assignStaff(await openCase(), await createStaffAccount('attorney3@example.com'));
 
     expect(assignment.assignmentRoleId).toBe(fixtures.assignedStaffRoleId);
     expect(assignment.assignmentRoleId).not.toBe(fixtures.externalSubmitterAssignmentRoleId);
@@ -102,14 +102,14 @@ describe('assignStaffToCase', () => {
   });
 
   it('rejects an unknown case', async () => {
-    const userAccountId = await createStaffAccount('attorney4@usdigitalresponse.org');
+    const userAccountId = await createStaffAccount('attorney4@example.com');
 
     await expect(assignStaff('00000000-0000-0000-0000-000000000000', userAccountId)).rejects.toThrow(CaseNotFoundError);
   });
 
   it('rejects a second open assignment of the same staff member to the same case', async () => {
     const caseId = await openCase();
-    const userAccountId = await createStaffAccount('attorney5@usdigitalresponse.org');
+    const userAccountId = await createStaffAccount('attorney5@example.com');
 
     await assignStaff(caseId, userAccountId);
     await expect(assignStaff(caseId, userAccountId)).rejects.toThrow(AlreadyAssignedError);
@@ -122,7 +122,7 @@ describe('assignStaffToCase', () => {
     const caseId = await openCase();
     await closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Done.' });
 
-    await expect(assignStaff(caseId, await createStaffAccount('attorney6@usdigitalresponse.org'))).rejects.toThrow(
+    await expect(assignStaff(caseId, await createStaffAccount('attorney6@example.com'))).rejects.toThrow(
       CaseAlreadyClosedError,
     );
 
@@ -144,7 +144,7 @@ describe('assignExternalSubmitterToCase', () => {
   });
 
   it("rejects a staff member's professional profile", async () => {
-    const userAccountId = await createStaffAccount('attorney7@usdigitalresponse.org');
+    const userAccountId = await createStaffAccount('attorney7@example.com');
     const { professionalId } = await assignStaff(await openCase(), userAccountId);
 
     await expect(assignExternal(await openCase(), professionalId)).rejects.toThrow(NotExternalProfessionalError);

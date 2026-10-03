@@ -14,7 +14,7 @@ function mockReq(user?: AuthenticatedUser): Request {
 
 const ssoUser: AuthenticatedUser = {
   userAccountId: 'staff-1',
-  email: 'staff@usdigitalresponse.org',
+  email: 'staff@example.com',
   displayName: 'Staff',
   authType: 'sso',
   ssoProvider: 'google',
