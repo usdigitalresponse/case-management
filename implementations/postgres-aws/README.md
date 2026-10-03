@@ -61,8 +61,8 @@ button (client) / `/auth/dev-login` (API) works.
 
 Open http://localhost:5173, click "Dev sign-in," and you should see 10
 seeded cases with synthetic (Faker-generated) client names on the overview.
-All cases appear under Awaiting assignment for now; this does not change their
-saved status. Select a card for details or View all to open the case list.
+Cases are grouped by derived stage (Needs assignment, Represented, Billing,
+Closing). Select a card for details or View all to open the case list.
 Unavailable tools and stages are shown as disabled controls.
 
 `docker compose down -v` stops everything and removes the Postgres volume

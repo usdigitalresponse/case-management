@@ -58,7 +58,7 @@ export default function CaseList() {
             </div>
 
             <div className="data-card">
-              <Table bordered fullWidth fixed className="case-table">
+              <Table bordered fullWidth className="case-table">
                 <thead>
                   <tr>
                     <th scope="col">Client</th>

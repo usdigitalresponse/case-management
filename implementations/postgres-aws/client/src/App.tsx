@@ -8,6 +8,7 @@ import CaseDetail from './pages/CaseDetail';
 import NewCaseIntake from './pages/NewCaseIntake';
 import Overview from './pages/Overview';
 import BillingQueue from './pages/BillingQueue';
+import InvoiceReview from './pages/InvoiceReview';
 import PeopleDirectory from './pages/PeopleDirectory';
 import ClientsDirectory from './pages/ClientsDirectory';
 import VendorsDirectory from './pages/VendorsDirectory';
@@ -108,6 +109,7 @@ function AppContent() {
             <Route path="/cases/new" element={<NewCaseIntake />} />
             <Route path="/cases/:caseId" element={<CaseDetail />} />
             <Route path="/billing" element={<BillingQueue />} />
+            <Route path="/billing/:invoiceId" element={<InvoiceReview />} />
             <Route path="/people" element={<PeopleDirectory />} />
             <Route path="/clients" element={<ClientsDirectory />} />
             <Route path="/vendors" element={<VendorsDirectory />} />

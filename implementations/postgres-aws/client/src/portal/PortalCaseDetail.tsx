@@ -134,7 +134,7 @@ function InvoiceSection({ caseId }: { caseId: string }) {
       setAmountInputs(['']);
       setSubmitted(true);
     } catch {
-      setSubmitError('Failed to submit the invoice. Check the line amounts and try again.');
+      setSubmitError('Failed to submit the invoice. Check the item amounts and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -162,7 +162,7 @@ function InvoiceSection({ caseId }: { caseId: string }) {
         {submitted && <Alert type="success">Invoice submitted.</Alert>}
         {amountInputs.map((amount, index) => (
           <FormGroup key={index}>
-            <Label htmlFor={`line-amount-${index}`}>Line {index + 1} amount ($)</Label>
+            <Label htmlFor={`line-amount-${index}`}>Item {index + 1} amount ($)</Label>
             <TextInput
               id={`line-amount-${index}`}
               name={`line-amount-${index}`}
@@ -175,7 +175,7 @@ function InvoiceSection({ caseId }: { caseId: string }) {
           </FormGroup>
         ))}
         <Button type="button" unstyled onClick={() => setAmountInputs((previous) => [...previous, ''])}>
-          + Add another line
+          + Add another item
         </Button>
         <br />
         <Button type="submit" disabled={submitting}>

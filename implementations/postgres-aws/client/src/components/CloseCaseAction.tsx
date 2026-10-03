@@ -4,7 +4,7 @@ import { ApiError, closeCase } from '../api/client';
 
 // Closes an open case, from any stage (server/src/cases/closeCase.ts). A reason is required (the server
 // enforces this), so opening the form is a separate step from confirming
-// it, same shape as InvoiceReviewActions' reject flow.
+// it, same shape as InvoiceLineReviewActions' reject flow.
 export function CloseCaseAction({ caseId, onClosed }: { caseId: string; onClosed: () => void }) {
   const [open, setOpen] = useState(false);
   const [reasonDetail, setReasonDetail] = useState('');

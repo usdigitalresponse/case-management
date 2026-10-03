@@ -7,16 +7,16 @@
 // Buckets are checked in this order, so a case lands in the first one
 // that matches. Billing comes before closing so a later invoice awaiting
 // review isn't hidden by an earlier approved one:
-//   billing              a submitted invoice is waiting on staff review
-//   closing              an approved invoice is waiting on the close action
-//   represented          an open (not-yet-ended) assignment exists
-//   awaiting-assignment  everything else still open
+//   billing           a submitted invoice is waiting on staff review
+//   closing           an approved invoice is waiting on the close action
+//   represented       an open (not-yet-ended) assignment exists
+//   needs-assignment  everything else still open
 // A closed case (closed_on set) has no stage — it has left the board.
 import { sql, type SQL } from 'drizzle-orm';
 import { caseTable, caseAssignment, invoice, invoiceStatuses } from '../db/schema';
 import { APPROVED_INVOICE_STATUS_CODE, SUBMITTED_INVOICE_STATUS_CODE } from '../billing/invoiceStatusCodes';
 
-export const CASE_STAGES = ['awaiting-assignment', 'represented', 'billing', 'closing'] as const;
+export const CASE_STAGES = ['needs-assignment', 'represented', 'billing', 'closing'] as const;
 export type CaseStage = (typeof CASE_STAGES)[number];
 
 export const caseStageExpression: SQL<CaseStage | null> = sql<CaseStage | null>`
@@ -36,6 +36,6 @@ export const caseStageExpression: SQL<CaseStage | null> = sql<CaseStage | null>`
       select 1 from ${caseAssignment}
       where ${caseAssignment.caseId} = ${caseTable.caseId} and ${caseAssignment.endedAt} is null
     ) then 'represented'
-    else 'awaiting-assignment'
+    else 'needs-assignment'
   end
 `;

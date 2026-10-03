@@ -5,10 +5,10 @@ import type { CaseStage } from './api/client';
 // ?stage=<id> (./pages/CaseList.tsx reads it).
 export const overviewStages: { id: CaseStage; label: string; description: string; route: string }[] = [
   {
-    id: 'awaiting-assignment',
-    label: 'Awaiting assignment',
+    id: 'needs-assignment',
+    label: 'Needs assignment',
     description: 'Cases waiting for their next step.',
-    route: '/cases?stage=awaiting-assignment',
+    route: '/cases?stage=needs-assignment',
   },
   {
     id: 'represented',

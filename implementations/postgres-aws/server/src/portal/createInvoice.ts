@@ -1,10 +1,6 @@
-// Invoice submission for the external portal. No approval workflow here —
-// this only takes an invoice from nonexistent to "submitted"; reviewing/
-// approving it (model/schema.yaml invoice_approval_chain) is a separate,
-// not-yet-built pass (see ../../MAPPING.md). Amounts are vendor-entered
-// per line, not derived from a rate: there's no billing-rate entity in
-// scope, and a real external vendor invoice states what it's charging
-// rather than recomputing it from logged hours.
+// Portal invoice submission; staff review it in ../billing/reviewInvoiceLine.ts.
+// Line amounts are vendor-entered, not derived from a rate (there's no
+// billing-rate entity in scope).
 import { z } from 'zod';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../db/client';
