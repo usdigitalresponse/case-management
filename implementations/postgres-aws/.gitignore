@@ -7,3 +7,5 @@ node_modules/
 *.tfstate
 *.tfstate.backup
 dist/
+terraform.tfvars
+*.tfplan

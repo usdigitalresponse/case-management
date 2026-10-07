@@ -190,6 +190,9 @@ including records users entered, and recreates the synthetic demo data.
 `docker compose -f docker-compose.prod.yml --env-file .env.prod down -v`
 removes the stack and all its data.
 
+`deploy/ec2/` provisions one EC2 instance for this stack with Terraform
+and deploys it over SSH; see its README.
+
 ### Full AWS skeleton
 
 `terraform/` is a single-environment (`sandbox.tfvars`) infra skeleton —
