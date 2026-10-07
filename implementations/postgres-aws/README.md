@@ -56,10 +56,10 @@ data and creates synthetic reference data plus 10 demo cases. Run it only
 for initial setup or when intentionally resetting the demo database.
 
 Without a `.env` file (copy
-`.env.example`), Google sign-in is disabled and only the "Dev sign-in"
-button (client) / `/auth/dev-login` (API) works.
+`.env.example`), Google sign-in is disabled and only the "Demo sign-in"
+button (client) / `/auth/demo-login` (API) works.
 
-Open http://localhost:5173, click "Dev sign-in," and you should see 10
+Open http://localhost:5173, click "Demo sign-in," and you should see 10
 seeded cases with synthetic (Faker-generated) client names on the overview.
 Cases are grouped by derived stage (Needs assignment, Represented, Billing,
 Closing). Select a card for details or View all to open the case list.
@@ -126,11 +126,12 @@ npm run dev   # tsx watch src/app.ts, http://localhost:3000
 ```
 
 Without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` set, Google sign-in is
-disabled and only `/auth/dev-login` is available (see MAPPING.md — this
-bypass never mounts when `NODE_ENV=production`). A quick smoke test:
+disabled and only `/auth/demo-login` is available. Demo sign-in is
+always on, including with `NODE_ENV=production` (see MAPPING.md, "Demo
+sign-in"). A quick smoke test:
 
 ```sh
-curl -c cookies.txt -X POST http://localhost:3000/auth/dev-login
+curl -c cookies.txt -X POST http://localhost:3000/auth/demo-login
 curl -b cookies.txt http://localhost:3000/auth/me
 curl -b cookies.txt http://localhost:3000/api/cases
 ```
@@ -160,7 +161,7 @@ omitted when the server is running locally too (not in a container).
 `.github/workflows/postgres-aws.yml` runs on PRs/pushes touching this
 directory: `server` (typecheck, migrate, test, schema-mapping check),
 `client` (typecheck, build), and `compose-smoke-test` (a real
-`docker compose up` + explicit demo seed + dev-login/list-cases round trip,
+`docker compose up` + explicit demo seed + demo-login/list-cases round trip,
 followed by a restart check that verifies case IDs are preserved).
 
 ## Deploy

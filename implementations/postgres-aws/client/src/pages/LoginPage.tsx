@@ -13,7 +13,7 @@ import { useAuth } from '../AuthContext';
 export default function LoginPage() {
   const { data } = useApiResource(listAuthProviders, []);
   const providers = data?.providers;
-  const { devLogin } = useAuth();
+  const { demoLogin } = useAuth();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [requested, setRequested] = useState(false);
@@ -43,11 +43,9 @@ export default function LoginPage() {
             Sign in with {provider.displayName}
           </a>
         ))}
-        {data?.devLoginEnabled && (
-          <Button type="button" outline onClick={() => void devLogin()}>
-            Dev sign-in
-          </Button>
-        )}
+        <Button type="button" outline onClick={() => void demoLogin()}>
+          Demo sign-in
+        </Button>
       </section>
 
       <section className="login-panel">

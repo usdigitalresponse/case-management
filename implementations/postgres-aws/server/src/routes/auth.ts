@@ -18,27 +18,14 @@ export interface AuthRouterOptions {
   // Configured full-user providers (see ../auth/oidcProviders.ts) —
   // empty when no provider's credentials are set.
   oidcProviders: OidcProviderConfig[];
-  // Bypasses SSO entirely, logging in as the seeded synthetic staff
-  // account (see src/db/fixtures.ts).
-  devLoginEnabled: boolean;
 }
 
 export function createAuthRouter(options: AuthRouterOptions): Router {
-  // Enforced here, not just by the NODE_ENV check the one current caller
-  // (../app.ts) happens to apply before setting this flag — a future
-  // second call site (a script, a test harness against a real DB) could
-  // otherwise pass devLoginEnabled: true with no NODE_ENV guard and
-  // silently reopen an auth bypass in production.
-  if (options.devLoginEnabled && process.env.NODE_ENV === 'production') {
-    throw new Error('devLoginEnabled must never be true when NODE_ENV=production.');
-  }
-
   const router = Router();
 
   router.get('/providers', (_req, res) => {
     res.json({
       providers: options.oidcProviders.map(({ id, displayName }) => ({ id, displayName })),
-      devLoginEnabled: options.devLoginEnabled,
     });
   });
 
@@ -131,29 +118,31 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     res.json(user);
   });
 
-  if (options.devLoginEnabled) {
-    router.post(
-      '/dev-login',
-      asyncHandler(async (req, res) => {
-        const [staff] = await db
-          .select()
-          .from(userAccount)
-          .where(eq(userAccount.email, 'staff@example.invalid'));
-        if (!staff) {
-          res.status(500).json({ error: 'Seeded dev account not found; run `npm run seed` first.' });
-          return;
-        }
-        const user: AuthenticatedUser = {
-          userAccountId: staff.userAccountId,
-          email: staff.email,
-          displayName: staff.displayName,
-          authType: 'sso',
-        };
-        setSessionUser(req, user);
-        res.json(user);
-      }),
-    );
-  }
+  // Deliberately available in every environment, production included:
+  // this prototype is a synthetic-data demo, so anyone can sign in as the
+  // seeded staff account (see ../db/fixtures.ts and MAPPING.md "Demo
+  // sign-in"). Remove before this ever holds real data.
+  router.post(
+    '/demo-login',
+    asyncHandler(async (req, res) => {
+      const [staff] = await db
+        .select()
+        .from(userAccount)
+        .where(eq(userAccount.email, 'staff@example.invalid'));
+      if (!staff) {
+        res.status(500).json({ error: 'Seeded demo account not found; run `npm run seed` first.' });
+        return;
+      }
+      const user: AuthenticatedUser = {
+        userAccountId: staff.userAccountId,
+        email: staff.email,
+        displayName: staff.displayName,
+        authType: 'sso',
+      };
+      setSessionUser(req, user);
+      res.json(user);
+    }),
+  );
 
   return router;
 }
