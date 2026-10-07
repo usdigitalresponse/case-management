@@ -394,11 +394,11 @@ Known gaps, all deliberate for a skeleton rather than oversights:
   ECR or syncs the client build to S3. The ECS service and CloudFront
   distribution exist but won't serve a working app until someone does
   this manually at least once.
-- **No production Dockerfile**: the server currently only has a dev
-  setup (`node:20-alpine` + bind mount + `tsx watch`, see
-  `docker-compose.yml`); a real multi-stage build (`tsc` → `dist/` →
-  slim runtime image) doesn't exist yet and is needed before the ECR
-  push above is possible.
+- **Production image exists, but no pipeline uses it here**:
+  `server/Dockerfile` is a multi-stage build (`tsc` → `dist/` → slim
+  runtime image) used by the single-host `docker-compose.prod.yml`
+  (README "Deploy"); nothing builds or pushes it to this skeleton's ECR
+  yet.
 - **Google OAuth credentials start empty**: `terraform/secrets.tf`
   creates the secret with blank `google_client_id`/`google_client_secret`
   (Terraform can't know them) and `ignore_changes` so a manual fill-in

@@ -1,0 +1,19 @@
+# SITE_ADDRESS is a hostname (e.g. 203-0-113-10.sslip.io) on a hosted
+# instance, where Caddy obtains a Let's Encrypt certificate automatically,
+# or ":80" for plain HTTP when testing locally.
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	@server path /api/* /auth/* /healthz
+	handle @server {
+		reverse_proxy server:3000
+	}
+
+	# Client-side routes (e.g. /cases/123, /sign-in/verify) fall back to
+	# the single-page app.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

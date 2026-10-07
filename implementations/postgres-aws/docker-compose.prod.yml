@@ -1,0 +1,66 @@
+# Single-host production-mode stack for the hosted demo (see README
+# "Deploy"). Run with an explicit env file, never the dev .env:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Its own project name keeps its containers and volumes separate from the
+# dev stack in docker-compose.yml.
+name: case-management-demo
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the env file}
+      POSTGRES_DB: case_management_postgres_aws
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  server:
+    build: ./server
+    image: case-management-server
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/case_management_postgres_aws
+      PORT: 3000
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in the env file}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost}
+      EXTERNAL_EMAIL_WHITELIST: ${EXTERNAL_EMAIL_WHITELIST:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build: ./client
+    image: case-management-web
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "443:443"
+    volumes:
+      # Persists Caddy's certificates across restarts, avoiding Let's
+      # Encrypt rate limits.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - server
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

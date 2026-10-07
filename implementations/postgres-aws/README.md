@@ -166,12 +166,38 @@ followed by a restart check that verifies case IDs are preserved).
 
 ## Deploy
 
+### Single-host demo stack
+
+`docker-compose.prod.yml` runs the production build on one host:
+Postgres, the compiled server (`server/Dockerfile`; applies migrations on
+every start) and Caddy (`client/Dockerfile`, `client/Caddyfile`), which
+serves the built client, proxies `/api` and `/auth`, and obtains an HTTPS
+certificate when `SITE_ADDRESS` is a hostname. It uses its own Compose
+project name, so its containers and data never touch the dev stack's.
+Sign-in is the always-on demo sign-in; SSO and SES are not configured.
+
+To try it locally on http://localhost:
+
+```sh
+cp .env.prod.example .env.prod   # then fill in the two secrets
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec server node dist/src/db/seed.js
+```
+
+Restarts and rebuilds keep all data. The seed command is the same
+destructive demo reset as `npm run seed`: it deletes everything,
+including records users entered, and recreates the synthetic demo data.
+`docker compose -f docker-compose.prod.yml --env-file .env.prod down -v`
+removes the stack and all its data.
+
+### Full AWS skeleton
+
 `terraform/` is a single-environment (`sandbox.tfvars`) infra skeleton —
 VPC, RDS Postgres, ECS Fargate + ALB, ECR, S3 + CloudFront, Secrets
 Manager. It has been `validate`d and `plan`-checked but **never applied**;
 see `MAPPING.md`'s "Infrastructure" section for what's deliberately missing
-before this could serve real traffic (no CI/CD image pipeline, no
-production Dockerfile, empty Google OAuth secrets, HTTP-only, etc.).
+before this could serve real traffic (no CI/CD image pipeline, empty
+Google OAuth secrets, HTTP-only, etc.).
 
 ```sh
 cd terraform
