@@ -9,7 +9,7 @@ model. Update this file whenever a mapping decision or gap changes.
 TypeScript throughout (server and client). The server uses Express,
 Drizzle ORM (`src/db/schema.ts` is the single source of truth for table
 definitions; `drizzle-kit generate` derives SQL migrations from it into
-`migrations/`), and `pg` as the driver. Vitest is the test runner. Node 20+
+`migrations/`), and `pg` as the driver. Vitest is the test runner. Node 24+
 is required (`.node-version`, `package.json#engines`).
 
 Knex was considered first (it's what `usdr-gost`/`arpa-reporter` use), but
