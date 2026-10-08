@@ -56,10 +56,10 @@ data and creates synthetic reference data plus 10 demo cases. Run it only
 for initial setup or when intentionally resetting the demo database.
 
 Without a `.env` file (copy
-`.env.example`), Google sign-in is disabled and only the "Dev sign-in"
-button (client) / `/auth/dev-login` (API) works.
+`.env.example`), Google sign-in is disabled and only the "Demo sign-in"
+(staff) and "Demo partner sign-in" (external partner) buttons work.
 
-Open http://localhost:5173, click "Dev sign-in," and you should see 10
+Open http://localhost:5173, click "Demo sign-in," and you should see 10
 seeded cases with synthetic (Faker-generated) client names on the overview.
 Cases are grouped by derived stage (Needs assignment, Represented, Billing,
 Closing). Select a card for details or View all to open the case list.
@@ -126,11 +126,14 @@ npm run dev   # tsx watch src/app.ts, http://localhost:3000
 ```
 
 Without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` set, Google sign-in is
-disabled and only `/auth/dev-login` is available (see MAPPING.md — this
-bypass never mounts when `NODE_ENV=production`). A quick smoke test:
+disabled and only the demo sign-ins are available: `/auth/demo-login`
+(staff) and `/auth/demo-login/external` (a seeded external partner). Each
+is off when `NODE_ENV=production` unless `DEMO_LOGIN_ENABLED=true` or
+`EXTERNAL_DEMO_LOGIN_ENABLED=true` (see MAPPING.md, "Demo sign-in"). A
+quick smoke test:
 
 ```sh
-curl -c cookies.txt -X POST http://localhost:3000/auth/dev-login
+curl -c cookies.txt -X POST http://localhost:3000/auth/demo-login
 curl -b cookies.txt http://localhost:3000/auth/me
 curl -b cookies.txt http://localhost:3000/api/cases
 ```
@@ -160,17 +163,48 @@ omitted when the server is running locally too (not in a container).
 `.github/workflows/postgres-aws.yml` runs on PRs/pushes touching this
 directory: `server` (typecheck, migrate, test, schema-mapping check),
 `client` (typecheck, build), and `compose-smoke-test` (a real
-`docker compose up` + explicit demo seed + dev-login/list-cases round trip,
+`docker compose up` + explicit demo seed + demo-login/list-cases round trip,
 followed by a restart check that verifies case IDs are preserved).
 
 ## Deploy
+
+### Single-host demo stack
+
+`docker-compose.prod.yml` runs the production build on one host:
+Postgres, the compiled server (`server/Dockerfile`; applies migrations on
+every start) and Caddy (`client/Dockerfile`, `client/Caddyfile`), which
+serves the built client, proxies `/api` and `/auth`, and obtains an HTTPS
+certificate when `SITE_ADDRESS` is a hostname. It uses its own Compose
+project name, so its containers and data never touch the dev stack's.
+Sign-in is the staff and partner demo sign-ins (`DEMO_LOGIN_ENABLED` and
+`EXTERNAL_DEMO_LOGIN_ENABLED` in `.env.prod`); SSO and SES are not
+configured.
+
+To try it locally on http://localhost:
+
+```sh
+cp .env.prod.example .env.prod   # then fill in the two secrets
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec server node dist/src/db/seed.js
+```
+
+Restarts and rebuilds keep all data. The seed command is the same
+destructive demo reset as `npm run seed`: it deletes everything,
+including records users entered, and recreates the synthetic demo data.
+`docker compose -f docker-compose.prod.yml --env-file .env.prod down -v`
+removes the stack and all its data.
+
+`deploy/ec2/` provisions one EC2 instance for this stack with Terraform
+and deploys it over SSH; see its README.
+
+### Full AWS skeleton
 
 `terraform/` is a single-environment (`sandbox.tfvars`) infra skeleton —
 VPC, RDS Postgres, ECS Fargate + ALB, ECR, S3 + CloudFront, Secrets
 Manager. It has been `validate`d and `plan`-checked but **never applied**;
 see `MAPPING.md`'s "Infrastructure" section for what's deliberately missing
-before this could serve real traffic (no CI/CD image pipeline, no
-production Dockerfile, empty Google OAuth secrets, HTTP-only, etc.).
+before this could serve real traffic (no CI/CD image pipeline, empty
+Google OAuth secrets, HTTP-only, etc.).
 
 ```sh
 cd terraform

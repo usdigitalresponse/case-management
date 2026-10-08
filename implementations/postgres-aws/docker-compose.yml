@@ -26,7 +26,7 @@ services:
       PORT: 3000
       # Optional: set in a .env file next to this docker-compose.yml (never
       # committed — see .gitignore) to enable real SSO sign-in locally.
-      # Without any of these, only /auth/dev-login is available (see
+      # Without any of these, only /auth/demo-login is available (see
       # MAPPING.md).
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

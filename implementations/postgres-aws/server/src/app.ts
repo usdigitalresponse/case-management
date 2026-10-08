@@ -21,6 +21,16 @@ if (isProduction && !process.env.SESSION_SECRET) {
   throw new Error('SESSION_SECRET must be set when NODE_ENV=production.');
 }
 
+// Demo sign-ins are on by default for local development; a production
+// deployment exposes each only when explicitly opted in (the hosted
+// synthetic-data demo does).
+function demoSetting(name: string): boolean {
+  const value = process.env[name];
+  return value ? value === 'true' : !isProduction;
+}
+const demoLoginEnabled = demoSetting('DEMO_LOGIN_ENABLED');
+const externalDemoLoginEnabled = demoSetting('EXTERNAL_DEMO_LOGIN_ENABLED');
+
 export function createApp() {
   const app = express();
 
@@ -41,7 +51,7 @@ export function createApp() {
     console.warn('No OIDC provider credentials configured; SSO sign-in is disabled.');
   }
 
-  app.use('/auth', createAuthRouter({ oidcProviders, devLoginEnabled: !isProduction }));
+  app.use('/auth', createAuthRouter({ oidcProviders, demoLoginEnabled, externalDemoLoginEnabled }));
   app.use('/api/cases', casesRouter);
   app.use('/api/people', peopleRouter);
   app.use('/api/clients', clientsRouter);

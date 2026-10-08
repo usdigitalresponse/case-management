@@ -4,10 +4,10 @@ resource "random_password" "session_secret" {
 }
 
 # Google OAuth credentials start empty (Terraform can't know them). Since
-# NODE_ENV=production also disables /auth/dev-login, nothing can log in
-# until someone fills these in (`aws secretsmanager put-secret-value`) and
-# restarts the service — see MAPPING.md, this is the one gap that blocks
-# using a freshly-applied environment at all.
+# NODE_ENV=production also disables /auth/demo-login (unless
+# DEMO_LOGIN_ENABLED=true), nothing can log in until someone fills these in
+# (`aws secretsmanager put-secret-value`) and restarts the service — see
+# MAPPING.md.
 resource "aws_secretsmanager_secret" "app" {
   name = "${local.name_prefix}-app"
 }

@@ -18,27 +18,24 @@ export interface AuthRouterOptions {
   // Configured full-user providers (see ../auth/oidcProviders.ts) —
   // empty when no provider's credentials are set.
   oidcProviders: OidcProviderConfig[];
-  // Bypasses SSO entirely, logging in as the seeded synthetic staff
-  // account (see src/db/fixtures.ts).
-  devLoginEnabled: boolean;
+  // Passwordless sign-in as the seeded synthetic staff account (see
+  // ../db/fixtures.ts and MAPPING.md "Demo sign-in").
+  demoLoginEnabled: boolean;
+  // Passwordless sign-in as a seeded demo vendor (an external user).
+  externalDemoLoginEnabled: boolean;
 }
 
-export function createAuthRouter(options: AuthRouterOptions): Router {
-  // Enforced here, not just by the NODE_ENV check the one current caller
-  // (../app.ts) happens to apply before setting this flag — a future
-  // second call site (a script, a test harness against a real DB) could
-  // otherwise pass devLoginEnabled: true with no NODE_ENV guard and
-  // silently reopen an auth bypass in production.
-  if (options.devLoginEnabled && process.env.NODE_ENV === 'production') {
-    throw new Error('devLoginEnabled must never be true when NODE_ENV=production.');
-  }
+// Created by the demo seed (../db/seed.ts), not the baseline fixtures.
+const EXTERNAL_DEMO_EMAIL = 'demo-vendor-1@example.invalid';
 
+export function createAuthRouter(options: AuthRouterOptions): Router {
   const router = Router();
 
   router.get('/providers', (_req, res) => {
     res.json({
       providers: options.oidcProviders.map(({ id, displayName }) => ({ id, displayName })),
-      devLoginEnabled: options.devLoginEnabled,
+      demoLoginEnabled: options.demoLoginEnabled,
+      externalDemoLoginEnabled: options.externalDemoLoginEnabled,
     });
   });
 
@@ -131,16 +128,16 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     res.json(user);
   });
 
-  if (options.devLoginEnabled) {
+  if (options.demoLoginEnabled) {
     router.post(
-      '/dev-login',
+      '/demo-login',
       asyncHandler(async (req, res) => {
         const [staff] = await db
           .select()
           .from(userAccount)
           .where(eq(userAccount.email, 'staff@example.invalid'));
         if (!staff) {
-          res.status(500).json({ error: 'Seeded dev account not found; run `npm run seed` first.' });
+          res.status(500).json({ error: 'Seeded demo account not found; run `npm run seed` first.' });
           return;
         }
         const user: AuthenticatedUser = {
@@ -148,6 +145,30 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
           email: staff.email,
           displayName: staff.displayName,
           authType: 'sso',
+        };
+        setSessionUser(req, user);
+        res.json(user);
+      }),
+    );
+  }
+
+  if (options.externalDemoLoginEnabled) {
+    router.post(
+      '/demo-login/external',
+      asyncHandler(async (req, res) => {
+        const [vendor] = await db
+          .select()
+          .from(userAccount)
+          .where(eq(userAccount.email, EXTERNAL_DEMO_EMAIL));
+        if (!vendor) {
+          res.status(500).json({ error: 'Seeded demo vendor not found; run `npm run seed` first.' });
+          return;
+        }
+        const user: AuthenticatedUser = {
+          userAccountId: vendor.userAccountId,
+          email: vendor.email,
+          displayName: vendor.displayName,
+          authType: 'magic-link',
         };
         setSessionUser(req, user);
         res.json(user);

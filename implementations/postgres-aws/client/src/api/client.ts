@@ -37,8 +37,12 @@ export function getCurrentUser(): Promise<AuthenticatedUser> {
   return request<AuthenticatedUser>('/auth/me');
 }
 
-export function devLogin(): Promise<AuthenticatedUser> {
-  return request<AuthenticatedUser>('/auth/dev-login', { method: 'POST' });
+export function demoLogin(): Promise<AuthenticatedUser> {
+  return request<AuthenticatedUser>('/auth/demo-login', { method: 'POST' });
+}
+
+export function externalDemoLogin(): Promise<AuthenticatedUser> {
+  return request<AuthenticatedUser>('/auth/demo-login/external', { method: 'POST' });
 }
 
 export function logout(): Promise<void> {
@@ -53,8 +57,12 @@ export interface AuthProvider {
 export interface AuthProvidersResponse {
   // Only providers with credentials configured (see ../../server/src/auth/oidcProviders.ts).
   providers: AuthProvider[];
-  // Whether the dev-login bypass is available (never true in production).
-  devLoginEnabled: boolean;
+  // Whether the server allows demo sign-in (off in production unless
+  // DEMO_LOGIN_ENABLED=true).
+  demoLoginEnabled: boolean;
+  // Same, for signing in as a demo external partner
+  // (EXTERNAL_DEMO_LOGIN_ENABLED).
+  externalDemoLoginEnabled: boolean;
 }
 
 export function listAuthProviders(): Promise<AuthProvidersResponse> {

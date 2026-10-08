@@ -189,10 +189,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   authenticated email, not the OAuth `hd`/`tid` claim, which isn't always
   present) so a domain can't sign in through the wrong IdP — see "Known
   gaps" below for what this gate is (and isn't). `GET /auth/providers`
-  returns `{ providers, devLoginEnabled }` — `providers` so the client
-  doesn't hardcode one, `devLoginEnabled` so the login page only offers
-  the dev-login bypass where the server actually allows it (never in
-  production — see the `NODE_ENV` guard in `src/routes/auth.ts`);
+  returns `{ providers, demoLoginEnabled, externalDemoLoginEnabled }` —
+  `providers` so the client doesn't hardcode one, the two flags so the
+  login page only offers each demo sign-in where the server allows it
+  (see "Demo sign-in" below);
   `GET /auth/:providerId` / `:providerId/callback` are generated per
   provider. `AuthenticatedUser.authType` is `'sso'` for any configured
   provider (which one is in `ssoProvider`, display/audit only) or
@@ -308,13 +308,18 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   concurrent assignment and close can't leave an open assignment on a
   closed case (rejected with 409 `already_closed`). Deliberately not
   implemented: reopening/corrections (a closed case stays closed).
-- **Dev-login bypass**: `POST /auth/dev-login` logs in as the seeded
-  synthetic staff account (`staff@example.invalid`) without any real SSO
-  provider credentials configured. `src/app.ts` only mounts it when
-  `NODE_ENV !== 'production'`, and `createAuthRouter` itself also throws if
-  ever asked to enable it under `NODE_ENV=production` — enforced by the
-  auth module, not just by the one current caller's discipline, so a future
-  second call site can't silently reopen the bypass.
+- **Demo sign-in**: `POST /auth/demo-login` logs in as the seeded
+  synthetic staff account (`staff@example.invalid`) with no credentials.
+  `POST /auth/demo-login/external` likewise signs in as the demo seed's
+  first vendor (`demo-vendor-1@example.invalid`) as an external
+  (`magic-link`) user, so it needs `npm run seed`, not just the baseline
+  fixtures. `src/app.ts` mounts each by default only when
+  `NODE_ENV !== 'production'`; `DEMO_LOGIN_ENABLED` and
+  `EXTERNAL_DEMO_LOGIN_ENABLED` (`true`/`false`) override that
+  independently. The hosted synthetic-data demo
+  (`docker-compose.prod.yml`, `deploy/ec2/`) opts in to both, so anyone
+  who can reach it gets full staff access — never enable either where
+  real data is stored.
 - **Routes**: `src/routes/cases.ts` (`POST /`, `GET /`, `GET /:id`) and
   `src/routes/people.ts` (`GET /?q=`, existing-person search only — no
   duplicate-person warning here, since no person is ever created by this
@@ -396,17 +401,18 @@ Known gaps, all deliberate for a skeleton rather than oversights:
   ECR or syncs the client build to S3. The ECS service and CloudFront
   distribution exist but won't serve a working app until someone does
   this manually at least once.
-- **No production Dockerfile**: the server currently only has a dev
-  setup (`node:20-alpine` + bind mount + `tsx watch`, see
-  `docker-compose.yml`); a real multi-stage build (`tsc` → `dist/` →
-  slim runtime image) doesn't exist yet and is needed before the ECR
-  push above is possible.
+- **Production image exists, but no pipeline uses it here**:
+  `server/Dockerfile` is a multi-stage build (`tsc` → `dist/` → slim
+  runtime image) used by the single-host `docker-compose.prod.yml`
+  (README "Deploy"); nothing builds or pushes it to this skeleton's ECR
+  yet.
 - **Google OAuth credentials start empty**: `terraform/secrets.tf`
   creates the secret with blank `google_client_id`/`google_client_secret`
   (Terraform can't know them) and `ignore_changes` so a manual fill-in
   survives future applies. Combined with `NODE_ENV=production` disabling
-  `/auth/dev-login`, a freshly-applied environment has **no way to log
-  in** until someone sets real Google OAuth values.
+  `/auth/demo-login` (this skeleton doesn't set `DEMO_LOGIN_ENABLED`), a
+  freshly-applied environment has **no way to log in** until someone sets
+  real Google OAuth values.
 - **HTTP only**: no ACM certificate/custom domain, so both the ALB and
   CloudFront use their default AWS domains over HTTP (CloudFront defaults
   to HTTPS at the edge, but the ALB origin is HTTP-only). Not

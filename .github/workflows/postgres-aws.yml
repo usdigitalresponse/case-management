@@ -91,7 +91,7 @@ jobs:
         run: docker compose exec -T server npm run seed
       - name: Smoke test the API through the client's proxy
         run: |
-          curl -sf -c cookies.txt -X POST http://localhost:5173/auth/dev-login
+          curl -sf -c cookies.txt -X POST http://localhost:5173/auth/demo-login
           curl -sf -b cookies.txt http://localhost:5173/api/cases -o cases-before.json
       - name: Restart preserves saved cases
         run: |
