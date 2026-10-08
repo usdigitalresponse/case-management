@@ -2,8 +2,9 @@
 
 Runs `../../docker-compose.prod.yml` on one t4g.micro in the account's
 default VPC, for a synthetic-data demo with a handful of users. Sign-in is
-the always-on demo sign-in; no SSO or SES. About $11/month in us-east-1:
-instance (~$6), public IPv4 (~$3.65), 12 GB gp3 (~$1), weekly snapshots.
+the staff and partner demo sign-ins (enabled in the `.env.prod` that
+`deploy.sh` creates); no SSO or SES. About $11/month in us-east-1: instance (~$6), public IPv4 (~$3.65),
+12 GB gp3 (~$1), weekly snapshots.
 
 Terraform creates the instance, an Elastic IP, a security group (80/443
 open, 22 from `ssh_cidr` only), an SSH key pair, a weekly snapshot policy

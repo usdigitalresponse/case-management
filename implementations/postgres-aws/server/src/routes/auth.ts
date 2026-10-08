@@ -18,7 +18,15 @@ export interface AuthRouterOptions {
   // Configured full-user providers (see ../auth/oidcProviders.ts) —
   // empty when no provider's credentials are set.
   oidcProviders: OidcProviderConfig[];
+  // Passwordless sign-in as the seeded synthetic staff account (see
+  // ../db/fixtures.ts and MAPPING.md "Demo sign-in").
+  demoLoginEnabled: boolean;
+  // Passwordless sign-in as a seeded demo vendor (an external user).
+  externalDemoLoginEnabled: boolean;
 }
+
+// Created by the demo seed (../db/seed.ts), not the baseline fixtures.
+const EXTERNAL_DEMO_EMAIL = 'demo-vendor-1@example.invalid';
 
 export function createAuthRouter(options: AuthRouterOptions): Router {
   const router = Router();
@@ -26,6 +34,8 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
   router.get('/providers', (_req, res) => {
     res.json({
       providers: options.oidcProviders.map(({ id, displayName }) => ({ id, displayName })),
+      demoLoginEnabled: options.demoLoginEnabled,
+      externalDemoLoginEnabled: options.externalDemoLoginEnabled,
     });
   });
 
@@ -118,31 +128,53 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     res.json(user);
   });
 
-  // Deliberately available in every environment, production included:
-  // this prototype is a synthetic-data demo, so anyone can sign in as the
-  // seeded staff account (see ../db/fixtures.ts and MAPPING.md "Demo
-  // sign-in"). Remove before this ever holds real data.
-  router.post(
-    '/demo-login',
-    asyncHandler(async (req, res) => {
-      const [staff] = await db
-        .select()
-        .from(userAccount)
-        .where(eq(userAccount.email, 'staff@example.invalid'));
-      if (!staff) {
-        res.status(500).json({ error: 'Seeded demo account not found; run `npm run seed` first.' });
-        return;
-      }
-      const user: AuthenticatedUser = {
-        userAccountId: staff.userAccountId,
-        email: staff.email,
-        displayName: staff.displayName,
-        authType: 'sso',
-      };
-      setSessionUser(req, user);
-      res.json(user);
-    }),
-  );
+  if (options.demoLoginEnabled) {
+    router.post(
+      '/demo-login',
+      asyncHandler(async (req, res) => {
+        const [staff] = await db
+          .select()
+          .from(userAccount)
+          .where(eq(userAccount.email, 'staff@example.invalid'));
+        if (!staff) {
+          res.status(500).json({ error: 'Seeded demo account not found; run `npm run seed` first.' });
+          return;
+        }
+        const user: AuthenticatedUser = {
+          userAccountId: staff.userAccountId,
+          email: staff.email,
+          displayName: staff.displayName,
+          authType: 'sso',
+        };
+        setSessionUser(req, user);
+        res.json(user);
+      }),
+    );
+  }
+
+  if (options.externalDemoLoginEnabled) {
+    router.post(
+      '/demo-login/external',
+      asyncHandler(async (req, res) => {
+        const [vendor] = await db
+          .select()
+          .from(userAccount)
+          .where(eq(userAccount.email, EXTERNAL_DEMO_EMAIL));
+        if (!vendor) {
+          res.status(500).json({ error: 'Seeded demo vendor not found; run `npm run seed` first.' });
+          return;
+        }
+        const user: AuthenticatedUser = {
+          userAccountId: vendor.userAccountId,
+          email: vendor.email,
+          displayName: vendor.displayName,
+          authType: 'magic-link',
+        };
+        setSessionUser(req, user);
+        res.json(user);
+      }),
+    );
+  }
 
   return router;
 }

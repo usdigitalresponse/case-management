@@ -38,6 +38,8 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in the env file}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost}
       EXTERNAL_EMAIL_WHITELIST: ${EXTERNAL_EMAIL_WHITELIST:-}
+      DEMO_LOGIN_ENABLED: ${DEMO_LOGIN_ENABLED:-false}
+      EXTERNAL_DEMO_LOGIN_ENABLED: ${EXTERNAL_DEMO_LOGIN_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy

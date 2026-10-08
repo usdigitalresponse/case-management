@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import {
   ApiError,
   demoLogin,
+  externalDemoLogin,
   getCurrentUser,
   logout as apiLogout,
   verifyMagicLink,
@@ -12,6 +13,7 @@ interface AuthContextValue {
   user: AuthenticatedUser | null;
   loading: boolean;
   demoLogin: () => Promise<void>;
+  externalDemoLogin: () => Promise<void>;
   verifyMagicLink: (token: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -40,6 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(nextUser);
   }, []);
 
+  const handleExternalDemoLogin = useCallback(async () => {
+    const nextUser = await externalDemoLogin();
+    setUser(nextUser);
+  }, []);
+
   const handleVerifyMagicLink = useCallback(async (token: string) => {
     const nextUser = await verifyMagicLink(token);
     setUser(nextUser);
@@ -52,7 +59,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, demoLogin: handleDemoLogin, verifyMagicLink: handleVerifyMagicLink, logout: handleLogout }}
+      value={{
+        user,
+        loading,
+        demoLogin: handleDemoLogin,
+        externalDemoLogin: handleExternalDemoLogin,
+        verifyMagicLink: handleVerifyMagicLink,
+        logout: handleLogout,
+      }}
     >
       {children}
     </AuthContext.Provider>

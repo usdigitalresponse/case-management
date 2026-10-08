@@ -189,8 +189,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   authenticated email, not the OAuth `hd`/`tid` claim, which isn't always
   present) so a domain can't sign in through the wrong IdP — see "Known
   gaps" below for what this gate is (and isn't). `GET /auth/providers`
-  returns `{ providers }` so the client doesn't hardcode one (the demo
-  sign-in button is always shown; see "Demo sign-in" below);
+  returns `{ providers, demoLoginEnabled, externalDemoLoginEnabled }` —
+  `providers` so the client doesn't hardcode one, the two flags so the
+  login page only offers each demo sign-in where the server allows it
+  (see "Demo sign-in" below);
   `GET /auth/:providerId` / `:providerId/callback` are generated per
   provider. `AuthenticatedUser.authType` is `'sso'` for any configured
   provider (which one is in `ssoProvider`, display/audit only) or
@@ -308,11 +310,16 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   implemented: reopening/corrections (a closed case stays closed).
 - **Demo sign-in**: `POST /auth/demo-login` logs in as the seeded
   synthetic staff account (`staff@example.invalid`) with no credentials.
-  It is deliberately mounted in every environment, `NODE_ENV=production`
-  included, so a hosted synthetic-data demo always has a working sign-in.
-  Anyone who can reach the server gets full staff access — this is a
-  known gap, not a design: remove or gate it before this implementation
-  holds any real data.
+  `POST /auth/demo-login/external` likewise signs in as the demo seed's
+  first vendor (`demo-vendor-1@example.invalid`) as an external
+  (`magic-link`) user, so it needs `npm run seed`, not just the baseline
+  fixtures. `src/app.ts` mounts each by default only when
+  `NODE_ENV !== 'production'`; `DEMO_LOGIN_ENABLED` and
+  `EXTERNAL_DEMO_LOGIN_ENABLED` (`true`/`false`) override that
+  independently. The hosted synthetic-data demo
+  (`docker-compose.prod.yml`, `deploy/ec2/`) opts in to both, so anyone
+  who can reach it gets full staff access — never enable either where
+  real data is stored.
 - **Routes**: `src/routes/cases.ts` (`POST /`, `GET /`, `GET /:id`) and
   `src/routes/people.ts` (`GET /?q=`, existing-person search only — no
   duplicate-person warning here, since no person is ever created by this
@@ -402,9 +409,10 @@ Known gaps, all deliberate for a skeleton rather than oversights:
 - **Google OAuth credentials start empty**: `terraform/secrets.tf`
   creates the secret with blank `google_client_id`/`google_client_secret`
   (Terraform can't know them) and `ignore_changes` so a manual fill-in
-  survives future applies. A freshly-applied environment can only sign
-  in through the always-on demo sign-in until someone sets real Google
-  OAuth values.
+  survives future applies. Combined with `NODE_ENV=production` disabling
+  `/auth/demo-login` (this skeleton doesn't set `DEMO_LOGIN_ENABLED`), a
+  freshly-applied environment has **no way to log in** until someone sets
+  real Google OAuth values.
 - **HTTP only**: no ACM certificate/custom domain, so both the ALB and
   CloudFront use their default AWS domains over HTTP (CloudFront defaults
   to HTTPS at the edge, but the ALB origin is HTTP-only). Not

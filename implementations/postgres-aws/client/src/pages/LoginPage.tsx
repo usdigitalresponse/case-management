@@ -13,7 +13,7 @@ import { useAuth } from '../AuthContext';
 export default function LoginPage() {
   const { data } = useApiResource(listAuthProviders, []);
   const providers = data?.providers;
-  const { demoLogin } = useAuth();
+  const { demoLogin, externalDemoLogin } = useAuth();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [requested, setRequested] = useState(false);
@@ -43,9 +43,11 @@ export default function LoginPage() {
             Sign in with {provider.displayName}
           </a>
         ))}
-        <Button type="button" outline onClick={() => void demoLogin()}>
-          Demo sign-in
-        </Button>
+        {data?.demoLoginEnabled && (
+          <Button type="button" outline onClick={() => void demoLogin()}>
+            Demo sign-in
+          </Button>
+        )}
       </section>
 
       <section className="login-panel">
@@ -73,6 +75,11 @@ export default function LoginPage() {
               {submitting ? 'Sending…' : 'Send me a sign-in link'}
             </Button>
           </Form>
+        )}
+        {data?.externalDemoLoginEnabled && (
+          <Button type="button" outline onClick={() => void externalDemoLogin()}>
+            Demo partner sign-in
+          </Button>
         )}
       </section>
     </div>

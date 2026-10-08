@@ -57,7 +57,7 @@ for initial setup or when intentionally resetting the demo database.
 
 Without a `.env` file (copy
 `.env.example`), Google sign-in is disabled and only the "Demo sign-in"
-button (client) / `/auth/demo-login` (API) works.
+(staff) and "Demo partner sign-in" (external partner) buttons work.
 
 Open http://localhost:5173, click "Demo sign-in," and you should see 10
 seeded cases with synthetic (Faker-generated) client names on the overview.
@@ -126,9 +126,11 @@ npm run dev   # tsx watch src/app.ts, http://localhost:3000
 ```
 
 Without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` set, Google sign-in is
-disabled and only `/auth/demo-login` is available. Demo sign-in is
-always on, including with `NODE_ENV=production` (see MAPPING.md, "Demo
-sign-in"). A quick smoke test:
+disabled and only the demo sign-ins are available: `/auth/demo-login`
+(staff) and `/auth/demo-login/external` (a seeded external partner). Each
+is off when `NODE_ENV=production` unless `DEMO_LOGIN_ENABLED=true` or
+`EXTERNAL_DEMO_LOGIN_ENABLED=true` (see MAPPING.md, "Demo sign-in"). A
+quick smoke test:
 
 ```sh
 curl -c cookies.txt -X POST http://localhost:3000/auth/demo-login
@@ -174,7 +176,9 @@ every start) and Caddy (`client/Dockerfile`, `client/Caddyfile`), which
 serves the built client, proxies `/api` and `/auth`, and obtains an HTTPS
 certificate when `SITE_ADDRESS` is a hostname. It uses its own Compose
 project name, so its containers and data never touch the dev stack's.
-Sign-in is the always-on demo sign-in; SSO and SES are not configured.
+Sign-in is the staff and partner demo sign-ins (`DEMO_LOGIN_ENABLED` and
+`EXTERNAL_DEMO_LOGIN_ENABLED` in `.env.prod`); SSO and SES are not
+configured.
 
 To try it locally on http://localhost:
 
