@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: implementations/postgres-aws/client/package-lock.json
       - working-directory: implementations/postgres-aws/client
@@ -70,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       # No `build:` step in the compose file (both services use the plain
-      # node:20-alpine image), so `docker compose build` would be a no-op —
+      # node:24-alpine image), so `docker compose build` would be a no-op —
       # a real `up` + health check exercises the same startup sequence a
       # contributor's `docker compose up` would run.
       - name: docker compose up
