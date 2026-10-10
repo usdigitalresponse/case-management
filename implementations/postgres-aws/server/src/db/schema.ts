@@ -8,6 +8,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -44,6 +45,9 @@ export const invoiceStatuses = referenceTable('invoice_statuses');
 export const invoiceLineTypes = referenceTable('invoice_line_types');
 export const invoiceApprovalStepTypes = referenceTable('invoice_approval_step_types');
 export const invoiceApprovalOutcomes = referenceTable('invoice_approval_outcomes');
+export const invoiceEventTypes = referenceTable('invoice_event_types');
+export const invoiceImportFormats = referenceTable('invoice_import_formats');
+export const invoiceImportStatuses = referenceTable('invoice_import_statuses');
 
 // --- core entities ----------------------------------------------------------
 
@@ -240,6 +244,9 @@ export const timeEntry = pgTable(
     activityOn: date('activity_on').notNull(),
     durationHours: numeric('duration_hours', { precision: 6, scale: 2 }).notNull(),
     description: text('description').notNull(),
+    sourceInvoiceImportId: uuid('source_invoice_import_id').references(
+      (): AnyPgColumn => invoiceImport.invoiceImportId,
+    ),
   },
   (table) => [
     // GET /api/portal/time-entries filters by caseId for the caller's own
@@ -290,8 +297,91 @@ export const invoiceLine = pgTable(
     // from); see ../portal/createInvoice.ts.
     sourceTimeEntryId: uuid('source_time_entry_id').references(() => timeEntry.timeEntryId),
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+    // Supplier-stated evidence; never used to compute the amount.
+    serviceDate: date('service_date'),
+    description: text('description'),
+    quantity: numeric('quantity', { precision: 10, scale: 2 }),
+    unitRate: numeric('unit_rate', { precision: 12, scale: 2 }),
+    timekeeperLabel: text('timekeeper_label'),
+    // Whom the submitter matched the label to.
+    timekeeperProfessionalId: uuid('timekeeper_professional_id').references(
+      () => professional.professionalId,
+    ),
+    taskCode: text('task_code'),
+    activityCode: text('activity_code'),
+    expenseCode: text('expense_code'),
   },
   (table) => [index('invoice_line_invoice_id_idx').on(table.invoiceId)],
+);
+
+// Immutable request history (model/rules.yaml validate_payment_request).
+export const invoiceEvent = pgTable(
+  'invoice_event',
+  {
+    invoiceEventId: uuid('invoice_event_id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
+    invoiceApprovalChainId: uuid('invoice_approval_chain_id').references(
+      () => invoiceApprovalChain.invoiceApprovalChainId,
+    ),
+    sequenceNumber: integer('sequence_number').notNull(),
+    eventTypeId: uuid('event_type_id').notNull().references(() => invoiceEventTypes.id),
+    resultingStatusId: uuid('resulting_status_id').notNull().references(() => invoiceStatuses.id),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    // Null only for system actions (import expiry), which carry a reason.
+    actorUserAccountId: uuid('actor_user_account_id').references(() => userAccount.userAccountId),
+    reason: text('reason'),
+  },
+  (table) => [uniqueIndex('invoice_event_invoice_sequence_unique').on(table.invoiceId, table.sequenceNumber)],
+);
+
+// File content lives outside Postgres (model/rules.yaml validate_documents).
+export const document = pgTable(
+  'document',
+  {
+    documentId: uuid('document_id').primaryKey().defaultRandom(),
+    storageReference: text('storage_reference').notNull(),
+    displayName: text('display_name').notNull(),
+    mediaType: text('media_type').notNull(),
+    contentHash: text('content_hash').notNull(),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    supersedesDocumentId: uuid('supersedes_document_id').references(
+      (): AnyPgColumn => document.documentId,
+    ),
+    // Content deleted; metadata and hash stay for duplicate detection.
+    contentDeletedAt: timestamp('content_deleted_at', { withTimezone: true }),
+  },
+  (table) => [index('document_content_hash_idx').on(table.contentHash)],
+);
+
+export const invoiceImport = pgTable(
+  'invoice_import',
+  {
+    invoiceImportId: uuid('invoice_import_id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id').notNull().references(() => document.documentId),
+    uploadedByUserAccountId: uuid('uploaded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull(),
+    caseId: uuid('case_id').references(() => caseTable.caseId),
+    sourceFormatId: uuid('source_format_id').notNull().references(() => invoiceImportFormats.id),
+    statusId: uuid('status_id').notNull().references(() => invoiceImportStatuses.id),
+    extractionMethod: text('extraction_method'),
+    extractedAt: timestamp('extracted_at', { withTimezone: true }),
+    extractionResult: jsonb('extraction_result'),
+    invoiceId: uuid('invoice_id').references(() => invoice.invoiceId),
+    resolvedByUserAccountId: uuid('resolved_by_user_account_id').references(
+      () => userAccount.userAccountId,
+    ),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('invoice_import_uploaded_by_idx').on(table.uploadedByUserAccountId),
+    // At most one import per draft request.
+    uniqueIndex('invoice_import_invoice_id_uidx').on(table.invoiceId),
+  ],
 );
 
 // Single-stage slice of the canonical approval chain: one chain per invoice,
@@ -306,8 +396,10 @@ export const invoiceApprovalChain = pgTable(
       .notNull()
       .references(() => userAccount.userAccountId),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
-    // Never set yet; kept to match model/schema.yaml.
+    // Set when the submitter recalls this attempt.
     supersededAt: timestamp('superseded_at', { withTimezone: true }),
+    // Null only on chains created before snapshots existed.
+    submissionSnapshot: jsonb('submission_snapshot'),
   },
   (table) => [
     uniqueIndex('invoice_approval_chain_current_uidx')

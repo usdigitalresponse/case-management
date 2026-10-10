@@ -101,12 +101,13 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   await db.execute(sql`
     TRUNCATE TABLE
       intake_request, case_identifier, case_lifecycle_event, invoice_approval_decision,
-      invoice_approval_chain, invoice_line, invoice, time_entry,
+      invoice_event, invoice_approval_chain, invoice_line, time_entry, invoice_import, document, invoice,
       case_assignment, case_participant, professional, magic_link_token, "case", user_account,
       person_affiliation, office, person, role, organization, county, case_categories,
       case_statuses, jurisdictions, languages, case_identifier_types, case_lifecycle_event_types,
       case_lifecycle_reasons, activity_types, invoice_statuses, invoice_line_types,
-      invoice_approval_step_types, invoice_approval_outcomes
+      invoice_approval_step_types, invoice_approval_outcomes, invoice_import_formats,
+      invoice_import_statuses, invoice_event_types
     RESTART IDENTITY CASCADE
   `);
 

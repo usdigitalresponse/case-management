@@ -57,7 +57,8 @@ for initial setup or when intentionally resetting the demo database.
 
 Without a `.env` file (copy
 `.env.example`), Google sign-in is disabled and only the "Demo sign-in"
-(staff) and "Demo partner sign-in" (external partner) buttons work.
+(staff) and "Demo partner sign-in" (external partner, who is also their
+office's billing delegate) buttons work.
 
 Open http://localhost:5173, click "Demo sign-in," and you should see 10
 seeded cases with synthetic (Faker-generated) client names on the overview.
@@ -112,8 +113,18 @@ migrated-but-empty test database.
 ```sh
 npm run typecheck              # tsc --noEmit
 npm run verify-schema-mapping  # checks src/db/schema.ts against model/schema.yaml
+npm run demo-invoices          # read-only: writes ../demo-invoices/ files naming the seeded demo vendors
+npm run generate-sample-pdfs   # regenerates the synthetic PDFs and their expected values in scenarios/fixtures/invoices/
+npm run extraction-accuracy    # scores PDF extraction methods against those samples, field by field
+npm run extract-invoice -- f   # shows what import would read from invoice files (no database); --json or --csv for tools and spreadsheets
 npm run db:generate            # regenerate migrations/*.sql after editing src/db/schema.ts
 ```
+
+`demo-invoices` needs the demo seed. Its files name the seeded vendors, so
+uploading one under "Demo partner sign-in" shows timekeeper matching; the
+command prints which case to open. The files are regenerated rather than
+committed because the seed's Faker names change with the seed. Portable
+samples with expected results are in `scenarios/fixtures/invoices/`.
 
 ### Running the API server
 
@@ -127,7 +138,8 @@ npm run dev   # tsx watch src/app.ts, http://localhost:3000
 
 Without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` set, Google sign-in is
 disabled and only the demo sign-ins are available: `/auth/demo-login`
-(staff) and `/auth/demo-login/external` (a seeded external partner). Each
+(staff) and `/auth/demo-login/external` (a seeded external partner, who is
+also their office's billing delegate). Each
 is off when `NODE_ENV=production` unless `DEMO_LOGIN_ENABLED=true` or
 `EXTERNAL_DEMO_LOGIN_ENABLED=true` (see MAPPING.md, "Demo sign-in"). A
 quick smoke test:
@@ -152,6 +164,7 @@ cd client
 npm install
 API_PROXY_TARGET=http://localhost:3000 npm run dev   # http://localhost:5173
 npm run typecheck
+npm test        # unit tests for client-side logic (no browser, no server)
 npm run build   # production build; verifies USWDS asset resolution
 ```
 

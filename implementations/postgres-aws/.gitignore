@@ -7,5 +7,10 @@ node_modules/
 *.tfstate
 *.tfstate.backup
 dist/
+# Generated from the dev database by `npm run demo-invoices`.
+demo-invoices/
+# Real product templates and exports for local extraction testing only;
+# vendor files never go in the repository.
+local-samples/
 terraform.tfvars
 *.tfplan

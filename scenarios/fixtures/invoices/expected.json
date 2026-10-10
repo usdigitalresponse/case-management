@@ -1,0 +1,818 @@
+{
+  "ledes-1998b-basic.txt": {
+    "format": "ledes_1998b",
+    "invoiceNumber": "SAMPLE-2026-001",
+    "lineTypes": [
+      "time",
+      "time",
+      "time",
+      "expense"
+    ],
+    "total": "745.50",
+    "warnings": []
+  },
+  "ledes-1998b-warnings.txt": {
+    "format": "ledes_1998b",
+    "invoiceNumber": "SAMPLE-2026-002",
+    "lineTypes": [
+      "time",
+      "time"
+    ],
+    "total": "520.00",
+    "warnings": [
+      "stated_total_mismatch",
+      "rate_mismatch",
+      "date_outside_period"
+    ]
+  },
+  "ledes-1998b-two-invoices.txt": {
+    "format": "ledes_1998b",
+    "unreadable": "more than one invoice"
+  },
+  "template-basic.csv": {
+    "format": "spreadsheet",
+    "invoiceNumber": "SAMPLE-2026-003",
+    "lineTypes": [
+      "time",
+      "time",
+      "expense"
+    ],
+    "total": "387.00",
+    "warnings": []
+  },
+  "template-basic.xlsx": {
+    "format": "spreadsheet",
+    "sameLinesAs": "template-basic.csv"
+  },
+  "template-bad-date.csv": {
+    "format": "spreadsheet",
+    "unreadable": "must be YYYY-MM-DD"
+  },
+  "pdf-itemized.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-001",
+      "periodStart": "2026-01-01",
+      "periodEnd": "2026-01-31",
+      "statedTotal": "1013.90",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-05",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-07",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-12",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-15",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-20",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Filing fee",
+          "amount": "45.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-22",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Mileage to courthouse",
+          "amount": "18.90"
+        }
+      ]
+    },
+    "shows": "An itemized table with dates, timekeepers, hours, rates and a description that wraps"
+  },
+  "pdf-coded.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-002",
+      "periodStart": "2026-01-01",
+      "periodEnd": "2026-01-31",
+      "statedTotal": "1013.90",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-05",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-07",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-12",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-15",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-20",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Filing fee",
+          "amount": "45.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-22",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Mileage to courthouse",
+          "amount": "18.90"
+        }
+      ]
+    },
+    "shows": "The same items with UTBMS task and activity code columns"
+  },
+  "pdf-summary.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-003",
+      "periodStart": "2026-01-01",
+      "periodEnd": "2026-01-31",
+      "statedTotal": "1013.90",
+      "lines": [
+        {
+          "lineType": "time",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Professional services: Synthetic Timekeeper A",
+          "quantity": 2.5,
+          "unitRate": 200,
+          "amount": "500.00"
+        },
+        {
+          "lineType": "time",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Professional services: Synthetic Timekeeper B",
+          "quantity": 3,
+          "unitRate": 150,
+          "amount": "450.00"
+        },
+        {
+          "lineType": "expense",
+          "description": "Expenses",
+          "amount": "63.90"
+        }
+      ]
+    },
+    "shows": "Totals per timekeeper and for expenses, with no dates or item detail"
+  },
+  "pdf-voucher.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-VOUCHER-004",
+      "periodStart": "2026-02-01",
+      "periodEnd": "2026-02-28",
+      "statedTotal": "992.50",
+      "lines": [
+        {
+          "lineType": "time",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "In-Court Hearings",
+          "quantity": 3.5,
+          "unitRate": 100,
+          "amount": "350.00"
+        },
+        {
+          "lineType": "time",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Out-of-Court: Interviews, Research, Preparation",
+          "quantity": 6,
+          "unitRate": 100,
+          "amount": "600.00"
+        },
+        {
+          "lineType": "expense",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Travel Expenses",
+          "amount": "42.50"
+        }
+      ]
+    },
+    "shows": "A fixed claim form with labelled categories instead of an item table"
+  },
+  "pdf-multipage.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-005",
+      "periodStart": "2026-03-01",
+      "periodEnd": "2026-03-31",
+      "statedTotal": "11400.00",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-01",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (1)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-02",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (2)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-03",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (3)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-04",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (4)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-05",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (5)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-06",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (6)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-07",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (7)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-08",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (8)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-09",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (9)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-10",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (10)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-11",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (11)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-12",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (12)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-13",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (13)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-14",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (14)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-15",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (15)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-16",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (16)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-17",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (17)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-18",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (18)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-19",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (19)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-20",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (20)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-21",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (21)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-22",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (22)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-23",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (23)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-24",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (24)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-25",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (25)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-26",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (26)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-27",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (27)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-01",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (28)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-02",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (29)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-03",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (30)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-04",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (31)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-05",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (32)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-06",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (33)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-07",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (34)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-08",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (35)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-09",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (36)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-10",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (37)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-11",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (38)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-12",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (39)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-13",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (40)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-14",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (41)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-15",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (42)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-16",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (43)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-17",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (44)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-18",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents (45)",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-19",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard (46)",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-20",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing (47)",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-21",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue (48)",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        }
+      ]
+    },
+    "shows": "A 48-item table running across pages, with the column header on the first page only"
+  },
+  "pdf-sectioned.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-006",
+      "periodStart": "2026-01-01",
+      "periodEnd": "2026-01-31",
+      "statedTotal": "1013.90",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-05",
+          "timekeeper": "SA",
+          "description": "Initial case assessment and review of charging documents",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-07",
+          "timekeeper": "SB",
+          "description": "Research on suppression standard",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-12",
+          "timekeeper": "SA",
+          "description": "Client meeting to review discovery and next steps before the status hearing",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-15",
+          "timekeeper": "SB",
+          "description": "Draft motion to continue",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-20",
+          "timekeeper": "SA",
+          "description": "Filing fee",
+          "quantity": 1,
+          "unitRate": 45,
+          "amount": "45.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-22",
+          "timekeeper": "SA",
+          "description": "Mileage to courthouse",
+          "quantity": 1,
+          "unitRate": 18.9,
+          "amount": "18.90"
+        }
+      ]
+    },
+    "shows": "Separate time and expense tables with their own headings and subtotals, initials for timekeepers, an activity column, right-aligned amounts and a no-charge entry"
+  },
+  "pdf-stacked.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-007",
+      "periodStart": "2026-01-01",
+      "periodEnd": "2026-01-31",
+      "statedTotal": "1013.90",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-05",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Legal work Initial case assessment and review of charging documents",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-07",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Legal work Research on suppression standard",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-12",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Legal work Client meeting to review discovery and next steps before the status hearing",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-15",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Legal work Draft motion to continue",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-20",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Expense Filing fee",
+          "quantity": 1,
+          "unitRate": 45,
+          "amount": "45.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-22",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Expense Mileage to courthouse",
+          "quantity": 1,
+          "unitRate": 18.9,
+          "amount": "18.90"
+        }
+      ]
+    },
+    "shows": "Section titles heading the first column, and each item stacking activity, date and description in one cell"
+  }
+}

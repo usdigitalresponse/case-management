@@ -1,4 +1,4 @@
-spec_version: "0.2.0"
+spec_version: "0.3.0"
 status: draft
 kind: business_rules
 
@@ -208,9 +208,10 @@ rules:
       - Currency applies to all request amounts; referenced preauthorizations must use the same currency. Do not infer exchange rates.
       - Supporting supplier invoice numbers are scoped to the request payee; warn on duplicates across requests rather than silently merging.
       - Freeze a schema-versioned submission_snapshot when creating the review chain; bind attestations and evidence to that attempt.
-      - Record a draft creation event and each submission, review and final outcome with actual actor and timestamp. Status projections cannot bypass approval guards.
+      - Record a draft creation event and each submission, review and final outcome with actual actor and timestamp; a system action such as import expiry records no actor and a reason instead. Status projections cannot bypass approval guards.
       - Request events are immutable with positive sequence unique per request; any referenced chain must belong to that request. Events and their triggering decisions are persisted atomically.
       - Preserve all old attempts, allocations and evidence before correction or resubmission; old attestations and approvals cannot authorize changed values.
+      - Only a draft or withdrawn request with no recorded review decision may be deleted, by its submitter; deleting removes its lines, events, unreviewed earlier attempts and import records, deletes any retained file, and deletes time entries its import created unless another request uses them (those are unlinked). Any request with a review decision is retained.
 
   record_approved_request_amounts:
     description: Record approved request amounts.
@@ -280,8 +281,87 @@ rules:
     requirements:
       - Require exactly one target among case_id, invoice_id and preauthorization_id. All target and document references must resolve.
       - Supporting invoice and signature documents must be linked to the same request or its case; evidence cannot be silently replaced after submission.
-      - Document versions are immutable and identify their predecessor; content hashes and storage references must resolve to the retained version.
+      - Document versions are immutable and identify their predecessor; content hashes and storage references must resolve to the retained version unless content_deleted_at records deletion under a no-retention policy.
       - Authorize document retrieval through the target domain record. A link or storage identifier alone does not grant access.
+
+  validate_invoice_import:
+    description: Treat extracted supporting invoice values as a proposal that only the submitter can confirm.
+    applies_to: invoice_import
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Store the uploaded file as a document version with its content hash before processing. Accept only configured structured and document formats, verified from content rather than the file name; enforce configured size and page limits, one file per import; reject encrypted, macro-enabled or malformed files.
+      - Scan each file for malware within the processing boundary before parsing and reject it on detection or scan failure. Parse in isolation with time and memory limits; never execute embedded content.
+      - Uploaded files are transient working copies, not stored records: keep them in private storage with no public or long-lived links, serve them only to the uploader and authorized delegates, and exclude them from versioning and backups so that deletion removes them.
+      - The uploader must be authorized to submit requests for the selected case; selecting or extracting a case grants no access.
+      - Extraction creates at most one draft request and never submits, approves or creates source records on the submitter's behalf.
+      - Retain extraction method, version, timestamp and result immutably. Corrections are made on the draft request; re-processing creates a new import rather than overwriting a result.
+      - Show the original file beside the draft until the submitter confirms the extracted values. The file is not retained; confirming or discarding the import deletes its content and records content_deleted_at, keeping the document metadata, hash and extraction result.
+      - After confirmation the draft request and its submission snapshot are the record of the supporting invoice; reviewers and exports do not have the original file.
+      - Production extraction runs within the system's processing boundary, which includes services hosted in the organization's own cloud account. Services outside it may be used only with synthetic data during development.
+      - Discarding an import records the actor and timestamp and creates no request, time entries or expenses.
+      - An import not confirmed or discarded within three days of upload expires: its file content is deleted, the import is discarded without a resolving user, and any unconfirmed draft it created is withdrawn.
+
+  reconcile_imported_invoice:
+    description: Show discrepancies between extracted values and the draft request before submission.
+    applies_to: invoice_import
+    trigger: before_submit
+    outcome: warning
+    requirements:
+      - Compare any stated total with the sum of draft lines; the request total is still calculated from lines under validate_invoice_total.
+      - Compare stated quantity times rate with each line amount; flag service dates outside the billing period.
+      - Warn when the same document content hash or supporting invoice number for the payee was already imported or submitted; do not merge automatically.
+      - Show each warning beside the original document and the extracted value it concerns.
+
+  create_time_entries_from_import:
+    description: Record time from confirmed imported lines without duplicating existing time.
+    applies_to: time_entry
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Before confirming, the submitter classifies each line as time, expense or other; extracted hours or an expense code may suggest a classification.
+      - Create time entries only for confirmed time lines with a service date and positive hours, atomically with submission of the request; link each line through source_time_entry_id and the entry through source_invoice_import_id.
+      - Before confirming an import, the submitter matches each distinct timekeeper label to an existing professional, recorded as timekeeper_professional_id; a line without a label is matched explicitly as well. Unmatched lines block confirmation. Never create people or professionals from labels.
+      - Each matched professional must have been assigned to the request case on the line's service date, and the submitter must be that professional or an authorized delegate under authorize_delegated_submission.
+      - A previous match for the same payee and label may be suggested, but the submitter confirms every match.
+      - Attribute each imported time entry to its matched professional and require a configured activity type.
+      - Warn on probable duplicates of existing time entries for the same professional, case, date and hours, and allow linking the existing entry instead; never merge automatically.
+      - Apply validate_activity_and_time_context to imported entries as to directly recorded time.
+
+  create_expenses_from_import:
+    description: Record expenses from confirmed imported lines without duplicating existing expenses.
+    applies_to: expense
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Create an expense only for a confirmed expense line with a service date and positive amount, atomically with submission of the request; link the line through source_expense_id and the expense through source_invoice_import_id.
+      - Require a configured expense type, which an expense code may suggest; the expense date is the line's service date and its amount the line amount.
+      - Apply the timekeeper matching and assignment requirements of create_time_entries_from_import to expense lines.
+      - Warn on probable duplicates of existing expenses for the same case, date, type and amount, and allow linking the existing expense instead; never merge automatically.
+
+  authorize_delegated_submission:
+    description: Allow a configured delegate, such as office support staff, to prepare and submit requests for professionals in their office.
+    applies_to: invoice
+    trigger: before_submit
+    outcome: blocking
+    requirements:
+      - A submitter acts either for their own professional profile or as a delegate. A delegate needs an effective person_affiliation with a configured delegate role (role_context person_affiliation) in the same office as each professional they act for, effective when they upload, edit, recall or submit.
+      - Office membership, an account or a case participant role alone never grants delegate authority; a delegate needs no professional profile or case assignment of their own.
+      - Every professional a request relies on, including matched timekeepers, must have been assigned to the request case on the relevant service date; delegation does not substitute for assignment.
+      - On a delegated request every line identifies its professional through timekeeper_professional_id; those are the represented professionals.
+      - Record the actual delegate as submitter and actor on every request event, distinct from the professionals whose time is billed and from any attestor.
+      - Represented professionals need not attest or approve before review. They may view and export the request like its submitter.
+
+  authorize_payment_request_export:
+    description: Export submitted requests only to users who may read them.
+    applies_to: invoice
+    trigger: on_read
+    outcome: blocking
+    requirements:
+      - Configured billing staff roles may export any submitted request. A submitter may export requests they submitted, and a represented professional requests a delegate submitted for them; no one else may.
+      - Exports are reads and are not recorded as audit events.
+      - Render the values of an identified submission attempt, its status and line decisions as of export time, labelled with that time; never mix values from different attempts.
+      - Offer the same content in document and spreadsheet formats. Imported originals are not retained, so exports never include them.
 
   recommend_configured_resources:
     description: Recommend configured resources.

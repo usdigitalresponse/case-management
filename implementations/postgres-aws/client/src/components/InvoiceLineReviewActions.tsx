@@ -1,15 +1,6 @@
 import { useState } from 'react';
 import { Alert, Button, TextInput } from '@trussworks/react-uswds';
-import { ApiError, reviewInvoiceLine } from '../api/client';
-
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) {
-    const body = err.body as { message?: string; fieldErrors?: Record<string, string> } | undefined;
-    const fieldError = body?.fieldErrors && Object.values(body.fieldErrors)[0];
-    return fieldError ?? body?.message ?? fallback;
-  }
-  return fallback;
-}
+import { apiErrorMessage, reviewInvoiceLine } from '../api/client';
 
 // Approve (editable amount, at most the requested one) or reject with a
 // reason; server/src/billing/reviewInvoiceLine.ts enforces both.
@@ -38,7 +29,7 @@ export function InvoiceLineReviewActions({
       await reviewInvoiceLine(invoiceId, invoiceLineId, { outcome: 'approved', approvedAmount: Number(approvedAmount) });
       onReviewed();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to approve invoice item.'));
+      setError(apiErrorMessage(err, 'Failed to approve invoice item.'));
     } finally {
       setSubmitting(false);
     }
@@ -52,7 +43,7 @@ export function InvoiceLineReviewActions({
       await reviewInvoiceLine(invoiceId, invoiceLineId, { outcome: 'rejected', reason });
       onReviewed();
     } catch (err) {
-      setError(errorMessage(err, 'Failed to reject invoice item.'));
+      setError(apiErrorMessage(err, 'Failed to reject invoice item.'));
     } finally {
       setSubmitting(false);
     }

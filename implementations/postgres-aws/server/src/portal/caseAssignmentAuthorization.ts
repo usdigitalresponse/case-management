@@ -3,11 +3,11 @@
 // both ./createTimeEntry.ts and ./createInvoice.ts, which otherwise had
 // no reason to duplicate the same query.
 import { and, eq, isNull } from 'drizzle-orm';
-import type { Database } from '../db/client';
+import type { DatabaseOrTransaction } from '../db/client';
 import { caseAssignment } from '../db/schema';
 import { ForbiddenError } from '../errors';
 
-export async function hasOpenAssignment(db: Database, professionalId: string, caseId: string): Promise<boolean> {
+export async function hasOpenAssignment(db: DatabaseOrTransaction, professionalId: string, caseId: string): Promise<boolean> {
   const [assignment] = await db
     .select({ caseAssignmentId: caseAssignment.caseAssignmentId })
     .from(caseAssignment)

@@ -1,118 +1,60 @@
 // Staff invoice review: the cross-case queue, one invoice's lines with
-// their decisions, and line review.
+// their decisions, line review and export.
 import { Router } from 'express';
 import { z } from 'zod';
-import { and, asc, eq, isNull, type SQL } from 'drizzle-orm';
+import { and, asc, eq, notInArray, type SQL } from 'drizzle-orm';
+import { UNSUBMITTED_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { db } from '../db/client';
-import {
-  invoice,
-  invoiceLine,
-  invoiceStatuses,
-  invoiceApprovalChain,
-  invoiceApprovalDecision,
-  invoiceApprovalOutcomes,
-  caseTable,
-  person,
-  professional,
-  timeEntry,
-  userAccount,
-} from '../db/schema';
+import { invoice, invoiceStatuses } from '../db/schema';
+import { loadInvoiceDetail, selectInvoiceHeaders } from '../billing/invoiceDetail';
+import { isExportableStatus } from '../billing/invoiceAccess';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { InvoiceNotFoundError, reviewInvoiceLine } from '../billing/reviewInvoiceLine';
 import { asyncHandler } from './asyncHandler';
+import { parseExportFormat, sendInvoiceExport } from './sendInvoiceExport';
 
 const router = Router();
 router.use(requireFullUser);
 
-function selectInvoiceHeaders() {
-  return db
-    .select({
-      invoiceId: invoice.invoiceId,
-      caseId: invoice.caseId,
-      caseClientDisplayName: person.displayName,
-      caseExternalReference: caseTable.externalReference,
-      professionalId: invoice.professionalId,
-      professionalDisplayName: professional.displayName,
-      statusId: invoice.statusId,
-      statusCode: invoiceStatuses.code,
-      statusDisplayName: invoiceStatuses.displayName,
-      submittedAt: invoice.submittedAt,
-      submittedTotal: invoice.submittedTotal,
-      periodStart: invoice.periodStart,
-      periodEnd: invoice.periodEnd,
-    })
-    .from(invoice)
-    .leftJoin(caseTable, eq(invoice.caseId, caseTable.caseId))
-    .leftJoin(person, eq(caseTable.clientId, person.personId))
-    .leftJoin(professional, eq(invoice.professionalId, professional.professionalId))
-    .leftJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id));
-}
-
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const filters: SQL[] = [];
+    const filters: SQL[] = [notInArray(invoiceStatuses.code, UNSUBMITTED_INVOICE_STATUS_CODES)];
     if (typeof req.query.status === 'string') {
-      const [status] = await db.select({ id: invoiceStatuses.id }).from(invoiceStatuses).where(eq(invoiceStatuses.code, req.query.status));
-      if (!status) {
-        res.json({ invoices: [] });
-        return;
-      }
-      filters.push(eq(invoice.statusId, status.id));
+      filters.push(eq(invoiceStatuses.code, req.query.status));
     }
 
-    const rows = await selectInvoiceHeaders()
-      .where(filters.length > 0 ? and(...filters) : undefined)
+    const rows = await selectInvoiceHeaders(db)
+      .where(and(...filters))
       .orderBy(asc(invoice.submittedAt));
     res.json({ invoices: rows });
   }),
 );
 
+async function loadOrThrow(invoiceId: string) {
+  const detail = z.uuid().safeParse(invoiceId).success ? await loadInvoiceDetail(db, invoiceId) : undefined;
+  if (!detail) {
+    throw new InvoiceNotFoundError();
+  }
+  return detail;
+}
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
-    const invoiceId = req.params.id as string;
-    const [header] = z.uuid().safeParse(invoiceId).success
-      ? await selectInvoiceHeaders().where(eq(invoice.invoiceId, invoiceId))
-      : [];
-    if (!header) {
+    res.json(await loadOrThrow(req.params.id as string));
+  }),
+);
+
+router.get(
+  '/:id/export',
+  asyncHandler(async (req, res) => {
+    const format = parseExportFormat(req);
+    const detail = await loadOrThrow(req.params.id as string);
+    if (!isExportableStatus(detail.invoice.statusCode)) {
       throw new InvoiceNotFoundError();
     }
-
-    // Decisions come from the invoice's current (non-superseded) chain.
-    const lines = await db
-      .select({
-        invoiceLineId: invoiceLine.invoiceLineId,
-        amount: invoiceLine.amount,
-        sourceTimeEntryId: invoiceLine.sourceTimeEntryId,
-        sourceActivityOn: timeEntry.activityOn,
-        sourceDurationHours: timeEntry.durationHours,
-        sourceDescription: timeEntry.description,
-        decisionOutcomeCode: invoiceApprovalOutcomes.code,
-        decisionOutcomeDisplayName: invoiceApprovalOutcomes.displayName,
-        decisionApprovedAmount: invoiceApprovalDecision.approvedAmount,
-        decisionReason: invoiceApprovalDecision.reason,
-        decidedByDisplayName: userAccount.displayName,
-        decidedAt: invoiceApprovalDecision.decidedAt,
-      })
-      .from(invoiceLine)
-      .leftJoin(timeEntry, eq(invoiceLine.sourceTimeEntryId, timeEntry.timeEntryId))
-      .leftJoin(
-        invoiceApprovalChain,
-        and(eq(invoiceApprovalChain.invoiceId, invoiceLine.invoiceId), isNull(invoiceApprovalChain.supersededAt)),
-      )
-      .leftJoin(
-        invoiceApprovalDecision,
-        and(
-          eq(invoiceApprovalDecision.invoiceApprovalChainId, invoiceApprovalChain.invoiceApprovalChainId),
-          eq(invoiceApprovalDecision.invoiceLineId, invoiceLine.invoiceLineId),
-        ),
-      )
-      .leftJoin(invoiceApprovalOutcomes, eq(invoiceApprovalDecision.outcomeId, invoiceApprovalOutcomes.id))
-      .leftJoin(userAccount, eq(invoiceApprovalDecision.decidedByUserAccountId, userAccount.userAccountId))
-      .where(eq(invoiceLine.invoiceId, invoiceId))
-      .orderBy(asc(timeEntry.activityOn), asc(invoiceLine.invoiceLineId));
-    res.json({ invoice: header, lines });
+    await sendInvoiceExport(res, detail, format, true);
   }),
 );
 

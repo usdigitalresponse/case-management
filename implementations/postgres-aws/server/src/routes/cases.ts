@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { and, asc, eq, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, notInArray, type SQL } from 'drizzle-orm';
+import { UNSUBMITTED_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { alias } from 'drizzle-orm/pg-core';
 import { db } from '../db/client';
 import {
@@ -212,7 +213,7 @@ router.post(
 
 // Viewing only, scoped to one case — the review action itself
 // (approve/reject) lives on the cross-case queue, ../routes/invoices.ts,
-// since reviewing isn't done case-by-case.
+// since reviewing isn't done case-by-case. Staff see submitted invoices only.
 router.get(
   '/:id/invoices',
   asyncHandler(async (req, res) => {
@@ -222,6 +223,7 @@ router.get(
         invoiceId: invoice.invoiceId,
         caseId: invoice.caseId,
         statusId: invoice.statusId,
+        statusCode: invoiceStatuses.code,
         statusDisplayName: invoiceStatuses.displayName,
         submittedAt: invoice.submittedAt,
         submittedTotal: invoice.submittedTotal,
@@ -229,8 +231,9 @@ router.get(
         periodEnd: invoice.periodEnd,
       })
       .from(invoice)
-      .leftJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
-      .where(eq(invoice.caseId, caseId));
+      .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+      .where(and(eq(invoice.caseId, caseId), notInArray(invoiceStatuses.code, UNSUBMITTED_INVOICE_STATUS_CODES)))
+      .orderBy(desc(invoice.submittedAt));
     res.json({ invoices: rows });
   }),
 );

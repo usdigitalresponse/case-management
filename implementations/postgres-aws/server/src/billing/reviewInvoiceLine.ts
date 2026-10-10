@@ -18,6 +18,7 @@ import {
   invoiceApprovalOutcomes,
 } from '../db/schema';
 import { APPROVED_INVOICE_STATUS_CODE, SUBMITTED_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
+import { recordInvoiceEvent } from './invoiceEvents';
 
 const LINE_REVIEW_STEP_TYPE_CODE = 'line_review';
 const LINE_REVIEW_SEQUENCE_NUMBER = 1;
@@ -110,8 +111,8 @@ export async function reviewInvoiceLine(
     ]);
 
   return db.transaction(async (tx) => {
-    // Serializes decisions on this invoice so chain creation and the
-    // completion check can't race.
+    // Serializes decisions on this invoice so chain creation, the
+    // completion check and a submitter's recall can't race.
     const [locked] = await tx
       .select({ statusId: invoice.statusId })
       .from(invoice)
@@ -144,6 +145,8 @@ export async function reviewInvoiceLine(
       approvedAmount = (approvedCents / 100).toFixed(2);
     }
 
+    // Submission creates the chain with its snapshot; only invoices
+    // submitted before that existed get one lazily here, without a snapshot.
     const [existingChain] = await tx
       .select({ invoiceApprovalChainId: invoiceApprovalChain.invoiceApprovalChainId })
       .from(invoiceApprovalChain)
@@ -204,6 +207,13 @@ export async function reviewInvoiceLine(
       ? rejectedStatusId
       : approvedStatusId;
     await tx.update(invoice).set({ statusId }).where(eq(invoice.invoiceId, invoiceId));
+    await recordInvoiceEvent(tx, {
+      invoiceId,
+      eventTypeCode: statusId === rejectedStatusId ? 'rejected' : 'approved',
+      statusId,
+      actorUserAccountId,
+      chainId,
+    });
     return { invoiceId, invoiceLineId, statusId };
   });
 }

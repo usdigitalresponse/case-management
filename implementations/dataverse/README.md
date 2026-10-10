@@ -158,6 +158,11 @@ dotnet run --project implementations/dataverse/SetupTests/SetupTests.csproj
   financial enforcement.
 - Permission-filtered timeline UI, secure document storage and electronic signatures.
 - Native-user mapping, ordinary-user roles, and alternate/custom web write paths.
+- Supporting invoice import and export: the review package includes the
+  `invoice_import` table and supplier-stated line columns as schema only. AI Builder
+  invoice processing is the likely extraction path; whether it meets the
+  in-boundary processing requirement is undecided. Time-entry creation on
+  submission and export rendering are not mapped.
 
 Next workflow work should implement these using supported Dataverse capabilities
 and Solution tooling, with shared scenarios and server-side checks. Avoid growing

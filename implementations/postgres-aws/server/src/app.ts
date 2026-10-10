@@ -14,6 +14,9 @@ import myCasesRouter from './routes/myCases';
 import portalRouter from './routes/portal';
 import referenceDataRouter from './routes/referenceData';
 import { AppError } from './errors';
+import { db } from './db/client';
+import { documentStore } from './imports/documentStore';
+import { expireInvoiceImports } from './imports/invoiceImports';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -74,6 +77,11 @@ export function createApp() {
       res.status(err.status).json(err.toResponseBody());
       return;
     }
+    // express.raw's upload size limit.
+    if ((err as { type?: string } | null)?.type === 'entity.too.large') {
+      res.status(413).json({ error: 'file_too_large', message: 'Files must be 10 MB or smaller.' });
+      return;
+    }
     // eslint-disable-next-line no-console
     console.error(err);
     res.status(500).json({ error: 'internal_error' });
@@ -89,4 +97,11 @@ if (require.main === module) {
     // eslint-disable-next-line no-console
     console.log(`Server listening on port ${port}`);
   });
+  const sweepImports = () =>
+    expireInvoiceImports(db, documentStore).catch((error: unknown) => {
+      // eslint-disable-next-line no-console
+      console.error('Import expiry sweep failed', error);
+    });
+  void sweepImports();
+  setInterval(() => void sweepImports(), 60 * 60 * 1000).unref();
 }

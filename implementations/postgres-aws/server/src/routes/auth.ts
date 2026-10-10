@@ -11,6 +11,8 @@ import { normalizeEmail } from '../auth/emailLists';
 import { issueMagicLinkToken, consumeMagicLinkToken } from '../auth/magicLink';
 import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
+import { delegateOfficeIds } from '../portal/portalActor';
+import { EXTERNAL_DEMO_EMAIL } from '../db/demoAccounts';
 import { sendEmail } from '../email/sendEmail';
 import { asyncHandler } from './asyncHandler';
 
@@ -21,12 +23,10 @@ export interface AuthRouterOptions {
   // Passwordless sign-in as the seeded synthetic staff account (see
   // ../db/fixtures.ts and MAPPING.md "Demo sign-in").
   demoLoginEnabled: boolean;
-  // Passwordless sign-in as a seeded demo vendor (an external user).
+  // Passwordless sign-in as a seeded demo vendor (an external user), who is
+  // also its office's billing delegate.
   externalDemoLoginEnabled: boolean;
 }
-
-// Created by the demo seed (../db/seed.ts), not the baseline fixtures.
-const EXTERNAL_DEMO_EMAIL = 'demo-vendor-1@example.invalid';
 
 export function createAuthRouter(options: AuthRouterOptions): Router {
   const router = Router();
@@ -97,7 +97,11 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
       }
 
       const account = await ensureUserAccountForEmail(db, email);
-      await ensureProfessionalForUserAccount(db, account.userAccountId, account.displayName);
+      // A delegate acts for others and needs no professional profile of
+      // their own (model/rules.yaml authorize_delegated_submission).
+      if ((await delegateOfficeIds(db, account.userAccountId)).length === 0) {
+        await ensureProfessionalForUserAccount(db, account.userAccountId, account.displayName);
+      }
 
       const user: AuthenticatedUser = {
         userAccountId: account.userAccountId,
@@ -156,10 +160,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     router.post(
       '/demo-login/external',
       asyncHandler(async (req, res) => {
-        const [vendor] = await db
-          .select()
-          .from(userAccount)
-          .where(eq(userAccount.email, EXTERNAL_DEMO_EMAIL));
+        const [vendor] = await db.select().from(userAccount).where(eq(userAccount.email, EXTERNAL_DEMO_EMAIL));
         if (!vendor) {
           res.status(500).json({ error: 'Seeded demo vendor not found; run `npm run seed` first.' });
           return;

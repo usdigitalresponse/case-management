@@ -27,6 +27,7 @@ No sign-in, deployment, external service or payment action is involved.
 | Selected domain examples | Cross-case links, primary assignment overlap, closure ending all roles, new assignments after reopening, requested/approved amounts, reviewer identity, authorization allocation limits, duplicate completion | General executable rules engine, all configured roles and transition policies |
 | Calculations | Repeated close/reopen projection, final approval total, authorization balances independent of completion | Correction replay, all review chains, superseded attempts or historical reporting policies |
 | Snapshots | Independent retained payee values and snapshot identity/version | Runtime immutability, storage retention, signatures or document retrieval |
+| Invoice import | Import case matches its request and imported time and expenses, matched timekeeper assigned on the service date, recorded extraction method, confirmed import resolution and deleted content, extraction result kept separate from reviewed values | Parsing, extraction accuracy, processing boundary, duplicate detection, delegate authority or export access |
 | External completion | Unknown date/amount remain absent; removing confirmation leaves approvals and draws intact | Integration behavior, reconciliation, actual payment execution |
 
 The helpers deliberately interpret only the sample vocabulary and one final
@@ -43,7 +44,8 @@ so they stay linked to the same schema instead of maintaining a second model.
    app and inspect related lists/forms. Implement runtime workflows next; the
    0.1 guided baseline cannot deploy the expanded slice.
 3. Map these records into that implementation and exercise `scenarios/new-case.md`,
-   `scenarios/case-history.md` and `scenarios/payment-request.md` through both forms
+   `scenarios/case-history.md`, `scenarios/payment-request.md` and
+   `scenarios/invoice-import-export.md` through both forms
    and alternate write paths.
 4. Verify server-side permissions, immutable evidence, atomic multi-record intake,
    concurrent authorization spending, and absence of payment initiation in the

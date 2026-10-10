@@ -1,10 +1,14 @@
 # Synthetic model examples
 
 [review-example.yaml](review-example.yaml) is a portable, linked dataset for
-reviewing the 0.2 model. It is not a Dataverse import file or production seed data.
+reviewing the model. It is not a Dataverse import file or production seed data.
 All names, identifiers, vocabulary and amounts are synthetic. `XXX` is a test-only
 currency marker. IDs are stable UUIDs; emails use the reserved `example.invalid`
 domain. No real contacts, documents or source research are included.
+
+[invoices/](invoices/README.md) holds synthetic supporting invoice files
+(LEDES 1998B and the spreadsheet template) for trying and testing import, with
+their expected results.
 
 The fixture contains:
 
@@ -20,7 +24,11 @@ The fixture contains:
   against two authorizations with ceilings of 100. Remaining balances are 40 and
   60 even after external payment completion is reported.
 - A supporting invoice reference, synthetic attestation, and frozen submission
-  snapshot. No document attachment or electronic signature assurance is claimed.
+  snapshot. No electronic signature assurance is claimed.
+- A confirmed import of that supporting invoice: synthetic document metadata
+  whose content was deleted on confirmation, an extraction result with
+  confidences, and supplier-stated line detail. The draft was created from the
+  import and then submitted.
 - External completion confirmation with a source and recording actor/time. Actual
   payment amount and date are unknown and deliberately omitted.
 

@@ -17,3 +17,6 @@ const { pool, db } = createDb(
 
 export { pool, db };
 export type Database = typeof db;
+export type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+// For helpers that work both standalone and inside a caller's transaction.
+export type DatabaseOrTransaction = Database | Transaction;

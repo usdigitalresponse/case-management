@@ -3,11 +3,11 @@
 // lazy create-on-first-use, so each row has one provisioning mechanism. A
 // missing row is a deployment problem, reported as a ConfigurationError.
 import { and, eq, getTableName } from 'drizzle-orm';
-import type { Database } from './client';
+import type { Database, DatabaseOrTransaction } from './client';
 import { role, type ReferenceTable } from './schema';
 import { ConfigurationError } from '../errors';
 
-export async function getReferenceId(db: Database, table: ReferenceTable, code: string): Promise<string> {
+export async function getReferenceId(db: DatabaseOrTransaction, table: ReferenceTable, code: string): Promise<string> {
   const [row] = await db.select({ id: table.id }).from(table).where(eq(table.code, code));
   if (!row) {
     throw new ConfigurationError(`Missing required ${getTableName(table)} row with code "${code}".`);
@@ -15,7 +15,7 @@ export async function getReferenceId(db: Database, table: ReferenceTable, code: 
   return row.id;
 }
 
-export async function getSeededRoleId(db: Database, displayName: string, roleContext: string): Promise<string> {
+export async function getSeededRoleId(db: DatabaseOrTransaction, displayName: string, roleContext: string): Promise<string> {
   const [row] = await db
     .select({ roleId: role.roleId })
     .from(role)

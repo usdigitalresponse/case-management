@@ -29,6 +29,15 @@ export class ValidationError extends AppError {
   }
 }
 
+export class UnauthenticatedError extends AppError {
+  readonly status = 401;
+  readonly code = 'unauthenticated';
+
+  constructor() {
+    super('Authentication required.');
+  }
+}
+
 export class ForbiddenError extends AppError {
   readonly status = 403;
 

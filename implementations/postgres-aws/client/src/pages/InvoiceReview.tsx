@@ -1,30 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
 import { Alert } from '@trussworks/react-uswds';
-import { ApiError, getInvoiceForReview, type InvoiceReviewLine } from '../api/client';
+import { ApiError, getInvoiceForReview } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { PageHeading } from '../components/PageHeading';
 import { RecordTable } from '../components/RecordTable';
 import { InvoiceLineReviewActions } from '../components/InvoiceLineReviewActions';
+import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
+import { InvoiceSummary, invoiceReference } from '../components/InvoiceSummary';
+import { LineDecision } from '../components/LineDecision';
+import { lineDate, lineDescription, lineHours, lineRate, lineTimekeeper, lineType } from '../invoiceLineDisplay';
 import { caseDisplayLabel } from '../caseDisplayLabel';
-import { formatDateTime } from '../formatDateTime';
-
-function LineDecision({ line }: { line: InvoiceReviewLine }) {
-  if (!line.decisionOutcomeCode) {
-    return <>Not reviewed</>;
-  }
-  return (
-    <div className="invoice-line-decision">
-      <span className="status-pill">{line.decisionOutcomeDisplayName}</span>
-      {line.decisionApprovedAmount && <span>${line.decisionApprovedAmount}</span>}
-      {line.decisionReason && <span>{line.decisionReason}</span>}
-      <span className="invoice-line-decided-by">
-        {line.decidedByDisplayName ?? 'Unknown'}
-        {line.decidedAt && `, ${formatDateTime(line.decidedAt)}`}
-      </span>
-    </div>
-  );
-}
+import { formatMoney } from '../formatMoney';
 
 export default function InvoiceReview() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
@@ -67,52 +54,22 @@ export default function InvoiceReview() {
 
   const { invoice, lines } = data;
   const reviewable = invoice.statusCode === 'submitted';
-  const decidedCount = lines.filter((line) => line.decisionOutcomeCode).length;
-  const approvedCents = lines.reduce((sum, line) => sum + Math.round(Number(line.decisionApprovedAmount ?? 0) * 100), 0);
 
   return (
     <div>
-      <RouterLink to="/billing">&larr; Back to billing queue</RouterLink>
+      <RouterLink className="back-link" to="/billing">&larr; Back to invoices</RouterLink>
       <PageHeading
-        eyebrow="Invoice review"
+        eyebrow={reviewable ? 'Invoice review' : 'Invoice'}
         title={caseDisplayLabel([invoice.caseClientDisplayName, invoice.caseExternalReference], undefined)}
-        description={invoice.invoiceId}
+        description={invoiceReference(invoice.invoiceId)}
       />
 
-      <dl className="fact-grid">
-        <div className="fact">
-          <dt>Status</dt>
-          <dd><span className="status-pill">{invoice.statusDisplayName}</span></dd>
-        </div>
-        <div className="fact">
-          <dt>Submitted by</dt>
-          <dd>{invoice.professionalDisplayName ?? 'Unknown'}</dd>
-        </div>
-        <div className="fact">
-          <dt>Submitted</dt>
-          <dd>{invoice.submittedAt ? formatDateTime(invoice.submittedAt) : '—'}</dd>
-        </div>
-        <div className="fact">
-          <dt>Period</dt>
-          <dd>{invoice.periodStart || invoice.periodEnd ? `${invoice.periodStart ?? '—'} to ${invoice.periodEnd ?? '—'}` : '—'}</dd>
-        </div>
-        <div className="fact">
-          <dt>Requested total</dt>
-          <dd>${invoice.submittedTotal}</dd>
-        </div>
-        <div className="fact">
-          <dt>Approved so far</dt>
-          <dd>${(approvedCents / 100).toFixed(2)}</dd>
-        </div>
-        <div className="fact">
-          <dt>Invoice items reviewed</dt>
-          <dd>{decidedCount} of {lines.length}</dd>
-        </div>
-      </dl>
+      <InvoiceSummary invoice={invoice} lines={lines} showReviewProgress />
 
-      <p>
-        <RouterLink to={`/cases/${invoice.caseId}`}>View case</RouterLink>
-      </p>
+      <div className="invoice-actions">
+        <InvoiceExportLinks scope="staff" invoiceId={invoice.invoiceId} />
+        <RouterLink className="usa-button usa-button--unstyled" to={`/cases/${invoice.caseId}`}>View case</RouterLink>
+      </div>
 
       <div className="detail-section">
         <h2>Invoice items</h2>
@@ -122,10 +79,13 @@ export default function InvoiceReview() {
           rowKey={(line) => line.invoiceLineId}
           emptyMessage="This invoice has no items."
           columns={[
-            { header: 'Date', render: (l) => l.sourceActivityOn ?? '—' },
-            { header: 'Hours', render: (l) => l.sourceDurationHours ?? '—' },
-            { header: 'Description', render: (l) => l.sourceDescription ?? 'No linked time entry' },
-            { header: 'Requested', render: (l) => `$${l.amount}` },
+            { header: 'Date', render: lineDate },
+            { header: 'Type', render: lineType },
+            { header: 'Description', render: lineDescription },
+            { header: 'Timekeeper', render: lineTimekeeper },
+            { header: 'Hours', render: lineHours },
+            { header: 'Rate', render: (l) => <span className="amount">{lineRate(l)}</span> },
+            { header: 'Requested', render: (l) => <span className="amount">{formatMoney(l.amount)}</span> },
             {
               header: 'Review',
               render: (l) =>

@@ -7,6 +7,35 @@ entry when a decision materially changes.
 
 ## Current Decisions
 
+### Supporting invoice import and export
+
+- **Status:** Active
+- **Decided:** 2026-10-09
+
+Payees may upload supporting invoices (structured legal billing files,
+spreadsheets or documents) that become draft payment requests only after the
+submitter confirms them; extracted values are never trusted directly. Imported
+time lines create time entries on submission. Billing staff may export any
+submitted request; submitters only their own. Third-party extraction is limited
+to synthetic data during development; live extraction stays within the system
+boundary, which includes services in the organization's own cloud account, and
+adding a cloud AI service requires a cost review. Uploaded files are not
+retained: confirming or discarding an import deletes the content and keeps only
+metadata, hash and extracted values. Submitters may edit drafts, recall a
+submission before any review decision, and start over with a new upload.
+Submitters match each imported timekeeper to an existing professional assigned
+to the case; unmatched timekeepers block confirmation. A configured delegate
+role on an office affiliation lets support staff submit for professionals in
+that office; office membership alone grants nothing. Represented professionals
+do not approve or attest but may view and export those requests. Imported
+expense lines create expenses. Exports are not audited. Unresolved uploads
+expire after three days, and recall is allowed only before review begins.
+Draft or withdrawn requests may be deleted outright by their submitter until
+a review decision is recorded, including attempts recalled before review;
+after that a request is retained and can only be withdrawn.
+Built first in the Postgres/AWS prototype. See the
+[plan](invoice-import-export-plan.md).
+
 ### Case closure ends assignments
 
 - **Status:** Active

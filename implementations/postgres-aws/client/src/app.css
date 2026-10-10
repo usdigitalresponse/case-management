@@ -58,8 +58,12 @@ button, input { font: inherit; }
 .login-panel a.usa-button { display: block; margin: 0 0 .6rem; text-align: center; }
 .portal-main section { margin-top: 2rem; }
 
-/* Status pill — used anywhere a case/invoice status is shown. */
+/* Status pill. Invoice variants keep at least 4.5:1 contrast. */
 .status-pill { display: inline-flex; align-items: center; padding: .2rem .7rem; border-radius: 20px; background: #eef1f6; color: #434b55; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.status-pill--submitted { background: #e5ecff; color: #1a4480; }
+.status-pill--approved { background: #e3f5e1; color: #19591e; }
+.status-pill--rejected { background: #fde8e6; color: #8b1303; }
+.status-pill--draft, .status-pill--withdrawn { background: #f3f3f3; color: #454545; }
 
 /* List toolbar: result count + client-side filter. */
 .stage-filter-note { color: #596576; font-size: .85rem; margin: 1.2rem 0 0; }
@@ -182,3 +186,99 @@ form.case-intake-form { max-width: 52rem; }
   .stage-content { min-height: 130px; }
   .app-main h1 { font-size: 1.7rem; }
 }
+.invoice-export-links { display: flex; gap: .5rem; flex-wrap: wrap; }
+.invoice-export-links .usa-button { margin: 0; }
+.invoice-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .9rem; }
+.invoice-actions .usa-button { margin: 0; }
+
+/* Compact portal forms: fields side by side, overriding USWDS's
+   single-column sizing. */
+.back-link { display: inline-block; margin-bottom: .6rem; font-size: .9rem; }
+.portal-main section { margin-top: 1.6rem; }
+.portal-main section > h2 { font-size: 1.25rem; margin: 0 0 .6rem; }
+form.compact-form { max-width: none; }
+.compact-card { background: white; border: 1px solid #dce1e8; border-radius: 9px; padding: .9rem 1.1rem; margin-top: .9rem; }
+.compact-card h2 { font-size: 1.1rem; margin: 0 0 .6rem; }
+.compact-card h3 { font-size: 1rem; margin: 0 0 .6rem; }
+.compact-card .usa-alert { margin: 0 0 .6rem; }
+.inline-fields { display: grid; gap: .5rem .75rem; align-items: end; }
+.inline-fields .usa-form-group { margin: 0; min-width: 0; }
+.inline-fields .usa-label { margin: 0 0 .2rem; font-size: .85rem; max-width: none; }
+.inline-fields .usa-input, .inline-fields .usa-select { margin: 0; max-width: none; height: 2.25rem; padding: .25rem .5rem; font-size: .95rem; }
+.inline-fields .usa-button { margin: 0; height: 2.25rem; padding: 0 1rem; }
+.inline-fields .usa-checkbox { grid-column: 1 / -1; background: transparent; }
+.time-entry-fields { grid-template-columns: 10rem 6rem minmax(0, 1fr) auto; }
+.compact-hint { color: #66717d; font-size: .85rem; margin: .45rem 0 0; }
+.compact-file { font-size: .9rem; max-width: 100%; }
+.import-fields { grid-template-columns: minmax(0, 1fr) auto; }
+.billed-for-field { grid-template-columns: minmax(0, 20rem); margin-bottom: .8rem; }
+.period-fields { grid-template-columns: 12rem 12rem; margin-bottom: .8rem; }
+.confirm-inline { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.confirm-inline__prompt { font-weight: 700; }
+.confirm-inline .usa-button { margin: 0; }
+.queue-filter { display: flex; align-items: end; gap: .75rem; margin: 0 0 1rem; }
+.queue-filter .usa-select { margin: 0; height: 2.25rem; padding: .25rem .5rem; }
+.queue-filter .usa-label { margin: 0 0 .2rem; font-size: .85rem; }
+/* Import review: the original beside the items, or above them when narrow. */
+.import-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1.2rem; align-items: start; margin-top: .8rem; }
+.import-review-items { min-width: 0; }
+.import-warnings ul { margin: .2rem 0 0; padding-left: 1.2rem; }
+.import-warnings li { font-size: .9rem; }
+.import-review-intro { margin: .6rem 0 0; font-size: .95rem; }
+.original-document { position: sticky; top: 1rem; background: white; border: 1px solid #dce1e8; border-radius: 9px; overflow: hidden; }
+.original-document__bar { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .6rem .9rem; border-bottom: 1px solid #dce1e8; }
+.original-document__bar h2 { font-size: 1rem; margin: 0; }
+.original-document__bar a { font-size: .85rem; }
+.original-document__frame { max-height: calc(100vh - 6rem); overflow: auto; padding: .6rem; background: #eef1f5; }
+.original-document__frame:focus { outline: 2px solid #2491ff; outline-offset: -2px; }
+.original-pages { display: flex; flex-direction: column; gap: .6rem; }
+.original-page { display: block; background: white; box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+.original-text { margin: 0; padding: .6rem; background: white; font-size: .78rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.original-rows { border-collapse: collapse; background: white; font-size: .8rem; }
+.original-rows th, .original-rows td { border: 1px solid #dce1e8; padding: .2rem .4rem; white-space: nowrap; }
+.original-rows th { color: #66717d; font-weight: normal; }
+.import-review-items h2 { font-size: 1.1rem; margin: 0 0 .6rem; }
+@media (max-width: 1280px) {
+  .import-review-layout { grid-template-columns: 1fr; }
+  .original-document { position: static; }
+  .original-document__frame { max-height: 50vh; }
+}
+.amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.choice-toggle { display: inline-flex; border: 1px solid #a9aeb1; border-radius: 6px; overflow: hidden; margin-bottom: .8rem; }
+.choice-toggle button { border: 0; background: white; padding: .35rem .9rem; font: inherit; font-size: .9rem; cursor: pointer; color: #1b1b1b; }
+.choice-toggle button + button { border-left: 1px solid #a9aeb1; }
+.choice-toggle button[aria-pressed="true"] { background: #1a4480; color: white; font-weight: 700; }
+
+/* Invoice items: columns come from the component; labels are visually
+   hidden until rows stack. */
+.line-editor-head { display: grid; gap: .75rem; padding: 0 .1rem .25rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: #5c6774; }
+.line-row { padding: .4rem 0; border-top: 1px solid #edf0f4; }
+.line-row:first-of-type { border-top: 0; }
+.line-row .line-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.line-row-note { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0 .9rem; font-size: .8rem; color: #66717d; margin: 0; }
+.line-row-note > span + span::before { content: '·'; margin-right: .9rem; color: #a9aeb1; }
+.line-row-note .usa-button--unstyled { font-size: inherit; }
+.line-row-error { color: #b50909; font-weight: 700; }
+.line-row-suggested { color: #1a4480; }
+.line-remove { border: 0; background: none; color: #565c65; font-size: 1.25rem; line-height: 1; cursor: pointer; height: 2.25rem; padding: 0 .3rem; }
+.line-remove:hover { color: #b50909; }
+.line-add { margin-top: .5rem; }
+@media (max-width: 760px) {
+  .inline-fields, .line-row { grid-template-columns: 1fr !important; }
+  .line-editor-head { display: none; }
+  .line-row .line-label { position: static; width: auto; height: auto; clip: auto; white-space: normal; }
+  .line-row { padding: .8rem 0; }
+}
+.assign-all { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; margin: 0 0 .8rem; padding: .5rem .7rem; background: #f3f6fa; border-radius: 6px; }
+.assign-all .usa-label { margin: 0; font-size: .85rem; flex-basis: 100%; }
+.assign-all .usa-select { margin: 0; width: auto; min-width: 12rem; height: 2.25rem; padding: .25rem .5rem; }
+.assign-all .usa-button { margin: 0; }
+.row-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; }
+.usa-button.confirm-compact { color: #b50909; margin: 0; }
+.row-actions .confirm-inline { font-size: .85rem; }
+.row-actions .confirm-inline .usa-button { padding: .3rem .6rem; font-size: .85rem; }
+.list-toggle { margin: 0 0 .5rem; }
+.list-toggle .usa-checkbox__label { margin-top: 0; font-size: .9rem; }
+/* Slim alerts: pad for the icon; USWDS's text margin was being lost. */
+.usa-alert--slim .usa-alert__body { padding-left: 3.25rem; }
+.usa-alert--slim .usa-alert__body > * { margin-left: 0; }

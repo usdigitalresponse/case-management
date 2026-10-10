@@ -33,6 +33,9 @@ const IN_SCOPE_ENTITIES = [
   'invoice_line',
   'invoice_approval_chain',
   'invoice_approval_decision',
+  'document',
+  'invoice_import',
+  'invoice_event',
 ];
 
 // Fields on in-scope entities that are deliberately not mapped, with the
@@ -51,8 +54,6 @@ const DELIBERATELY_OMITTED_FIELDS: Record<string, string> = {
   'invoice.service_provider_id':
     'no service_provider table exists; professional plays that role for external submitters (invoice.professional_id)',
   'invoice_line.source_expense_id': 'no expense entity/table exists yet; out of scope (time and invoices only)',
-  'invoice_approval_chain.submission_snapshot':
-    'immutable schema-versioned snapshot not implemented; this slice records only the decision, not a frozen copy of the invoice/lines/payee at review time',
 };
 
 interface SchemaYaml {

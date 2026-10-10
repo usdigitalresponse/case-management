@@ -1,4 +1,4 @@
-spec_version: 0.2.0
+spec_version: 0.3.0
 description: Synthetic offline examples only; sample vocabularies and amounts are not policy defaults.
   Fields that prepare_review.py computes from event/participant/affiliation
   history are intentionally omitted; see model/README.md.
@@ -35,6 +35,10 @@ reference_data:
   - sample_draft
   - sample_submitted
   - sample_under_review
+  invoice_import_formats:
+  - sample_document
+  invoice_import_statuses:
+  - sample_confirmed
 records:
   person:
   - person_id: e8d01a74-457b-5ff9-b951-5828ad2226be
@@ -315,6 +319,13 @@ records:
     case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
     line_type_id: sample_manual
     amount: 70
+    service_date: '2026-01-05'
+    description: Synthetic research
+    quantity: 1
+    unit_rate: 70
+    timekeeper_label: Synthetic Timekeeper
+    timekeeper_professional_id: e70445f8-5f17-5ac2-b684-c59347d3db2f
+    task_code: SAMPLE-TASK
   - invoice_line_id: eaad09d0-d203-5ab2-85a9-6b70f59a9e37
     invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
     case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
@@ -335,13 +346,53 @@ records:
     invoice_number: SAMPLE-INVOICE-A
     period_start: '2026-01-01'
     period_end: '2026-01-09'
+    document_id: d07b0593-829f-5ffd-879f-dde54a3e0376
+  document:
+  - document_id: d07b0593-829f-5ffd-879f-dde54a3e0376
+    storage_reference: synthetic://documents/sample-invoice-a
+    display_name: SAMPLE-INVOICE-A.pdf
+    media_type: application/pdf
+    content_hash: sha256:0000000000000000000000000000000000000000000000000000000000000001
+    recorded_at: '2026-01-09T11:00:00Z'
+    recorded_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+    content_deleted_at: '2026-01-10T12:00:00Z'
+  invoice_import:
+  - invoice_import_id: 10503bd4-accb-5695-ace6-adc87f0baaa6
+    document_id: d07b0593-829f-5ffd-879f-dde54a3e0376
+    uploaded_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+    uploaded_at: '2026-01-09T11:00:00Z'
+    case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
+    source_format_id: sample_document
+    status_id: sample_confirmed
+    extraction_method: synthetic-extractor 0
+    extracted_at: '2026-01-09T11:05:00Z'
+    extraction_result:
+      spec_version: 0.3.0
+      invoice_import_id: 10503bd4-accb-5695-ace6-adc87f0baaa6
+      invoice:
+        invoice_number: {value: SAMPLE-INVOICE-A, confidence: 0.99}
+        period_start: {value: '2026-01-01', confidence: 0.95}
+        period_end: {value: '2026-01-09', confidence: 0.95}
+        stated_total: {value: 120, confidence: 0.99}
+      lines:
+      - service_date: {value: '2026-01-05', confidence: 0.9}
+        description: {value: Synthetic research, confidence: 0.9}
+        quantity: {value: 1, confidence: 0.9}
+        unit_rate: {value: 70, confidence: 0.9}
+        amount: {value: 70, confidence: 0.95}
+      - description: {value: Synthetic flat fee, confidence: 0.8}
+        amount: {value: 50, confidence: 0.95}
+      warnings: []
+    invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
+    resolved_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
+    resolved_at: '2026-01-10T12:00:00Z'
   invoice_approval_chain:
   - invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
     invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
     created_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
     created_at: '2026-01-10T12:00:00Z'
     submission_snapshot:
-      spec_version: 0.2.0
+      spec_version: 0.3.0
       captured_at: '2026-01-10T12:00:00Z'
       invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
       invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b
@@ -429,6 +480,13 @@ records:
           case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
           line_type_id: sample_manual
           amount: 70
+          service_date: '2026-01-05'
+          description: Synthetic research
+          quantity: 1
+          unit_rate: 70
+          timekeeper_label: Synthetic Timekeeper
+          timekeeper_professional_id: e70445f8-5f17-5ac2-b684-c59347d3db2f
+          task_code: SAMPLE-TASK
         - invoice_line_id: eaad09d0-d203-5ab2-85a9-6b70f59a9e37
           invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
           case_id: a760d290-6f10-5a88-bf3f-27c7c64630f5
@@ -449,6 +507,7 @@ records:
           invoice_number: SAMPLE-INVOICE-A
           period_start: '2026-01-01'
           period_end: '2026-01-09'
+          document_id: d07b0593-829f-5ffd-879f-dde54a3e0376
         invoice_attestation:
         - invoice_attestation_id: 50bfd933-7e08-5f3f-938b-663421514a11
           invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b

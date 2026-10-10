@@ -114,6 +114,41 @@ describe('createInvoice', () => {
     expect(result.submittedTotal).toBe('150.50');
   });
 
+  it('stores supplier-stated line detail without using it to compute the amount', async () => {
+    const { userAccountId, professionalId } = await createVendorProfessional('vendor-line-detail@example.com');
+    const caseId = await createCaseAssignedTo(professionalId);
+
+    const result = await createInvoice(testDb, { userAccountId, professionalId }, {
+      caseId,
+      lines: [
+        {
+          amount: 120,
+          serviceDate: '2026-02-03',
+          description: 'Synthetic research',
+          quantity: 1.5,
+          unitRate: 100,
+          timekeeperLabel: 'Synthetic Timekeeper',
+          taskCode: 'SAMPLE-TASK',
+          activityCode: 'SAMPLE-ACTIVITY',
+        },
+      ],
+    });
+
+    expect(result.submittedTotal).toBe('120.00');
+    const [line] = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, result.invoiceId));
+    expect(line).toMatchObject({
+      amount: '120.00',
+      serviceDate: '2026-02-03',
+      description: 'Synthetic research',
+      quantity: '1.50',
+      unitRate: '100.00',
+      timekeeperLabel: 'Synthetic Timekeeper',
+      taskCode: 'SAMPLE-TASK',
+      activityCode: 'SAMPLE-ACTIVITY',
+      expenseCode: null,
+    });
+  });
+
   it('links a line to the submitter\'s own time entry for context', async () => {
     const { userAccountId, professionalId } = await createVendorProfessional('vendor5@example.com');
     const caseId = await createCaseAssignedTo(professionalId);

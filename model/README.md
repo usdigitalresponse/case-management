@@ -28,7 +28,7 @@ technology stores or implements them.
 - `forms.yaml` defines case intake using case fields and related-record inputs.
 - `create-case.md` proposes the shared intake request/result, atomic effects,
   retry and error contract; it is not yet a deployed operation.
-- `workflows.yaml` defines lifecycle and payment-request transitions.
+- `workflows.yaml` defines lifecycle, payment-request and invoice-import transitions.
 
 Acceptance scenarios live in `../scenarios/`. Reference sets named by
 `reference_data` remain configurable vocabularies, not entity foreign keys.
@@ -132,7 +132,8 @@ exports and mappings; platform record IDs may need an explicit crosswalk. Do
 not cascade-delete history.
 
 The additional `object` type is a structured, schema-versioned value, used only
-for the immutable review snapshot. Platforms may encode it as JSON or normalized
+for immutable snapshots: the review `submission_snapshot` and the
+`invoice_import.extraction_result`. Platforms may encode it as JSON or normalized
 snapshot children; it is not permission to flatten operational relationships.
 
 ### Deferred: fields that should become read models
@@ -234,6 +235,61 @@ same integrity as every other relationship, not an untyped polymorphic pointer
 — this replaces the earlier `source_record_type`/`source_record_id` pair.
 Additional source types are added as further optional typed references after a
 model decision, following the same one-of pattern as `document_link`.
+
+## Supporting invoice import and export
+
+A payee may upload a supporting invoice file instead of entering lines. The file
+becomes a transient `document`; an `invoice_import` records its format, the
+extraction method and version, and an immutable `extraction_result`. Extraction
+proposes one draft request; the submitter corrects it against the original file
+and confirms the extracted values. Uploaded files are not retained: confirming
+or discarding an import deletes the file content and sets
+`document.content_deleted_at`, keeping only metadata, hash and the extraction
+result. Imports left unresolved expire three days after upload, deleting the
+file and withdrawing any unconfirmed draft. Document storage is a short-lived
+working area for conversion, not a record store: it accepts only configured
+formats within configured limits, scans files before parsing, and keeps them out
+of versioning and backups. From then on the draft request, and later its submission snapshot, is
+the record of the supporting invoice; reviewers never see the original file.
+The draft stays editable until submitted through the ordinary
+`payment_request` workflow, and a submission may be recalled to draft only
+before any review decision. Starting over withdraws the draft and needs a new upload.
+Extracted values never become submitted, approved or source records by
+themselves.
+
+`extraction_result` must contain `spec_version`, the import ID, and for the
+request and each line the extracted value, its location in the source where
+known, an optional confidence, and any warnings. Structured formats such as
+standard legal billing exchange files, delimited text and spreadsheets are
+parsed directly; free-form documents need an extraction method. Neither the
+model nor this contract selects a parser, extraction service or rendering
+library. Production extraction stays within the system's processing boundary, which
+includes services in the organization's own cloud account.
+
+Imported lines keep supplier-stated detail on `invoice_line`: service date,
+description, quantity, rate, timekeeper label and optional task, activity and
+expense codes. These are evidence, not inputs to the amount. Codes stay free
+text until a configured code set is adopted. Before confirming, the submitter
+matches every timekeeper to an existing professional assigned to the case
+(`invoice_line.timekeeper_professional_id`); unmatched lines block confirmation
+and no people are created from labels. On submission, lines with a date and
+hours create time entries for their matched professional, and lines the
+submitter classifies as expenses create `expense` records, linked through
+`source_time_entry_id` or `source_expense_id`, unless the submitter links an
+existing record instead.
+
+A configured delegate, such as office support staff, may upload, edit, recall
+and submit requests for professionals in the same office. Delegate authority
+comes only from a configured delegate role on an effective `person_affiliation`,
+never from office membership alone, and never replaces the professionals' own
+case assignments. The delegate is recorded as submitter and actor. Every line
+of a delegated request names its professional; those represented professionals
+need not attest or approve, and may view and export the request.
+
+Exports render one identified submission attempt with its status and line
+decisions as a document or spreadsheet. Billing staff may export any submitted
+request; submitters and represented professionals only their own. Exports are
+not audited.
 
 ## External payment boundary
 
