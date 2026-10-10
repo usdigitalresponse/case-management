@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router';
 import { Table } from '@trussworks/react-uswds';
 import { listCases, type CaseRecord } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';

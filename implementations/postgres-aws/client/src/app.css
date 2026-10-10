@@ -217,7 +217,7 @@ form.compact-form { max-width: none; }
 .confirm-inline__prompt { font-weight: 700; }
 .confirm-inline .usa-button { margin: 0; }
 .queue-filter { display: flex; align-items: end; gap: .75rem; margin: 0 0 1rem; }
-.queue-filter .usa-select { margin: 0; height: 2.25rem; padding: .25rem .5rem; }
+.queue-filter .usa-select { margin: 0; width: auto; min-width: 12rem; height: 2.25rem; padding: .25rem .5rem; }
 .queue-filter .usa-label { margin: 0 0 .2rem; font-size: .85rem; }
 /* Import review: the original beside the items, or above them when narrow. */
 .import-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1.2rem; align-items: start; margin-top: .8rem; }
@@ -282,3 +282,5 @@ form.compact-form { max-width: none; }
 /* Slim alerts: pad for the icon; USWDS's text margin was being lost. */
 .usa-alert--slim .usa-alert__body { padding-left: 3.25rem; }
 .usa-alert--slim .usa-alert__body > * { margin-left: 0; }
+/* Compact selects keep USWDS's right padding clear of the arrow. */
+.inline-fields .usa-select, .queue-filter .usa-select, .assign-all .usa-select { padding-right: 2rem; }
