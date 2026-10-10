@@ -1,4 +1,4 @@
-spec_version: "0.2.0"
+spec_version: "0.3.0"
 status: draft
 kind: domain_schema
 
@@ -264,6 +264,11 @@ entities:
         type: uuid
         required: false
         references: case_funding.case_funding_id
+      source_invoice_import_id:
+        type: uuid
+        required: false
+        references: invoice_import.invoice_import_id
+        description: The import whose confirmed line created this entry; absent for directly recorded time.
 
   expense:
     display_name: Expense
@@ -288,6 +293,11 @@ entities:
       amount:
         type: money
         required: true
+      source_invoice_import_id:
+        type: uuid
+        required: false
+        references: invoice_import.invoice_import_id
+        description: The import whose confirmed line created this expense; absent for directly recorded expenses.
 
   invoice:
     display_name: Payment Request
@@ -364,6 +374,101 @@ entities:
       amount:
         type: money
         required: true
+      service_date:
+        type: date
+        required: false
+        description: Service date as stated by the payee; a linked source time entry or expense date governs.
+      description:
+        type: string
+        required: false
+      quantity:
+        type: decimal
+        required: false
+        description: Hours or units as stated by the payee; informational, never used to calculate amount.
+      unit_rate:
+        type: money
+        required: false
+        description: Rate as stated by the payee; there is no configured rate entity.
+      timekeeper_label:
+        type: string
+        required: false
+        description: Who performed the work, as stated on a supporting invoice; not a person identity.
+      timekeeper_professional_id:
+        type: uuid
+        required: false
+        references: professional.professional_id
+        description: The existing professional the submitter matched to the timekeeper; imported time is attributed to this professional.
+      task_code:
+        type: string
+        required: false
+        description: Supplier-provided task code, such as a standard legal billing code; not validated against configured values.
+      activity_code:
+        type: string
+        required: false
+        description: Supplier-provided activity code; not validated against configured values.
+      expense_code:
+        type: string
+        required: false
+        description: Supplier-provided expense code; not validated against configured values.
+
+  invoice_import:
+    display_name: Invoice Import
+    description: An uploaded supporting invoice file and the values extracted from it, proposed as a draft payment request.
+    primary_key: invoice_import_id
+    fields:
+      invoice_import_id:
+        type: uuid
+        required: true
+        generated: true
+      document_id:
+        type: uuid
+        required: true
+        references: document.document_id
+      uploaded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      uploaded_at:
+        type: datetime
+        required: true
+      case_id:
+        type: uuid
+        required: false
+        references: case.case_id
+        description: Case chosen by the uploader or confirmed after extraction; required before a draft request is created.
+      source_format_id:
+        type: reference
+        required: true
+        reference_data: invoice_import_formats
+      status_id:
+        type: reference
+        required: true
+        reference_data: invoice_import_statuses
+      extraction_method:
+        type: string
+        required: false
+        description: Parser or extraction service and its version; required once extraction has run.
+      extracted_at:
+        type: datetime
+        required: false
+      extraction_result:
+        type: object
+        required: false
+        data_role: snapshot
+        description: Immutable schema-versioned extracted values, confidence and warnings; contract in model/README.md.
+      invoice_id:
+        type: uuid
+        required: false
+        references: invoice.invoice_id
+        description: The draft request created from the extraction result.
+      resolved_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+        description: The user who confirmed the extracted values or discarded the import.
+      resolved_at:
+        type: datetime
+        required: false
 
   invoice_approval_chain:
     display_name: Invoice Approval Chain
@@ -1155,8 +1260,9 @@ entities:
         required: true
       actor_user_account_id:
         type: uuid
-        required: true
+        required: false
         references: user_account.user_account_id
+        description: Required for every user action; absent only for system actions such as withdrawing the draft of an expired import, which then require a reason.
       reason:
         type: string
         required: false
@@ -1230,6 +1336,10 @@ entities:
         type: uuid
         required: false
         references: document.document_id
+      content_deleted_at:
+        type: datetime
+        required: false
+        description: When the file content was deleted under a no-retention policy; metadata and hash remain.
 
   document_link:
     display_name: Document Link

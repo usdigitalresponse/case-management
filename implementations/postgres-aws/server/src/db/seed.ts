@@ -3,7 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { faker } from '@faker-js/faker';
 import { db, pool } from './client';
 import { resetAndSeedBaselineFixtures } from './fixtures';
-import { person, caseCategories, caseAssignment, invoice } from './schema';
+import { eq, inArray } from 'drizzle-orm';
+import { person, personAffiliation, professional, userAccount, caseCategories, caseAssignment } from './schema';
+import { getDelegateAffiliationRoleId } from '../professionals/delegateRole';
 import { createCase } from '../intake/createCase';
 import { createTimeEntry } from '../portal/createTimeEntry';
 import { createInvoice } from '../portal/createInvoice';
@@ -83,6 +85,48 @@ async function seedDemoProfessionals(): Promise<DemoProfessional[]> {
   return professionals;
 }
 
+// Two demo vendors in one office; the first (the demo partner sign-in) is
+// also its delegate, so one sign-in bills for itself and a colleague.
+async function seedDemoDelegate(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+  professionals: DemoProfessional[],
+): Promise<void> {
+  const startedAt = new Date('2026-01-01T00:00:00Z');
+  const members = await db
+    .select({ personId: professional.personId })
+    .from(professional)
+    .where(inArray(professional.professionalId, professionals.slice(0, 2).map((p) => p.professionalId)));
+  await db.insert(personAffiliation).values(
+    members.map(({ personId }) => ({
+      personId,
+      organizationId: fixtures.organizationId,
+      officeId: fixtures.officeId,
+      startedAt,
+    })),
+  );
+
+  // Delegation is read through the account's person, which magic-link
+  // sign-up doesn't link.
+  const [delegate] = professionals;
+  if (!delegate) {
+    throw new Error('Expected a demo vendor to act as delegate.');
+  }
+  const { personId } = firstRow(
+    await db
+      .select({ personId: professional.personId })
+      .from(professional)
+      .where(eq(professional.professionalId, delegate.professionalId)),
+  );
+  await db.update(userAccount).set({ personId }).where(eq(userAccount.userAccountId, delegate.userAccountId));
+  await db.insert(personAffiliation).values({
+    personId,
+    organizationId: fixtures.organizationId,
+    officeId: fixtures.officeId,
+    affiliationRoleId: await getDelegateAffiliationRoleId(db),
+    startedAt,
+  });
+}
+
 // Other full (SSO) users to search for and assign in the "Assign staff"
 // form (client/src/components/AssignStaffForm.tsx) — distinct from
 // fixtures.staffUserAccountId, the one synthetic account every demo case
@@ -151,26 +195,16 @@ async function seedDemoTimeEntriesAndInvoices(
       timeEntryIds.push(result.timeEntryId);
     }
 
-    // Leave the last un-invoiced; submit the second-to-last as a draft (direct
-    // insert — createInvoice always submits) so status actually varies.
+    // Leave the last un-invoiced and keep the second-to-last as a draft, so
+    // status actually varies.
     if (index === assignments.length - 1) {
-      continue;
-    }
-    if (index === assignments.length - 2) {
-      // eslint-disable-next-line no-await-in-loop
-      await db.insert(invoice).values({
-        submittedByUserAccountId: assignment.userAccountId,
-        professionalId: assignment.professionalId,
-        statusId: fixtures.invoiceStatusDraftId,
-        submittedTotal: '0.00',
-        caseId: assignment.caseId,
-      });
       continue;
     }
 
     // eslint-disable-next-line no-await-in-loop
     await createInvoice(db, { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId }, {
       caseId: assignment.caseId,
+      submit: index !== assignments.length - 2,
       lines: timeEntryIds.map((sourceTimeEntryId, i) => ({
         amount: faker.number.float({ min: 25, max: 400, fractionDigits: 2 }),
         // Only the first line needs a context link to make the demo's point.
@@ -215,6 +249,7 @@ async function main(): Promise<void> {
   const fixtures = await resetAndSeedBaselineFixtures(db);
   const caseIds = await seedDemoCases(fixtures);
   const professionals = await seedDemoProfessionals();
+  await seedDemoDelegate(fixtures, professionals);
   const staffUserAccountIds = await seedDemoStaff(fixtures);
   const assignments = await seedDemoAssignments(fixtures, caseIds, professionals);
   await seedDemoTimeEntriesAndInvoices(fixtures, assignments);

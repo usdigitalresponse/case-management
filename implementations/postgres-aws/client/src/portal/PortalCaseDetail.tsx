@@ -1,19 +1,34 @@
 import { useState, type FormEvent } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
-import { Alert, Button, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
+import { Alert, Button, Checkbox, Form, FormGroup, Label, Select, TextInput } from '@trussworks/react-uswds';
 import {
+  apiErrorMessage,
   createInvoice,
   createTimeEntry,
+  listBillableProfessionals,
   listMyCases,
   listMyInvoices,
   listMyTimeEntries,
-  type CreateInvoiceLineInput,
+  type BillableProfessional,
 } from '../api/client';
+import {
+  emptyLine,
+  hasInvoiceItems,
+  InvoiceLinesEditor,
+  linesFromDrafts,
+  professionalLabel,
+  type LineDraft,
+} from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
+import { InvoiceImportForm } from '../components/InvoiceImportForm';
 import { RecordTable } from '../components/RecordTable';
 import { PageHeading } from '../components/PageHeading';
+import { StatusPill } from '../components/StatusPill';
+import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
+import { PeriodFields } from '../components/PeriodFields';
 import { caseDisplayLabel } from '../caseDisplayLabel';
-import { formatDateTime } from '../formatDateTime';
+import { formatDate, formatDateTime } from '../formatDateTime';
+import { formatMoney } from '../formatMoney';
 
 function TimeEntrySection({ caseId, onLogged }: { caseId: string; onLogged: () => void }) {
   const { data, error } = useApiResource(() => listMyTimeEntries(caseId).then((result) => result.timeEntries), [caseId]);
@@ -35,7 +50,7 @@ function TimeEntrySection({ caseId, onLogged }: { caseId: string; onLogged: () =
       setDescription('');
       onLogged();
     } catch {
-      setSubmitError('Failed to log time. Check the fields above and try again.');
+      setSubmitError('The time could not be logged. Check the date, hours (0.25 to 24) and description.');
     } finally {
       setSubmitting(false);
     }
@@ -51,90 +66,102 @@ function TimeEntrySection({ caseId, onLogged }: { caseId: string; onLogged: () =
           rowKey={(entry) => entry.timeEntryId}
           emptyMessage="No time logged yet."
           columns={[
-            { header: 'Date', render: (e) => e.activityOn },
+            { header: 'Date', render: (e) => formatDate(e.activityOn) },
             { header: 'Hours', render: (e) => e.durationHours },
             { header: 'Description', render: (e) => e.description },
           ]}
         />
       )}
 
-      <Form onSubmit={(event) => void handleSubmit(event)}>
-        {submitError && <Alert type="error">{submitError}</Alert>}
-        <FormGroup>
-          <Label htmlFor="activity-on">Date</Label>
-          <input
-            id="activity-on"
-            name="activityOn"
-            type="date"
-            className="usa-input"
-            required
-            value={activityOn}
-            onChange={(event) => setActivityOn(event.target.value)}
-          />
-        </FormGroup>
-        <FormGroup>
-          <Label htmlFor="duration-hours">Hours</Label>
-          <TextInput
-            id="duration-hours"
-            name="durationHours"
-            type="number"
-            min="0.25"
-            max="24"
-            step="0.25"
-            required
-            value={durationHours}
-            onChange={(event) => setDurationHours(event.target.value)}
-          />
-        </FormGroup>
-        <FormGroup>
-          <Label htmlFor="time-description">Description</Label>
-          <TextInput
-            id="time-description"
-            name="description"
-            type="text"
-            required
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-          />
-        </FormGroup>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? 'Logging…' : 'Log time'}
-        </Button>
+      <Form className="compact-form compact-card" onSubmit={(event) => void handleSubmit(event)}>
+        <h3>Log time</h3>
+        {submitError && <Alert type="error" slim>{submitError}</Alert>}
+        <div className="inline-fields time-entry-fields">
+          <FormGroup>
+            <Label htmlFor="activity-on">Date</Label>
+            <input
+              id="activity-on"
+              name="activityOn"
+              type="date"
+              className="usa-input"
+              required
+              value={activityOn}
+              onChange={(event) => setActivityOn(event.target.value)}
+            />
+          </FormGroup>
+          <FormGroup>
+            <Label htmlFor="duration-hours">Hours</Label>
+            <TextInput
+              id="duration-hours"
+              name="durationHours"
+              type="number"
+              min="0.25"
+              max="24"
+              step="0.25"
+              required
+              value={durationHours}
+              onChange={(event) => setDurationHours(event.target.value)}
+            />
+          </FormGroup>
+          <FormGroup>
+            <Label htmlFor="time-description">Description</Label>
+            <TextInput
+              id="time-description"
+              name="description"
+              type="text"
+              required
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+            />
+          </FormGroup>
+          <Button type="submit" disabled={submitting || !activityOn || !durationHours || !description.trim()}>
+            {submitting ? 'Logging…' : 'Log time'}
+          </Button>
+        </div>
       </Form>
     </section>
   );
 }
 
-function InvoiceSection({ caseId }: { caseId: string }) {
-  const { data, error } = useApiResource(() => listMyInvoices(caseId).then((result) => result.invoices), [caseId]);
+function InvoiceSection({ caseId, billable }: { caseId: string; billable: BillableProfessional[] }) {
+  const [listVersion, setListVersion] = useState(0);
+  const [showWithdrawn, setShowWithdrawn] = useState(false);
+  const { data, error } = useApiResource(() => listMyInvoices(caseId).then((result) => result.invoices), [caseId, listVersion]);
 
-  // Held as raw strings, not numbers: an input bound to `line.amount || ''`
-  // would render blank whenever the amount is exactly 0, since `0 || ''`
-  // evaluates to `''` — the text the user typed is the source of truth
-  // until submit, when it's parsed into CreateInvoiceLineInput.
-  const [amountInputs, setAmountInputs] = useState<string[]>(['']);
+  const [lines, setLines] = useState<LineDraft[]>([emptyLine]);
+  const [period, setPeriod] = useState({ start: '', end: '' });
+  // Defaults to the user's own profile; a delegate picks whom they bill for.
+  const [billedProfessionalId, setBilledProfessionalId] = useState(
+    () => (billable.find((p) => p.isSelf) ?? billable[0])?.professionalId ?? '',
+  );
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const [saved, setSaved] = useState<'draft' | 'submitted' | null>(null);
+  const [mode, setMode] = useState<'enter' | 'import'>('enter');
 
-  function updateLineAmount(index: number, value: string) {
-    setAmountInputs((previous) => previous.map((amount, i) => (i === index ? value : amount)));
-  }
+  // Nothing to save until an item has an amount and someone is billed.
+  const canSave = hasInvoiceItems(lines) && Boolean(billedProfessionalId);
+  const withdrawnCount = data?.filter((i) => i.statusCode === 'withdrawn').length ?? 0;
 
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function save(submit: boolean) {
     setSubmitError(null);
+    setSaved(null);
     setSubmitting(true);
     try {
-      const lines: CreateInvoiceLineInput[] = amountInputs
-        .map((value) => Number(value))
-        .filter((amount) => amount > 0)
-        .map((amount) => ({ amount }));
-      await createInvoice({ caseId, lines });
-      setAmountInputs(['']);
-      setSubmitted(true);
-    } catch {
-      setSubmitError('Failed to submit the invoice. Check the item amounts and try again.');
+      await createInvoice({
+        caseId,
+        submit,
+        professionalId: billedProfessionalId || undefined,
+        periodStart: period.start || undefined,
+        periodEnd: period.end || undefined,
+        lines: linesFromDrafts(lines),
+      });
+      setLines([emptyLine]);
+      setPeriod({ start: '', end: '' });
+      setSaved(submit ? 'submitted' : 'draft');
+      setListVersion((version) => version + 1);
+    } catch (err) {
+      setSubmitError(apiErrorMessage(err, 'The invoice could not be saved. Each item needs an amount above zero.'));
     } finally {
       setSubmitting(false);
     }
@@ -144,44 +171,108 @@ function InvoiceSection({ caseId }: { caseId: string }) {
     <section>
       <h2>Invoices</h2>
       {Boolean(error) && <Alert type="error">Failed to load invoices.</Alert>}
+      {data && withdrawnCount > 0 && (
+        <Checkbox
+          id="invoices-show-withdrawn"
+          name="invoices-show-withdrawn"
+          className="list-toggle"
+          label={`Show withdrawn (${withdrawnCount})`}
+          checked={showWithdrawn}
+          onChange={(event) => setShowWithdrawn(event.target.checked)}
+        />
+      )}
       {data && (
         <RecordTable
-          rows={data}
+          rows={showWithdrawn ? data : data.filter((i) => i.statusCode !== 'withdrawn')}
           rowKey={(invoiceRecord) => invoiceRecord.invoiceId}
-          emptyMessage="No invoices submitted yet."
+          emptyMessage={withdrawnCount > 0 && !showWithdrawn ? 'No invoices besides withdrawn ones.' : 'No invoices yet.'}
           columns={[
-            { header: 'Submitted', render: (i) => (i.submittedAt ? formatDateTime(i.submittedAt) : '—') },
-            { header: 'Total', render: (i) => `$${i.submittedTotal}` },
-            { header: 'Status', render: (i) => <span className="status-pill">{i.statusDisplayName}</span> },
+            {
+              header: 'Submitted',
+              // A recall clears submittedAt; show the earlier submission.
+              render: (i) =>
+                i.submittedAt
+                  ? formatDateTime(i.submittedAt)
+                  : i.lastSubmittedAt
+                    ? `${formatDateTime(i.lastSubmittedAt)}, then recalled`
+                    : 'Not yet',
+            },
+            { header: 'Total', render: (i) => <span className="amount">{formatMoney(i.submittedTotal)}</span> },
+            { header: 'Status', render: (i) => <StatusPill code={i.statusCode} label={i.statusDisplayName} /> },
+            {
+              header: 'Actions',
+              render: (i) => (
+                <span className="row-actions">
+                  <RouterLink to={`/portal/invoices/${i.invoiceId}`}>
+                    {i.statusCode === 'draft' ? 'Edit draft' : 'View invoice'}
+                  </RouterLink>
+                  {i.deletable && (
+                    <DeleteInvoiceButton compact invoiceId={i.invoiceId} onDeleted={() => setListVersion((v) => v + 1)} />
+                  )}
+                </span>
+              ),
+            },
           ]}
         />
       )}
 
-      <Form onSubmit={(event) => void handleSubmit(event)}>
-        {submitError && <Alert type="error">{submitError}</Alert>}
-        {submitted && <Alert type="success">Invoice submitted.</Alert>}
-        {amountInputs.map((amount, index) => (
-          <FormGroup key={index}>
-            <Label htmlFor={`line-amount-${index}`}>Item {index + 1} amount ($)</Label>
-            <TextInput
-              id={`line-amount-${index}`}
-              name={`line-amount-${index}`}
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={amount}
-              onChange={(event) => updateLineAmount(index, event.target.value)}
-            />
-          </FormGroup>
-        ))}
-        <Button type="button" unstyled onClick={() => setAmountInputs((previous) => [...previous, ''])}>
-          + Add another item
-        </Button>
-        <br />
-        <Button type="submit" disabled={submitting}>
-          {submitting ? 'Submitting…' : 'Submit invoice'}
-        </Button>
-      </Form>
+      <div className="compact-card">
+        <h3>New invoice</h3>
+        {/* Applies to both a typed invoice and an imported file. */}
+        {billable.length > 1 && (
+          <div className="inline-fields billed-for-field">
+            <FormGroup>
+              <Label htmlFor="billed-professional">Billing for</Label>
+              <Select
+                id="billed-professional"
+                name="billedProfessional"
+                value={billedProfessionalId}
+                onChange={(event) => setBilledProfessionalId(event.target.value)}
+              >
+                {billable.map((professional) => (
+                  <option key={professional.professionalId} value={professional.professionalId}>
+                    {professionalLabel(professional)}
+                  </option>
+                ))}
+              </Select>
+            </FormGroup>
+          </div>
+        )}
+        <div className="choice-toggle" role="group" aria-label="How to add the invoice">
+          <button type="button" aria-pressed={mode === 'enter'} onClick={() => setMode('enter')}>
+            Enter items
+          </button>
+          <button type="button" aria-pressed={mode === 'import'} onClick={() => setMode('import')}>
+            Import a file
+          </button>
+        </div>
+
+        {mode === 'import' ? (
+          <InvoiceImportForm caseId={caseId} professionalId={billedProfessionalId} />
+        ) : (
+          <Form
+            className="compact-form"
+            onSubmit={(event: FormEvent) => {
+              event.preventDefault();
+              void save(true);
+            }}
+          >
+            {submitError && <Alert type="error" slim>{submitError}</Alert>}
+            {saved === 'submitted' && <Alert type="success" slim>Invoice submitted.</Alert>}
+            {saved === 'draft' && <Alert type="success" slim>Draft saved. Open it from the list above to edit or submit it.</Alert>}
+            <PeriodFields idPrefix="new-invoice" start={period.start} end={period.end} onChange={setPeriod} />
+            <InvoiceLinesEditor idPrefix="new-invoice" lines={lines} onChange={setLines} timekeepers={billable} />
+            <div className="invoice-actions">
+              <Button type="submit" disabled={submitting || !canSave}>
+                {submitting ? 'Saving…' : 'Submit invoice'}
+              </Button>
+              <Button type="button" outline disabled={submitting || !canSave} onClick={() => void save(false)}>
+                Save as draft
+              </Button>
+            </div>
+          </Form>
+        )}
+      </div>
     </section>
   );
 }
@@ -191,6 +282,10 @@ export default function PortalCaseDetail() {
   const [timeEntryVersion, setTimeEntryVersion] = useState(0);
   // Only listMyCases() carries externalReference/clientDisplayName, needed for the heading label.
   const { data: myCases } = useApiResource(() => listMyCases().then((result) => result.cases), []);
+  const { data: billable } = useApiResource(
+    () => (caseId ? listBillableProfessionals(caseId).then((result) => result.professionals) : Promise.resolve([])),
+    [caseId],
+  );
 
   if (!caseId) {
     return null;
@@ -204,10 +299,13 @@ export default function PortalCaseDetail() {
 
   return (
     <div>
-      <RouterLink to="/">&larr; Back to your cases</RouterLink>
-      <PageHeading eyebrow="Case" title={title} description={caseId} />
-      <TimeEntrySection key={timeEntryVersion} caseId={caseId} onLogged={() => setTimeEntryVersion((v) => v + 1)} />
-      <InvoiceSection caseId={caseId} />
+      <RouterLink className="back-link" to="/">&larr; Back to your cases</RouterLink>
+      <PageHeading eyebrow="Case" title={title} />
+      {/* Only professionals log their own time; a delegate only invoices. */}
+      {billable?.some((p) => p.isSelf) && (
+        <TimeEntrySection key={timeEntryVersion} caseId={caseId} onLogged={() => setTimeEntryVersion((v) => v + 1)} />
+      )}
+      {billable && <InvoiceSection caseId={caseId} billable={billable} />}
     </div>
   );
 }

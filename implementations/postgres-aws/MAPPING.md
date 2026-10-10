@@ -272,9 +272,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   not user-entered.
 - **Invoice review** is line by line (`src/billing/reviewInvoiceLine.ts`,
   `src/routes/invoices.ts`, `client/src/pages/InvoiceReview.tsx`):
-  - `GET /api/invoices?status=` is the cross-case queue; `GET
+  - `GET /api/invoices?status=` is the cross-case list, filtered in the UI
+    to awaiting review (default), approved, rejected or all; `GET
     /api/invoices/:id` returns lines with source time entries and decisions;
-    `POST /api/invoices/:id/lines/:lineId/review` decides one line.
+    `POST /api/invoices/:id/lines/:lineId/review` decides one line. Staff
+    lists (this one and `GET /api/cases/:id/invoices`, which links to each
+    invoice) never include drafts or withdrawn drafts, the submitter's own
+    work in progress.
   - Approval records `approved_amount` (default: requested; lower allowed,
     higher not). Rejection requires a `reason` (`model/rules.yaml`
     `enforce_invoice_approval_sequence`).
@@ -285,9 +289,164 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `submitted_total` is unchanged; the approved total is the sum of line
     `approved_amount`s, not stored.
   - Not implemented: pre-approval, further stages, "requests changes",
-    chain superseding, `under_review` status, allocation draws, submission
-    snapshot. Pre-existing whole-invoice decisions (null `invoice_line_id`)
-    aren't shown in the line view.
+    `under_review` status, allocation draws. Pre-existing whole-invoice
+    decisions (null `invoice_line_id`) aren't shown in the line view.
+- **Drafts, submission, recall and withdrawal** (`src/billing/invoiceLifecycle.ts`,
+  `invoiceEvents.ts`; `client/src/components/InvoiceLinesEditor.tsx`):
+  - `POST /api/portal/invoices` with `submit: false` saves a draft (the
+    default still submits). `PUT /api/portal/invoices/:id` replaces a
+    draft's period and lines; `POST .../submit`, `.../recall` and
+    `.../withdraw` move it (`model/workflows.yaml` `payment_request`).
+  - Submitting creates the approval chain with a `submission_snapshot` of
+    the invoice and line rows (`spec_version` 0.3.0). Recall is refused
+    once any decision exists on the current chain; otherwise it supersedes
+    the chain, keeping its snapshot, and returns the invoice to draft.
+    Withdrawal applies to drafts only. `DELETE /api/portal/invoices/:id`
+    (`src/billing/deleteInvoice.ts`) removes the submitter's draft or
+    withdrawn invoice if no review decision was ever recorded, with its
+    lines, events, recalled approval chains and snapshots, import record,
+    document metadata, any kept file, and time entries its import created
+    (unlinked instead if another invoice uses them); otherwise 409. One SQL
+    rule (`deletableBy`) decides both the delete and the `deletable` flag on
+    the portal invoice list and detail, which is all the client checks: Delete
+    replaces Withdraw in the draft editor, and appears on invoice pages and
+    case list rows. The case list hides withdrawn invoices behind a toggle
+    and shows a recalled invoice's last submission (`lastSubmittedAt`), since
+    recall clears `submittedAt`.
+  - Only the submitter, while still able to act for the invoice's
+    professional on the case (see delegation below), may do these; anyone
+    else gets a 404. Every transition, and review's final
+    approve/reject, appends an `invoice_event` with actor and time, under
+    the same invoice row lock review takes.
+  - Simplified: the snapshot holds invoice and line rows only, not the
+    case, participant, payee or attestation evidence the model lists, and
+    chains created by review before snapshots existed have none. Replacing
+    a draft's lines deletes the old draft rows, which were never reviewed
+    (earlier submitted values live in their snapshot).
+- **Invoice import** (`src/imports/`;
+  `client/src/portal/PortalImportReview.tsx`, `components/InvoiceImportForm.tsx`):
+  - `POST /api/portal/invoice-imports?caseId=&professionalId=` takes the
+    file as the raw body (10 MB limit, name in `X-File-Name`). The type is
+    detected from content (`detectFormat.ts`): LEDES 1998B, the invoice
+    template as CSV or XLSX (`GET .../template?format=csv|xlsx`), or a PDF.
+    Legacy or encrypted Excel files, macro-enabled workbooks and anything
+    else are refused before parsing (415).
+  - PDFs (import format `document`) are read by the extraction method named
+    in `INVOICE_EXTRACTOR` (`src/imports/extractors/`), recorded on the
+    import as `extraction_method`. The only one is `pdf-text-layer`: PDF.js
+    (`pdfjs-dist` core, which never runs document scripts) reads the text layer in-process
+    and rows are rebuilt from text positions. Each run of column headings
+    starts a table (merged headings are split; a section title can head the
+    description column) and a total row ends it, so time and expense tables
+    can follow each other and a table can run across pages. Values go to
+    the heading they overlap most, which handles right-aligned columns;
+    wrapped or stacked text joins the item above, and a date on its own
+    line fills the item's date. No-charge rows are skipped, credits refused;
+    up to 50 pages.
+    Methods marked outside the processing boundary are refused in
+    production. Scans (no text layer) and layouts without a recognizable
+    table are imported as `failed`, for the submitter to discard or enter
+    by hand. `npm run extraction-accuracy` scores methods against the
+    synthetic PDFs in `scenarios/fixtures/invoices/`; text layer: 99.5% of
+    574 fields across seven layouts (all but the voucher's counsel name,
+    which sits outside its table). That corpus was made for this purpose, so
+    real invoices will score lower. `npm run extract-invoice -- <files>`
+    shows what any file yields; vendor templates and exports for trying it
+    go in the gitignored `local-samples/`, never in Git.
+  - The file goes to `DOCUMENT_STORE_DIR` (`documentStore.ts`), a private
+    local directory outside the database. A readable file becomes a draft
+    (import `extracted`); an unreadable one is kept as `failed` until
+    discarded. Parsed values with their file locations and reconciliation
+    warnings (stated total, hours × rate, dates outside the period, same
+    file or invoice number already imported for the professional) are the
+    `extraction_result`.
+  - Each line is suggested a timekeeper and a type (time, expense or other,
+    stored as `invoice_line_types` `time`/`expense`/`service`). The
+    timekeeper is this payee's earlier match for the same name, else the one
+    billable professional whose name fits (`src/imports/matchTimekeeper.ts`:
+    case, accents and punctuation ignored, "Last, First" or initials
+    accepted); a line naming no timekeeper is suggested as the billed
+    professional. Anything ambiguous stays unmatched, even on a delegate's
+    draft, and the review page labels every suggestion until it's checked.
+    The page can also set one professional on every unassigned item, or on
+    all items (replacing suggestions); this is a client-side edit saved like
+    any other, so confirmation still checks every line.
+  - `GET .../invoice-imports/:id` shows the import, its warnings and time
+    already recorded that matches a line, which the submitter may link
+    instead. `.../file` downloads the original until it's deleted, and
+    `.../preview` returns what review shows beside the items: text for
+    LEDES/CSV, rows for XLSX (both capped), or `{kind: 'pdf'}`, in which case
+    the client draws the file onto canvases with PDF.js
+    (`client/src/components/OriginalDocument.tsx`, `PdfPages.tsx`, loaded
+    only on that page). The file is never opened as a page in the app's
+    origin. Each item's "page N, row M" links to its page.
+    `.../confirm` requires every line matched, then deletes the file;
+    `.../discard` deletes it and withdraws the draft. Imports are visible
+    only to their uploader.
+  - A draft from an unconfirmed import can't be submitted or withdrawn
+    directly. Submitting a confirmed one creates a time entry for each
+    time line with a date and hours, for its matched professional, linked
+    both ways; a resubmission after recall reuses those entries.
+  - An hourly in-process sweep (`src/app.ts`) expires imports unresolved
+    for three days: file deleted, draft withdrawn with a system
+    `invoice_event` (no actor, a reason), and any file whose deletion was
+    recorded but didn't finish is removed.
+  - Gaps: no malware scanning (no in-boundary scanner is configured yet;
+    PDF.js's core runs no document scripts and nothing in a file is
+    executed); no OCR, so scanned PDFs can't be read; no AI extraction
+    method yet (one needs a cost review first); expense lines create no
+    `expense` records (no table); credits and adjustment lines are refused
+    rather than imported; a file's container-local
+    copy is lost if the container is replaced (the import then shows it as
+    unavailable); a cloud deployment needs a private, non-versioned bucket
+    excluded from backups instead of the local directory; editing a time
+    line after its entry was created doesn't update the entry.
+- **Delegated submission** (`src/portal/portalActor.ts`,
+  `src/professionals/delegateRole.ts`; `model/rules.yaml`
+  `authorize_delegated_submission`):
+  - A delegate is a user account whose person has an effective
+    `person_affiliation` with the seeded "Billing Delegate" role
+    (`role_context` `person_affiliation`) in an office. They may bill any
+    active professional with an effective affiliation in that office who
+    has an open assignment on the case. Office membership without the
+    role grants nothing.
+  - `POST /api/portal/invoices` takes `professionalId` (whom the invoice
+    bills, stored as `invoice.professional_id`) and per-line
+    `timekeeperProfessionalId`, which defaults to that professional on a
+    delegated invoice. Each is checked on create, edit and again at
+    submission. `submitted_by_user_account_id` and every event's actor
+    are the delegate. `GET /api/portal/cases/:caseId/billable-professionals`
+    lists whom the session may bill; `GET /api/my-cases` includes the
+    represented professionals' cases.
+  - Represented professionals see and export the invoice through the
+    existing read rule (invoice professional or line timekeeper); they
+    don't attest or approve, as decided.
+  - Magic-link sign-in doesn't create a professional profile for a
+    delegate, so a delegate can't log time.
+  - Gaps: no staff screen to grant the delegate role or record office
+    membership (only the demo seed does). Delegate authority is read through
+    `user_account.person_id`, which the magic-link bootstrap leaves unset
+    even when it creates a professional, so granting the role also means
+    linking the account to its person. Assignment is checked as open
+    now, not on each line's service date; only the delegate who created a
+    draft may edit it.
+- **Invoice viewing and export** (`src/billing/invoiceDetail.ts`,
+  `invoiceAccess.ts`, `exportInvoice.ts`; `client/src/portal/PortalInvoiceDetail.tsx`):
+  - Staff: `GET /api/invoices/:id/export?format=pdf|xlsx` exports any
+    non-draft invoice, including reviewer names.
+  - Portal: `GET /api/portal/invoices` lists, and `GET /api/portal/invoices/:id`
+    and `.../export?format=pdf|xlsx` show and export, invoices the user
+    submitted or whose professional or matched line timekeeper is the user's
+    own professional (`model/rules.yaml` `authorize_payment_request_export`).
+    Anything else is a 404. Reviewer names are left out.
+  - Both formats are built from one row set, so they always agree.
+    `pdfkit` renders the PDF and `write-excel-file` the spreadsheet.
+  - Exports show the current submission attempt (its chain ID is in the
+    summary). Submitted invoices can't be edited, only recalled to an
+    unexportable draft, so current values equal that attempt's snapshot.
+    Drafts and withdrawn invoices aren't exported. Not supported: exporting
+    an earlier, recalled attempt; bulk export. Exports are not audited, as
+    decided.
 - **Closing a case**: `POST /api/cases/:id/close` (`requireFullUser`,
   `src/cases/closeCase.ts`) is the counterpart to opening
   (`src/intake/createCase.ts`): it requires a reason, records the next
@@ -313,7 +472,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   `POST /auth/demo-login/external` likewise signs in as the demo seed's
   first vendor (`demo-vendor-1@example.invalid`) as an external
   (`magic-link`) user, so it needs `npm run seed`, not just the baseline
-  fixtures. `src/app.ts` mounts each by default only when
+  fixtures. The seed also makes that vendor its office's billing delegate,
+  so the one demo account shows both billing for yourself and for an office
+  colleague. `src/app.ts` mounts each by default only when
   `NODE_ENV !== 'production'`; `DEMO_LOGIN_ENABLED` and
   `EXTERNAL_DEMO_LOGIN_ENABLED` (`true`/`false`) override that
   independently. The hosted synthetic-data demo
@@ -442,12 +603,24 @@ list/detail views are implemented as tables:
 `person_affiliation`, `case`, `case_participant`, `case_lifecycle_event`,
 `case_identifier`, `professional`, `case_assignment`, `time_entry`,
 `invoice`, `invoice_line`, `invoice_approval_chain`,
-`invoice_approval_decision`, plus lookup tables for the `reference_data`
+`invoice_approval_decision`, `invoice_event`, `document`, `invoice_import`,
+plus lookup tables for the `reference_data`
 sets these entities use (`case_categories`, `case_statuses`,
 `jurisdictions`, `languages`, `case_identifier_types`,
 `case_lifecycle_event_types`, `case_lifecycle_reasons`, `activity_types`,
 `invoice_statuses`, `invoice_line_types`, `invoice_approval_step_types`,
-`invoice_approval_outcomes`).
+`invoice_approval_outcomes`, `invoice_event_types`, `invoice_import_formats`,
+`invoice_import_statuses`).
+
+`document`, `invoice_import` and `time_entry.source_invoice_import_id` back
+structured invoice import (see "Structured invoice import" above).
+`invoice_import.extraction_result` is plain `jsonb`, written once and never
+updated by the app, but not protected against other writers. `invoice_line`'s
+supplier-stated detail (service date,
+description, quantity, rate, timekeeper label, codes) is accepted by
+`POST /api/portal/invoices`, returned by the staff and portal detail
+routes, shown on both invoice pages and included in exports; the portal
+form collects date, description, hours and amount.
 
 `professional`/`case_assignment` cover both the external magic-link
 submitter workflow and internal staff assignment (see "Case assignment,
@@ -464,7 +637,7 @@ of an immediate need: adding them after case data exists would mean
 revisiting the `case_participant` uniqueness constraint under live data, so
 it was cheaper to include now while the schema is still empty.
 
-Every other entity in `schema.yaml` (expense, documents, audit_event,
+Every other entity in `schema.yaml` (expense, document_link, audit_event,
 service_provider, payment, etc.) is out of scope for this slice and has no
 table here.
 
@@ -494,7 +667,7 @@ form relies on this being airtight.
   (`faker.seed(20260115)`) so output stays deterministic across runs rather
   than changing every time. Not derived from, or resembling, any real
   dataset — chosen specifically so demo/test data looks realistic without
-  any provenance link to real records (e.g. a LegalServer export). Prior
+  any provenance link to real records (e.g. a production system export). Prior
   to this, person rows used placeholder names like "Synthetic Person
   Client"; those remain a fine pattern elsewhere in the repo (see
   `scenarios/fixtures/`) but this implementation's seed data now

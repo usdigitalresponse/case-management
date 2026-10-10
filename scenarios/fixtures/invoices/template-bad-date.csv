@@ -1,0 +1,2 @@
+invoice_number,date,type,timekeeper,description,hours,rate,amount
+SAMPLE-2026-006,02/03/2026,time,Synthetic Timekeeper A,Synthetic research memo,1,200,200.00

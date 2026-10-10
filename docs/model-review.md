@@ -5,6 +5,10 @@ organization-specific vocabulary or configuration values are included. Model
 files move from 0.1.0 to 0.2.0 because the initial model is already on the tracked
 remote branch. This is a breaking draft-model revision, not a deployed upgrade.
 
+Model files are now 0.3.0. That revision is additive: `invoice_import`, optional
+supplier-stated `invoice_line` detail and `time_entry.source_invoice_import_id`;
+see the [import and export plan](invoice-import-export-plan.md).
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

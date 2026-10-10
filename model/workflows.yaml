@@ -1,4 +1,4 @@
-spec_version: "0.2.0"
+spec_version: "0.3.0"
 status: draft
 kind: workflows
 
@@ -53,11 +53,27 @@ workflows:
         from: [changes_requested, denied, approved]
         to: draft
         requires: [authorized_submitter, no_external_completion_confirmation, supersede_attempt, preserve_snapshot_and_decisions]
+      - action: recall
+        from: submitted
+        to: draft
+        requires: [authorized_submitter, no_review_decision_recorded, supersede_attempt, preserve_snapshot]
+      - action: withdraw
+        from: draft
+        to: withdrawn
+        requires: [authorized_submitter, effective_timestamp]
+      - action: delete
+        from: [draft, withdrawn]
+        to: absent
+        requires: [authorized_submitter, no_review_decision]
     requirements:
       - Configure reference status mappings and actor permissions before enabling transitions.
       - Reviewed timestamps and reviewers come from decisions; final approval cannot be asserted by editing status.
       - External completion confirmation references the approved attempt and leaves approval status unchanged; it never executes payment.
-      - Withdrawal, delegation and correction after external completion need product decisions before implementation.
+      - The submitter may edit a draft until submitting it, and may recall a submission before any review decision is recorded; recalled attempts keep their snapshot and the request returns to draft for editing. Starting over withdraws the draft; a new upload creates a new import and request.
+      - Until any review decision is recorded, the submitter may delete a draft or withdrawn request outright, with its lines, events, earlier attempts recalled before review, any import record and file, and time entries its import created that no other request uses. Once a decision is recorded, the request is retained and only ever withdrawn.
+      - An authorized submitter may be a configured delegate acting for professionals in their office (authorize_delegated_submission); represented professionals do not attest or approve.
+      - Recall is not permitted once a review decision exists. Correction after external completion needs a product decision before implementation.
+      - An invoice_import creates a draft through validate_invoice_import; time entries and expenses from its lines are created when that draft is submitted.
   external_payment_completion:
     entity: invoice
     history_entity: payment
@@ -71,3 +87,33 @@ workflows:
       - Record the source, actor, timestamp and approved attempt; optional reported date and amount remain unknown when absent.
       - This transition records a fact about payment elsewhere and does not move money.
       - Partial settlement, mistaken confirmation and external reversal reconciliation require explicit policy before implementation.
+  invoice_import:
+    entity: invoice_import
+    history_entity: audit_event
+    transitions:
+      - action: upload
+        from: absent
+        to: received
+        requires: [authorized_submitter, immutable_document_version]
+      - action: extract
+        from: received
+        to: [extracted, failed]
+        requires: [approved_processing_boundary, recorded_extraction_method]
+      - action: confirm
+        from: extracted
+        to: confirmed
+        requires: [draft_request_created, resolving_actor, effective_timestamp, document_content_deleted]
+      - action: discard
+        from: [received, extracted, failed]
+        to: discarded
+        requires: [authorized_submitter, resolving_actor, effective_timestamp, document_content_deleted]
+      - action: expire
+        from: [received, extracted, failed]
+        to: discarded
+        requires: [three_days_since_upload, effective_timestamp, document_content_deleted, unconfirmed_draft_withdrawn]
+    requirements:
+      - State names are semantic categories, not seeded reference IDs.
+      - Extraction failure keeps the document until the submitter discards it or it expires; the submitter may instead enter a request manually.
+      - Expiry is a system action with no resolving user; after it the submitter must upload again.
+      - Confirmed and discarded imports are final. Confirmation accepts the extracted values into the draft; the draft stays editable until submitted.
+      - Re-processing requires a new upload and creates a new import.

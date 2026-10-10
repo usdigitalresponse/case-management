@@ -1,0 +1,4 @@
+invoice_number,date,type,timekeeper,description,hours,rate,amount,task_code,activity_code,expense_code
+SAMPLE-2026-003,2026-02-03,time,Synthetic Timekeeper A,Synthetic research memo,1.25,200,250.00,L110,A102,
+SAMPLE-2026-003,2026-02-04,time,Synthetic Timekeeper B,"Synthetic call, client update",0.5,150,75.00,L120,A106,
+SAMPLE-2026-003,2026-02-05,expense,Synthetic Timekeeper A,Synthetic filing fee,,,62.00,,,E112

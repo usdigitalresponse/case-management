@@ -1,9 +1,10 @@
 // Idempotent seeding of the reference/config rows the app needs to
 // function at all (activity_types, invoice statuses/line types/approval
-// step types/outcomes, and the fixed staff and assignment roles). Safe to
-// run in every environment, including production, and is: ./migrate.ts
-// calls it, and ./fixtures.ts calls it after its reset, so there is one
-// definition of these rows.
+// step types/outcomes/event types, invoice import formats/statuses, and the
+// fixed staff, assignment and delegate roles). Safe to run in every
+// environment, including production, and is: ./migrate.ts calls it, and
+// ./fixtures.ts calls it after its reset, so there is one definition of
+// these rows.
 import type { Database } from './client';
 import {
   activityTypes,
@@ -11,11 +12,15 @@ import {
   invoiceStatuses,
   invoiceApprovalStepTypes,
   invoiceApprovalOutcomes,
+  invoiceEventTypes,
+  invoiceImportFormats,
+  invoiceImportStatuses,
   role,
 } from './schema';
 import { EXTERNAL_SUBMITTER_ROLE_DISPLAY_NAME } from '../professionals/externalSubmitterRole';
 import { STAFF_ACCOUNT_ROLE_DISPLAY_NAME } from '../auth/staffAccountRole';
 import { STAFF_ASSIGNMENT_ROLE_DISPLAY_NAME } from '../cases/staffAssignmentRole';
+import { DELEGATE_AFFILIATION_ROLE_DISPLAY_NAME } from '../professionals/delegateRole';
 
 export async function ensureReferenceData(db: Database): Promise<void> {
   await Promise.all([
@@ -30,12 +35,46 @@ export async function ensureReferenceData(db: Database): Promise<void> {
         { code: 'submitted', displayName: 'Submitted' },
         { code: 'approved', displayName: 'Approved' },
         { code: 'rejected', displayName: 'Rejected' },
+        { code: 'withdrawn', displayName: 'Withdrawn' },
       ])
       .onConflictDoNothing({ target: invoiceStatuses.code }),
     db
+      .insert(invoiceEventTypes)
+      .values([
+        { code: 'draft_created', displayName: 'Draft created' },
+        { code: 'submitted', displayName: 'Submitted' },
+        { code: 'recalled', displayName: 'Recalled' },
+        { code: 'withdrawn', displayName: 'Withdrawn' },
+        { code: 'approved', displayName: 'Approved' },
+        { code: 'rejected', displayName: 'Rejected' },
+      ])
+      .onConflictDoNothing({ target: invoiceEventTypes.code }),
+    db
       .insert(invoiceLineTypes)
-      .values({ code: 'service', displayName: 'Service' })
+      .values([
+        { code: 'service', displayName: 'Service' },
+        { code: 'time', displayName: 'Time' },
+        { code: 'expense', displayName: 'Expense' },
+      ])
       .onConflictDoNothing({ target: invoiceLineTypes.code }),
+    db
+      .insert(invoiceImportFormats)
+      .values([
+        { code: 'ledes_1998b', displayName: 'LEDES 1998B' },
+        { code: 'spreadsheet', displayName: 'Spreadsheet' },
+        { code: 'document', displayName: 'Document' },
+      ])
+      .onConflictDoNothing({ target: invoiceImportFormats.code }),
+    db
+      .insert(invoiceImportStatuses)
+      .values([
+        { code: 'received', displayName: 'Received' },
+        { code: 'extracted', displayName: 'Extracted' },
+        { code: 'failed', displayName: 'Failed' },
+        { code: 'confirmed', displayName: 'Confirmed' },
+        { code: 'discarded', displayName: 'Discarded' },
+      ])
+      .onConflictDoNothing({ target: invoiceImportStatuses.code }),
     db
       .insert(invoiceApprovalStepTypes)
       .values({ code: 'line_review', displayName: 'Line Review' })
@@ -58,6 +97,10 @@ export async function ensureReferenceData(db: Database): Promise<void> {
     db
       .insert(role)
       .values({ displayName: STAFF_ACCOUNT_ROLE_DISPLAY_NAME, roleContext: 'user_account', active: true })
+      .onConflictDoNothing({ target: [role.displayName, role.roleContext] }),
+    db
+      .insert(role)
+      .values({ displayName: DELEGATE_AFFILIATION_ROLE_DISPLAY_NAME, roleContext: 'person_affiliation', active: true })
       .onConflictDoNothing({ target: [role.displayName, role.roleContext] }),
   ]);
 }

@@ -1,15 +1,14 @@
-// Lists the cases the current session's professional profile is actively
-// assigned to - the external (magic-link) user's entry point into "which
-// cases can I submit time/invoices for" (see model/schema.yaml
-// case_assignment). Works the same way for a full (SSO) user once they
-// have a professional profile, though nothing currently creates one for
-// that login path (see ../professionals/ensureProfessional.ts).
+// Cases the session's professional profile, or anyone it acts for as a
+// delegate, is actively assigned to: the external user's entry point. A full
+// (SSO) user has no profile unless one is created
+// (../professionals/ensureProfessional.ts).
 import { Router } from 'express';
-import { eq, isNull, and } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/client';
 import { caseAssignment, caseTable, caseStatuses, person } from '../db/schema';
 import { getSessionUser, requireAuth } from '../auth/session';
 import { getProfessionalIdForUserAccount } from '../professionals/ensureProfessional';
+import { representedProfessionalIds } from '../portal/portalActor';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -25,7 +24,11 @@ router.get(
     }
 
     const professionalId = await getProfessionalIdForUserAccount(db, actor.userAccountId);
-    if (!professionalId) {
+    const professionalIds = [
+      ...(professionalId ? [professionalId] : []),
+      ...(await representedProfessionalIds(db, actor.userAccountId)),
+    ];
+    if (professionalIds.length === 0) {
       res.json({ cases: [] });
       return;
     }
@@ -44,8 +47,16 @@ router.get(
       .innerJoin(caseTable, eq(caseAssignment.caseId, caseTable.caseId))
       .leftJoin(caseStatuses, eq(caseTable.statusId, caseStatuses.id))
       .leftJoin(person, eq(caseTable.clientId, person.personId))
-      .where(and(eq(caseAssignment.professionalId, professionalId), isNull(caseAssignment.endedAt)));
-    res.json({ cases: rows });
+      .where(and(inArray(caseAssignment.professionalId, professionalIds), isNull(caseAssignment.endedAt)))
+      .orderBy(asc(caseAssignment.assignedAt));
+    // One row per case, from its earliest open assignment among them.
+    const byCase = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      if (!byCase.has(row.caseId)) {
+        byCase.set(row.caseId, row);
+      }
+    }
+    res.json({ cases: [...byCase.values()] });
   }),
 );
 

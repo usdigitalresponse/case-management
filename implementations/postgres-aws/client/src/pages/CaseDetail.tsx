@@ -8,6 +8,8 @@ import { PageHeading } from '../components/PageHeading';
 import { AssignStaffForm } from '../components/AssignStaffForm';
 import { CloseCaseAction } from '../components/CloseCaseAction';
 import { formatDateTime } from '../formatDateTime';
+import { formatMoney } from '../formatMoney';
+import { StatusPill } from '../components/StatusPill';
 
 export default function CaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
@@ -121,8 +123,14 @@ export default function CaseDetail() {
           emptyMessage="No invoices submitted yet."
           columns={[
             { header: 'Submitted', render: (i) => (i.submittedAt ? formatDateTime(i.submittedAt) : '—') },
-            { header: 'Total', render: (i) => `$${i.submittedTotal}` },
-            { header: 'Status', render: (i) => <span className="status-pill">{i.statusDisplayName}</span> },
+            { header: 'Total', render: (i) => <span className="amount">{formatMoney(i.submittedTotal)}</span> },
+            { header: 'Status', render: (i) => <StatusPill code={i.statusCode} label={i.statusDisplayName} /> },
+            {
+              header: 'Actions',
+              render: (i) => (
+                <RouterLink to={`/billing/${i.invoiceId}`}>{i.statusCode === 'submitted' ? 'Review' : 'View'}</RouterLink>
+              ),
+            },
           ]}
         />
       </div>

@@ -178,6 +178,34 @@ def check_selected_rules(fixture, index):
         draws = [r['approved_amount'] for r in records['invoice_allocation_decision']
                  if r['invoice_authorization_allocation_id'] == allocation['invoice_authorization_allocation_id']]
         require(sum(draws) <= allocation['requested_amount'], 'Draw exceeds allocation')
+    for row in records.get('invoice_import', []):
+        if row.get('invoice_id'):
+            require(row.get('case_id') == index['invoice'][row['invoice_id']]['case_id'], 'Cross-case import')
+        if row.get('extraction_result'):
+            require(row.get('extraction_method') and row.get('extracted_at'), 'Unrecorded extraction method')
+            require(row['extraction_result']['invoice_import_id'] == row['invoice_import_id'], 'Cross-import result')
+        if row['status_id'] == 'sample_confirmed':
+            require(row.get('invoice_id') and row.get('resolved_by_user_account_id') and row.get('resolved_at'),
+                    'Unresolved confirmed import')
+            require(index['document'][row['document_id']].get('content_deleted_at'), 'Retained import content')
+    for row in records['invoice_line']:
+        if row.get('timekeeper_professional_id'):
+            require(row.get('service_date'), 'Matched timekeeper without service date')
+            service_date = date.fromisoformat(row['service_date'])
+            require(any(a['case_id'] == row['case_id']
+                        and a['professional_id'] == row['timekeeper_professional_id']
+                        and instant(a['assigned_at']).date() <= service_date
+                        and (not a.get('ended_at') or instant(a['ended_at']).date() >= service_date)
+                        for a in records['case_assignment']),
+                    'Timekeeper not assigned on service date')
+    for row in records['time_entry']:
+        if row.get('source_invoice_import_id'):
+            require(row['case_id'] == index['invoice_import'][row['source_invoice_import_id']]['case_id'],
+                    'Cross-case imported time')
+    for row in records.get('expense', []):
+        if row.get('source_invoice_import_id'):
+            require(row['case_id'] == index['invoice_import'][row['source_invoice_import_id']]['case_id'],
+                    'Cross-case imported expense')
     for request in records['invoice']:
         confirmations = [r for r in records.get('payment', []) if r['invoice_id'] == request['invoice_id']]
         require(len(confirmations) <= 1, 'Duplicate completion confirmation')
@@ -242,6 +270,13 @@ class ModelTests(unittest.TestCase):
             ('invoice_approval_decision', 'approved_amount', 999, 'Approval exceeds request'),
             ('invoice_allocation_decision', 'approved_amount', 999, 'Draw exceeds line'),
             ('preauthorization', 'currency_code', 'sample_other_currency', 'Currency mismatch'),
+            ('invoice_import', 'case_id', 'b0000000-0000-4000-8000-000000000000', 'Dangling reference'),
+            ('invoice_import', 'extraction_method', None, 'Unrecorded extraction method'),
+            ('invoice_import', 'resolved_at', None, 'Unresolved confirmed import'),
+            ('invoice_import', 'source_format_id', 'sample_unknown_format', 'Unknown reference value'),
+            ('document', 'content_deleted_at', None, 'Retained import content'),
+            ('invoice_line', 'service_date', '2026-01-12', 'Timekeeper not assigned on service date'),
+            ('invoice_line', 'service_date', None, 'Matched timekeeper without service date'),
         ]
         for entity, field, value, error in cases:
             with self.subTest(entity=entity, field=field):
@@ -251,7 +286,7 @@ class ModelTests(unittest.TestCase):
                     self.validate(fixture)
 
     def test_cross_case_links_rejected(self):
-        for entity in ['activity', 'invoice_line', 'preauthorization']:
+        for entity in ['activity', 'invoice_line', 'preauthorization', 'invoice_import']:
             with self.subTest(entity=entity):
                 fixture = deepcopy(self.fixture)
                 fixture['records'][entity][0]['case_id'] = fixture['records']['case'][1]['case_id']
@@ -353,6 +388,39 @@ class ModelTests(unittest.TestCase):
         fixture['records']['payment'].append(duplicate)
         with self.assertRaisesRegex(ValueError, 'Duplicate completion confirmation'):
             self.validate(fixture)
+
+    def test_imported_time_must_share_import_case(self):
+        fixture = deepcopy(self.fixture)
+        fixture['records']['time_entry'][1]['source_invoice_import_id'] = \
+            fixture['records']['invoice_import'][0]['invoice_import_id']
+        self.validate(fixture)
+        fixture['records']['time_entry'][1]['case_id'] = fixture['records']['case'][1]['case_id']
+        with self.assertRaisesRegex(ValueError, 'Cross-case imported time'):
+            self.validate(fixture)
+
+    def test_imported_expense_must_share_import_case(self):
+        fixture = deepcopy(self.fixture)
+        fixture['reference_data']['expense_types'] = ['sample_expense']
+        fixture['records']['expense'] = [{
+            'expense_id': '00000000-0000-4000-8000-000000000002',
+            'case_id': fixture['records']['invoice_import'][0]['case_id'],
+            'expense_type_id': 'sample_expense',
+            'incurred_on': '2026-01-05',
+            'amount': 50,
+            'source_invoice_import_id': fixture['records']['invoice_import'][0]['invoice_import_id'],
+        }]
+        self.validate(fixture)
+        fixture['records']['expense'][0]['case_id'] = fixture['records']['case'][1]['case_id']
+        with self.assertRaisesRegex(ValueError, 'Cross-case imported expense'):
+            self.validate(fixture)
+
+    def test_extraction_result_is_separate_from_reviewed_values(self):
+        records = self.fixture['records']
+        result = records['invoice_import'][0]['extraction_result']
+        self.assertEqual(result['spec_version'], self.fixture['spec_version'])
+        snapshot = records['invoice_approval_chain'][0]['submission_snapshot']['records']
+        self.assertEqual(result['invoice']['stated_total']['value'], snapshot['invoice'][0]['submitted_total'])
+        self.assertEqual(snapshot['supporting_invoice'][0]['document_id'], records['invoice_import'][0]['document_id'])
 
     def test_snapshot_retains_original_payee(self):
         snapshot = self.fixture['records']['invoice_approval_chain'][0]['submission_snapshot']

@@ -7,7 +7,7 @@
 // (../routes/cases.ts POST /:id/staff-assignments) — staff otherwise has
 // no reason to need one.
 import { eq } from 'drizzle-orm';
-import type { Database } from '../db/client';
+import type { Database, DatabaseOrTransaction } from '../db/client';
 import { person, professional, PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT } from '../db/schema';
 import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
 
@@ -16,7 +16,7 @@ import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
 // ../routes/portal.ts) — unlike ensureProfessionalForUserAccount below,
 // which only the magic-link verify route should call.
 export async function getProfessionalIdForUserAccount(
-  db: Database,
+  db: DatabaseOrTransaction,
   userAccountId: string,
 ): Promise<string | undefined> {
   const [row] = await db

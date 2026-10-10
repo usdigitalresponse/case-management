@@ -15,6 +15,13 @@
       "when": 1790997375757,
       "tag": "0001_invoice_line_review",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791587131962,
+      "tag": "0002_invoice_import_export",
+      "breakpoints": true
     }
   ]
 }

@@ -361,27 +361,206 @@ export interface InvoiceRecord {
   invoiceId: string;
   caseId: string;
   statusId: string;
+  statusCode: string;
   statusDisplayName: string;
   submittedAt: string | null;
   submittedTotal: string;
   periodStart: string | null;
   periodEnd: string | null;
+  // Survives a recall, which clears submittedAt.
+  lastSubmittedAt: string | null;
+  // Whether this user may delete it (server/src/billing/deleteInvoice.ts).
+  deletable: boolean;
 }
+
+export type InvoiceLineType = 'time' | 'expense' | 'other';
 
 export interface CreateInvoiceLineInput {
+  lineType?: InvoiceLineType;
   amount: number;
   sourceTimeEntryId?: string;
+  serviceDate?: string;
+  description?: string;
+  quantity?: number;
+  // Supplier-stated detail from an imported file; kept as evidence.
+  unitRate?: number;
+  timekeeperLabel?: string;
+  taskCode?: string;
+  activityCode?: string;
+  expenseCode?: string;
+  // Whose work the line bills; a delegated invoice defaults it server-side.
+  timekeeperProfessionalId?: string;
 }
 
-export interface CreateInvoiceInput {
-  caseId: string;
+// Who the signed-in user may bill for on a case: themselves, and anyone
+// they act for as an office delegate.
+export interface BillableProfessional {
+  professionalId: string;
+  displayName: string | null;
+  isSelf: boolean;
+}
+
+export function listBillableProfessionals(caseId: string): Promise<{ professionals: BillableProfessional[] }> {
+  return request<{ professionals: BillableProfessional[] }>(`/api/portal/cases/${caseId}/billable-professionals`);
+}
+
+export interface DraftInvoiceContent {
   periodStart?: string;
   periodEnd?: string;
   lines: CreateInvoiceLineInput[];
 }
 
+export interface CreateInvoiceInput extends DraftInvoiceContent {
+  caseId: string;
+  // Whose work the invoice bills; defaults to the caller's own profile.
+  professionalId?: string;
+  // False keeps it as an editable draft; the server defaults to submitting.
+  submit?: boolean;
+}
+
 export function listMyInvoices(caseId: string): Promise<{ invoices: InvoiceRecord[] }> {
   return request<{ invoices: InvoiceRecord[] }>(`/api/portal/invoices?caseId=${encodeURIComponent(caseId)}`);
+}
+
+export function updateDraftInvoice(invoiceId: string, content: DraftInvoiceContent): Promise<{ invoiceId: string; submittedTotal: string }> {
+  return request<{ invoiceId: string; submittedTotal: string }>(`/api/portal/invoices/${invoiceId}`, {
+    method: 'PUT',
+    body: JSON.stringify(content),
+  });
+}
+
+export type InvoiceTransition = 'submit' | 'recall' | 'withdraw';
+
+export function transitionInvoice(invoiceId: string, transition: InvoiceTransition): Promise<{ invoiceId: string }> {
+  return request<{ invoiceId: string }>(`/api/portal/invoices/${invoiceId}/${transition}`, { method: 'POST' });
+}
+
+// Reviewer identities aren't sent to the portal; see ../../server/src/routes/portal.ts.
+export type PortalInvoiceLine = Omit<InvoiceReviewLine, 'decidedByDisplayName'>;
+
+export interface PortalInvoice {
+  invoice: QueuedInvoice;
+  lines: PortalInvoiceLine[];
+  // Set when the draft came from an uploaded file.
+  import: { invoiceImportId: string; statusCode: string } | null;
+  // Whether this user may delete it (server/src/billing/deleteInvoice.ts).
+  deletable: boolean;
+}
+
+export function deleteInvoice(invoiceId: string): Promise<{ invoiceId: string }> {
+  return request<{ invoiceId: string }>(`/api/portal/invoices/${invoiceId}`, { method: 'DELETE' });
+}
+
+export function getMyInvoice(invoiceId: string): Promise<PortalInvoice> {
+  return request<PortalInvoice>(`/api/portal/invoices/${invoiceId}`);
+}
+
+// --- Supporting invoice import ---------------------------------------------
+
+export interface ImportWarning {
+  code: string;
+  message: string;
+  location?: string;
+}
+
+export interface InvoiceImportDetail {
+  invoiceImportId: string;
+  uploadedAt: string;
+  caseId: string | null;
+  statusCode: 'received' | 'extracted' | 'failed' | 'confirmed' | 'discarded';
+  statusDisplayName: string;
+  formatDisplayName: string;
+  extractionMethod: string | null;
+  extractedAt: string | null;
+  extractionResult: {
+    invoice?: { invoice_number?: { value: string } };
+    lines?: Array<{ location: string }>;
+    warnings?: ImportWarning[];
+  } | null;
+  invoiceId: string | null;
+  resolvedAt: string | null;
+  fileName: string;
+  fileAvailable: boolean;
+  expiresAt: string | null;
+  possibleDuplicateTime: Array<{
+    invoiceLineId: string;
+    timeEntryId: string;
+    activityOn: string;
+    durationHours: string;
+    description: string;
+  }>;
+}
+
+// The file goes as the raw body; the server identifies it from its content.
+export async function uploadInvoiceFile(
+  caseId: string,
+  file: File,
+  professionalId?: string,
+): Promise<{ invoiceImportId: string; status: string; invoiceId: string | null }> {
+  const query = new URLSearchParams({ caseId, ...(professionalId ? { professionalId } : {}) });
+  const response = await fetch(`/api/portal/invoice-imports?${query.toString()}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+    body: file,
+  });
+  const body = await response.json().catch(() => undefined);
+  if (!response.ok) {
+    throw new ApiError(response.status, body);
+  }
+  return body as { invoiceImportId: string; status: string; invoiceId: string | null };
+}
+
+export function getInvoiceImport(importId: string): Promise<InvoiceImportDetail> {
+  return request<InvoiceImportDetail>(`/api/portal/invoice-imports/${importId}`);
+}
+
+export function resolveInvoiceImport(importId: string, action: 'confirm' | 'discard'): Promise<{ invoiceImportId: string }> {
+  return request<{ invoiceImportId: string }>(`/api/portal/invoice-imports/${importId}/${action}`, { method: 'POST' });
+}
+
+export type ImportPreview =
+  | { kind: 'pdf' }
+  | { kind: 'text'; text: string; truncated: boolean }
+  | { kind: 'rows'; rows: string[][]; truncated: boolean };
+
+export function getImportPreview(importId: string): Promise<ImportPreview> {
+  return request<ImportPreview>(`/api/portal/invoice-imports/${importId}/preview`);
+}
+
+export async function getImportFileBytes(importId: string): Promise<ArrayBuffer> {
+  const response = await fetch(invoiceImportFileUrl(importId), { credentials: 'include' });
+  if (!response.ok) {
+    throw new ApiError(response.status, undefined);
+  }
+  return response.arrayBuffer();
+}
+
+export function invoiceImportFileUrl(importId: string): string {
+  return `/api/portal/invoice-imports/${importId}/file`;
+}
+
+export function invoiceTemplateUrl(format: 'csv' | 'xlsx'): string {
+  return `/api/portal/invoice-imports/template?format=${format}`;
+}
+
+// The server's message for a 4xx, when it sent one.
+export function apiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    const body = err.body as { message?: string; fieldErrors?: Record<string, string> } | undefined;
+    const fieldMessage = body?.fieldErrors ? Object.values(body.fieldErrors)[0] : undefined;
+    return fieldMessage ?? body?.message ?? fallback;
+  }
+  return fallback;
+}
+
+export type InvoiceExportFormat = 'pdf' | 'xlsx';
+
+// A plain link, not a fetch: the browser downloads the attachment with the
+// session cookie.
+export function invoiceExportUrl(scope: 'staff' | 'portal', invoiceId: string, format: InvoiceExportFormat): string {
+  const base = scope === 'staff' ? '/api/invoices' : '/api/portal/invoices';
+  return `${base}/${invoiceId}/export?format=${format}`;
 }
 
 export function createInvoice(input: CreateInvoiceInput): Promise<{ invoiceId: string; submittedTotal: string }> {
@@ -400,6 +579,9 @@ export interface QueuedInvoice {
   caseExternalReference: string | null;
   professionalId: string;
   professionalDisplayName: string | null;
+  submittedByUserAccountId: string;
+  // Differs from the professional when an office delegate submitted.
+  submittedByDisplayName: string | null;
   statusId: string;
   statusCode: string;
   statusDisplayName: string;
@@ -419,7 +601,20 @@ export type ReviewOutcome = 'approved' | 'rejected';
 // Decision fields are null until the line is reviewed.
 export interface InvoiceReviewLine {
   invoiceLineId: string;
+  // invoice_line_types code: 'time', 'expense' or 'service' (other).
+  lineTypeCode: string | null;
   amount: string;
+  // Supplier-stated detail; when absent, the linked time entry's values apply.
+  serviceDate: string | null;
+  description: string | null;
+  quantity: string | null;
+  unitRate: string | null;
+  timekeeperLabel: string | null;
+  timekeeperProfessionalId: string | null;
+  timekeeperDisplayName: string | null;
+  taskCode: string | null;
+  activityCode: string | null;
+  expenseCode: string | null;
   sourceTimeEntryId: string | null;
   sourceActivityOn: string | null;
   sourceDurationHours: string | null;
