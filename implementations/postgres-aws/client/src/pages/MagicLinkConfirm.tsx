@@ -3,7 +3,7 @@
 // scanners fetch every link before the user does and would otherwise spend
 // the single-use token.
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import { Alert, Button } from '@trussworks/react-uswds';
 import { useAuth } from '../AuthContext';
 

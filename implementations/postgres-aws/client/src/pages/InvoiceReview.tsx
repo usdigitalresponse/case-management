@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { useParams, Link as RouterLink } from 'react-router';
 import { Alert } from '@trussworks/react-uswds';
 import { ApiError, getInvoiceForReview } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';

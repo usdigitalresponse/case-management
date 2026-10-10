@@ -1,7 +1,7 @@
 // Minimal shell for external (magic-link) users: brand + sign out only —
 // no search, no "New case", no staff sidebar/nav. See ../AuthContext.tsx
 // and ../../MAPPING.md "Case assignment, scoped to external submitters".
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route, Link } from 'react-router';
 import { Button } from '@trussworks/react-uswds';
 import { useAuth } from '../AuthContext';
 import PortalCaseList from './PortalCaseList';

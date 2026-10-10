@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Alert } from '@trussworks/react-uswds';
 import { listCases } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';

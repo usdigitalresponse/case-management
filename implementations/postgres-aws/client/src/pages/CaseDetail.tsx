@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link as RouterLink } from 'react-router-dom';
+import { useParams, Link as RouterLink } from 'react-router';
 import { Alert } from '@trussworks/react-uswds';
 import { ApiError, getCase, getCaseInvoices } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
