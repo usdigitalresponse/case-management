@@ -62,7 +62,7 @@ export default function PortalCaseList() {
         isDelegate ? (
           sections.map(({ professional, cases }) => (
             <section key={professional.professionalId} className="portal-case-section">
-              <h2>{professional.isSelf ? 'Assigned to you' : (professional.displayName ?? 'Unnamed professional')}</h2>
+              <h2>{professional.isSelf ? 'Assigned to you' : `Assigned to ${professional.displayName ?? 'an unnamed professional'}`}</h2>
               {cases.length > 0 ? <CaseCards cases={cases} /> : <p>No open cases.</p>}
             </section>
           ))

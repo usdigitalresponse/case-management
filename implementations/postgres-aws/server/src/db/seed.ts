@@ -74,7 +74,7 @@ interface DemoProfessional {
 async function seedDemoProfessionals(): Promise<DemoProfessional[]> {
   const professionals: DemoProfessional[] = [];
   for (let i = 0; i < DEMO_PROFESSIONAL_COUNT; i += 1) {
-    const displayName = faker.company.name();
+    const displayName = `${faker.person.firstName()} ${faker.person.lastName()}`;
     const email = `demo-vendor-${i + 1}@example.invalid`;
     // eslint-disable-next-line no-await-in-loop
     const account = await ensureUserAccountForEmail(db, email, displayName);
