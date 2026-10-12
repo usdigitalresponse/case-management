@@ -58,10 +58,15 @@ export default function PortalCaseList() {
   return (
     <ResourceList
       heading={
-        <PageHeading
-          eyebrow="Your cases"
-          title={isDelegate ? 'Cases' : 'Cases assigned to you'}
-        />
+        <div className="case-heading-row portal-cases-heading">
+          <PageHeading
+            eyebrow="Your cases"
+            title={isDelegate ? 'Cases' : 'Cases assigned to you'}
+          />
+          <RouterLink className="usa-button usa-button--outline" to="/portal/imports">
+            Import invoices
+          </RouterLink>
+        </div>
       }
       error={error}
       data={data}

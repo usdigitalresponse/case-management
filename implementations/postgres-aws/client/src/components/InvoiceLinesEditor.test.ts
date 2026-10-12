@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { PortalInvoiceLine } from '../api/client';
-import { assignTimekeeper, emptyLine, hasInvoiceItems, lineDraftsFrom, linesFromDrafts, timeItemPreview } from './InvoiceLinesEditor';
+import {
+  assignTimekeeper,
+  emptyLine,
+  hasInvoiceItems,
+  invoiceTotalPreview,
+  lineDraftsFrom,
+  linesFromDrafts,
+  ratesInPlay,
+  timeItemPreview,
+} from './InvoiceLinesEditor';
 
 const importedLine: PortalInvoiceLine = {
   invoiceLineId: 'line-1',
@@ -102,6 +111,7 @@ describe('previewing what a time item bills', () => {
     professionalId: 'professional-1',
     displayName: 'Synthetic Attorney',
     isSelf: true,
+    kindDisplayName: 'Attorney',
     rates: [
       { hourlyRate: '100.00', effectiveFrom: '2026-01-01' },
       { hourlyRate: '150.00', effectiveFrom: '2026-03-01' },
@@ -110,13 +120,38 @@ describe('previewing what a time item bills', () => {
   const line = { serviceDate: '2026-02-10', quantity: '1.5', timekeeperProfessionalId: '' };
 
   it("uses the billed professional's rate on the item's date", () => {
-    expect(timeItemPreview(line, [attorney], 'professional-1')).toEqual({ amount: '150.00' });
-    expect(timeItemPreview({ ...line, serviceDate: '2026-03-01' }, [attorney], 'professional-1')).toEqual({ amount: '225.00' });
+    expect(timeItemPreview(line, [attorney], 'professional-1')).toEqual({ amount: '150.00', rate: '100.00', hours: 1.5 });
+    expect(timeItemPreview({ ...line, serviceDate: '2026-03-01' }, [attorney], 'professional-1')).toMatchObject({
+      amount: '225.00',
+      rate: '150.00',
+    });
+  });
+
+  it('totals the invoice before saving, and names the rates in play', () => {
+    const items = [
+      { ...emptyLine, ...line },
+      { ...emptyLine, ...line, serviceDate: '2026-03-02' },
+      { ...emptyLine, lineType: 'expense' as const, amount: '12.50' },
+    ];
+    expect(invoiceTotalPreview(items, [attorney], 'professional-1')).toEqual({ time: 375, other: 12.5, total: 387.5, complete: true });
+    expect(invoiceTotalPreview([...items, { ...emptyLine, quantity: '2' }], [attorney], 'professional-1').complete).toBe(false);
+    // The items straddle the March rate change, so both rates apply.
+    expect(ratesInPlay(items, [attorney], 'professional-1')).toEqual([
+      {
+        professional: attorney,
+        rates: [{ hourlyRate: '100.00' }, { hourlyRate: '150.00', from: '2026-03-01' }],
+      },
+    ]);
+    expect(ratesInPlay(items.slice(0, 1), [attorney], 'professional-1')[0]?.rates).toEqual([{ hourlyRate: '100.00' }]);
   });
 
   it('says what is missing', () => {
     expect(timeItemPreview(line, [attorney], undefined)).toEqual({ missing: 'Choose who did the work' });
-    expect(timeItemPreview({ ...line, quantity: '' }, [attorney], 'professional-1')).toEqual({ missing: 'Needs a date and hours' });
+    expect(timeItemPreview({ ...line, quantity: '' }, [attorney], 'professional-1')).toEqual({ missing: 'Add the hours' });
+    expect(timeItemPreview({ ...line, serviceDate: '' }, [attorney], 'professional-1')).toEqual({ missing: 'Add a date' });
+    expect(timeItemPreview({ ...line, serviceDate: '', quantity: '' }, [attorney], 'professional-1')).toEqual({
+      missing: 'Add a date and hours',
+    });
     expect(timeItemPreview({ ...line, serviceDate: '2025-12-31' }, [attorney], 'professional-1')).toEqual({
       missing: 'No rate set for this date',
     });

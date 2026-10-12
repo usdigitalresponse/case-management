@@ -8,6 +8,7 @@ import type { Database, DatabaseOrTransaction, Transaction } from '../db/client'
 import { firstRow } from '../db/rowHelpers';
 import { getReferenceId } from '../db/referenceLookups';
 import {
+  caseTable,
   document,
   invoice,
   invoiceImport,
@@ -16,6 +17,7 @@ import {
   invoiceLine,
   invoiceLineTypes,
   invoiceStatuses,
+  person,
   professional,
   timeEntry,
 } from '../db/schema';
@@ -33,13 +35,14 @@ import { DRAFT_INVOICE_STATUS_CODE } from '../billing/invoiceStatusCodes';
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile } from './detectFormat';
 import { reconciliationWarnings, UnreadableInvoiceFileError, type ImportWarning, type ParsedInvoice } from './parsedInvoice';
-import { CONFIRMED_IMPORT_STATUS_CODE } from './importedTimeEntries';
+import { CONFIRMED_IMPORT_STATUS_CODE, UNRESOLVED_IMPORT_STATUS_CODES } from './importedTimeEntries';
 import { priceTimeLines } from '../billing/priceTimeLines';
 import { matchTimekeeperName } from './matchTimekeeper';
+import { inferServiceDates } from './inferServiceDates';
 
 export const IMPORT_EXPIRY_MS = 3 * 24 * 60 * 60 * 1000;
 
-const UNRESOLVED_STATUS_CODES = ['received', 'extracted', 'failed'];
+const UNRESOLVED_STATUS_CODES = UNRESOLVED_IMPORT_STATUS_CODES;
 
 export class InvoiceImportNotFoundError extends NotFoundError {
   constructor() {
@@ -56,7 +59,7 @@ function importStatusId(db: DatabaseOrTransaction, code: string): Promise<string
   return getReferenceId(db, invoiceImportStatuses, code);
 }
 
-function sha256(bytes: Buffer): string {
+export function sha256(bytes: Buffer): string {
   return `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
 }
 
@@ -66,9 +69,11 @@ function safeDisplayName(fileName: string | undefined): string {
   return cleaned || 'uploaded-invoice';
 }
 
+// Imports split from the same document don't count as duplicates.
 async function duplicateWarnings(
   tx: Transaction,
   importId: string,
+  documentId: string,
   contentHash: string,
   billedProfessionalId: string,
   invoiceNumber: string | undefined,
@@ -84,6 +89,7 @@ async function duplicateWarnings(
         eq(document.contentHash, contentHash),
         eq(invoice.professionalId, billedProfessionalId),
         ne(invoiceImport.invoiceImportId, importId),
+        ne(invoiceImport.documentId, documentId),
       ),
     )
     .limit(1);
@@ -99,6 +105,7 @@ async function duplicateWarnings(
         and(
           eq(invoice.professionalId, billedProfessionalId),
           ne(invoiceImport.invoiceImportId, importId),
+          ne(invoiceImport.documentId, documentId),
           sql`${invoiceImport.extractionResult} -> 'invoice' -> 'invoice_number' ->> 'value' = ${invoiceNumber}`,
         ),
       )
@@ -157,11 +164,18 @@ async function suggestTimekeepers(
   return suggestions;
 }
 
-function extractionResult(importId: string, parsed: ParsedInvoice, warnings: ImportWarning[]) {
+function extractionResult(
+  importId: string,
+  parsed: ParsedInvoice,
+  warnings: ImportWarning[],
+  // A file designated to one professional: every line is their work.
+  designatedProfessionalId?: string,
+) {
   const field = <T>(value: T | undefined) => (value === undefined ? undefined : { value });
   return {
     spec_version: SUBMISSION_SNAPSHOT_SPEC_VERSION,
     invoice_import_id: importId,
+    designated_professional_id: designatedProfessionalId,
     invoice: {
       invoice_number: field(parsed.invoiceNumber),
       period_start: field(parsed.periodStart),
@@ -180,6 +194,7 @@ function extractionResult(importId: string, parsed: ParsedInvoice, warnings: Imp
       task_code: field(line.taskCode),
       activity_code: field(line.activityCode),
       expense_code: field(line.expenseCode),
+      case: field(line.caseLabel),
     })),
     warnings,
   };
@@ -230,33 +245,13 @@ export async function uploadInvoiceFile(
   try {
     return await db.transaction(async (tx) => {
       const now = new Date();
-      const { documentId } = firstRow(
-        await tx
-          .insert(document)
-          .values({
-            storageReference,
-            displayName: safeDisplayName(input.fileName),
-            mediaType: detected.mediaType,
-            contentHash,
-            recordedAt: now,
-            recordedByUserAccountId: actor.userAccountId,
-          })
-          .returning({ documentId: document.documentId }),
+      const documentId = await insertDocument(
+        tx,
+        actor,
+        { storageReference, fileName: input.fileName, mediaType: detected.mediaType, contentHash },
+        now,
       );
-      const imported = firstRow(
-        await tx
-          .insert(invoiceImport)
-          .values({
-            documentId,
-            uploadedByUserAccountId: actor.userAccountId,
-            uploadedAt: now,
-            caseId,
-            sourceFormatId: await getReferenceId(tx, invoiceImportFormats, detected.format),
-            statusId: await importStatusId(tx, 'received'),
-          })
-          .returning({ invoiceImportId: invoiceImport.invoiceImportId }),
-      );
-      const importId = imported.invoiceImportId;
+      const importId = await insertImport(tx, actor, { documentId, caseId, format: detected.format, uploadedAt: now });
       const extractedAt = new Date();
       const { extractionMethod } = detected;
 
@@ -277,58 +272,17 @@ export async function uploadInvoiceFile(
         return { invoiceImportId: importId, status: 'failed', invoiceId: null };
       }
 
-      const warnings = reconciliationWarnings(parsed);
-      let { periodStart, periodEnd } = parsed;
-      if (periodStart && periodEnd && periodEnd < periodStart) {
-        warnings.push({ code: 'inverted_period', message: 'The billing period ends before it starts, so it was left blank.' });
-        periodStart = undefined;
-        periodEnd = undefined;
-      } else if (Boolean(periodStart) !== Boolean(periodEnd)) {
-        periodStart = undefined;
-        periodEnd = undefined;
-      }
-      warnings.push(...(await duplicateWarnings(tx, importId, contentHash, billedProfessionalId, parsed.invoiceNumber)));
-
-      const billable = await billableProfessionalIds(tx, actor, caseId);
-      const suggestions = await suggestTimekeepers(
-        tx,
+      const invoiceId = await extractIntoDraft(tx, actor, {
+        importId,
+        documentId,
+        contentHash,
+        caseId,
         billedProfessionalId,
-        billable,
-        parsed.lines.flatMap((line) => (line.timekeeperLabel ? [line.timekeeperLabel] : [])),
-      );
-      const content: DraftContent = {
-        periodStart,
-        periodEnd,
-        lines: parsed.lines.map((line) => ({
-          lineType: line.lineType,
-          amount: line.amount,
-          // Kept as evidence; time lines are priced from configured rates.
-          statedAmount: line.amount,
-          serviceDate: line.serviceDate,
-          description: line.description,
-          quantity: line.quantity !== undefined && line.quantity > 0 ? line.quantity : undefined,
-          unitRate: line.unitRate !== undefined && line.unitRate >= 0 ? line.unitRate : undefined,
-          timekeeperLabel: line.timekeeperLabel,
-          taskCode: line.taskCode,
-          activityCode: line.activityCode,
-          expenseCode: line.expenseCode,
-          // No timekeeper named: suggest the billed professional.
-          timekeeperProfessionalId: line.timekeeperLabel
-            ? suggestions.get(line.timekeeperLabel.toLowerCase())
-            : billedProfessionalId,
-        })),
-      };
-      const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content, { fillTimekeepers: false });
-      await tx
-        .update(invoiceImport)
-        .set({
-          statusId: await importStatusId(tx, 'extracted'),
-          extractionMethod,
-          extractedAt,
-          extractionResult: extractionResult(importId, parsed, warnings),
-          invoiceId,
-        })
-        .where(eq(invoiceImport.invoiceImportId, importId));
+        extractionMethod,
+        extractedAt,
+        parsed,
+        everyLineBilled: false,
+      });
       return { invoiceImportId: importId, status: 'extracted', invoiceId };
     });
   } catch (error) {
@@ -336,6 +290,144 @@ export async function uploadInvoiceFile(
     await store.delete(storageReference);
     throw error;
   }
+}
+
+export async function insertDocument(
+  tx: Transaction,
+  actor: PortalActor,
+  file: { storageReference: string; fileName: string | undefined; mediaType: string; contentHash: string },
+  now: Date,
+): Promise<string> {
+  const { documentId } = firstRow(
+    await tx
+      .insert(document)
+      .values({
+        storageReference: file.storageReference,
+        displayName: safeDisplayName(file.fileName),
+        mediaType: file.mediaType,
+        contentHash: file.contentHash,
+        recordedAt: now,
+        recordedByUserAccountId: actor.userAccountId,
+      })
+      .returning({ documentId: document.documentId }),
+  );
+  return documentId;
+}
+
+export async function insertImport(
+  tx: Transaction,
+  actor: PortalActor,
+  values: { documentId: string; caseId: string; format: string; uploadedAt: Date },
+): Promise<string> {
+  const imported = firstRow(
+    await tx
+      .insert(invoiceImport)
+      .values({
+        documentId: values.documentId,
+        uploadedByUserAccountId: actor.userAccountId,
+        uploadedAt: values.uploadedAt,
+        caseId: values.caseId,
+        sourceFormatId: await getReferenceId(tx, invoiceImportFormats, values.format),
+        statusId: await importStatusId(tx, 'received'),
+      })
+      .returning({ invoiceImportId: invoiceImport.invoiceImportId }),
+  );
+  return imported.invoiceImportId;
+}
+
+// Turns parsed lines into the import's draft and records the extraction.
+// `everyLineBilled` (a file split by case for one professional) attributes
+// every line to the billed professional instead of suggesting timekeepers.
+export async function extractIntoDraft(
+  tx: Transaction,
+  actor: PortalActor,
+  args: {
+    importId: string;
+    documentId: string;
+    contentHash: string;
+    caseId: string;
+    billedProfessionalId: string;
+    extractionMethod: string | null;
+    extractedAt: Date;
+    parsed: ParsedInvoice;
+    everyLineBilled: boolean;
+  },
+): Promise<string> {
+  const { importId, parsed, billedProfessionalId, caseId } = args;
+  const warnings = reconciliationWarnings(parsed);
+  let { periodStart, periodEnd } = parsed;
+  if (periodStart && periodEnd && periodEnd < periodStart) {
+    warnings.push({ code: 'inverted_period', message: 'The billing period ends before it starts, so it was left blank.' });
+    periodStart = undefined;
+    periodEnd = undefined;
+  } else if (Boolean(periodStart) !== Boolean(periodEnd)) {
+    periodStart = undefined;
+    periodEnd = undefined;
+  }
+  warnings.push(
+    ...(await duplicateWarnings(tx, importId, args.documentId, args.contentHash, billedProfessionalId, parsed.invoiceNumber)),
+  );
+
+  const suggestions = args.everyLineBilled
+    ? new Map<string, string>()
+    : await suggestTimekeepers(
+        tx,
+        billedProfessionalId,
+        await billableProfessionalIds(tx, actor, caseId),
+        parsed.lines.flatMap((line) => (line.timekeeperLabel ? [line.timekeeperLabel] : [])),
+      );
+  const content: DraftContent = {
+    periodStart,
+    periodEnd,
+    lines: parsed.lines.map((line) => ({
+      lineType: line.lineType,
+      amount: line.amount,
+      // Kept as evidence; time lines are priced from configured rates.
+      statedAmount: line.amount,
+      serviceDate: line.serviceDate,
+      description: line.description,
+      quantity: line.quantity !== undefined && line.quantity > 0 ? line.quantity : undefined,
+      unitRate: line.unitRate !== undefined && line.unitRate >= 0 ? line.unitRate : undefined,
+      timekeeperLabel: line.timekeeperLabel,
+      taskCode: line.taskCode,
+      activityCode: line.activityCode,
+      expenseCode: line.expenseCode,
+      // No timekeeper named: suggest the billed professional.
+      timekeeperProfessionalId:
+        args.everyLineBilled || !line.timekeeperLabel ? billedProfessionalId : suggestions.get(line.timekeeperLabel.toLowerCase()),
+    })),
+  };
+  // Undated lines take the billing period's end where that's safe.
+  const inferred = await inferServiceDates(tx, {
+    caseId,
+    periodStart,
+    periodEnd,
+    lines: content.lines.map((line, index) => ({
+      location: parsed.lines[index]!.location,
+      lineType: line.lineType ?? 'other',
+      serviceDate: line.serviceDate,
+      timekeeperProfessionalId: line.timekeeperProfessionalId,
+    })),
+  });
+  content.lines = content.lines.map((line, index) => ({ ...line, serviceDate: inferred.dates[index] }));
+  warnings.push(...inferred.warnings);
+  const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content, { fillTimekeepers: false });
+  await tx
+    .update(invoiceImport)
+    .set({
+      statusId: await importStatusId(tx, 'extracted'),
+      extractionMethod: args.extractionMethod,
+      extractedAt: args.extractedAt,
+      extractionResult: extractionResult(
+        importId,
+        parsed,
+        warnings,
+        args.everyLineBilled ? billedProfessionalId : undefined,
+      ),
+      invoiceId,
+    })
+    .where(eq(invoiceImport.invoiceImportId, importId));
+  return invoiceId;
 }
 
 // Anyone but the uploader gets a 404.
@@ -363,19 +455,37 @@ async function lockOwnImport(tx: Transaction, actor: PortalActor, importId: stri
   return row;
 }
 
+// True when this was the document's last unresolved import, so its file
+// is now deleted; a file split by case stays until all its imports resolve.
 async function resolveImport(
   tx: Transaction,
   importId: string,
   documentId: string,
   statusCode: string,
   resolvedBy: string | null,
-): Promise<void> {
+): Promise<boolean> {
   const now = new Date();
-  await tx.update(document).set({ contentDeletedAt: now }).where(eq(document.documentId, documentId));
+  // Serializes sibling imports resolving at once.
+  await tx.select({ documentId: document.documentId }).from(document).where(eq(document.documentId, documentId)).for('update');
   await tx
     .update(invoiceImport)
     .set({ statusId: await importStatusId(tx, statusCode), resolvedByUserAccountId: resolvedBy, resolvedAt: now })
     .where(eq(invoiceImport.invoiceImportId, importId));
+  const unresolvedStatusIds: string[] = [];
+  for (const code of UNRESOLVED_STATUS_CODES) {
+    // eslint-disable-next-line no-await-in-loop
+    unresolvedStatusIds.push(await importStatusId(tx, code));
+  }
+  const [open] = await tx
+    .select({ invoiceImportId: invoiceImport.invoiceImportId })
+    .from(invoiceImport)
+    .where(and(eq(invoiceImport.documentId, documentId), inArray(invoiceImport.statusId, unresolvedStatusIds)))
+    .limit(1);
+  if (open) {
+    return false;
+  }
+  await tx.update(document).set({ contentDeletedAt: now }).where(eq(document.documentId, documentId));
+  return true;
 }
 
 async function lockDraft(tx: Transaction, invoiceId: string) {
@@ -411,6 +521,15 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
       .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
       .from(invoiceLine)
       .where(eq(invoiceLine.invoiceId, row.invoiceId));
+    // A file designated to one professional is all their work.
+    const [designation] = await tx
+      .select({ professionalId: sql<string | null>`${invoiceImport.extractionResult} ->> 'designated_professional_id'` })
+      .from(invoiceImport)
+      .where(eq(invoiceImport.invoiceImportId, importId));
+    const designated = designation?.professionalId;
+    if (designated && lines.some((line) => line.timekeeperProfessionalId !== designated)) {
+      throw new ValidationError({ lines: 'Every item in this file is the work of the professional it was imported for.' });
+    }
     const unmatched = lines.filter((line) => !line.timekeeperProfessionalId).length;
     if (lines.length === 0 || unmatched > 0) {
       throw new ValidationError({
@@ -426,10 +545,12 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
       unmatchedMeansBilled: true,
       strict: true,
     });
-    await resolveImport(tx, importId, row.documentId, CONFIRMED_IMPORT_STATUS_CODE, actor.userAccountId);
-    return row.storageReference;
+    const released = await resolveImport(tx, importId, row.documentId, CONFIRMED_IMPORT_STATUS_CODE, actor.userAccountId);
+    return released ? row.storageReference : undefined;
   });
-  await store.delete(storageReference);
+  if (storageReference) {
+    await store.delete(storageReference);
+  }
   return { invoiceImportId: importId };
 }
 
@@ -441,10 +562,12 @@ export async function discardInvoiceImport(db: Database, store: DocumentStore, a
       throw new InvoiceStateError('This import is already confirmed or discarded.');
     }
     await withdrawImportDraft(tx, row.invoiceId, { actorUserAccountId: actor.userAccountId });
-    await resolveImport(tx, importId, row.documentId, 'discarded', actor.userAccountId);
-    return row.storageReference;
+    const released = await resolveImport(tx, importId, row.documentId, 'discarded', actor.userAccountId);
+    return released ? row.storageReference : undefined;
   });
-  await store.delete(storageReference);
+  if (storageReference) {
+    await store.delete(storageReference);
+  }
   return { invoiceImportId: importId };
 }
 
@@ -461,7 +584,7 @@ export async function expireInvoiceImports(db: Database, store: DocumentStore, n
   let expired = 0;
   for (const { invoiceImportId } of stale) {
     // eslint-disable-next-line no-await-in-loop
-    const storageReference = await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const [row] = await tx
         .select({
           statusId: invoiceImport.statusId,
@@ -481,13 +604,15 @@ export async function expireInvoiceImports(db: Database, store: DocumentStore, n
         actorUserAccountId: null,
         reason: 'The import expired three days after upload without being confirmed.',
       });
-      await resolveImport(tx, invoiceImportId, row.documentId, 'discarded', null);
-      return row.storageReference;
+      const released = await resolveImport(tx, invoiceImportId, row.documentId, 'discarded', null);
+      return { storageReference: released ? row.storageReference : undefined };
     });
-    if (storageReference) {
-      // eslint-disable-next-line no-await-in-loop
-      await store.delete(storageReference);
+    if (result) {
       expired += 1;
+      if (result.storageReference) {
+        // eslint-disable-next-line no-await-in-loop
+        await store.delete(result.storageReference);
+      }
     }
   }
 
@@ -535,6 +660,65 @@ export async function loadInvoiceImport(db: Database, actor: PortalActor, import
     throw new InvoiceImportNotFoundError();
   }
   return row;
+}
+
+// The uploader's imports still in progress, for the bulk import page:
+// unresolved, or confirmed with the draft not yet submitted. Oldest first.
+export async function listInvoiceImports(db: Database, actor: PortalActor) {
+  const rows = await db
+    .select({
+      invoiceImportId: invoiceImport.invoiceImportId,
+      uploadedAt: invoiceImport.uploadedAt,
+      statusCode: invoiceImportStatuses.code,
+      fileName: document.displayName,
+      extractionResult: invoiceImport.extractionResult,
+      caseId: invoiceImport.caseId,
+      caseExternalReference: caseTable.externalReference,
+      caseClientDisplayName: person.displayName,
+      invoiceId: invoiceImport.invoiceId,
+      invoiceStatusCode: invoiceStatuses.code,
+      professionalDisplayName: professional.displayName,
+      submittedTotal: invoice.submittedTotal,
+      lineCount: sql<number>`(select count(*) from invoice_line l where l.invoice_id = ${invoiceImport.invoiceId})`.mapWith(Number),
+      unmatchedCount: sql<number>`(select count(*) from invoice_line l
+        where l.invoice_id = ${invoiceImport.invoiceId} and l.timekeeper_professional_id is null)`.mapWith(Number),
+      undatedCount: sql<number>`(select count(*) from invoice_line l
+        where l.invoice_id = ${invoiceImport.invoiceId} and l.service_date is null)`.mapWith(Number),
+      // What the file's lines said, beside the total billed at rates.
+      statedTotal: sql<string | null>`(select sum(l.stated_amount)::numeric(12,2)::text from invoice_line l
+        where l.invoice_id = ${invoiceImport.invoiceId})`,
+    })
+    .from(invoiceImport)
+    .innerJoin(invoiceImportStatuses, eq(invoiceImport.statusId, invoiceImportStatuses.id))
+    .innerJoin(document, eq(invoiceImport.documentId, document.documentId))
+    .leftJoin(invoice, eq(invoiceImport.invoiceId, invoice.invoiceId))
+    .leftJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+    .leftJoin(professional, eq(invoice.professionalId, professional.professionalId))
+    .leftJoin(caseTable, eq(invoiceImport.caseId, caseTable.caseId))
+    .leftJoin(person, eq(caseTable.clientId, person.personId))
+    .where(
+      and(
+        eq(invoiceImport.uploadedByUserAccountId, actor.userAccountId),
+        or(
+          inArray(invoiceImportStatuses.code, UNRESOLVED_STATUS_CODES),
+          and(eq(invoiceImportStatuses.code, CONFIRMED_IMPORT_STATUS_CODE), eq(invoiceStatuses.code, DRAFT_INVOICE_STATUS_CODE)),
+        ),
+      ),
+    )
+    .orderBy(invoiceImport.uploadedAt);
+  return rows.map(({ extractionResult, ...row }) => {
+    const warnings = (extractionResult as { warnings?: ImportWarning[] } | null)?.warnings ?? [];
+    return {
+      ...row,
+      warningCount: warnings.length,
+      // Dates filled from the billing period, for the submitter to check.
+      inferredDateCount: warnings.filter((warning) => warning.code === 'date_from_period').length,
+      otherWarningCount: warnings.filter((warning) => !['date_from_period', 'date_not_inferred'].includes(warning.code)).length,
+      // Why it couldn't be read, for a failed import.
+      failureMessage: row.statusCode === 'failed' ? (warnings[0]?.message ?? null) : null,
+      expiresAt: UNRESOLVED_STATUS_CODES.includes(row.statusCode) ? new Date(row.uploadedAt.getTime() + IMPORT_EXPIRY_MS) : null,
+    };
+  });
 }
 
 export async function getInvoiceImport(db: Database, actor: PortalActor, importId: string) {

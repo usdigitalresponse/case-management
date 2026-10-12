@@ -310,9 +310,11 @@ rules:
       - Scan each file for malware within the processing boundary before parsing and reject it on detection or scan failure. Parse in isolation with time and memory limits; never execute embedded content.
       - Uploaded files are transient working copies, not stored records: keep them in private storage with no public or long-lived links, serve them only to the uploader and authorized delegates, and exclude them from versioning and backups so that deletion removes them.
       - The uploader must be authorized to submit requests for the selected case; selecting or extracting a case grants no access.
-      - Extraction creates at most one draft request and never submits, approves or creates source records on the submitter's behalf.
+      - The uploader designates either one case for the whole file, or one professional whose cases the file's lines cover. With a professional, every line is billed to that professional as the one whose work it is, set rather than suggested, and each line names its case; the system may suggest a case from a line's case reference, identifier or client name among the professional's open assignments the uploader may bill, but the uploader assigns every line before anything is created, and the file becomes one import and one draft request per case, sharing the one document.
+      - Extraction creates at most one draft request per import and never submits, approves or creates source records on the submitter's behalf.
+      - A line with no service date in a file that states a billing period takes the period's end date, marked as inferred with a warning for the submitter to check; it is not split across days. The date is left blank, with the reason, when the professional's rate changes within the period, when they were not assigned to the case for all of it, or when who did the work is not yet known.
       - Retain extraction method, version, timestamp and result immutably. Corrections are made on the draft request; re-processing creates a new import rather than overwriting a result.
-      - Show the original file beside the draft until the submitter confirms the extracted values. The file is not retained; confirming or discarding the import deletes its content and records content_deleted_at, keeping the document metadata, hash and extraction result.
+      - Show the original file beside the draft until the submitter confirms the extracted values. The file is not retained; confirming or discarding the last unresolved import of a document deletes its content and records content_deleted_at, keeping the document metadata, hash and extraction result.
       - After confirmation the draft request and its submission snapshot are the record of the supporting invoice; reviewers and exports do not have the original file.
       - Production extraction runs within the system's processing boundary, which includes services hosted in the organization's own cloud account. Services outside it may be used only with synthetic data during development.
       - Discarding an import records the actor and timestamp and creates no request, time entries or expenses.
@@ -326,7 +328,7 @@ rules:
     requirements:
       - Compare any stated total with the sum of draft lines; the request total is still calculated from lines under validate_invoice_total.
       - Compare stated quantity times rate with each line amount; flag service dates outside the billing period.
-      - Warn when the same document content hash or supporting invoice number for the payee was already imported or submitted; do not merge automatically.
+      - Warn when the same document content hash or supporting invoice number for the payee was already imported or submitted from another document; imports split from one document don't warn about each other. Do not merge automatically.
       - Show each warning beside the original document and the extracted value it concerns.
 
   create_time_entries_from_import:

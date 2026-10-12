@@ -8,10 +8,12 @@ import {
   confirmInvoiceImport,
   discardInvoiceImport,
   getInvoiceImport,
+  listInvoiceImports,
   readImportFile,
   uploadInvoiceFile,
 } from '../imports/invoiceImports';
 import { templateCsv, templateXlsx } from '../imports/template';
+import { previewCaseSplit, uploadInvoiceFileByCase } from '../imports/splitByCase';
 import { previewFile } from '../imports/preview';
 import { findImportForInvoice } from '../imports/importedTimeEntries';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../billing/deleteInvoice';
@@ -19,7 +21,7 @@ import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { z } from 'zod';
 import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { db } from '../db/client';
-import { timeEntry, invoice, professional } from '../db/schema';
+import { timeEntry, invoice, professional, professionalKinds } from '../db/schema';
 import { getSessionUser, requireAuth } from '../auth/session';
 import { UnauthenticatedError } from '../errors';
 import { billableProfessionalIds, resolvePortalActor, timeReadableProfessionalIds, type PortalActor } from '../portal/portalActor';
@@ -117,8 +119,13 @@ router.get(
       ids.length === 0
         ? []
         : await db
-            .select({ professionalId: professional.professionalId, displayName: professional.displayName })
+            .select({
+              professionalId: professional.professionalId,
+              displayName: professional.displayName,
+              kindDisplayName: professionalKinds.displayName,
+            })
             .from(professional)
+            .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
             .where(inArray(professional.professionalId, ids));
     // Everyone who may bill for a professional sees their rates
     // (model/rules.yaml apply_professional_rates).
@@ -250,6 +257,37 @@ router.post(
       bytes,
     });
     res.status(201).json(result);
+  }),
+);
+
+// A file designated to one professional whose lines name their cases:
+// preview with a suggested case per line, then split into one import per
+// case (../imports/splitByCase.ts).
+router.post(
+  '/invoice-imports/case-split/preview',
+  express.raw({ type: () => true, limit: MAX_UPLOAD_BYTES }),
+  asyncHandler(async (req, res) => {
+    const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    res.json(await previewCaseSplit(db, await sessionActor(req), { professionalId: req.query.professionalId, bytes }));
+  }),
+);
+
+// The file travels base64-encoded beside its assignments, under its own
+// media type so the app-wide JSON parser (100 KB) leaves it alone.
+const CASE_SPLIT_MEDIA_TYPE = 'application/vnd.case-split+json';
+router.post(
+  '/invoice-imports/case-split',
+  express.json({ type: CASE_SPLIT_MEDIA_TYPE, limit: Math.ceil(MAX_UPLOAD_BYTES * 1.4) }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await uploadInvoiceFileByCase(db, documentStore, await sessionActor(req), req.body));
+  }),
+);
+
+// The bulk import page's list.
+router.get(
+  '/invoice-imports',
+  asyncHandler(async (req, res) => {
+    res.json({ imports: await listInvoiceImports(db, await sessionActor(req)) });
   }),
 );
 

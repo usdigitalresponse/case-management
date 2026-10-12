@@ -371,6 +371,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     The page can also set one professional on every unassigned item, or on
     all items (replacing suggestions); this is a client-side edit saved like
     any other, so confirmation still checks every line.
+  - A line with no date in a file stating a billing period gets the
+    period's end date (`src/imports/inferServiceDates.ts`), with a
+    `date_from_period` warning and a "check it" note on the line, unless
+    the person's rate changes inside the period, they weren't assigned to
+    the case for all of it, or who did the work isn't known yet; then it
+    stays blank with a `date_not_inferred` warning saying why. Lines are
+    never split across days.
   - `GET .../invoice-imports/:id` shows the import, its warnings and time
     already recorded that matches a line, which the submitter may link
     instead. `.../file` downloads the original until it's deleted, and
@@ -383,6 +390,42 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `.../confirm` requires every line matched, then deletes the file;
     `.../discard` deletes it and withdraws the draft. Imports are visible
     only to their uploader.
+  - Bulk import (`client/src/portal/PortalBulkImport.tsx`, `bulkImport.ts`;
+    "Import invoices" on the portal case list) takes several files, each
+    assigned a case and whom it bills (one choice, grouped by person, so a
+    delegate picks both), suggested from the file name when exactly one
+    case's reference or client name fits. It uploads them one at a time
+    through the single-file endpoint, so each is its own import. `GET
+    /api/portal/invoice-imports` lists the uploader's imports still in
+    progress (unresolved, or confirmed with an unsubmitted draft) with what
+    each still needs (items to match, dates to add or check, other
+    warnings, why a file couldn't be read). The page runs as three steps
+    (add files, review each, submit) with the current one marked: uploads
+    lead to "Review next"; review pages opened from it (`?from=bulk`) show
+    "File N of M" and confirm or discard straight on to the next file, then
+    to the submit step, which lists the confirmed drafts (all included
+    unless unticked) and submits them with one button showing the count and
+    total (one submit call each, failures listed by file). No batch record
+    is kept.
+  - A bulk file is designated either to one case (as above) or to one
+    professional (`src/imports/splitByCase.ts`; `model/rules.yaml`
+    `validate_invoice_import`). For a professional, the template's optional
+    `case` column names each line's case: `POST .../invoice-imports/case-split/preview`
+    reads the file and suggests a case per line (a single exact match on
+    case reference, identifier or client name among that person's open
+    cases the user may bill), the page has the user assign every line, and
+    `POST .../invoice-imports/case-split` (the file base64-encoded beside
+    one case per line, under `application/vnd.case-split+json`, since the
+    app-wide JSON parser stops at 100 KB) makes one import and draft per
+    case, all billed to that professional and sharing one document. Every
+    line is that professional's work: the extraction result records them as
+    `designated_professional_id`, review shows "work done by" fixed rather
+    than suggested (items added there are theirs too), and confirmation
+    refuses any other. Each part is reviewed and submitted like any import;
+    review shows the whole original. The file is deleted once the last part is confirmed or
+    discarded (or deleted with its draft), and parts of one file don't warn
+    that each other are duplicates. Only the spreadsheet template has a
+    case column; LEDES and PDF files are designated to one case.
   - A draft from an unconfirmed import can't be submitted or withdrawn
     directly. Confirming prices its time lines from configured rates (see
     "Rates and billing from time"); submitting creates a time entry for
@@ -465,6 +508,12 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     staff review flag a line whose stated amount differs. Errors say whether
     the person has no kind or the kind has no rate for that date.
     Submission prices again, so the snapshot freezes the rates applied.
+  - Invoice entry shows the pricing before saving (client-side previews of
+    the same rule): each time item as "hours × rate", a line naming the
+    rates in play for the people on the invoice (with "from" dates when
+    items span a change), a running total split into time and other items,
+    rates beside unbilled time, and on imports the file's total beside the
+    billed total (review, the split panel, and the bulk list).
   - Each time line ends up linked to a time entry: picked from the case's
     unbilled time (a new invoice starts with the billed professional's), or
     created on submission from a typed line. A time entry is on at most one

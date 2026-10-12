@@ -167,6 +167,24 @@ scope, not a UI winner or production-platform decision. Standard forms remain th
 default until evidence supports a subsequent decision.
 
 
+### Firm-added professionals with staff approval
+
+- **Status:** Planned, not built
+- **Decided:** 2026-10-12
+
+A billing delegate may add a colleague to their office as a professional with
+no login (name, proposed kind, email if known), so a firm's support staff can
+record and bill work by people who never sign in. Staff approve the person,
+including their kind, which sets the rate their time is priced at, before any
+of their time is priced; assignment to a case stays a staff action, as now.
+"Work done by" and unmatched timekeepers on imports will offer adding someone
+this way. Free-text "work done by" names without a professional are not
+allowed: they can't be priced, checked against assignments or kept as one
+identity. If the person later signs in with that email, they use the same
+profile. Needs model changes (a pending professional or affiliation awaiting
+approval, and who may approve) before it is built.
+
+
 ## Deferred Decisions
 
 The following decisions will be made when the project has enough information to

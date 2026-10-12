@@ -25,6 +25,7 @@ export async function priceTimeLines(tx: Transaction, invoiceId: string, options
       amount: invoiceLine.amount,
       serviceDate: invoiceLine.serviceDate,
       quantity: invoiceLine.quantity,
+      description: invoiceLine.description,
       timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       entryProfessionalId: timeEntry.professionalId,
       entryDate: timeEntry.activityOn,
@@ -70,11 +71,13 @@ export async function priceTimeLines(tx: Transaction, invoiceId: string, options
     const hours = line.hours === undefined ? 0 : Number(line.hours);
     if (!line.professionalId || !line.date || hours <= 0 || rate === undefined) {
       if (options.strict) {
+        const item = line.description ? `The time item "${line.description}"` : 'A time item';
+        const missing = !line.date && hours <= 0 ? 'a date and hours' : !line.date ? 'a date' : 'hours';
         throw new ValidationError({
           lines: !line.professionalId
             ? 'Choose who did the work for each time item.'
             : !line.date || hours <= 0
-              ? 'Each time item needs a date and hours.'
+              ? `${item} needs ${missing}.`
               : missingRate(line.professionalId, line.date),
         });
       }

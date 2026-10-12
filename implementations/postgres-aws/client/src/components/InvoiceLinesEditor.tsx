@@ -7,6 +7,7 @@ import {
   type PortalInvoiceLine,
 } from '../api/client';
 import { formatMoney } from '../formatMoney';
+import { formatDate } from '../formatDateTime';
 
 // Raw input strings until saved.
 export interface LineDraft {
@@ -105,7 +106,7 @@ export function timeItemPreview(
   line: Pick<LineDraft, 'serviceDate' | 'quantity' | 'timekeeperProfessionalId'>,
   timekeepers: BillableProfessional[],
   billedProfessionalId: string | undefined,
-): { amount: string } | { missing: string } {
+): { amount: string; rate: string; hours: number } | { missing: string } {
   const professional = timekeepers.find(
     (candidate) => candidate.professionalId === (line.timekeeperProfessionalId || billedProfessionalId),
   );
@@ -114,13 +115,77 @@ export function timeItemPreview(
     return { missing: 'Choose who did the work' };
   }
   if (!line.serviceDate || !(hours > 0)) {
-    return { missing: 'Needs a date and hours' };
+    return {
+      missing: !line.serviceDate && !(hours > 0) ? 'Add a date and hours' : !line.serviceDate ? 'Add a date' : 'Add the hours',
+    };
   }
   const rate = rateOn(professional.rates, line.serviceDate);
   if (rate === undefined) {
     return { missing: 'No rate set for this date' };
   }
-  return { amount: (Math.round(hours * Number(rate) * 100) / 100).toFixed(2) };
+  return { amount: (Math.round(hours * Number(rate) * 100) / 100).toFixed(2), rate, hours };
+}
+
+// The invoice as it would be billed, before saving. `complete` is false
+// while any time item can't be priced yet.
+export function invoiceTotalPreview(
+  lines: LineDraft[],
+  timekeepers: BillableProfessional[],
+  billedProfessionalId: string | undefined,
+): { time: number; other: number; total: number; complete: boolean } {
+  let timeCents = 0;
+  let otherCents = 0;
+  let complete = true;
+  for (const line of lines.filter(isItem)) {
+    if (line.lineType === 'time') {
+      const preview = timeItemPreview(line, timekeepers, billedProfessionalId);
+      if ('amount' in preview) {
+        timeCents += Math.round(Number(preview.amount) * 100);
+      } else {
+        complete = false;
+      }
+    } else {
+      otherCents += Math.round(Number(line.amount) * 100);
+    }
+  }
+  return { time: timeCents / 100, other: otherCents / 100, total: (timeCents + otherCents) / 100, complete };
+}
+
+// Each person billed on these items, with the rates their dates fall under
+// (more than one when the items span a rate change).
+export function ratesInPlay(
+  lines: LineDraft[],
+  timekeepers: BillableProfessional[],
+  billedProfessionalId: string | undefined,
+): Array<{ professional: BillableProfessional; rates: Array<{ hourlyRate: string; from?: string }> }> {
+  const today = new Date().toISOString().slice(0, 10);
+  const people = new Map<string, Set<string>>();
+  for (const line of lines.filter((candidate) => candidate.lineType === 'time')) {
+    const professionalId = line.timekeeperProfessionalId || billedProfessionalId;
+    if (professionalId) {
+      people.set(professionalId, (people.get(professionalId) ?? new Set()).add(line.serviceDate || today));
+    }
+  }
+  return [...people].flatMap(([professionalId, dates]) => {
+    const professional = timekeepers.find((candidate) => candidate.professionalId === professionalId);
+    if (!professional) {
+      return [];
+    }
+    // The rate rows whose periods cover these dates.
+    const applying = professional.rates.filter((rate, index) => {
+      const next = professional.rates[index + 1];
+      return [...dates].some((date) => date >= rate.effectiveFrom && (!next || date < next.effectiveFrom));
+    });
+    return [
+      {
+        professional,
+        rates: applying.map((rate, index) => ({
+          hourlyRate: rate.hourlyRate,
+          from: applying.length > 1 && index > 0 ? rate.effectiveFrom : undefined,
+        })),
+      },
+    ];
+  });
 }
 
 // "page 2, …" links to that page of the original beside the review.
@@ -164,7 +229,14 @@ export function InvoiceLinesEditor({
   timekeepers?: BillableProfessional[];
   // Whose work an item with no "work done by" is.
   billedProfessionalId?: string;
-  importReview?: { duplicateTime: DuplicateTimeSuggestion[]; sourceLocations?: string[] };
+  importReview?: {
+    duplicateTime: DuplicateTimeSuggestion[];
+    sourceLocations?: string[];
+    // A file designated to one professional: "work done by" is fixed.
+    fixedTimekeeper?: boolean;
+    // Lines (by location) whose date came from the billing period.
+    inferredDateLocations?: string[];
+  };
 }) {
   const showTimekeeper = timekeepers.length > 1 || Boolean(importReview);
   const columns = [
@@ -182,8 +254,30 @@ export function InvoiceLinesEditor({
     onChange(lines.map((line, i) => (i === index ? { ...line, ...changes } : line)));
   }
 
+  const pricingFor = importReview ? undefined : billedProfessionalId;
+  const inPlay = ratesInPlay(lines, timekeepers, pricingFor);
+  const totals = invoiceTotalPreview(lines, timekeepers, pricingFor);
+
   return (
     <div className="line-editor">
+      {inPlay.length > 0 && (
+        <p className="rate-note">
+          Time billed at:{' '}
+          {inPlay
+            .map(({ professional, rates }) => {
+              const amounts =
+                rates.length === 0
+                  ? 'no rate set'
+                  : rates
+                      .map((rate) => `${formatMoney(rate.hourlyRate)}/h${rate.from ? ` from ${formatDate(rate.from)}` : ''}`)
+                      .join(', ');
+              const who = [professional.kindDisplayName, `(${professionalLabel(professional)})`].filter(Boolean).join(' ');
+              return `${amounts} ${who}`;
+            })
+            .join(' · ')}
+          . Set by administrators.
+        </p>
+      )}
       <div className="line-editor-head" style={{ gridTemplateColumns }} aria-hidden="true">
         {columns.map(([label], index) => (
           <span key={index}>{label}</span>
@@ -199,6 +293,8 @@ export function InvoiceLinesEditor({
         const stated = line.carried.statedAmount;
         const differsFromFile =
           stated !== undefined && preview && 'amount' in preview && Math.abs(Number(preview.amount) - stated) >= 0.005;
+        const location = importReview?.sourceLocations?.[index];
+        const dateInferred = Boolean(line.serviceDate && location && importReview?.inferredDateLocations?.includes(location));
         return (
           <div key={index} className="line-row inline-fields" style={{ gridTemplateColumns }} role="group" aria-label={item}>
             <div className="usa-form-group">
@@ -243,7 +339,7 @@ export function InvoiceLinesEditor({
                   name={id('timekeeper')}
                   value={line.timekeeperProfessionalId}
                   // Recorded time stays whose it is.
-                  disabled={linked}
+                  disabled={linked || Boolean(importReview?.fixedTimekeeper)}
                   validationStatus={unmatched ? 'error' : undefined}
                   aria-describedby={unmatched ? id('timekeeper-error') : undefined}
                   onChange={(event) => update(index, { timekeeperProfessionalId: event.target.value, suggestedTimekeeper: false })}
@@ -273,7 +369,12 @@ export function InvoiceLinesEditor({
               <div className="usa-form-group line-amount">
                 <span className="line-label">{`${item} amount in dollars`}</span>
                 {preview && 'amount' in preview ? (
-                  <span className="amount">{formatMoney(preview.amount)}</span>
+                  <span className="line-amount-priced">
+                    <span className="amount">{formatMoney(preview.amount)}</span>
+                    <span className="line-amount-basis">
+                      {preview.hours} h × {formatMoney(preview.rate)}
+                    </span>
+                  </span>
                 ) : (
                   <span className="line-amount-missing">{preview?.missing}</span>
                 )}
@@ -314,6 +415,7 @@ export function InvoiceLinesEditor({
                   </span>
                 ) : null}
                 {line.carried.timekeeperLabel ? <span>On file: {line.carried.timekeeperLabel}</span> : null}
+                {dateInferred ? <span className="line-row-suggested">Date from the billing period: check it</span> : null}
                 {differsFromFile ? (
                   <span className="line-row-suggested">
                     The file says {formatMoney(String(stated))}
@@ -342,9 +444,22 @@ export function InvoiceLinesEditor({
           </div>
         );
       })}
-      <Button type="button" unstyled className="line-add" onClick={() => onChange([...lines, emptyLine])}>
-        + Add item
-      </Button>
+      <div className="line-editor-foot">
+        <Button type="button" unstyled className="line-add" onClick={() => onChange([...lines, emptyLine])}>
+          + Add item
+        </Button>
+        {hasInvoiceItems(lines) && (
+          <p className="line-total" aria-live="polite">
+            <strong>
+              {totals.complete ? 'Total' : 'Total so far'} {formatMoney(totals.total.toFixed(2))}
+            </strong>{' '}
+            <span>
+              (time {formatMoney(totals.time.toFixed(2))} · expenses and other {formatMoney(totals.other.toFixed(2))})
+            </span>
+            {!totals.complete && <span className="line-amount-missing"> Some time can't be priced yet.</span>}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

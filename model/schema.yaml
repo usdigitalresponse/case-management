@@ -469,6 +469,7 @@ entities:
         type: uuid
         required: true
         references: document.document_id
+        description: The uploaded file; several imports share it when a file covering one professional's cases is split, one per case.
       uploaded_by_user_account_id:
         type: uuid
         required: true
@@ -480,7 +481,7 @@ entities:
         type: uuid
         required: false
         references: case.case_id
-        description: Case chosen by the uploader or confirmed after extraction; required before a draft request is created.
+        description: Case chosen by the uploader for the whole file, or the case its lines were assigned to when the file was split by case; required before a draft request is created.
       source_format_id:
         type: reference
         required: true

@@ -74,7 +74,9 @@ export function UnbilledTimePicker({
                 <span>{Number(entry.durationHours)} h</span>
                 <span className="unbilled-time-description">{entry.description}</span>
                 {'amount' in preview ? (
-                  <span className="amount">{formatMoney(preview.amount)}</span>
+                  <span>
+                    <span className="amount">{formatMoney(preview.amount)}</span> at {formatMoney(preview.rate)}/h
+                  </span>
                 ) : (
                   <span className="line-amount-missing">{preview.missing}</span>
                 )}

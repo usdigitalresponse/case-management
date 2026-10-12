@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router';
 import { Alert, Button } from '@trussworks/react-uswds';
 import {
   ApiError,
@@ -113,6 +113,8 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
 export default function PortalInvoiceDetail() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromBulk = searchParams.get('from') === 'bulk';
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => getMyInvoice(invoiceId as string), [invoiceId, version]);
   const [recallError, setRecallError] = useState<string | null>(null);
@@ -154,7 +156,11 @@ export default function PortalInvoiceDetail() {
 
   return (
     <div>
-      <RouterLink className="back-link" to={`/portal/cases/${invoice.caseId}`}>&larr; Back to case</RouterLink>
+      {fromBulk ? (
+        <RouterLink className="back-link" to="/portal/imports">&larr; Back to imports</RouterLink>
+      ) : (
+        <RouterLink className="back-link" to={`/portal/cases/${invoice.caseId}`}>&larr; Back to case</RouterLink>
+      )}
       <PageHeading
         eyebrow={isDraft ? 'Draft invoice' : 'Invoice'}
         title={caseDisplayLabel([invoice.caseExternalReference, invoice.caseClientDisplayName], undefined)}

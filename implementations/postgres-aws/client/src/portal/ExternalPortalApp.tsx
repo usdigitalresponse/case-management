@@ -8,6 +8,7 @@ import PortalCaseList from './PortalCaseList';
 import PortalCaseDetail from './PortalCaseDetail';
 import PortalInvoiceDetail from './PortalInvoiceDetail';
 import PortalImportReview from './PortalImportReview';
+import PortalBulkImport from './PortalBulkImport';
 
 export default function ExternalPortalApp() {
   const { user, logout } = useAuth();
@@ -26,6 +27,7 @@ export default function ExternalPortalApp() {
           <Route path="/" element={<PortalCaseList />} />
           <Route path="/portal/cases/:caseId" element={<PortalCaseDetail />} />
           <Route path="/portal/invoices/:invoiceId" element={<PortalInvoiceDetail />} />
+          <Route path="/portal/imports" element={<PortalBulkImport />} />
           <Route path="/portal/imports/:importId" element={<PortalImportReview />} />
           <Route path="*" element={<><h1>Page not found</h1><Link to="/">Back to your cases</Link></>} />
         </Routes>

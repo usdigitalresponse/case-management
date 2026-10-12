@@ -479,7 +479,9 @@ export interface BillableProfessional {
   professionalId: string;
   displayName: string | null;
   isSelf: boolean;
-  // Oldest first; set by staff.
+  // Whose rates price their time, e.g. "Attorney"; null if none is set.
+  kindDisplayName: string | null;
+  // Their kind's rates, oldest first; set by administrators.
   rates: ProfessionalRate[];
 }
 
@@ -576,6 +578,8 @@ export interface InvoiceImportDetail {
     invoice?: { invoice_number?: { value: string } };
     lines?: Array<{ location: string }>;
     warnings?: ImportWarning[];
+    // Set when the file was designated to one professional: all their work.
+    designated_professional_id?: string;
   } | null;
   invoiceId: string | null;
   resolvedAt: string | null;
@@ -613,6 +617,97 @@ export async function uploadInvoiceFile(
 
 export function getInvoiceImport(importId: string): Promise<InvoiceImportDetail> {
   return request<InvoiceImportDetail>(`/api/portal/invoice-imports/${importId}`);
+}
+
+// An import still in progress: unresolved, or confirmed with its draft not
+// yet submitted (server/src/imports/invoiceImports.ts listInvoiceImports).
+export interface ImportInProgress {
+  invoiceImportId: string;
+  uploadedAt: string;
+  statusCode: string;
+  fileName: string;
+  caseId: string | null;
+  caseExternalReference: string | null;
+  caseClientDisplayName: string | null;
+  invoiceId: string | null;
+  invoiceStatusCode: string | null;
+  professionalDisplayName: string | null;
+  submittedTotal: string | null;
+  // The file's own amounts, summed; differs when rates reprice time.
+  statedTotal: string | null;
+  lineCount: number;
+  unmatchedCount: number;
+  // Lines still without a date, and dates filled from the billing period.
+  undatedCount: number;
+  inferredDateCount: number;
+  warningCount: number;
+  // Warnings other than the date notes above.
+  otherWarningCount: number;
+  // Why a failed import couldn't be read.
+  failureMessage: string | null;
+  expiresAt: string | null;
+}
+
+// A file for one professional whose lines name their cases
+// (server/src/imports/splitByCase.ts).
+export interface CaseSplitPreview {
+  cases: Array<{ caseId: string; externalReference: string | null; clientDisplayName: string | null }>;
+  lines: Array<{
+    index: number;
+    location: string;
+    caseLabel: string | null;
+    lineType: InvoiceLineType;
+    serviceDate: string | null;
+    description: string | null;
+    quantity: number | null;
+    // As the file states it.
+    amount: number;
+    // What will be billed: a time line at the professional's rate on its date.
+    billedRate: string | null;
+    billedAmount: number | null;
+    suggestedCaseId: string | null;
+  }>;
+}
+
+export async function previewCaseSplit(file: File, professionalId: string): Promise<CaseSplitPreview> {
+  const query = new URLSearchParams({ professionalId });
+  const response = await fetch(`/api/portal/invoice-imports/case-split/preview?${query.toString()}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: file,
+  });
+  const body = await response.json().catch(() => undefined);
+  if (!response.ok) {
+    throw new ApiError(response.status, body);
+  }
+  return body as CaseSplitPreview;
+}
+
+function fileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// One case per line, in the file's order; makes one import per case.
+export async function uploadInvoiceFileByCase(
+  file: File,
+  professionalId: string,
+  caseIds: string[],
+): Promise<{ imports: Array<{ invoiceImportId: string; caseId: string; invoiceId: string }> }> {
+  return request('/api/portal/invoice-imports/case-split', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/vnd.case-split+json' },
+    body: JSON.stringify({ professionalId, fileName: file.name, fileBase64: await fileAsBase64(file), caseIds }),
+  });
+}
+
+export function listInvoiceImports(): Promise<{ imports: ImportInProgress[] }> {
+  return request<{ imports: ImportInProgress[] }>('/api/portal/invoice-imports');
 }
 
 export function resolveInvoiceImport(importId: string, action: 'confirm' | 'discard'): Promise<{ invoiceImportId: string }> {

@@ -14,6 +14,8 @@ import {
 } from '../db/schema';
 
 export const CONFIRMED_IMPORT_STATUS_CODE = 'confirmed';
+// Not yet confirmed or discarded.
+export const UNRESOLVED_IMPORT_STATUS_CODES = ['received', 'extracted', 'failed'];
 
 // No mapping from supplier activity codes yet; typed time uses the same.
 const IMPORTED_TIME_ACTIVITY_TYPE_CODE = 'legal_services';

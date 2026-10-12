@@ -259,7 +259,8 @@ themselves.
 
 `extraction_result` must contain `spec_version`, the import ID, and for the
 request and each line the extracted value, its location in the source where
-known, an optional confidence, and any warnings. Structured formats such as
+known, an optional confidence, and any warnings. For a file designated to one
+professional, it also names that professional, whose work every line is. Structured formats such as
 standard legal billing exchange files, delimited text and spreadsheets are
 parsed directly; free-form documents need an extraction method. Neither the
 model nor this contract selects a parser, extraction service or rendering
