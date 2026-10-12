@@ -13,6 +13,8 @@ import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase } from '../cases/closeCase';
+import { addKindRate, createKind, setProfessionalKind } from '../billing/professionalRates';
+import { getAdminAccountRoleId } from '../auth/staffAccountRole';
 import { firstRow } from './rowHelpers';
 
 // Dev/demo data only — deliberately not part of resetAndSeedBaselineFixtures,
@@ -128,6 +130,39 @@ async function seedDemoDelegate(
   });
 }
 
+// Synthetic kinds and hourly rates, as an administrator would set them, so
+// time can be invoiced. The demo staff sign-in is that administrator.
+const DEMO_KINDS = [
+  { displayName: 'Attorney', hourlyRate: 125 },
+  { displayName: 'Investigator', hourlyRate: 75 },
+  { displayName: 'Expert', hourlyRate: 200 },
+];
+// By demo vendor: the first two are attorneys.
+const DEMO_VENDOR_KINDS = ['Attorney', 'Attorney', 'Investigator', 'Expert'];
+
+async function seedDemoRates(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+  professionals: DemoProfessional[],
+): Promise<void> {
+  await db
+    .update(userAccount)
+    .set({ systemRoleId: await getAdminAccountRoleId(db) })
+    .where(eq(userAccount.userAccountId, fixtures.staffUserAccountId));
+  const kindIds = new Map<string, string>();
+  for (const { displayName, hourlyRate } of DEMO_KINDS) {
+    // eslint-disable-next-line no-await-in-loop
+    const { professionalKindId } = await createKind(db, { displayName });
+    // eslint-disable-next-line no-await-in-loop
+    await addKindRate(db, fixtures.staffUserAccountId, professionalKindId, { hourlyRate, effectiveFrom: '2025-01-01' });
+    kindIds.set(displayName, professionalKindId);
+  }
+  for (const [index, { professionalId }] of professionals.entries()) {
+    const kind = DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!;
+    // eslint-disable-next-line no-await-in-loop
+    await setProfessionalKind(db, professionalId, { professionalKindId: kindIds.get(kind) });
+  }
+}
+
 // Other full (SSO) users to search for and assign in the "Assign staff"
 // form (client/src/components/AssignStaffForm.tsx) — distinct from
 // fixtures.staffUserAccountId, the one synthetic account every demo case
@@ -187,7 +222,7 @@ async function seedDemoTimeEntriesAndInvoices(
     const timeEntryIds: string[] = [];
     for (let i = 0; i < entryCount; i += 1) {
       // eslint-disable-next-line no-await-in-loop
-      const result = await createTimeEntry(db, { professionalId: assignment.professionalId }, {
+      const result = await createTimeEntry(db, { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId }, {
         caseId: assignment.caseId,
         activityOn: faker.date.recent({ days: 60 }).toISOString().slice(0, 10),
         durationHours: faker.number.float({ min: 0.5, max: 6, fractionDigits: 2 }),
@@ -206,11 +241,8 @@ async function seedDemoTimeEntriesAndInvoices(
     await createInvoice(db, { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId }, {
       caseId: assignment.caseId,
       submit: index !== assignments.length - 2,
-      lines: timeEntryIds.map((sourceTimeEntryId, i) => ({
-        amount: faker.number.float({ min: 25, max: 400, fractionDigits: 2 }),
-        // Only the first line needs a context link to make the demo's point.
-        sourceTimeEntryId: i === 0 ? sourceTimeEntryId : undefined,
-      })),
+      // Priced from the demo rates (seedDemoRates).
+      lines: timeEntryIds.map((sourceTimeEntryId) => ({ sourceTimeEntryId })),
     });
   }
 }
@@ -251,6 +283,7 @@ async function main(): Promise<void> {
   const caseIds = await seedDemoCases(fixtures);
   const professionals = await seedDemoProfessionals();
   await seedDemoDelegate(fixtures, professionals);
+  await seedDemoRates(fixtures, professionals);
   const staffUserAccountIds = await seedDemoStaff(fixtures);
   const assignments = await seedDemoAssignments(fixtures, caseIds, professionals);
   await seedDemoTimeEntriesAndInvoices(fixtures, assignments);

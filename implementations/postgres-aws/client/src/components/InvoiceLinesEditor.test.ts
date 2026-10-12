@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PortalInvoiceLine } from '../api/client';
-import { assignTimekeeper, emptyLine, hasInvoiceItems, lineDraftsFrom, linesFromDrafts } from './InvoiceLinesEditor';
+import { assignTimekeeper, emptyLine, hasInvoiceItems, lineDraftsFrom, linesFromDrafts, timeItemPreview } from './InvoiceLinesEditor';
 
 const importedLine: PortalInvoiceLine = {
   invoiceLineId: 'line-1',
@@ -10,6 +10,8 @@ const importedLine: PortalInvoiceLine = {
   description: 'Synthetic research',
   quantity: '1.50',
   unitRate: '100.00',
+  statedAmount: '150.00',
+  billedRate: '120.00',
   timekeeperLabel: 'Synthetic Timekeeper',
   timekeeperProfessionalId: 'professional-1',
   timekeeperDisplayName: 'Synthetic Timekeeper',
@@ -40,6 +42,7 @@ describe('invoice line editor round trip', () => {
         description: 'Synthetic research',
         quantity: 1.5,
         unitRate: 100,
+        statedAmount: 150,
         timekeeperLabel: 'Synthetic Timekeeper',
         timekeeperProfessionalId: 'professional-1',
         taskCode: 'SAMPLE-TASK',
@@ -81,10 +84,41 @@ describe('assigning who did the work to many items', () => {
 });
 
 describe('whether an invoice has anything to save', () => {
-  it('needs at least one item with an amount above zero', () => {
+  const expense = { ...emptyLine, lineType: 'expense' as const };
+
+  it('needs time with hours or recorded time, or another item with an amount', () => {
     expect(hasInvoiceItems([emptyLine])).toBe(false);
-    expect(hasInvoiceItems([{ ...emptyLine, description: 'Typed but no amount' }])).toBe(false);
-    expect(hasInvoiceItems([{ ...emptyLine, amount: '0' }])).toBe(false);
-    expect(hasInvoiceItems([emptyLine, { ...emptyLine, amount: '12.50' }])).toBe(true);
+    expect(hasInvoiceItems([{ ...emptyLine, amount: '12.50' }])).toBe(false);
+    expect(hasInvoiceItems([{ ...emptyLine, quantity: '1.5' }])).toBe(true);
+    expect(hasInvoiceItems([{ ...emptyLine, sourceTimeEntryId: 'time-1' }])).toBe(true);
+    expect(hasInvoiceItems([{ ...expense, description: 'Typed but no amount' }])).toBe(false);
+    expect(hasInvoiceItems([{ ...expense, amount: '0' }])).toBe(false);
+    expect(hasInvoiceItems([emptyLine, { ...expense, amount: '12.50' }])).toBe(true);
+  });
+});
+
+describe('previewing what a time item bills', () => {
+  const attorney = {
+    professionalId: 'professional-1',
+    displayName: 'Synthetic Attorney',
+    isSelf: true,
+    rates: [
+      { hourlyRate: '100.00', effectiveFrom: '2026-01-01' },
+      { hourlyRate: '150.00', effectiveFrom: '2026-03-01' },
+    ],
+  };
+  const line = { serviceDate: '2026-02-10', quantity: '1.5', timekeeperProfessionalId: '' };
+
+  it("uses the billed professional's rate on the item's date", () => {
+    expect(timeItemPreview(line, [attorney], 'professional-1')).toEqual({ amount: '150.00' });
+    expect(timeItemPreview({ ...line, serviceDate: '2026-03-01' }, [attorney], 'professional-1')).toEqual({ amount: '225.00' });
+  });
+
+  it('says what is missing', () => {
+    expect(timeItemPreview(line, [attorney], undefined)).toEqual({ missing: 'Choose who did the work' });
+    expect(timeItemPreview({ ...line, quantity: '' }, [attorney], 'professional-1')).toEqual({ missing: 'Needs a date and hours' });
+    expect(timeItemPreview({ ...line, serviceDate: '2025-12-31' }, [attorney], 'professional-1')).toEqual({
+      missing: 'No rate set for this date',
+    });
   });
 });

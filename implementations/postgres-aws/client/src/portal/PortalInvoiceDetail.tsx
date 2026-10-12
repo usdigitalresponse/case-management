@@ -6,6 +6,7 @@ import {
   apiErrorMessage,
   getMyInvoice,
   listBillableProfessionals,
+  listMyTimeEntries,
   transitionInvoice,
   updateDraftInvoice,
   type InvoiceTransition,
@@ -13,6 +14,7 @@ import {
 } from '../api/client';
 import { hasInvoiceItems, InvoiceLinesEditor, lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
+import { UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { useAuth } from '../AuthContext';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { PageHeading } from '../components/PageHeading';
@@ -34,6 +36,16 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
   const { data: timekeepers } = useApiResource(
     () => listBillableProfessionals(invoice.caseId).then((result) => result.professionals),
     [invoice.caseId],
+  );
+  // Unbilled time can be ticked on; time already on this draft shows ticked.
+  const { data: caseTime } = useApiResource(
+    () => listMyTimeEntries(invoice.caseId).then((result) => result.timeEntries),
+    [invoice.caseId],
+  );
+  const billableIds = new Set((timekeepers ?? []).map((p) => p.professionalId));
+  const pickable = (caseTime ?? []).filter(
+    (entry) =>
+      billableIds.has(entry.professionalId) && (!entry.billing || entry.billing.invoiceId === invoice.invoiceId),
   );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
@@ -57,7 +69,10 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
       }
       onChanged();
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'The draft could not be saved. Each item needs an amount above zero.') });
+      setMessage({
+        type: 'error',
+        text: apiErrorMessage(err, 'The draft could not be saved. Time items need a date and hours; other items an amount above zero.'),
+      });
     } finally {
       setBusy(false);
     }
@@ -68,7 +83,14 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
       <h2>Edit draft</h2>
       {message && <Alert type={message.type} slim>{message.text}</Alert>}
       <PeriodFields idPrefix="draft" start={period.start} end={period.end} onChange={setPeriod} />
-      <InvoiceLinesEditor idPrefix="draft" lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
+      <UnbilledTimePicker idPrefix="draft" entries={pickable} lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
+      <InvoiceLinesEditor
+        idPrefix="draft"
+        lines={lines}
+        onChange={setLines}
+        timekeepers={timekeepers ?? []}
+        billedProfessionalId={invoice.professionalId}
+      />
       <div className="invoice-actions">
         <Button type="button" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('submit')}>Submit invoice</Button>
         <Button type="button" outline disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>Save draft</Button>

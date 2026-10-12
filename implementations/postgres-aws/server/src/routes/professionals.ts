@@ -5,18 +5,21 @@
 // bootstrapped by ../professionals/ensureProfessional.ts on first login),
 // and the sidebar's "Vendors" directory, which lists everyone rather
 // than requiring a query first (professional is a small enough table for
-// that, unlike ../routes/people.ts's person search).
+// that, unlike ../routes/people.ts's person search), with each one's kind
+// and that kind's rates. Administrators set the kind here.
 //
 // `professional` also backs internal staff assignment
 // (../cases/assignStaffToCase.ts lazily creates one on first assignment),
 // so a plain join would list staff as "vendors" too — excluded below by
-// the same staff-account system role ../routes/staff.ts filters on.
+// the same staff-account system roles ../routes/staff.ts filters on.
 import { Router } from 'express';
-import { and, eq, ilike, isNull, ne, or } from 'drizzle-orm';
+import { and, eq, ilike, isNull, notInArray, or } from 'drizzle-orm';
 import { db } from '../db/client';
-import { professional, userAccount } from '../db/schema';
+import { professional, professionalKinds, userAccount } from '../db/schema';
 import { requireFullUser } from '../auth/session';
-import { getStaffAccountRoleId } from '../auth/staffAccountRole';
+import { requireAdmin } from '../auth/requireAdmin';
+import { listRates, setProfessionalKind } from '../billing/professionalRates';
+import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -26,11 +29,11 @@ router.get(
   '/',
   asyncHandler(async (req, res) => {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
-    const staffAccountRoleId = await getStaffAccountRoleId(db);
+    const staffAccountRoleIds = await getStaffAccountRoleIds(db);
     // userAccount.systemRoleId is NULL for every vendor account — plain
-    // `ne` would exclude those too (SQL's three-valued logic: NULL <> x
-    // is NULL, not true), so NULL must be allowed through explicitly.
-    const filters = [or(isNull(userAccount.systemRoleId), ne(userAccount.systemRoleId, staffAccountRoleId))!];
+    // `not in` would exclude those too (SQL's three-valued logic), so NULL
+    // must be allowed through explicitly.
+    const filters = [or(isNull(userAccount.systemRoleId), notInArray(userAccount.systemRoleId, staffAccountRoleIds))!];
     if (q) {
       filters.push(or(ilike(userAccount.email, `%${q}%`), ilike(professional.displayName, `%${q}%`))!);
     }
@@ -40,12 +43,36 @@ router.get(
         displayName: professional.displayName,
         active: professional.active,
         email: userAccount.email,
+        professionalKindId: professional.professionalKindId,
+        professionalKindDisplayName: professionalKinds.displayName,
       })
       .from(professional)
       .innerJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
+      .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
       .where(and(...filters))
       .limit(50);
-    res.json({ professionals: matches });
+    const rates = await listRates(
+      db,
+      matches.map((match) => match.professionalId),
+    );
+    res.json({
+      professionals: matches.map((match) => ({
+        ...match,
+        rates: rates
+          .filter((rate) => rate.professionalId === match.professionalId)
+          .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
+      })),
+    });
+  }),
+);
+
+// Which kind's rates price this professional's time (model/rules.yaml
+// apply_professional_rates). Null clears it.
+router.put(
+  '/:id/kind',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.json(await setProfessionalKind(db, req.params.id as string, req.body));
   }),
 );
 

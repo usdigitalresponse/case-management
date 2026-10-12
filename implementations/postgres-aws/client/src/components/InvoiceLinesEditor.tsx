@@ -1,5 +1,12 @@
 import { Button, Checkbox, Label, Select, TextInput } from '@trussworks/react-uswds';
-import type { BillableProfessional, CreateInvoiceLineInput, InvoiceLineType, PortalInvoiceLine } from '../api/client';
+import {
+  rateOn,
+  type BillableProfessional,
+  type CreateInvoiceLineInput,
+  type InvoiceLineType,
+  type PortalInvoiceLine,
+} from '../api/client';
+import { formatMoney } from '../formatMoney';
 
 // Raw input strings until saved.
 export interface LineDraft {
@@ -7,19 +14,21 @@ export interface LineDraft {
   serviceDate: string;
   description: string;
   quantity: string;
+  // Entered for expense and other items; a time item is priced from rates.
   amount: string;
   // Empty: the billed professional, or on import review, not chosen yet.
   timekeeperProfessionalId: string;
+  // Recorded time this item bills; editing the item edits that time.
   sourceTimeEntryId: string;
   invoiceLineId?: string;
   // Pre-selected on import and not yet checked.
   suggestedTimekeeper?: boolean;
   // Values the editor doesn't show, saved back so edits never drop them.
-  carried: Pick<CreateInvoiceLineInput, 'unitRate' | 'timekeeperLabel' | 'taskCode' | 'activityCode' | 'expenseCode'>;
+  carried: Pick<CreateInvoiceLineInput, 'unitRate' | 'statedAmount' | 'timekeeperLabel' | 'taskCode' | 'activityCode' | 'expenseCode'>;
 }
 
 export const emptyLine: LineDraft = {
-  lineType: 'other',
+  lineType: 'time',
   serviceDate: '',
   description: '',
   quantity: '',
@@ -43,6 +52,7 @@ export function lineDraftsFrom(lines: PortalInvoiceLine[]): LineDraft[] {
     invoiceLineId: line.invoiceLineId,
     carried: {
       unitRate: line.unitRate === null ? undefined : Number(line.unitRate),
+      statedAmount: line.statedAmount === null ? undefined : Number(line.statedAmount),
       timekeeperLabel: line.timekeeperLabel ?? undefined,
       taskCode: line.taskCode ?? undefined,
       activityCode: line.activityCode ?? undefined,
@@ -64,25 +74,53 @@ export function assignTimekeeper(lines: LineDraft[], professionalId: string, onl
   );
 }
 
-// An item with an amount; save and submit stay disabled until there is one.
-export function hasInvoiceItems(drafts: LineDraft[]): boolean {
-  return linesFromDrafts(drafts).length > 0;
+// A time item needs hours (or recorded time); anything else an amount.
+function isItem(draft: LineDraft): boolean {
+  return draft.lineType === 'time' ? Number(draft.quantity) > 0 || Boolean(draft.sourceTimeEntryId) : Number(draft.amount) > 0;
 }
 
-// Rows without a positive amount are dropped; the server validates the rest.
+// Save and submit stay disabled until there is one.
+export function hasInvoiceItems(drafts: LineDraft[]): boolean {
+  return drafts.some(isItem);
+}
+
+// Incomplete rows are dropped; the server validates and prices the rest.
 export function linesFromDrafts(drafts: LineDraft[]): CreateInvoiceLineInput[] {
-  return drafts
-    .filter((draft) => Number(draft.amount) > 0)
-    .map((draft) => ({
-      ...draft.carried,
-      lineType: draft.lineType,
-      amount: Number(draft.amount),
-      serviceDate: draft.serviceDate || undefined,
-      description: draft.description.trim() || undefined,
-      quantity: Number(draft.quantity) > 0 ? Number(draft.quantity) : undefined,
-      timekeeperProfessionalId: draft.timekeeperProfessionalId || undefined,
-      sourceTimeEntryId: draft.sourceTimeEntryId || undefined,
-    }));
+  return drafts.filter(isItem).map((draft) => ({
+    ...draft.carried,
+    lineType: draft.lineType,
+    // Ignored on a priced time item; kept while an import is unconfirmed.
+    amount: Number(draft.amount) > 0 ? Number(draft.amount) : undefined,
+    serviceDate: draft.serviceDate || undefined,
+    description: draft.description.trim() || undefined,
+    quantity: Number(draft.quantity) > 0 ? Number(draft.quantity) : undefined,
+    timekeeperProfessionalId: draft.timekeeperProfessionalId || undefined,
+    sourceTimeEntryId: draft.sourceTimeEntryId || undefined,
+  }));
+}
+
+// What the server will bill for a time item, for display; it prices again
+// on save (server/src/billing/priceTimeLines.ts).
+export function timeItemPreview(
+  line: Pick<LineDraft, 'serviceDate' | 'quantity' | 'timekeeperProfessionalId'>,
+  timekeepers: BillableProfessional[],
+  billedProfessionalId: string | undefined,
+): { amount: string } | { missing: string } {
+  const professional = timekeepers.find(
+    (candidate) => candidate.professionalId === (line.timekeeperProfessionalId || billedProfessionalId),
+  );
+  const hours = Number(line.quantity);
+  if (!professional) {
+    return { missing: 'Choose who did the work' };
+  }
+  if (!line.serviceDate || !(hours > 0)) {
+    return { missing: 'Needs a date and hours' };
+  }
+  const rate = rateOn(professional.rates, line.serviceDate);
+  if (rate === undefined) {
+    return { missing: 'No rate set for this date' };
+  }
+  return { amount: (Math.round(hours * Number(rate) * 100) / 100).toFixed(2) };
 }
 
 // "page 2, …" links to that page of the original beside the review.
@@ -111,29 +149,31 @@ export interface DuplicateTimeSuggestion {
 }
 
 // One grid row per item. More than one timekeeper adds a "work done by"
-// column; importReview adds type, notes and duplicate-time links.
+// column; importReview adds notes and duplicate-time links.
 export function InvoiceLinesEditor({
   idPrefix,
   lines,
   onChange,
   timekeepers = [],
+  billedProfessionalId,
   importReview,
 }: {
   idPrefix: string;
   lines: LineDraft[];
   onChange: (lines: LineDraft[]) => void;
   timekeepers?: BillableProfessional[];
+  // Whose work an item with no "work done by" is.
+  billedProfessionalId?: string;
   importReview?: { duplicateTime: DuplicateTimeSuggestion[]; sourceLocations?: string[] };
 }) {
-  const showType = Boolean(importReview);
   const showTimekeeper = timekeepers.length > 1 || Boolean(importReview);
   const columns = [
-    ...(showType ? [['Type', 'minmax(5.5rem, 6.5rem)']] : []),
+    ['Type', 'minmax(5.5rem, 6.5rem)'],
     ['Date', 'minmax(8.5rem, 9.5rem)'],
     ['Description', 'minmax(6rem, 1fr)'],
     ...(showTimekeeper ? [['Work done by', 'minmax(7rem, 12rem)']] : []),
     ['Hours', 'minmax(4rem, 5rem)'],
-    ['Amount ($)', 'minmax(5rem, 6.5rem)'],
+    ['Amount ($)', 'minmax(5.5rem, 7rem)'],
     ['', '1.75rem'],
   ];
   const gridTemplateColumns = columns.map(([, width]) => width).join(' ');
@@ -154,23 +194,27 @@ export function InvoiceLinesEditor({
         const item = `Item ${index + 1}`;
         const duplicate = importReview?.duplicateTime.find((candidate) => candidate.invoiceLineId === line.invoiceLineId);
         const unmatched = Boolean(importReview) && !line.timekeeperProfessionalId;
+        const linked = Boolean(line.sourceTimeEntryId);
+        const preview = line.lineType === 'time' ? timeItemPreview(line, timekeepers, importReview ? undefined : billedProfessionalId) : undefined;
+        const stated = line.carried.statedAmount;
+        const differsFromFile =
+          stated !== undefined && preview && 'amount' in preview && Math.abs(Number(preview.amount) - stated) >= 0.005;
         return (
           <div key={index} className="line-row inline-fields" style={{ gridTemplateColumns }} role="group" aria-label={item}>
-            {showType && (
-              <div className="usa-form-group">
-                <Label htmlFor={id('type')} className="line-label">{`${item} type`}</Label>
-                <Select
-                  id={id('type')}
-                  name={id('type')}
-                  value={line.lineType}
-                  onChange={(event) => update(index, { lineType: event.target.value as InvoiceLineType })}
-                >
-                  <option value="time">Time</option>
-                  <option value="expense">Expense</option>
-                  <option value="other">Other</option>
-                </Select>
-              </div>
-            )}
+            <div className="usa-form-group">
+              <Label htmlFor={id('type')} className="line-label">{`${item} type`}</Label>
+              <Select
+                id={id('type')}
+                name={id('type')}
+                value={line.lineType}
+                disabled={linked}
+                onChange={(event) => update(index, { lineType: event.target.value as InvoiceLineType })}
+              >
+                <option value="time">Time</option>
+                <option value="expense">Expense</option>
+                <option value="other">Other</option>
+              </Select>
+            </div>
             <div className="usa-form-group">
               <Label htmlFor={id('date')} className="line-label">{`${item} date`}</Label>
               <input
@@ -198,6 +242,8 @@ export function InvoiceLinesEditor({
                   id={id('timekeeper')}
                   name={id('timekeeper')}
                   value={line.timekeeperProfessionalId}
+                  // Recorded time stays whose it is.
+                  disabled={linked}
                   validationStatus={unmatched ? 'error' : undefined}
                   aria-describedby={unmatched ? id('timekeeper-error') : undefined}
                   onChange={(event) => update(index, { timekeeperProfessionalId: event.target.value, suggestedTimekeeper: false })}
@@ -223,24 +269,35 @@ export function InvoiceLinesEditor({
                 onChange={(event) => update(index, { quantity: event.target.value })}
               />
             </div>
-            <div className="usa-form-group">
-              <Label htmlFor={id('amount')} className="line-label">{`${item} amount in dollars`}</Label>
-              <TextInput
-                id={id('amount')}
-                name={id('amount')}
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={line.amount}
-                onChange={(event) => update(index, { amount: event.target.value })}
-              />
-            </div>
+            {line.lineType === 'time' ? (
+              <div className="usa-form-group line-amount">
+                <span className="line-label">{`${item} amount in dollars`}</span>
+                {preview && 'amount' in preview ? (
+                  <span className="amount">{formatMoney(preview.amount)}</span>
+                ) : (
+                  <span className="line-amount-missing">{preview?.missing}</span>
+                )}
+              </div>
+            ) : (
+              <div className="usa-form-group">
+                <Label htmlFor={id('amount')} className="line-label">{`${item} amount in dollars`}</Label>
+                <TextInput
+                  id={id('amount')}
+                  name={id('amount')}
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={line.amount}
+                  onChange={(event) => update(index, { amount: event.target.value })}
+                />
+              </div>
+            )}
             {lines.length > 1 ? (
               <button
                 type="button"
                 className="line-remove"
                 aria-label={`Remove ${item.toLowerCase()}`}
-                title="Remove item"
+                title={linked ? 'Remove item (the time stays recorded, unbilled)' : 'Remove item'}
                 onClick={() => onChange(lines.filter((_, i) => i !== index))}
               >
                 ×
@@ -248,14 +305,22 @@ export function InvoiceLinesEditor({
             ) : (
               <span />
             )}
-            {importReview && (
+            {(importReview || linked || differsFromFile) && (
               <p className="line-row-note">
-                {importReview.sourceLocations?.[index] && line.invoiceLineId ? (
+                {linked && <span>Recorded time: changes here update it.</span>}
+                {importReview?.sourceLocations?.[index] && line.invoiceLineId ? (
                   <span>
                     In the original: <SourceLocation location={importReview.sourceLocations[index]!} />
                   </span>
                 ) : null}
                 {line.carried.timekeeperLabel ? <span>On file: {line.carried.timekeeperLabel}</span> : null}
+                {differsFromFile ? (
+                  <span className="line-row-suggested">
+                    The file says {formatMoney(String(stated))}
+                    {line.carried.unitRate !== undefined ? ` at ${formatMoney(String(line.carried.unitRate))}/h` : ''}; billed at
+                    the configured rate.
+                  </span>
+                ) : null}
                 {unmatched ? (
                   <span className="line-row-error" id={id('timekeeper-error')}>
                     Choose who did this work

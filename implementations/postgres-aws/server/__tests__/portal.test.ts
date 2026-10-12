@@ -9,7 +9,14 @@ import { createTimeEntry } from '../src/portal/createTimeEntry';
 import { createInvoice } from '../src/portal/createInvoice';
 import { ValidationError } from '../src/errors';
 import { NotAssignedToCaseError } from '../src/portal/caseAssignmentAuthorization';
-import { caseAssignment, invoiceLine, timeEntry, userAccount } from '../src/db/schema';
+import { auditEvent, caseAssignment, invoiceLine, timeEntry, userAccount } from '../src/db/schema';
+import { giveRate } from './rateHelpers';
+import {
+  deleteTimeEntry,
+  TimeEntryInvoicedError,
+  TimeEntryNotFoundError,
+  updateTimeEntry,
+} from '../src/portal/changeTimeEntry';
 
 let fixtures: BaselineFixtureIds;
 
@@ -50,15 +57,16 @@ async function createVendorProfessional(email: string): Promise<{ userAccountId:
     throw new Error('Expected insert to return a row.');
   }
   const professionalId = await ensureProfessionalForUserAccount(testDb, account.userAccountId, email);
+  await giveRate(testDb, fixtures.staffUserAccountId, professionalId, 100);
   return { userAccountId: account.userAccountId, professionalId };
 }
 
 describe('createTimeEntry', () => {
   it('logs time against a case the professional is assigned to', async () => {
-    const { professionalId } = await createVendorProfessional('vendor1@example.com');
+    const { userAccountId, professionalId } = await createVendorProfessional('vendor1@example.com');
     const caseId = await createCaseAssignedTo(professionalId);
 
-    const result = await createTimeEntry(testDb, { professionalId }, {
+    const result = await createTimeEntry(testDb, { userAccountId, professionalId }, {
       caseId,
       activityOn: '2026-02-01',
       durationHours: 3.5,
@@ -71,7 +79,7 @@ describe('createTimeEntry', () => {
   });
 
   it('rejects a case the professional is not assigned to', async () => {
-    const { professionalId } = await createVendorProfessional('vendor2@example.com');
+    const { userAccountId, professionalId } = await createVendorProfessional('vendor2@example.com');
     const { caseId: unassignedCaseId } = await createCase(
       testDb,
       { userAccountId: fixtures.staffUserAccountId },
@@ -79,7 +87,7 @@ describe('createTimeEntry', () => {
     );
 
     await expect(
-      createTimeEntry(testDb, { professionalId }, {
+      createTimeEntry(testDb, { userAccountId, professionalId }, {
         caseId: unassignedCaseId,
         activityOn: '2026-02-01',
         durationHours: 1,
@@ -89,10 +97,10 @@ describe('createTimeEntry', () => {
   });
 
   it('rejects malformed input before touching the database', async () => {
-    const { professionalId } = await createVendorProfessional('vendor3@example.com');
+    const { userAccountId, professionalId } = await createVendorProfessional('vendor3@example.com');
 
     await expect(
-      createTimeEntry(testDb, { professionalId }, { caseId: 'not-a-uuid', durationHours: -1 }),
+      createTimeEntry(testDb, { userAccountId, professionalId }, { caseId: 'not-a-uuid', durationHours: -1 }),
     ).rejects.toThrow(ValidationError);
   });
 });
@@ -152,7 +160,7 @@ describe('createInvoice', () => {
   it('links a line to the submitter\'s own time entry for context', async () => {
     const { userAccountId, professionalId } = await createVendorProfessional('vendor5@example.com');
     const caseId = await createCaseAssignedTo(professionalId);
-    const { timeEntryId } = await createTimeEntry(testDb, { professionalId }, {
+    const { timeEntryId } = await createTimeEntry(testDb, { userAccountId, professionalId }, {
       caseId,
       activityOn: '2026-02-01',
       durationHours: 2,
@@ -170,7 +178,7 @@ describe('createInvoice', () => {
   it("rejects a line referencing someone else's time entry", async () => {
     const other = await createVendorProfessional('vendor6@example.com');
     const otherCaseId = await createCaseAssignedTo(other.professionalId);
-    const { timeEntryId: othersTimeEntryId } = await createTimeEntry(testDb, { professionalId: other.professionalId }, {
+    const { timeEntryId: othersTimeEntryId } = await createTimeEntry(testDb, other, {
       caseId: otherCaseId,
       activityOn: '2026-02-01',
       durationHours: 1,
@@ -226,7 +234,7 @@ describe('createInvoice', () => {
 // is just a catch around this same constraint.
 describe('case_assignment_open_unique', () => {
   it('rejects a second open assignment for the same case/professional pair', async () => {
-    const { professionalId } = await createVendorProfessional('vendor-dup@example.com');
+    const { userAccountId, professionalId } = await createVendorProfessional('vendor-dup@example.com');
     const caseId = await createCaseAssignedTo(professionalId);
 
     await expect(
@@ -238,5 +246,54 @@ describe('case_assignment_open_unique', () => {
         assignedByUserAccountId: fixtures.staffUserAccountId,
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe('changing time entries', () => {
+  const entry = { activityOn: '2026-02-01', durationHours: 2, description: 'Research' };
+
+  it('edits and deletes un-invoiced time, keeping the prior values', async () => {
+    const vendor = await createVendorProfessional('vendor9@example.com');
+    const caseId = await createCaseAssignedTo(vendor.professionalId);
+    const { timeEntryId } = await createTimeEntry(testDb, vendor, { caseId, ...entry });
+
+    await updateTimeEntry(testDb, vendor, timeEntryId, { ...entry, durationHours: 2.5 });
+    const [updated] = await testDb.select().from(timeEntry).where(eq(timeEntry.timeEntryId, timeEntryId));
+    expect(updated?.durationHours).toBe('2.50');
+
+    await deleteTimeEntry(testDb, vendor, timeEntryId);
+    expect(await testDb.select().from(timeEntry).where(eq(timeEntry.timeEntryId, timeEntryId))).toEqual([]);
+
+    const events = await testDb.select().from(auditEvent).where(eq(auditEvent.entityId, timeEntryId));
+    expect(events.map((event) => [event.eventType, (event.priorValues as { durationHours: string }).durationHours]).sort()).toEqual([
+      ['changed', '2.00'],
+      ['deleted', '2.50'],
+    ]);
+    expect(events.every((event) => event.actorUserAccountId === vendor.userAccountId)).toBe(true);
+  });
+
+  it('refuses time on any invoice, saying why', async () => {
+    const vendor = await createVendorProfessional('vendor10@example.com');
+    const caseId = await createCaseAssignedTo(vendor.professionalId);
+    const drafted = await createTimeEntry(testDb, vendor, { caseId, ...entry });
+    const submitted = await createTimeEntry(testDb, vendor, { caseId, ...entry });
+    await createInvoice(testDb, vendor, { caseId, submit: false, lines: [{ amount: 10, sourceTimeEntryId: drafted.timeEntryId }] });
+    await createInvoice(testDb, vendor, { caseId, lines: [{ amount: 10, sourceTimeEntryId: submitted.timeEntryId }] });
+
+    await expect(updateTimeEntry(testDb, vendor, drafted.timeEntryId, entry)).rejects.toThrow(
+      'This time is on a draft invoice. Change it on that draft, or remove it from the draft to edit or delete it here.',
+    );
+    await expect(deleteTimeEntry(testDb, vendor, submitted.timeEntryId)).rejects.toThrow(TimeEntryInvoicedError);
+    await expect(deleteTimeEntry(testDb, vendor, submitted.timeEntryId)).rejects.toThrow(/submitted for approval/);
+  });
+
+  it("hides someone else's time", async () => {
+    const vendor = await createVendorProfessional('vendor11@example.com');
+    const other = await createVendorProfessional('vendor12@example.com');
+    const caseId = await createCaseAssignedTo(vendor.professionalId);
+    const { timeEntryId } = await createTimeEntry(testDb, vendor, { caseId, ...entry });
+
+    await expect(updateTimeEntry(testDb, other, timeEntryId, entry)).rejects.toThrow(TimeEntryNotFoundError);
+    await expect(deleteTimeEntry(testDb, other, 'not-a-uuid')).rejects.toThrow(TimeEntryNotFoundError);
   });
 });

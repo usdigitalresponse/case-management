@@ -1,4 +1,4 @@
-spec_version: "0.3.0"
+spec_version: "0.4.0"
 status: draft
 kind: domain_schema
 
@@ -139,6 +139,11 @@ entities:
         type: reference
         required: false
         reference_data: qualification_levels
+      professional_kind_id:
+        type: reference
+        required: false
+        reference_data: professional_kinds
+        description: The kind of professional, such as an attorney or investigator, whose configured rate prices their time.
       office_id:
         type: uuid
         required: false
@@ -269,6 +274,11 @@ entities:
         required: false
         references: invoice_import.invoice_import_id
         description: The import whose confirmed line created this entry; absent for directly recorded time.
+      recorded_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+        description: The user who recorded the entry, the professional or a delegate acting for them; distinct from professional_id, whose work it is.
 
   expense:
     display_name: Expense
@@ -298,6 +308,33 @@ entities:
         required: false
         references: invoice_import.invoice_import_id
         description: The import whose confirmed line created this expense; absent for directly recorded expenses.
+
+  professional_kind_rate:
+    display_name: Professional Kind Rate
+    description: An administrator-set hourly rate for one kind of professional from a date until a later rate for that kind takes over. Rates are added, never changed.
+    primary_key: professional_kind_rate_id
+    fields:
+      professional_kind_rate_id:
+        type: uuid
+        required: true
+        generated: true
+      professional_kind_id:
+        type: reference
+        required: true
+        reference_data: professional_kinds
+      hourly_rate:
+        type: money
+        required: true
+      effective_from:
+        type: date
+        required: true
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
 
   invoice:
     display_name: Payment Request
@@ -384,11 +421,19 @@ entities:
       quantity:
         type: decimal
         required: false
-        description: Hours or units as stated by the payee; informational, never used to calculate amount.
+        description: Hours or units. On a time line, the linked time entry's hours govern and price the line; otherwise informational.
       unit_rate:
         type: money
         required: false
-        description: Rate as stated by the payee; there is no configured rate entity.
+        description: Rate as stated by the payee; evidence only, never used to calculate amount.
+      billed_rate:
+        type: money
+        required: false
+        description: The professional_kind_rate applied to a time line; the line amount is its hours times this rate.
+      stated_amount:
+        type: money
+        required: false
+        description: Amount as stated on an imported supporting invoice, kept as evidence beside the billed amount.
       timekeeper_label:
         type: string
         required: false
@@ -681,6 +726,11 @@ entities:
       occurred_at:
         type: datetime
         required: true
+      prior_values:
+        type: object
+        required: false
+        data_role: snapshot
+        description: The record's values before a change or deletion.
 
   person:
     display_name: Person

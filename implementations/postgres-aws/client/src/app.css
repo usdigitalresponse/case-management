@@ -64,6 +64,8 @@ button, input { font: inherit; }
 .status-pill--approved { background: #e3f5e1; color: #19591e; }
 .status-pill--rejected { background: #fde8e6; color: #8b1303; }
 .status-pill--draft, .status-pill--withdrawn { background: #f3f3f3; color: #454545; }
+/* Portal case cards: work not yet submitted for approval. */
+.status-pill--pending { background: #fff1d6; color: #6b4a00; }
 
 /* List toolbar: result count + client-side filter. */
 .stage-filter-note { color: #596576; font-size: .85rem; margin: 1.2rem 0 0; }
@@ -209,6 +211,7 @@ form.compact-form { max-width: none; }
 .inline-fields .usa-button { margin: 0; height: 2.25rem; padding: 0 1rem; }
 .inline-fields .usa-checkbox { grid-column: 1 / -1; background: transparent; }
 .time-entry-fields { grid-template-columns: 10rem 6rem minmax(0, 1fr) auto; }
+.time-entry-fields--with-professional { grid-template-columns: minmax(9rem, 13rem) 10rem 6rem minmax(0, 1fr) auto; }
 .compact-hint { color: #66717d; font-size: .85rem; margin: .45rem 0 0; }
 .compact-file { font-size: .9rem; max-width: 100%; }
 .import-fields { grid-template-columns: minmax(0, 1fr) auto; }
@@ -264,6 +267,23 @@ form.compact-form { max-width: none; }
 .line-remove { border: 0; background: none; color: #565c65; font-size: 1.25rem; line-height: 1; cursor: pointer; height: 2.25rem; padding: 0 .3rem; }
 .line-remove:hover { color: #b50909; }
 .line-add { margin-top: .5rem; }
+/* A time item's amount comes from rates, so it's shown, not entered. */
+.line-amount { display: flex; align-items: center; min-height: 2.25rem; margin: 0; }
+.line-amount-missing { color: #8b1303; font-size: .8rem; line-height: 1.2; }
+/* Recorded, unbilled time to tick onto an invoice. */
+.unbilled-time { margin: 0 0 1rem; padding: .6rem .8rem; border: 1px solid #dce1e8; border-radius: 6px; }
+.unbilled-time .usa-legend { font-size: .9rem; font-weight: 700; margin: 0 0 .3rem; }
+.unbilled-time .usa-checkbox { background: transparent; }
+.unbilled-time-row { display: inline-flex; flex-wrap: wrap; gap: .2rem 1rem; }
+.unbilled-time-description { color: #4b5560; }
+.rate-note { margin: 0 0 .8rem; font-size: .85rem; color: #4b5560; }
+.line-stated { display: block; font-size: .78rem; color: #8b1303; white-space: nowrap; }
+/* Settings: one card per kind of professional. */
+.settings-kind { margin-bottom: 1rem; }
+.settings-kind h3 { margin: 0 0 .3rem; }
+.rate-fields { grid-template-columns: minmax(8rem, 12rem) minmax(9rem, 11rem) auto; margin-top: .8rem; }
+.kind-cell { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .75rem; }
+.kind-cell .usa-select { margin: 0; width: auto; min-width: 9rem; height: 2.25rem; padding: .25rem 2rem .25rem .5rem; }
 @media (max-width: 760px) {
   .inline-fields, .line-row { grid-template-columns: 1fr !important; }
   .line-editor-head { display: none; }

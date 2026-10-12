@@ -1,16 +1,16 @@
 // Lets a full user search for another staff member to assign to a case
 // (../routes/cases.ts POST /:id/staff-assignments) — the staff-side
 // counterpart to ../routes/professionals.ts's vendor search. "Staff" means
-// a user_account created through SSO login, marked by
-// ../auth/staffAccountRole.ts's role at account-creation time; a vendor's
-// magic-link account never gets that role, so it's excluded here even
+// a user_account created through SSO login, marked by one of
+// ../auth/staffAccountRole.ts's roles; a vendor's magic-link account
+// never gets one, so it's excluded here even
 // though both live in the same user_account table.
 import { Router } from 'express';
-import { and, asc, eq, ilike, or } from 'drizzle-orm';
+import { and, asc, ilike, inArray, or } from 'drizzle-orm';
 import { db } from '../db/client';
 import { userAccount } from '../db/schema';
 import { requireFullUser } from '../auth/session';
-import { getStaffAccountRoleId } from '../auth/staffAccountRole';
+import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -25,7 +25,7 @@ router.get(
       return;
     }
     const pattern = `%${q}%`;
-    const staffAccountRoleId = await getStaffAccountRoleId(db);
+    const staffAccountRoleIds = await getStaffAccountRoleIds(db);
     const matches = await db
       .select({
         userAccountId: userAccount.userAccountId,
@@ -36,7 +36,7 @@ router.get(
       .from(userAccount)
       .where(
         and(
-          eq(userAccount.systemRoleId, staffAccountRoleId),
+          inArray(userAccount.systemRoleId, staffAccountRoleIds),
           or(ilike(userAccount.displayName, pattern), ilike(userAccount.email, pattern)),
         ),
       )

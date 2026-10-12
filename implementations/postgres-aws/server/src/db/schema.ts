@@ -48,6 +48,8 @@ export const invoiceApprovalOutcomes = referenceTable('invoice_approval_outcomes
 export const invoiceEventTypes = referenceTable('invoice_event_types');
 export const invoiceImportFormats = referenceTable('invoice_import_formats');
 export const invoiceImportStatuses = referenceTable('invoice_import_statuses');
+// Administrator-maintained (../billing/professionalRates.ts); none are seeded.
+export const professionalKinds = referenceTable('professional_kinds');
 
 // --- core entities ----------------------------------------------------------
 
@@ -150,6 +152,8 @@ export const professional = pgTable(
     displayName: text('display_name'),
     active: boolean('active').notNull().default(true),
     officeId: uuid('office_id').references(() => office.officeId),
+    // Whose rates price this professional's time.
+    professionalKindId: uuid('professional_kind_id').references(() => professionalKinds.id),
   },
   (table) => [
     // Postgres unique indexes treat NULL as distinct from every other
@@ -247,6 +251,9 @@ export const timeEntry = pgTable(
     sourceInvoiceImportId: uuid('source_invoice_import_id').references(
       (): AnyPgColumn => invoiceImport.invoiceImportId,
     ),
+    // The professional, or a delegate acting for them (model/rules.yaml
+    // authorize_delegated_submission). Absent on entries from before 0.4.0.
+    recordedByUserAccountId: uuid('recorded_by_user_account_id').references(() => userAccount.userAccountId),
   },
   (table) => [
     // GET /api/portal/time-entries filters by caseId for the caller's own
@@ -254,6 +261,43 @@ export const timeEntry = pgTable(
     index('time_entry_case_id_idx').on(table.caseId),
     index('time_entry_professional_id_idx').on(table.professionalId),
   ],
+);
+
+// Insert-only. So far it records only time entry changes and deletions
+// (../portal/changeTimeEntry.ts); other entities keep their own event tables.
+export const auditEvent = pgTable(
+  'audit_event',
+  {
+    auditEventId: uuid('audit_event_id').primaryKey().defaultRandom(),
+    entityType: text('entity_type').notNull(),
+    entityId: uuid('entity_id').notNull(),
+    eventType: text('event_type').notNull(),
+    actorUserAccountId: uuid('actor_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    priorValues: jsonb('prior_values'),
+  },
+  (table) => [index('audit_event_entity_idx').on(table.entityType, table.entityId)],
+);
+
+// Insert-only: a new rate takes over from its date (model/rules.yaml
+// apply_professional_rates; ../billing/professionalRates.ts).
+export const professionalKindRate = pgTable(
+  'professional_kind_rate',
+  {
+    professionalKindRateId: uuid('professional_kind_rate_id').primaryKey().defaultRandom(),
+    professionalKindId: uuid('professional_kind_id')
+      .notNull()
+      .references(() => professionalKinds.id),
+    hourlyRate: numeric('hourly_rate', { precision: 12, scale: 2 }).notNull(),
+    effectiveFrom: date('effective_from').notNull(),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('professional_kind_rate_kind_idx').on(table.professionalKindId, table.effectiveFrom)],
 );
 
 // model/schema.yaml: invoice.service_provider_id (required, references a
@@ -292,16 +336,17 @@ export const invoiceLine = pgTable(
     invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
     caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
     lineTypeId: uuid('line_type_id').notNull().references(() => invoiceLineTypes.id),
-    // Context only, not used to derive `amount` — the submitter states
-    // the amount directly (there's no billing-rate entity to derive it
-    // from); see ../portal/createInvoice.ts.
+    // Every submitted time line has one (../billing/linkTimeEntries.ts).
     sourceTimeEntryId: uuid('source_time_entry_id').references(() => timeEntry.timeEntryId),
+    // On a time line, hours × billedRate (../billing/priceTimeLines.ts).
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
-    // Supplier-stated evidence; never used to compute the amount.
     serviceDate: date('service_date'),
     description: text('description'),
     quantity: numeric('quantity', { precision: 10, scale: 2 }),
+    // Supplier-stated evidence; never used to compute the amount.
     unitRate: numeric('unit_rate', { precision: 12, scale: 2 }),
+    statedAmount: numeric('stated_amount', { precision: 12, scale: 2 }),
+    billedRate: numeric('billed_rate', { precision: 12, scale: 2 }),
     timekeeperLabel: text('timekeeper_label'),
     // Whom the submitter matched the label to.
     timekeeperProfessionalId: uuid('timekeeper_professional_id').references(

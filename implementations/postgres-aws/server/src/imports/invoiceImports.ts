@@ -34,6 +34,7 @@ import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile } from './detectFormat';
 import { reconciliationWarnings, UnreadableInvoiceFileError, type ImportWarning, type ParsedInvoice } from './parsedInvoice';
 import { CONFIRMED_IMPORT_STATUS_CODE } from './importedTimeEntries';
+import { priceTimeLines } from '../billing/priceTimeLines';
 import { matchTimekeeperName } from './matchTimekeeper';
 
 export const IMPORT_EXPIRY_MS = 3 * 24 * 60 * 60 * 1000;
@@ -301,6 +302,8 @@ export async function uploadInvoiceFile(
         lines: parsed.lines.map((line) => ({
           lineType: line.lineType,
           amount: line.amount,
+          // Kept as evidence; time lines are priced from configured rates.
+          statedAmount: line.amount,
           serviceDate: line.serviceDate,
           description: line.description,
           quantity: line.quantity !== undefined && line.quantity > 0 ? line.quantity : undefined,
@@ -417,6 +420,12 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
             : `Choose who did the work for ${unmatched} ${unmatched === 1 ? 'item' : 'items'} before confirming.`,
       });
     }
+    // From here the configured rates price each time line, not the file.
+    await priceTimeLines(tx, row.invoiceId, {
+      billedProfessionalId: draft.professionalId,
+      unmatchedMeansBilled: true,
+      strict: true,
+    });
     await resolveImport(tx, importId, row.documentId, CONFIRMED_IMPORT_STATUS_CODE, actor.userAccountId);
     return row.storageReference;
   });

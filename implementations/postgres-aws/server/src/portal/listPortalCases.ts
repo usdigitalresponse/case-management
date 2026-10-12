@@ -2,10 +2,24 @@
 // delegate, is actively assigned to: the external user's entry point. Each
 // case lists which of those professionals hold it, so the portal can show a
 // section per person; a case shared by several appears in each section.
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
-import type { DatabaseOrTransaction } from '../db/client';
-import { caseAssignment, caseTable, caseStatuses, person, professional } from '../db/schema';
-import { representedProfessionalIds, resolvePortalActor } from './portalActor';
+// Each case also flags, per professional, work not yet submitted for
+// approval.
+import { and, asc, eq, exists, inArray, isNull, not, notInArray } from 'drizzle-orm';
+import type { Database } from '../db/client';
+import {
+  caseAssignment,
+  caseTable,
+  caseStatuses,
+  invoice,
+  invoiceLine,
+  invoiceStatuses,
+  person,
+  professional,
+  timeEntry,
+} from '../db/schema';
+import { portalReadableInvoiceCondition } from '../billing/invoiceAccess';
+import { UNSUBMITTED_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
+import { representedProfessionalIds, resolvePortalActor, type PortalActor } from './portalActor';
 
 export interface PortalCaseProfessional {
   professionalId: string;
@@ -22,10 +36,68 @@ export interface PortalCase {
   // The earliest open assignment among the listed professionals.
   assignedAt: Date;
   assignedProfessionalIds: string[];
+  // Time on no submitted invoice.
+  unsubmittedTimeProfessionalIds: string[];
+  // Draft or withdrawn invoices you can read, by whom they bill.
+  unsubmittedInvoiceProfessionalIds: string[];
+}
+
+type CaseProfessionalPairs = Array<{ caseId: string; professionalId: string }>;
+
+function unsubmittedTime(db: Database, professionalIds: string[], caseIds: string[]): Promise<CaseProfessionalPairs> {
+  const onSubmittedInvoice = db
+    .select({ invoiceLineId: invoiceLine.invoiceLineId })
+    .from(invoiceLine)
+    .innerJoin(invoice, eq(invoiceLine.invoiceId, invoice.invoiceId))
+    .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+    .where(
+      and(
+        eq(invoiceLine.sourceTimeEntryId, timeEntry.timeEntryId),
+        notInArray(invoiceStatuses.code, UNSUBMITTED_INVOICE_STATUS_CODES),
+      ),
+    );
+  return db
+    .selectDistinct({ caseId: timeEntry.caseId, professionalId: timeEntry.professionalId })
+    .from(timeEntry)
+    .where(
+      and(
+        inArray(timeEntry.professionalId, professionalIds),
+        inArray(timeEntry.caseId, caseIds),
+        not(exists(onSubmittedInvoice)),
+      ),
+    );
+}
+
+function unsubmittedInvoices(
+  db: Database,
+  reader: PortalActor,
+  professionalIds: string[],
+  caseIds: string[],
+): Promise<CaseProfessionalPairs> {
+  return db
+    .selectDistinct({ caseId: invoice.caseId, professionalId: invoice.professionalId })
+    .from(invoice)
+    .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+    .where(
+      and(
+        inArray(invoice.caseId, caseIds),
+        inArray(invoice.professionalId, professionalIds),
+        inArray(invoiceStatuses.code, UNSUBMITTED_INVOICE_STATUS_CODES),
+        portalReadableInvoiceCondition(db, reader),
+      ),
+    );
+}
+
+function idsByCase(pairs: CaseProfessionalPairs): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+  for (const { caseId, professionalId } of pairs) {
+    result.set(caseId, [...(result.get(caseId) ?? []), professionalId]);
+  }
+  return result;
 }
 
 export async function listPortalCases(
-  db: DatabaseOrTransaction,
+  db: Database,
   userAccountId: string,
 ): Promise<{ professionals: PortalCaseProfessional[]; cases: PortalCase[] }> {
   const actor = await resolvePortalActor(db, userAccountId);
@@ -70,9 +142,27 @@ export async function listPortalCases(
   for (const { professionalId, ...row } of rows) {
     const existing = byCase.get(row.caseId);
     if (!existing) {
-      byCase.set(row.caseId, { ...row, assignedProfessionalIds: [professionalId] });
+      byCase.set(row.caseId, {
+        ...row,
+        assignedProfessionalIds: [professionalId],
+        unsubmittedTimeProfessionalIds: [],
+        unsubmittedInvoiceProfessionalIds: [],
+      });
     } else if (!existing.assignedProfessionalIds.includes(professionalId)) {
       existing.assignedProfessionalIds.push(professionalId);
+    }
+  }
+  const caseIds = [...byCase.keys()];
+  if (caseIds.length > 0) {
+    const [time, invoices] = await Promise.all([
+      unsubmittedTime(db, professionalIds, caseIds),
+      unsubmittedInvoices(db, actor, professionalIds, caseIds),
+    ]);
+    for (const [caseId, ids] of idsByCase(time)) {
+      byCase.get(caseId)!.unsubmittedTimeProfessionalIds = ids;
+    }
+    for (const [caseId, ids] of idsByCase(invoices)) {
+      byCase.get(caseId)!.unsubmittedInvoiceProfessionalIds = ids;
     }
   }
   return { professionals, cases: [...byCase.values()] };

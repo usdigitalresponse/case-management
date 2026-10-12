@@ -26,6 +26,7 @@ import { UnreadableInvoiceFileError } from '../src/imports/parsedInvoice';
 import type { DocumentStore } from '../src/imports/documentStore';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { ValidationError } from '../src/errors';
+import { giveRate } from './rateHelpers';
 import {
   caseAssignment,
   document,
@@ -155,6 +156,7 @@ describe('invoice import workflow', () => {
       .values({ displayName, email: `${randomUUID()}@example.com`, active: true })
       .returning();
     const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, displayName);
+    await giveRate(testDb, fixtures.staffUserAccountId, professionalId, 120);
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, {
       requestId: randomUUID(),
       personId: fixtures.clientPersonId,
@@ -209,6 +211,10 @@ describe('invoice import workflow', () => {
     expect(entries[0]).toMatchObject({ professionalId, activityOn: '2026-01-10', durationHours: '1.50' });
     const [timeLine] = await testDb.select().from(invoiceLine).where(eq(invoiceLine.sourceTimeEntryId, entries[0]!.timeEntryId));
     expect(timeLine?.invoiceId).toBe(invoiceId);
+    // Billed at the configured rate; the file's rate and amount stay as evidence.
+    expect(timeLine).toMatchObject({ amount: '180.00', billedRate: '120.00', unitRate: '100.00', statedAmount: '150.00' });
+    const [row] = await testDb.select({ total: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(row?.total).toBe('220.00');
   });
 
   it('suggests "Last, First" names and, for unnamed lines, the billed professional', async () => {
@@ -242,6 +248,13 @@ describe('invoice import workflow', () => {
     await updateDraftInvoice(testDb, actor, uploaded.invoiceId as string, {
       lines: [{ amount: 150, lineType: 'time', timekeeperProfessionalId: professionalId }],
     });
+    // A time line needs a date and hours to be priced.
+    await expect(confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId)).rejects.toThrow(
+      expect.objectContaining({ fieldErrors: { lines: 'Each time item needs a date and hours.' } }),
+    );
+    await updateDraftInvoice(testDb, actor, uploaded.invoiceId as string, {
+      lines: [{ amount: 150, lineType: 'time', timekeeperProfessionalId: professionalId, serviceDate: '2026-01-10', quantity: 1.5 }],
+    });
     await confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId);
   });
 
@@ -271,6 +284,7 @@ describe('invoice import workflow', () => {
         description: line.description ?? undefined,
         quantity: line.quantity === null ? undefined : Number(line.quantity),
         unitRate: line.unitRate === null ? undefined : Number(line.unitRate),
+        statedAmount: line.statedAmount === null ? undefined : Number(line.statedAmount),
         timekeeperLabel: line.timekeeperLabel ?? undefined,
         timekeeperProfessionalId: line.timekeeperProfessionalId ?? undefined,
         taskCode: line.taskCode ?? undefined,
@@ -282,7 +296,13 @@ describe('invoice import workflow', () => {
 
     expect(await comparable()).toEqual(before);
     // Every editable invoice_line column is exercised by this file.
-    expect(before[0]).toMatchObject({ unitRate: '100.00', timekeeperLabel: 'Synthetic Timekeeper', taskCode: 'SAMPLE-TASK' });
+    expect(before[0]).toMatchObject({
+      unitRate: '100.00',
+      statedAmount: '150.00',
+      billedRate: '120.00',
+      timekeeperLabel: 'Synthetic Timekeeper',
+      taskCode: 'SAMPLE-TASK',
+    });
     expect(before[1]).toMatchObject({ expenseCode: 'SAMPLE-EXP' });
   });
 

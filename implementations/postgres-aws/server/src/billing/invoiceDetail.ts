@@ -58,6 +58,8 @@ export async function loadInvoiceLines(db: Database, invoiceId: string) {
       description: invoiceLine.description,
       quantity: invoiceLine.quantity,
       unitRate: invoiceLine.unitRate,
+      statedAmount: invoiceLine.statedAmount,
+      billedRate: invoiceLine.billedRate,
       timekeeperLabel: invoiceLine.timekeeperLabel,
       timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       timekeeperDisplayName: professional.displayName,

@@ -1,0 +1,2 @@
+ALTER TABLE "time_entry" ADD COLUMN "recorded_by_user_account_id" uuid;--> statement-breakpoint
+ALTER TABLE "time_entry" ADD CONSTRAINT "time_entry_recorded_by_user_account_id_user_account_user_account_id_fk" FOREIGN KEY ("recorded_by_user_account_id") REFERENCES "public"."user_account"("user_account_id") ON DELETE no action ON UPDATE no action;

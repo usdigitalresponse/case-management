@@ -9,6 +9,20 @@ Model files are now 0.3.0. That revision is additive: `invoice_import`, optional
 supplier-stated `invoice_line` detail and `time_entry.source_invoice_import_id`;
 see the [import and export plan](invoice-import-export-plan.md).
 
+Model files are now 0.4.0, also additive: optional
+`time_entry.recorded_by_user_account_id` and `audit_event.prior_values`; an
+office delegate may read and record time for the professionals they act for
+(`authorize_delegated_submission`); and a time entry no invoice line
+references may be changed or deleted (`validate_activity_and_time_context`).
+It also adds `professional.professional_kind_id` and administrator-set,
+effective-dated `professional_kind_rate`, and prices time lines from them
+(`apply_professional_rates`), with `invoice_line.billed_rate` and
+`stated_amount`; payee-stated rates and amounts become evidence. Every
+submitted time line now has a time entry, and a time entry is on at most one
+request that isn't withdrawn (`validate_payment_request`). These tighten
+earlier behaviour: a manual time line without a rate or hours no longer
+submits.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

@@ -57,8 +57,9 @@ for initial setup or when intentionally resetting the demo database.
 
 Without a `.env` file (copy
 `.env.example`), Google sign-in is disabled and only the "Demo sign-in"
-(staff) and "Demo partner sign-in" (external partner, who is also their
-office's billing delegate) buttons work.
+(staff, also an administrator who can change rates under Settings) and
+"Demo partner sign-in" (external partner, who is also their office's billing
+delegate) buttons work.
 
 Open http://localhost:5173, click "Demo sign-in," and you should see 10
 seeded cases with synthetic (Faker-generated) client names on the overview.

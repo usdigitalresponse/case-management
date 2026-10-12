@@ -31,6 +31,8 @@ export interface AuthenticatedUser {
   displayName: string;
   authType: 'sso' | 'magic-link';
   ssoProvider?: string;
+  // From /auth/me only; shows Settings. The server checks it on each change.
+  isAdmin?: boolean;
 }
 
 export function getCurrentUser(): Promise<AuthenticatedUser> {
@@ -224,10 +226,50 @@ export interface VendorRecord {
   displayName: string | null;
   active: boolean;
   email: string;
+  professionalKindId: string | null;
+  professionalKindDisplayName: string | null;
+  // Their kind's rates, oldest first.
+  rates: ProfessionalRate[];
 }
 
 export function listVendors(query: string): Promise<{ professionals: VendorRecord[] }> {
   return request<{ professionals: VendorRecord[] }>(`/api/professionals?q=${encodeURIComponent(query)}`);
+}
+
+// --- Settings (administrators change them; staff can read) -----------------
+
+export interface ProfessionalKind {
+  professionalKindId: string;
+  displayName: string;
+  active: boolean;
+  // Oldest first.
+  rates: ProfessionalRate[];
+}
+
+export function listProfessionalKinds(): Promise<{ kinds: ProfessionalKind[] }> {
+  return request<{ kinds: ProfessionalKind[] }>('/api/settings/professional-kinds');
+}
+
+export function createProfessionalKind(displayName: string): Promise<ProfessionalKind> {
+  return request<ProfessionalKind>('/api/settings/professional-kinds', {
+    method: 'POST',
+    body: JSON.stringify({ displayName }),
+  });
+}
+
+// Adds a rate from a date rather than changing an earlier one.
+export function addKindRate(professionalKindId: string, input: { hourlyRate: number; effectiveFrom: string }): Promise<ProfessionalRate> {
+  return request<ProfessionalRate>(`/api/settings/professional-kinds/${professionalKindId}/rates`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function setProfessionalKind(professionalId: string, professionalKindId: string | null): Promise<unknown> {
+  return request(`/api/professionals/${professionalId}/kind`, {
+    method: 'PUT',
+    body: JSON.stringify({ professionalKindId }),
+  });
 }
 
 export interface ReferenceOption {
@@ -324,6 +366,10 @@ export interface MyCaseRecord {
   clientDisplayName: string | null;
   assignedAt: string;
   assignedProfessionalIds: string[];
+  // Your own time not on a submitted invoice.
+  unsubmittedTimeProfessionalIds: string[];
+  // Draft or withdrawn invoices you can read, by whom they bill.
+  unsubmittedInvoiceProfessionalIds: string[];
 }
 
 export interface MyCaseProfessional {
@@ -350,6 +396,10 @@ export interface TimeEntryRecord {
   activityOn: string;
   durationHours: string;
   description: string;
+  // The invoice billing it; null while unbilled (a withdrawn invoice frees it).
+  billing: { invoiceId: string; statusCode: string } | null;
+  // Why it can't be edited or deleted here, or null.
+  lockedReason: string | null;
 }
 
 export interface CreateTimeEntryInput {
@@ -357,6 +407,8 @@ export interface CreateTimeEntryInput {
   activityOn: string;
   durationHours: number;
   description: string;
+  // Whose work it is; defaults to your own.
+  professionalId?: string;
 }
 
 export function listMyTimeEntries(caseId: string): Promise<{ timeEntries: TimeEntryRecord[] }> {
@@ -368,6 +420,19 @@ export function createTimeEntry(input: CreateTimeEntryInput): Promise<{ timeEntr
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export type UpdateTimeEntryInput = Pick<CreateTimeEntryInput, 'activityOn' | 'durationHours' | 'description'>;
+
+export function updateTimeEntry(timeEntryId: string, input: UpdateTimeEntryInput): Promise<{ timeEntryId: string }> {
+  return request<{ timeEntryId: string }>(`/api/portal/time-entries/${timeEntryId}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteTimeEntry(timeEntryId: string): Promise<{ timeEntryId: string }> {
+  return request<{ timeEntryId: string }>(`/api/portal/time-entries/${timeEntryId}`, { method: 'DELETE' });
 }
 
 export interface InvoiceRecord {
@@ -390,13 +455,16 @@ export type InvoiceLineType = 'time' | 'expense' | 'other';
 
 export interface CreateInvoiceLineInput {
   lineType?: InvoiceLineType;
-  amount: number;
+  // Required except on a time line, which the server prices from rates.
+  amount?: number;
+  // Bill this recorded time; makes the line a time line.
   sourceTimeEntryId?: string;
   serviceDate?: string;
   description?: string;
   quantity?: number;
   // Supplier-stated detail from an imported file; kept as evidence.
   unitRate?: number;
+  statedAmount?: number;
   timekeeperLabel?: string;
   taskCode?: string;
   activityCode?: string;
@@ -411,6 +479,25 @@ export interface BillableProfessional {
   professionalId: string;
   displayName: string | null;
   isSelf: boolean;
+  // Oldest first; set by staff.
+  rates: ProfessionalRate[];
+}
+
+export interface ProfessionalRate {
+  hourlyRate: string;
+  effectiveFrom: string;
+}
+
+// The rate with the latest start on or before the date
+// (server/src/billing/professionalRates.ts).
+export function rateOn(rates: ProfessionalRate[], date: string): string | undefined {
+  let found: string | undefined;
+  for (const rate of rates) {
+    if (rate.effectiveFrom <= date) {
+      found = rate.hourlyRate;
+    }
+  }
+  return found;
 }
 
 export function listBillableProfessionals(caseId: string): Promise<{ professionals: BillableProfessional[] }> {
@@ -621,7 +708,11 @@ export interface InvoiceReviewLine {
   serviceDate: string | null;
   description: string | null;
   quantity: string | null;
+  // As stated on an imported file; evidence only.
   unitRate: string | null;
+  statedAmount: string | null;
+  // The staff-set rate a time line is billed at.
+  billedRate: string | null;
   timekeeperLabel: string | null;
   timekeeperProfessionalId: string | null;
   timekeeperDisplayName: string | null;

@@ -139,8 +139,9 @@ function ExtractedReview({ data, onChanged }: { data: Loaded; onChanged: () => v
         </Alert>
       )}
       <p className="import-review-intro">
-        Check each item against the original and choose who did the work. Confirming deletes the file; the draft stays
-        editable until you submit it.
+        Check each item against the original and choose who did the work. Time is billed at the configured hourly rate
+        for that kind of professional, not the file's rate; items where they differ are noted. Confirming deletes the
+        file; the draft stays editable until you submit it.
       </p>
       <div className={importDetail.fileAvailable ? 'import-review-layout' : undefined}>
         {importDetail.fileAvailable && (

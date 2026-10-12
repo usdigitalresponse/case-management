@@ -9,7 +9,7 @@ import { InvoiceLineReviewActions } from '../components/InvoiceLineReviewActions
 import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
 import { InvoiceSummary, invoiceReference } from '../components/InvoiceSummary';
 import { LineDecision } from '../components/LineDecision';
-import { lineDate, lineDescription, lineHours, lineRate, lineTimekeeper, lineType } from '../invoiceLineDisplay';
+import { lineDate, lineDescription, lineHours, lineRate, lineStatedDifference, lineTimekeeper, lineType } from '../invoiceLineDisplay';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatMoney } from '../formatMoney';
 
@@ -85,7 +85,18 @@ export default function InvoiceReview() {
             { header: 'Timekeeper', render: lineTimekeeper },
             { header: 'Hours', render: lineHours },
             { header: 'Rate', render: (l) => <span className="amount">{lineRate(l)}</span> },
-            { header: 'Requested', render: (l) => <span className="amount">{formatMoney(l.amount)}</span> },
+            {
+              header: 'Requested',
+              render: (l) => {
+                const stated = lineStatedDifference(l);
+                return (
+                  <>
+                    <span className="amount">{formatMoney(l.amount)}</span>
+                    {stated && <span className="line-stated">{stated}</span>}
+                  </>
+                );
+              },
+            },
             {
               header: 'Review',
               render: (l) =>

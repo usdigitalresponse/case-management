@@ -1,5 +1,5 @@
-// Creates time entries from a confirmed import's time lines on submission
-// (model/rules.yaml create_time_entries_from_import).
+// Creates time entries from a request's time lines on submission
+// (model/rules.yaml create_time_entries_from_import, validate_payment_request).
 import { and, eq, gt, isNotNull, isNull } from 'drizzle-orm';
 import type { DatabaseOrTransaction, Transaction } from '../db/client';
 import { getReferenceId } from '../db/referenceLookups';
@@ -15,7 +15,7 @@ import {
 
 export const CONFIRMED_IMPORT_STATUS_CODE = 'confirmed';
 
-// No mapping from supplier activity codes yet.
+// No mapping from supplier activity codes yet; typed time uses the same.
 const IMPORTED_TIME_ACTIVITY_TYPE_CODE = 'legal_services';
 
 export async function findImportForInvoice(db: DatabaseOrTransaction, invoiceId: string) {
@@ -27,12 +27,16 @@ export async function findImportForInvoice(db: DatabaseOrTransaction, invoiceId:
   return row;
 }
 
-export async function createTimeEntriesFromImportedLines(
+// Every submitted time line has a time entry (model/rules.yaml
+// validate_payment_request): one is created for each complete time line
+// typed or imported without one. Incomplete lines are left for pricing to
+// reject.
+export async function createTimeEntriesForTimeLines(
   tx: Transaction,
-  invoiceId: string,
-  invoiceImportId: string,
-  caseId: string,
+  invoice: { invoiceId: string; caseId: string; billedProfessionalId: string; invoiceImportId?: string },
+  recordedByUserAccountId: string,
 ): Promise<void> {
+  const { invoiceId, caseId, invoiceImportId } = invoice;
   const lines = await tx
     .select({
       invoiceLineId: invoiceLine.invoiceLineId,
@@ -48,7 +52,6 @@ export async function createTimeEntriesFromImportedLines(
         eq(invoiceLine.invoiceId, invoiceId),
         eq(invoiceLineTypes.code, 'time'),
         isNull(invoiceLine.sourceTimeEntryId),
-        isNotNull(invoiceLine.timekeeperProfessionalId),
         isNotNull(invoiceLine.serviceDate),
         gt(invoiceLine.quantity, '0'),
       ),
@@ -59,23 +62,25 @@ export async function createTimeEntriesFromImportedLines(
   const activityTypeId = await getReferenceId(tx, activityTypes, IMPORTED_TIME_ACTIVITY_TYPE_CODE);
 
   for (const line of lines) {
-    const professionalId = line.professionalId as string;
+    const professionalId = line.professionalId ?? invoice.billedProfessionalId;
     const activityOn = line.serviceDate as string;
     const durationHours = line.quantity as string;
-    // Resubmitting after a recall reuses this import's earlier entry.
-    // eslint-disable-next-line no-await-in-loop
-    const [existing] = await tx
-      .select({ timeEntryId: timeEntry.timeEntryId })
-      .from(timeEntry)
-      .where(
-        and(
-          eq(timeEntry.sourceInvoiceImportId, invoiceImportId),
-          eq(timeEntry.professionalId, professionalId),
-          eq(timeEntry.caseId, caseId),
-          eq(timeEntry.activityOn, activityOn),
-          eq(timeEntry.durationHours, durationHours),
-        ),
-      );
+    // Resubmitting an import after a recall reuses its earlier entry.
+    const [existing] = invoiceImportId
+      ? // eslint-disable-next-line no-await-in-loop
+        await tx
+          .select({ timeEntryId: timeEntry.timeEntryId })
+          .from(timeEntry)
+          .where(
+            and(
+              eq(timeEntry.sourceInvoiceImportId, invoiceImportId),
+              eq(timeEntry.professionalId, professionalId),
+              eq(timeEntry.caseId, caseId),
+              eq(timeEntry.activityOn, activityOn),
+              eq(timeEntry.durationHours, durationHours),
+            ),
+          )
+      : [];
     const timeEntryId =
       existing?.timeEntryId ??
       firstRow(
@@ -88,8 +93,9 @@ export async function createTimeEntriesFromImportedLines(
             activityTypeId,
             activityOn,
             durationHours,
-            description: line.description ?? 'Imported time',
+            description: line.description ?? (invoiceImportId ? 'Imported time' : 'Time'),
             sourceInvoiceImportId: invoiceImportId,
+            recordedByUserAccountId,
           })
           .returning({ timeEntryId: timeEntry.timeEntryId }),
       ).timeEntryId;

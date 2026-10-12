@@ -7,13 +7,22 @@ import { createCase } from '../src/intake/createCase';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { getDelegateAffiliationRoleId } from '../src/professionals/delegateRole';
 import { createInvoice } from '../src/portal/createInvoice';
+import { createTimeEntry } from '../src/portal/createTimeEntry';
+import { deleteTimeEntry, TimeEntryNotFoundError, updateTimeEntry } from '../src/portal/changeTimeEntry';
 import { NotAssignedToCaseError } from '../src/portal/caseAssignmentAuthorization';
-import { billableProfessionalIds, delegateOfficeIds, representedProfessionalIds, resolvePortalActor } from '../src/portal/portalActor';
+import {
+  billableProfessionalIds,
+  delegateOfficeIds,
+  representedProfessionalIds,
+  resolvePortalActor,
+  timeReadableProfessionalIds,
+} from '../src/portal/portalActor';
 import { recallInvoice } from '../src/billing/invoiceLifecycle';
 import { canPortalReaderReadInvoice } from '../src/billing/invoiceAccess';
 import { listPortalCases } from '../src/portal/listPortalCases';
+import { giveRate } from './rateHelpers';
 import { ValidationError } from '../src/errors';
-import { caseAssignment, invoice, invoiceEvent, invoiceLine, person, personAffiliation, professional, userAccount } from '../src/db/schema';
+import { caseAssignment, invoice, invoiceEvent, invoiceLine, person, personAffiliation, professional, timeEntry, userAccount } from '../src/db/schema';
 
 let fixtures: BaselineFixtureIds;
 
@@ -30,6 +39,7 @@ const STARTED = new Date('2026-01-01T00:00:00Z');
 async function createProfessional(email: string, inOffice: boolean) {
   const [account] = await testDb.insert(userAccount).values({ displayName: email, email, active: true }).returning();
   const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, email);
+  await giveRate(testDb, fixtures.staffUserAccountId, professionalId, 100);
   if (inOffice) {
     const [row] = await testDb.select({ personId: professional.personId }).from(professional).where(eq(professional.professionalId, professionalId));
     await testDb.insert(personAffiliation).values({
@@ -60,6 +70,22 @@ async function createOfficeUser(email: string, withDelegateRole: boolean) {
     })
     .returning();
   return { actor: await resolvePortalActor(testDb, account!.userAccountId), affiliationId: affiliation!.personAffiliationId };
+}
+
+// A professional who is also their office's delegate, linked as the seed does.
+async function createDelegateProfessional(email: string) {
+  const created = await createProfessional(email, true);
+  const [row] = await testDb.select({ personId: professional.personId }).from(professional).where(eq(professional.professionalId, created.professionalId));
+  // Delegation is read through the account's person.
+  await testDb.update(userAccount).set({ personId: row!.personId }).where(eq(userAccount.userAccountId, created.userAccountId));
+  await testDb.insert(personAffiliation).values({
+    personId: row!.personId,
+    organizationId: fixtures.organizationId,
+    officeId: fixtures.officeId,
+    affiliationRoleId: await getDelegateAffiliationRoleId(testDb),
+    startedAt: STARTED,
+  });
+  return created;
 }
 
 async function createCaseAssignedTo(professionalIds: string[]) {
@@ -173,17 +199,7 @@ describe('delegated submission', () => {
     const second = await createProfessional('second5@example.com', true);
     const idle = await createProfessional('idle5@example.com', true);
     const outsider = await createProfessional('outsider5@example.com', false);
-    const self = await createProfessional('self5@example.com', true);
-    const [selfRow] = await testDb.select({ personId: professional.personId }).from(professional).where(eq(professional.professionalId, self.professionalId));
-    // Delegation is read through the account's person, as the seed links it.
-    await testDb.update(userAccount).set({ personId: selfRow!.personId }).where(eq(userAccount.userAccountId, self.userAccountId));
-    await testDb.insert(personAffiliation).values({
-      personId: selfRow!.personId,
-      organizationId: fixtures.organizationId,
-      officeId: fixtures.officeId,
-      affiliationRoleId: await getDelegateAffiliationRoleId(testDb),
-      startedAt: STARTED,
-    });
+    const self = await createDelegateProfessional('self5@example.com');
     const ownCase = await createCaseAssignedTo([self.professionalId]);
     const sharedCase = await createCaseAssignedTo([first.professionalId, second.professionalId]);
     const outsiderCase = await createCaseAssignedTo([outsider.professionalId]);
@@ -203,5 +219,72 @@ describe('delegated submission', () => {
     expect(byCase.get(ownCase)).toEqual([self.professionalId]);
     expect(byCase.get(sharedCase)).toEqual([first.professionalId, second.professionalId].sort());
     expect(byCase.has(outsiderCase)).toBe(false);
+  });
+
+  it('flags work not yet submitted for approval, per professional', async () => {
+    const colleague = await createProfessional('colleague6@example.com', true);
+    const self = await createDelegateProfessional('self6@example.com');
+    const caseId = await createCaseAssignedTo([self.professionalId, colleague.professionalId]);
+    const logTime = (professionalId: string) =>
+      createTimeEntry(testDb, self, { caseId, activityOn: '2026-02-01', durationHours: 1, description: 'Work', professionalId });
+    const flags = async () => {
+      const { cases } = await listPortalCases(testDb, self.userAccountId);
+      const [row] = cases;
+      return { time: row?.unsubmittedTimeProfessionalIds, invoices: row?.unsubmittedInvoiceProfessionalIds };
+    };
+
+    // A delegate reads the time of those they act for, on their cases.
+    const billed = await logTime(self.professionalId);
+    const colleagueTime = await logTime(colleague.professionalId);
+    expect((await timeReadableProfessionalIds(testDb, self, caseId)).sort()).toEqual(
+      [self.professionalId, colleague.professionalId].sort(),
+    );
+    expect((await flags()).time?.sort()).toEqual([self.professionalId, colleague.professionalId].sort());
+
+    await createInvoice(testDb, self, {
+      caseId,
+      professionalId: colleague.professionalId,
+      lines: [{ amount: 10, sourceTimeEntryId: colleagueTime.timeEntryId }],
+    });
+    await createInvoice(testDb, self, { caseId, lines: [{ amount: 10, sourceTimeEntryId: billed.timeEntryId }] });
+    expect(await flags()).toEqual({ time: [], invoices: [] });
+
+    // Time on a draft still counts as unsubmitted.
+    const drafted = await logTime(self.professionalId);
+    await createInvoice(testDb, self, { caseId, submit: false, lines: [{ amount: 10, sourceTimeEntryId: drafted.timeEntryId }] });
+    await createInvoice(testDb, self, { caseId, submit: false, professionalId: colleague.professionalId, lines: [{ amount: 5 }] });
+    const { time, invoices } = await flags();
+    expect(time).toEqual([self.professionalId]);
+    expect(invoices?.sort()).toEqual([self.professionalId, colleague.professionalId].sort());
+  });
+
+  it('lets a delegate log time for professionals they act for, recorded as the delegate', async () => {
+    const member = await createProfessional('member7@example.com', true);
+    const unassigned = await createProfessional('unassigned7@example.com', true);
+    const outsider = await createProfessional('outsider7@example.com', false);
+    const caseId = await createCaseAssignedTo([member.professionalId, outsider.professionalId]);
+    const { actor: delegate } = await createOfficeUser('delegate7@example.com', true);
+    const { actor: officeUser } = await createOfficeUser('plain7@example.com', false);
+    const entry = { caseId, activityOn: '2026-02-01', durationHours: 1.5, description: 'Hearing prep' };
+
+    const { timeEntryId } = await createTimeEntry(testDb, delegate, { ...entry, professionalId: member.professionalId });
+    const [row] = await testDb.select().from(timeEntry).where(eq(timeEntry.timeEntryId, timeEntryId));
+    expect(row?.professionalId).toBe(member.professionalId);
+    expect(row?.recordedByUserAccountId).toBe(delegate.userAccountId);
+
+    for (const professionalId of [unassigned.professionalId, outsider.professionalId]) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(createTimeEntry(testDb, delegate, { ...entry, professionalId })).rejects.toThrow(NotAssignedToCaseError);
+    }
+    await expect(createTimeEntry(testDb, officeUser, { ...entry, professionalId: member.professionalId })).rejects.toThrow(
+      NotAssignedToCaseError,
+    );
+    // No profile of their own, so they must say whose time it is.
+    await expect(createTimeEntry(testDb, delegate, entry)).rejects.toThrow(ValidationError);
+
+    // They can correct it too; office membership alone can't.
+    await updateTimeEntry(testDb, delegate, timeEntryId, { ...entry, durationHours: 2 });
+    await expect(deleteTimeEntry(testDb, officeUser, timeEntryId)).rejects.toThrow(TimeEntryNotFoundError);
+    await deleteTimeEntry(testDb, delegate, timeEntryId);
   });
 });

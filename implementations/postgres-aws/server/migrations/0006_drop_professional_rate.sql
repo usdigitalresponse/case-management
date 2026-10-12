@@ -1,0 +1,1 @@
+DROP TABLE "professional_rate" CASCADE;

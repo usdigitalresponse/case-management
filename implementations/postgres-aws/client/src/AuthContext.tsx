@@ -38,8 +38,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleDemoLogin = useCallback(async () => {
-    const nextUser = await demoLogin();
-    setUser(nextUser);
+    await demoLogin();
+    // /auth/me also says whether they're an administrator.
+    setUser(await getCurrentUser());
   }, []);
 
   const handleExternalDemoLogin = useCallback(async () => {

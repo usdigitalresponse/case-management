@@ -1,7 +1,7 @@
 // Idempotent seeding of the reference/config rows the app needs to
 // function at all (activity_types, invoice statuses/line types/approval
 // step types/outcomes/event types, invoice import formats/statuses, and the
-// fixed staff, assignment and delegate roles). Safe to run in every
+// fixed staff, administrator, assignment and delegate roles). Safe to run in every
 // environment, including production, and is: ./migrate.ts calls it, and
 // ./fixtures.ts calls it after its reset, so there is one definition of
 // these rows.
@@ -18,7 +18,7 @@ import {
   role,
 } from './schema';
 import { EXTERNAL_SUBMITTER_ROLE_DISPLAY_NAME } from '../professionals/externalSubmitterRole';
-import { STAFF_ACCOUNT_ROLE_DISPLAY_NAME } from '../auth/staffAccountRole';
+import { ADMIN_ACCOUNT_ROLE_DISPLAY_NAME, STAFF_ACCOUNT_ROLE_DISPLAY_NAME } from '../auth/staffAccountRole';
 import { STAFF_ASSIGNMENT_ROLE_DISPLAY_NAME } from '../cases/staffAssignmentRole';
 import { DELEGATE_AFFILIATION_ROLE_DISPLAY_NAME } from '../professionals/delegateRole';
 
@@ -97,6 +97,10 @@ export async function ensureReferenceData(db: Database): Promise<void> {
     db
       .insert(role)
       .values({ displayName: STAFF_ACCOUNT_ROLE_DISPLAY_NAME, roleContext: 'user_account', active: true })
+      .onConflictDoNothing({ target: [role.displayName, role.roleContext] }),
+    db
+      .insert(role)
+      .values({ displayName: ADMIN_ACCOUNT_ROLE_DISPLAY_NAME, roleContext: 'user_account', active: true })
       .onConflictDoNothing({ target: [role.displayName, role.roleContext] }),
     db
       .insert(role)

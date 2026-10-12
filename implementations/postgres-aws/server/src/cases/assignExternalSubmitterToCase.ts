@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { caseAssignment, professional, userAccount } from '../db/schema';
-import { getStaffAccountRoleId } from '../auth/staffAccountRole';
+import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
 import { getExternalSubmitterRoleId } from '../professionals/externalSubmitterRole';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { ValidationError } from '../errors';
@@ -34,20 +34,20 @@ export async function assignExternalSubmitterToCase(
   }
   const { professionalId } = parsed.data;
 
-  const [[professionalRow], staffAccountRoleId, assignmentRoleId] = await Promise.all([
+  const [[professionalRow], staffAccountRoleIds, assignmentRoleId] = await Promise.all([
     db
       .select({ systemRoleId: userAccount.systemRoleId })
       .from(professional)
       .leftJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
       .where(eq(professional.professionalId, professionalId)),
-    getStaffAccountRoleId(db),
+    getStaffAccountRoleIds(db),
     getExternalSubmitterRoleId(db),
   ]);
   if (!professionalRow) {
     throw new ValidationError({ professionalId: 'professionalId does not exist.' });
   }
   // Staff are assigned through assignStaffToCase, with the staff role.
-  if (professionalRow.systemRoleId === staffAccountRoleId) {
+  if (professionalRow.systemRoleId && staffAccountRoleIds.includes(professionalRow.systemRoleId)) {
     throw new NotExternalProfessionalError();
   }
 

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/client';
 import { userAccount } from '../db/schema';
 import { getSessionUser, setSessionUser } from '../auth/session';
+import { isAdmin } from '../auth/requireAdmin';
 import type { AuthenticatedUser, OidcProviderConfig } from '../auth/oidcProviders';
 import { passportStrategyName } from '../auth/oidcProviders';
 import { isWhitelistedExternalEmail } from '../auth/externalEmailWhitelist';
@@ -123,14 +124,18 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     res.status(204).end();
   });
 
-  router.get('/me', (req, res) => {
-    const user = getSessionUser(req);
-    if (!user) {
-      res.status(401).json({ error: 'Not signed in.' });
-      return;
-    }
-    res.json(user);
-  });
+  router.get(
+    '/me',
+    asyncHandler(async (req, res) => {
+      const user = getSessionUser(req);
+      if (!user) {
+        res.status(401).json({ error: 'Not signed in.' });
+        return;
+      }
+      // Shows or hides Settings; the settings routes check it themselves.
+      res.json({ ...user, isAdmin: user.authType === 'sso' && (await isAdmin(db, user.userAccountId)) });
+    }),
+  );
 
   if (options.demoLoginEnabled) {
     router.post(

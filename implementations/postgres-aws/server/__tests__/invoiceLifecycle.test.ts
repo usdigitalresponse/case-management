@@ -92,7 +92,7 @@ describe('invoice lifecycle', () => {
     expect(await statusCode(invoiceId)).toBe('submitted');
     const [chain] = await testDb.select().from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
     const snapshot = chain?.submissionSnapshot as { spec_version: string; records: { invoice_line: unknown[] } };
-    expect(snapshot.spec_version).toBe('0.3.0');
+    expect(snapshot.spec_version).toBe('0.4.0');
     expect(snapshot.records.invoice_line).toHaveLength(2);
     expect((await eventCodes(invoiceId)).map((e) => e.code)).toEqual(['draft_created', 'submitted']);
 

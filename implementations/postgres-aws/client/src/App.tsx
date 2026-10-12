@@ -13,6 +13,7 @@ import PeopleDirectory from './pages/PeopleDirectory';
 import ClientsDirectory from './pages/ClientsDirectory';
 import VendorsDirectory from './pages/VendorsDirectory';
 import OrganizationsDirectory from './pages/OrganizationsDirectory';
+import Settings from './pages/Settings';
 import { overviewStages } from './overviewStages';
 import ExternalPortalApp from './portal/ExternalPortalApp';
 
@@ -33,7 +34,7 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
   );
 }
 
-function Sidebar() {
+function Sidebar({ isAdmin }: { isAdmin: boolean }) {
   // NavLink only compares pathname by default, so it can't tell
   // /cases?stage=represented apart from plain /cases — every stage link
   // plus "Cases" share that one pathname. Determine the active one here
@@ -72,6 +73,12 @@ function Sidebar() {
           <button type="button" disabled title="Coming soon">Reports</button>
           <NavLink to="/people" end>People</NavLink>
         </div>
+        {isAdmin && (
+          <div className="nav-group">
+            <h2>Administration</h2>
+            <NavLink to="/settings" end>Settings</NavLink>
+          </div>
+        )}
         <p className="sidebar-note">More tools coming soon.</p>
       </nav>
     </aside>
@@ -101,7 +108,7 @@ function AppContent() {
     <>
       <TopBar displayName={user.displayName} onLogout={() => void logout()} />
       <div className="app-layout">
-        <Sidebar />
+        <Sidebar isAdmin={Boolean(user.isAdmin)} />
         <main id="main-content" className="app-main" tabIndex={-1}>
           <Routes>
             <Route path="/" element={<Overview />} />
@@ -114,6 +121,7 @@ function AppContent() {
             <Route path="/clients" element={<ClientsDirectory />} />
             <Route path="/vendors" element={<VendorsDirectory />} />
             <Route path="/organizations" element={<OrganizationsDirectory />} />
+            <Route path="/settings" element={<Settings isAdmin={Boolean(user.isAdmin)} />} />
             <Route path="*" element={<><h1>Page not found</h1><Link to="/">Back to overview</Link></>} />
           </Routes>
         </main>
