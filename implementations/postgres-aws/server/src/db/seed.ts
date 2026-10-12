@@ -19,7 +19,7 @@ import { firstRow } from './rowHelpers';
 // which __tests__/ also calls and relies on staying minimal (several tests
 // assert zero pre-existing cases).
 const DEMO_CASE_COUNT = 10;
-const DEMO_PROFESSIONAL_COUNT = 3;
+const DEMO_PROFESSIONAL_COUNT = 4;
 const DEMO_STAFF_COUNT = 2;
 // How many demo cases get an external-submitter assignment; the rest stay unassigned.
 const ASSIGNED_CASE_COUNT = 6;
@@ -85,8 +85,9 @@ async function seedDemoProfessionals(): Promise<DemoProfessional[]> {
   return professionals;
 }
 
-// Two demo vendors in one office; the first (the demo partner sign-in) is
-// also its delegate, so one sign-in bills for itself and a colleague.
+// Every demo vendor is in one office, and the first (the demo partner
+// sign-in) is its delegate, so one sign-in bills for itself and several
+// colleagues.
 async function seedDemoDelegate(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   professionals: DemoProfessional[],
@@ -95,7 +96,7 @@ async function seedDemoDelegate(
   const members = await db
     .select({ personId: professional.personId })
     .from(professional)
-    .where(inArray(professional.professionalId, professionals.slice(0, 2).map((p) => p.professionalId)));
+    .where(inArray(professional.professionalId, professionals.map((p) => p.professionalId)));
   await db.insert(personAffiliation).values(
     members.map(({ personId }) => ({
       personId,
@@ -137,7 +138,7 @@ async function seedDemoStaff(
   const userAccountIds: string[] = [];
   for (let i = 0; i < DEMO_STAFF_COUNT; i += 1) {
     const displayName = faker.person.fullName();
-    const email = `demo-staff-${i + 1}@usdigitalresponse.org`;
+    const email = `demo-staff-${i + 1}@example.invalid`;
     // eslint-disable-next-line no-await-in-loop
     const account = await ensureUserAccountForEmail(db, email, displayName, fixtures.intakeStaffRoleId);
     userAccountIds.push(account.userAccountId);

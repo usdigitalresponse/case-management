@@ -323,10 +323,23 @@ export interface MyCaseRecord {
   externalReference: string | null;
   clientDisplayName: string | null;
   assignedAt: string;
+  assignedProfessionalIds: string[];
 }
 
-export function listMyCases(): Promise<{ cases: MyCaseRecord[] }> {
-  return request<{ cases: MyCaseRecord[] }>('/api/my-cases');
+export interface MyCaseProfessional {
+  professionalId: string;
+  displayName: string | null;
+  isSelf: boolean;
+}
+
+export interface MyCasesResult {
+  // Yourself first, then each professional you act for as a delegate.
+  professionals: MyCaseProfessional[];
+  cases: MyCaseRecord[];
+}
+
+export function listMyCases(): Promise<MyCasesResult> {
+  return request<MyCasesResult>('/api/my-cases');
 }
 
 export interface TimeEntryRecord {

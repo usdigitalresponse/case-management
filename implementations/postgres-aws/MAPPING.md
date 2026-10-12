@@ -416,8 +416,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     delegated invoice. Each is checked on create, edit and again at
     submission. `submitted_by_user_account_id` and every event's actor
     are the delegate. `GET /api/portal/cases/:caseId/billable-professionals`
-    lists whom the session may bill; `GET /api/my-cases` includes the
-    represented professionals' cases.
+    lists whom the session may bill; `GET /api/my-cases`
+    (`src/portal/listPortalCases.ts`) also returns the represented
+    professionals' cases, tagged with who holds each, and the portal case
+    list shows one section per person (yours first).
   - Represented professionals see and export the invoice through the
     existing read rule (invoice professional or line timekeeper); they
     don't attest or approve, as decided.
@@ -472,9 +474,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   `POST /auth/demo-login/external` likewise signs in as the demo seed's
   first vendor (`demo-vendor-1@example.invalid`) as an external
   (`magic-link`) user, so it needs `npm run seed`, not just the baseline
-  fixtures. The seed also makes that vendor its office's billing delegate,
-  so the one demo account shows both billing for yourself and for an office
-  colleague. `src/app.ts` mounts each by default only when
+  fixtures. The seed puts all four demo vendors in one office and makes
+  that vendor its billing delegate, so the one demo account shows both
+  billing for yourself and for several office colleagues. `src/app.ts` mounts each by default only when
   `NODE_ENV !== 'production'`; `DEMO_LOGIN_ENABLED` and
   `EXTERNAL_DEMO_LOGIN_ENABLED` (`true`/`false`) override that
   independently. The hosted synthetic-data demo

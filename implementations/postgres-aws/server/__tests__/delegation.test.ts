@@ -11,6 +11,7 @@ import { NotAssignedToCaseError } from '../src/portal/caseAssignmentAuthorizatio
 import { billableProfessionalIds, delegateOfficeIds, representedProfessionalIds, resolvePortalActor } from '../src/portal/portalActor';
 import { recallInvoice } from '../src/billing/invoiceLifecycle';
 import { canPortalReaderReadInvoice } from '../src/billing/invoiceAccess';
+import { listPortalCases } from '../src/portal/listPortalCases';
 import { ValidationError } from '../src/errors';
 import { caseAssignment, invoice, invoiceEvent, invoiceLine, person, personAffiliation, professional, userAccount } from '../src/db/schema';
 
@@ -165,5 +166,42 @@ describe('delegated submission', () => {
     await expect(recallInvoice(testDb, delegate, invoiceId)).rejects.toThrow(NotAssignedToCaseError);
     // What they submitted stays visible to them.
     expect(await canPortalReaderReadInvoice(testDb, delegate, invoiceId)).toBe(true);
+  });
+
+  it('lists cases per person: your own, then each professional you act for', async () => {
+    const first = await createProfessional('first5@example.com', true);
+    const second = await createProfessional('second5@example.com', true);
+    const idle = await createProfessional('idle5@example.com', true);
+    const outsider = await createProfessional('outsider5@example.com', false);
+    const self = await createProfessional('self5@example.com', true);
+    const [selfRow] = await testDb.select({ personId: professional.personId }).from(professional).where(eq(professional.professionalId, self.professionalId));
+    // Delegation is read through the account's person, as the seed links it.
+    await testDb.update(userAccount).set({ personId: selfRow!.personId }).where(eq(userAccount.userAccountId, self.userAccountId));
+    await testDb.insert(personAffiliation).values({
+      personId: selfRow!.personId,
+      organizationId: fixtures.organizationId,
+      officeId: fixtures.officeId,
+      affiliationRoleId: await getDelegateAffiliationRoleId(testDb),
+      startedAt: STARTED,
+    });
+    const ownCase = await createCaseAssignedTo([self.professionalId]);
+    const sharedCase = await createCaseAssignedTo([first.professionalId, second.professionalId]);
+    const outsiderCase = await createCaseAssignedTo([outsider.professionalId]);
+
+    const { professionals, cases } = await listPortalCases(testDb, self.userAccountId);
+
+    // Yourself first; everyone you act for, including those with no cases.
+    expect(professionals[0]).toMatchObject({ professionalId: self.professionalId, isSelf: true });
+    const others = professionals.slice(1);
+    expect(others.every((p) => !p.isSelf)).toBe(true);
+    expect(others.map((p) => p.professionalId).sort()).toEqual(
+      [first.professionalId, second.professionalId, idle.professionalId].sort(),
+    );
+    const names = others.map((p) => p.displayName ?? '');
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+    const byCase = new Map(cases.map((c) => [c.caseId, c.assignedProfessionalIds.sort()]));
+    expect(byCase.get(ownCase)).toEqual([self.professionalId]);
+    expect(byCase.get(sharedCase)).toEqual([first.professionalId, second.professionalId].sort());
+    expect(byCase.has(outsiderCase)).toBe(false);
   });
 });

@@ -161,6 +161,7 @@ form.case-intake-form { max-width: 52rem; }
 
 /* Portal's case list: same .row-card as Cases/Overview, arranged as a grid. */
 .portal-case-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
+.portal-case-section + .portal-case-section { margin-top: 2rem; }
 @media (max-width: 1250px) {
   .app-header { flex-wrap: wrap; gap: 1rem; }
   .header-actions { gap: 1rem; }
