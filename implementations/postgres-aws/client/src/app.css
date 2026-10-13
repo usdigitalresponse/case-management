@@ -273,6 +273,11 @@ form.compact-form { max-width: none; }
 .line-row-note .usa-button--unstyled { font-size: inherit; margin: 0; padding: 0; vertical-align: baseline; }
 .line-row-error { color: #b50909; font-weight: 700; }
 .line-row-suggested { color: #1a4480; }
+.line-trip { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: .25rem 1rem; }
+.line-trip .usa-form-group { flex: 1 1 14rem; margin: 0; }
+.line-trip .usa-label { margin-top: 0; font-size: .8rem; color: #5c6774; }
+.line-trip .usa-input { max-width: none; margin-top: .2rem; }
+.line-trip .usa-checkbox { margin-bottom: .35rem; }
 .line-remove { border: 0; background: none; color: #565c65; font-size: 1.25rem; line-height: 1; cursor: pointer; height: 2.25rem; padding: 0 .3rem; }
 .line-remove:hover { color: #b50909; }
 .line-add { margin-top: .5rem; }
@@ -292,6 +297,8 @@ form.compact-form { max-width: none; }
 .unbilled-time-description { color: #4b5560; }
 .rate-note { margin: 0 0 .8rem; font-size: .85rem; color: #4b5560; }
 .line-stated { display: block; font-size: .78rem; color: #8b1303; white-space: nowrap; }
+.trip-note { display: block; margin-top: .15rem; font-size: .78rem; line-height: 1.3; color: #5c6774; }
+.trip-note--flagged { color: #8b1303; font-weight: 600; }
 /* Settings: one card per kind of professional. */
 .settings-kind { margin-bottom: 1rem; }
 .settings-kind h3 { margin: 0 0 .3rem; }

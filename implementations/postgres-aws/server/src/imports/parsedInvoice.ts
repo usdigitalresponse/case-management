@@ -61,6 +61,19 @@ export function checkLineCount(lines: unknown[]): void {
   }
 }
 
+const MILEAGE_WORDS = /\b(mileage|miles?)\b/i;
+const MILES_STATED = /(\d+(?:\.\d+)?)\s*(?:mi|miles?)\b/i;
+
+// An expense described as mileage becomes a mileage item, priced from the
+// mileage rate; miles come from the quantity or the description.
+export function suggestMileage(line: ParsedLine): ParsedLine {
+  if (line.lineType !== 'expense' || !MILEAGE_WORDS.test(line.description ?? '')) {
+    return line;
+  }
+  const stated = MILES_STATED.exec(line.description ?? '')?.[1];
+  return { ...line, lineType: 'mileage', quantity: line.quantity ?? (stated === undefined ? undefined : Number(stated)) };
+}
+
 export function optionalText(value: unknown): string | undefined {
   const text = value === null || value === undefined ? '' : String(value).trim();
   return text === '' ? undefined : text;

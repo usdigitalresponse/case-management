@@ -27,7 +27,8 @@ import { ConfirmButton } from '../components/ConfirmButton';
 import { PeriodFields } from '../components/PeriodFields';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatMoney } from '../formatMoney';
-import { lineDate, lineDescription, lineHours, lineTimekeeper, lineType } from '../invoiceLineDisplay';
+import { isMileage, lineDate, lineDescription, lineHours, lineTimekeeper, lineType } from '../invoiceLineDisplay';
+import { TravelLog } from '../components/TravelLog';
 
 function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () => void }) {
   const { invoice } = data;
@@ -73,7 +74,7 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
     } catch (err) {
       setMessage({
         type: 'error',
-        text: apiErrorMessage(err, 'The draft could not be saved. Time items need a date and hours; other items an amount above zero.'),
+        text: apiErrorMessage(err, 'The draft could not be saved. Time items need a date and hours, mileage a date and miles, and other items an amount above zero.'),
       });
     } finally {
       setBusy(false);
@@ -97,6 +98,7 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
         billedProfessionalId={invoice.professionalId}
         recordedTime={pickable}
         billingCodes={billingRules.codes}
+        mileageRates={billingRules.mileageRates}
       />
       <div className="invoice-actions">
         <Button type="button" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('submit')}>Submit invoice</Button>
@@ -217,13 +219,14 @@ export default function PortalInvoiceDetail() {
               { header: 'Type', render: lineType },
               { header: 'Description', render: lineDescription },
               { header: 'Timekeeper', render: lineTimekeeper },
-              { header: 'Hours', render: lineHours },
+              { header: lines.some(isMileage) ? 'Hours / miles' : 'Hours', render: lineHours },
               { header: 'Requested', render: (l) => <span className="amount">{formatMoney(l.amount)}</span> },
               ...(submitted ? [{ header: 'Decision', render: (l: (typeof lines)[number]) => <LineDecision line={l} /> }] : []),
             ]}
           />
         </div>
       )}
+      {!editing && <TravelLog lines={lines} findings={data.ruleFindings} />}
     </div>
   );
 }

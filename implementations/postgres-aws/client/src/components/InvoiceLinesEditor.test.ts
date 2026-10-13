@@ -7,6 +7,7 @@ import {
   invoiceTotalPreview,
   lineDraftsFrom,
   linesFromDrafts,
+  mileageItemPreview,
   ratesInPlay,
   timeItemPreview,
 } from './InvoiceLinesEditor';
@@ -28,6 +29,12 @@ const importedLine: PortalInvoiceLine = {
   taskCode: 'SAMPLE-TASK',
   activityCode: 'SAMPLE-ACT',
   expenseCode: null,
+  expenseTypeCode: null,
+  tripOrigin: null,
+  tripDestination: null,
+  roundTrip: false,
+  routeDistance: null,
+  routeCheckedAt: null,
   sourceTimeEntryId: 'time-1',
   sourceActivityOn: '2026-01-10',
   sourceDurationHours: '1.50',
@@ -157,5 +164,46 @@ describe('previewing what a time item bills', () => {
     expect(timeItemPreview({ ...line, serviceDate: '2025-12-31' }, [attorney], 'professional-1')).toEqual({
       missing: 'No rate set for this date',
     });
+  });
+});
+
+describe('mileage items', () => {
+  const rates = [
+    { ratePerMile: '0.655', effectiveFrom: '2025-01-01' },
+    { ratePerMile: '0.700', effectiveFrom: '2026-02-01' },
+  ];
+  const trip = {
+    ...emptyLine,
+    lineType: 'mileage' as const,
+    serviceDate: '2026-02-10',
+    quantity: '40',
+    tripOrigin: ' 100 Main St ',
+    tripDestination: '1 Court Plaza',
+    roundTrip: true,
+  };
+
+  it('are priced at the mileage rate on their date', () => {
+    expect(mileageItemPreview(trip, rates)).toEqual({ amount: '28.00', rate: '0.700', miles: 40 });
+    expect(mileageItemPreview({ ...trip, serviceDate: '2026-01-10' }, rates)).toMatchObject({ amount: '26.20' });
+    expect(mileageItemPreview({ ...trip, quantity: '' }, rates)).toEqual({ missing: 'Add the miles' });
+    expect(mileageItemPreview(trip, [])).toEqual({ missing: 'No mileage rate set for this date' });
+    expect(invoiceTotalPreview([trip], [], undefined, rates)).toEqual({ time: 0, other: 28, total: 28, complete: true });
+  });
+
+  it('save their trip and load it back from a saved line', () => {
+    expect(hasInvoiceItems([{ ...trip, quantity: '' }])).toBe(false);
+    expect(linesFromDrafts([trip])[0]).toMatchObject({
+      lineType: 'mileage',
+      quantity: 40,
+      tripOrigin: '100 Main St',
+      tripDestination: '1 Court Plaza',
+      roundTrip: true,
+    });
+    const [draft] = lineDraftsFrom([
+      { ...importedLine, lineTypeCode: 'expense', expenseTypeCode: 'mileage', tripOrigin: 'A', tripDestination: 'B', roundTrip: true },
+    ]);
+    expect(draft).toMatchObject({ lineType: 'mileage', tripOrigin: 'A', tripDestination: 'B', roundTrip: true });
+    // Trip fields go only with mileage.
+    expect(linesFromDrafts([{ ...trip, lineType: 'expense', amount: '5' }])[0]).not.toHaveProperty('tripOrigin');
   });
 });

@@ -34,9 +34,15 @@ import {
 import { DRAFT_INVOICE_STATUS_CODE } from '../billing/invoiceStatusCodes';
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile } from './detectFormat';
-import { reconciliationWarnings, UnreadableInvoiceFileError, type ImportWarning, type ParsedInvoice } from './parsedInvoice';
+import {
+  reconciliationWarnings,
+  suggestMileage,
+  UnreadableInvoiceFileError,
+  type ImportWarning,
+  type ParsedInvoice,
+} from './parsedInvoice';
 import { CONFIRMED_IMPORT_STATUS_CODE, UNRESOLVED_IMPORT_STATUS_CODES } from './importedTimeEntries';
-import { priceTimeLines } from '../billing/priceTimeLines';
+import { priceLines } from '../billing/priceLines';
 import { enforceBillingRules } from '../billing/billingRules';
 import { matchTimekeeperName } from './matchTimekeeper';
 import { checkInferredDates, inferServiceDates } from './inferServiceDates';
@@ -354,8 +360,11 @@ export async function extractIntoDraft(
     everyLineBilled: boolean;
   },
 ): Promise<string> {
-  const { importId, parsed, billedProfessionalId, caseId } = args;
-  const warnings = reconciliationWarnings(parsed);
+  const { importId, billedProfessionalId, caseId } = args;
+  // The extraction record keeps the file's own classification.
+  const parsed = { ...args.parsed, lines: args.parsed.lines.map(suggestMileage) };
+  // Checks the file's own figures, not miles taken from a description.
+  const warnings = reconciliationWarnings(args.parsed);
   let { periodStart, periodEnd } = parsed;
   if (periodStart && periodEnd && periodEnd < periodStart) {
     warnings.push({ code: 'inverted_period', message: 'The billing period ends before it starts, so it was left blank.' });
@@ -425,7 +434,7 @@ export async function extractIntoDraft(
       extractedAt: args.extractedAt,
       extractionResult: extractionResult(
         importId,
-        parsed,
+        args.parsed,
         warnings,
         args.everyLineBilled ? billedProfessionalId : undefined,
       ),
@@ -546,7 +555,7 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
     }
     await checkInferredDates(tx, row.invoiceId);
     // From here the configured rates price each time line, not the file.
-    await priceTimeLines(tx, row.invoiceId, {
+    await priceLines(tx, row.invoiceId, {
       billedProfessionalId: draft.professionalId,
       unmatchedMeansBilled: true,
       strict: true,

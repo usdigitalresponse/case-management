@@ -4,7 +4,7 @@ import { faker } from '@faker-js/faker';
 import { db, pool } from './client';
 import { resetAndSeedBaselineFixtures } from './fixtures';
 import { eq, inArray } from 'drizzle-orm';
-import { person, personAffiliation, professional, userAccount, caseCategories, caseAssignment } from './schema';
+import { person, personAffiliation, professional, userAccount, caseCategories, caseAssignment, routeCheck } from './schema';
 import { getDelegateAffiliationRoleId } from '../professionals/delegateRole';
 import { createCase } from '../intake/createCase';
 import { createTimeEntry } from '../portal/createTimeEntry';
@@ -14,7 +14,9 @@ import { ensureProfessionalForUserAccount } from '../professionals/ensureProfess
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase } from '../cases/closeCase';
 import { addKindRate, createKind, setProfessionalKind } from '../billing/professionalRates';
-import { addBillingCode } from '../billing/billingRules';
+import { addMileageRate } from '../billing/mileageRates';
+import { addBillingCode, setBillingRule } from '../billing/billingRules';
+import { pairKey } from '../billing/routeCheck';
 import { getAdminAccountRoleId } from '../auth/staffAccountRole';
 import { firstRow } from './rowHelpers';
 
@@ -170,6 +172,8 @@ async function seedDemoRates(
     await addKindRate(db, fixtures.staffUserAccountId, professionalKindId, { hourlyRate, effectiveFrom: '2025-01-01' });
     kindIds.set(displayName, professionalKindId);
   }
+  // Synthetic, not any agency's rate.
+  await addMileageRate(db, fixtures.staffUserAccountId, { ratePerMile: 0.6, effectiveFrom: '2025-01-01' });
   for (const [index, { professionalId }] of professionals.entries()) {
     const kind = DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!;
     // eslint-disable-next-line no-await-in-loop
@@ -261,6 +265,77 @@ async function seedDemoTimeEntriesAndInvoices(
   }
 }
 
+// Public landmarks in Washington, D.C., unrelated to any agency, so map links
+// and real route lookups work. The office is the Library of Congress.
+const DEMO_OFFICE = '10 First St SE, Washington, DC 20540';
+const LINCOLN_MEMORIAL = '2 Lincoln Memorial Cir NW, Washington, DC 20002';
+const NATIONAL_CATHEDRAL = '3101 Wisconsin Ave NW, Washington, DC 20016';
+const NATIONAL_ZOO = '3001 Connecticut Ave NW, Washington, DC 20008';
+const NATIONALS_PARK = '1500 S Capitol St SE, Washington, DC 20003';
+// Approximate one-way driving miles, used only without a routing service.
+const DEMO_TRIP_MILES: Array<[string, string]> = [
+  [LINCOLN_MEMORIAL, '2.8'],
+  [NATIONAL_CATHEDRAL, '5.6'],
+  [NATIONAL_ZOO, '4.3'],
+];
+
+// Turns the mileage distance rule on (warn) and gives the demo partner a
+// submitted invoice with trips, one over-claimed, and a draft trip with no
+// distance yet, to submit and check with the map link. With a routing
+// service configured, the submitted trips are looked up for real.
+async function seedDemoMileage(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+  assignments: DemoAssignment[],
+): Promise<void> {
+  await setBillingRule(db, fixtures.staffUserAccountId, 'mileage_distance', {
+    enforcement: 'warn',
+    parameters: { tolerancePercent: 10 },
+  });
+  if (process.env.ROUTE_CHECK_PROVIDER !== 'aws') {
+    await db.insert(routeCheck).values(
+      DEMO_TRIP_MILES.map(([destination, miles]) => ({
+        pairKey: pairKey(DEMO_OFFICE, destination)!,
+        outcome: 'found',
+        distanceMiles: miles,
+        apiCalls: 0,
+        checkedAt: new Date(),
+      })),
+    );
+  }
+  const own = assignments.filter((assignment) => assignment.professionalId === assignments[0]?.professionalId);
+  const [first, second] = own;
+  if (!first || !second) {
+    throw new Error('Expected the demo partner to have two assigned cases.');
+  }
+  const actor = { userAccountId: first.userAccountId, professionalId: first.professionalId };
+  const trip = (serviceDate: string, description: string, to: string, miles: number, roundTrip: boolean) => ({
+    lineType: 'mileage' as const,
+    serviceDate,
+    description,
+    quantity: miles,
+    tripOrigin: DEMO_OFFICE,
+    tripDestination: to,
+    roundTrip,
+  });
+  await createInvoice(db, actor, {
+    caseId: first.caseId,
+    periodStart: '2026-02-01',
+    periodEnd: '2026-02-28',
+    lines: [
+      trip('2026-02-03', 'Meeting near the Lincoln Memorial', LINCOLN_MEMORIAL, 4.5, true),
+      { lineType: 'expense', serviceDate: '2026-02-03', description: 'Parking', amount: 8 },
+      // Far over the roughly 11 mi round trip, so it's flagged.
+      trip('2026-02-10', 'Client visit near the National Cathedral', NATIONAL_CATHEDRAL, 30, true),
+      trip('2026-02-17', 'Witness interview near the National Zoo', NATIONAL_ZOO, 4, false),
+    ],
+  });
+  await createInvoice(db, actor, {
+    caseId: second.caseId,
+    submit: false,
+    lines: [trip('2026-02-24', 'Records pickup near Nationals Park', NATIONALS_PARK, 2.5, true)],
+  });
+}
+
 // Closes one never-assigned case via the same path as the "Close case"
 // UI, so the demo data covers a case that has left the overview board
 // entirely (../cases/caseStage.ts: a closed case has no stage).
@@ -302,6 +377,7 @@ async function main(): Promise<void> {
   const staffUserAccountIds = await seedDemoStaff(fixtures);
   const assignments = await seedDemoAssignments(fixtures, caseIds, professionals);
   await seedDemoTimeEntriesAndInvoices(fixtures, assignments);
+  await seedDemoMileage(fixtures, assignments);
   await seedClosedCase(fixtures, caseIds);
   await seedStaffAssignment(fixtures, caseIds, staffUserAccountIds);
   // eslint-disable-next-line no-console

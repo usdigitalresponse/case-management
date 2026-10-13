@@ -1,10 +1,11 @@
-// Administrator settings: professional kinds and their rates, and billing
+// Administrator settings: professional kinds and their rates, mileage rates, and billing
 // rules with their codes. Staff can read them; only administrators change them.
 import { Router } from 'express';
 import { db } from '../db/client';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { requireAdmin } from '../auth/requireAdmin';
 import { addKindRate, createKind, listKinds } from '../billing/professionalRates';
+import { addMileageRate, listMileageRates } from '../billing/mileageRates';
 import {
   addBillingCode,
   getBillingRules,
@@ -39,6 +40,23 @@ router.post(
   asyncHandler(async (req, res) => {
     const user = getSessionUser(req)!;
     res.status(201).json(await addKindRate(db, user.userAccountId, req.params.id as string, req.body));
+  }),
+);
+
+router.get(
+  '/mileage-rates',
+  asyncHandler(async (_req, res) => {
+    res.json({ rates: await listMileageRates(db) });
+  }),
+);
+
+// Added from a date, never edited.
+router.post(
+  '/mileage-rates',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const user = getSessionUser(req)!;
+    res.status(201).json(await addMileageRate(db, user.userAccountId, req.body));
   }),
 );
 

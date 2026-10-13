@@ -1,5 +1,5 @@
 // Idempotent seeding of the reference/config rows the app needs to
-// function at all (activity_types, invoice statuses/line types/approval
+// function at all (activity_types, the mileage expense type, invoice statuses/line types/approval
 // step types/outcomes/event types, invoice import formats/statuses, and the
 // fixed staff, administrator, assignment and delegate roles). Safe to run in every
 // environment, including production, and is: ./migrate.ts calls it, and
@@ -8,6 +8,7 @@
 import type { Database } from './client';
 import {
   activityTypes,
+  expenseTypes,
   invoiceLineTypes,
   invoiceStatuses,
   invoiceApprovalStepTypes,
@@ -57,6 +58,11 @@ export async function ensureReferenceData(db: Database): Promise<void> {
         { code: 'expense', displayName: 'Expense' },
       ])
       .onConflictDoNothing({ target: invoiceLineTypes.code }),
+    // Mileage is priced from mileage rates and its distance checked.
+    db
+      .insert(expenseTypes)
+      .values({ code: 'mileage', displayName: 'Mileage' })
+      .onConflictDoNothing({ target: expenseTypes.code }),
     db
       .insert(invoiceImportFormats)
       .values([

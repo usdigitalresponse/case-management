@@ -10,7 +10,17 @@ import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
 import { InvoiceSummary, invoiceReference } from '../components/InvoiceSummary';
 import { LineDecision } from '../components/LineDecision';
 import { RuleFindings } from '../components/BillingRules';
-import { lineDate, lineDescription, lineHours, lineRate, lineStatedDifference, lineTimekeeper, lineType } from '../invoiceLineDisplay';
+import { TravelLog } from '../components/TravelLog';
+import {
+  isMileage,
+  lineDate,
+  lineDescription,
+  lineHours,
+  lineRate,
+  lineStatedDifference,
+  lineTimekeeper,
+  lineType,
+} from '../invoiceLineDisplay';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatMoney } from '../formatMoney';
 
@@ -85,7 +95,7 @@ export default function InvoiceReview() {
             { header: 'Type', render: lineType },
             { header: 'Description', render: lineDescription },
             { header: 'Timekeeper', render: lineTimekeeper },
-            { header: 'Hours', render: lineHours },
+            { header: lines.some(isMileage) ? 'Hours / miles' : 'Hours', render: lineHours },
             { header: 'Rate', render: (l) => <span className="amount">{lineRate(l)}</span> },
             {
               header: 'Requested',
@@ -116,6 +126,7 @@ export default function InvoiceReview() {
           ]}
         />
       </div>
+      <TravelLog lines={lines} findings={data.ruleFindings ?? []} />
     </div>
   );
 }

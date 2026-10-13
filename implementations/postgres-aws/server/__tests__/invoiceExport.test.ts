@@ -9,6 +9,7 @@ import { createInvoice } from '../src/portal/createInvoice';
 import { canPortalReaderReadInvoice, isExportableStatus, portalReadableInvoiceCondition } from '../src/billing/invoiceAccess';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { invoiceExportContent, renderInvoicePdf, renderInvoiceXlsx } from '../src/billing/exportInvoice';
+import { addMileageRate } from '../src/billing/mileageRates';
 import { caseAssignment, invoice, invoiceLine, invoiceStatuses, userAccount } from '../src/db/schema';
 import { getReferenceId } from '../src/db/referenceLookups';
 import { DRAFT_INVOICE_STATUS_CODE } from '../src/billing/invoiceStatusCodes';
@@ -140,6 +141,34 @@ describe('invoice export', () => {
       '2026-02-03', 'Other', 'Synthetic research', '', 'SAMPLE-TASK', 1.5, 100, 150, 'Not reviewed', null, '',
     ]);
     expect(external.summary).toContainEqual(['Submitted by', 'exporter@example.com']);
+  });
+
+  it('adds a travel log for mileage, in both formats', async () => {
+    const submitter = await createProfessional('traveller@example.com');
+    const caseId = await createAssignedCase([submitter.professionalId]);
+    await addMileageRate(testDb, fixtures.staffUserAccountId, { ratePerMile: 0.655, effectiveFrom: '2025-01-01' });
+    const { invoiceId } = await createInvoice(testDb, submitter, {
+      caseId,
+      lines: [
+        {
+          lineType: 'mileage',
+          serviceDate: '2026-02-04',
+          description: 'Drive to interview',
+          quantity: 20,
+          tripOrigin: '1 Office Way',
+          tripDestination: '2 Interview Road',
+          roundTrip: true,
+        },
+      ],
+    });
+    const detail = (await loadInvoiceDetail(testDb, invoiceId))!;
+    const content = invoiceExportContent(detail, { includeReviewer: false, exportedAt: new Date() });
+    expect(content.rows[0]?.[1]).toBe('Mileage');
+    expect(content.travelLog.rows).toEqual([['2026-02-04', '1 Office Way', '2 Interview Road', 'Yes', 20, 'Not checked', 0.655, 13.1]]);
+    const pdf = await renderInvoicePdf(detail, { includeReviewer: false, exportedAt: new Date() });
+    const xlsx = await renderInvoiceXlsx(detail, { includeReviewer: false, exportedAt: new Date() });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(xlsx.subarray(0, 2).toString()).toBe('PK');
   });
 
   it('produces a PDF and an XLSX file', async () => {

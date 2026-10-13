@@ -21,7 +21,7 @@ import { PageHeading } from '../components/PageHeading';
 import { RecordTable } from '../components/RecordTable';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { caseDisplayLabel } from '../caseDisplayLabel';
-import { formatMoney } from '../formatMoney';
+import { formatMoney, formatRate } from '../formatMoney';
 import {
   caseChoiceGroups,
   currentStep,
@@ -113,21 +113,28 @@ function SplitAssignment({
           { header: 'In the file', render: (line) => line.caseLabel ?? '—' },
           { header: 'Date', render: (line) => line.serviceDate ?? '—' },
           { header: 'Description', render: (line) => line.description ?? '—' },
-          { header: 'Hours', render: (line) => (line.quantity === null ? '—' : line.quantity) },
+          {
+            header: 'Hours / miles',
+            render: (line) => (line.quantity === null ? '—' : `${line.quantity}${line.lineType === 'mileage' ? ' mi' : ''}`),
+          },
           { header: 'File says', render: (line) => <span className="amount">{formatMoney(String(line.amount))}</span> },
           {
             header: 'Billed',
             render: (line) =>
               line.billedAmount === null ? (
                 <span className="line-amount-missing">
-                  {!line.serviceDate ? 'Add a date on its draft' : !line.quantity ? 'Add hours on its draft' : 'No rate for this date'}
+                  {!line.serviceDate
+                    ? 'Add a date on its draft'
+                    : !line.quantity
+                      ? `Add ${line.lineType === 'mileage' ? 'miles' : 'hours'} on its draft`
+                      : 'No rate for this date'}
                 </span>
               ) : (
                 <span className="line-amount-priced">
                   <span className="amount">{formatMoney(line.billedAmount.toFixed(2))}</span>
                   {line.billedRate && (
                     <span className="line-amount-basis">
-                      {line.quantity} h × {formatMoney(line.billedRate)}
+                      {line.quantity} {line.lineType === 'mileage' ? 'mi' : 'h'} × {formatRate(line.billedRate)}
                     </span>
                   )}
                 </span>

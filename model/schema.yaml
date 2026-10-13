@@ -308,6 +308,54 @@ entities:
         required: false
         references: invoice_import.invoice_import_id
         description: The import whose confirmed line created this expense; absent for directly recorded expenses.
+      quantity:
+        type: decimal
+        required: false
+        description: Units of the expense; on mileage, the miles claimed for the whole trip.
+      trip_origin:
+        type: string
+        required: false
+        description: Mileage only. Where the trip started, as an address or place.
+      trip_destination:
+        type: string
+        required: false
+        description: Mileage only. Where the trip went, as an address or place.
+      round_trip:
+        type: boolean
+        required: false
+        description: Mileage only. True when the miles claimed cover the journey there and back.
+      route_distance:
+        type: decimal
+        required: false
+        description: Mileage only. One-way driving distance in miles between origin and destination from a routing service; absent until measured.
+      route_checked_at:
+        type: datetime
+        required: false
+        description: When route_distance was looked up.
+
+  mileage_rate:
+    display_name: Mileage Rate
+    description: An administrator-set rate per mile from a date until a later rate takes over. Rates are added, never changed.
+    primary_key: mileage_rate_id
+    fields:
+      mileage_rate_id:
+        type: uuid
+        required: true
+        generated: true
+      rate_per_mile:
+        type: decimal
+        required: true
+        description: Money per mile, to a tenth of a cent.
+      effective_from:
+        type: date
+        required: true
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
 
   professional_kind_rate:
     display_name: Professional Kind Rate
@@ -463,7 +511,7 @@ entities:
       billed_rate:
         type: money
         required: false
-        description: The professional_kind_rate applied to a time line; the line amount is its hours times this rate.
+        description: The rate applied, the professional_kind_rate on a time line or the mileage_rate on a mileage line; the line amount is its quantity times this rate.
       stated_amount:
         type: money
         required: false
@@ -489,6 +537,31 @@ entities:
         type: string
         required: false
         description: Supplier-provided expense code; not validated against configured values.
+      expense_type_id:
+        type: reference
+        required: false
+        reference_data: expense_types
+        description: The expense type an expense line is classified as, given to the expense created from it; mileage is priced from mileage rates.
+      trip_origin:
+        type: string
+        required: false
+        description: Mileage only, as stated by the payee; a linked expense governs.
+      trip_destination:
+        type: string
+        required: false
+        description: Mileage only, as stated by the payee; a linked expense governs.
+      round_trip:
+        type: boolean
+        required: false
+        description: Mileage only, as stated by the payee; a linked expense governs.
+      route_distance:
+        type: decimal
+        required: false
+        description: Mileage only. One-way driving miles found for the trip when the request was submitted, kept in its snapshot.
+      route_checked_at:
+        type: datetime
+        required: false
+        description: When route_distance was looked up.
 
   invoice_import:
     display_name: Invoice Import

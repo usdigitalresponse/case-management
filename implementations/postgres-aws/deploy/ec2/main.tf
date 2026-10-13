@@ -78,6 +78,39 @@ resource "aws_security_group" "web" {
   }
 }
 
+# Lets the server look up driving distances for the mileage check
+# (server/src/billing/routeCheck.ts) with no stored keys. These Amazon
+# Location APIs bill per request; the app looks each trip up once.
+resource "aws_iam_role" "app" {
+  name = "${var.name}-app"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "route_check" {
+  name = "route-check"
+  role = aws_iam_role.app.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["geo-places:Geocode", "geo-routes:CalculateRoutes"]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_instance_profile" "app" {
+  name = "${var.name}-app"
+  role = aws_iam_role.app.name
+}
+
 resource "aws_instance" "app" {
   ami                    = data.aws_ami.al2023_arm64.id
   instance_type          = var.instance_type
@@ -85,6 +118,7 @@ resource "aws_instance" "app" {
   vpc_security_group_ids = [aws_security_group.web.id]
   key_name               = aws_key_pair.deploy.key_name
   user_data              = file("${path.module}/user_data.sh")
+  iam_instance_profile   = aws_iam_instance_profile.app.name
 
   # Burstable instances default to "unlimited", which bills for sustained
   # CPU above baseline; "standard" throttles instead, capping the cost.
@@ -94,6 +128,8 @@ resource "aws_instance" "app" {
 
   metadata_options {
     http_tokens = "required"
+    # One extra hop so the server container can reach the instance role.
+    http_put_response_hop_limit = 2
   }
 
   root_block_device {

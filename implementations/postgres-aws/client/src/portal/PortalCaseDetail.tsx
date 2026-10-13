@@ -475,10 +475,11 @@ function InvoiceSection({
               billedProfessionalId={billedProfessionalId}
               recordedTime={unbilled}
               billingCodes={billingRules.codes}
+              mileageRates={billingRules.mileageRates}
             />
             <p className="compact-hint">
-              Time items are priced at the hourly rate set for that kind of professional. New time typed here is
-              recorded when you submit.
+              Time items are priced at the hourly rate set for that kind of professional, and mileage at the agency's
+              rate per mile. New time typed here is recorded when you submit.
             </p>
             <div className="invoice-actions">
               <Button type="submit" disabled={submitting || !canSave}>

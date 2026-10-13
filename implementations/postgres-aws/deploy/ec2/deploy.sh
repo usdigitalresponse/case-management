@@ -44,6 +44,7 @@ APP_BASE_URL=https://$1
 DEMO_LOGIN_ENABLED=true
 EXTERNAL_DEMO_LOGIN_ENABLED=true
 EXTERNAL_EMAIL_WHITELIST=
+ROUTE_CHECK_PROVIDER=aws
 EOF
 fi
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-build --remove-orphans

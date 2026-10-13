@@ -34,6 +34,7 @@ import {
 } from '../portal/changeTimeEntry';
 import { listRates } from '../billing/professionalRates';
 import { getBillingRules, listBillingCodes } from '../billing/billingRules';
+import { listMileageRates } from '../billing/mileageRates';
 import { createInvoice } from '../portal/createInvoice';
 import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
@@ -110,13 +111,14 @@ router.delete(
   }),
 );
 
-// The rules in force and active codes, shown where invoices are entered.
+// The rules in force, active codes and mileage rates, shown where invoices are entered.
 router.get(
   '/billing-rules',
   asyncHandler(async (_req, res) => {
     res.json({
       rules: (await getBillingRules(db)).filter((rule) => rule.enforcement !== 'off'),
       codes: (await listBillingCodes(db)).filter((code) => code.active).map(({ code, displayName }) => ({ code, displayName })),
+      mileageRates: await listMileageRates(db),
     });
   }),
 );

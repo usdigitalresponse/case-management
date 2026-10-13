@@ -22,9 +22,14 @@ submitted time line now has a time entry, and a time entry is on at most one
 request that isn't withdrawn (`validate_payment_request`). Administrators can
 turn on configurable billing rules (`apply_billing_rules`, recorded as
 insert-only `billing_rule_setting` rows, with a `billing_codes` vocabulary),
-each off, warn or require. These tighten
-earlier behaviour: a manual time line without a rate or hours no longer
-submits.
+each off, warn or require. Mileage is an expense type: `expense` and
+`invoice_line` gain trip fields (`trip_origin`, `trip_destination`,
+`round_trip`, `route_distance`, `route_checked_at`, and `quantity` on
+`expense`), `invoice_line.expense_type_id` classifies an expense line, and
+insert-only `mileage_rate` prices mileage per mile (`apply_mileage_rates`);
+a mileage distance billing rule compares claimed miles with the driving
+distance. These tighten earlier behaviour: a manual time line without a rate
+or hours, or a mileage line without miles or a rate, no longer submits.
 
 ## Coverage and changes
 

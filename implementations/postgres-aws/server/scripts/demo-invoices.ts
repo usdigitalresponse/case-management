@@ -94,11 +94,17 @@ async function main(): Promise<void> {
         { type: 'F', date: '2026-02-10', hours: 2, rate: 200, timekeeper: lastFirst(name), description: 'Research for hearing', task: 'L120', activity: 'A102' },
         { type: 'F', date: '2026-02-12', hours: 0.5, rate: 150, timekeeper: 'Unmatched Demo Paralegal', description: 'Document preparation', task: 'L210', activity: 'A103' },
         { type: 'E', date: '2026-02-14', hours: 1, rate: 45, timekeeper: name, description: 'Filing fee', expense: 'E112' },
+        // Suggested as mileage on import; From and To are added on review.
+        { type: 'E', date: '2026-02-16', hours: 24, rate: 0.6, timekeeper: name, description: 'Mileage to courthouse (24 miles)', expense: 'E109' },
       ]),
     );
     writeFileSync(
       join(OUT_DIR, 'own-case.csv'),
-      'invoice_number,date,type,description,hours,rate,amount\nDEMO-INV-2,2026-02-18,time,Client meeting,1,200,200\nDEMO-INV-2,2026-02-19,expense,Copies,,,12.50\n',
+      'invoice_number,date,type,description,hours,rate,amount\n' +
+        'DEMO-INV-2,2026-02-18,time,Client meeting,1,200,200\n' +
+        'DEMO-INV-2,2026-02-19,expense,Copies,,,12.50\n' +
+        // The hours column holds miles on a mileage row.
+        'DEMO-INV-2,2026-02-20,mileage,Mileage to client meeting,18,0.60,10.80\n',
     );
     written.push(`own-case.ledes.txt, own-case.csv: open case "${ownCase.client ?? ownCase.caseId}"`);
   }

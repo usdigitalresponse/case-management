@@ -179,9 +179,27 @@ configured list, time increments (flagged, never rounded), a daily hour cap,
 long single entries (warn only, as possible block billing) and billing period
 requirements. Settings are kept as history and every submission snapshot
 records the rules it was checked against. Planned, not built: rates by kind
-of work (such as travel or in-court time) and expense rules (mileage rate,
+of work (such as travel or in-court time) and other expense rules (such as
 receipts above an amount), which need activity-based rates and receipt
-records first.
+records first. Mileage is decided below.
+
+### Mileage priced per mile and checked against driving distance
+
+- **Status:** Active
+- **Decided:** 2026-10-12
+
+Mileage is an expense type, not a separate kind of line: an expense line
+with the mileage type carries the trip (from, to, round trip) and the miles
+claimed, and is priced at an administrator-set rate per mile in force on
+its date, as time is priced from hourly rates. A configurable billing rule
+compares the miles with the driving distance between the two places,
+replacing a manual map check and printed map evidence with a travel log.
+Distances come from a routing service the deployment configures, looked up
+only on submission while the rule is on and reused for the same trip, so
+the per-request cost stays small; an unmeasured trip never blocks
+submission and reviewers can open the route themselves. Address
+autocomplete is left out because it costs requests per keystroke. Splitting
+one trip across several cases is planned, not built.
 
 ### Firm-added professionals with staff approval
 
