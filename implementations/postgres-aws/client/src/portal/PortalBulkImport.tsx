@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link as RouterLink, useLocation } from 'react-router';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import { Alert, Button, Checkbox, Form, Label, Select } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
+  deleteInvoice,
   invoiceTemplateUrl,
   listInvoiceImports,
   listMyCases,
@@ -25,10 +26,12 @@ import {
   caseChoiceGroups,
   currentStep,
   FROM_BULK,
+  loadBatch,
   outstanding,
   parseChoice,
   reviewQueue,
   reviewUrl,
+  saveBatch,
   sectionOf,
   suggestChoice,
   type BulkStep,
@@ -56,6 +59,7 @@ function SplitAssignment({
   staged,
   professionalId,
   whose,
+  onBusy,
   onCreated,
   onCancel,
 }: {
@@ -63,7 +67,8 @@ function SplitAssignment({
   professionalId: string;
   // "your", or "Name's".
   whose: string;
-  onCreated: () => void;
+  onBusy: (busy: boolean) => void;
+  onCreated: (importIds: string[]) => void;
   onCancel: () => void;
 }) {
   const { split } = staged;
@@ -78,11 +83,14 @@ function SplitAssignment({
 
   async function create() {
     setCreating(true);
+    onBusy(true);
     setError(null);
     try {
-      await uploadInvoiceFileByCase(staged.file, professionalId, caseIds);
-      onCreated();
+      const { imports } = await uploadInvoiceFileByCase(staged.file, professionalId, caseIds);
+      onBusy(false);
+      onCreated(imports.map((row) => row.invoiceImportId));
     } catch (err) {
+      onBusy(false);
       setError(apiErrorMessage(err, 'The drafts could not be created.'));
       setCreating(false);
     }
@@ -173,17 +181,22 @@ function SplitAssignment({
 function StagedFiles({
   cases,
   onStagedCount,
+  onUploading,
   onUploaded,
 }: {
   cases: MyCasesResult;
   // Files chosen but not yet uploaded, for the step header.
   onStagedCount: (count: number) => void;
-  onUploaded: () => void;
+  // Cancel waits while files are uploading, so none are left untracked.
+  onUploading: (uploading: boolean) => void;
+  onUploaded: (importIds: string[]) => void;
 }) {
   const [staged, setStaged] = useState<StagedFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [splitsCreating, setSplitsCreating] = useState(0);
   const groups = caseChoiceGroups(cases);
   useEffect(() => onStagedCount(staged.length), [staged.length, onStagedCount]);
+  useEffect(() => onUploading(uploading || splitsCreating > 0), [uploading, splitsCreating, onUploading]);
 
   function add(files: FileList | null) {
     const added = [...(files ?? [])].map((file) => ({
@@ -212,9 +225,9 @@ function StagedFiles({
       try {
         if (choice.kind === 'case') {
           // eslint-disable-next-line no-await-in-loop
-          await uploadInvoiceFile(choice.caseId, row.file, choice.professionalId);
+          const { invoiceImportId } = await uploadInvoiceFile(choice.caseId, row.file, choice.professionalId);
           setStaged((current) => current.filter((candidate) => candidate.key !== row.key));
-          onUploaded();
+          onUploaded([invoiceImportId]);
         } else {
           // eslint-disable-next-line no-await-in-loop
           update(row.key, { uploading: false, split: await previewCaseSplit(row.file, choice.professionalId) });
@@ -329,9 +342,10 @@ function StagedFiles({
               staged={row}
               professionalId={choice.professionalId}
               whose={person?.isSelf ? 'your' : `${person?.displayName ?? 'this person'}'s`}
-              onCreated={() => {
+              onBusy={(busy) => setSplitsCreating((n) => n + (busy ? 1 : -1))}
+              onCreated={(importIds) => {
                 setStaged((current) => current.filter((candidate) => candidate.key !== row.key));
-                onUploaded();
+                onUploaded(importIds);
               }}
               onCancel={() => update(row.key, { split: undefined })}
             />
@@ -588,6 +602,44 @@ export default function PortalBulkImport() {
   const readyCount = imports?.filter((row) => sectionOf(row) === 'ready').length ?? 0;
   const step = currentStep(stagedCount, imports ?? []);
 
+  // This browser session's uploads still in progress; other imports and
+  // anything submitted are left alone.
+  const navigate = useNavigate();
+  const [batch, setBatch] = useState<string[]>(loadBatch);
+  const batchInProgress = (imports ?? []).filter((row) => batch.includes(row.invoiceImportId));
+  useEffect(() => saveBatch(batch), [batch]);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [uploadingNow, setUploadingNow] = useState(false);
+
+  async function cancel() {
+    setCancelling(true);
+    setCancelError(null);
+    const failed: string[] = [];
+    for (const row of batchInProgress) {
+      try {
+        // A confirmed draft has no file left, only the draft to remove.
+        // eslint-disable-next-line no-await-in-loop
+        await (sectionOf(row) === 'ready' && row.invoiceId
+          ? deleteInvoice(row.invoiceId)
+          : resolveInvoiceImport(row.invoiceImportId, 'discard'));
+      } catch {
+        failed.push(row.fileName);
+      }
+    }
+    if (failed.length > 0) {
+      setCancelError(`These couldn't be discarded: ${failed.join(', ')}. Try again or discard them below.`);
+      setCancelling(false);
+      setConfirmingCancel(false);
+      refresh();
+      return;
+    }
+    setBatch([]);
+    saveBatch([]);
+    navigate('/');
+  }
+
   async function discard(importId: string) {
     try {
       await resolveInvoiceImport(importId, 'discard');
@@ -599,11 +651,36 @@ export default function PortalBulkImport() {
   return (
     <div>
       <RouterLink className="back-link" to="/">&larr; Back to your cases</RouterLink>
-      <PageHeading
-        eyebrow="Your cases"
-        title="Import invoices"
-        description="Upload several invoice files at once, review and correct what was read from each, then submit them together."
-      />
+      <div className="case-heading-row portal-cases-heading">
+        <PageHeading
+          eyebrow="Your cases"
+          title="Import invoices"
+          description="Upload several invoice files at once, review and correct what was read from each, then submit them together."
+        />
+        {(stagedCount > 0 || batchInProgress.length > 0) && !confirmingCancel && !uploadingNow && (
+          <Button type="button" outline onClick={() => setConfirmingCancel(true)}>
+            Cancel import
+          </Button>
+        )}
+      </div>
+      {confirmingCancel && (
+        <Alert type="warning" slim className="bulk-cancel">
+          <span>
+            {batchInProgress.length > 0
+              ? `Cancel this import? The ${batchInProgress.length} ${batchInProgress.length === 1 ? 'file' : 'files'} you uploaded in this session ${batchInProgress.length === 1 ? 'is' : 'are'} discarded and nothing from ${batchInProgress.length === 1 ? 'it' : 'them'} is submitted.`
+              : "Cancel this import? The files you've chosen aren't uploaded."}
+          </span>
+          <span className="row-actions">
+            <Button type="button" secondary disabled={cancelling || uploadingNow} onClick={() => void cancel()}>
+              {cancelling ? 'Cancelling…' : 'Yes, cancel'}
+            </Button>
+            <Button type="button" unstyled disabled={cancelling} onClick={() => setConfirmingCancel(false)}>
+              Keep going
+            </Button>
+          </span>
+        </Alert>
+      )}
+      {cancelError && <Alert type="error" slim>{cancelError}</Alert>}
       <StepHeader step={step} toReview={queue.length} ready={readyCount} />
       {uploadedCount > 0 && stagedCount === 0 && queue.length > 0 && (
         <Alert type="success" slim className="bulk-next">
@@ -617,8 +694,10 @@ export default function PortalBulkImport() {
         <StagedFiles
           cases={cases}
           onStagedCount={setStagedCount}
-          onUploaded={() => {
+          onUploading={setUploadingNow}
+          onUploaded={(importIds) => {
             setUploadedCount((n) => n + 1);
+            setBatch((current) => [...current, ...importIds]);
             refresh();
           }}
         />

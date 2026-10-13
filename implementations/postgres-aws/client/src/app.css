@@ -197,6 +197,11 @@ form.case-intake-form { max-width: 52rem; }
 .invoice-export-links .usa-button { margin: 0; }
 .invoice-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .9rem; }
 .invoice-actions .usa-button { margin: 0; }
+/* A destructive action sits apart on the right; asking to confirm takes its own row. */
+.invoice-actions .actions-end { margin-left: auto; }
+.invoice-actions .actions-end:has(.confirm-inline) { flex-basis: 100%; margin-left: 0; padding: .6rem .8rem; background: #fff5e6; border-radius: 6px; }
+.actions-hint { margin: .9rem 0 0; }
+.actions-hint + .invoice-actions { margin-top: .5rem; }
 
 /* Compact portal forms: fields side by side, overriding USWDS's
    single-column sizing. */
@@ -265,7 +270,7 @@ form.compact-form { max-width: none; }
 .line-row .line-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .line-row-note { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0 .9rem; font-size: .8rem; color: #66717d; margin: 0; }
 .line-row-note > span + span::before { content: '·'; margin-right: .9rem; color: #a9aeb1; }
-.line-row-note .usa-button--unstyled { font-size: inherit; }
+.line-row-note .usa-button--unstyled { font-size: inherit; margin: 0; padding: 0; vertical-align: baseline; }
 .line-row-error { color: #b50909; font-weight: 700; }
 .line-row-suggested { color: #1a4480; }
 .line-remove { border: 0; background: none; color: #565c65; font-size: 1.25rem; line-height: 1; cursor: pointer; height: 2.25rem; padding: 0 .3rem; }
@@ -306,6 +311,9 @@ form.compact-form { max-width: none; }
 .bulk-steps li.is-current .bulk-step-number { background: #1a4480; border-color: #1a4480; color: white; }
 .bulk-steps li.is-done { color: #19591e; }
 .bulk-step-section { margin-top: 2rem; }
+.bulk-steps li { white-space: nowrap; }
+.bulk-cancel .usa-alert__text { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+.bulk-cancel .usa-button { margin: 0; }
 .bulk-step-section h3 { margin: 1.2rem 0 .5rem; font-size: 1rem; }
 .bulk-next a { font-weight: 700; }
 .bulk-position { margin: -.4rem 0 .8rem; font-size: .9rem; color: #4b5560; }

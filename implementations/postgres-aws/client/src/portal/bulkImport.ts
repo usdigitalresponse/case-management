@@ -121,6 +121,31 @@ export function suggestChoice(fileName: string, result: MyCasesResult): string |
 // Pages opened from the bulk page lead back to it and through its queue.
 export const FROM_BULK = '?from=bulk';
 
+// Imports uploaded in this browser session, which Cancel discards. Kept in
+// session storage so review pages in between don't lose it.
+const BATCH_KEY = 'bulkImportBatch';
+
+export function loadBatch(): string[] {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(BATCH_KEY) ?? '[]') as unknown;
+    return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveBatch(importIds: string[]): void {
+  try {
+    if (importIds.length > 0) {
+      sessionStorage.setItem(BATCH_KEY, JSON.stringify(importIds));
+    } else {
+      sessionStorage.removeItem(BATCH_KEY);
+    }
+  } catch {
+    // Without storage, Cancel only covers this page's uploads.
+  }
+}
+
 export function reviewUrl(row: Pick<ImportInProgress, 'invoiceImportId'>): string {
   return `/portal/imports/${row.invoiceImportId}${FROM_BULK}`;
 }

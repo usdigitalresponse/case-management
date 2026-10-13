@@ -101,17 +101,19 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
       <div className="invoice-actions">
         <Button type="button" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('submit')}>Submit invoice</Button>
         <Button type="button" outline disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>Save draft</Button>
-        {!data.deletable ? (
-          <ConfirmButton
-            label="Withdraw draft"
-            prompt="Withdraw this draft? It can't be submitted afterwards."
-            confirmLabel="Yes, withdraw"
-            disabled={busy}
-            onConfirm={() => void run('withdraw')}
-          />
-        ) : (
-          <DeleteInvoiceButton invoiceId={invoice.invoiceId} disabled={busy} onDeleted={() => navigate(`/portal/cases/${invoice.caseId}`)} />
-        )}
+        <span className="actions-end">
+          {!data.deletable ? (
+            <ConfirmButton
+              label="Withdraw draft"
+              prompt="Withdraw this draft? It can't be submitted afterwards."
+              confirmLabel="Yes, withdraw"
+              disabled={busy}
+              onConfirm={() => void run('withdraw')}
+            />
+          ) : (
+            <DeleteInvoiceButton invoiceId={invoice.invoiceId} disabled={busy} onDeleted={() => navigate(`/portal/cases/${invoice.caseId}`)} />
+          )}
+        </span>
       </div>
     </div>
   );

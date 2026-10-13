@@ -217,6 +217,13 @@ function ExtractedReview({
             fixedTimekeeper: Boolean(designatedId),
           }}
         />
+        {(!hasItems || unmatched > 0) && (
+          <p className="compact-hint actions-hint">
+            {!hasItems
+              ? 'Add an item with an amount to continue.'
+              : `Choose who did the work for ${unmatched} more ${unmatched === 1 ? 'item' : 'items'} to confirm.`}
+          </p>
+        )}
         <div className="invoice-actions">
           <Button type="button" disabled={busy || !hasItems || unmatched > 0} onClick={() => void run('confirm')}>
             {!afterResolve ? 'Confirm import' : hasNext ? 'Confirm and review next' : 'Confirm and go to submit'}
@@ -224,20 +231,15 @@ function ExtractedReview({
           <Button type="button" outline disabled={busy || !hasItems} onClick={() => void run('save')}>
             Save changes
           </Button>
-          <ConfirmButton
-            label="Discard import"
-            prompt="Discard this import? The file is deleted and nothing is submitted."
-            confirmLabel="Yes, discard"
-            disabled={busy}
-            onConfirm={() => void run('discard')}
-          />
-          {(!hasItems || unmatched > 0) && (
-            <span className="compact-hint">
-              {!hasItems
-                ? 'Add an item with an amount to continue.'
-                : `Choose who did the work for ${unmatched} more ${unmatched === 1 ? 'item' : 'items'} to confirm.`}
-            </span>
-          )}
+          <span className="actions-end">
+            <ConfirmButton
+              label="Discard import"
+              prompt="Discard this import? The file is deleted and nothing is submitted."
+              confirmLabel="Yes, discard"
+              disabled={busy}
+              onConfirm={() => void run('discard')}
+            />
+          </span>
         </div>
       </div>
       </div>

@@ -408,7 +408,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     to the submit step, which lists the confirmed drafts (all included
     unless unticked) and submits them with one button showing the count and
     total (one submit call each, failures listed by file). No batch record
-    is kept.
+    is kept on the server; the browser session remembers which imports it
+    uploaded, and "Cancel import" discards those still in progress
+    (unconfirmed imports are discarded, confirmed drafts deleted), leaving
+    earlier imports and anything submitted alone.
   - A bulk file is designated either to one case (as above) or to one
     professional (`src/imports/splitByCase.ts`; `model/rules.yaml`
     `validate_invoice_import`). For a professional, the template's optional
