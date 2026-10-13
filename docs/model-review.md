@@ -19,7 +19,10 @@ effective-dated `professional_kind_rate`, and prices time lines from them
 (`apply_professional_rates`), with `invoice_line.billed_rate` and
 `stated_amount`; payee-stated rates and amounts become evidence. Every
 submitted time line now has a time entry, and a time entry is on at most one
-request that isn't withdrawn (`validate_payment_request`). These tighten
+request that isn't withdrawn (`validate_payment_request`). Administrators can
+turn on configurable billing rules (`apply_billing_rules`, recorded as
+insert-only `billing_rule_setting` rows, with a `billing_codes` vocabulary),
+each off, warn or require. These tighten
 earlier behaviour: a manual time line without a rate or hours no longer
 submits.
 

@@ -336,6 +336,36 @@ entities:
         type: datetime
         required: true
 
+  billing_rule_setting:
+    display_name: Billing Rule Setting
+    description: How one of the deployment's configurable billing rules applies from when it is recorded until a later setting for the same rule. Settings are added, never changed, so earlier submissions can be explained.
+    primary_key: billing_rule_setting_id
+    fields:
+      billing_rule_setting_id:
+        type: uuid
+        required: true
+        generated: true
+      rule_code:
+        type: reference
+        required: true
+        reference_data: billing_rule_types
+        description: Which rule, such as billing codes, time increment, daily hour cap, long entry or billing period.
+      enforcement:
+        type: string
+        required: true
+        description: off, warn (shown to submitter and reviewer) or require (blocks confirmation and submission).
+      parameters:
+        type: object
+        required: false
+        description: The rule's settings, such as the increment in hours or the daily cap.
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
+
   invoice:
     display_name: Payment Request
     description: The existing payment-request aggregate, retaining its stable invoice key; supporting supplier invoices are separate references.
@@ -450,7 +480,7 @@ entities:
       task_code:
         type: string
         required: false
-        description: Supplier-provided task code, such as a standard legal billing code; not validated against configured values.
+        description: Task code, such as a standard legal billing code; checked against the configured billing_codes when the billing codes rule is on, otherwise kept as the payee stated it.
       activity_code:
         type: string
         required: false

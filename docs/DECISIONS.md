@@ -167,6 +167,22 @@ scope, not a UI winner or production-platform decision. Standard forms remain th
 default until evidence supports a subsequent decision.
 
 
+### Configurable billing rules
+
+- **Status:** Active
+- **Decided:** 2026-10-12
+
+Each deployment serves one agency with one set of billing rules. Agencies
+differ on standard billing practice, so none is built in: administrators turn
+each rule off, warn or require in Settings. Built first: billing codes from a
+configured list, time increments (flagged, never rounded), a daily hour cap,
+long single entries (warn only, as possible block billing) and billing period
+requirements. Settings are kept as history and every submission snapshot
+records the rules it was checked against. Planned, not built: rates by kind
+of work (such as travel or in-court time) and expense rules (mileage rate,
+receipts above an amount), which need activity-based rates and receipt
+records first.
+
 ### Firm-added professionals with staff approval
 
 - **Status:** Planned, not built

@@ -489,6 +489,28 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   when Edit or Delete is clicked. Each change or deletion, here or through
   a draft, writes an `audit_event` row (migration `0004`) with the actor
   and the entry's prior values; `audit_event` records nothing else yet.
+- **Billing rules** (`src/billing/billingRules.ts`, `src/routes/settings.ts`;
+  `client/src/pages/Settings.tsx`, `components/BillingRules.tsx`;
+  `model/rules.yaml` `apply_billing_rules`; migration `0006`):
+  - One agency per deployment, one set of rules. Administrators set each of
+    billing codes, time increment, daily hour cap, long entry (warn only)
+    and billing period to off, warn or require on Settings; each save is a
+    new `billing_rule_setting` row and the latest per rule is in force.
+    `rule_code` is one of the rules defined in code rather than a
+    `billing_rule_types` reference table. Codes are an administrator-kept
+    `billing_codes` list; retiring a code keeps it on invoices that used it.
+  - Rules run on every saved draft (shown as findings on the draft and
+    import review pages) and again at import confirmation and
+    submission, where a "require" finding blocks with its message. The
+    daily cap counts the person's time lines on other submitted invoices,
+    not other drafts. The submission snapshot stores the settings in force and the
+    findings, which staff review and the portal show for submitted
+    invoices; a later rule change doesn't alter them.
+  - Firms see the rules in force beside invoice entry
+    (`GET /api/portal/billing-rules`), and a task code column when codes are
+    required or warned on. Hours are flagged, never rounded.
+  - Not built: rates by kind of work and expense rules (see
+    `docs/DECISIONS.md`).
 - **Rates and billing from time** (`src/billing/professionalRates.ts`,
   `priceTimeLines.ts`, `invoiceLifecycle.ts`; `src/routes/settings.ts`;
   `client/src/pages/Settings.tsx`, `components/UnbilledTimePicker.tsx`;

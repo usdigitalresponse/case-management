@@ -14,6 +14,7 @@ import { ensureProfessionalForUserAccount } from '../professionals/ensureProfess
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase } from '../cases/closeCase';
 import { addKindRate, createKind, setProfessionalKind } from '../billing/professionalRates';
+import { addBillingCode } from '../billing/billingRules';
 import { getAdminAccountRoleId } from '../auth/staffAccountRole';
 import { firstRow } from './rowHelpers';
 
@@ -138,6 +139,20 @@ const DEMO_KINDS = [
   { displayName: 'Expert', hourlyRate: 200 },
 ];
 const DEMO_VENDOR_KINDS = ['Attorney', 'Attorney', 'Investigator', 'Expert'];
+
+// Synthetic codes for the billing codes rule; every rule starts off.
+async function seedDemoBillingCodes(): Promise<void> {
+  for (const [code, displayName] of [
+    ['T100', 'Research and analysis'],
+    ['T200', 'Client communication'],
+    ['T300', 'Court appearance'],
+    ['T400', 'Investigation'],
+    ['T500', 'Travel'],
+  ]) {
+    // eslint-disable-next-line no-await-in-loop
+    await addBillingCode(db, { code, displayName });
+  }
+}
 
 async function seedDemoRates(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
@@ -283,6 +298,7 @@ async function main(): Promise<void> {
   const professionals = await seedDemoProfessionals();
   await seedDemoDelegate(fixtures, professionals);
   await seedDemoRates(fixtures, professionals);
+  await seedDemoBillingCodes();
   const staffUserAccountIds = await seedDemoStaff(fixtures);
   const assignments = await seedDemoAssignments(fixtures, caseIds, professionals);
   await seedDemoTimeEntriesAndInvoices(fixtures, assignments);

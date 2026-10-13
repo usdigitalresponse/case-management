@@ -50,6 +50,8 @@ export const invoiceImportFormats = referenceTable('invoice_import_formats');
 export const invoiceImportStatuses = referenceTable('invoice_import_statuses');
 // Administrator-maintained (../billing/professionalRates.ts); none are seeded.
 export const professionalKinds = referenceTable('professional_kinds');
+// Task codes for the billing codes rule; administrator-maintained.
+export const billingCodes = referenceTable('billing_codes');
 
 // --- core entities ----------------------------------------------------------
 
@@ -298,6 +300,24 @@ export const professionalKindRate = pgTable(
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
   },
   (table) => [index('professional_kind_rate_kind_idx').on(table.professionalKindId, table.effectiveFrom)],
+);
+
+// Insert-only; the latest row per rule is in force (model/rules.yaml
+// apply_billing_rules; ../billing/billingRules.ts). rule_code is one of the
+// rules defined there rather than a reference table.
+export const billingRuleSetting = pgTable(
+  'billing_rule_setting',
+  {
+    billingRuleSettingId: uuid('billing_rule_setting_id').primaryKey().defaultRandom(),
+    ruleCode: text('rule_code').notNull(),
+    enforcement: text('enforcement').notNull(),
+    parameters: jsonb('parameters'),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('billing_rule_setting_rule_idx').on(table.ruleCode, table.recordedAt)],
 );
 
 // model/schema.yaml: invoice.service_provider_id (required, references a

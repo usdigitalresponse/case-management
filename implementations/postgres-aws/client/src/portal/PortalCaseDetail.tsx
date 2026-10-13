@@ -16,6 +16,7 @@ import {
   type TimeEntryRecord,
 } from '../api/client';
 import { lineFromTimeEntry, UnbilledTimePicker } from '../components/UnbilledTimePicker';
+import { RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 import {
   emptyLine,
   hasInvoiceItems,
@@ -296,6 +297,7 @@ function InvoiceSection({
   // Billing changes what time is unbilled.
   onInvoiced: () => void;
 }) {
+  const billingRules = usePortalBillingRules();
   const [listVersion, setListVersion] = useState(0);
   const [showWithdrawn, setShowWithdrawn] = useState(false);
   const { data, error } = useApiResource(() => listMyInvoices(caseId).then((result) => result.invoices), [caseId, listVersion]);
@@ -463,6 +465,7 @@ function InvoiceSection({
             {saved === 'submitted' && <Alert type="success" slim>Invoice submitted.</Alert>}
             {saved === 'draft' && <Alert type="success" slim>Draft saved. Open it from the list above to edit or submit it.</Alert>}
             <PeriodFields idPrefix="new-invoice" start={period.start} end={period.end} onChange={setPeriod} />
+            <RulesInForce rules={billingRules.rules} />
             <UnbilledTimePicker idPrefix="new-invoice" entries={unbilled} lines={lines} onChange={setLines} timekeepers={billable} />
             <InvoiceLinesEditor
               idPrefix="new-invoice"
@@ -471,6 +474,7 @@ function InvoiceSection({
               timekeepers={billable}
               billedProfessionalId={billedProfessionalId}
               recordedTime={unbilled}
+              billingCodes={billingRules.codes}
             />
             <p className="compact-hint">
               Time items are priced at the hourly rate set for that kind of professional. New time typed here is

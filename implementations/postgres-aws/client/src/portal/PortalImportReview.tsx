@@ -31,6 +31,7 @@ import { formatMoney } from '../formatMoney';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { OriginalDocument } from '../components/OriginalDocument';
 import { nextInQueue, reviewQueue, reviewUrl } from './bulkImport';
+import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 
 interface Loaded {
   importDetail: InvoiceImportDetail;
@@ -123,6 +124,7 @@ function ExtractedReview({
   // Items added on a designated file are that professional's too.
   const setLines = (next: LineDraft[]) =>
     setLinesState(designatedId ? next.map((line) => ({ ...line, timekeeperProfessionalId: designatedId })) : next);
+  const billingRules = usePortalBillingRules();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const warnings = importDetail.extractionResult?.warnings ?? [];
@@ -197,6 +199,8 @@ function ExtractedReview({
         <h2>Items read from the file</h2>
         {message && <Alert type={message.type} slim>{message.text}</Alert>}
         <FileTotalComparison lines={lines} timekeepers={timekeepers} />
+        <RulesInForce rules={billingRules.rules} />
+        <RuleFindings findings={invoice?.ruleFindings ?? []} />
         {!designatedId && timekeepers.length > 0 && lines.length > 1 && (
           <AssignAllTimekeepers timekeepers={timekeepers} unmatched={unmatched} onAssign={(id, only) => setLines(assignTimekeeper(lines, id, only))} />
         )}
@@ -205,6 +209,7 @@ function ExtractedReview({
           lines={lines}
           onChange={setLines}
           timekeepers={timekeepers}
+          billingCodes={billingRules.codes}
           importReview={{
             duplicateTime: importDetail.possibleDuplicateTime,
             // Only while items are still in their extracted order.

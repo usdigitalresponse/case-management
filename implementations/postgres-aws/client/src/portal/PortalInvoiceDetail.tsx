@@ -15,6 +15,7 @@ import {
 import { hasInvoiceItems, InvoiceLinesEditor, lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
 import { UnbilledTimePicker } from '../components/UnbilledTimePicker';
+import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 import { useAuth } from '../AuthContext';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { PageHeading } from '../components/PageHeading';
@@ -47,6 +48,7 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
     (entry) =>
       billableIds.has(entry.professionalId) && (!entry.billing || entry.billing.invoiceId === invoice.invoiceId),
   );
+  const billingRules = usePortalBillingRules();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
@@ -82,6 +84,9 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
     <div className="compact-card">
       <h2>Edit draft</h2>
       {message && <Alert type={message.type} slim>{message.text}</Alert>}
+      <RulesInForce rules={billingRules.rules} />
+      {/* As last saved; saving shows the effect of edits. */}
+      <RuleFindings findings={data.ruleFindings} />
       <PeriodFields idPrefix="draft" start={period.start} end={period.end} onChange={setPeriod} />
       <UnbilledTimePicker idPrefix="draft" entries={pickable} lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
       <InvoiceLinesEditor
@@ -91,6 +96,7 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
         timekeepers={timekeepers ?? []}
         billedProfessionalId={invoice.professionalId}
         recordedTime={pickable}
+        billingCodes={billingRules.codes}
       />
       <div className="invoice-actions">
         <Button type="button" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('submit')}>Submit invoice</Button>
@@ -169,6 +175,7 @@ export default function PortalInvoiceDetail() {
       />
 
       <InvoiceSummary invoice={invoice} lines={lines} />
+      {submitted && <RuleFindings findings={data.ruleFindings} submitted />}
 
       {(submitted || recallable || (deletable && !editing)) && (
         <div className="invoice-actions">

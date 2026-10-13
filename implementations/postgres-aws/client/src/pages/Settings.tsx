@@ -1,12 +1,19 @@
 import { useState, type FormEvent } from 'react';
-import { Alert, Button, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
+import { Alert, Button, Checkbox, Form, FormGroup, Label, Select, TextInput } from '@trussworks/react-uswds';
 import {
+  addBillingCode,
   addKindRate,
   apiErrorMessage,
   createProfessionalKind,
+  getBillingRuleSettings,
   listProfessionalKinds,
   rateOn,
+  setBillingCodeActive,
+  setBillingRule,
+  type BillingCode,
+  type BillingRule,
   type ProfessionalKind,
+  type RuleEnforcement,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { PageHeading } from '../components/PageHeading';
@@ -150,16 +157,207 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div>
-      <PageHeading
-        eyebrow="Administration"
-        title="Rates"
-        description="Time is invoiced at the hourly rate for each professional's kind on the date of the work. Give each vendor a kind on the Vendors page."
-      />
-      {!isAdmin && <Alert type="info" slim>Only administrators can change rates.</Alert>}
-      {Boolean(error) && <Alert type="error">Failed to load rates.</Alert>}
-      {data && data.length === 0 && <p>No kinds of professional yet.</p>}
-      {data?.map((kind) => <KindCard key={kind.professionalKindId} kind={kind} isAdmin={isAdmin} onChanged={refresh} />)}
-      {isAdmin && <AddKindForm onAdded={refresh} />}
+      <PageHeading eyebrow="Administration" title="Settings" />
+      {!isAdmin && <Alert type="info" slim>Only administrators can change settings.</Alert>}
+      <section className="settings-section">
+        <h2>Rates</h2>
+        <p className="compact-hint">
+          Time is invoiced at the hourly rate for each professional's kind on the date of the work. Give each vendor a
+          kind on the Vendors page.
+        </p>
+        {Boolean(error) && <Alert type="error">Failed to load rates.</Alert>}
+        {data && data.length === 0 && <p>No kinds of professional yet.</p>}
+        {data?.map((kind) => <KindCard key={kind.professionalKindId} kind={kind} isAdmin={isAdmin} onChanged={refresh} />)}
+        {isAdmin && <AddKindForm onAdded={refresh} />}
+      </section>
+      <BillingRulesSettings isAdmin={isAdmin} />
     </div>
+  );
+}
+
+// Each save adds a setting rather than changing one, so history is kept.
+function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: boolean; onSaved: () => void }) {
+  const [enforcement, setEnforcement] = useState<RuleEnforcement>(rule.enforcement);
+  const [parameters, setParameters] = useState(rule.parameters);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const id = (field: string) => `rule-${rule.code}-${field}`;
+  const changed = enforcement !== rule.enforcement || JSON.stringify(parameters) !== JSON.stringify(rule.parameters);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    try {
+      await setBillingRule(rule.code, { enforcement, parameters });
+      setMessage({ type: 'success', text: 'Saved. It applies to invoices confirmed or submitted from now on.' });
+      onSaved();
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'The rule could not be saved.') });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const numberField = (key: 'increment' | 'hours', label: string, step: string) => (
+    <FormGroup>
+      <Label htmlFor={id(key)}>{label}</Label>
+      <TextInput
+        id={id(key)}
+        name={key}
+        type="number"
+        step={step}
+        min={step}
+        disabled={!isAdmin}
+        value={String(parameters[key] ?? '')}
+        onChange={(event) => setParameters({ ...parameters, [key]: Number(event.target.value) })}
+      />
+    </FormGroup>
+  );
+
+  return (
+    <Form className="compact-form compact-card settings-rule" onSubmit={(event) => void save(event)}>
+      <h3>{rule.label}</h3>
+      <p className="compact-hint">{rule.description}</p>
+      {message && <Alert type={message.type} slim>{message.text}</Alert>}
+      <div className="inline-fields rule-fields">
+        <FormGroup>
+          <Label htmlFor={id('enforcement')}>Applies as</Label>
+          <Select
+            id={id('enforcement')}
+            name="enforcement"
+            disabled={!isAdmin}
+            value={enforcement}
+            onChange={(event) => setEnforcement(event.target.value as RuleEnforcement)}
+          >
+            <option value="off">Off</option>
+            <option value="warn">Warn</option>
+            {!rule.warnOnly && <option value="require">Require</option>}
+          </Select>
+        </FormGroup>
+        {rule.code === 'time_increment' && numberField('increment', 'Increment (hours)', '0.01')}
+        {(rule.code === 'daily_hour_cap' || rule.code === 'long_entry') && numberField('hours', 'Hours', '0.5')}
+        {rule.code === 'billing_period' && (
+          <Checkbox
+            id={id('within-month')}
+            name="withinMonth"
+            label="Within one calendar month"
+            disabled={!isAdmin}
+            checked={Boolean(parameters.withinMonth)}
+            onChange={(event) => setParameters({ ...parameters, withinMonth: event.target.checked })}
+          />
+        )}
+        {isAdmin && (
+          <Button type="submit" disabled={saving || !changed}>
+            {saving ? 'Saving…' : 'Save'}
+          </Button>
+        )}
+      </div>
+    </Form>
+  );
+}
+
+function BillingCodes({ codes, isAdmin, onChanged }: { codes: BillingCode[]; isAdmin: boolean; onChanged: () => void }) {
+  const [code, setCode] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function add(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    try {
+      await addBillingCode({ code: code.trim(), displayName: displayName.trim() });
+      setCode('');
+      setDisplayName('');
+      onChanged();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'The code could not be added.'));
+    }
+  }
+
+  async function toggle(row: BillingCode) {
+    setError(null);
+    try {
+      await setBillingCodeActive(row.billingCodeId, !row.active);
+      onChanged();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'The code could not be changed.'));
+    }
+  }
+
+  return (
+    <section className="compact-card">
+      <h3>Billing codes</h3>
+      <p className="compact-hint">
+        The task codes firms choose from when the billing codes rule is on, such as a standard legal billing code set.
+        Retired codes stay on invoices that used them.
+      </p>
+      {error && <Alert type="error" slim>{error}</Alert>}
+      <RecordTable
+        rows={codes}
+        rowKey={(row) => row.billingCodeId}
+        emptyMessage="No codes yet."
+        columns={[
+          { header: 'Code', render: (row) => row.code },
+          { header: 'Description', render: (row) => row.displayName },
+          { header: 'In use', render: (row) => (row.active ? 'Yes' : 'Retired') },
+          ...(isAdmin
+            ? [
+                {
+                  header: '',
+                  render: (row: BillingCode) => (
+                    <Button type="button" unstyled onClick={() => void toggle(row)}>
+                      {row.active ? 'Retire' : 'Restore'}
+                    </Button>
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
+      {isAdmin && (
+        <Form className="compact-form" onSubmit={(event) => void add(event)}>
+          <div className="inline-fields rate-fields">
+            <FormGroup>
+              <Label htmlFor="new-code">Code</Label>
+              <TextInput id="new-code" name="code" type="text" value={code} onChange={(event) => setCode(event.target.value)} />
+            </FormGroup>
+            <FormGroup>
+              <Label htmlFor="new-code-name">Description</Label>
+              <TextInput
+                id="new-code-name"
+                name="displayName"
+                type="text"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
+            </FormGroup>
+            <Button type="submit" disabled={!code.trim() || !displayName.trim()}>
+              Add code
+            </Button>
+          </div>
+        </Form>
+      )}
+    </section>
+  );
+}
+
+function BillingRulesSettings({ isAdmin }: { isAdmin: boolean }) {
+  const [version, setVersion] = useState(0);
+  const { data, error } = useApiResource(() => getBillingRuleSettings(), [version]);
+  const refresh = () => setVersion((v) => v + 1);
+  return (
+    <section className="settings-section">
+      <h2>Billing rules</h2>
+      <p className="compact-hint">
+        Each rule is off unless turned on. Warn shows the finding to firms and reviewers; require also blocks import
+        confirmation and submission until it's fixed. Submitted invoices keep the rules they were checked against.
+      </p>
+      {Boolean(error) && <Alert type="error">Failed to load billing rules.</Alert>}
+      {data?.rules.map((rule) => (
+        <RuleCard key={rule.code} rule={rule} isAdmin={isAdmin} onSaved={refresh} />
+      ))}
+      {data && <BillingCodes codes={data.codes} isAdmin={isAdmin} onChanged={refresh} />}
+    </section>
   );
 }

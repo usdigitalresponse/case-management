@@ -43,6 +43,13 @@
       "when": 1791854643221,
       "tag": "0005_professional_kind_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791857319907,
+      "tag": "0006_billing_rules",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,7 @@ import { InvoiceLineReviewActions } from '../components/InvoiceLineReviewActions
 import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
 import { InvoiceSummary, invoiceReference } from '../components/InvoiceSummary';
 import { LineDecision } from '../components/LineDecision';
+import { RuleFindings } from '../components/BillingRules';
 import { lineDate, lineDescription, lineHours, lineRate, lineStatedDifference, lineTimekeeper, lineType } from '../invoiceLineDisplay';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatMoney } from '../formatMoney';
@@ -65,6 +66,7 @@ export default function InvoiceReview() {
       />
 
       <InvoiceSummary invoice={invoice} lines={lines} showReviewProgress />
+      <RuleFindings findings={data.ruleFindings ?? []} submitted />
 
       <div className="invoice-actions">
         <InvoiceExportLinks scope="staff" invoiceId={invoice.invoiceId} />

@@ -209,7 +209,8 @@ evidence; it is not a payment instruction or disbursement engine.
 
 `submission_snapshot` must contain `spec_version`, capture timestamp, request ID,
 chain ID and exact reviewed values of the request, lines, supporting invoice
-references, allocations and payee contact/vendor details. Capture relied-on case
+references, allocations and payee contact/vendor details, and the billing rule
+settings in force with their findings (`apply_billing_rules`). Capture relied-on case
 identifiers, participant/assignment identities, jurisdiction, issue descriptions,
 and attestation statement/signature document version IDs as deliberate evidence,
 not extra mutable fields on each request. Include document version IDs and hashes.

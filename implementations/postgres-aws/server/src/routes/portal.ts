@@ -33,6 +33,7 @@ import {
   updateTimeEntry,
 } from '../portal/changeTimeEntry';
 import { listRates } from '../billing/professionalRates';
+import { getBillingRules, listBillingCodes } from '../billing/billingRules';
 import { createInvoice } from '../portal/createInvoice';
 import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
@@ -106,6 +107,17 @@ router.delete(
   '/time-entries/:id',
   asyncHandler(async (req, res) => {
     res.json(await deleteTimeEntry(db, await sessionActor(req), req.params.id as string));
+  }),
+);
+
+// The rules in force and active codes, shown where invoices are entered.
+router.get(
+  '/billing-rules',
+  asyncHandler(async (_req, res) => {
+    res.json({
+      rules: (await getBillingRules(db)).filter((rule) => rule.enforcement !== 'off'),
+      codes: (await listBillingCodes(db)).filter((code) => code.active).map(({ code, displayName }) => ({ code, displayName })),
+    });
   }),
 );
 
@@ -203,6 +215,7 @@ function withoutReviewer(detail: InvoiceDetail) {
   return {
     invoice: detail.invoice,
     submissionAttempt: detail.submissionAttempt,
+    ruleFindings: detail.ruleFindings,
     lines: detail.lines.map(({ decidedByDisplayName: _reviewer, ...line }) => line),
   };
 }

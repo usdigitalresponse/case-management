@@ -29,6 +29,7 @@ import {
 import { recordTimeEntryChange } from '../portal/changeTimeEntry';
 import { priceTimeLines } from './priceTimeLines';
 import { checkInferredDates } from '../imports/inferServiceDates';
+import { enforceBillingRules } from './billingRules';
 import {
   DRAFT_INVOICE_STATUS_CODE,
   SUBMITTED_INVOICE_STATUS_CODE,
@@ -233,7 +234,8 @@ async function replaceLines(
       unitRate: line.unitRate?.toFixed(2),
       statedAmount: line.statedAmount?.toFixed(2),
       timekeeperLabel: line.timekeeperLabel,
-      taskCode: line.taskCode,
+      // Upper case, as billing codes are kept.
+      taskCode: line.taskCode?.toUpperCase(),
       activityCode: line.activityCode,
       expenseCode: line.expenseCode,
       timekeeperProfessionalId: line.timekeeperProfessionalId,
@@ -301,7 +303,13 @@ async function lockOwnInvoice(tx: Transaction, actor: PortalActor, invoiceId: st
   return locked;
 }
 
-async function buildSubmissionSnapshot(tx: Transaction, invoiceId: string, chainId: string, capturedAt: Date) {
+async function buildSubmissionSnapshot(
+  tx: Transaction,
+  invoiceId: string,
+  chainId: string,
+  capturedAt: Date,
+  billingRules: Awaited<ReturnType<typeof enforceBillingRules>>,
+) {
   const invoiceRow = await tx.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
   const lines = await tx.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
   return {
@@ -310,6 +318,7 @@ async function buildSubmissionSnapshot(tx: Transaction, invoiceId: string, chain
     invoice_id: invoiceId,
     invoice_approval_chain_id: chainId,
     records: { invoice: invoiceRow, invoice_line: lines },
+    billing_rules: billingRules,
   };
 }
 
@@ -353,6 +362,7 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
     unmatchedMeansBilled: true,
     strict: true,
   });
+  const billingRules = await enforceBillingRules(tx, invoiceId);
 
   const submittedAt = new Date();
   const submittedStatusId = await statusId(tx, SUBMITTED_INVOICE_STATUS_CODE);
@@ -365,7 +375,9 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
   );
   await tx
     .update(invoiceApprovalChain)
-    .set({ submissionSnapshot: await buildSubmissionSnapshot(tx, invoiceId, invoiceApprovalChainId, submittedAt) })
+    .set({
+      submissionSnapshot: await buildSubmissionSnapshot(tx, invoiceId, invoiceApprovalChainId, submittedAt, billingRules),
+    })
     .where(eq(invoiceApprovalChain.invoiceApprovalChainId, invoiceApprovalChainId));
   await recordInvoiceEvent(tx, {
     invoiceId,

@@ -291,6 +291,12 @@ form.compact-form { max-width: none; }
 .settings-kind { margin-bottom: 1rem; }
 .settings-kind h3 { margin: 0 0 .3rem; }
 .rate-fields { grid-template-columns: minmax(8rem, 12rem) minmax(9rem, 11rem) auto; margin-top: .8rem; }
+.settings-section { margin-bottom: 2.5rem; }
+.settings-section > h2 { margin: 0 0 .3rem; }
+.settings-rule h3 { margin: 0 0 .2rem; }
+.rule-fields { grid-template-columns: repeat(auto-fit, minmax(9rem, 12rem)); align-items: end; }
+.rule-fields .usa-button { justify-self: start; }
+.rule-findings ul { margin: .3rem 0 0; padding-left: 1.2rem; }
 .kind-cell { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .75rem; }
 /* Bulk import: three steps, the current one marked. */
 .bulk-steps { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; list-style: none; margin: 0 0 1.2rem; padding: .7rem 1rem; background: #f3f6fa; border-radius: 8px; }

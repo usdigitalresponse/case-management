@@ -227,6 +227,7 @@ export function InvoiceLinesEditor({
   timekeepers = [],
   billedProfessionalId,
   recordedTime = [],
+  billingCodes = [],
   importReview,
 }: {
   idPrefix: string;
@@ -237,6 +238,8 @@ export function InvoiceLinesEditor({
   billedProfessionalId?: string;
   // Unbilled recorded time, to spot typed items that repeat it.
   recordedTime?: TimeEntryRecord[];
+  // The agency's task codes, when it uses them: adds a code column.
+  billingCodes?: Array<{ code: string; displayName: string }>;
   importReview?: {
     duplicateTime: DuplicateTimeSuggestion[];
     sourceLocations?: string[];
@@ -250,6 +253,7 @@ export function InvoiceLinesEditor({
     ['Date', 'minmax(8.5rem, 9.5rem)'],
     ['Description', 'minmax(6rem, 1fr)'],
     ...(showTimekeeper ? [['Work done by', 'minmax(7rem, 12rem)']] : []),
+    ...(billingCodes.length > 0 ? [['Task code', 'minmax(6rem, 8rem)']] : []),
     ['Hours', 'minmax(4rem, 5rem)'],
     ['Amount ($)', 'minmax(5.5rem, 7rem)'],
     ['', '1.75rem'],
@@ -372,6 +376,32 @@ export function InvoiceLinesEditor({
                 </Select>
               </div>
             )}
+            {billingCodes.length > 0 &&
+              (line.lineType === 'time' ? (
+                <div className="usa-form-group">
+                  <Label htmlFor={id('task-code')} className="line-label">{`${item} task code`}</Label>
+                  <Select
+                    id={id('task-code')}
+                    name={id('task-code')}
+                    value={line.carried.taskCode ?? ''}
+                    onChange={(event) =>
+                      update(index, { carried: { ...line.carried, taskCode: event.target.value || undefined } })
+                    }
+                  >
+                    <option value="">- Code -</option>
+                    {line.carried.taskCode && !billingCodes.some((code) => code.code === line.carried.taskCode) && (
+                      <option value={line.carried.taskCode}>{line.carried.taskCode} (not on list)</option>
+                    )}
+                    {billingCodes.map((code) => (
+                      <option key={code.code} value={code.code}>
+                        {code.code} {code.displayName}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              ) : (
+                <span />
+              ))}
             <div className="usa-form-group">
               <Label htmlFor={id('quantity')} className="line-label">{`${item} hours`}</Label>
               <TextInput

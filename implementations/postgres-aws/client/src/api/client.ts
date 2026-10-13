@@ -265,6 +265,57 @@ export function addKindRate(professionalKindId: string, input: { hourlyRate: num
   });
 }
 
+// The deployment's billing rules (server/src/billing/billingRules.ts).
+export type RuleEnforcement = 'off' | 'warn' | 'require';
+export type BillingRuleCode = 'billing_codes' | 'time_increment' | 'daily_hour_cap' | 'long_entry' | 'billing_period';
+
+export interface BillingRule {
+  code: BillingRuleCode;
+  label: string;
+  description: string;
+  warnOnly: boolean;
+  enforcement: RuleEnforcement;
+  parameters: { increment?: number; hours?: number; withinMonth?: boolean };
+}
+
+export interface BillingCode {
+  billingCodeId: string;
+  code: string;
+  displayName: string;
+  active: boolean;
+}
+
+export interface RuleFinding {
+  rule: BillingRuleCode;
+  enforcement: 'warn' | 'require';
+  message: string;
+  invoiceLineId?: string;
+}
+
+export function getBillingRuleSettings(): Promise<{ rules: BillingRule[]; codes: BillingCode[] }> {
+  return request('/api/settings/billing-rules');
+}
+
+export function setBillingRule(
+  code: BillingRuleCode,
+  input: { enforcement: RuleEnforcement; parameters: BillingRule['parameters'] },
+): Promise<BillingRule> {
+  return request(`/api/settings/billing-rules/${code}`, { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export function addBillingCode(input: { code: string; displayName: string }): Promise<BillingCode> {
+  return request('/api/settings/billing-codes', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function setBillingCodeActive(billingCodeId: string, active: boolean): Promise<BillingCode> {
+  return request(`/api/settings/billing-codes/${billingCodeId}`, { method: 'PUT', body: JSON.stringify({ active }) });
+}
+
+// The rules in force and active codes, for firms entering invoices.
+export function getPortalBillingRules(): Promise<{ rules: BillingRule[]; codes: Array<{ code: string; displayName: string }> }> {
+  return request('/api/portal/billing-rules');
+}
+
 export function setProfessionalKind(professionalId: string, professionalKindId: string | null): Promise<unknown> {
   return request(`/api/professionals/${professionalId}/kind`, {
     method: 'PUT',
@@ -548,6 +599,8 @@ export interface PortalInvoice {
   import: { invoiceImportId: string; statusCode: string } | null;
   // Whether this user may delete it (server/src/billing/deleteInvoice.ts).
   deletable: boolean;
+  // Billing rule findings: live for a draft, as submitted otherwise.
+  ruleFindings: RuleFinding[];
 }
 
 export function deleteInvoice(invoiceId: string): Promise<{ invoiceId: string }> {
@@ -829,8 +882,10 @@ export interface InvoiceReviewLine {
   decidedAt: string | null;
 }
 
-export function getInvoiceForReview(invoiceId: string): Promise<{ invoice: QueuedInvoice; lines: InvoiceReviewLine[] }> {
-  return request<{ invoice: QueuedInvoice; lines: InvoiceReviewLine[] }>(`/api/invoices/${invoiceId}`);
+export function getInvoiceForReview(
+  invoiceId: string,
+): Promise<{ invoice: QueuedInvoice; lines: InvoiceReviewLine[]; ruleFindings: RuleFinding[] }> {
+  return request(`/api/invoices/${invoiceId}`);
 }
 
 export interface ReviewInvoiceLineInput {

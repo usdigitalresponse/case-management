@@ -229,6 +229,22 @@ rules:
       - Rates and amounts stated on an imported supporting invoice stay as evidence (unit_rate, stated_amount) and in the import's extraction result; review flags a line whose stated amount differs from its billed amount.
       - Submission prices lines again, so the frozen snapshot carries the rates applied; a later rate change never alters a submitted attempt.
 
+  apply_billing_rules:
+    description: Apply the deployment's configured billing rules to payment requests.
+    applies_to: invoice
+    trigger: before_submit
+    outcome: blocking
+    requirements:
+      - Each deployment serves one agency with one set of rules. Administrators set each rule to off, warn or require, with its parameters, as a billing_rule_setting; a new setting takes over from when it is recorded and earlier ones are kept.
+      - Rules are configuration, not code paths for a particular agency. Every rule is off unless an administrator turns it on.
+      - Billing codes - each time line carries a task code from the configured billing_codes vocabulary.
+      - Time increment - each time line's hours are a whole multiple of the configured increment. Hours are flagged, never rounded.
+      - Daily hour cap - one professional's billed hours on one date, across this request and other submitted requests, stay within the cap; other drafts do not count.
+      - Long entry - a single time line over the configured hours is flagged as possible block billing; this rule can only warn.
+      - Billing period - the request states a billing period, optionally within one calendar month.
+      - A warn finding is shown to the submitter before submission and to reviewers; a require finding blocks import confirmation and submission with a message naming the item and the rule. Submitters see which rules are in force where they enter requests.
+      - The submission snapshot records the rule settings in force and every finding, so a later change to a rule never alters what a reviewed attempt was checked against.
+
   record_approved_request_amounts:
     description: Record approved request amounts.
     applies_to: invoice_approval_decision

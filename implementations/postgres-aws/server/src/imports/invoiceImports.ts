@@ -37,6 +37,7 @@ import { detectInvoiceFile } from './detectFormat';
 import { reconciliationWarnings, UnreadableInvoiceFileError, type ImportWarning, type ParsedInvoice } from './parsedInvoice';
 import { CONFIRMED_IMPORT_STATUS_CODE, UNRESOLVED_IMPORT_STATUS_CODES } from './importedTimeEntries';
 import { priceTimeLines } from '../billing/priceTimeLines';
+import { enforceBillingRules } from '../billing/billingRules';
 import { matchTimekeeperName } from './matchTimekeeper';
 import { checkInferredDates, inferServiceDates } from './inferServiceDates';
 
@@ -550,6 +551,7 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
       unmatchedMeansBilled: true,
       strict: true,
     });
+    await enforceBillingRules(tx, row.invoiceId);
     const released = await resolveImport(tx, importId, row.documentId, CONFIRMED_IMPORT_STATUS_CODE, actor.userAccountId);
     return released ? row.storageReference : undefined;
   });
