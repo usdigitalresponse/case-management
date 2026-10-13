@@ -23,6 +23,8 @@
     "extract-invoice": "tsx scripts/extract-invoice.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-geo-places": "^3.1150.0",
+    "@aws-sdk/client-geo-routes": "^3.1150.0",
     "@aws-sdk/client-sesv2": "^3.1145.0",
     "@faker-js/faker": "^10.6.0",
     "cookie-session": "^2.1.0",

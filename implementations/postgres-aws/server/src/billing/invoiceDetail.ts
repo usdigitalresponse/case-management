@@ -4,6 +4,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {
   caseTable,
+  expenseTypes,
   invoice,
   invoiceApprovalChain,
   invoiceApprovalDecision,
@@ -68,6 +69,12 @@ export async function loadInvoiceLines(db: Database, invoiceId: string) {
       taskCode: invoiceLine.taskCode,
       activityCode: invoiceLine.activityCode,
       expenseCode: invoiceLine.expenseCode,
+      expenseTypeCode: expenseTypes.code,
+      tripOrigin: invoiceLine.tripOrigin,
+      tripDestination: invoiceLine.tripDestination,
+      roundTrip: invoiceLine.roundTrip,
+      routeDistance: invoiceLine.routeDistance,
+      routeCheckedAt: invoiceLine.routeCheckedAt,
       sourceTimeEntryId: invoiceLine.sourceTimeEntryId,
       sourceActivityOn: timeEntry.activityOn,
       sourceDurationHours: timeEntry.durationHours,
@@ -81,6 +88,7 @@ export async function loadInvoiceLines(db: Database, invoiceId: string) {
     })
     .from(invoiceLine)
     .leftJoin(invoiceLineTypes, eq(invoiceLine.lineTypeId, invoiceLineTypes.id))
+    .leftJoin(expenseTypes, eq(invoiceLine.expenseTypeId, expenseTypes.id))
     .leftJoin(timeEntry, eq(invoiceLine.sourceTimeEntryId, timeEntry.timeEntryId))
     .leftJoin(professional, eq(invoiceLine.timekeeperProfessionalId, professional.professionalId))
     .leftJoin(

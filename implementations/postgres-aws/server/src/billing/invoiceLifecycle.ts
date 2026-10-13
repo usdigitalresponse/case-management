@@ -9,6 +9,7 @@ import { getReferenceId } from '../db/referenceLookups';
 import { ConflictError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import {
+  expenseTypes,
   invoice,
   invoiceApprovalChain,
   invoiceApprovalDecision,
@@ -27,7 +28,8 @@ import {
   findImportForInvoice,
 } from '../imports/importedTimeEntries';
 import { recordTimeEntryChange } from '../portal/changeTimeEntry';
-import { priceTimeLines } from './priceTimeLines';
+import { priceLines } from './priceLines';
+import { applyTripDistances, measureTrips } from './routeCheck';
 import { checkInferredDates } from '../imports/inferServiceDates';
 import { enforceBillingRules } from './billingRules';
 import {
@@ -40,14 +42,18 @@ import {
 export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.4.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
-export const LINE_TYPE_CODES = { time: 'time', expense: 'expense', other: 'service' } as const;
+// Mileage is an expense line with the mileage expense type.
+export const LINE_TYPE_CODES = { time: 'time', expense: 'expense', mileage: 'expense', other: 'service' } as const;
 export type LineType = keyof typeof LINE_TYPE_CODES;
+export const MILEAGE_EXPENSE_TYPE_CODE = 'mileage';
+
+const address = z.string().trim().min(1).max(300);
 
 export const invoiceLineInputSchema = z
   .object({
-    lineType: z.enum(['time', 'expense', 'other']).optional(),
-    // Ignored on a time line, which is priced from rates
-    // (./priceTimeLines.ts), except while an import is unconfirmed.
+    lineType: z.enum(['time', 'expense', 'mileage', 'other']).optional(),
+    // Ignored on a time or mileage line, which is priced from rates
+    // (./priceLines.ts), except while an import is unconfirmed.
     amount: z.coerce.number().positive().optional(),
     // The billed professionals' time on this case; makes the line a time line.
     sourceTimeEntryId: z.string().uuid().optional(),
@@ -65,12 +71,16 @@ export const invoiceLineInputSchema = z
     expenseCode: z.string().trim().min(1).optional(),
     // Defaults to the billed professional on a delegated invoice.
     timekeeperProfessionalId: z.string().uuid().optional(),
+    // Mileage only; quantity is the miles claimed for the whole trip.
+    tripOrigin: address.optional(),
+    tripDestination: address.optional(),
+    roundTrip: z.boolean().optional(),
   })
   .transform((line) => ({
     ...line,
     lineType: (line.sourceTimeEntryId ? 'time' : (line.lineType ?? 'other')) as LineType,
   }))
-  .refine((line) => line.lineType === 'time' || line.amount !== undefined, {
+  .refine((line) => line.lineType === 'time' || line.lineType === 'mileage' || line.amount !== undefined, {
     message: 'Each expense or other item needs an amount above zero.',
     path: ['amount'],
   });
@@ -215,6 +225,9 @@ async function replaceLines(
     // eslint-disable-next-line no-await-in-loop
     lineTypeIds[lineType] = await getReferenceId(tx, invoiceLineTypes, code);
   }
+  const mileageTypeId = lines.some((line) => line.lineType === 'mileage')
+    ? await getReferenceId(tx, expenseTypes, MILEAGE_EXPENSE_TYPE_CODE)
+    : undefined;
 
   // Safe: draft lines have no decisions, and submitted values live on in
   // their attempt's snapshot.
@@ -239,10 +252,17 @@ async function replaceLines(
       activityCode: line.activityCode,
       expenseCode: line.expenseCode,
       timekeeperProfessionalId: line.timekeeperProfessionalId,
+      ...(line.lineType === 'mileage' && {
+        expenseTypeId: mileageTypeId,
+        tripOrigin: line.tripOrigin,
+        tripDestination: line.tripDestination,
+        roundTrip: Boolean(line.roundTrip),
+      }),
     })),
   );
+  await applyTripDistances(tx, invoiceId);
   // A draft may be saved incomplete; confirmation and submission are strict.
-  return priceTimeLines(tx, invoiceId, {
+  return priceLines(tx, invoiceId, {
     billedProfessionalId,
     unmatchedMeansBilled: fillTimekeepers,
     strict: false,
@@ -357,11 +377,13 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
     },
     actor.userAccountId,
   );
-  await priceTimeLines(tx, invoiceId, {
+  await priceLines(tx, invoiceId, {
     billedProfessionalId: locked.professionalId,
     unmatchedMeansBilled: true,
     strict: true,
   });
+  // Callers measure trips first, outside the transaction.
+  await applyTripDistances(tx, invoiceId);
   const billingRules = await enforceBillingRules(tx, invoiceId);
 
   const submittedAt = new Date();
@@ -407,6 +429,14 @@ export async function updateDraftInvoice(db: Database, actor: PortalActor, invoi
 }
 
 export async function submitInvoice(db: Database, actor: PortalActor, invoiceId: string) {
+  if (z.uuid().safeParse(invoiceId).success) {
+    const trips = await db
+      .select({ tripOrigin: invoiceLine.tripOrigin, tripDestination: invoiceLine.tripDestination })
+      .from(invoiceLine)
+      .innerJoin(invoice, eq(invoiceLine.invoiceId, invoice.invoiceId))
+      .where(and(eq(invoiceLine.invoiceId, invoiceId), eq(invoice.submittedByUserAccountId, actor.userAccountId)));
+    await measureTrips(db, trips);
+  }
   await db.transaction((tx) => submitInTx(tx, actor, invoiceId));
   return { invoiceId };
 }

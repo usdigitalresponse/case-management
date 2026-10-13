@@ -225,3 +225,6 @@ server `npm test` against a separate migrated test database (see its README). Th
 build entry point is `dist/src/app.js`. Uploaded invoice files are transient
 working copies in a private local directory (`DOCUMENT_STORE_DIR`), deleted on
 confirm, discard or three-day expiry; never commit or back them up.
+Driving-distance lookups for the mileage rule (`ROUTE_CHECK_PROVIDER=aws`)
+are billed per request: keep them to submission with the rule on and cached
+by address pair, and have tests use `setRouteProviderForTests`, never AWS.

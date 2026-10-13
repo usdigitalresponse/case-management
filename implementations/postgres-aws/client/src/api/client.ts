@@ -267,7 +267,13 @@ export function addKindRate(professionalKindId: string, input: { hourlyRate: num
 
 // The deployment's billing rules (server/src/billing/billingRules.ts).
 export type RuleEnforcement = 'off' | 'warn' | 'require';
-export type BillingRuleCode = 'billing_codes' | 'time_increment' | 'daily_hour_cap' | 'long_entry' | 'billing_period';
+export type BillingRuleCode =
+  | 'billing_codes'
+  | 'time_increment'
+  | 'daily_hour_cap'
+  | 'long_entry'
+  | 'billing_period'
+  | 'mileage_distance';
 
 export interface BillingRule {
   code: BillingRuleCode;
@@ -275,7 +281,32 @@ export interface BillingRule {
   description: string;
   warnOnly: boolean;
   enforcement: RuleEnforcement;
-  parameters: { increment?: number; hours?: number; withinMonth?: boolean };
+  parameters: { increment?: number; hours?: number; withinMonth?: boolean; tolerancePercent?: number };
+}
+
+// Oldest first (server/src/billing/mileageRates.ts).
+export interface MileageRate {
+  ratePerMile: string;
+  effectiveFrom: string;
+}
+
+export function listMileageRates(): Promise<{ rates: MileageRate[] }> {
+  return request('/api/settings/mileage-rates');
+}
+
+// Adds a rate from a date rather than changing an earlier one.
+export function addMileageRate(input: { ratePerMile: number; effectiveFrom: string }): Promise<MileageRate> {
+  return request('/api/settings/mileage-rates', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function mileageRateOn(rates: MileageRate[], date: string): string | undefined {
+  let found: string | undefined;
+  for (const rate of rates) {
+    if (rate.effectiveFrom <= date) {
+      found = rate.ratePerMile;
+    }
+  }
+  return found;
 }
 
 export interface BillingCode {
@@ -311,8 +342,12 @@ export function setBillingCodeActive(billingCodeId: string, active: boolean): Pr
   return request(`/api/settings/billing-codes/${billingCodeId}`, { method: 'PUT', body: JSON.stringify({ active }) });
 }
 
-// The rules in force and active codes, for firms entering invoices.
-export function getPortalBillingRules(): Promise<{ rules: BillingRule[]; codes: Array<{ code: string; displayName: string }> }> {
+// The rules in force, active codes and mileage rates, for firms entering invoices.
+export function getPortalBillingRules(): Promise<{
+  rules: BillingRule[];
+  codes: Array<{ code: string; displayName: string }>;
+  mileageRates: MileageRate[];
+}> {
   return request('/api/portal/billing-rules');
 }
 
@@ -502,7 +537,7 @@ export interface InvoiceRecord {
   deletable: boolean;
 }
 
-export type InvoiceLineType = 'time' | 'expense' | 'other';
+export type InvoiceLineType = 'time' | 'expense' | 'mileage' | 'other';
 
 export interface CreateInvoiceLineInput {
   lineType?: InvoiceLineType;
@@ -523,6 +558,10 @@ export interface CreateInvoiceLineInput {
   expenseCode?: string;
   // Whose work the line bills; a delegated invoice defaults it server-side.
   timekeeperProfessionalId?: string;
+  // Mileage only; quantity is the miles for the whole trip.
+  tripOrigin?: string;
+  tripDestination?: string;
+  roundTrip?: boolean;
 }
 
 // Who the signed-in user may bill for on a case: themselves, and anyone
@@ -850,7 +889,7 @@ export type ReviewOutcome = 'approved' | 'rejected';
 // Decision fields are null until the line is reviewed.
 export interface InvoiceReviewLine {
   invoiceLineId: string;
-  // invoice_line_types code: 'time', 'expense' or 'service' (other).
+  // invoice_line_types code: 'time', 'expense' (including mileage) or 'service' (other).
   lineTypeCode: string | null;
   amount: string;
   // Supplier-stated detail; when absent, the linked time entry's values apply.
@@ -862,8 +901,16 @@ export interface InvoiceReviewLine {
   // As stated on an imported file; evidence only.
   unitRate: string | null;
   statedAmount: string | null;
-  // The staff-set rate a time line is billed at.
+  // The configured rate a time or mileage line is billed at.
   billedRate: string | null;
+  // 'mileage' on a mileage line; its quantity is the miles claimed.
+  expenseTypeCode: string | null;
+  tripOrigin: string | null;
+  tripDestination: string | null;
+  roundTrip: boolean;
+  // One-way driving miles, once looked up on submission.
+  routeDistance: string | null;
+  routeCheckedAt: string | null;
   timekeeperLabel: string | null;
   timekeeperProfessionalId: string | null;
   timekeeperDisplayName: string | null;

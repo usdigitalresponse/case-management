@@ -56,11 +56,11 @@ function templateDate(value: Cell, location: string): string | undefined {
 
 function lineType(value: Cell, hours: number | undefined, expenseCode: string | undefined, location: string): LineType {
   const text = optionalText(value)?.toLowerCase();
-  if (text === 'time' || text === 'expense' || text === 'other') {
+  if (text === 'time' || text === 'expense' || text === 'mileage' || text === 'other') {
     return text;
   }
   if (text) {
-    throw new UnreadableInvoiceFileError(`${location}: type "${text}" must be time, expense or other.`);
+    throw new UnreadableInvoiceFileError(`${location}: type "${text}" must be time, expense, mileage or other.`);
   }
   // Unstated: guessed, for the submitter to confirm.
   return hours !== undefined ? 'time' : expenseCode ? 'expense' : 'other';

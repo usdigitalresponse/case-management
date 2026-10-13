@@ -237,6 +237,15 @@ same integrity as every other relationship, not an untyped polymorphic pointer
 Additional source types are added as further optional typed references after a
 model decision, following the same one-of pattern as `document_link`.
 
+Mileage is an expense type rather than a separate line type. A mileage line's
+quantity is the miles claimed for the whole trip, with `trip_origin`,
+`trip_destination` and `round_trip` describing it; it is priced at the
+`mileage_rate` in force on its date (`apply_mileage_rates`). The optional
+mileage distance billing rule records the driving distance found for each trip
+on the line (`route_distance`, `route_checked_at`), so the submission snapshot
+keeps what the claim was compared with. Which routing service supplies distances
+is an implementation choice.
+
 ## Supporting invoice import and export
 
 A payee may upload a supporting invoice file instead of entering lines. The file

@@ -3,10 +3,13 @@ import { Alert, Button, Checkbox, Form, FormGroup, Label, Select, TextInput } fr
 import {
   addBillingCode,
   addKindRate,
+  addMileageRate,
   apiErrorMessage,
   createProfessionalKind,
   getBillingRuleSettings,
+  listMileageRates,
   listProfessionalKinds,
+  mileageRateOn,
   rateOn,
   setBillingCodeActive,
   setBillingRule,
@@ -19,7 +22,7 @@ import { useApiResource } from '../hooks/useApiResource';
 import { PageHeading } from '../components/PageHeading';
 import { RecordTable } from '../components/RecordTable';
 import { formatDate } from '../formatDateTime';
-import { formatMoney } from '../formatMoney';
+import { formatMoney, formatRate } from '../formatMoney';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -162,16 +165,97 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
       <section className="settings-section">
         <h2>Rates</h2>
         <p className="compact-hint">
-          Time is invoiced at the hourly rate for each professional's kind on the date of the work. Give each vendor a
-          kind on the Vendors page.
+          Time is invoiced at the hourly rate for each professional's kind on the date of the work, and mileage at the
+          rate per mile on the date of the trip. Give each vendor a kind on the Vendors page.
         </p>
         {Boolean(error) && <Alert type="error">Failed to load rates.</Alert>}
         {data && data.length === 0 && <p>No kinds of professional yet.</p>}
         {data?.map((kind) => <KindCard key={kind.professionalKindId} kind={kind} isAdmin={isAdmin} onChanged={refresh} />)}
         {isAdmin && <AddKindForm onAdded={refresh} />}
+        <MileageRates isAdmin={isAdmin} />
       </section>
       <BillingRulesSettings isAdmin={isAdmin} />
     </div>
+  );
+}
+
+// Mileage is priced at the rate per mile in force on the trip's date.
+function MileageRates({ isAdmin }: { isAdmin: boolean }) {
+  const [version, setVersion] = useState(0);
+  const { data, error: loadError } = useApiResource(() => listMileageRates().then((result) => result.rates), [version]);
+  const [ratePerMile, setRatePerMile] = useState('');
+  const [effectiveFrom, setEffectiveFrom] = useState(today);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const current = data ? mileageRateOn(data, today()) : undefined;
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      await addMileageRate({ ratePerMile: Number(ratePerMile), effectiveFrom });
+      setRatePerMile('');
+      setVersion((v) => v + 1);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'The rate could not be saved.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="compact-card settings-kind">
+      <h3>Mileage</h3>
+      <p className="rate-note">Rate per mile today: {current ? formatRate(current) : 'not set'}</p>
+      {Boolean(loadError) && <Alert type="error" slim>Failed to load mileage rates.</Alert>}
+      {data && (
+        <RecordTable
+          rows={[...data].reverse()}
+          rowKey={(rate) => `${rate.effectiveFrom}-${rate.ratePerMile}`}
+          emptyMessage="No rate yet, so mileage can't be invoiced."
+          columns={[
+            { header: 'Applies from', render: (rate) => formatDate(rate.effectiveFrom) },
+            { header: 'Rate per mile', render: (rate) => <span className="amount">{formatRate(rate.ratePerMile)}</span> },
+          ]}
+        />
+      )}
+      {isAdmin && (
+        <Form className="compact-form" onSubmit={(event) => void submit(event)}>
+          {error && <Alert type="error" slim>{error}</Alert>}
+          <div className="inline-fields rate-fields">
+            <FormGroup>
+              <Label htmlFor="mileage-rate">New rate per mile ($)</Label>
+              <TextInput
+                id="mileage-rate"
+                name="ratePerMile"
+                type="number"
+                min="0.001"
+                step="0.001"
+                required
+                value={ratePerMile}
+                onChange={(event) => setRatePerMile(event.target.value)}
+              />
+            </FormGroup>
+            <FormGroup>
+              <Label htmlFor="mileage-from">Applies from</Label>
+              <input
+                id="mileage-from"
+                name="effectiveFrom"
+                type="date"
+                className="usa-input"
+                required
+                value={effectiveFrom}
+                onChange={(event) => setEffectiveFrom(event.target.value)}
+              />
+            </FormGroup>
+            <Button type="submit" disabled={saving || !(Number(ratePerMile) > 0) || !effectiveFrom}>
+              {saving ? 'Saving…' : 'Add rate'}
+            </Button>
+          </div>
+        </Form>
+      )}
+    </section>
   );
 }
 
@@ -199,7 +283,7 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
     }
   }
 
-  const numberField = (key: 'increment' | 'hours', label: string, step: string) => (
+  const numberField = (key: 'increment' | 'hours' | 'tolerancePercent', label: string, step: string, min = step) => (
     <FormGroup>
       <Label htmlFor={id(key)}>{label}</Label>
       <TextInput
@@ -207,7 +291,7 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
         name={key}
         type="number"
         step={step}
-        min={step}
+        min={min}
         disabled={!isAdmin}
         value={String(parameters[key] ?? '')}
         onChange={(event) => setParameters({ ...parameters, [key]: Number(event.target.value) })}
@@ -237,6 +321,7 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
         </FormGroup>
         {rule.code === 'time_increment' && numberField('increment', 'Increment (hours)', '0.01')}
         {(rule.code === 'daily_hour_cap' || rule.code === 'long_entry') && numberField('hours', 'Hours', '0.5')}
+        {rule.code === 'mileage_distance' && numberField('tolerancePercent', 'Tolerance (%)', '1', '0')}
         {rule.code === 'billing_period' && (
           <Checkbox
             id={id('within-month')}

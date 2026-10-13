@@ -210,6 +210,7 @@ function ExtractedReview({
           onChange={setLines}
           timekeepers={timekeepers}
           billingCodes={billingRules.codes}
+          mileageRates={billingRules.mileageRates}
           importReview={{
             duplicateTime: importDetail.possibleDuplicateTime,
             // Only while items are still in their extracted order.

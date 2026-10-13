@@ -40,6 +40,12 @@ services:
       EXTERNAL_EMAIL_WHITELIST: ${EXTERNAL_EMAIL_WHITELIST:-}
       DEMO_LOGIN_ENABLED: ${DEMO_LOGIN_ENABLED:-false}
       EXTERNAL_DEMO_LOGIN_ENABLED: ${EXTERNAL_DEMO_LOGIN_ENABLED:-false}
+      # "aws" turns on driving-distance lookups for the mileage rule.
+      ROUTE_CHECK_PROVIDER: ${ROUTE_CHECK_PROVIDER:-}
+      ROUTE_CHECK_MONTHLY_CALL_WARNING: ${ROUTE_CHECK_MONTHLY_CALL_WARNING:-1000}
+      ROUTE_CHECK_MONTHLY_CALL_LIMIT: ${ROUTE_CHECK_MONTHLY_CALL_LIMIT:-}
+      ROUTE_CHECK_COUNTRY: ${ROUTE_CHECK_COUNTRY:-USA}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
     depends_on:
       postgres:
         condition: service_healthy

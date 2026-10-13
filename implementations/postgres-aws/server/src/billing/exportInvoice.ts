@@ -23,6 +23,8 @@ export interface InvoiceExportContent {
   columns: string[];
   rows: Array<Array<string | number | null>>;
   amountColumns: Set<number>;
+  // Mileage items' trips, in place of a printed map; empty without mileage.
+  travelLog: { columns: string[]; rows: Array<Array<string | number | null>>; amountColumns: Set<number> };
 }
 
 function toNumber(value: string | null): number | null {
@@ -74,7 +76,7 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
   const rows = lines.map((line) => {
     const row: Array<string | number | null> = [
       line.serviceDate ?? line.sourceActivityOn ?? '',
-      LINE_TYPE_LABELS[line.lineTypeCode ?? ''] ?? 'Other',
+      line.expenseTypeCode === 'mileage' ? 'Mileage' : (LINE_TYPE_LABELS[line.lineTypeCode ?? ''] ?? 'Other'),
       line.description ?? line.sourceDescription ?? '',
       line.timekeeperDisplayName ?? line.timekeeperLabel ?? '',
       lineCodes(line),
@@ -93,7 +95,28 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
   });
 
   const amountColumns = new Set(['Rate', 'Requested', 'Approved'].map((name) => columns.indexOf(name)));
-  return { summary, columns, rows, amountColumns };
+
+  const travelColumns = ['Date', 'From', 'To', 'Round trip', 'Miles claimed', 'Driving route (mi)', 'Rate', 'Requested'];
+  const travelRows = lines
+    .filter((line) => line.expenseTypeCode === 'mileage')
+    .map((line) => [
+      line.serviceDate ?? '',
+      line.tripOrigin ?? '',
+      line.tripDestination ?? '',
+      line.roundTrip ? 'Yes' : 'No',
+      toNumber(line.quantity),
+      // Both ways for a round trip, as claimed.
+      line.routeDistance === null ? 'Not checked' : Number(line.routeDistance) * (line.roundTrip ? 2 : 1),
+      toNumber(line.billedRate),
+      toNumber(line.amount),
+    ]);
+  const travelLog = { columns: travelColumns, rows: travelRows, amountColumns: new Set([6, 7]) };
+  return { summary, columns, rows, amountColumns, travelLog };
+}
+
+// Money to the cent, except a rate per mile, which may have a third place.
+function formatAmount(value: number): string {
+  return Math.abs(Math.round(value * 100) - value * 100) < 1e-6 ? value.toFixed(2) : value.toFixed(3);
 }
 
 export function invoiceExportFileName(detail: InvoiceDetail, format: InvoiceExportFormat): string {
@@ -102,17 +125,24 @@ export function invoiceExportFileName(detail: InvoiceDetail, format: InvoiceExpo
 
 export async function renderInvoiceXlsx(detail: InvoiceDetail, options: InvoiceExportOptions): Promise<Buffer> {
   const content = invoiceExportContent(detail, options);
-  const sheet: Row[] = [
-    ...content.summary.map(([label, value]): Row => [{ value: label, fontWeight: 'bold' }, { value }]),
-    [],
-    content.columns.map((header) => ({ value: header, fontWeight: 'bold' as const })),
-    ...content.rows.map((row): Row =>
+  const table = (columns: string[], rows: InvoiceExportContent['rows'], amountColumns: Set<number>): Row[] => [
+    columns.map((header) => ({ value: header, fontWeight: 'bold' as const })),
+    ...rows.map((row): Row =>
       row.map((cell, index) =>
         typeof cell === 'number'
-          ? { value: cell, type: Number, format: content.amountColumns.has(index) ? '#,##0.00' : undefined }
+          ? { value: cell, type: Number, format: amountColumns.has(index) ? '#,##0.00#' : undefined }
           : { value: cell ?? undefined },
       ),
     ),
+  ];
+  const { travelLog } = content;
+  const sheet: Row[] = [
+    ...content.summary.map(([label, value]): Row => [{ value: label, fontWeight: 'bold' }, { value }]),
+    [],
+    ...table(content.columns, content.rows, content.amountColumns),
+    ...(travelLog.rows.length > 0
+      ? [[], [{ value: 'Travel log', fontWeight: 'bold' as const }], ...table(travelLog.columns, travelLog.rows, travelLog.amountColumns)]
+      : []),
   ];
   return writeXlsxFile(sheet, { sheet: 'Invoice', columns: content.columns.map(() => ({ width: 18 })) }).toBuffer();
 }
@@ -134,8 +164,8 @@ export function renderInvoicePdf(detail: InvoiceDetail, options: InvoiceExportOp
   }
   doc.moveDown();
 
-  const formatCell = (cell: string | number | null, index: number): string =>
-    cell === null ? '' : typeof cell === 'number' ? (content.amountColumns.has(index) ? cell.toFixed(2) : String(cell)) : cell;
+  const formatCell = (cell: string | number | null, index: number, amountColumns = content.amountColumns): string =>
+    cell === null ? '' : typeof cell === 'number' ? (amountColumns.has(index) ? formatAmount(cell) : String(cell)) : cell;
   // Widths in points across the landscape page; description takes the rest.
   const widths = [56, 42, '*', 78, 72, 42, 48, 52, 52, 52, 84, 70];
   const hoursColumn = content.columns.indexOf('Hours / qty');
@@ -146,9 +176,24 @@ export function renderInvoicePdf(detail: InvoiceDetail, options: InvoiceExportOp
     }),
     data: [
       content.columns.map((header) => ({ text: header, font: { src: 'Helvetica-Bold' } })),
-      ...content.rows.map((row) => row.map(formatCell)),
+      ...content.rows.map((row) => row.map((cell, index) => formatCell(cell, index))),
     ],
   });
+
+  const { travelLog } = content;
+  if (travelLog.rows.length > 0) {
+    doc.moveDown().font('Helvetica-Bold').fontSize(12).text('Travel log', doc.page.margins.left);
+    doc.moveDown(0.3).fontSize(8).table({
+      columnStyles: (column) => ({
+        width: [56, '*', '*', 48, 60, 72, 48, 56][column] ?? '*',
+        align: column >= 4 ? { x: 'right' } : { x: 'left' },
+      }),
+      data: [
+        travelLog.columns.map((header) => ({ text: header, font: { src: 'Helvetica-Bold' } })),
+        ...travelLog.rows.map((row) => row.map((cell, index) => formatCell(cell, index, travelLog.amountColumns))),
+      ],
+    });
+  }
 
   doc.end();
   return done;

@@ -50,6 +50,13 @@
       "when": 1791857319907,
       "tag": "0006_billing_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791860720503,
+      "tag": "0007_mileage",
+      "breakpoints": true
     }
   ]
 }

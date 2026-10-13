@@ -229,6 +229,18 @@ rules:
       - Rates and amounts stated on an imported supporting invoice stay as evidence (unit_rate, stated_amount) and in the import's extraction result; review flags a line whose stated amount differs from its billed amount.
       - Submission prices lines again, so the frozen snapshot carries the rates applied; a later rate change never alters a submitted attempt.
 
+  apply_mileage_rates:
+    description: Price mileage from an administrator-configured rate per mile rather than payee-stated amounts.
+    applies_to: invoice_line
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Mileage is an expense line, and the expense it creates, with the configured mileage expense type. Its quantity is the miles claimed for the whole trip; trip_origin and trip_destination name where it started and ended, as an address or place, and round_trip says it went there and back.
+      - Administrators add a mileage_rate per mile from an effective date, never by changing an earlier one. The rate on a date is the one with the latest effective_from on or before it; anyone entering or reviewing requests can see it.
+      - A mileage line's amount is its miles times the rate on its service date, rounded to cents; billed_rate records the rate applied and the submitter cannot override it. A stated amount from an imported file stays as evidence.
+      - A draft may be saved with mileage not yet priceable, but a mileage line without a service date, positive miles or an effective rate cannot be confirmed from an import or submitted; the error says which is missing.
+      - Import may suggest classifying an expense described as mileage as mileage, taking the miles from its quantity or description; the extraction result keeps the file's own classification.
+
   apply_billing_rules:
     description: Apply the deployment's configured billing rules to payment requests.
     applies_to: invoice
@@ -242,6 +254,8 @@ rules:
       - Daily hour cap - one professional's billed hours on one date, across this request and other submitted requests, stay within the cap; other drafts do not count.
       - Long entry - a single time line over the configured hours is flagged as possible block billing; this rule can only warn.
       - Billing period - the request states a billing period, optionally within one calendar month.
+      - Mileage distance - each mileage line's miles stay within the configured tolerance percent of the driving distance between its trip_origin and trip_destination, doubled for a round trip. Require also makes trip_origin and trip_destination required; warn flags a trip without them. The distance is looked up from a routing service only on submission while the rule is on, and recorded on the line with when it was checked; a trip that cannot be measured (address not found, service unavailable or an optional deployment lookup limit reached) produces no finding and is left to the reviewer. Address matching tolerates common variations in spelling, and one lookup serves a trip in either direction.
+      - Reviewers see a travel log of each request's trips with the miles claimed, the driving distance where known and a link to check the route themselves, in place of printed map evidence.
       - A warn finding is shown to the submitter before submission and to reviewers; a require finding blocks import confirmation and submission with a message naming the item and the rule. Submitters see which rules are in force where they enter requests.
       - The submission snapshot records the rule settings in force and every finding, so a later change to a rule never alters what a reviewed attempt was checked against.
 

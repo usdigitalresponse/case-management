@@ -12,6 +12,7 @@ import { previewCaseSplit, uploadInvoiceFileByCase } from '../src/imports/splitB
 import { confirmInvoiceImport, listInvoiceImports } from '../src/imports/invoiceImports';
 import type { DocumentStore } from '../src/imports/documentStore';
 import { ValidationError } from '../src/errors';
+import { addMileageRate } from '../src/billing/mileageRates';
 import { caseAssignment, caseTable, document, invoiceImport, invoiceLine, userAccount } from '../src/db/schema';
 
 let fixtures: BaselineFixtureIds;
@@ -78,6 +79,17 @@ const CSV = [
 ].join('\n');
 
 describe('splitting a file for one professional by case', () => {
+  it('previews mileage at the mileage rate, as its draft will bill it', async () => {
+    const { actor, professionalId } = await createProfessional('Synthetic Investigator');
+    await caseFor(professionalId, 'CR-0001');
+    await addMileageRate(testDb, fixtures.staffUserAccountId, { ratePerMile: 0.5, effectiveFrom: '2025-01-01' });
+    const bytes = Buffer.from(
+      ['case,date,type,description,hours,amount', 'CR-0001,2026-01-10,expense,Mileage to interview (20 miles),,12', ''].join('\n'),
+    );
+    const preview = await previewCaseSplit(testDb, actor, { professionalId, bytes });
+    expect(preview.lines[0]).toMatchObject({ lineType: 'mileage', quantity: 20, amount: 12, billedRate: '0.500', billedAmount: 10 });
+  });
+
   it('suggests each line its case, then makes one draft per case sharing the file', async () => {
     const { actor, professionalId } = await createProfessional('Synthetic Attorney');
     const first = await caseFor(professionalId, 'CR-0001');

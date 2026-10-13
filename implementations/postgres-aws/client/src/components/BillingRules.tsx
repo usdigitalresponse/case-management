@@ -6,18 +6,23 @@ import { useApiResource } from '../hooks/useApiResource';
 export function usePortalBillingRules() {
   const { data } = useApiResource(() => getPortalBillingRules(), []);
   const rules = data?.rules ?? [];
-  return { rules, codes: rules.some((rule) => rule.code === 'billing_codes') ? (data?.codes ?? []) : [] };
+  return {
+    rules,
+    codes: rules.some((rule) => rule.code === 'billing_codes') ? (data?.codes ?? []) : [],
+    mileageRates: data?.mileageRates ?? [],
+  };
 }
 
 // One rule in plain words, as firms see it.
 export function ruleSummary(rule: BillingRule): string {
-  const { increment, hours, withinMonth } = rule.parameters;
+  const { increment, hours, withinMonth, tolerancePercent } = rule.parameters;
   const text = {
     billing_codes: "a task code from the agency's list on each time item",
     time_increment: `time in steps of ${increment} h`,
     daily_hour_cap: `at most ${hours} h per person per day`,
     long_entry: `single entries over ${hours} h are flagged`,
     billing_period: withinMonth ? 'a billing period within one calendar month' : 'a billing period',
+    mileage_distance: `mileage within ${tolerancePercent}% of the driving route between From and To`,
   }[rule.code];
   return rule.enforcement === 'require' ? `${text} (required)` : text;
 }

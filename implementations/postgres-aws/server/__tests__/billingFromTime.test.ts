@@ -104,7 +104,7 @@ describe('billing from time', () => {
     const lines = await linesOf(invoiceId);
     expect(lines.find((line) => line.sourceTimeEntryId === timeEntryId)).toMatchObject({
       amount: '180.00',
-      billedRate: '120.00',
+      billedRate: '120.000',
       quantity: '1.50',
       serviceDate: '2026-02-01',
       description: 'Hearing preparation',
@@ -145,7 +145,7 @@ describe('billing from time', () => {
     await addKindRate(testDb, fixtures.staffUserAccountId, professionalKindId, { hourlyRate: 90, effectiveFrom: '2026-01-01' });
     const { invoiceId } = await createInvoice(testDb, actor, { caseId, lines: [typed] });
     const [line] = await linesOf(invoiceId);
-    expect(line).toMatchObject({ amount: '180.00', billedRate: '90.00' });
+    expect(line).toMatchObject({ amount: '180.00', billedRate: '90.000' });
     const [created] = await testDb.select().from(timeEntry).where(eq(timeEntry.timeEntryId, line!.sourceTimeEntryId as string));
     expect(created).toMatchObject({ professionalId, activityOn: '2026-02-03', durationHours: '2.00', description: 'Client meeting' });
     expect(created?.recordedByUserAccountId).toBe(actor.userAccountId);
@@ -204,6 +204,6 @@ describe('billing from time', () => {
 
     await addKindRate(testDb, fixtures.staffUserAccountId, kindId!, { hourlyRate: 300, effectiveFrom: '2026-01-01' });
     const [line] = await linesOf(invoiceId);
-    expect(line).toMatchObject({ amount: '150.00', billedRate: '100.00' });
+    expect(line).toMatchObject({ amount: '150.00', billedRate: '100.000' });
   });
 });

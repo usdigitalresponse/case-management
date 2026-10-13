@@ -7,6 +7,7 @@ import type { DatabaseOrTransaction } from '../db/client';
 import {
   billingCodes,
   billingRuleSetting,
+  expenseTypes,
   invoice,
   invoiceLine,
   invoiceLineTypes,
@@ -57,6 +58,14 @@ export const BILLING_RULES = {
     warnOnly: false,
     parameters: z.object({ withinMonth: z.boolean() }),
     defaults: { withinMonth: false },
+  },
+  mileage_distance: {
+    label: 'Mileage distance',
+    description:
+      'Miles claimed are compared with the driving distance between From and To, looked up when an invoice is submitted. Require also makes From and To required.',
+    warnOnly: false,
+    parameters: z.object({ tolerancePercent: z.coerce.number().min(0).max(100) }),
+    defaults: { tolerancePercent: 10 },
   },
 } as const;
 
@@ -187,6 +196,10 @@ function formatHours(value: number): string {
   return `${Number(value.toFixed(2))} h`;
 }
 
+function formatMiles(value: number): string {
+  return `${Number(value.toFixed(1))} mi`;
+}
+
 export async function evaluateBillingRules(db: DatabaseOrTransaction, invoiceId: string): Promise<RuleFinding[]> {
   const rules = (await getBillingRules(db)).filter((rule) => rule.enforcement !== 'off');
   if (rules.length === 0) {
@@ -208,11 +221,17 @@ export async function evaluateBillingRules(db: DatabaseOrTransaction, invoiceId:
       professionalId: sql<string>`coalesce(${timeEntry.professionalId}, ${invoiceLine.timekeeperProfessionalId}, ${invoice.professionalId})`,
       date: sql<string | null>`coalesce(${timeEntry.activityOn}, ${invoiceLine.serviceDate})`,
       hours: sql<string | null>`coalesce(${timeEntry.durationHours}, ${invoiceLine.quantity})`,
+      expenseTypeCode: expenseTypes.code,
+      tripOrigin: invoiceLine.tripOrigin,
+      tripDestination: invoiceLine.tripDestination,
+      roundTrip: invoiceLine.roundTrip,
+      routeDistance: invoiceLine.routeDistance,
     })
     .from(invoiceLine)
     .innerJoin(invoice, eq(invoiceLine.invoiceId, invoice.invoiceId))
     .innerJoin(invoiceLineTypes, eq(invoiceLine.lineTypeId, invoiceLineTypes.id))
     .leftJoin(timeEntry, eq(invoiceLine.sourceTimeEntryId, timeEntry.timeEntryId))
+    .leftJoin(expenseTypes, eq(invoiceLine.expenseTypeId, expenseTypes.id))
     .where(eq(invoiceLine.invoiceId, invoiceId));
   const timeLines = rows
     .filter((row) => row.lineTypeCode === 'time')
@@ -292,6 +311,39 @@ export async function evaluateBillingRules(db: DatabaseOrTransaction, invoiceId:
           add('This invoice needs a billing period.');
         } else if (rule.parameters.withinMonth && header.periodStart.slice(0, 7) !== header.periodEnd.slice(0, 7)) {
           add('The billing period must fall within one calendar month.');
+        }
+        break;
+      }
+      case 'mileage_distance': {
+        const tolerance = Number(rule.parameters.tolerancePercent);
+        for (const line of rows.filter((row) => row.expenseTypeCode === 'mileage')) {
+          const trip = line.description
+            ? `"${line.description}"`
+            : line.date
+              ? `The mileage on ${line.date}`
+              : 'A mileage item';
+          if (!line.tripOrigin || !line.tripDestination) {
+            add(
+              enforcement === 'require'
+                ? `${trip} needs From and To so its distance can be checked.`
+                : `${trip} has no From and To, so its distance can't be checked.`,
+              line.invoiceLineId,
+            );
+            continue;
+          }
+          // Unmeasured trips are left to the reviewer.
+          if (line.routeDistance === null || line.hours === null) {
+            continue;
+          }
+          const route = Number(line.routeDistance) * (line.roundTrip ? 2 : 1);
+          const claimed = Number(line.hours);
+          // Half a mile of slack for rounding on short trips.
+          if (claimed > route * (1 + tolerance / 100) + 0.5) {
+            add(
+              `${trip} claims ${formatMiles(claimed)}, more than ${tolerance}% over the ${formatMiles(route)} driving route${line.roundTrip ? ' there and back' : ''}.`,
+              line.invoiceLineId,
+            );
+          }
         }
         break;
       }

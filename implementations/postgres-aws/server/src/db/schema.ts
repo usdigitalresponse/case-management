@@ -43,6 +43,7 @@ export const caseLifecycleReasons = referenceTable('case_lifecycle_reasons');
 export const activityTypes = referenceTable('activity_types');
 export const invoiceStatuses = referenceTable('invoice_statuses');
 export const invoiceLineTypes = referenceTable('invoice_line_types');
+export const expenseTypes = referenceTable('expense_types');
 export const invoiceApprovalStepTypes = referenceTable('invoice_approval_step_types');
 export const invoiceApprovalOutcomes = referenceTable('invoice_approval_outcomes');
 export const invoiceEventTypes = referenceTable('invoice_event_types');
@@ -302,6 +303,39 @@ export const professionalKindRate = pgTable(
   (table) => [index('professional_kind_rate_kind_idx').on(table.professionalKindId, table.effectiveFrom)],
 );
 
+// Insert-only, like professional_kind_rate (model/rules.yaml
+// apply_mileage_rates; ../billing/mileageRates.ts).
+export const mileageRate = pgTable(
+  'mileage_rate',
+  {
+    mileageRateId: uuid('mileage_rate_id').primaryKey().defaultRandom(),
+    ratePerMile: numeric('rate_per_mile', { precision: 8, scale: 3 }).notNull(),
+    effectiveFrom: date('effective_from').notNull(),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('mileage_rate_effective_idx').on(table.effectiveFrom)],
+);
+
+// Every routing lookup, kept as a cache by address pair and to count each
+// month's calls (../billing/routeCheck.ts). Implementation-only.
+export const routeCheck = pgTable(
+  'route_check',
+  {
+    routeCheckId: uuid('route_check_id').primaryKey().defaultRandom(),
+    pairKey: text('pair_key').notNull(),
+    // found, not_found or error; only error is retried.
+    outcome: text('outcome').notNull(),
+    // One way, in miles.
+    distanceMiles: numeric('distance_miles', { precision: 10, scale: 1 }),
+    apiCalls: integer('api_calls').notNull(),
+    checkedAt: timestamp('checked_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('route_check_pair_idx').on(table.pairKey), index('route_check_checked_at_idx').on(table.checkedAt)],
+);
+
 // Insert-only; the latest row per rule is in force (model/rules.yaml
 // apply_billing_rules; ../billing/billingRules.ts). rule_code is one of the
 // rules defined there rather than a reference table.
@@ -358,7 +392,7 @@ export const invoiceLine = pgTable(
     lineTypeId: uuid('line_type_id').notNull().references(() => invoiceLineTypes.id),
     // Every submitted time line has one (../imports/importedTimeEntries.ts).
     sourceTimeEntryId: uuid('source_time_entry_id').references(() => timeEntry.timeEntryId),
-    // On a time line, hours × billedRate (../billing/priceTimeLines.ts).
+    // On a time or mileage line, quantity × billedRate (../billing/priceLines.ts).
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     serviceDate: date('service_date'),
     // Filled from the billing period on import (../imports/inferServiceDates.ts).
@@ -368,7 +402,8 @@ export const invoiceLine = pgTable(
     // Supplier-stated evidence; never used to compute the amount.
     unitRate: numeric('unit_rate', { precision: 12, scale: 2 }),
     statedAmount: numeric('stated_amount', { precision: 12, scale: 2 }),
-    billedRate: numeric('billed_rate', { precision: 12, scale: 2 }),
+    // Three places for a per-mile rate.
+    billedRate: numeric('billed_rate', { precision: 12, scale: 3 }),
     timekeeperLabel: text('timekeeper_label'),
     // Whom the submitter matched the label to.
     timekeeperProfessionalId: uuid('timekeeper_professional_id').references(
@@ -377,6 +412,14 @@ export const invoiceLine = pgTable(
     taskCode: text('task_code'),
     activityCode: text('activity_code'),
     expenseCode: text('expense_code'),
+    // Mileage is an expense line with the mileage type; its quantity is miles.
+    expenseTypeId: uuid('expense_type_id').references(() => expenseTypes.id),
+    tripOrigin: text('trip_origin'),
+    tripDestination: text('trip_destination'),
+    roundTrip: boolean('round_trip').notNull().default(false),
+    // One-way driving distance in miles, from ../billing/routeCheck.ts.
+    routeDistance: numeric('route_distance', { precision: 10, scale: 1 }),
+    routeCheckedAt: timestamp('route_checked_at', { withTimezone: true }),
   },
   (table) => [index('invoice_line_invoice_id_idx').on(table.invoiceId)],
 );

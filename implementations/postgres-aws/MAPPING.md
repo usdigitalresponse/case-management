@@ -512,10 +512,48 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - Firms see the rules in force beside invoice entry
     (`GET /api/portal/billing-rules`), and a task code column when codes are
     required or warned on. Hours are flagged, never rounded.
-  - Not built: rates by kind of work and expense rules (see
-    `docs/DECISIONS.md`).
+  - Not built: rates by kind of work and other expense rules, such as
+    receipts above an amount (see `docs/DECISIONS.md`).
+- **Mileage** (`src/billing/mileageRates.ts`, `routeCheck.ts`,
+  `priceLines.ts`; `client/src/components/InvoiceLinesEditor.tsx`,
+  `TravelLog.tsx`, `pages/Settings.tsx`; `model/rules.yaml`
+  `apply_mileage_rates` and the mileage distance rule in
+  `apply_billing_rules`; migration `0007`):
+  - A mileage item is an `expense` line with the `mileage` expense type
+    (an `expense_types` table seeded with that one code), entered as
+    "Mileage" with From, To, Round trip and miles. Its quantity is the
+    miles; it's priced as miles × the administrator-set `mileage_rate` in
+    force on its date (three decimal places, so `invoice_line.billed_rate`
+    widened to `numeric(12,3)`). Firms see the rate beside entry
+    (`GET /api/portal/billing-rules` carries `mileageRates`). Imports
+    suggest mileage for expense lines described as mileage, taking miles
+    from the quantity or a "30 miles" in the description; the extraction
+    result keeps the file's own type. Mileage lines create no `expense`
+    record, like other expense lines (no table yet), so the trip lives on
+    the line.
+  - The mileage distance rule (off/warn/require, tolerance %) compares
+    the miles with the driving route, doubled for a round trip, plus half
+    a mile. Distances come from Amazon Location (`Geocode` twice and
+    `CalculateRoutes`, Car, no retries, 5-second timeout) when
+    `ROUTE_CHECK_PROVIDER=aws`, looked up only on submission with the rule
+    on, before the submit transaction. Every lookup is a `route_check` row
+    keyed by both addresses normalized and sorted (case, punctuation,
+    common abbreviations, ZIP+4 and country words ignored, either
+    direction), so a trip is looked up once; errors are retried on the
+    next submission and addresses that can't be placed (or only to a
+    county, state or country) aren't. Each month's calls are counted: the
+    server logs a warning past `ROUTE_CHECK_MONTHLY_CALL_WARNING` (default
+    1000) and stops only at an optional `ROUTE_CHECK_MONTHLY_CALL_LIMIT`.
+    Saves copy cached distances onto lines without lookups, so drafts show
+    findings for trips already measured. An unmeasured trip gives no
+    finding.
+  - Staff review and submitted portal invoices show a travel log (trip,
+    miles claimed, driving route, rate, amount and a directions link that
+    opens in the viewer's own browser); exports add a travel log table.
+  - Gaps: no address autocomplete (it would cost calls per keystroke); one
+    trip can't be split across cases; no other expense types are priced.
 - **Rates and billing from time** (`src/billing/professionalRates.ts`,
-  `priceTimeLines.ts`, `invoiceLifecycle.ts`; `src/routes/settings.ts`;
+  `priceLines.ts`, `invoiceLifecycle.ts`; `src/routes/settings.ts`;
   `client/src/pages/Settings.tsx`, `components/UnbilledTimePicker.tsx`;
   `model/rules.yaml` `apply_professional_rates`, `validate_payment_request`):
   - Administrators (`user_account.system_role_id` = the seeded
@@ -554,7 +592,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     reprices drafts but not submitted invoices; no screen grants the
     Administrator role (the demo seed sets it on the demo staff account;
     otherwise set `system_role_id` directly); kinds can't be renamed or
-    retired yet; expense and other lines still take the amount entered.
+    retired yet; expense and other lines except mileage still take the
+    amount entered.
   - Represented professionals see and export the invoice through the
     existing read rule (invoice professional or line timekeeper); they
     don't attest or approve, as decided.
@@ -742,13 +781,14 @@ list/detail views are implemented as tables:
 `user_account`, `county`, `organization`, `office`, `role`, `person`,
 `person_affiliation`, `case`, `case_participant`, `case_lifecycle_event`,
 `case_identifier`, `professional`, `case_assignment`, `time_entry`,
+`professional_kind_rate`, `mileage_rate`, `billing_rule_setting`,
 `invoice`, `invoice_line`, `invoice_approval_chain`,
 `invoice_approval_decision`, `invoice_event`, `document`, `invoice_import`,
 plus lookup tables for the `reference_data`
 sets these entities use (`case_categories`, `case_statuses`,
 `jurisdictions`, `languages`, `case_identifier_types`,
 `case_lifecycle_event_types`, `case_lifecycle_reasons`, `activity_types`,
-`invoice_statuses`, `invoice_line_types`, `invoice_approval_step_types`,
+`invoice_statuses`, `invoice_line_types`, `expense_types`, `invoice_approval_step_types`,
 `invoice_approval_outcomes`, `invoice_event_types`, `invoice_import_formats`,
 `invoice_import_statuses`).
 
@@ -803,6 +843,12 @@ form relies on this being airtight.
 
 ### Synthetic seed data provenance
 
+- **Mileage demo trips** (`src/db/seed.ts` `seedDemoMileage`): street
+  addresses of public landmarks in Washington, D.C. (the Library of Congress
+  as the office), chosen deliberately so map links and real route lookups
+  work. They are unrelated to any agency or partner and imply no
+  jurisdiction. Without `ROUTE_CHECK_PROVIDER=aws` the seed stores
+  approximate driving distances for them; with it, submission looks them up.
 - **Person names** (`src/db/fixtures.ts`): generated with `@faker-js/faker`
   (`faker.person.firstName()`/`lastName()`), seeded with a fixed value
   (`faker.seed(20260115)`) so output stays deterministic across runs rather
@@ -826,6 +872,8 @@ form relies on this being airtight.
 - `user_account.email`: not in `model/schema.yaml`. Used to match SSO
   logins (see Auth below); real accounts are created on first login,
   matched by email, not seeded with real addresses.
+- `route_check`: not in `model/schema.yaml`. Caches driving-distance
+  lookups by address pair and counts them per month (see "Mileage" above).
 
 ## Known gaps / placeholders
 

@@ -215,7 +215,7 @@ describe('invoice import workflow', () => {
     const [timeLine] = await testDb.select().from(invoiceLine).where(eq(invoiceLine.sourceTimeEntryId, entries[0]!.timeEntryId));
     expect(timeLine?.invoiceId).toBe(invoiceId);
     // Billed at the configured rate; the file's rate and amount stay as evidence.
-    expect(timeLine).toMatchObject({ amount: '180.00', billedRate: '120.00', unitRate: '100.00', statedAmount: '150.00' });
+    expect(timeLine).toMatchObject({ amount: '180.00', billedRate: '120.000', unitRate: '100.00', statedAmount: '150.00' });
     const [row] = await testDb.select({ total: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
     expect(row?.total).toBe('220.00');
   });
@@ -309,7 +309,7 @@ describe('invoice import workflow', () => {
     expect(before[0]).toMatchObject({
       unitRate: '100.00',
       statedAmount: '150.00',
-      billedRate: '120.00',
+      billedRate: '120.000',
       timekeeperLabel: 'Synthetic Timekeeper',
       taskCode: 'SAMPLE-TASK',
     });

@@ -1,11 +1,13 @@
-// Prices an invoice's time lines from configured rates (model/rules.yaml
-// apply_professional_rates) and refreshes its total. A linked time entry's
-// date and hours govern; before one exists, the line's own.
+// Prices an invoice's time lines from professional rates and its mileage
+// lines from mileage rates (model/rules.yaml apply_professional_rates,
+// apply_mileage_rates) and refreshes its total. A linked time entry's date
+// and hours govern; before one exists, the line's own.
 import { and, eq } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
-import { invoice, invoiceLine, invoiceLineTypes, timeEntry } from '../db/schema';
+import { expenseTypes, invoice, invoiceLine, invoiceLineTypes, timeEntry } from '../db/schema';
 import { ValidationError } from '../errors';
 import { listRates, professionalRateLabels, rateOn } from './professionalRates';
+import { listMileageRates, mileageRateOn } from './mileageRates';
 
 export interface PriceOptions {
   billedProfessionalId: string;
@@ -17,11 +19,12 @@ export interface PriceOptions {
   strict: boolean;
 }
 
-export async function priceTimeLines(tx: Transaction, invoiceId: string, options: PriceOptions): Promise<string> {
+export async function priceLines(tx: Transaction, invoiceId: string, options: PriceOptions): Promise<string> {
   const lines = await tx
     .select({
       invoiceLineId: invoiceLine.invoiceLineId,
       lineTypeCode: invoiceLineTypes.code,
+      expenseTypeCode: expenseTypes.code,
       amount: invoiceLine.amount,
       serviceDate: invoiceLine.serviceDate,
       quantity: invoiceLine.quantity,
@@ -33,6 +36,7 @@ export async function priceTimeLines(tx: Transaction, invoiceId: string, options
     })
     .from(invoiceLine)
     .innerJoin(invoiceLineTypes, eq(invoiceLine.lineTypeId, invoiceLineTypes.id))
+    .leftJoin(expenseTypes, eq(invoiceLine.expenseTypeId, expenseTypes.id))
     .leftJoin(timeEntry, eq(invoiceLine.sourceTimeEntryId, timeEntry.timeEntryId))
     .where(eq(invoiceLine.invoiceId, invoiceId));
 
@@ -54,15 +58,43 @@ export async function priceTimeLines(tx: Transaction, invoiceId: string, options
   const professionalIds = [...new Set(priced.flatMap((line) => (line.professionalId ? [line.professionalId] : [])))];
   const rates = await listRates(tx, professionalIds);
   const labels = await professionalRateLabels(tx, professionalIds);
+  const mileageRates = lines.some((line) => line.expenseTypeCode === 'mileage') ? await listMileageRates(tx) : [];
   const missingRate = (professionalId: string, date: string) => {
     const label = labels.get(professionalId);
     return label?.kind
       ? `No ${label.kind} rate is set for ${date}, so ${label.name}'s time can't be priced. Ask an administrator to set one.`
       : `${label?.name ?? 'This professional'} has no professional kind, so their time can't be priced. Ask an administrator to set one.`;
   };
+  const setPrice = (invoiceLineId: string, cents: number, rate: string, changes: { serviceDate?: string; quantity?: string } = {}) =>
+    tx
+      .update(invoiceLine)
+      .set({ amount: (cents / 100).toFixed(2), billedRate: rate, ...changes })
+      .where(and(eq(invoiceLine.invoiceLineId, invoiceLineId), eq(invoiceLine.invoiceId, invoiceId)));
 
   let totalCents = 0;
   for (const line of priced) {
+    if (line.expenseTypeCode === 'mileage') {
+      const miles = Number(line.quantity ?? 0);
+      const rate = line.serviceDate ? mileageRateOn(mileageRates, line.serviceDate) : undefined;
+      if (!line.serviceDate || miles <= 0 || rate === undefined) {
+        if (options.strict) {
+          const item = line.description ? `The mileage "${line.description}"` : 'A mileage item';
+          throw new ValidationError({
+            lines:
+              !line.serviceDate || miles <= 0
+                ? `${item} needs ${!line.serviceDate && miles <= 0 ? 'a date and miles' : !line.serviceDate ? 'a date' : 'miles'}.`
+                : `No mileage rate is set for ${line.serviceDate}, so mileage can't be priced. Ask an administrator to set one.`,
+          });
+        }
+        totalCents += Math.round(Number(line.amount) * 100);
+        continue;
+      }
+      const cents = Math.round(miles * Number(rate) * 100);
+      totalCents += cents;
+      // eslint-disable-next-line no-await-in-loop
+      await setPrice(line.invoiceLineId, cents, rate);
+      continue;
+    }
     if (line.lineTypeCode !== 'time') {
       totalCents += Math.round(Number(line.amount) * 100);
       continue;
@@ -87,15 +119,7 @@ export async function priceTimeLines(tx: Transaction, invoiceId: string, options
     const cents = Math.round(hours * Number(rate) * 100);
     totalCents += cents;
     // eslint-disable-next-line no-await-in-loop
-    await tx
-      .update(invoiceLine)
-      .set({
-        amount: (cents / 100).toFixed(2),
-        billedRate: rate,
-        serviceDate: line.date,
-        quantity: String(hours),
-      })
-      .where(and(eq(invoiceLine.invoiceLineId, line.invoiceLineId), eq(invoiceLine.invoiceId, invoiceId)));
+    await setPrice(line.invoiceLineId, cents, rate, { serviceDate: line.date, quantity: String(hours) });
   }
   const total = (totalCents / 100).toFixed(2);
   await tx.update(invoice).set({ submittedTotal: total }).where(eq(invoice.invoiceId, invoiceId));

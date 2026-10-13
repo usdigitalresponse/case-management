@@ -13,8 +13,9 @@ import { representedProfessionalIds, type PortalActor } from '../portal/portalAc
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile, MAX_UPLOAD_BYTES } from './detectFormat';
 import { extractIntoDraft, insertDocument, insertImport, sha256 } from './invoiceImports';
-import { UnreadableInvoiceFileError, type ParsedInvoice } from './parsedInvoice';
+import { suggestMileage, UnreadableInvoiceFileError, type ParsedInvoice } from './parsedInvoice';
 import { listRates, rateOn } from '../billing/professionalRates';
+import { listMileageRates, mileageRateOn } from '../billing/mileageRates';
 
 export interface SplitCase {
   caseId: string;
@@ -100,12 +101,19 @@ export async function previewCaseSplit(db: Database, actor: PortalActor, input: 
   const cases = await splitCases(db, actor, professionalId);
   const { parsed } = await parseOrRefuse(input.bytes);
   const rates = await listRates(db, [professionalId]);
+  const mileageRates = await listMileageRates(db);
   return {
     cases: cases.map(({ keys: _keys, ...row }) => row),
-    lines: parsed.lines.map((line, index) => {
-      // What a time line will be billed at, beside what the file says.
-      const billedRate =
-        line.lineType === 'time' && line.serviceDate ? rateOn(rates, professionalId, line.serviceDate) : undefined;
+    lines: parsed.lines.map(suggestMileage).map((line, index) => {
+      // What a time or mileage line will be billed at, beside what the file says.
+      const priced = line.lineType === 'time' || line.lineType === 'mileage';
+      const billedRate = !line.serviceDate
+        ? undefined
+        : line.lineType === 'time'
+          ? rateOn(rates, professionalId, line.serviceDate)
+          : line.lineType === 'mileage'
+            ? mileageRateOn(mileageRates, line.serviceDate)
+            : undefined;
       const billedAmount =
         billedRate !== undefined && line.quantity !== undefined && line.quantity > 0
           ? Math.round(line.quantity * Number(billedRate) * 100) / 100
@@ -120,7 +128,7 @@ export async function previewCaseSplit(db: Database, actor: PortalActor, input: 
         quantity: line.quantity ?? null,
         amount: line.amount,
         billedRate: billedRate ?? null,
-        billedAmount: line.lineType === 'time' ? (billedAmount ?? null) : line.amount,
+        billedAmount: priced ? (billedAmount ?? null) : line.amount,
         suggestedCaseId: suggestCaseForLabel(line.caseLabel, cases) ?? null,
       };
     }),

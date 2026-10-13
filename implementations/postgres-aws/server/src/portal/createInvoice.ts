@@ -1,5 +1,5 @@
 // Creates a portal invoice as a draft, submitted straight away unless asked
-// not to. Amounts are vendor-entered; there's no billing-rate entity.
+// not to. Time and mileage are priced from configured rates.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
@@ -7,7 +7,8 @@ import { ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { invoice } from '../db/schema';
 import { createDraftInTx, draftContentSchema, parseDraftContent, submitInTx } from '../billing/invoiceLifecycle';
-import type { PortalActor } from './portalActor';
+import { measureTrips } from '../billing/routeCheck';
+import { billableProfessionalIds, type PortalActor } from './portalActor';
 
 export const createInvoiceInputSchema = draftContentSchema.extend({
   caseId: z.string().uuid(),
@@ -39,6 +40,9 @@ export async function createInvoice(
     throw new ValidationError({ professionalId: 'Choose the professional this invoice bills for.' });
   }
 
+  if (submit && (await billableProfessionalIds(db, actor, caseId)).includes(billedProfessionalId)) {
+    await measureTrips(db, content.lines.filter((line) => line.lineType === 'mileage'));
+  }
   return db.transaction(async (tx) => {
     const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content);
     if (submit) {
