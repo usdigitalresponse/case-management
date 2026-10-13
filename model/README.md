@@ -209,7 +209,8 @@ evidence; it is not a payment instruction or disbursement engine.
 
 `submission_snapshot` must contain `spec_version`, capture timestamp, request ID,
 chain ID and exact reviewed values of the request, lines, supporting invoice
-references, allocations and payee contact/vendor details. Capture relied-on case
+references, allocations and payee contact/vendor details, and the billing rule
+settings in force with their findings (`apply_billing_rules`). Capture relied-on case
 identifiers, participant/assignment identities, jurisdiction, issue descriptions,
 and attestation statement/signature document version IDs as deliberate evidence,
 not extra mutable fields on each request. Include document version IDs and hashes.
@@ -259,7 +260,8 @@ themselves.
 
 `extraction_result` must contain `spec_version`, the import ID, and for the
 request and each line the extracted value, its location in the source where
-known, an optional confidence, and any warnings. Structured formats such as
+known, an optional confidence, and any warnings. For a file designated to one
+professional, it also names that professional, whose work every line is. Structured formats such as
 standard legal billing exchange files, delimited text and spreadsheets are
 parsed directly; free-form documents need an extraction method. Neither the
 model nor this contract selects a parser, extraction service or rendering

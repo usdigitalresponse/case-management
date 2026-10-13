@@ -11,6 +11,7 @@ import { InvoiceStateError, recallInvoice, submitInvoice, updateDraftInvoice, wi
 import { InvoiceNotFoundError } from '../src/billing/reviewInvoiceLine';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../src/billing/deleteInvoice';
 import { getReferenceId } from '../src/db/referenceLookups';
+import { giveRate } from './rateHelpers';
 import { listPortalInvoices } from '../src/portal/listPortalInvoices';
 import { confirmInvoiceImport, uploadInvoiceFile } from '../src/imports/invoiceImports';
 import type { DocumentStore } from '../src/imports/documentStore';
@@ -59,6 +60,7 @@ async function setup(): Promise<{ actor: PortalActor; caseId: string }> {
   const email = `${randomUUID()}@example.com`;
   const [account] = await testDb.insert(userAccount).values({ displayName: email, email, active: true }).returning();
   const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, email);
+  await giveRate(testDb, fixtures.staffUserAccountId, professionalId, 100);
   const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, {
     requestId: randomUUID(),
     personId: fixtures.clientPersonId,

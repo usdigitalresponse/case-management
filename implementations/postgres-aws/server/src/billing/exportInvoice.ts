@@ -79,7 +79,8 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
       line.timekeeperDisplayName ?? line.timekeeperLabel ?? '',
       lineCodes(line),
       toNumber(line.quantity ?? line.sourceDurationHours),
-      toNumber(line.unitRate),
+      // The configured rate billed; a non-time line's stated rate otherwise.
+      toNumber(line.billedRate ?? line.unitRate),
       toNumber(line.amount),
       line.decisionOutcomeDisplayName ?? 'Not reviewed',
       toNumber(line.decisionApprovedAmount),

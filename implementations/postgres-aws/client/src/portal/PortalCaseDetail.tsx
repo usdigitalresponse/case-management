@@ -1,16 +1,22 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useParams, Link as RouterLink } from 'react-router';
 import { Alert, Button, Checkbox, Form, FormGroup, Label, Select, TextInput } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
   createInvoice,
   createTimeEntry,
+  deleteTimeEntry,
   listBillableProfessionals,
   listMyCases,
   listMyInvoices,
   listMyTimeEntries,
+  rateOn,
+  updateTimeEntry,
   type BillableProfessional,
+  type TimeEntryRecord,
 } from '../api/client';
+import { lineFromTimeEntry, UnbilledTimePicker } from '../components/UnbilledTimePicker';
+import { RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 import {
   emptyLine,
   hasInvoiceItems,
@@ -25,32 +31,120 @@ import { RecordTable } from '../components/RecordTable';
 import { PageHeading } from '../components/PageHeading';
 import { StatusPill } from '../components/StatusPill';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
+import { ConfirmButton } from '../components/ConfirmButton';
 import { PeriodFields } from '../components/PeriodFields';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatDate, formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
-function TimeEntrySection({ caseId, onLogged }: { caseId: string; onLogged: () => void }) {
-  const { data, error } = useApiResource(() => listMyTimeEntries(caseId).then((result) => result.timeEntries), [caseId]);
+const BILLING_LABELS: Record<string, string> = {
+  draft: 'On a draft',
+  submitted: 'Submitted',
+  approved: 'Approved',
+  rejected: 'Rejected',
+};
 
+function BillingState({ entry }: { entry: TimeEntryRecord }) {
+  if (!entry.billing) {
+    return <span className="status-pill status-pill--pending">Unbilled</span>;
+  }
+  return (
+    <RouterLink to={`/portal/invoices/${entry.billing.invoiceId}`}>
+      {BILLING_LABELS[entry.billing.statusCode] ?? entry.billing.statusCode}
+    </RouterLink>
+  );
+}
+
+function RateNote({ billable }: { billable: BillableProfessional[] }) {
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    <p className="rate-note">
+      Hourly rate today:{' '}
+      {billable
+        .map((professional) => {
+          const rate = rateOn(professional.rates, today);
+          const amount = rate ? formatMoney(rate) : 'not set';
+          return billable.length > 1 ? `${professionalLabel(professional)} ${amount}` : amount;
+        })
+        .join(' · ')}
+      . Set by administrators.
+    </p>
+  );
+}
+
+function TimeEntrySection({
+  caseId,
+  billable,
+  entries,
+  error,
+  onLogged,
+}: {
+  caseId: string;
+  billable: BillableProfessional[];
+  entries: TimeEntryRecord[] | null;
+  error: unknown;
+  onLogged: () => void;
+}) {
+  // A delegate also sees and logs time for those they act for.
+  const byId = new Map(billable.map((p) => [p.professionalId, p]));
+  const workDoneBy = (professionalId: string) => {
+    const professional = byId.get(professionalId);
+    return professional ? professionalLabel(professional) : 'Unknown professional';
+  };
+  const data = entries;
+  const unbilledCount = entries?.filter((entry) => !entry.billing && byId.has(entry.professionalId)).length ?? 0;
+
+  const [professionalId, setProfessionalId] = useState(
+    () => (billable.find((p) => p.isSelf) ?? billable[0])?.professionalId ?? '',
+  );
   const [activityOn, setActivityOn] = useState('');
   const [durationHours, setDurationHours] = useState('');
   const [description, setDescription] = useState('');
+  // The entry loaded into the form for editing, if any.
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  function startEditing(entry: TimeEntryRecord) {
+    setRowError(null);
+    setSubmitError(null);
+    setEditingId(entry.timeEntryId);
+    setProfessionalId(entry.professionalId);
+    setActivityOn(entry.activityOn);
+    setDurationHours(String(Number(entry.durationHours)));
+    setDescription(entry.description);
+  }
+
+  async function remove(timeEntryId: string) {
+    setRowError(null);
+    try {
+      await deleteTimeEntry(timeEntryId);
+      onLogged();
+    } catch (err) {
+      setRowError(apiErrorMessage(err, 'The time entry could not be deleted.'));
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitError(null);
     setSubmitting(true);
+    const values = { activityOn, durationHours: Number(durationHours), description };
     try {
-      await createTimeEntry({ caseId, activityOn, durationHours: Number(durationHours), description });
-      setActivityOn('');
-      setDurationHours('');
-      setDescription('');
+      if (editingId) {
+        await updateTimeEntry(editingId, values);
+      } else {
+        await createTimeEntry({ caseId, professionalId, ...values });
+      }
       onLogged();
-    } catch {
-      setSubmitError('The time could not be logged. Check the date, hours (0.25 to 24) and description.');
+    } catch (err) {
+      setSubmitError(
+        apiErrorMessage(
+          err,
+          `The time could not be ${editingId ? 'saved' : 'logged'}. Check the date, hours (0.25 to 24) and description.`,
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -59,7 +153,15 @@ function TimeEntrySection({ caseId, onLogged }: { caseId: string; onLogged: () =
   return (
     <section>
       <h2>Time</h2>
+      <RateNote billable={billable} />
       {Boolean(error) && <Alert type="error">Failed to load time entries.</Alert>}
+      {rowError && <Alert type="warning" slim>{rowError}</Alert>}
+      {unbilledCount > 0 && (
+        <p className="compact-hint">
+          {unbilledCount} {unbilledCount === 1 ? 'entry is' : 'entries are'} not on an invoice yet.{' '}
+          <a href="#new-invoice">Invoice unbilled time</a>
+        </p>
+      )}
       {data && (
         <RecordTable
           rows={data}
@@ -67,16 +169,69 @@ function TimeEntrySection({ caseId, onLogged }: { caseId: string; onLogged: () =
           emptyMessage="No time logged yet."
           columns={[
             { header: 'Date', render: (e) => formatDate(e.activityOn) },
+            ...(billable.length > 1 ? [{ header: 'Work done by', render: (e: TimeEntryRecord) => workDoneBy(e.professionalId) }] : []),
             { header: 'Hours', render: (e) => e.durationHours },
             { header: 'Description', render: (e) => e.description },
+            { header: 'Billing', render: (e) => <BillingState entry={e} /> },
+            {
+              header: 'Actions',
+              // Only time the user may record. Time on a draft is changed there;
+              // on a submitted invoice, the buttons explain why not.
+              render: (e) =>
+                byId.has(e.professionalId) &&
+                (e.billing?.statusCode === 'draft' ? (
+                  <RouterLink to={`/portal/invoices/${e.billing.invoiceId}`}>Edit on draft</RouterLink>
+                ) : (
+                  <span className="row-actions">
+                    <Button
+                      type="button"
+                      unstyled
+                      onClick={() => (e.lockedReason ? setRowError(e.lockedReason) : startEditing(e))}
+                    >
+                      Edit
+                    </Button>
+                    {e.lockedReason ? (
+                      <Button type="button" unstyled className="confirm-compact" onClick={() => setRowError(e.lockedReason)}>
+                        Delete
+                      </Button>
+                    ) : (
+                      <ConfirmButton
+                        compact
+                        label="Delete"
+                        prompt="Delete this time entry?"
+                        confirmLabel="Yes, delete"
+                        onConfirm={() => void remove(e.timeEntryId)}
+                      />
+                    )}
+                  </span>
+                )),
+            },
           ]}
         />
       )}
 
       <Form className="compact-form compact-card" onSubmit={(event) => void handleSubmit(event)}>
-        <h3>Log time</h3>
+        <h3>{editingId ? 'Edit time' : 'Log time'}</h3>
         {submitError && <Alert type="error" slim>{submitError}</Alert>}
-        <div className="inline-fields time-entry-fields">
+        <div className={`inline-fields time-entry-fields${billable.length > 1 ? ' time-entry-fields--with-professional' : ''}`}>
+          {billable.length > 1 && (
+            <FormGroup>
+              <Label htmlFor="time-professional">Work done by</Label>
+              <Select
+                id="time-professional"
+                name="professionalId"
+                value={professionalId}
+                disabled={editingId !== null}
+                onChange={(event) => setProfessionalId(event.target.value)}
+              >
+                {billable.map((professional) => (
+                  <option key={professional.professionalId} value={professional.professionalId}>
+                    {professionalLabel(professional)}
+                  </option>
+                ))}
+              </Select>
+            </FormGroup>
+          )}
           <FormGroup>
             <Label htmlFor="activity-on">Date</Label>
             <input
@@ -114,26 +269,68 @@ function TimeEntrySection({ caseId, onLogged }: { caseId: string; onLogged: () =
               onChange={(event) => setDescription(event.target.value)}
             />
           </FormGroup>
-          <Button type="submit" disabled={submitting || !activityOn || !durationHours || !description.trim()}>
-            {submitting ? 'Logging…' : 'Log time'}
-          </Button>
+          <span className="row-actions">
+            <Button type="submit" disabled={submitting || !activityOn || !durationHours || !description.trim()}>
+              {editingId ? (submitting ? 'Saving…' : 'Save') : submitting ? 'Logging…' : 'Log time'}
+            </Button>
+            {editingId && (
+              <Button type="button" unstyled onClick={onLogged}>
+                Cancel
+              </Button>
+            )}
+          </span>
         </div>
       </Form>
     </section>
   );
 }
 
-function InvoiceSection({ caseId, billable }: { caseId: string; billable: BillableProfessional[] }) {
+function InvoiceSection({
+  caseId,
+  billable,
+  entries,
+  onInvoiced,
+}: {
+  caseId: string;
+  billable: BillableProfessional[];
+  entries: TimeEntryRecord[] | null;
+  // Billing changes what time is unbilled.
+  onInvoiced: () => void;
+}) {
+  const billingRules = usePortalBillingRules();
   const [listVersion, setListVersion] = useState(0);
   const [showWithdrawn, setShowWithdrawn] = useState(false);
   const { data, error } = useApiResource(() => listMyInvoices(caseId).then((result) => result.invoices), [caseId, listVersion]);
 
-  const [lines, setLines] = useState<LineDraft[]>([emptyLine]);
-  const [period, setPeriod] = useState({ start: '', end: '' });
   // Defaults to the user's own profile; a delegate picks whom they bill for.
   const [billedProfessionalId, setBilledProfessionalId] = useState(
     () => (billable.find((p) => p.isSelf) ?? billable[0])?.professionalId ?? '',
   );
+  const billableIds = new Set(billable.map((p) => p.professionalId));
+  const unbilled = (entries ?? []).filter((entry) => !entry.billing && billableIds.has(entry.professionalId));
+  // A new invoice starts as the billed professional's unbilled time.
+  const startingLines = (professionalId: string): LineDraft[] => {
+    const own = unbilled.filter((entry) => entry.professionalId === professionalId).map(lineFromTimeEntry);
+    return own.length > 0 ? own : [emptyLine];
+  };
+  const [lines, setLinesState] = useState<LineDraft[]>(() => startingLines(billedProfessionalId));
+  // Untouched, the form follows recorded time as it loads and changes; once
+  // edited, only a save or a new "Billing for" starts it again.
+  const [touched, setTouched] = useState(false);
+  const setLines = (next: LineDraft[]) => {
+    setLinesState(next);
+    setTouched(true);
+  };
+  const startAgain = (professionalId: string) => {
+    setLinesState(startingLines(professionalId));
+    setTouched(false);
+  };
+  useEffect(() => {
+    if (!touched) {
+      setLinesState(startingLines(billedProfessionalId));
+    }
+  }, [entries]);
+  const [period, setPeriod] = useState({ start: '', end: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saved, setSaved] = useState<'draft' | 'submitted' | null>(null);
@@ -156,12 +353,16 @@ function InvoiceSection({ caseId, billable }: { caseId: string; billable: Billab
         periodEnd: period.end || undefined,
         lines: linesFromDrafts(lines),
       });
-      setLines([emptyLine]);
       setPeriod({ start: '', end: '' });
       setSaved(submit ? 'submitted' : 'draft');
       setListVersion((version) => version + 1);
+      // Refilled from what's still unbilled once the time reloads.
+      setTouched(false);
+      onInvoiced();
     } catch (err) {
-      setSubmitError(apiErrorMessage(err, 'The invoice could not be saved. Each item needs an amount above zero.'));
+      setSubmitError(
+        apiErrorMessage(err, 'The invoice could not be saved. Time items need a date and hours; other items an amount above zero.'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -216,7 +417,7 @@ function InvoiceSection({ caseId, billable }: { caseId: string; billable: Billab
         />
       )}
 
-      <div className="compact-card">
+      <div className="compact-card" id="new-invoice">
         <h3>New invoice</h3>
         {/* Applies to both a typed invoice and an imported file. */}
         {billable.length > 1 && (
@@ -227,7 +428,10 @@ function InvoiceSection({ caseId, billable }: { caseId: string; billable: Billab
                 id="billed-professional"
                 name="billedProfessional"
                 value={billedProfessionalId}
-                onChange={(event) => setBilledProfessionalId(event.target.value)}
+                onChange={(event) => {
+                  setBilledProfessionalId(event.target.value);
+                  startAgain(event.target.value);
+                }}
               >
                 {billable.map((professional) => (
                   <option key={professional.professionalId} value={professional.professionalId}>
@@ -261,7 +465,21 @@ function InvoiceSection({ caseId, billable }: { caseId: string; billable: Billab
             {saved === 'submitted' && <Alert type="success" slim>Invoice submitted.</Alert>}
             {saved === 'draft' && <Alert type="success" slim>Draft saved. Open it from the list above to edit or submit it.</Alert>}
             <PeriodFields idPrefix="new-invoice" start={period.start} end={period.end} onChange={setPeriod} />
-            <InvoiceLinesEditor idPrefix="new-invoice" lines={lines} onChange={setLines} timekeepers={billable} />
+            <RulesInForce rules={billingRules.rules} />
+            <UnbilledTimePicker idPrefix="new-invoice" entries={unbilled} lines={lines} onChange={setLines} timekeepers={billable} />
+            <InvoiceLinesEditor
+              idPrefix="new-invoice"
+              lines={lines}
+              onChange={setLines}
+              timekeepers={billable}
+              billedProfessionalId={billedProfessionalId}
+              recordedTime={unbilled}
+              billingCodes={billingRules.codes}
+            />
+            <p className="compact-hint">
+              Time items are priced at the hourly rate set for that kind of professional. New time typed here is
+              recorded when you submit.
+            </p>
             <div className="invoice-actions">
               <Button type="submit" disabled={submitting || !canSave}>
                 {submitting ? 'Saving…' : 'Submit invoice'}
@@ -286,6 +504,12 @@ export default function PortalCaseDetail() {
     () => (caseId ? listBillableProfessionals(caseId).then((result) => result.professionals) : Promise.resolve([])),
     [caseId],
   );
+  // Shared by both sections: invoicing changes what is unbilled.
+  const { data: entries, error: entriesError } = useApiResource(
+    () => (caseId ? listMyTimeEntries(caseId).then((result) => result.timeEntries) : Promise.resolve([])),
+    [caseId, timeEntryVersion],
+  );
+  const refreshTime = () => setTimeEntryVersion((v) => v + 1);
 
   if (!caseId) {
     return null;
@@ -301,11 +525,17 @@ export default function PortalCaseDetail() {
     <div>
       <RouterLink className="back-link" to="/">&larr; Back to your cases</RouterLink>
       <PageHeading eyebrow="Case" title={title} />
-      {/* Only professionals log their own time; a delegate only invoices. */}
-      {billable?.some((p) => p.isSelf) && (
-        <TimeEntrySection key={timeEntryVersion} caseId={caseId} onLogged={() => setTimeEntryVersion((v) => v + 1)} />
+      {billable && billable.length > 0 && (
+        <TimeEntrySection
+          key={timeEntryVersion}
+          caseId={caseId}
+          billable={billable}
+          entries={entries}
+          error={entriesError}
+          onLogged={refreshTime}
+        />
       )}
-      {billable && <InvoiceSection caseId={caseId} billable={billable} />}
+      {billable && <InvoiceSection caseId={caseId} billable={billable} entries={entries} onInvoiced={refreshTime} />}
     </div>
   );
 }

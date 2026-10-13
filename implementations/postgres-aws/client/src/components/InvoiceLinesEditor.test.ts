@@ -1,15 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import type { PortalInvoiceLine } from '../api/client';
-import { assignTimekeeper, emptyLine, hasInvoiceItems, lineDraftsFrom, linesFromDrafts } from './InvoiceLinesEditor';
+import {
+  assignTimekeeper,
+  emptyLine,
+  hasInvoiceItems,
+  invoiceTotalPreview,
+  lineDraftsFrom,
+  linesFromDrafts,
+  ratesInPlay,
+  timeItemPreview,
+} from './InvoiceLinesEditor';
 
 const importedLine: PortalInvoiceLine = {
   invoiceLineId: 'line-1',
   lineTypeCode: 'time',
   amount: '150.00',
   serviceDate: '2026-01-10',
+  serviceDateInferred: true,
   description: 'Synthetic research',
   quantity: '1.50',
   unitRate: '100.00',
+  statedAmount: '150.00',
+  billedRate: '120.00',
   timekeeperLabel: 'Synthetic Timekeeper',
   timekeeperProfessionalId: 'professional-1',
   timekeeperDisplayName: 'Synthetic Timekeeper',
@@ -40,6 +52,8 @@ describe('invoice line editor round trip', () => {
         description: 'Synthetic research',
         quantity: 1.5,
         unitRate: 100,
+        statedAmount: 150,
+        serviceDateInferred: true,
         timekeeperLabel: 'Synthetic Timekeeper',
         timekeeperProfessionalId: 'professional-1',
         taskCode: 'SAMPLE-TASK',
@@ -81,10 +95,67 @@ describe('assigning who did the work to many items', () => {
 });
 
 describe('whether an invoice has anything to save', () => {
-  it('needs at least one item with an amount above zero', () => {
+  const expense = { ...emptyLine, lineType: 'expense' as const };
+
+  it('needs time with hours or recorded time, or another item with an amount', () => {
     expect(hasInvoiceItems([emptyLine])).toBe(false);
-    expect(hasInvoiceItems([{ ...emptyLine, description: 'Typed but no amount' }])).toBe(false);
-    expect(hasInvoiceItems([{ ...emptyLine, amount: '0' }])).toBe(false);
-    expect(hasInvoiceItems([emptyLine, { ...emptyLine, amount: '12.50' }])).toBe(true);
+    expect(hasInvoiceItems([{ ...emptyLine, amount: '12.50' }])).toBe(false);
+    expect(hasInvoiceItems([{ ...emptyLine, quantity: '1.5' }])).toBe(true);
+    expect(hasInvoiceItems([{ ...emptyLine, sourceTimeEntryId: 'time-1' }])).toBe(true);
+    expect(hasInvoiceItems([{ ...expense, description: 'Typed but no amount' }])).toBe(false);
+    expect(hasInvoiceItems([{ ...expense, amount: '0' }])).toBe(false);
+    expect(hasInvoiceItems([emptyLine, { ...expense, amount: '12.50' }])).toBe(true);
+  });
+});
+
+describe('previewing what a time item bills', () => {
+  const attorney = {
+    professionalId: 'professional-1',
+    displayName: 'Synthetic Attorney',
+    isSelf: true,
+    kindDisplayName: 'Attorney',
+    rates: [
+      { hourlyRate: '100.00', effectiveFrom: '2026-01-01' },
+      { hourlyRate: '150.00', effectiveFrom: '2026-03-01' },
+    ],
+  };
+  const line = { serviceDate: '2026-02-10', quantity: '1.5', timekeeperProfessionalId: '' };
+
+  it("uses the billed professional's rate on the item's date", () => {
+    expect(timeItemPreview(line, [attorney], 'professional-1')).toEqual({ amount: '150.00', rate: '100.00', hours: 1.5 });
+    expect(timeItemPreview({ ...line, serviceDate: '2026-03-01' }, [attorney], 'professional-1')).toMatchObject({
+      amount: '225.00',
+      rate: '150.00',
+    });
+  });
+
+  it('totals the invoice before saving, and names the rates in play', () => {
+    const items = [
+      { ...emptyLine, ...line },
+      { ...emptyLine, ...line, serviceDate: '2026-03-02' },
+      { ...emptyLine, lineType: 'expense' as const, amount: '12.50' },
+    ];
+    expect(invoiceTotalPreview(items, [attorney], 'professional-1')).toEqual({ time: 375, other: 12.5, total: 387.5, complete: true });
+    expect(invoiceTotalPreview([...items, { ...emptyLine, quantity: '2' }], [attorney], 'professional-1').complete).toBe(false);
+    // The items straddle the March rate change, so both rates apply.
+    expect(ratesInPlay(items, [attorney], 'professional-1')).toEqual([
+      {
+        professional: attorney,
+        rates: [{ hourlyRate: '100.00' }, { hourlyRate: '150.00', from: '2026-03-01' }],
+      },
+    ]);
+    expect(ratesInPlay(items.slice(0, 1), [attorney], 'professional-1')[0]?.rates).toEqual([{ hourlyRate: '100.00' }]);
+  });
+
+  it('says what is missing', () => {
+    expect(timeItemPreview(line, [attorney], undefined)).toEqual({ missing: 'Choose who did the work' });
+    expect(timeItemPreview({ ...line, quantity: '' }, [attorney], 'professional-1')).toEqual({ missing: 'Add the hours' });
+    expect(timeItemPreview({ ...line, serviceDate: '' }, [attorney], 'professional-1')).toEqual({ missing: 'Add a date' });
+    expect(timeItemPreview({ ...line, serviceDate: '', quantity: '' }, [attorney], 'professional-1')).toEqual({
+      missing: 'Add a date and hours',
+    });
+    expect(timeItemPreview({ ...line, serviceDate: '2025-12-31' }, [attorney], 'professional-1')).toEqual({
+      missing: 'No rate set for this date',
+    });
   });
 });

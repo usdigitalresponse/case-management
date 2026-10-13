@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router';
 import { Alert, Button } from '@trussworks/react-uswds';
 import {
   ApiError,
   apiErrorMessage,
   getMyInvoice,
   listBillableProfessionals,
+  listMyTimeEntries,
   transitionInvoice,
   updateDraftInvoice,
   type InvoiceTransition,
@@ -13,6 +14,8 @@ import {
 } from '../api/client';
 import { hasInvoiceItems, InvoiceLinesEditor, lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
+import { UnbilledTimePicker } from '../components/UnbilledTimePicker';
+import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 import { useAuth } from '../AuthContext';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { PageHeading } from '../components/PageHeading';
@@ -35,6 +38,17 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
     () => listBillableProfessionals(invoice.caseId).then((result) => result.professionals),
     [invoice.caseId],
   );
+  // Unbilled time can be ticked on; time already on this draft shows ticked.
+  const { data: caseTime } = useApiResource(
+    () => listMyTimeEntries(invoice.caseId).then((result) => result.timeEntries),
+    [invoice.caseId],
+  );
+  const billableIds = new Set((timekeepers ?? []).map((p) => p.professionalId));
+  const pickable = (caseTime ?? []).filter(
+    (entry) =>
+      billableIds.has(entry.professionalId) && (!entry.billing || entry.billing.invoiceId === invoice.invoiceId),
+  );
+  const billingRules = usePortalBillingRules();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
@@ -57,7 +71,10 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
       }
       onChanged();
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'The draft could not be saved. Each item needs an amount above zero.') });
+      setMessage({
+        type: 'error',
+        text: apiErrorMessage(err, 'The draft could not be saved. Time items need a date and hours; other items an amount above zero.'),
+      });
     } finally {
       setBusy(false);
     }
@@ -67,22 +84,36 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
     <div className="compact-card">
       <h2>Edit draft</h2>
       {message && <Alert type={message.type} slim>{message.text}</Alert>}
+      <RulesInForce rules={billingRules.rules} />
+      {/* As last saved; saving shows the effect of edits. */}
+      <RuleFindings findings={data.ruleFindings} />
       <PeriodFields idPrefix="draft" start={period.start} end={period.end} onChange={setPeriod} />
-      <InvoiceLinesEditor idPrefix="draft" lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
+      <UnbilledTimePicker idPrefix="draft" entries={pickable} lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
+      <InvoiceLinesEditor
+        idPrefix="draft"
+        lines={lines}
+        onChange={setLines}
+        timekeepers={timekeepers ?? []}
+        billedProfessionalId={invoice.professionalId}
+        recordedTime={pickable}
+        billingCodes={billingRules.codes}
+      />
       <div className="invoice-actions">
         <Button type="button" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('submit')}>Submit invoice</Button>
         <Button type="button" outline disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>Save draft</Button>
-        {!data.deletable ? (
-          <ConfirmButton
-            label="Withdraw draft"
-            prompt="Withdraw this draft? It can't be submitted afterwards."
-            confirmLabel="Yes, withdraw"
-            disabled={busy}
-            onConfirm={() => void run('withdraw')}
-          />
-        ) : (
-          <DeleteInvoiceButton invoiceId={invoice.invoiceId} disabled={busy} onDeleted={() => navigate(`/portal/cases/${invoice.caseId}`)} />
-        )}
+        <span className="actions-end">
+          {!data.deletable ? (
+            <ConfirmButton
+              label="Withdraw draft"
+              prompt="Withdraw this draft? It can't be submitted afterwards."
+              confirmLabel="Yes, withdraw"
+              disabled={busy}
+              onConfirm={() => void run('withdraw')}
+            />
+          ) : (
+            <DeleteInvoiceButton invoiceId={invoice.invoiceId} disabled={busy} onDeleted={() => navigate(`/portal/cases/${invoice.caseId}`)} />
+          )}
+        </span>
       </div>
     </div>
   );
@@ -91,6 +122,8 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
 export default function PortalInvoiceDetail() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromBulk = searchParams.get('from') === 'bulk';
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => getMyInvoice(invoiceId as string), [invoiceId, version]);
   const [recallError, setRecallError] = useState<string | null>(null);
@@ -132,7 +165,11 @@ export default function PortalInvoiceDetail() {
 
   return (
     <div>
-      <RouterLink className="back-link" to={`/portal/cases/${invoice.caseId}`}>&larr; Back to case</RouterLink>
+      {fromBulk ? (
+        <RouterLink className="back-link" to="/portal/imports">&larr; Back to imports</RouterLink>
+      ) : (
+        <RouterLink className="back-link" to={`/portal/cases/${invoice.caseId}`}>&larr; Back to case</RouterLink>
+      )}
       <PageHeading
         eyebrow={isDraft ? 'Draft invoice' : 'Invoice'}
         title={caseDisplayLabel([invoice.caseExternalReference, invoice.caseClientDisplayName], undefined)}
@@ -140,6 +177,7 @@ export default function PortalInvoiceDetail() {
       />
 
       <InvoiceSummary invoice={invoice} lines={lines} />
+      {submitted && <RuleFindings findings={data.ruleFindings} submitted />}
 
       {(submitted || recallable || (deletable && !editing)) && (
         <div className="invoice-actions">

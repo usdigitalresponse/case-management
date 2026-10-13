@@ -1,4 +1,4 @@
-spec_version: "0.3.0"
+spec_version: "0.4.0"
 status: draft
 kind: domain_schema
 
@@ -139,6 +139,11 @@ entities:
         type: reference
         required: false
         reference_data: qualification_levels
+      professional_kind_id:
+        type: reference
+        required: false
+        reference_data: professional_kinds
+        description: The kind of professional, such as an attorney or investigator, whose configured rate prices their time.
       office_id:
         type: uuid
         required: false
@@ -269,6 +274,11 @@ entities:
         required: false
         references: invoice_import.invoice_import_id
         description: The import whose confirmed line created this entry; absent for directly recorded time.
+      recorded_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+        description: The user who recorded the entry, the professional or a delegate acting for them; distinct from professional_id, whose work it is.
 
   expense:
     display_name: Expense
@@ -298,6 +308,63 @@ entities:
         required: false
         references: invoice_import.invoice_import_id
         description: The import whose confirmed line created this expense; absent for directly recorded expenses.
+
+  professional_kind_rate:
+    display_name: Professional Kind Rate
+    description: An administrator-set hourly rate for one kind of professional from a date until a later rate for that kind takes over. Rates are added, never changed.
+    primary_key: professional_kind_rate_id
+    fields:
+      professional_kind_rate_id:
+        type: uuid
+        required: true
+        generated: true
+      professional_kind_id:
+        type: reference
+        required: true
+        reference_data: professional_kinds
+      hourly_rate:
+        type: money
+        required: true
+      effective_from:
+        type: date
+        required: true
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
+
+  billing_rule_setting:
+    display_name: Billing Rule Setting
+    description: How one of the deployment's configurable billing rules applies from when it is recorded until a later setting for the same rule. Settings are added, never changed, so earlier submissions can be explained.
+    primary_key: billing_rule_setting_id
+    fields:
+      billing_rule_setting_id:
+        type: uuid
+        required: true
+        generated: true
+      rule_code:
+        type: reference
+        required: true
+        reference_data: billing_rule_types
+        description: Which rule, such as billing codes, time increment, daily hour cap, long entry or billing period.
+      enforcement:
+        type: string
+        required: true
+        description: off, warn (shown to submitter and reviewer) or require (blocks confirmation and submission).
+      parameters:
+        type: object
+        required: false
+        description: The rule's settings, such as the increment in hours or the daily cap.
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
 
   invoice:
     display_name: Payment Request
@@ -378,17 +445,29 @@ entities:
         type: date
         required: false
         description: Service date as stated by the payee; a linked source time entry or expense date governs.
+      service_date_inferred:
+        type: boolean
+        required: false
+        description: True while the service date is one filled from the billing period on import rather than stated; cleared when the date is changed.
       description:
         type: string
         required: false
       quantity:
         type: decimal
         required: false
-        description: Hours or units as stated by the payee; informational, never used to calculate amount.
+        description: Hours or units. On a time line, the linked time entry's hours govern and price the line; otherwise informational.
       unit_rate:
         type: money
         required: false
-        description: Rate as stated by the payee; there is no configured rate entity.
+        description: Rate as stated by the payee; evidence only, never used to calculate amount.
+      billed_rate:
+        type: money
+        required: false
+        description: The professional_kind_rate applied to a time line; the line amount is its hours times this rate.
+      stated_amount:
+        type: money
+        required: false
+        description: Amount as stated on an imported supporting invoice, kept as evidence beside the billed amount.
       timekeeper_label:
         type: string
         required: false
@@ -401,7 +480,7 @@ entities:
       task_code:
         type: string
         required: false
-        description: Supplier-provided task code, such as a standard legal billing code; not validated against configured values.
+        description: Task code, such as a standard legal billing code; checked against the configured billing_codes when the billing codes rule is on, otherwise kept as the payee stated it.
       activity_code:
         type: string
         required: false
@@ -424,6 +503,7 @@ entities:
         type: uuid
         required: true
         references: document.document_id
+        description: The uploaded file; several imports share it when a file covering one professional's cases is split, one per case.
       uploaded_by_user_account_id:
         type: uuid
         required: true
@@ -435,7 +515,7 @@ entities:
         type: uuid
         required: false
         references: case.case_id
-        description: Case chosen by the uploader or confirmed after extraction; required before a draft request is created.
+        description: Case chosen by the uploader for the whole file, or the case its lines were assigned to when the file was split by case; required before a draft request is created.
       source_format_id:
         type: reference
         required: true
@@ -681,6 +761,11 @@ entities:
       occurred_at:
         type: datetime
         required: true
+      prior_values:
+        type: object
+        required: false
+        data_role: snapshot
+        description: The record's values before a change or deletion.
 
   person:
     display_name: Person

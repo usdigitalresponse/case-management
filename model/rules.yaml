@@ -1,4 +1,4 @@
-spec_version: "0.3.0"
+spec_version: "0.4.0"
 status: draft
 kind: business_rules
 
@@ -194,6 +194,7 @@ rules:
       - Time entry office is the office for that work, not a copy of current professional office; do not copy mutable case classification.
       - Calendar end must follow start; linked activity must belong to the same case. Scheduled events do not prove completed work.
       - Preserve changes to time, activity, notes, communications and calendar records with actor, timestamp and prior values.
+      - A time entry may be changed or deleted by its professional, or by a delegate acting for them under authorize_delegated_submission, only while no request other than a withdrawn one references it; one on a draft is changed through that draft (validate_payment_request), and one on a submitted request stays as reviewed.
 
   validate_payment_request:
     description: Validate payment request.
@@ -205,6 +206,8 @@ rules:
       - Require both billing period bounds or neither and reject inverted periods, including supporting invoices.
       - Requested line and allocation amounts must be positive; submitted_total equals the sum of request lines.
       - An invoice line sets at most one of source_time_entry_id or source_expense_id, and the referenced time_entry or expense must be on the same case; a manual line sets neither.
+      - Every submitted time line references a time entry: one the submitter chose from the case's unbilled time, or one created from the line on submission (with a service date, positive hours and the professional whose work it is). Only expense and other lines may be manual. A time entry is on at most one request that is not withdrawn; time on a withdrawn request is unbilled again.
+      - Editing a time line on a draft edits its time entry, preserving the prior values; removing the line leaves the entry unbilled.
       - Currency applies to all request amounts; referenced preauthorizations must use the same currency. Do not infer exchange rates.
       - Supporting supplier invoice numbers are scoped to the request payee; warn on duplicates across requests rather than silently merging.
       - Freeze a schema-versioned submission_snapshot when creating the review chain; bind attestations and evidence to that attempt.
@@ -212,6 +215,35 @@ rules:
       - Request events are immutable with positive sequence unique per request; any referenced chain must belong to that request. Events and their triggering decisions are persisted atomically.
       - Preserve all old attempts, allocations and evidence before correction or resubmission; old attestations and approvals cannot authorize changed values.
       - Only a draft or withdrawn request with no recorded review decision may be deleted, by its submitter; deleting removes its lines, events, unreviewed earlier attempts and import records, deletes any retained file, and deletes time entries its import created unless another request uses them (those are unlinked). Any request with a review decision is retained.
+
+  apply_professional_rates:
+    description: Price time lines from administrator-configured rates rather than payee-stated amounts.
+    applies_to: invoice_line
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Administrators, a configured system role, maintain the professional_kinds vocabulary, each professional's kind, and each kind's hourly rate as a professional_kind_rate with an effective date; a new rate is added from a date, never by changing an earlier one. Further rate rules may be added later as configuration, not code.
+      - The rate for a professional on a date is their kind's rate with the latest effective_from on or before it. Staff and anyone who may bill for that professional can see it.
+      - A time line's amount is its time entry's hours, or before one exists the line's hours, times that rate for the professional whose work it is on the service date, rounded to cents; billed_rate records the rate applied and the submitter cannot override it.
+      - A draft may be saved with time lines not yet priceable, but a time line without a service date, positive hours, a professional kind or an effective rate cannot be confirmed from an import or submitted; the error says which is missing, for whom and for which date.
+      - Rates and amounts stated on an imported supporting invoice stay as evidence (unit_rate, stated_amount) and in the import's extraction result; review flags a line whose stated amount differs from its billed amount.
+      - Submission prices lines again, so the frozen snapshot carries the rates applied; a later rate change never alters a submitted attempt.
+
+  apply_billing_rules:
+    description: Apply the deployment's configured billing rules to payment requests.
+    applies_to: invoice
+    trigger: before_submit
+    outcome: blocking
+    requirements:
+      - Each deployment serves one agency with one set of rules. Administrators set each rule to off, warn or require, with its parameters, as a billing_rule_setting; a new setting takes over from when it is recorded and earlier ones are kept.
+      - Rules are configuration, not code paths for a particular agency. Every rule is off unless an administrator turns it on.
+      - Billing codes - each time line carries a task code from the configured billing_codes vocabulary.
+      - Time increment - each time line's hours are a whole multiple of the configured increment. Hours are flagged, never rounded.
+      - Daily hour cap - one professional's billed hours on one date, across this request and other submitted requests, stay within the cap; other drafts do not count.
+      - Long entry - a single time line over the configured hours is flagged as possible block billing; this rule can only warn.
+      - Billing period - the request states a billing period, optionally within one calendar month.
+      - A warn finding is shown to the submitter before submission and to reviewers; a require finding blocks import confirmation and submission with a message naming the item and the rule. Submitters see which rules are in force where they enter requests.
+      - The submission snapshot records the rule settings in force and every finding, so a later change to a rule never alters what a reviewed attempt was checked against.
 
   record_approved_request_amounts:
     description: Record approved request amounts.
@@ -294,9 +326,11 @@ rules:
       - Scan each file for malware within the processing boundary before parsing and reject it on detection or scan failure. Parse in isolation with time and memory limits; never execute embedded content.
       - Uploaded files are transient working copies, not stored records: keep them in private storage with no public or long-lived links, serve them only to the uploader and authorized delegates, and exclude them from versioning and backups so that deletion removes them.
       - The uploader must be authorized to submit requests for the selected case; selecting or extracting a case grants no access.
-      - Extraction creates at most one draft request and never submits, approves or creates source records on the submitter's behalf.
+      - The uploader designates either one case for the whole file, or one professional whose cases the file's lines cover. With a professional, every line is billed to that professional as the one whose work it is, set rather than suggested, and each line names its case; the system may suggest a case from a line's case reference, identifier or client name among the professional's open assignments the uploader may bill, but the uploader assigns every line before anything is created, and the file becomes one import and one draft request per case, sharing the one document.
+      - Extraction creates at most one draft request per import and never submits, approves or creates source records on the submitter's behalf.
+      - A line with no service date in a file that states a billing period takes the period's end date, marked as inferred (service_date_inferred) with a warning for the submitter to check; it is not split across days. The date is left blank, with the reason, when the professional's rate changes within the period, when they were not assigned to the case for all of it, or when who did the work is not yet known. Confirmation and submission repeat those checks for whoever the line then names, until its date is changed.
       - Retain extraction method, version, timestamp and result immutably. Corrections are made on the draft request; re-processing creates a new import rather than overwriting a result.
-      - Show the original file beside the draft until the submitter confirms the extracted values. The file is not retained; confirming or discarding the import deletes its content and records content_deleted_at, keeping the document metadata, hash and extraction result.
+      - Show the original file beside the draft until the submitter confirms the extracted values. The file is not retained; confirming or discarding the last unresolved import of a document deletes its content and records content_deleted_at, keeping the document metadata, hash and extraction result.
       - After confirmation the draft request and its submission snapshot are the record of the supporting invoice; reviewers and exports do not have the original file.
       - Production extraction runs within the system's processing boundary, which includes services hosted in the organization's own cloud account. Services outside it may be used only with synthetic data during development.
       - Discarding an import records the actor and timestamp and creates no request, time entries or expenses.
@@ -310,7 +344,7 @@ rules:
     requirements:
       - Compare any stated total with the sum of draft lines; the request total is still calculated from lines under validate_invoice_total.
       - Compare stated quantity times rate with each line amount; flag service dates outside the billing period.
-      - Warn when the same document content hash or supporting invoice number for the payee was already imported or submitted; do not merge automatically.
+      - Warn when the same document content hash or supporting invoice number for the payee was already imported or submitted from another document; imports split from one document don't warn about each other. Do not merge automatically.
       - Show each warning beside the original document and the extracted value it concerns.
 
   create_time_entries_from_import:
@@ -351,6 +385,7 @@ rules:
       - On a delegated request every line identifies its professional through timekeeper_professional_id; those are the represented professionals.
       - Record the actual delegate as submitter and actor on every request event, distinct from the professionals whose time is billed and from any attestor.
       - Represented professionals need not attest or approve before review. They may view and export the request like its submitter.
+      - A delegate may read the time entries of each professional they act for on cases that professional is assigned to, and record time for that professional there; the entry's professional is the one whose work it is and recorded_by_user_account_id is the delegate.
 
   authorize_payment_request_export:
     description: Export submitted requests only to users who may read them.

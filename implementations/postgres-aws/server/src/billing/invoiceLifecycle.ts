@@ -2,7 +2,7 @@
 // payment_request). Each locks the invoice row, as review does, so a recall
 // can't race a decision.
 import { z } from 'zod';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
 import type { Database, Transaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { getReferenceId } from '../db/referenceLookups';
@@ -23,9 +23,13 @@ import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { recordInvoiceEvent } from './invoiceEvents';
 import {
   CONFIRMED_IMPORT_STATUS_CODE,
-  createTimeEntriesFromImportedLines,
+  createTimeEntriesForTimeLines,
   findImportForInvoice,
 } from '../imports/importedTimeEntries';
+import { recordTimeEntryChange } from '../portal/changeTimeEntry';
+import { priceTimeLines } from './priceTimeLines';
+import { checkInferredDates } from '../imports/inferServiceDates';
+import { enforceBillingRules } from './billingRules';
 import {
   DRAFT_INVOICE_STATUS_CODE,
   SUBMITTED_INVOICE_STATUS_CODE,
@@ -33,29 +37,43 @@ import {
 } from './invoiceStatusCodes';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.3.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.4.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
 export const LINE_TYPE_CODES = { time: 'time', expense: 'expense', other: 'service' } as const;
 export type LineType = keyof typeof LINE_TYPE_CODES;
 
-export const invoiceLineInputSchema = z.object({
-  lineType: z.enum(['time', 'expense', 'other']).default('other'),
-  amount: z.coerce.number().positive(),
-  // Context only; must be the billed professionals' time on this case.
-  sourceTimeEntryId: z.string().uuid().optional(),
-  // Supplier-stated evidence; never used to compute the amount.
-  serviceDate: z.iso.date().optional(),
-  description: z.string().trim().min(1).optional(),
-  quantity: z.coerce.number().positive().optional(),
-  unitRate: z.coerce.number().nonnegative().optional(),
-  timekeeperLabel: z.string().trim().min(1).optional(),
-  taskCode: z.string().trim().min(1).optional(),
-  activityCode: z.string().trim().min(1).optional(),
-  expenseCode: z.string().trim().min(1).optional(),
-  // Defaults to the billed professional on a delegated invoice.
-  timekeeperProfessionalId: z.string().uuid().optional(),
-});
+export const invoiceLineInputSchema = z
+  .object({
+    lineType: z.enum(['time', 'expense', 'other']).optional(),
+    // Ignored on a time line, which is priced from rates
+    // (./priceTimeLines.ts), except while an import is unconfirmed.
+    amount: z.coerce.number().positive().optional(),
+    // The billed professionals' time on this case; makes the line a time line.
+    sourceTimeEntryId: z.string().uuid().optional(),
+    serviceDate: z.iso.date().optional(),
+    // Set by import; the client drops it once the date is changed.
+    serviceDateInferred: z.boolean().optional(),
+    description: z.string().trim().min(1).optional(),
+    quantity: z.coerce.number().positive().optional(),
+    // Supplier-stated evidence; never used to compute the amount.
+    unitRate: z.coerce.number().nonnegative().optional(),
+    statedAmount: z.coerce.number().nonnegative().optional(),
+    timekeeperLabel: z.string().trim().min(1).optional(),
+    taskCode: z.string().trim().min(1).optional(),
+    activityCode: z.string().trim().min(1).optional(),
+    expenseCode: z.string().trim().min(1).optional(),
+    // Defaults to the billed professional on a delegated invoice.
+    timekeeperProfessionalId: z.string().uuid().optional(),
+  })
+  .transform((line) => ({
+    ...line,
+    lineType: (line.sourceTimeEntryId ? 'time' : (line.lineType ?? 'other')) as LineType,
+  }))
+  .refine((line) => line.lineType === 'time' || line.amount !== undefined, {
+    message: 'Each expense or other item needs an amount above zero.',
+    path: ['amount'],
+  });
 
 export const draftContentSchema = z.object({
   periodStart: z.iso.date().optional(),
@@ -100,9 +118,9 @@ async function replaceLines(
     throw new NotAssignedToCaseError();
   }
   const delegated = billedProfessionalId !== actor.professionalId;
-  const lines = content.lines.map((line) => ({
+  let lines = content.lines.map((line) => ({
     ...line,
-    amount: Math.round(line.amount * 100) / 100,
+    amount: line.amount === undefined ? undefined : Math.round(line.amount * 100) / 100,
     timekeeperProfessionalId:
       line.timekeeperProfessionalId ?? (delegated && fillTimekeepers ? billedProfessionalId : undefined),
   }));
@@ -114,26 +132,81 @@ async function replaceLines(
 
   const sourceTimeEntryIds = lines.flatMap((line) => (line.sourceTimeEntryId ? [line.sourceTimeEntryId] : []));
   if (sourceTimeEntryIds.length > 0) {
-    const allowedProfessionalIds = [
-      billedProfessionalId,
-      ...lines.flatMap((line) => (line.timekeeperProfessionalId ? [line.timekeeperProfessionalId] : [])),
-    ];
-    const owned = await tx
-      .select({ timeEntryId: timeEntry.timeEntryId })
+    if (new Set(sourceTimeEntryIds).size !== sourceTimeEntryIds.length) {
+      throw new ValidationError({ lines: 'The same time entry is on this invoice more than once.' });
+    }
+    const entries = await tx
+      .select()
       .from(timeEntry)
       .where(
         and(
           inArray(timeEntry.timeEntryId, sourceTimeEntryIds),
-          inArray(timeEntry.professionalId, allowedProfessionalIds),
+          inArray(timeEntry.professionalId, [...billable]),
           eq(timeEntry.caseId, caseId),
         ),
-      );
-    const ownedIds = new Set(owned.map((row) => row.timeEntryId));
-    if (sourceTimeEntryIds.some((id) => !ownedIds.has(id))) {
+      )
+      .for('update');
+    const byId = new Map(entries.map((entry) => [entry.timeEntryId, entry]));
+    if (sourceTimeEntryIds.some((id) => !byId.has(id))) {
       throw new ValidationError({
-        lines: 'One or more sourceTimeEntryId values are not time entries on this case for the billed professionals.',
+        lines: 'Some time on this invoice is not time you may bill on this case.',
       });
     }
+    const [elsewhere] = await tx
+      .select({ timeEntryId: invoiceLine.sourceTimeEntryId })
+      .from(invoiceLine)
+      .innerJoin(invoice, eq(invoiceLine.invoiceId, invoice.invoiceId))
+      .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+      .where(
+        and(
+          inArray(invoiceLine.sourceTimeEntryId, sourceTimeEntryIds),
+          ne(invoiceLine.invoiceId, invoiceId),
+          ne(invoiceStatuses.code, WITHDRAWN_INVOICE_STATUS_CODE),
+        ),
+      )
+      .limit(1);
+    if (elsewhere) {
+      const entry = byId.get(elsewhere.timeEntryId as string);
+      throw new ValidationError({
+        lines: `The time from ${entry?.activityOn} (${entry?.description}) is already on another invoice.`,
+      });
+    }
+    // A linked line shows its entry; editing the line on a draft edits the
+    // entry (model/rules.yaml validate_payment_request). An unconfirmed
+    // import only links, so the file's values never overwrite recorded time.
+    const synced: typeof lines = [];
+    for (const line of lines) {
+      const entry = line.sourceTimeEntryId ? byId.get(line.sourceTimeEntryId) : undefined;
+      if (!entry) {
+        synced.push(line);
+        continue;
+      }
+      const next = {
+        activityOn: (fillTimekeepers && line.serviceDate) || entry.activityOn,
+        durationHours: fillTimekeepers && line.quantity ? line.quantity.toFixed(2) : entry.durationHours,
+        description: (fillTimekeepers && line.description) || entry.description,
+      };
+      if (
+        next.activityOn !== entry.activityOn ||
+        Number(next.durationHours) !== Number(entry.durationHours) ||
+        next.description !== entry.description
+      ) {
+        // eslint-disable-next-line no-await-in-loop
+        await recordTimeEntryChange(tx, actor.userAccountId, 'changed', entry);
+        // eslint-disable-next-line no-await-in-loop
+        await tx.update(timeEntry).set(next).where(eq(timeEntry.timeEntryId, entry.timeEntryId));
+      }
+      synced.push({
+        ...line,
+        serviceDate: next.activityOn,
+        quantity: Number(next.durationHours),
+        description: next.description,
+        // Whose time it is follows the entry.
+        timekeeperProfessionalId:
+          delegated || entry.professionalId !== billedProfessionalId ? entry.professionalId : undefined,
+      });
+    }
+    lines = synced;
   }
 
   // Sequential: a transaction's queries share one connection.
@@ -152,19 +225,28 @@ async function replaceLines(
       caseId,
       lineTypeId: lineTypeIds[line.lineType],
       sourceTimeEntryId: line.sourceTimeEntryId,
-      amount: line.amount.toFixed(2),
+      // A time line's amount is set by pricing below.
+      amount: (line.amount ?? 0).toFixed(2),
       serviceDate: line.serviceDate,
+      serviceDateInferred: Boolean(line.serviceDateInferred && line.serviceDate && !line.sourceTimeEntryId),
       description: line.description,
       quantity: line.quantity?.toString(),
       unitRate: line.unitRate?.toFixed(2),
+      statedAmount: line.statedAmount?.toFixed(2),
       timekeeperLabel: line.timekeeperLabel,
-      taskCode: line.taskCode,
+      // Upper case, as billing codes are kept.
+      taskCode: line.taskCode?.toUpperCase(),
       activityCode: line.activityCode,
       expenseCode: line.expenseCode,
       timekeeperProfessionalId: line.timekeeperProfessionalId,
     })),
   );
-  return lines.reduce((sum, line) => sum + line.amount, 0).toFixed(2);
+  // A draft may be saved incomplete; confirmation and submission are strict.
+  return priceTimeLines(tx, invoiceId, {
+    billedProfessionalId,
+    unmatchedMeansBilled: fillTimekeepers,
+    strict: false,
+  });
 }
 
 async function statusId(tx: Transaction, code: string): Promise<string> {
@@ -221,7 +303,13 @@ async function lockOwnInvoice(tx: Transaction, actor: PortalActor, invoiceId: st
   return locked;
 }
 
-async function buildSubmissionSnapshot(tx: Transaction, invoiceId: string, chainId: string, capturedAt: Date) {
+async function buildSubmissionSnapshot(
+  tx: Transaction,
+  invoiceId: string,
+  chainId: string,
+  capturedAt: Date,
+  billingRules: Awaited<ReturnType<typeof enforceBillingRules>>,
+) {
   const invoiceRow = await tx.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
   const lines = await tx.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
   return {
@@ -230,6 +318,7 @@ async function buildSubmissionSnapshot(tx: Transaction, invoiceId: string, chain
     invoice_id: invoiceId,
     invoice_approval_chain_id: chainId,
     records: { invoice: invoiceRow, invoice_line: lines },
+    billing_rules: billingRules,
   };
 }
 
@@ -252,15 +341,28 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
       lines: 'An item bills a professional you can no longer act for on this case. Edit the draft first.',
     });
   }
-  // An imported draft needs a confirmed import; its time lines become time
-  // entries.
   const imported = await findImportForInvoice(tx, invoiceId);
   if (imported && imported.statusCode !== CONFIRMED_IMPORT_STATUS_CODE) {
     throw new InvoiceStateError('Confirm the imported values before submitting this invoice.');
   }
-  if (imported) {
-    await createTimeEntriesFromImportedLines(tx, invoiceId, imported.invoiceImportId, locked.caseId);
-  }
+  await checkInferredDates(tx, invoiceId);
+  // Priced again so the snapshot below freezes the rates in force.
+  await createTimeEntriesForTimeLines(
+    tx,
+    {
+      invoiceId,
+      caseId: locked.caseId,
+      billedProfessionalId: locked.professionalId,
+      invoiceImportId: imported?.invoiceImportId,
+    },
+    actor.userAccountId,
+  );
+  await priceTimeLines(tx, invoiceId, {
+    billedProfessionalId: locked.professionalId,
+    unmatchedMeansBilled: true,
+    strict: true,
+  });
+  const billingRules = await enforceBillingRules(tx, invoiceId);
 
   const submittedAt = new Date();
   const submittedStatusId = await statusId(tx, SUBMITTED_INVOICE_STATUS_CODE);
@@ -273,7 +375,9 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
   );
   await tx
     .update(invoiceApprovalChain)
-    .set({ submissionSnapshot: await buildSubmissionSnapshot(tx, invoiceId, invoiceApprovalChainId, submittedAt) })
+    .set({
+      submissionSnapshot: await buildSubmissionSnapshot(tx, invoiceId, invoiceApprovalChainId, submittedAt, billingRules),
+    })
     .where(eq(invoiceApprovalChain.invoiceApprovalChainId, invoiceApprovalChainId));
   await recordInvoiceEvent(tx, {
     invoiceId,

@@ -4,6 +4,7 @@ import { TEMPLATE_COLUMNS } from './parseSpreadsheet';
 
 const EXAMPLE_ROW: Record<(typeof TEMPLATE_COLUMNS)[number], string | number> = {
   invoice_number: 'INV-0001',
+  case: '',
   date: '2026-01-15',
   type: 'time',
   timekeeper: 'Example Timekeeper',

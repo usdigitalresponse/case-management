@@ -16,6 +16,7 @@ import {
   timeEntry,
   userAccount,
 } from '../db/schema';
+import { evaluateBillingRules, type RuleFinding } from './billingRules';
 
 export function selectInvoiceHeaders(db: Database) {
   return db
@@ -55,9 +56,12 @@ export async function loadInvoiceLines(db: Database, invoiceId: string) {
       lineTypeCode: invoiceLineTypes.code,
       amount: invoiceLine.amount,
       serviceDate: invoiceLine.serviceDate,
+      serviceDateInferred: invoiceLine.serviceDateInferred,
       description: invoiceLine.description,
       quantity: invoiceLine.quantity,
       unitRate: invoiceLine.unitRate,
+      statedAmount: invoiceLine.statedAmount,
+      billedRate: invoiceLine.billedRate,
       timekeeperLabel: invoiceLine.timekeeperLabel,
       timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       timekeeperDisplayName: professional.displayName,
@@ -108,6 +112,8 @@ export interface InvoiceDetail {
   lines: InvoiceDetailLine[];
   // Null for drafts.
   submissionAttempt: SubmissionAttempt | null;
+  // As submitted for the current attempt; live for a draft.
+  ruleFindings: RuleFinding[];
 }
 
 export async function loadInvoiceDetail(db: Database, invoiceId: string): Promise<InvoiceDetail | undefined> {
@@ -121,9 +127,18 @@ export async function loadInvoiceDetail(db: Database, invoiceId: string): Promis
       .select({
         invoiceApprovalChainId: invoiceApprovalChain.invoiceApprovalChainId,
         submittedAt: invoiceApprovalChain.createdAt,
+        snapshot: invoiceApprovalChain.submissionSnapshot,
       })
       .from(invoiceApprovalChain)
       .where(and(eq(invoiceApprovalChain.invoiceId, invoiceId), isNull(invoiceApprovalChain.supersededAt))),
   ]);
-  return { invoice: header, lines, submissionAttempt: attempt ?? null };
+  const ruleFindings = attempt
+    ? ((attempt.snapshot as { billing_rules?: { findings?: RuleFinding[] } } | null)?.billing_rules?.findings ?? [])
+    : await evaluateBillingRules(db, invoiceId);
+  return {
+    invoice: header,
+    lines,
+    submissionAttempt: attempt ? { invoiceApprovalChainId: attempt.invoiceApprovalChainId, submittedAt: attempt.submittedAt } : null,
+    ruleFindings,
+  };
 }

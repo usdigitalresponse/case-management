@@ -1,4 +1,4 @@
-spec_version: 0.3.0
+spec_version: 0.4.0
 description: Synthetic offline examples only; sample vocabularies and amounts are not policy defaults.
   Fields that prepare_review.py computes from event/participant/affiliation
   history are intentionally omitted; see model/README.md.
@@ -367,7 +367,7 @@ records:
     extraction_method: synthetic-extractor 0
     extracted_at: '2026-01-09T11:05:00Z'
     extraction_result:
-      spec_version: 0.3.0
+      spec_version: 0.4.0
       invoice_import_id: 10503bd4-accb-5695-ace6-adc87f0baaa6
       invoice:
         invoice_number: {value: SAMPLE-INVOICE-A, confidence: 0.99}
@@ -392,7 +392,7 @@ records:
     created_by_user_account_id: 804f26eb-155a-5439-aee2-1650d14a9228
     created_at: '2026-01-10T12:00:00Z'
     submission_snapshot:
-      spec_version: 0.3.0
+      spec_version: 0.4.0
       captured_at: '2026-01-10T12:00:00Z'
       invoice_id: 0f555c83-4e62-583a-9a30-8ec5587f5406
       invoice_approval_chain_id: 5348ea53-2341-55a8-9542-589e9da5df7b

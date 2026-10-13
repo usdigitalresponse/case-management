@@ -25,6 +25,17 @@ export function lineType(line: PortalInvoiceLine): string {
   return LINE_TYPE_LABELS[line.lineTypeCode ?? ''] ?? 'Other';
 }
 
+// The configured rate a time line is billed at; else the file's stated one.
 export function lineRate(line: PortalInvoiceLine): string {
-  return line.unitRate === null ? '—' : formatMoney(line.unitRate);
+  const rate = line.billedRate ?? line.unitRate;
+  return rate === null ? '—' : formatMoney(rate);
+}
+
+// What an imported file claimed, when it differs from what is billed.
+export function lineStatedDifference(line: PortalInvoiceLine): string | undefined {
+  if (line.statedAmount === null || Number(line.statedAmount) === Number(line.amount)) {
+    return undefined;
+  }
+  const rate = line.unitRate === null ? '' : ` at ${formatMoney(line.unitRate)}/h`;
+  return `File said ${formatMoney(line.statedAmount)}${rate}`;
 }

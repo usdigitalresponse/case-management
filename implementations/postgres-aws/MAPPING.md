@@ -298,7 +298,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     draft's period and lines; `POST .../submit`, `.../recall` and
     `.../withdraw` move it (`model/workflows.yaml` `payment_request`).
   - Submitting creates the approval chain with a `submission_snapshot` of
-    the invoice and line rows (`spec_version` 0.3.0). Recall is refused
+    the invoice and line rows (`spec_version` 0.4.0). Recall is refused
     once any decision exists on the current chain; otherwise it supersedes
     the chain, keeping its snapshot, and returns the invoice to draft.
     Withdrawal applies to drafts only. `DELETE /api/portal/invoices/:id`
@@ -371,6 +371,15 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     The page can also set one professional on every unassigned item, or on
     all items (replacing suggestions); this is a client-side edit saved like
     any other, so confirmation still checks every line.
+  - A line with no date in a file stating a billing period gets the
+    period's end date (`src/imports/inferServiceDates.ts`), marked
+    `service_date_inferred` with a `date_from_period` warning and a "check
+    it" note on the line (cleared when the date is changed; confirmation and
+    submission repeat the checks below for whoever the line then names), unless
+    the person's rate changes inside the period, they weren't assigned to
+    the case for all of it, or who did the work isn't known yet; then it
+    stays blank with a `date_not_inferred` warning saying why. Lines are
+    never split across days.
   - `GET .../invoice-imports/:id` shows the import, its warnings and time
     already recorded that matches a line, which the submitter may link
     instead. `.../file` downloads the original until it's deleted, and
@@ -383,10 +392,50 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `.../confirm` requires every line matched, then deletes the file;
     `.../discard` deletes it and withdraws the draft. Imports are visible
     only to their uploader.
+  - Bulk import (`client/src/portal/PortalBulkImport.tsx`, `bulkImport.ts`;
+    "Import invoices" on the portal case list) takes several files, each
+    assigned a case and whom it bills (one choice, grouped by person, so a
+    delegate picks both), suggested from the file name when exactly one
+    case's reference or client name fits. It uploads them one at a time
+    through the single-file endpoint, so each is its own import. `GET
+    /api/portal/invoice-imports` lists the uploader's imports still in
+    progress (unresolved, or confirmed with an unsubmitted draft) with what
+    each still needs (items to match, dates to add or check, other
+    warnings, why a file couldn't be read). The page runs as three steps
+    (add files, review each, submit) with the current one marked: uploads
+    lead to "Review next"; review pages opened from it (`?from=bulk`) show
+    "File N of M" and confirm or discard straight on to the next file, then
+    to the submit step, which lists the confirmed drafts (all included
+    unless unticked) and submits them with one button showing the count and
+    total (one submit call each, failures listed by file). No batch record
+    is kept on the server; the browser session remembers which imports it
+    uploaded, and "Cancel import" discards those still in progress
+    (unconfirmed imports are discarded, confirmed drafts deleted), leaving
+    earlier imports and anything submitted alone.
+  - A bulk file is designated either to one case (as above) or to one
+    professional (`src/imports/splitByCase.ts`; `model/rules.yaml`
+    `validate_invoice_import`). For a professional, the template's optional
+    `case` column names each line's case: `POST .../invoice-imports/case-split/preview`
+    reads the file and suggests a case per line (a single exact match on
+    case reference, identifier or client name among that person's open
+    cases the user may bill), the page has the user assign every line, and
+    `POST .../invoice-imports/case-split` (the file base64-encoded beside
+    one case per line, under `application/vnd.case-split+json`, since the
+    app-wide JSON parser stops at 100 KB) makes one import and draft per
+    case, all billed to that professional and sharing one document. Every
+    line is that professional's work: the extraction result records them as
+    `designated_professional_id`, review shows "work done by" fixed rather
+    than suggested (items added there are theirs too), and confirmation
+    refuses any other. Each part is reviewed and submitted like any import;
+    review shows the whole original. The file is deleted once the last part is confirmed or
+    discarded (or deleted with its draft), and parts of one file don't warn
+    that each other are duplicates. Only the spreadsheet template has a
+    case column; LEDES and PDF files are designated to one case.
   - A draft from an unconfirmed import can't be submitted or withdrawn
-    directly. Submitting a confirmed one creates a time entry for each
-    time line with a date and hours, for its matched professional, linked
-    both ways; a resubmission after recall reuses those entries.
+    directly. Confirming prices its time lines from configured rates (see
+    "Rates and billing from time"); submitting creates a time entry for
+    each time line with a date and hours, for its matched professional,
+    linked both ways; a resubmission after recall reuses those entries.
   - An hourly in-process sweep (`src/app.ts`) expires imports unresolved
     for three days: file deleted, draft withdrawn with a system
     `invoice_event` (no actor, a reason), and any file whose deletion was
@@ -399,8 +448,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     rather than imported; a file's container-local
     copy is lost if the container is replaced (the import then shows it as
     unavailable); a cloud deployment needs a private, non-versioned bucket
-    excluded from backups instead of the local directory; editing a time
-    line after its entry was created doesn't update the entry.
+    excluded from backups instead of the local directory.
 - **Delegated submission** (`src/portal/portalActor.ts`,
   `src/professionals/delegateRole.ts`; `model/rules.yaml`
   `authorize_delegated_submission`):
@@ -416,13 +464,102 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     delegated invoice. Each is checked on create, edit and again at
     submission. `submitted_by_user_account_id` and every event's actor
     are the delegate. `GET /api/portal/cases/:caseId/billable-professionals`
-    lists whom the session may bill; `GET /api/my-cases` includes the
-    represented professionals' cases.
+    lists whom the session may bill; `GET /api/my-cases`
+    (`src/portal/listPortalCases.ts`) also returns the represented
+    professionals' cases, tagged with who holds each, and the portal case
+    list shows one section per person (yours first). Each card flags
+    "Unsubmitted time" (that person's time on no submitted invoice) and
+    "Unsubmitted invoice" (a readable draft or withdrawn invoice billing
+    that person).
+  - `GET /api/portal/time-entries?caseId=` also returns the time of
+    represented professionals assigned to that case
+    (`timeReadableProfessionalIds`); without `caseId` it returns only your
+    own. `POST /api/portal/time-entries` takes an optional `professionalId`
+    so a delegate can log time for them on such a case. Every entry stores
+    `recorded_by_user_account_id` (migration `0003`), including entries an
+    import creates on submission; entries from before 0.4.0 have none.
+    The case page shows "Work done by" in the time table and log form.
+- **Changing time** (`src/portal/changeTimeEntry.ts`; `model/rules.yaml`
+  `validate_activity_and_time_context`): `PUT` and `DELETE
+  /api/portal/time-entries/:id` let whoever may record time for the entry's
+  professional on the case (themselves, or a delegate) change its date,
+  hours and description, or delete it. Whose time it is can't change. An
+  invoice that isn't withdrawn and bills the entry locks it with a 409
+  `time_entry_invoiced` whose message says what to do; `GET` returns the
+  billing invoice as `billing` and that text as `lockedReason`. On the case
+  page, time on a draft links to the draft ("Edit on draft"), where editing
+  its line edits the entry; time on a submitted invoice shows the reason
+  when Edit or Delete is clicked. Each change or deletion, here or through
+  a draft, writes an `audit_event` row (migration `0004`) with the actor
+  and the entry's prior values; `audit_event` records nothing else yet.
+- **Billing rules** (`src/billing/billingRules.ts`, `src/routes/settings.ts`;
+  `client/src/pages/Settings.tsx`, `components/BillingRules.tsx`;
+  `model/rules.yaml` `apply_billing_rules`; migration `0006`):
+  - One agency per deployment, one set of rules. Administrators set each of
+    billing codes, time increment, daily hour cap, long entry (warn only)
+    and billing period to off, warn or require on Settings; each save is a
+    new `billing_rule_setting` row and the latest per rule is in force.
+    `rule_code` is one of the rules defined in code rather than a
+    `billing_rule_types` reference table. Codes are an administrator-kept
+    `billing_codes` list; retiring a code keeps it on invoices that used it.
+  - Rules run on every saved draft (shown as findings on the draft and
+    import review pages) and again at import confirmation and
+    submission, where a "require" finding blocks with its message. The
+    daily cap counts the person's time lines on other submitted invoices,
+    not other drafts. The submission snapshot stores the settings in force and the
+    findings, which staff review and the portal show for submitted
+    invoices; a later rule change doesn't alter them.
+  - Firms see the rules in force beside invoice entry
+    (`GET /api/portal/billing-rules`), and a task code column when codes are
+    required or warned on. Hours are flagged, never rounded.
+  - Not built: rates by kind of work and expense rules (see
+    `docs/DECISIONS.md`).
+- **Rates and billing from time** (`src/billing/professionalRates.ts`,
+  `priceTimeLines.ts`, `invoiceLifecycle.ts`; `src/routes/settings.ts`;
+  `client/src/pages/Settings.tsx`, `components/UnbilledTimePicker.tsx`;
+  `model/rules.yaml` `apply_professional_rates`, `validate_payment_request`):
+  - Administrators (`user_account.system_role_id` = the seeded
+    "Administrator" role, which also counts as staff) maintain
+    `professional_kinds`, add effective-dated `professional_kind_rate` rows
+    on Settings, and set each vendor's kind on the Vendors page
+    (`PUT /api/professionals/:id/kind`; `/api/settings/professional-kinds`).
+    Rates are never edited. Staff see kinds and rates; the portal's
+    `billable-professionals` carries each billable person's kind rates, so
+    everyone who may bill for someone sees their rate (migration `0005`).
+  - Every save, import confirmation and submission prices each time line:
+    the linked time entry's hours (else the line's) × the rate for that
+    professional's kind on the date, rounded to cents, stored as
+    `billed_rate` and `amount`; the client can't set either. A draft may be
+    saved with time that can't be priced yet (it keeps its stated amount,
+    or zero); confirming an import and submitting refuse it, saying whether
+    the date, hours, person's kind or that kind's rate for the date is
+    missing. A file's `unit_rate` and `stated_amount` stay as evidence, and
+    import review and staff review flag a line whose stated amount differs.
+    Submission prices again, so the snapshot freezes the rates applied.
+  - Invoice entry shows the pricing before saving (client-side previews of
+    the same rule): each time item as "hours × rate", a line naming the
+    rates in play for the people on the invoice (with "from" dates when
+    items span a change), a running total split into time and other items,
+    rates beside unbilled time, and on imports the file's total beside the
+    billed total (review, the split panel, and the bulk list).
+  - Each time line ends up linked to a time entry: picked from the case's
+    unbilled time (a new invoice starts with the billed professional's), or
+    created on submission from a typed line. A typed time item matching
+    unbilled recorded time (same person, date and hours) is flagged with a
+    "Bill that instead" link, never merged. A time entry is on at most one
+    invoice that isn't withdrawn. On a draft, a linked line edits its entry;
+    removing the line leaves the entry unbilled. The case page's Time table
+    shows each entry's billing state with a link to its invoice.
+  - Gaps: a professional's kind is current, not dated, so a kind change
+    reprices drafts but not submitted invoices; no screen grants the
+    Administrator role (the demo seed sets it on the demo staff account;
+    otherwise set `system_role_id` directly); kinds can't be renamed or
+    retired yet; expense and other lines still take the amount entered.
   - Represented professionals see and export the invoice through the
     existing read rule (invoice professional or line timekeeper); they
     don't attest or approve, as decided.
   - Magic-link sign-in doesn't create a professional profile for a
-    delegate, so a delegate can't log time.
+    delegate, so a delegate logs time only for others.
   - Gaps: no staff screen to grant the delegate role or record office
     membership (only the demo seed does). Delegate authority is read through
     `user_account.person_id`, which the magic-link bootstrap leaves unset
@@ -472,9 +609,12 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   `POST /auth/demo-login/external` likewise signs in as the demo seed's
   first vendor (`demo-vendor-1@example.invalid`) as an external
   (`magic-link`) user, so it needs `npm run seed`, not just the baseline
-  fixtures. The seed also makes that vendor its office's billing delegate,
-  so the one demo account shows both billing for yourself and for an office
-  colleague. `src/app.ts` mounts each by default only when
+  fixtures. The seed puts all four demo vendors in one office and makes
+  that vendor its billing delegate, so the one demo account shows both
+  billing for yourself and for several office colleagues. It also makes the
+  demo staff account an Administrator and adds synthetic Attorney,
+  Investigator and Expert kinds with rates, giving each demo vendor one.
+  `src/app.ts` mounts each by default only when
   `NODE_ENV !== 'production'`; `DEMO_LOGIN_ENABLED` and
   `EXTERNAL_DEMO_LOGIN_ENABLED` (`true`/`false`) override that
   independently. The hosted synthetic-data demo
@@ -637,9 +777,10 @@ of an immediate need: adding them after case data exists would mean
 revisiting the `case_participant` uniqueness constraint under live data, so
 it was cheaper to include now while the schema is still empty.
 
-Every other entity in `schema.yaml` (expense, document_link, audit_event,
+Every other entity in `schema.yaml` (expense, document_link,
 service_provider, payment, etc.) is out of scope for this slice and has no
-table here.
+table here. `audit_event` has a table but so far records only time entry
+changes and deletions.
 
 ### Deliberately omitted fields on in-scope entities
 

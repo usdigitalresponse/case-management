@@ -104,3 +104,14 @@ export async function billableProfessionalIds(
   }
   return [...ids];
 }
+
+// Whose time on a case the user may read: their own, and as a delegate,
+// that of the professionals they act for who are assigned to it.
+export async function timeReadableProfessionalIds(
+  db: DatabaseOrTransaction,
+  actor: PortalActor,
+  caseId: string,
+): Promise<string[]> {
+  const represented = await representedProfessionalIds(db, actor.userAccountId, caseId);
+  return [...new Set([...(actor.professionalId ? [actor.professionalId] : []), ...represented])];
+}

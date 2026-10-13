@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams, Link as RouterLink } from 'react-router';
+import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router';
 import { Alert, AlertHeading, Button, Label, Select } from '@trussworks/react-uswds';
 import {
   ApiError,
@@ -7,6 +7,7 @@ import {
   getInvoiceImport,
   getMyInvoice,
   listBillableProfessionals,
+  listInvoiceImports,
   resolveInvoiceImport,
   updateDraftInvoice,
   type BillableProfessional,
@@ -18,6 +19,7 @@ import { PageHeading } from '../components/PageHeading';
 import {
   assignTimekeeper,
   hasInvoiceItems,
+  invoiceTotalPreview,
   InvoiceLinesEditor,
   lineDraftsFrom,
   linesFromDrafts,
@@ -25,8 +27,11 @@ import {
   type LineDraft,
 } from '../components/InvoiceLinesEditor';
 import { formatDateTime } from '../formatDateTime';
+import { formatMoney } from '../formatMoney';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { OriginalDocument } from '../components/OriginalDocument';
+import { nextInQueue, reviewQueue, reviewUrl } from './bulkImport';
+import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 
 interface Loaded {
   importDetail: InvoiceImportDetail;
@@ -76,12 +81,50 @@ function AssignAllTimekeepers({
   );
 }
 
-function ExtractedReview({ data, onChanged }: { data: Loaded; onChanged: () => void }) {
+// The file's own total beside what configured rates bill, so a gap shows
+// before confirming.
+function FileTotalComparison({ lines, timekeepers }: { lines: LineDraft[]; timekeepers: BillableProfessional[] }) {
+  const stated = lines.reduce((sum, line) => sum + Math.round((line.carried.statedAmount ?? 0) * 100), 0) / 100;
+  const billed = invoiceTotalPreview(lines, timekeepers, undefined);
+  if (stated === 0 || !billed.complete || Math.abs(stated - billed.total) < 0.005) {
+    return null;
+  }
+  return (
+    <Alert type="info" slim className="file-total-comparison">
+      The file totals {formatMoney(stated.toFixed(2))}; at configured rates this invoice is{' '}
+      <strong>{formatMoney(billed.total.toFixed(2))}</strong>.
+    </Alert>
+  );
+}
+
+function ExtractedReview({
+  data,
+  afterResolve,
+  hasNext,
+  onChanged,
+}: {
+  data: Loaded;
+  // From bulk import: where to go once confirmed or discarded.
+  afterResolve?: string;
+  hasNext: boolean;
+  onChanged: () => void;
+}) {
   const navigate = useNavigate();
   const { importDetail, invoice, timekeepers } = data;
-  const [lines, setLines] = useState<LineDraft[]>(() =>
-    lineDraftsFrom(invoice?.lines ?? []).map((line) => ({ ...line, suggestedTimekeeper: Boolean(line.timekeeperProfessionalId) })),
+  // A file designated to one professional is all their work, not a suggestion.
+  const designatedId = importDetail.extractionResult?.designated_professional_id;
+  const designated = timekeepers.find((professional) => professional.professionalId === designatedId);
+  const [lines, setLinesState] = useState<LineDraft[]>(() =>
+    lineDraftsFrom(invoice?.lines ?? []).map((line) =>
+      designatedId
+        ? { ...line, timekeeperProfessionalId: designatedId, suggestedTimekeeper: false }
+        : { ...line, suggestedTimekeeper: Boolean(line.timekeeperProfessionalId) },
+    ),
   );
+  // Items added on a designated file are that professional's too.
+  const setLines = (next: LineDraft[]) =>
+    setLinesState(designatedId ? next.map((line) => ({ ...line, timekeeperProfessionalId: designatedId })) : next);
+  const billingRules = usePortalBillingRules();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
   const warnings = importDetail.extractionResult?.warnings ?? [];
@@ -110,7 +153,9 @@ function ExtractedReview({ data, onChanged }: { data: Loaded; onChanged: () => v
         onChanged();
       } else {
         await resolveInvoiceImport(importDetail.invoiceImportId, action);
-        if (action === 'confirm' && importDetail.invoiceId) {
+        if (afterResolve) {
+          navigate(afterResolve);
+        } else if (action === 'confirm' && importDetail.invoiceId) {
           navigate(`/portal/invoices/${importDetail.invoiceId}`);
         } else {
           onChanged();
@@ -139,8 +184,12 @@ function ExtractedReview({ data, onChanged }: { data: Loaded; onChanged: () => v
         </Alert>
       )}
       <p className="import-review-intro">
-        Check each item against the original and choose who did the work. Confirming deletes the file; the draft stays
-        editable until you submit it.
+        {designatedId
+          ? `Check each item against the original. Every item is ${designated ? professionalLabel(designated) : 'the chosen professional'}'s work, as chosen for this file.`
+          : 'Check each item against the original and choose who did the work.'}{' '}
+        Time is billed at the configured hourly rate for that kind of professional, not the file's rate; items where
+        they differ are noted. Confirming deletes the file once every invoice from it is confirmed or discarded; the
+        draft stays editable until you submit it.
       </p>
       <div className={importDetail.fileAvailable ? 'import-review-layout' : undefined}>
         {importDetail.fileAvailable && (
@@ -149,7 +198,10 @@ function ExtractedReview({ data, onChanged }: { data: Loaded; onChanged: () => v
       <div className="import-review-items">
         <h2>Items read from the file</h2>
         {message && <Alert type={message.type} slim>{message.text}</Alert>}
-        {timekeepers.length > 0 && lines.length > 1 && (
+        <FileTotalComparison lines={lines} timekeepers={timekeepers} />
+        <RulesInForce rules={billingRules.rules} />
+        <RuleFindings findings={invoice?.ruleFindings ?? []} />
+        {!designatedId && timekeepers.length > 0 && lines.length > 1 && (
           <AssignAllTimekeepers timekeepers={timekeepers} unmatched={unmatched} onAssign={(id, only) => setLines(assignTimekeeper(lines, id, only))} />
         )}
         <InvoiceLinesEditor
@@ -157,33 +209,37 @@ function ExtractedReview({ data, onChanged }: { data: Loaded; onChanged: () => v
           lines={lines}
           onChange={setLines}
           timekeepers={timekeepers}
+          billingCodes={billingRules.codes}
           importReview={{
             duplicateTime: importDetail.possibleDuplicateTime,
             // Only while items are still in their extracted order.
             sourceLocations: lines.length === locations.length ? locations.map((line) => line.location) : undefined,
+            fixedTimekeeper: Boolean(designatedId),
           }}
         />
+        {(!hasItems || unmatched > 0) && (
+          <p className="compact-hint actions-hint">
+            {!hasItems
+              ? 'Add an item with an amount to continue.'
+              : `Choose who did the work for ${unmatched} more ${unmatched === 1 ? 'item' : 'items'} to confirm.`}
+          </p>
+        )}
         <div className="invoice-actions">
           <Button type="button" disabled={busy || !hasItems || unmatched > 0} onClick={() => void run('confirm')}>
-            Confirm import
+            {!afterResolve ? 'Confirm import' : hasNext ? 'Confirm and review next' : 'Confirm and go to submit'}
           </Button>
           <Button type="button" outline disabled={busy || !hasItems} onClick={() => void run('save')}>
             Save changes
           </Button>
-          <ConfirmButton
-            label="Discard import"
-            prompt="Discard this import? The file is deleted and nothing is submitted."
-            confirmLabel="Yes, discard"
-            disabled={busy}
-            onConfirm={() => void run('discard')}
-          />
-          {(!hasItems || unmatched > 0) && (
-            <span className="compact-hint">
-              {!hasItems
-                ? 'Add an item with an amount to continue.'
-                : `Choose who did the work for ${unmatched} more ${unmatched === 1 ? 'item' : 'items'} to confirm.`}
-            </span>
-          )}
+          <span className="actions-end">
+            <ConfirmButton
+              label="Discard import"
+              prompt="Discard this import? The file is deleted and nothing is submitted."
+              confirmLabel="Yes, discard"
+              disabled={busy}
+              onConfirm={() => void run('discard')}
+            />
+          </span>
         </div>
       </div>
       </div>
@@ -193,9 +249,23 @@ function ExtractedReview({ data, onChanged }: { data: Loaded; onChanged: () => v
 
 export default function PortalImportReview() {
   const { importId } = useParams<{ importId: string }>();
+  const [searchParams] = useSearchParams();
+  const fromBulk = searchParams.get('from') === 'bulk';
+  const navigate = useNavigate();
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => load(importId as string), [importId, version]);
+  // From bulk import: where this file sits in the queue still to review.
+  const { data: bulkImports } = useApiResource(
+    () => (fromBulk ? listInvoiceImports().then((result) => result.imports) : Promise.resolve(null)),
+    [fromBulk, importId],
+  );
   const [discardError, setDiscardError] = useState<string | null>(null);
+  const queue = bulkImports ? reviewQueue(bulkImports) : [];
+  const position = queue.findIndex((row) => row.invoiceImportId === importId);
+  const previous = position > 0 ? queue[position - 1] : undefined;
+  const next = bulkImports && importId ? nextInQueue(bulkImports, importId) : undefined;
+  // After confirming or discarding: the next file, or the submit step.
+  const afterResolve = fromBulk ? (next ? reviewUrl(next) : '/portal/imports#submit') : undefined;
 
   if (error) {
     const message = error instanceof ApiError && error.status === 404 ? 'Import not found.' : 'Failed to load the import.';
@@ -206,12 +276,16 @@ export default function PortalImportReview() {
   }
 
   const { importDetail } = data;
-  const backTo = importDetail.caseId ? `/portal/cases/${importDetail.caseId}` : '/';
+  const backTo = fromBulk ? '/portal/imports' : importDetail.caseId ? `/portal/cases/${importDetail.caseId}` : '/';
 
   async function discardFailed() {
     try {
       await resolveInvoiceImport(importDetail.invoiceImportId, 'discard');
-      setVersion((v) => v + 1);
+      if (afterResolve) {
+        navigate(afterResolve);
+      } else {
+        setVersion((v) => v + 1);
+      }
     } catch (err) {
       setDiscardError(apiErrorMessage(err, 'Failed to discard the import.'));
     }
@@ -219,7 +293,24 @@ export default function PortalImportReview() {
 
   return (
     <div>
-      <RouterLink className="back-link" to={backTo}>&larr; Back to case</RouterLink>
+      <RouterLink className="back-link" to={backTo}>&larr; {fromBulk ? 'Back to imports' : 'Back to case'}</RouterLink>
+      {fromBulk && position >= 0 && (
+        <p className="bulk-position">
+          File {position + 1} of {queue.length} to review
+          {previous && (
+            <>
+              {' · '}
+              <RouterLink to={reviewUrl(previous)}>&larr; Previous</RouterLink>
+            </>
+          )}
+          {next && queue.length > 1 && (
+            <>
+              {' · '}
+              <RouterLink to={reviewUrl(next)}>Next &rarr;</RouterLink>
+            </>
+          )}
+        </p>
+      )}
       <PageHeading eyebrow="Invoice import" title={importDetail.fileName} description={importDetail.formatDisplayName} />
       <dl className="fact-grid">
         <div className="fact">
@@ -244,7 +335,15 @@ export default function PortalImportReview() {
         )}
       </dl>
 
-      {importDetail.statusCode === 'extracted' && <ExtractedReview key={version} data={data} onChanged={() => setVersion((v) => v + 1)} />}
+      {importDetail.statusCode === 'extracted' && (
+        <ExtractedReview
+          key={`${importId}-${version}`}
+          data={data}
+          afterResolve={afterResolve}
+          hasNext={Boolean(next)}
+          onChanged={() => setVersion((v) => v + 1)}
+        />
+      )}
 
       {importDetail.statusCode === 'failed' && (
         <>

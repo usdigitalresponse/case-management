@@ -17,6 +17,7 @@ import {
   expireInvoiceImports,
   getInvoiceImport,
   IMPORT_EXPIRY_MS,
+  listInvoiceImports,
   uploadInvoiceFile,
 } from '../src/imports/invoiceImports';
 import { parseLedes1998b } from '../src/imports/parseLedes';
@@ -26,6 +27,8 @@ import { UnreadableInvoiceFileError } from '../src/imports/parsedInvoice';
 import type { DocumentStore } from '../src/imports/documentStore';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { ValidationError } from '../src/errors';
+import { giveRate } from './rateHelpers';
+import { addKindRate } from '../src/billing/professionalRates';
 import {
   caseAssignment,
   document,
@@ -34,6 +37,7 @@ import {
   invoiceImport,
   invoiceLine,
   invoiceStatuses,
+  professional,
   timeEntry,
   userAccount,
 } from '../src/db/schema';
@@ -155,6 +159,7 @@ describe('invoice import workflow', () => {
       .values({ displayName, email: `${randomUUID()}@example.com`, active: true })
       .returning();
     const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, displayName);
+    await giveRate(testDb, fixtures.staffUserAccountId, professionalId, 120);
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, {
       requestId: randomUUID(),
       personId: fixtures.clientPersonId,
@@ -209,6 +214,10 @@ describe('invoice import workflow', () => {
     expect(entries[0]).toMatchObject({ professionalId, activityOn: '2026-01-10', durationHours: '1.50' });
     const [timeLine] = await testDb.select().from(invoiceLine).where(eq(invoiceLine.sourceTimeEntryId, entries[0]!.timeEntryId));
     expect(timeLine?.invoiceId).toBe(invoiceId);
+    // Billed at the configured rate; the file's rate and amount stay as evidence.
+    expect(timeLine).toMatchObject({ amount: '180.00', billedRate: '120.00', unitRate: '100.00', statedAmount: '150.00' });
+    const [row] = await testDb.select({ total: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(row?.total).toBe('220.00');
   });
 
   it('suggests "Last, First" names and, for unnamed lines, the billed professional', async () => {
@@ -242,6 +251,20 @@ describe('invoice import workflow', () => {
     await updateDraftInvoice(testDb, actor, uploaded.invoiceId as string, {
       lines: [{ amount: 150, lineType: 'time', timekeeperProfessionalId: professionalId }],
     });
+    // A time line needs a date and hours to be priced.
+    await expect(confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId)).rejects.toThrow(
+      expect.objectContaining({ fieldErrors: { lines: 'A time item needs a date and hours.' } }),
+    );
+    // Says which item and what it lacks.
+    await updateDraftInvoice(testDb, actor, uploaded.invoiceId as string, {
+      lines: [{ amount: 150, lineType: 'time', timekeeperProfessionalId: professionalId, description: 'Hearing', quantity: 1.5 }],
+    });
+    await expect(confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId)).rejects.toThrow(
+      expect.objectContaining({ fieldErrors: { lines: 'The time item "Hearing" needs a date.' } }),
+    );
+    await updateDraftInvoice(testDb, actor, uploaded.invoiceId as string, {
+      lines: [{ amount: 150, lineType: 'time', timekeeperProfessionalId: professionalId, serviceDate: '2026-01-10', quantity: 1.5 }],
+    });
     await confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId);
   });
 
@@ -271,6 +294,7 @@ describe('invoice import workflow', () => {
         description: line.description ?? undefined,
         quantity: line.quantity === null ? undefined : Number(line.quantity),
         unitRate: line.unitRate === null ? undefined : Number(line.unitRate),
+        statedAmount: line.statedAmount === null ? undefined : Number(line.statedAmount),
         timekeeperLabel: line.timekeeperLabel ?? undefined,
         timekeeperProfessionalId: line.timekeeperProfessionalId ?? undefined,
         taskCode: line.taskCode ?? undefined,
@@ -282,8 +306,91 @@ describe('invoice import workflow', () => {
 
     expect(await comparable()).toEqual(before);
     // Every editable invoice_line column is exercised by this file.
-    expect(before[0]).toMatchObject({ unitRate: '100.00', timekeeperLabel: 'Synthetic Timekeeper', taskCode: 'SAMPLE-TASK' });
+    expect(before[0]).toMatchObject({
+      unitRate: '100.00',
+      statedAmount: '150.00',
+      billedRate: '120.00',
+      timekeeperLabel: 'Synthetic Timekeeper',
+      taskCode: 'SAMPLE-TASK',
+    });
     expect(before[1]).toMatchObject({ expenseCode: 'SAMPLE-EXP' });
+  });
+
+  it('lists only the uploader\'s imports still in progress, for bulk import', async () => {
+    const { actor, caseId, store } = await setup();
+    const other = await setup('Another Timekeeper');
+    const upload = (name: string, who = actor, onCase = caseId) =>
+      uploadInvoiceFile(testDb, store, who, { caseId: onCase, fileName: name, bytes: Buffer.from(syntheticLedes('Synthetic Timekeeper')) });
+    const submitted = await upload('a.ledes');
+    const discarded = await upload('b.ledes');
+    const pending = await upload('c.ledes');
+    await upload('theirs.ledes', other.actor, other.caseId);
+
+    const listed = await listInvoiceImports(testDb, actor);
+    expect(listed.map((row) => row.fileName)).toEqual(['a.ledes', 'b.ledes', 'c.ledes']);
+    // The file says $190; its 1.5 h are billed at $120/h, so $220.
+    expect(listed[0]).toMatchObject({
+      statusCode: 'extracted',
+      invoiceStatusCode: 'draft',
+      lineCount: 2,
+      unmatchedCount: 0,
+      undatedCount: 0,
+      inferredDateCount: 0,
+      otherWarningCount: 0,
+      failureMessage: null,
+      statedTotal: '190.00',
+      submittedTotal: '220.00',
+    });
+    expect(listed[0]?.expiresAt).not.toBeNull();
+
+    await confirmInvoiceImport(testDb, store, actor, submitted.invoiceImportId);
+    await discardInvoiceImport(testDb, store, actor, discarded.invoiceImportId);
+    expect((await listInvoiceImports(testDb, actor)).map((row) => [row.fileName, row.statusCode])).toEqual([
+      ['a.ledes', 'confirmed'],
+      ['c.ledes', 'extracted'],
+    ]);
+
+    await submitInvoice(testDb, actor, submitted.invoiceId as string);
+    expect((await listInvoiceImports(testDb, actor)).map((row) => row.invoiceImportId)).toEqual([pending.invoiceImportId]);
+  });
+
+  it('dates undated lines from the billing period, unless a rate change or assignment gap makes that unsafe', async () => {
+    const { actor, caseId, professionalId, store } = await setup();
+    // syntheticLedes states a 2026-01-01 to 2026-01-31 period; blank the line dates.
+    const undated = Buffer.from(syntheticLedes('Synthetic Timekeeper').replace(/\|2026011[02]\|/g, '||'));
+    const datesOf = async (invoiceId: string) =>
+      (await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)).orderBy(asc(invoiceLine.amount))).map(
+        (line) => line.serviceDate,
+      );
+    const warningCodes = async (importId: string) =>
+      ((await getInvoiceImport(testDb, actor, importId)).extractionResult as { warnings: Array<{ code: string; message: string }> })
+        .warnings;
+
+    const first = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'a.ledes', bytes: undated });
+    expect(await datesOf(first.invoiceId as string)).toEqual(['2026-01-31', '2026-01-31']);
+    expect((await warningCodes(first.invoiceImportId)).filter((w) => w.code === 'date_from_period')).toHaveLength(2);
+
+    // A rate change inside the period: the time line is left for the submitter.
+    const [row] = await testDb.select({ kindId: professional.professionalKindId }).from(professional).where(eq(professional.professionalId, professionalId));
+    await addKindRate(testDb, fixtures.staffUserAccountId, row!.kindId!, { hourlyRate: 140, effectiveFrom: '2026-01-15' });
+    const second = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'b.ledes', bytes: undated });
+    expect(await datesOf(second.invoiceId as string)).toEqual(['2026-01-31', null]);
+    // The first file's time was dated before the change; confirming rechecks it.
+    await expect(confirmInvoiceImport(testDb, store, actor, first.invoiceImportId)).rejects.toThrow(
+      expect.objectContaining({
+        fieldErrors: {
+          lines: expect.stringMatching(/"Synthetic research" is dated to the end of the billing period, but .*rate changed on 2026-01-15/),
+        },
+      }),
+    );
+    expect((await warningCodes(second.invoiceImportId)).find((w) => w.code === 'date_not_inferred')?.message).toMatch(
+      /rate changed on 2026-01-15/,
+    );
+
+    // Assigned only partway through: nothing is dated.
+    await testDb.update(caseAssignment).set({ assignedAt: new Date('2026-01-10T12:00:00Z') }).where(eq(caseAssignment.caseId, caseId));
+    const third = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'c.ledes', bytes: undated });
+    expect(await datesOf(third.invoiceId as string)).toEqual([null, null]);
   });
 
   it('reads a PDF into a draft, recording how it was read', async () => {

@@ -11,11 +11,13 @@ import {
   invoiceApprovalDecision,
   invoiceEvent,
   invoiceImport,
+  invoiceImportStatuses,
   invoiceLine,
   invoiceStatuses,
   timeEntry,
 } from '../db/schema';
 import type { DocumentStore } from '../imports/documentStore';
+import { UNRESOLVED_IMPORT_STATUS_CODES } from '../imports/importedTimeEntries';
 import type { PortalActor } from '../portal/portalActor';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { InvoiceStateError } from './invoiceLifecycle';
@@ -83,7 +85,9 @@ export async function deleteUnsubmittedInvoice(
       })
       .from(invoiceImport)
       .innerJoin(document, eq(invoiceImport.documentId, document.documentId))
-      .where(eq(invoiceImport.invoiceId, invoiceId));
+      .where(eq(invoiceImport.invoiceId, invoiceId))
+      // As resolving an import does, so siblings sharing a file serialize.
+      .for('update', { of: document });
     const importIds = imports.map((row) => row.invoiceImportId);
 
     await tx.delete(invoiceEvent).where(eq(invoiceEvent.invoiceId, invoiceId));
@@ -103,10 +107,43 @@ export async function deleteUnsubmittedInvoice(
         .delete(timeEntry)
         .where(and(inArray(timeEntry.sourceInvoiceImportId, importIds), notInArray(timeEntry.timeEntryId, usedElsewhere)));
       await tx.delete(invoiceImport).where(inArray(invoiceImport.invoiceImportId, importIds));
-      await tx.delete(document).where(inArray(document.documentId, imports.map((row) => row.documentId)));
     }
     await tx.delete(invoice).where(eq(invoice.invoiceId, invoiceId));
-    return imports.filter((row) => row.contentDeletedAt === null).map((row) => row.storageReference);
+    // A document split by case stays while another import uses it.
+    const documentIds = imports.map((row) => row.documentId);
+    const stillUsed =
+      documentIds.length === 0
+        ? new Set<string>()
+        : new Set(
+            (
+              await tx
+                .select({ documentId: invoiceImport.documentId })
+                .from(invoiceImport)
+                .where(inArray(invoiceImport.documentId, documentIds))
+            ).map((row) => row.documentId),
+          );
+    const unused = imports.filter((row) => !stillUsed.has(row.documentId));
+    if (unused.length > 0) {
+      await tx.delete(document).where(inArray(document.documentId, unused.map((row) => row.documentId)));
+    }
+    // A shared file goes once none of its imports is still open.
+    const shared = imports.filter((row) => stillUsed.has(row.documentId) && row.contentDeletedAt === null);
+    const released: typeof shared = [];
+    for (const row of shared) {
+      // eslint-disable-next-line no-await-in-loop
+      const [open] = await tx
+        .select({ id: invoiceImport.invoiceImportId })
+        .from(invoiceImport)
+        .innerJoin(invoiceImportStatuses, eq(invoiceImport.statusId, invoiceImportStatuses.id))
+        .where(and(eq(invoiceImport.documentId, row.documentId), inArray(invoiceImportStatuses.code, UNRESOLVED_IMPORT_STATUS_CODES)))
+        .limit(1);
+      if (!open) {
+        // eslint-disable-next-line no-await-in-loop
+        await tx.update(document).set({ contentDeletedAt: new Date() }).where(eq(document.documentId, row.documentId));
+        released.push(row);
+      }
+    }
+    return [...unused.filter((row) => row.contentDeletedAt === null), ...released].map((row) => row.storageReference);
   });
   // After commit, so a failed transaction never loses a file still in use.
   for (const storageReference of files) {

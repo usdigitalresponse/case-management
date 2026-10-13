@@ -19,6 +19,8 @@ export interface ParsedLine {
   taskCode?: string;
   activityCode?: string;
   expenseCode?: string;
+  // Which case, as the file names it; used only when splitting by case.
+  caseLabel?: string;
 }
 
 export interface ParsedInvoice {

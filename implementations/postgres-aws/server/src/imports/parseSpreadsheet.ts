@@ -13,6 +13,9 @@ import type { LineType } from '../billing/invoiceLifecycle';
 
 export const TEMPLATE_COLUMNS = [
   'invoice_number',
+  // Only for a file covering one professional's several cases: the case
+  // reference or client name, matched when the file is split by case.
+  'case',
   'date',
   'type',
   'timekeeper',
@@ -96,6 +99,7 @@ function parseRows(rows: Cell[][]): ParsedInvoice {
       taskCode: optionalText(get('task_code')),
       activityCode: optionalText(get('activity_code')),
       expenseCode,
+      caseLabel: optionalText(get('case')),
     };
     return { line, invoiceNumber: optionalText(get('invoice_number')) };
   });

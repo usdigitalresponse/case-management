@@ -8,7 +8,7 @@ import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { caseAssignment, userAccount } from '../db/schema';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
-import { getStaffAccountRoleId } from '../auth/staffAccountRole';
+import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { ValidationError } from '../errors';
 import { getStaffAssignmentRoleId } from './staffAssignmentRole';
@@ -36,14 +36,14 @@ export async function assignStaffToCase(
   }
   const { userAccountId } = parsed.data;
 
-  const [[staffAccountRow], staffAccountRoleId] = await Promise.all([
+  const [[staffAccountRow], staffAccountRoleIds] = await Promise.all([
     db
       .select({ displayName: userAccount.displayName, systemRoleId: userAccount.systemRoleId })
       .from(userAccount)
       .where(eq(userAccount.userAccountId, userAccountId)),
-    getStaffAccountRoleId(db),
+    getStaffAccountRoleIds(db),
   ]);
-  if (!staffAccountRow || staffAccountRow.systemRoleId !== staffAccountRoleId) {
+  if (!staffAccountRow?.systemRoleId || !staffAccountRoleIds.includes(staffAccountRow.systemRoleId)) {
     throw new NotStaffAccountError();
   }
 

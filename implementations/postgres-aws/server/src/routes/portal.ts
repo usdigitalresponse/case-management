@@ -1,6 +1,6 @@
 // The external portal: time, invoices, exports and imports, for any
-// authenticated session. Time entry routes 404 without a professional
-// profile; invoice routes also serve delegates, who have none.
+// authenticated session. Time and invoice routes also serve delegates, who
+// may have no professional profile of their own.
 import express, { Router, type Request } from 'express';
 import { documentStore } from '../imports/documentStore';
 import { MAX_UPLOAD_BYTES } from '../imports/detectFormat';
@@ -8,22 +8,32 @@ import {
   confirmInvoiceImport,
   discardInvoiceImport,
   getInvoiceImport,
+  listInvoiceImports,
   readImportFile,
   uploadInvoiceFile,
 } from '../imports/invoiceImports';
 import { templateCsv, templateXlsx } from '../imports/template';
+import { previewCaseSplit, uploadInvoiceFileByCase } from '../imports/splitByCase';
 import { previewFile } from '../imports/preview';
 import { findImportForInvoice } from '../imports/importedTimeEntries';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../billing/deleteInvoice';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { z } from 'zod';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { db } from '../db/client';
-import { timeEntry, invoice, professional } from '../db/schema';
+import { timeEntry, invoice, professional, professionalKinds } from '../db/schema';
 import { getSessionUser, requireAuth } from '../auth/session';
 import { UnauthenticatedError } from '../errors';
-import { billableProfessionalIds, resolvePortalActor, type PortalActor } from '../portal/portalActor';
+import { billableProfessionalIds, resolvePortalActor, timeReadableProfessionalIds, type PortalActor } from '../portal/portalActor';
 import { createTimeEntry } from '../portal/createTimeEntry';
+import {
+  billingOfTimeEntry,
+  deleteTimeEntry,
+  timeEntryLockedReason,
+  updateTimeEntry,
+} from '../portal/changeTimeEntry';
+import { listRates } from '../billing/professionalRates';
+import { getBillingRules, listBillingCodes } from '../billing/billingRules';
 import { createInvoice } from '../portal/createInvoice';
 import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
@@ -44,20 +54,10 @@ async function sessionActor(req: Request): Promise<PortalActor> {
   return resolvePortalActor(db, user.userAccountId);
 }
 
-async function sessionProfessional(req: Request): Promise<{ professionalId: string } | undefined> {
-  const { professionalId } = await sessionActor(req);
-  return professionalId ? { professionalId } : undefined;
-}
-
 router.post(
   '/time-entries',
   asyncHandler(async (req, res) => {
-    const actor = await sessionProfessional(req);
-    if (!actor) {
-      res.status(404).json({ error: 'no_professional_profile' });
-      return;
-    }
-    const result = await createTimeEntry(db, actor, req.body);
+    const result = await createTimeEntry(db, await sessionActor(req), req.body);
     res.status(201).json(result);
   }),
 );
@@ -65,21 +65,59 @@ router.post(
 router.get(
   '/time-entries',
   asyncHandler(async (req, res) => {
-    const actor = await sessionProfessional(req);
-    if (!actor) {
+    const caseId = typeof req.query.caseId === 'string' ? req.query.caseId : undefined;
+    if (caseId !== undefined && !z.uuid().safeParse(caseId).success) {
+      res.json({ timeEntries: [] });
+      return;
+    }
+    const actor = await sessionActor(req);
+    // Others' time only case by case.
+    const professionalIds = caseId
+      ? await timeReadableProfessionalIds(db, actor, caseId)
+      : actor.professionalId
+        ? [actor.professionalId]
+        : [];
+    if (professionalIds.length === 0) {
       res.status(404).json({ error: 'no_professional_profile' });
       return;
     }
-    const caseId = typeof req.query.caseId === 'string' ? req.query.caseId : undefined;
-    const conditions = [eq(timeEntry.professionalId, actor.professionalId)];
+    const conditions = [inArray(timeEntry.professionalId, professionalIds)];
     if (caseId) {
       conditions.push(eq(timeEntry.caseId, caseId));
     }
     const rows = await db
-      .select()
+      .select({ ...getTableColumns(timeEntry), billing: billingOfTimeEntry })
       .from(timeEntry)
-      .where(and(...conditions));
-    res.json({ timeEntries: rows });
+      .where(and(...conditions))
+      .orderBy(asc(timeEntry.activityOn));
+    res.json({
+      timeEntries: rows.map((row) => ({ ...row, lockedReason: timeEntryLockedReason(row.billing) })),
+    });
+  }),
+);
+
+router.put(
+  '/time-entries/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await updateTimeEntry(db, await sessionActor(req), req.params.id as string, req.body));
+  }),
+);
+
+router.delete(
+  '/time-entries/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await deleteTimeEntry(db, await sessionActor(req), req.params.id as string));
+  }),
+);
+
+// The rules in force and active codes, shown where invoices are entered.
+router.get(
+  '/billing-rules',
+  asyncHandler(async (_req, res) => {
+    res.json({
+      rules: (await getBillingRules(db)).filter((rule) => rule.enforcement !== 'off'),
+      codes: (await listBillingCodes(db)).filter((code) => code.active).map(({ code, displayName }) => ({ code, displayName })),
+    });
   }),
 );
 
@@ -93,11 +131,25 @@ router.get(
       ids.length === 0
         ? []
         : await db
-            .select({ professionalId: professional.professionalId, displayName: professional.displayName })
+            .select({
+              professionalId: professional.professionalId,
+              displayName: professional.displayName,
+              kindDisplayName: professionalKinds.displayName,
+            })
             .from(professional)
+            .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
             .where(inArray(professional.professionalId, ids));
+    // Everyone who may bill for a professional sees their rates
+    // (model/rules.yaml apply_professional_rates).
+    const rates = await listRates(db, ids);
     res.json({
-      professionals: rows.map((row) => ({ ...row, isSelf: row.professionalId === actor.professionalId })),
+      professionals: rows.map((row) => ({
+        ...row,
+        isSelf: row.professionalId === actor.professionalId,
+        rates: rates
+          .filter((rate) => rate.professionalId === row.professionalId)
+          .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
+      })),
     });
   }),
 );
@@ -163,6 +215,7 @@ function withoutReviewer(detail: InvoiceDetail) {
   return {
     invoice: detail.invoice,
     submissionAttempt: detail.submissionAttempt,
+    ruleFindings: detail.ruleFindings,
     lines: detail.lines.map(({ decidedByDisplayName: _reviewer, ...line }) => line),
   };
 }
@@ -217,6 +270,36 @@ router.post(
       bytes,
     });
     res.status(201).json(result);
+  }),
+);
+
+// A file designated to one professional whose lines name their cases:
+// preview with a suggested case per line, then split into one import per
+// case (../imports/splitByCase.ts).
+router.post(
+  '/invoice-imports/case-split/preview',
+  express.raw({ type: () => true, limit: MAX_UPLOAD_BYTES }),
+  asyncHandler(async (req, res) => {
+    const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    res.json(await previewCaseSplit(db, await sessionActor(req), { professionalId: req.query.professionalId, bytes }));
+  }),
+);
+
+// The file travels base64-encoded beside its assignments, under its own
+// media type so the app-wide JSON parser (100 KB) leaves it alone.
+const CASE_SPLIT_MEDIA_TYPE = 'application/vnd.case-split+json';
+router.post(
+  '/invoice-imports/case-split',
+  express.json({ type: CASE_SPLIT_MEDIA_TYPE, limit: Math.ceil(MAX_UPLOAD_BYTES * 1.4) }),
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await uploadInvoiceFileByCase(db, documentStore, await sessionActor(req), req.body));
+  }),
+);
+
+router.get(
+  '/invoice-imports',
+  asyncHandler(async (req, res) => {
+    res.json({ imports: await listInvoiceImports(db, await sessionActor(req)) });
   }),
 );
 
