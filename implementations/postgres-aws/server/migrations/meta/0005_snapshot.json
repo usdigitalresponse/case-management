@@ -1,5 +1,5 @@
 {
-  "id": "c29e8a7a-f12e-4087-8c42-2e3a11d5f3fb",
+  "id": "21401b38-41dd-4fc4-ad93-07be770c0d16",
   "prevId": "5e76b76b-a11f-4240-ad99-44308b5ad0ac",
   "version": "7",
   "dialect": "postgresql",
@@ -2568,6 +2568,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "service_date_inferred": {
+          "name": "service_date_inferred",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "description": {
           "name": "description",
           "type": "text",
@@ -3258,6 +3265,12 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "professional_kind_id": {
+          "name": "professional_kind_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -3316,6 +3329,19 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
+        },
+        "professional_professional_kind_id_professional_kinds_id_fk": {
+          "name": "professional_professional_kind_id_professional_kinds_id_fk",
+          "tableFrom": "professional",
+          "tableTo": "professional_kinds",
+          "columnsFrom": [
+            "professional_kind_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -3324,19 +3350,19 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.professional_rate": {
-      "name": "professional_rate",
+    "public.professional_kind_rate": {
+      "name": "professional_kind_rate",
       "schema": "",
       "columns": {
-        "professional_rate_id": {
-          "name": "professional_rate_id",
+        "professional_kind_rate_id": {
+          "name": "professional_kind_rate_id",
           "type": "uuid",
           "primaryKey": true,
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "professional_id": {
-          "name": "professional_id",
+        "professional_kind_id": {
+          "name": "professional_kind_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -3367,11 +3393,11 @@
         }
       },
       "indexes": {
-        "professional_rate_professional_idx": {
-          "name": "professional_rate_professional_idx",
+        "professional_kind_rate_kind_idx": {
+          "name": "professional_kind_rate_kind_idx",
           "columns": [
             {
-              "expression": "professional_id",
+              "expression": "professional_kind_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3390,22 +3416,22 @@
         }
       },
       "foreignKeys": {
-        "professional_rate_professional_id_professional_professional_id_fk": {
-          "name": "professional_rate_professional_id_professional_professional_id_fk",
-          "tableFrom": "professional_rate",
-          "tableTo": "professional",
+        "professional_kind_rate_professional_kind_id_professional_kinds_id_fk": {
+          "name": "professional_kind_rate_professional_kind_id_professional_kinds_id_fk",
+          "tableFrom": "professional_kind_rate",
+          "tableTo": "professional_kinds",
           "columnsFrom": [
-            "professional_id"
+            "professional_kind_id"
           ],
           "columnsTo": [
-            "professional_id"
+            "id"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "professional_rate_recorded_by_user_account_id_user_account_user_account_id_fk": {
-          "name": "professional_rate_recorded_by_user_account_id_user_account_user_account_id_fk",
-          "tableFrom": "professional_rate",
+        "professional_kind_rate_recorded_by_user_account_id_user_account_user_account_id_fk": {
+          "name": "professional_kind_rate_recorded_by_user_account_id_user_account_user_account_id_fk",
+          "tableFrom": "professional_kind_rate",
           "tableTo": "user_account",
           "columnsFrom": [
             "recorded_by_user_account_id"
@@ -3419,6 +3445,53 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.professional_kinds": {
+      "name": "professional_kinds",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "professional_kinds_code_unique": {
+          "name": "professional_kinds_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

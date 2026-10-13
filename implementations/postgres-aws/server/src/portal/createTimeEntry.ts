@@ -1,11 +1,8 @@
-// Time logging for the external portal: a professional records their own
-// time, or a delegate records it for a professional they act for
-// (model/rules.yaml authorize_delegated_submission), and the entry keeps who
-// recorded it. Reference existence for
-// activityTypeId relies on the FK constraint rather than a friendly
-// pre-check (unlike ../intake/createCase.ts) - acceptable with a single
-// seeded activity type for now; revisit if the UI needs field-level
-// errors here.
+// Portal time logging: a professional records their own time, or a delegate
+// a represented professional's (model/rules.yaml
+// authorize_delegated_submission); the entry keeps who recorded it.
+// activityTypeId relies on the FK rather than a friendly pre-check, which is
+// fine while one activity type is seeded.
 import { z } from 'zod';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';

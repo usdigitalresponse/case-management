@@ -43,7 +43,6 @@ const BILLING_LABELS: Record<string, string> = {
   rejected: 'Rejected',
 };
 
-// Where each entry is billed, linking to the invoice.
 function BillingState({ entry }: { entry: TimeEntryRecord }) {
   if (!entry.billing) {
     return <span className="status-pill status-pill--pending">Unbilled</span>;
@@ -55,7 +54,6 @@ function BillingState({ entry }: { entry: TimeEntryRecord }) {
   );
 }
 
-// Today's rate for each person whose time this user may bill.
 function RateNote({ billable }: { billable: BillableProfessional[] }) {
   const today = new Date().toISOString().slice(0, 10);
   return (
@@ -313,10 +311,22 @@ function InvoiceSection({
     const own = unbilled.filter((entry) => entry.professionalId === professionalId).map(lineFromTimeEntry);
     return own.length > 0 ? own : [emptyLine];
   };
-  const [lines, setLines] = useState<LineDraft[]>(() => startingLines(billedProfessionalId));
-  // Recorded time changed (logged, edited or billed): start again from it.
+  const [lines, setLinesState] = useState<LineDraft[]>(() => startingLines(billedProfessionalId));
+  // Untouched, the form follows recorded time as it loads and changes; once
+  // edited, only a save or a new "Billing for" starts it again.
+  const [touched, setTouched] = useState(false);
+  const setLines = (next: LineDraft[]) => {
+    setLinesState(next);
+    setTouched(true);
+  };
+  const startAgain = (professionalId: string) => {
+    setLinesState(startingLines(professionalId));
+    setTouched(false);
+  };
   useEffect(() => {
-    setLines(startingLines(billedProfessionalId));
+    if (!touched) {
+      setLinesState(startingLines(billedProfessionalId));
+    }
   }, [entries]);
   const [period, setPeriod] = useState({ start: '', end: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -344,6 +354,8 @@ function InvoiceSection({
       setPeriod({ start: '', end: '' });
       setSaved(submit ? 'submitted' : 'draft');
       setListVersion((version) => version + 1);
+      // Refilled from what's still unbilled once the time reloads.
+      setTouched(false);
       onInvoiced();
     } catch (err) {
       setSubmitError(
@@ -416,7 +428,7 @@ function InvoiceSection({
                 value={billedProfessionalId}
                 onChange={(event) => {
                   setBilledProfessionalId(event.target.value);
-                  setLines(startingLines(event.target.value));
+                  startAgain(event.target.value);
                 }}
               >
                 {billable.map((professional) => (
@@ -458,6 +470,7 @@ function InvoiceSection({
               onChange={setLines}
               timekeepers={billable}
               billedProfessionalId={billedProfessionalId}
+              recordedTime={unbilled}
             />
             <p className="compact-hint">
               Time items are priced at the hourly rate set for that kind of professional. New time typed here is

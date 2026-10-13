@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleDemoLogin = useCallback(async () => {
     await demoLogin();
-    // /auth/me also says whether they're an administrator.
+    // The login response lacks isAdmin; /auth/me has it.
     setUser(await getCurrentUser());
   }, []);
 

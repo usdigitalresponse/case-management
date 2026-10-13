@@ -283,7 +283,6 @@ router.post(
   }),
 );
 
-// The bulk import page's list.
 router.get(
   '/invoice-imports',
   asyncHandler(async (req, res) => {

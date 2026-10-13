@@ -106,9 +106,7 @@ export async function billableProfessionalIds(
 }
 
 // Whose time on a case the user may read: their own, and as a delegate,
-// that of the professionals they act for who are assigned to it
-// (model/rules.yaml authorize_delegated_submission). Only professionals
-// record their own time.
+// that of the professionals they act for who are assigned to it.
 export async function timeReadableProfessionalIds(
   db: DatabaseOrTransaction,
   actor: PortalActor,

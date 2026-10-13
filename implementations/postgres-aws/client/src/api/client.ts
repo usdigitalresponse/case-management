@@ -31,7 +31,7 @@ export interface AuthenticatedUser {
   displayName: string;
   authType: 'sso' | 'magic-link';
   ssoProvider?: string;
-  // From /auth/me only; shows Settings. The server checks it on each change.
+  // From /auth/me only; just shows or hides Settings.
   isAdmin?: boolean;
 }
 
@@ -465,6 +465,7 @@ export interface CreateInvoiceLineInput {
   // Supplier-stated detail from an imported file; kept as evidence.
   unitRate?: number;
   statedAmount?: number;
+  serviceDateInferred?: boolean;
   timekeeperLabel?: string;
   taskCode?: string;
   activityCode?: string;
@@ -801,6 +802,8 @@ export interface InvoiceReviewLine {
   amount: string;
   // Supplier-stated detail; when absent, the linked time entry's values apply.
   serviceDate: string | null;
+  // Filled from the billing period on import, until the date is changed.
+  serviceDateInferred: boolean;
   description: string | null;
   quantity: string | null;
   // As stated on an imported file; evidence only.

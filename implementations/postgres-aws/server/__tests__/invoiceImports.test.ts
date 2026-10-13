@@ -375,6 +375,14 @@ describe('invoice import workflow', () => {
     await addKindRate(testDb, fixtures.staffUserAccountId, row!.kindId!, { hourlyRate: 140, effectiveFrom: '2026-01-15' });
     const second = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'b.ledes', bytes: undated });
     expect(await datesOf(second.invoiceId as string)).toEqual(['2026-01-31', null]);
+    // The first file's time was dated before the change; confirming rechecks it.
+    await expect(confirmInvoiceImport(testDb, store, actor, first.invoiceImportId)).rejects.toThrow(
+      expect.objectContaining({
+        fieldErrors: {
+          lines: expect.stringMatching(/"Synthetic research" is dated to the end of the billing period, but .*rate changed on 2026-01-15/),
+        },
+      }),
+    );
     expect((await warningCodes(second.invoiceImportId)).find((w) => w.code === 'date_not_inferred')?.message).toMatch(
       /rate changed on 2026-01-15/,
     );

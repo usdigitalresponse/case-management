@@ -151,5 +151,9 @@ describe('splitting a file for one professional by case', () => {
     await expect(previewCaseSplit(testDb, actor, { professionalId: other.professionalId, bytes: Buffer.from(CSV) })).rejects.toThrow(
       NotAssignedToCaseError,
     );
+    const tooBig = Buffer.alloc(10 * 1024 * 1024 + 1).toString('base64');
+    await expect(
+      uploadInvoiceFileByCase(testDb, memoryStore(), actor, { professionalId, fileBase64: tooBig, caseIds: [own] }),
+    ).rejects.toThrow(ValidationError);
   });
 });

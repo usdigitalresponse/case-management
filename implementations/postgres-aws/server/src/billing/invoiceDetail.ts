@@ -55,6 +55,7 @@ export async function loadInvoiceLines(db: Database, invoiceId: string) {
       lineTypeCode: invoiceLineTypes.code,
       amount: invoiceLine.amount,
       serviceDate: invoiceLine.serviceDate,
+      serviceDateInferred: invoiceLine.serviceDateInferred,
       description: invoiceLine.description,
       quantity: invoiceLine.quantity,
       unitRate: invoiceLine.unitRate,

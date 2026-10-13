@@ -336,11 +336,13 @@ export const invoiceLine = pgTable(
     invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
     caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
     lineTypeId: uuid('line_type_id').notNull().references(() => invoiceLineTypes.id),
-    // Every submitted time line has one (../billing/linkTimeEntries.ts).
+    // Every submitted time line has one (../imports/importedTimeEntries.ts).
     sourceTimeEntryId: uuid('source_time_entry_id').references(() => timeEntry.timeEntryId),
     // On a time line, hours × billedRate (../billing/priceTimeLines.ts).
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     serviceDate: date('service_date'),
+    // Filled from the billing period on import (../imports/inferServiceDates.ts).
+    serviceDateInferred: boolean('service_date_inferred').notNull().default(false),
     description: text('description'),
     quantity: numeric('quantity', { precision: 10, scale: 2 }),
     // Supplier-stated evidence; never used to compute the amount.

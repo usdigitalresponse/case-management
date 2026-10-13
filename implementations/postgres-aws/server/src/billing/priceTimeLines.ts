@@ -12,8 +12,8 @@ export interface PriceOptions {
   // A line with no timekeeper is the billed professional's work, except on
   // an unconfirmed import, where it is not matched yet.
   unmatchedMeansBilled: boolean;
-  // Off only for an unconfirmed import: a line that can't be priced yet
-  // keeps its stated amount.
+  // On at confirmation and submission. Off when saving a draft: a line that
+  // can't be priced yet keeps its stated amount, or zero.
   strict: boolean;
 }
 

@@ -11,7 +11,7 @@ import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
 import { representedProfessionalIds, type PortalActor } from '../portal/portalActor';
 import type { DocumentStore } from './documentStore';
-import { detectInvoiceFile } from './detectFormat';
+import { detectInvoiceFile, MAX_UPLOAD_BYTES } from './detectFormat';
 import { extractIntoDraft, insertDocument, insertImport, sha256 } from './invoiceImports';
 import { UnreadableInvoiceFileError, type ParsedInvoice } from './parsedInvoice';
 import { listRates, rateOn } from '../billing/professionalRates';
@@ -143,6 +143,9 @@ export async function uploadInvoiceFileByCase(db: Database, store: DocumentStore
   }
   const input = parsedInput.data;
   const bytes = Buffer.from(input.fileBase64, 'base64');
+  if (bytes.length > MAX_UPLOAD_BYTES) {
+    throw new ValidationError({ file: 'The file is larger than 10 MB.' });
+  }
   const cases = await splitCases(db, actor, input.professionalId);
   const allowed = new Set(cases.map((row) => row.caseId));
   const { detected, parsed } = await parseOrRefuse(bytes);

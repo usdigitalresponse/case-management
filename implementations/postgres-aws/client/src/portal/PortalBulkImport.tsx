@@ -198,9 +198,8 @@ function StagedFiles({
     setStaged((current) => current.map((row) => (row.key === key ? { ...row, ...changes } : row)));
   }
 
-  // One at a time, so each file's result is clear. A file for one case
-  // becomes an import and leaves the list; a file for one person is read
-  // and waits for its lines to be given cases.
+  // One at a time, so each file's result is clear. A one-person file is
+  // only read here; its drafts are made once its lines have cases.
   async function uploadAll(event: FormEvent) {
     event.preventDefault();
     setUploading(true);
@@ -358,7 +357,6 @@ function totalWithFile(row: ImportInProgress) {
   );
 }
 
-// 1 Add files → 2 Review each → 3 Submit, with the current one marked.
 function StepHeader({ step, toReview, ready }: { step: BulkStep; toReview: number; ready: number }) {
   const steps: Array<[BulkStep, string]> = [
     [1, 'Add files'],
@@ -578,7 +576,7 @@ export default function PortalBulkImport() {
     [version],
   );
   const refresh = () => setVersion((v) => v + 1);
-  // Arriving from review at #submit (or #review): show that step.
+  // React Router doesn't scroll to #submit after review sends the user here.
   const { hash } = useLocation();
   const loaded = Boolean(imports);
   useEffect(() => {

@@ -38,7 +38,7 @@ import { reconciliationWarnings, UnreadableInvoiceFileError, type ImportWarning,
 import { CONFIRMED_IMPORT_STATUS_CODE, UNRESOLVED_IMPORT_STATUS_CODES } from './importedTimeEntries';
 import { priceTimeLines } from '../billing/priceTimeLines';
 import { matchTimekeeperName } from './matchTimekeeper';
-import { inferServiceDates } from './inferServiceDates';
+import { checkInferredDates, inferServiceDates } from './inferServiceDates';
 
 export const IMPORT_EXPIRY_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -409,7 +409,11 @@ export async function extractIntoDraft(
       timekeeperProfessionalId: line.timekeeperProfessionalId,
     })),
   });
-  content.lines = content.lines.map((line, index) => ({ ...line, serviceDate: inferred.dates[index] }));
+  content.lines = content.lines.map((line, index) => ({
+    ...line,
+    serviceDate: inferred.dates[index],
+    serviceDateInferred: inferred.inferred[index],
+  }));
   warnings.push(...inferred.warnings);
   const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content, { fillTimekeepers: false });
   await tx
@@ -539,6 +543,7 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
             : `Choose who did the work for ${unmatched} ${unmatched === 1 ? 'item' : 'items'} before confirming.`,
       });
     }
+    await checkInferredDates(tx, row.invoiceId);
     // From here the configured rates price each time line, not the file.
     await priceTimeLines(tx, row.invoiceId, {
       billedProfessionalId: draft.professionalId,

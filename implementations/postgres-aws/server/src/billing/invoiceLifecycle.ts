@@ -28,6 +28,7 @@ import {
 } from '../imports/importedTimeEntries';
 import { recordTimeEntryChange } from '../portal/changeTimeEntry';
 import { priceTimeLines } from './priceTimeLines';
+import { checkInferredDates } from '../imports/inferServiceDates';
 import {
   DRAFT_INVOICE_STATUS_CODE,
   SUBMITTED_INVOICE_STATUS_CODE,
@@ -50,6 +51,8 @@ export const invoiceLineInputSchema = z
     // The billed professionals' time on this case; makes the line a time line.
     sourceTimeEntryId: z.string().uuid().optional(),
     serviceDate: z.iso.date().optional(),
+    // Set by import; the client drops it once the date is changed.
+    serviceDateInferred: z.boolean().optional(),
     description: z.string().trim().min(1).optional(),
     quantity: z.coerce.number().positive().optional(),
     // Supplier-stated evidence; never used to compute the amount.
@@ -224,6 +227,7 @@ async function replaceLines(
       // A time line's amount is set by pricing below.
       amount: (line.amount ?? 0).toFixed(2),
       serviceDate: line.serviceDate,
+      serviceDateInferred: Boolean(line.serviceDateInferred && line.serviceDate && !line.sourceTimeEntryId),
       description: line.description,
       quantity: line.quantity?.toString(),
       unitRate: line.unitRate?.toFixed(2),
@@ -235,10 +239,11 @@ async function replaceLines(
       timekeeperProfessionalId: line.timekeeperProfessionalId,
     })),
   );
+  // A draft may be saved incomplete; confirmation and submission are strict.
   return priceTimeLines(tx, invoiceId, {
     billedProfessionalId,
     unmatchedMeansBilled: fillTimekeepers,
-    strict: fillTimekeepers,
+    strict: false,
   });
 }
 
@@ -327,13 +332,12 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
       lines: 'An item bills a professional you can no longer act for on this case. Edit the draft first.',
     });
   }
-  // An imported draft needs a confirmed import.
   const imported = await findImportForInvoice(tx, invoiceId);
   if (imported && imported.statusCode !== CONFIRMED_IMPORT_STATUS_CODE) {
     throw new InvoiceStateError('Confirm the imported values before submitting this invoice.');
   }
-  // Every time line gets a time entry, and all are priced at the rates in
-  // force, which the snapshot below freezes.
+  await checkInferredDates(tx, invoiceId);
+  // Priced again so the snapshot below freezes the rates in force.
   await createTimeEntriesForTimeLines(
     tx,
     {

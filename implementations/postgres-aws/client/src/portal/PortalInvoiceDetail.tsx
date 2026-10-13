@@ -90,6 +90,7 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
         onChange={setLines}
         timekeepers={timekeepers ?? []}
         billedProfessionalId={invoice.professionalId}
+        recordedTime={pickable}
       />
       <div className="invoice-actions">
         <Button type="button" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('submit')}>Submit invoice</Button>

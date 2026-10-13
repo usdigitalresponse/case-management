@@ -85,7 +85,9 @@ export async function deleteUnsubmittedInvoice(
       })
       .from(invoiceImport)
       .innerJoin(document, eq(invoiceImport.documentId, document.documentId))
-      .where(eq(invoiceImport.invoiceId, invoiceId));
+      .where(eq(invoiceImport.invoiceId, invoiceId))
+      // As resolving an import does, so siblings sharing a file serialize.
+      .for('update', { of: document });
     const importIds = imports.map((row) => row.invoiceImportId);
 
     await tx.delete(invoiceEvent).where(eq(invoiceEvent.invoiceId, invoiceId));

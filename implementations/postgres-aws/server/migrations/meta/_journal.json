@@ -40,22 +40,8 @@
     {
       "idx": 5,
       "version": "7",
-      "when": 1791835772666,
-      "tag": "0005_professional_rates",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1791836979349,
-      "tag": "0006_drop_professional_rate",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1791836984249,
-      "tag": "0007_professional_kinds",
+      "when": 1791854643221,
+      "tag": "0005_professional_kind_rates",
       "breakpoints": true
     }
   ]

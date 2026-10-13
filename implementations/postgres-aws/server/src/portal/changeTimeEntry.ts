@@ -37,6 +37,7 @@ export interface TimeEntryBilling {
   statusCode: string;
 }
 
+// A submitted invoice wins over a draft, should older data have both.
 // Needs `time_entry` in the query. Names are qualified by hand: Drizzle
 // leaves columns unqualified in a single-table select.
 export const billingOfTimeEntry: SQL<TimeEntryBilling | null> = sql<TimeEntryBilling | null>`(
@@ -45,6 +46,7 @@ export const billingOfTimeEntry: SQL<TimeEntryBilling | null> = sql<TimeEntryBil
   join invoice i on i.invoice_id = l.invoice_id
   join invoice_statuses s on s.id = i.status_id
   where l.source_time_entry_id = time_entry.time_entry_id and s.code <> ${WITHDRAWN_INVOICE_STATUS_CODE}
+  order by s.code = ${DRAFT_INVOICE_STATUS_CODE}, i.invoice_id
   limit 1)`;
 
 // Why the entry can't be changed here, shown on the case page and as the error.

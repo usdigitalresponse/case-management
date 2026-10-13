@@ -29,10 +29,7 @@ export async function findImportForInvoice(db: DatabaseOrTransaction, invoiceId:
   return row;
 }
 
-// Every submitted time line has a time entry (model/rules.yaml
-// validate_payment_request): one is created for each complete time line
-// typed or imported without one. Incomplete lines are left for pricing to
-// reject.
+// Incomplete time lines are skipped here; pricing rejects them.
 export async function createTimeEntriesForTimeLines(
   tx: Transaction,
   invoice: { invoiceId: string; caseId: string; billedProfessionalId: string; invoiceImportId?: string },

@@ -151,6 +151,18 @@ describe('billing from time', () => {
     expect(created?.recordedByUserAccountId).toBe(actor.userAccountId);
   });
 
+  it("saves a draft whose time can't be priced yet, but refuses to submit it", async () => {
+    const { actor, caseId } = await setup(100);
+    const { invoiceId } = await createInvoice(testDb, actor, {
+      caseId,
+      submit: false,
+      lines: [{ lineType: 'time', quantity: 2, description: 'Undated work' }],
+    });
+    await expect(submitInvoice(testDb, actor, invoiceId)).rejects.toThrow(
+      expect.objectContaining({ fieldErrors: { lines: 'The time item "Undated work" needs a date.' } }),
+    );
+  });
+
   it('keeps a time entry on one live invoice, freeing it when that one is withdrawn', async () => {
     const { actor, caseId } = await setup(100);
     const { timeEntryId } = await createTimeEntry(testDb, actor, { caseId, ...entry });

@@ -415,6 +415,10 @@ entities:
         type: date
         required: false
         description: Service date as stated by the payee; a linked source time entry or expense date governs.
+      service_date_inferred:
+        type: boolean
+        required: false
+        description: True while the service date is one filled from the billing period on import rather than stated; cleared when the date is changed.
       description:
         type: string
         required: false

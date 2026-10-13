@@ -1,9 +1,6 @@
-// Cases the user's own professional profile, or anyone they act for as a
-// delegate, is actively assigned to: the external user's entry point. Each
-// case lists which of those professionals hold it, so the portal can show a
-// section per person; a case shared by several appears in each section.
-// Each case also flags, per professional, work not yet submitted for
-// approval.
+// The portal case list: open cases of the user's own profile and of anyone
+// they act for as a delegate, each tagged with who holds it and, per
+// person, work not yet submitted.
 import { and, asc, eq, exists, inArray, isNull, not, notInArray } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {

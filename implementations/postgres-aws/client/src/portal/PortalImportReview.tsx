@@ -152,7 +152,6 @@ function ExtractedReview({
       } else {
         await resolveInvoiceImport(importDetail.invoiceImportId, action);
         if (afterResolve) {
-          // On to the next file, or the submit step after the last.
           navigate(afterResolve);
         } else if (action === 'confirm' && importDetail.invoiceId) {
           navigate(`/portal/invoices/${importDetail.invoiceId}`);
@@ -211,9 +210,6 @@ function ExtractedReview({
             // Only while items are still in their extracted order.
             sourceLocations: lines.length === locations.length ? locations.map((line) => line.location) : undefined,
             fixedTimekeeper: Boolean(designatedId),
-            inferredDateLocations: warnings.flatMap((warning) =>
-              warning.code === 'date_from_period' && warning.location ? [warning.location] : [],
-            ),
           }}
         />
         <div className="invoice-actions">

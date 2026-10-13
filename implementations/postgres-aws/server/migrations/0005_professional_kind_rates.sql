@@ -15,6 +15,9 @@ CREATE TABLE "professional_kinds" (
 	CONSTRAINT "professional_kinds_code_unique" UNIQUE("code")
 );
 --> statement-breakpoint
+ALTER TABLE "invoice_line" ADD COLUMN "service_date_inferred" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "invoice_line" ADD COLUMN "stated_amount" numeric(12, 2);--> statement-breakpoint
+ALTER TABLE "invoice_line" ADD COLUMN "billed_rate" numeric(12, 2);--> statement-breakpoint
 ALTER TABLE "professional" ADD COLUMN "professional_kind_id" uuid;--> statement-breakpoint
 ALTER TABLE "professional_kind_rate" ADD CONSTRAINT "professional_kind_rate_professional_kind_id_professional_kinds_id_fk" FOREIGN KEY ("professional_kind_id") REFERENCES "public"."professional_kinds"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "professional_kind_rate" ADD CONSTRAINT "professional_kind_rate_recorded_by_user_account_id_user_account_user_account_id_fk" FOREIGN KEY ("recorded_by_user_account_id") REFERENCES "public"."user_account"("user_account_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

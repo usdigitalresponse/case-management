@@ -372,8 +372,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     all items (replacing suggestions); this is a client-side edit saved like
     any other, so confirmation still checks every line.
   - A line with no date in a file stating a billing period gets the
-    period's end date (`src/imports/inferServiceDates.ts`), with a
-    `date_from_period` warning and a "check it" note on the line, unless
+    period's end date (`src/imports/inferServiceDates.ts`), marked
+    `service_date_inferred` with a `date_from_period` warning and a "check
+    it" note on the line (cleared when the date is changed; confirmation and
+    submission repeat the checks below for whoever the line then names), unless
     the person's rate changes inside the period, they weren't assigned to
     the case for all of it, or who did the work isn't known yet; then it
     stays blank with a `date_not_inferred` warning saying why. Lines are
@@ -498,15 +500,16 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     (`PUT /api/professionals/:id/kind`; `/api/settings/professional-kinds`).
     Rates are never edited. Staff see kinds and rates; the portal's
     `billable-professionals` carries each billable person's kind rates, so
-    everyone who may bill for someone sees their rate (migrations
-    `0005`–`0007`; `0005` briefly added per-person rates, dropped in `0006`).
+    everyone who may bill for someone sees their rate (migration `0005`).
   - Every save, import confirmation and submission prices each time line:
     the linked time entry's hours (else the line's) × the rate for that
     professional's kind on the date, rounded to cents, stored as
-    `billed_rate` and `amount`; the client can't set either. A file's
-    `unit_rate` and `stated_amount` stay as evidence, and import review and
-    staff review flag a line whose stated amount differs. Errors say whether
-    the person has no kind or the kind has no rate for that date.
+    `billed_rate` and `amount`; the client can't set either. A draft may be
+    saved with time that can't be priced yet (it keeps its stated amount,
+    or zero); confirming an import and submitting refuse it, saying whether
+    the date, hours, person's kind or that kind's rate for the date is
+    missing. A file's `unit_rate` and `stated_amount` stay as evidence, and
+    import review and staff review flag a line whose stated amount differs.
     Submission prices again, so the snapshot freezes the rates applied.
   - Invoice entry shows the pricing before saving (client-side previews of
     the same rule): each time item as "hours × rate", a line naming the
@@ -516,7 +519,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     billed total (review, the split panel, and the bulk list).
   - Each time line ends up linked to a time entry: picked from the case's
     unbilled time (a new invoice starts with the billed professional's), or
-    created on submission from a typed line. A time entry is on at most one
+    created on submission from a typed line. A typed time item matching
+    unbilled recorded time (same person, date and hours) is flagged with a
+    "Bill that instead" link, never merged. A time entry is on at most one
     invoice that isn't withdrawn. On a draft, a linked line edits its entry;
     removing the line leaves the entry unbilled. The case page's Time table
     shows each entry's billing state with a link to its invoice.

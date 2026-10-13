@@ -137,7 +137,6 @@ const DEMO_KINDS = [
   { displayName: 'Investigator', hourlyRate: 75 },
   { displayName: 'Expert', hourlyRate: 200 },
 ];
-// By demo vendor: the first two are attorneys.
 const DEMO_VENDOR_KINDS = ['Attorney', 'Attorney', 'Investigator', 'Expert'];
 
 async function seedDemoRates(

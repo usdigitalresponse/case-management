@@ -5,6 +5,7 @@ import {
   type CreateInvoiceLineInput,
   type InvoiceLineType,
   type PortalInvoiceLine,
+  type TimeEntryRecord,
 } from '../api/client';
 import { formatMoney } from '../formatMoney';
 import { formatDate } from '../formatDateTime';
@@ -25,7 +26,10 @@ export interface LineDraft {
   // Pre-selected on import and not yet checked.
   suggestedTimekeeper?: boolean;
   // Values the editor doesn't show, saved back so edits never drop them.
-  carried: Pick<CreateInvoiceLineInput, 'unitRate' | 'statedAmount' | 'timekeeperLabel' | 'taskCode' | 'activityCode' | 'expenseCode'>;
+  carried: Pick<
+    CreateInvoiceLineInput,
+    'unitRate' | 'statedAmount' | 'serviceDateInferred' | 'timekeeperLabel' | 'taskCode' | 'activityCode' | 'expenseCode'
+  >;
 }
 
 export const emptyLine: LineDraft = {
@@ -54,6 +58,7 @@ export function lineDraftsFrom(lines: PortalInvoiceLine[]): LineDraft[] {
     carried: {
       unitRate: line.unitRate === null ? undefined : Number(line.unitRate),
       statedAmount: line.statedAmount === null ? undefined : Number(line.statedAmount),
+      serviceDateInferred: line.serviceDateInferred || undefined,
       timekeeperLabel: line.timekeeperLabel ?? undefined,
       taskCode: line.taskCode ?? undefined,
       activityCode: line.activityCode ?? undefined,
@@ -221,6 +226,7 @@ export function InvoiceLinesEditor({
   onChange,
   timekeepers = [],
   billedProfessionalId,
+  recordedTime = [],
   importReview,
 }: {
   idPrefix: string;
@@ -229,13 +235,13 @@ export function InvoiceLinesEditor({
   timekeepers?: BillableProfessional[];
   // Whose work an item with no "work done by" is.
   billedProfessionalId?: string;
+  // Unbilled recorded time, to spot typed items that repeat it.
+  recordedTime?: TimeEntryRecord[];
   importReview?: {
     duplicateTime: DuplicateTimeSuggestion[];
     sourceLocations?: string[];
     // A file designated to one professional: "work done by" is fixed.
     fixedTimekeeper?: boolean;
-    // Lines (by location) whose date came from the billing period.
-    inferredDateLocations?: string[];
   };
 }) {
   const showTimekeeper = timekeepers.length > 1 || Boolean(importReview);
@@ -293,8 +299,18 @@ export function InvoiceLinesEditor({
         const stated = line.carried.statedAmount;
         const differsFromFile =
           stated !== undefined && preview && 'amount' in preview && Math.abs(Number(preview.amount) - stated) >= 0.005;
-        const location = importReview?.sourceLocations?.[index];
-        const dateInferred = Boolean(line.serviceDate && location && importReview?.inferredDateLocations?.includes(location));
+        const dateInferred = Boolean(line.serviceDate && line.carried.serviceDateInferred);
+        // Typed time that looks like work already recorded: offered, never merged.
+        const sameAsRecorded =
+          line.lineType === 'time' && !linked
+            ? recordedTime.find(
+                (entry) =>
+                  entry.professionalId === (line.timekeeperProfessionalId || billedProfessionalId) &&
+                  entry.activityOn === line.serviceDate &&
+                  Number(entry.durationHours) === Number(line.quantity) &&
+                  !lines.some((other) => other.sourceTimeEntryId === entry.timeEntryId),
+              )
+            : undefined;
         return (
           <div key={index} className="line-row inline-fields" style={{ gridTemplateColumns }} role="group" aria-label={item}>
             <div className="usa-form-group">
@@ -318,7 +334,10 @@ export function InvoiceLinesEditor({
                 type="date"
                 className="usa-input"
                 value={line.serviceDate}
-                onChange={(event) => update(index, { serviceDate: event.target.value })}
+                // A date the submitter sets is no longer inferred.
+                onChange={(event) =>
+                  update(index, { serviceDate: event.target.value, carried: { ...line.carried, serviceDateInferred: undefined } })
+                }
               />
             </div>
             <div className="usa-form-group">
@@ -406,8 +425,26 @@ export function InvoiceLinesEditor({
             ) : (
               <span />
             )}
-            {(importReview || linked || differsFromFile) && (
+            {(importReview || linked || differsFromFile || sameAsRecorded) && (
               <p className="line-row-note">
+                {sameAsRecorded && (
+                  <span className="line-row-suggested">
+                    Matches time already recorded on {formatDate(sameAsRecorded.activityOn)} ({Number(sameAsRecorded.durationHours)} h).{' '}
+                    <button
+                      type="button"
+                      className="usa-button usa-button--unstyled"
+                      onClick={() =>
+                        update(index, {
+                          sourceTimeEntryId: sameAsRecorded.timeEntryId,
+                          description: sameAsRecorded.description,
+                          timekeeperProfessionalId: sameAsRecorded.professionalId,
+                        })
+                      }
+                    >
+                      Bill that instead
+                    </button>
+                  </span>
+                )}
                 {linked && <span>Recorded time: changes here update it.</span>}
                 {importReview?.sourceLocations?.[index] && line.invoiceLineId ? (
                   <span>
