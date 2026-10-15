@@ -1,7 +1,7 @@
 // Transient storage for uploaded invoices under review, in a private local
 // directory kept out of database backups (MAPPING.md).
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -10,6 +10,8 @@ export interface DocumentStore {
   // Undefined once deleted (or lost, e.g. a restarted container).
   get(storageReference: string): Promise<Buffer | undefined>;
   delete(storageReference: string): Promise<void>;
+  // Every stored file's reference, for clearing out files nothing refers to.
+  list(): Promise<string[]>;
 }
 
 const PREFIX = 'local:';
@@ -43,6 +45,16 @@ export function localDocumentStore(directory: string): DocumentStore {
     },
     async delete(storageReference) {
       await rm(pathFor(storageReference), { force: true });
+    },
+    async list() {
+      try {
+        return (await readdir(directory)).filter((name) => /^[0-9a-f-]{36}$/.test(name)).map((name) => `${PREFIX}${name}`);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          return [];
+        }
+        throw error;
+      }
     },
   };
 }

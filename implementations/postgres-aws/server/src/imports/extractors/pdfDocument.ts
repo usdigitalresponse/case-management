@@ -6,6 +6,11 @@ import { UnreadableInvoiceFileError } from '../parsedInvoice';
 
 // Upload defaults (docs/invoice-import-export-plan.md "Upload defaults").
 const MAX_PAGES = 50;
+// An embedded image is decoded at full size before any render is scaled
+// down, so a small file can hold one that decodes to gigabytes. Larger
+// images are skipped (the page then reads as blank); 50 megapixels still
+// allows a letter page scanned at 600 DPI.
+const MAX_IMAGE_PIXELS = 50_000_000;
 
 // PDF.js is ESM-only; this CommonJS server require()s it (Node 22.12+).
 export interface PdfTextItem {
@@ -21,6 +26,8 @@ export interface PdfPage {
   render(options: { canvasContext: unknown; viewport: unknown }): { promise: Promise<void> };
   getTextContent(): Promise<{ items: Array<PdfTextItem | object> }>;
   getOperatorList(): Promise<{ fnArray: number[]; argsArray: unknown[][] }>;
+  // Frees what rendering kept, such as decoded images.
+  cleanup(): boolean;
 }
 
 export interface CanvasAndContext {
@@ -63,6 +70,7 @@ export async function withPdf<T>(bytes: Buffer, read: (document: PdfDocument) =>
     data: new Uint8Array(bytes),
     disableFontFace: true,
     useSystemFonts: false,
+    maxImageSize: MAX_IMAGE_PIXELS,
     verbosity: 0,
   });
   try {
@@ -110,5 +118,8 @@ export async function renderPage(
     return { png: target.canvas.toBuffer('image/png'), width, height, scale };
   } finally {
     document.canvasFactory.destroy(target);
+    // PDF.js otherwise keeps every rendered page's decoded images until the
+    // document closes: about 10 MB a page on a 300 DPI scan, measured.
+    page.cleanup();
   }
 }

@@ -13,7 +13,7 @@ import {
   uploadInvoiceFile,
 } from '../imports/invoiceImports';
 import { templateCsv, templateXlsx } from '../imports/template';
-import { previewCaseSplit, uploadInvoiceFileByCase } from '../imports/splitByCase';
+import { discardCaseSplitRead, getCaseSplitRead, startCaseSplitRead, uploadInvoiceFileByCase } from '../imports/splitByCase';
 import { previewFile } from '../imports/preview';
 import { findImportForInvoice } from '../imports/importedTimeEntries';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../billing/deleteInvoice';
@@ -275,26 +275,44 @@ router.post(
   }),
 );
 
-// A file designated to one professional whose lines name their cases:
-// preview with a suggested case per line, then split into one import per
-// case (../imports/splitByCase.ts).
+// A file designated to one professional whose lines name their cases
+// (../imports/splitByCase.ts): read in the background like an upload, then
+// previewed with a suggested case per line, then split into one import per
+// case from that reading. The raw body is the file.
 router.post(
-  '/invoice-imports/case-split/preview',
+  '/invoice-imports/case-split/reads',
   express.raw({ type: () => true, limit: MAX_UPLOAD_BYTES }),
   asyncHandler(async (req, res) => {
     const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-    res.json(await previewCaseSplit(db, await sessionActor(req), { professionalId: req.query.professionalId, bytes }));
+    const fileName = req.get('X-File-Name');
+    res.status(201).json(
+      await startCaseSplitRead(db, documentStore, await sessionActor(req), {
+        professionalId: req.query.professionalId,
+        fileName: fileName ? decodeURIComponent(fileName) : undefined,
+        bytes,
+      }),
+    );
   }),
 );
 
-// The file travels base64-encoded beside its assignments, under its own
-// media type so the app-wide JSON parser (100 KB) leaves it alone.
-const CASE_SPLIT_MEDIA_TYPE = 'application/vnd.case-split+json';
+router.get(
+  '/invoice-imports/case-split/reads/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await getCaseSplitRead(db, await sessionActor(req), req.params.id as string));
+  }),
+);
+
+router.delete(
+  '/invoice-imports/case-split/reads/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await discardCaseSplitRead(documentStore, await sessionActor(req), req.params.id as string));
+  }),
+);
+
 router.post(
   '/invoice-imports/case-split',
-  express.json({ type: CASE_SPLIT_MEDIA_TYPE, limit: Math.ceil(MAX_UPLOAD_BYTES * 1.4) }),
   asyncHandler(async (req, res) => {
-    res.status(201).json(await uploadInvoiceFileByCase(db, documentStore, await sessionActor(req), req.body));
+    res.status(201).json(await uploadInvoiceFileByCase(db, await sessionActor(req), req.body));
   }),
 );
 

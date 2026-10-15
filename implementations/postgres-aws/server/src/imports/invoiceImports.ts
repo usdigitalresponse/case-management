@@ -268,7 +268,9 @@ export async function uploadInvoiceFile(
     return { invoiceImportId: created.importId, status: 'received', invoiceId: null };
   }
 
-  const outcome = await readFile(() => detected.parse());
+  // Quick formats are read during the upload, but still in the isolated
+  // process: a spreadsheet can inflate far beyond its file size.
+  const outcome = await readFile(() => (isolationEnabled() ? parseIsolated(input.bytes, () => undefined) : detected.parse()));
   if (outcome.error) {
     await store.delete(storageReference);
     throw outcome.error;
@@ -416,6 +418,27 @@ async function recordInBackground(db: Database, actor: PortalActor, target: Extr
 // The background queue lives in the server process, so imports still
 // received at startup were interrupted; they fail with a reason to upload
 // again.
+// Deletes stored files no live document refers to: left by a crash between
+// storing an upload and recording it, or by case-split reads a restart
+// forgot. `keep` holds files still in use without a document yet.
+export async function removeUnreferencedFiles(db: Database, store: DocumentStore, keep: Set<string> = new Set()): Promise<number> {
+  const stored = (await store.list()).filter((reference) => !keep.has(reference));
+  if (stored.length === 0) {
+    return 0;
+  }
+  const live = await db
+    .select({ storageReference: document.storageReference })
+    .from(document)
+    .where(and(inArray(document.storageReference, stored), isNull(document.contentDeletedAt)));
+  const referenced = new Set(live.map((row) => row.storageReference));
+  const unreferenced = stored.filter((reference) => !referenced.has(reference));
+  for (const reference of unreferenced) {
+    // eslint-disable-next-line no-await-in-loop
+    await store.delete(reference);
+  }
+  return unreferenced.length;
+}
+
 export async function failInterruptedExtractions(db: Database): Promise<number> {
   const receivedId = await importStatusId(db, 'received');
   const pipeline = documentPipeline();

@@ -17,7 +17,8 @@ import settingsRouter from './routes/settings';
 import { AppError } from './errors';
 import { db } from './db/client';
 import { documentStore } from './imports/documentStore';
-import { expireInvoiceImports, failInterruptedExtractions } from './imports/invoiceImports';
+import { expireInvoiceImports, failInterruptedExtractions, removeUnreferencedFiles } from './imports/invoiceImports';
+import { expireCaseSplitReads } from './imports/splitByCase';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -95,11 +96,13 @@ export function createApp() {
 if (require.main === module) {
   const app = createApp();
   const port = Number(process.env.PORT) || 3000;
-  // Before accepting uploads, so only reads cut off by the restart fail.
+  // Before accepting uploads, so only reads cut off by the restart fail and
+  // only files left behind by it are removed.
   void failInterruptedExtractions(db)
+    .then(() => removeUnreferencedFiles(db, documentStore))
     .catch((error: unknown) => {
       // eslint-disable-next-line no-console
-      console.error('Failing interrupted imports failed', error);
+      console.error('Startup import clean-up failed', error);
     })
     .finally(() =>
       app.listen(port, () => {
@@ -114,4 +117,13 @@ if (require.main === module) {
     });
   void sweepImports();
   setInterval(() => void sweepImports(), 60 * 60 * 1000).unref();
+  // Case-split reads nobody went on with, an hour after they started.
+  setInterval(
+    () =>
+      void expireCaseSplitReads(documentStore).catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error('Case-split read expiry failed', error);
+      }),
+    10 * 60 * 1000,
+  ).unref();
 }

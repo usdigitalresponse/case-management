@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ExtractionCancelledError, isolationEnabled, parseIsolated } from '../src/imports/isolatedExtraction';
+import { ExtractionCancelledError, isolationEnabled, memoryLimitMb, parseIsolated } from '../src/imports/isolatedExtraction';
 import { UnreadableInvoiceFileError } from '../src/imports/parsedInvoice';
 import type { ExtractionProgress } from '../src/imports/extractors/types';
 
@@ -16,6 +16,13 @@ describe('isolated extraction', () => {
   it('is on unless set to inline', () => {
     expect(isolationEnabled({})).toBe(true);
     expect(isolationEnabled({ INVOICE_EXTRACTION_ISOLATION: 'inline' })).toBe(false);
+  });
+
+  it('takes the reader’s heap limit from INVOICE_EXTRACTION_MEMORY_MB, ignoring nonsense', () => {
+    expect(memoryLimitMb({})).toBe(512);
+    expect(memoryLimitMb({ INVOICE_EXTRACTION_MEMORY_MB: '256' })).toBe(256);
+    expect(memoryLimitMb({ INVOICE_EXTRACTION_MEMORY_MB: 'lots' })).toBe(512);
+    expect(memoryLimitMb({ INVOICE_EXTRACTION_MEMORY_MB: '-1' })).toBe(512);
   });
 
   it('reads a document in a child process, passing progress back', async () => {

@@ -52,6 +52,20 @@ ssh ec2-user@$(terraform output -raw public_ip) \
   'cd app && docker compose -f docker-compose.prod.yml --env-file .env.prod exec server node dist/src/db/seed.js'
 ```
 
+## Memory
+
+Reading a scanned PDF peaks around 500–700 MB, more than the t4g.micro has
+free, so on this instance scans run partly in the swap file and take
+longer; digital PDFs, LEDES and spreadsheets are unaffected. The defaults
+in `docker-compose.prod.yml` fit this instance: the server container (and
+the PDF readers it starts) is limited to 700 MB plus swap, so an oversized
+scan fails its import rather than starving Postgres, which the kernel kills
+after other processes. On a bigger instance (`instance_type`, changed in place by
+`terraform apply` with a short restart), raise `SERVER_MEMORY_LIMIT` and
+`SERVER_MEMORY_SWAP_LIMIT` in `~/app/.env.prod`; see `.env.prod.example`.
+Watch a scan with
+`ssh ec2-user@<ip> 'free -m; docker stats --no-stream'`.
+
 ## Operate
 
 - Logs: `ssh ec2-user@<ip> 'cd app && docker compose -f docker-compose.prod.yml logs --tail 100'`
