@@ -1,0 +1,56 @@
+{
+  "model": "qwen2.5vl:7b",
+  "digest": "5ced39dfa4ba",
+  "recipe": "534fe206",
+  "pages": [
+    {
+      "is_invoice_items_page": true,
+      "invoice_number": "SAMPLE-PDF-012",
+      "items": [
+        {
+          "date": "2026-01-05",
+          "description": "Initial case assessment and review of charging documents",
+          "quantity": 1.5,
+          "rate": 200,
+          "amount": 300
+        },
+        {
+          "date": "2026-01-07",
+          "description": "Research on suppression standard",
+          "quantity": 2.25,
+          "rate": 150,
+          "amount": 337.5
+        },
+        {
+          "date": "2026-01-12",
+          "description": "Client meeting to review discovery and next steps before the status hearing",
+          "quantity": 1,
+          "rate": 200,
+          "amount": 200
+        },
+        {
+          "date": "2026-01-15",
+          "description": "Draft motion to continue",
+          "quantity": 0.75,
+          "rate": 150,
+          "amount": 112.5
+        },
+        {
+          "date": "2026-01-20",
+          "description": "Filing fee",
+          "quantity": 1,
+          "rate": 45,
+          "amount": 45
+        },
+        {
+          "date": "2026-01-22",
+          "description": "Mileage to courthouse",
+          "quantity": 1,
+          "rate": 18.9,
+          "amount": 18.9
+        }
+      ],
+      "invoice_total": 1013.9
+    }
+  ]
+}

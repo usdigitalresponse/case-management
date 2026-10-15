@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router';
 import { Alert, AlertHeading, Button, Label, Select } from '@trussworks/react-uswds';
 import {
@@ -15,7 +15,9 @@ import {
   type PortalInvoice,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { usePoll } from '../hooks/usePoll';
 import { PageHeading } from '../components/PageHeading';
+import { ImportProgressNote } from '../components/ImportProgressNote';
 import {
   assignTimekeeper,
   hasInvoiceItems,
@@ -261,6 +263,14 @@ export default function PortalImportReview() {
     [fromBulk, importId],
   );
   const [discardError, setDiscardError] = useState<string | null>(null);
+  // Still being read: poll for progress, then reload once it's done.
+  const reading = data?.importDetail.statusCode === 'received' && data.importDetail.invoiceImportId === importId;
+  const polled = usePoll(() => getInvoiceImport(importId as string), reading, 2000, importId);
+  useEffect(() => {
+    if (reading && polled && polled.invoiceImportId === importId && polled.statusCode !== 'received') {
+      setVersion((v) => v + 1);
+    }
+  }, [reading, polled, importId]);
   const queue = bulkImports ? reviewQueue(bulkImports) : [];
   const position = queue.findIndex((row) => row.invoiceImportId === importId);
   const previous = position > 0 ? queue[position - 1] : undefined;
@@ -279,7 +289,7 @@ export default function PortalImportReview() {
   const { importDetail } = data;
   const backTo = fromBulk ? '/portal/imports' : importDetail.caseId ? `/portal/cases/${importDetail.caseId}` : '/';
 
-  async function discardFailed() {
+  async function discardImport() {
     try {
       await resolveInvoiceImport(importDetail.invoiceImportId, 'discard');
       if (afterResolve) {
@@ -354,7 +364,20 @@ export default function PortalImportReview() {
           </Alert>
           {discardError && <Alert type="error" slim>{discardError}</Alert>}
           <p>Discard it and upload a corrected file, or enter the items by hand on the case page.</p>
-          <Button type="button" secondary onClick={() => void discardFailed()}>Discard import</Button>
+          <Button type="button" secondary onClick={() => void discardImport()}>Discard import</Button>
+        </>
+      )}
+
+      {importDetail.statusCode === 'received' && (
+        <>
+          <ImportProgressNote progress={polled?.progress ?? importDetail.progress} />
+          {discardError && <Alert type="error" slim>{discardError}</Alert>}
+          <ConfirmButton
+            label="Stop and discard"
+            prompt="Stop reading this file and discard it? The file is deleted and nothing is submitted."
+            confirmLabel="Yes, discard"
+            onConfirm={() => void discardImport()}
+          />
         </>
       )}
 

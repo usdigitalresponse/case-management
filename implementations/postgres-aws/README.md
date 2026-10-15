@@ -117,6 +117,7 @@ npm run verify-schema-mapping  # checks src/db/schema.ts against model/schema.ya
 npm run demo-invoices          # read-only: writes ../demo-invoices/ files naming the seeded demo vendors
 npm run generate-sample-pdfs   # regenerates the synthetic PDFs and their expected values in scenarios/fixtures/invoices/
 npm run extraction-accuracy    # scores PDF extraction methods against those samples, field by field
+npm run extraction-accuracy -- --samples ../local-samples   # scores real files kept outside Git against their expected.json, figures only
 npm run extract-invoice -- f   # shows what import would read from invoice files (no database); --json or --csv for tools and spreadsheets
 npm run db:generate            # regenerate migrations/*.sql after editing src/db/schema.ts
 ```
@@ -126,6 +127,32 @@ uploading one under "Demo partner sign-in" shows timekeeper matching; the
 command prints which case to open. The files are regenerated rather than
 committed because the seed's Faker names change with the seed. Portable
 samples with expected results are in `scenarios/fixtures/invoices/`.
+
+Real invoices for local testing go in the gitignored `../local-samples/`,
+never in Git or a fixture. Scanned PDFs are read by in-process text
+recognition (tesseract.js with bundled language data; no system install or
+download). To score them, write `local-samples/expected.json` by hand with
+each file's printed figures; the format is at the top of
+`scripts/extraction-accuracy.ts`.
+
+PDF uploads are read in the background and the review screens show
+progress. To try the optional vision-model pass for PDFs the reader can't
+read or whose figures don't add up, run Ollama on this machine
+(`brew install ollama`, `ollama serve`, `ollama pull qwen2.5vl:7b`) and set
+in `.env`:
+
+```sh
+INVOICE_VISION_URL=http://host.docker.internal:11434   # http://127.0.0.1:11434 outside Docker
+INVOICE_VISION_MODEL=qwen2.5vl:7b
+```
+
+With those set, `npm run extraction-accuracy -- --samples ../local-samples
+pdf-text-layer+vision` scores the combined pipeline and `pdf-vision` the
+model alone. Tests never call a model: they stub its API, or replay
+answers a real model gave for the synthetic samples. After changing the
+model or its prompt, re-record those with `npm run record-vision-answers`
+(same two settings, `127.0.0.1` address) and update the baselines in
+`__tests__/visionReplay.test.ts`.
 
 ### Running the API server
 

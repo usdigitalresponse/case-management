@@ -17,7 +17,7 @@ import settingsRouter from './routes/settings';
 import { AppError } from './errors';
 import { db } from './db/client';
 import { documentStore } from './imports/documentStore';
-import { expireInvoiceImports } from './imports/invoiceImports';
+import { expireInvoiceImports, failInterruptedExtractions } from './imports/invoiceImports';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -95,10 +95,18 @@ export function createApp() {
 if (require.main === module) {
   const app = createApp();
   const port = Number(process.env.PORT) || 3000;
-  app.listen(port, () => {
-    // eslint-disable-next-line no-console
-    console.log(`Server listening on port ${port}`);
-  });
+  // Before accepting uploads, so only reads cut off by the restart fail.
+  void failInterruptedExtractions(db)
+    .catch((error: unknown) => {
+      // eslint-disable-next-line no-console
+      console.error('Failing interrupted imports failed', error);
+    })
+    .finally(() =>
+      app.listen(port, () => {
+        // eslint-disable-next-line no-console
+        console.log(`Server listening on port ${port}`);
+      }),
+    );
   const sweepImports = () =>
     expireInvoiceImports(db, documentStore).catch((error: unknown) => {
       // eslint-disable-next-line no-console

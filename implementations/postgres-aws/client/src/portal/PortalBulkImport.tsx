@@ -17,6 +17,8 @@ import {
   type MyCasesResult,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { usePoll } from '../hooks/usePoll';
+import { ImportProgressNote } from '../components/ImportProgressNote';
 import { PageHeading } from '../components/PageHeading';
 import { RecordTable } from '../components/RecordTable';
 import { ConfirmButton } from '../components/ConfirmButton';
@@ -396,6 +398,7 @@ function StepHeader({ step, toReview, ready }: { step: BulkStep; toReview: numbe
 }
 
 function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDiscard: (importId: string) => void }) {
+  const reading = imports.filter((row) => sectionOf(row) === 'reading');
   const toReview = imports.filter((row) => sectionOf(row) === 'review');
   const unreadable = imports.filter((row) => sectionOf(row) === 'unreadable');
   const next = reviewQueue(imports)[0];
@@ -421,6 +424,26 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
             Review next: {next.fileName}
           </RouterLink>
         </div>
+      )}
+      {reading.length > 0 && (
+        <>
+          <h3>Being read ({reading.length})</h3>
+          <p className="compact-hint">
+            Scans and files that need a closer look take longer. They move to review on their own; you can review
+            others meanwhile.
+          </p>
+          <RecordTable
+            rows={reading}
+            rowKey={(row) => row.invoiceImportId}
+            emptyMessage=""
+            columns={[
+              { header: 'File', render: (row) => row.fileName },
+              { header: 'Case', render: caseOf },
+              { header: 'Progress', render: (row) => <ImportProgressNote compact progress={row.progress} /> },
+              { header: '', render: (row) => <span className="row-actions">{discardButton(row)}</span> },
+            ]}
+          />
+        </>
       )}
       {toReview.length > 0 && (
         <>
@@ -478,7 +501,7 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
           />
         </>
       )}
-      {toReview.length === 0 && unreadable.length === 0 && <p>Nothing left to review.</p>}
+      {reading.length === 0 && toReview.length === 0 && unreadable.length === 0 && <p>Nothing left to review.</p>}
     </section>
   );
 }
@@ -597,6 +620,23 @@ export default function PortalBulkImport() {
     [version],
   );
   const refresh = () => setVersion((v) => v + 1);
+  // While files are being read, poll for their progress; reload everything
+  // when one finishes.
+  const readingIds = (rows: ImportInProgress[]) =>
+    rows
+      .filter((row) => sectionOf(row) === 'reading')
+      .map((row) => row.invoiceImportId)
+      .join();
+  const anyReading = (imports ?? []).some((row) => sectionOf(row) === 'reading');
+  const polled = usePoll(() => listInvoiceImports().then((result) => result.imports), anyReading, 2000);
+  const pollCurrent = Boolean(imports && polled && readingIds(polled) === readingIds(imports));
+  useEffect(() => {
+    if (anyReading && polled && !pollCurrent) {
+      refresh();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [polled]);
+  const shownImports = anyReading && pollCurrent ? polled : imports;
   // React Router doesn't scroll to #submit after review sends the user here.
   const { hash } = useLocation();
   const loaded = Boolean(imports);
@@ -712,7 +752,7 @@ export default function PortalBulkImport() {
       {Boolean(importsError) && <Alert type="error">Failed to load your imports.</Alert>}
       {imports && (
         <>
-          <ReviewStep imports={imports} onDiscard={(importId) => void discard(importId)} />
+          <ReviewStep imports={shownImports ?? imports} onDiscard={(importId) => void discard(importId)} />
           <SubmitStep imports={imports} onChanged={refresh} />
         </>
       )}

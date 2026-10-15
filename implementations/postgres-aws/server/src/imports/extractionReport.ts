@@ -30,14 +30,15 @@ function errorMessage(error: unknown): string {
 export async function extractReport(file: string, bytes: Buffer): Promise<ExtractionReport> {
   try {
     const detected = detectInvoiceFile(bytes);
-    const { lines, ...invoice } = await detected.parse();
+    const parsed = await detected.parse();
+    const { lines, warnings: _parserWarnings, ...invoice } = parsed;
     return {
       file,
       format: detected.format,
       extractionMethod: detected.extractionMethod,
       invoice,
       lines,
-      warnings: reconciliationWarnings({ ...invoice, lines }),
+      warnings: reconciliationWarnings(parsed),
     };
   } catch (error) {
     return { file, error: errorMessage(error) };

@@ -13,6 +13,7 @@ import { representedProfessionalIds, type PortalActor } from '../portal/portalAc
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile, MAX_UPLOAD_BYTES } from './detectFormat';
 import { extractIntoDraft, insertDocument, insertImport, sha256 } from './invoiceImports';
+import { isolationEnabled, parseIsolated } from './isolatedExtraction';
 import { suggestMileage, UnreadableInvoiceFileError, type ParsedInvoice } from './parsedInvoice';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { listMileageRates, mileageRateOn } from '../billing/mileageRates';
@@ -78,10 +79,13 @@ export function suggestCaseForLabel(label: string | undefined, cases: SplitCase[
   return matches.length === 1 ? matches[0]!.caseId : undefined;
 }
 
+// Read during the request, so a long scan keeps the uploader waiting; PDFs
+// are still read in the isolated process, with its limits.
 async function parseOrRefuse(bytes: Buffer) {
   const detected = detectInvoiceFile(bytes);
   try {
-    return { detected, parsed: await detected.parse() };
+    const parsed = detected.slow && isolationEnabled() ? await parseIsolated(bytes, () => undefined) : await detected.parse();
+    return { detected, parsed };
   } catch (error) {
     if (error instanceof UnreadableInvoiceFileError) {
       throw new ValidationError({ file: error.fieldErrors.file ?? 'The file could not be read.' });
@@ -192,7 +196,7 @@ export async function uploadInvoiceFileByCase(db: Database, store: DocumentStore
           contentHash,
           caseId,
           billedProfessionalId: input.professionalId,
-          extractionMethod: detected.extractionMethod,
+          extractionMethod: parsed.extractionMethod ?? detected.extractionMethod,
           extractedAt: now,
           // The file's stated total covers every case, so it isn't compared per case.
           parsed: { ...parsed, statedTotal: undefined, lines },

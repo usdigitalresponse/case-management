@@ -96,6 +96,24 @@ processing boundary, which includes the organization's own cloud account.
    columns, right-aligned amounts and stacked cells; those patterns are now
    in the corpus and handled. Next: filled-in exports from product trial
    accounts, tried locally the same way.
+
+   Scans: a PDF with no text layer is now read by in-process text
+   recognition (Tesseract via tesseract.js, with table rules erased first)
+   and the same table reader. Real scanned invoices tried locally and kept
+   outside Git showed borderless tables, a column with no heading, headings
+   only on the first page with page subtotals, dates inside descriptions,
+   attached receipts and maps, letter-style invoices with no table, and
+   reviewers' handwritten marks. The recognition itself read 97–100% of
+   printed amounts with every free engine tried (Tesseract, PaddleOCR,
+   docTR); losses came from the table reader, which now handles those
+   patterns except letters and handwriting. On those scans it found 86% of
+   items (94% excluding the letter) with 80% of quantities and 85% of
+   rates, and flags low-confidence figures, page subtotals and totals that
+   don't add up. "Searchable" scans, whose invisible text another program
+   recognized, are detected from their drawing operators and recognized
+   again: read from that hidden text, the same scans gave 76% of items and
+   31% of quantities, and three were refused. Three synthetic scans are in
+   the corpus, one of them searchable.
 6. **Side-by-side review:** show the original document beside the import
    review instead of only as a download. Status: done in the Postgres/AWS
    prototype (PDF pages drawn in the browser, text and spreadsheets shown
@@ -103,7 +121,21 @@ processing boundary, which includes the organization's own cloud account.
 
 ### Future work
 
-- Scanned invoices: a scanned-looking sample and OCR. Open, not scheduled.
+- Letter-style invoices and unusual layouts: a self-hosted vision language
+  model (Qwen2.5-VL 7B through the Ollama API) with a fixed output schema is
+  in place as an optional follow-up pass for files the table reader can't
+  read or whose figures don't reconcile, with PDF reading moved to the
+  background and progress shown. On the same real scans the model alone
+  found 98% of items with 96% of quantities and 97% of rates, but at about
+  45 seconds a page on a laptop processor and with extra lines from
+  attachments. Run only on the files whose first reading didn't add up,
+  the combined pipeline found 99% of items (6 extra lines) with 95% of
+  quantities, 98% of rates and every date, and six of the seven files
+  added up to their stated totals; the one that didn't carries reviewers'
+  strike-throughs, and is flagged. Still open: a GPU host inside the boundary, the model
+  licence review, and how often files need it in practice. A newer model
+  (Qwen3-VL 8B) looped under the fixed schema, so models are pinned by
+  build and re-measured before any change.
 - A cloud AI extraction method in the organization's own account, compared
   on the same corpus after a cost review. Paused while heuristics and
   existing libraries are tried first.
@@ -139,6 +171,10 @@ expected results; synthetic PDF layouts are added there in phase 5.
 ## Open questions
 
 - Which in-boundary extraction method meets accuracy and cost needs: whether
-  the free text-layer reader is enough on real exports, or scans and unusual
-  layouts justify a cloud AI method (and its cost review).
+  the free text-layer and recognition reader is enough on real files, or
+  unusual layouts justify an AI method (self-hosted, or cloud after a cost
+  review).
+- Whether staff upload copies already marked up by reviewers. Import uses the
+  printed figures and flags low-confidence ones; it never reads handwritten
+  corrections.
 - Correction after external payment completion, as for any payment request.

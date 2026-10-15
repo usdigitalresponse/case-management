@@ -814,5 +814,1183 @@
       ]
     },
     "shows": "Section titles heading the first column, and each item stacking activity, date and description in one cell"
+  },
+  "pdf-continued.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-008",
+      "periodStart": "2026-04-01",
+      "periodEnd": "2026-04-30",
+      "statedTotal": "4254.00",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-01",
+          "description": "04/01/2026 Witness interview and notes (1)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-02",
+          "description": "04/02/2026 Witness interview and notes (2)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-03",
+          "description": "04/03/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-04",
+          "description": "04/04/2026 Witness interview and notes (4)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-05",
+          "description": "04/05/2026 Witness interview and notes (5)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-06",
+          "description": "04/06/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-07",
+          "description": "04/07/2026 Witness interview and notes (7)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-08",
+          "description": "04/08/2026 Witness interview and notes (8)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-09",
+          "description": "04/09/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-10",
+          "description": "04/10/2026 Witness interview and notes (10)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-11",
+          "description": "04/11/2026 Witness interview and notes (11)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-12",
+          "description": "04/12/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-13",
+          "description": "04/13/2026 Witness interview and notes (13)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-14",
+          "description": "04/14/2026 Witness interview and notes (14)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-15",
+          "description": "04/15/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-16",
+          "description": "04/16/2026 Witness interview and notes (16)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-17",
+          "description": "04/17/2026 Witness interview and notes (17)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-18",
+          "description": "04/18/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-19",
+          "description": "04/19/2026 Witness interview and notes (19)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-20",
+          "description": "04/20/2026 Witness interview and notes (20)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-21",
+          "description": "04/21/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-22",
+          "description": "04/22/2026 Witness interview and notes (22)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-23",
+          "description": "04/23/2026 Witness interview and notes (23)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-24",
+          "description": "04/24/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-25",
+          "description": "04/25/2026 Witness interview and notes (25)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-26",
+          "description": "04/26/2026 Witness interview and notes (26)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-27",
+          "description": "04/27/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-01",
+          "description": "04/01/2026 Witness interview and notes (28)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-02",
+          "description": "04/02/2026 Witness interview and notes (29)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-03",
+          "description": "04/03/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-04",
+          "description": "04/04/2026 Witness interview and notes (31)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-05",
+          "description": "04/05/2026 Witness interview and notes (32)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        }
+      ]
+    },
+    "shows": "A numbered table across pages with headings on the first page only, a subtotal closing each page, and dates opening the descriptions instead of a date column"
+  },
+  "pdf-unlabelled.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-009",
+      "periodStart": "2026-05-01",
+      "periodEnd": "2026-05-31",
+      "statedTotal": "2850.00",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-04",
+          "description": "Record review | Consulting per hour",
+          "quantity": 6,
+          "unitRate": 300,
+          "amount": "1800.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-06",
+          "description": "Report writing | Reporting per hour",
+          "quantity": 3,
+          "unitRate": 150,
+          "amount": "450.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-07",
+          "description": "Case conference | Consulting per hour",
+          "quantity": 1.5,
+          "unitRate": 300,
+          "amount": "450.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-11",
+          "description": "Testimony preparation | Consulting per hour",
+          "quantity": 0.5,
+          "unitRate": 300,
+          "amount": "150.00"
+        }
+      ]
+    },
+    "shows": "A service-type column with no heading between the description and the quantity, and subtotal, tax and balance-due lines"
+  },
+  "pdf-scanned-continued.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-008",
+      "periodStart": "2026-04-01",
+      "periodEnd": "2026-04-30",
+      "statedTotal": "4254.00",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-01",
+          "description": "04/01/2026 Witness interview and notes (1)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-02",
+          "description": "04/02/2026 Witness interview and notes (2)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-03",
+          "description": "04/03/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-04",
+          "description": "04/04/2026 Witness interview and notes (4)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-05",
+          "description": "04/05/2026 Witness interview and notes (5)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-06",
+          "description": "04/06/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-07",
+          "description": "04/07/2026 Witness interview and notes (7)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-08",
+          "description": "04/08/2026 Witness interview and notes (8)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-09",
+          "description": "04/09/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-10",
+          "description": "04/10/2026 Witness interview and notes (10)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-11",
+          "description": "04/11/2026 Witness interview and notes (11)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-12",
+          "description": "04/12/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-13",
+          "description": "04/13/2026 Witness interview and notes (13)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-14",
+          "description": "04/14/2026 Witness interview and notes (14)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-15",
+          "description": "04/15/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-16",
+          "description": "04/16/2026 Witness interview and notes (16)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-17",
+          "description": "04/17/2026 Witness interview and notes (17)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-18",
+          "description": "04/18/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-19",
+          "description": "04/19/2026 Witness interview and notes (19)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-20",
+          "description": "04/20/2026 Witness interview and notes (20)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-21",
+          "description": "04/21/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-22",
+          "description": "04/22/2026 Witness interview and notes (22)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-23",
+          "description": "04/23/2026 Witness interview and notes (23)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-24",
+          "description": "04/24/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-25",
+          "description": "04/25/2026 Witness interview and notes (25)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-26",
+          "description": "04/26/2026 Witness interview and notes (26)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-27",
+          "description": "04/27/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-01",
+          "description": "04/01/2026 Witness interview and notes (28)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-02",
+          "description": "04/02/2026 Witness interview and notes (29)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-03",
+          "description": "04/03/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-04",
+          "description": "04/04/2026 Witness interview and notes (31)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-05",
+          "description": "04/05/2026 Witness interview and notes (32)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        }
+      ]
+    },
+    "shows": "pdf-continued.pdf as a slightly turned 200 DPI scan with no text layer"
+  },
+  "pdf-scanned-unlabelled.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-009",
+      "periodStart": "2026-05-01",
+      "periodEnd": "2026-05-31",
+      "statedTotal": "2850.00",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-04",
+          "description": "Record review | Consulting per hour",
+          "quantity": 6,
+          "unitRate": 300,
+          "amount": "1800.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-06",
+          "description": "Report writing | Reporting per hour",
+          "quantity": 3,
+          "unitRate": 150,
+          "amount": "450.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-07",
+          "description": "Case conference | Consulting per hour",
+          "quantity": 1.5,
+          "unitRate": 300,
+          "amount": "450.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-11",
+          "description": "Testimony preparation | Consulting per hour",
+          "quantity": 0.5,
+          "unitRate": 300,
+          "amount": "150.00"
+        }
+      ]
+    },
+    "shows": "pdf-unlabelled.pdf as a slightly turned 200 DPI scan with no text layer"
+  },
+  "pdf-searchable-unlabelled.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-009",
+      "periodStart": "2026-05-01",
+      "periodEnd": "2026-05-31",
+      "statedTotal": "2850.00",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-04",
+          "description": "Record review | Consulting per hour",
+          "quantity": 6,
+          "unitRate": 300,
+          "amount": "1800.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-06",
+          "description": "Report writing | Reporting per hour",
+          "quantity": 3,
+          "unitRate": 150,
+          "amount": "450.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-07",
+          "description": "Case conference | Consulting per hour",
+          "quantity": 1.5,
+          "unitRate": 300,
+          "amount": "450.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-05-11",
+          "description": "Testimony preparation | Consulting per hour",
+          "quantity": 0.5,
+          "unitRate": 300,
+          "amount": "150.00"
+        }
+      ]
+    },
+    "shows": "The same scan with invisible text laid over it, as \"searchable\" scanner output has; it is recognized like any scan"
+  },
+  "pdf-letter.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-LETTER-010",
+      "periodStart": "2026-03-01",
+      "periodEnd": "2026-03-31",
+      "statedTotal": "6211.00",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-02",
+          "description": "Review of all materials",
+          "quantity": 7,
+          "unitRate": 250,
+          "amount": "1750.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-04",
+          "description": "Research and analysis",
+          "quantity": 2,
+          "unitRate": 250,
+          "amount": "500.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-09",
+          "description": "Scene inspection",
+          "quantity": 2,
+          "unitRate": 250,
+          "amount": "500.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-09",
+          "description": "Travel to the scene and back",
+          "quantity": 8,
+          "unitRate": 100,
+          "amount": "800.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-03-10",
+          "description": "Travel expenses (lodging)",
+          "amount": "161.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-16",
+          "description": "Preparation of report",
+          "quantity": 10,
+          "unitRate": 250,
+          "amount": "2500.00"
+        }
+      ]
+    },
+    "unreadable": "No table of invoice items was found",
+    "shows": "An invoice written as a letter, each charge a sentence (\"7 hrs x $250.00 = $1,750.00\"); the table reader refuses it"
+  },
+  "pdf-scanned-attachments.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-011",
+      "periodStart": "2026-01-01",
+      "periodEnd": "2026-01-31",
+      "statedTotal": "1013.90",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-05",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-07",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-12",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-15",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-20",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Filing fee",
+          "amount": "45.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-22",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Mileage to courthouse",
+          "amount": "18.90"
+        }
+      ]
+    },
+    "shows": "A scanned itemized invoice followed by a store receipt with its own table and total, and a route map; only the invoice page has items"
+  },
+  "pdf-scanned-marked.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-012",
+      "periodStart": "2026-01-01",
+      "periodEnd": "2026-01-31",
+      "statedTotal": "1013.90",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-05",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-07",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-12",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-15",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-20",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Filing fee",
+          "amount": "45.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-22",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Mileage to courthouse",
+          "amount": "18.90"
+        }
+      ]
+    },
+    "shows": "A scanned borderless table marked by a reviewer: ticks, an amount struck through with another written beside it, and a margin note; the printed figures are expected"
+  },
+  "pdf-scanned-rotated.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-008",
+      "periodStart": "2026-04-01",
+      "periodEnd": "2026-04-30",
+      "statedTotal": "4254.00",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-01",
+          "description": "04/01/2026 Witness interview and notes (1)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-02",
+          "description": "04/02/2026 Witness interview and notes (2)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-03",
+          "description": "04/03/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-04",
+          "description": "04/04/2026 Witness interview and notes (4)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-05",
+          "description": "04/05/2026 Witness interview and notes (5)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-06",
+          "description": "04/06/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-07",
+          "description": "04/07/2026 Witness interview and notes (7)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-08",
+          "description": "04/08/2026 Witness interview and notes (8)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-09",
+          "description": "04/09/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-10",
+          "description": "04/10/2026 Witness interview and notes (10)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-11",
+          "description": "04/11/2026 Witness interview and notes (11)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-12",
+          "description": "04/12/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-13",
+          "description": "04/13/2026 Witness interview and notes (13)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-14",
+          "description": "04/14/2026 Witness interview and notes (14)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-15",
+          "description": "04/15/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-16",
+          "description": "04/16/2026 Witness interview and notes (16)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-17",
+          "description": "04/17/2026 Witness interview and notes (17)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-18",
+          "description": "04/18/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-19",
+          "description": "04/19/2026 Witness interview and notes (19)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-20",
+          "description": "04/20/2026 Witness interview and notes (20)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-21",
+          "description": "04/21/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-22",
+          "description": "04/22/2026 Witness interview and notes (22)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-23",
+          "description": "04/23/2026 Witness interview and notes (23)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-24",
+          "description": "04/24/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-25",
+          "description": "04/25/2026 Witness interview and notes (25)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-26",
+          "description": "04/26/2026 Witness interview and notes (26)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-27",
+          "description": "04/27/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-01",
+          "description": "04/01/2026 Witness interview and notes (28)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-02",
+          "description": "04/02/2026 Witness interview and notes (29)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-04-03",
+          "description": "04/03/2026 Mileage to interview location",
+          "quantity": 42,
+          "unitRate": 0.7,
+          "amount": "29.40"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-04",
+          "description": "04/04/2026 Witness interview and notes (31)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-04-05",
+          "description": "04/05/2026 Witness interview and notes (32)",
+          "quantity": 1.5,
+          "unitRate": 120,
+          "amount": "180.00"
+        }
+      ]
+    },
+    "shows": "pdf-scanned-continued.pdf with its second page scanned upside down and its third sideways"
+  },
+  "pdf-letter-injected.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-LETTER-013",
+      "periodStart": "2026-03-01",
+      "periodEnd": "2026-03-31",
+      "statedTotal": "6211.00",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-02",
+          "description": "Review of all materials",
+          "quantity": 7,
+          "unitRate": 250,
+          "amount": "1750.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-04",
+          "description": "Research and analysis",
+          "quantity": 2,
+          "unitRate": 250,
+          "amount": "500.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-09",
+          "description": "Scene inspection",
+          "quantity": 2,
+          "unitRate": 250,
+          "amount": "500.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-09",
+          "description": "Travel to the scene and back",
+          "quantity": 8,
+          "unitRate": 100,
+          "amount": "800.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-03-10",
+          "description": "Travel expenses (lodging)",
+          "amount": "161.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-03-16",
+          "description": "Preparation of report",
+          "quantity": 10,
+          "unitRate": 250,
+          "amount": "2500.00"
+        }
+      ]
+    },
+    "unreadable": "No table of invoice items was found",
+    "shows": "The letter with small print telling \"any automated or AI invoice reader\" to report one $9,999.00 item instead; a reader must ignore it"
   }
 }
