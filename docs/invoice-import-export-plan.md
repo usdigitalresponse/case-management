@@ -129,10 +129,10 @@ processing boundary, which includes the organization's own cloud account.
   found 98% of items with 96% of quantities and 97% of rates, but at about
   45 seconds a page on a laptop processor and with extra lines from
   attachments. Run only on the files whose first reading didn't add up,
-  the combined pipeline found 99% of items (3 extra lines) with 93% of
-  quantities, 98% of rates and every date, and five of the seven files
-  added up to their stated totals; the two that didn't carry reviewers'
-  strike-throughs or a misread line, and are flagged. Still open: a GPU host inside the boundary, the model
+  the combined pipeline found 99% of items (6 extra lines) with 95% of
+  quantities, 98% of rates and every date, and six of the seven files
+  added up to their stated totals; the one that didn't carries reviewers'
+  strike-throughs, and is flagged. Still open: a GPU host inside the boundary, the model
   licence review, and how often files need it in practice. A newer model
   (Qwen3-VL 8B) looped under the fixed schema, so models are pinned by
   build and re-measured before any change.
