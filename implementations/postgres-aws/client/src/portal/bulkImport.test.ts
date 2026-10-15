@@ -13,6 +13,7 @@ import {
   sectionOf,
   suggestChoice,
 } from './bulkImport';
+import { progressFraction, progressText } from './importProgress';
 
 function upload(id: string, changes: Partial<ImportInProgress> = {}): ImportInProgress {
   return {
@@ -36,9 +37,30 @@ function upload(id: string, changes: Partial<ImportInProgress> = {}): ImportInPr
     otherWarningCount: 0,
     failureMessage: null,
     expiresAt: null,
+    progress: null,
     ...changes,
   };
 }
+
+describe('files still being read', () => {
+  const reading = upload('r', { statusCode: 'received', invoiceId: null, progress: { stage: 'queued', ahead: 1 } });
+
+  it('wait in their own section, outside the review queue, and keep the review step open', () => {
+    expect(sectionOf(reading)).toBe('reading');
+    expect(reviewQueue([reading, upload('a')]).map((row) => row.invoiceImportId)).toEqual(['a']);
+    expect(currentStep(0, [reading])).toBe(2);
+  });
+
+  it('say where reading has got to', () => {
+    expect(progressText(null)).toBe('Reading the file…');
+    expect(progressText({ stage: 'queued', ahead: 2 })).toBe('Waiting to be read: 2 files ahead');
+    expect(progressText({ stage: 'queued', ahead: 0 })).toBe('Waiting to be read');
+    expect(progressText({ stage: 'recognizing', page: 3, pages: 12 })).toBe('Recognizing the scanned text: page 3 of 12');
+    expect(progressText({ stage: 'model', page: 1, pages: 4 })).toBe('Taking a closer look with an AI model: page 1 of 4');
+    expect(progressFraction({ stage: 'recognizing', page: 3, pages: 12 })).toBeCloseTo(2 / 12);
+    expect(progressFraction({ stage: 'reading' })).toBeUndefined();
+  });
+});
 
 describe('after upload: review each, then submit', () => {
   const imports = [

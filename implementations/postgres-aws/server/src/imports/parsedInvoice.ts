@@ -29,17 +29,38 @@ export interface ParsedInvoice {
   periodEnd?: string;
   statedTotal?: number;
   lines: ParsedLine[];
+  // The parser's own findings, such as text read by recognition.
+  warnings?: ImportWarning[];
+  // Set when an extractor that chose between methods used another one,
+  // e.g. "pdf-vision qwen2.5vl:7b@5ced39dfa4ba recipe 1a2b3c4d"; recorded on
+  // the import.
+  extractionMethod?: string;
 }
 
 // Larger files are almost certainly bulk exports of many invoices.
 const MAX_IMPORTED_LINES = 1000;
 
+// What a reader found before giving up, for a follow-up method to check its
+// reading against; `recognized` when it came from text recognition, which
+// can misread the total itself.
+export interface FoundBeforeFailing {
+  statedTotal?: number;
+  recognized?: boolean;
+}
+
 // Its message is shown to the submitter.
 export class UnreadableInvoiceFileError extends ValidationError {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly found: FoundBeforeFailing = {},
+  ) {
     super({ file: message });
   }
 }
+
+export const cents = (value: number) => Math.round(value * 100);
+
+export const lineTotalCents = (lines: Array<Pick<ParsedLine, 'amount'>>) => lines.reduce((sum, line) => sum + cents(line.amount), 0);
 
 export function parseAmount(raw: string | number | null | undefined, location: string, field: string): number | undefined {
   if (raw === null || raw === undefined || raw === '') {
@@ -86,11 +107,9 @@ export interface ImportWarning {
   location?: string;
 }
 
-const cents = (value: number) => Math.round(value * 100);
-
 export function reconciliationWarnings(parsed: ParsedInvoice): ImportWarning[] {
-  const warnings: ImportWarning[] = [];
-  const lineTotal = parsed.lines.reduce((sum, line) => sum + cents(line.amount), 0);
+  const warnings: ImportWarning[] = [...(parsed.warnings ?? [])];
+  const lineTotal = lineTotalCents(parsed.lines);
   if (parsed.statedTotal !== undefined && cents(parsed.statedTotal) !== lineTotal) {
     warnings.push({
       code: 'stated_total_mismatch',

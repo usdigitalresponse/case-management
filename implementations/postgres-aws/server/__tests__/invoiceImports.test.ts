@@ -15,11 +15,14 @@ import {
   confirmInvoiceImport,
   discardInvoiceImport,
   expireInvoiceImports,
+  failInterruptedExtractions,
   getInvoiceImport,
   IMPORT_EXPIRY_MS,
   listInvoiceImports,
   uploadInvoiceFile,
 } from '../src/imports/invoiceImports';
+import { extractionsSettled } from '../src/imports/extractionJobs';
+import { getReferenceId } from '../src/db/referenceLookups';
 import { parseLedes1998b } from '../src/imports/parseLedes';
 import { parseTemplateCsv, parseTemplateXlsx } from '../src/imports/parseSpreadsheet';
 import { detectInvoiceFile, UnsupportedInvoiceFileError } from '../src/imports/detectFormat';
@@ -35,6 +38,7 @@ import {
   invoice,
   invoiceEvent,
   invoiceImport,
+  invoiceImportStatuses,
   invoiceLine,
   invoiceStatuses,
   professional,
@@ -393,26 +397,54 @@ describe('invoice import workflow', () => {
     expect(await datesOf(third.invoiceId as string)).toEqual([null, null]);
   });
 
-  it('reads a PDF into a draft, recording how it was read', async () => {
+  // PDFs are read in the background: the upload returns while received.
+  it('reads a PDF into a draft in the background, recording how it was read', async () => {
     const { actor, caseId, professionalId, store } = await setup('Synthetic Timekeeper A');
     const bytes = readFileSync(join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices', 'pdf-itemized.pdf'));
     const uploaded = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'invoice.pdf', bytes });
-    expect(uploaded.status).toBe('extracted');
+    expect(uploaded).toMatchObject({ status: 'received', invoiceId: null });
+    await extractionsSettled();
 
     const detail = await getInvoiceImport(testDb, actor, uploaded.invoiceImportId);
-    expect(detail).toMatchObject({ formatCode: 'document', mediaType: 'application/pdf', extractionMethod: 'pdf-text-layer 1' });
-    const lines = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, uploaded.invoiceId as string));
+    expect(detail).toMatchObject({
+      statusCode: 'extracted',
+      formatCode: 'document',
+      mediaType: 'application/pdf',
+      extractionMethod: 'pdf-text-layer 2',
+      progress: null,
+    });
+    const lines = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, detail.invoiceId as string));
     expect(lines).toHaveLength(6);
     // "Synthetic Timekeeper A" is the professional's own name; B matches no one.
     expect(lines.filter((line) => line.timekeeperProfessionalId === professionalId)).toHaveLength(4);
   });
 
+  // A page with no text layer is recognized as a scan first.
   it('marks a PDF with no text as unreadable and keeps it until discarded', async () => {
     const { actor, caseId, store } = await setup();
     const uploaded = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'scan.pdf', bytes: await blankPdf() });
-    expect(uploaded).toMatchObject({ status: 'failed', invoiceId: null });
+    await extractionsSettled();
     const detail = await getInvoiceImport(testDb, actor, uploaded.invoiceImportId);
-    expect(JSON.stringify(detail.extractionResult)).toMatch(/no readable text/);
+    expect(detail).toMatchObject({ statusCode: 'failed', invoiceId: null });
+    expect(JSON.stringify(detail.extractionResult)).toMatch(/No text could be read/);
+  }, 30_000);
+
+  it('fails imports whose background read a restart interrupted', async () => {
+    const { actor, caseId, store } = await setup();
+    const bytes = readFileSync(join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices', 'pdf-itemized.pdf'));
+    const uploaded = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'invoice.pdf', bytes });
+    await extractionsSettled();
+    // As if the server had stopped before the read finished.
+    await testDb
+      .update(invoiceImport)
+      .set({ statusId: await getReferenceId(testDb, invoiceImportStatuses, 'received'), extractedAt: null })
+      .where(eq(invoiceImport.invoiceImportId, uploaded.invoiceImportId));
+
+    expect(await failInterruptedExtractions(testDb)).toBe(1);
+    const detail = await getInvoiceImport(testDb, actor, uploaded.invoiceImportId);
+    expect(detail.statusCode).toBe('failed');
+    expect((detail.extractionResult as { warnings: Array<{ code: string }> }).warnings[0]?.code).toBe('interrupted');
+    expect(await failInterruptedExtractions(testDb)).toBe(0);
   });
 
   it('warns about a file uploaded twice', async () => {

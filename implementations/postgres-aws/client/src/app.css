@@ -324,6 +324,11 @@ form.compact-form { max-width: none; }
 .bulk-step-section h3 { margin: 1.2rem 0 .5rem; font-size: 1rem; }
 .bulk-next a { font-weight: 700; }
 .bulk-position { margin: -.4rem 0 .8rem; font-size: .9rem; color: #4b5560; }
+/* A file still being read: what's happening and how far through. */
+.import-progress { display: grid; gap: .4rem; max-width: 36rem; margin: 1rem 0; }
+.import-progress progress { width: 100%; height: .6rem; accent-color: #005ea2; }
+.import-progress .compact-hint { margin: 0; }
+.import-progress-compact { margin: 0; gap: .25rem; font-size: .9rem; min-width: 14rem; }
 /* Bulk import: assigning a one-person file's lines to cases. */
 .split-assignment { margin-top: 1rem; }
 .split-assignment h3 { margin: 0 0 .3rem; }

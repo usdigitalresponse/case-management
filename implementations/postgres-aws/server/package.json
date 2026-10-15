@@ -20,13 +20,15 @@
     "demo-invoices": "tsx scripts/demo-invoices.ts",
     "generate-sample-pdfs": "tsx scripts/generate-sample-pdfs.ts",
     "extraction-accuracy": "tsx scripts/extraction-accuracy.ts",
-    "extract-invoice": "tsx scripts/extract-invoice.ts"
+    "extract-invoice": "tsx scripts/extract-invoice.ts",
+    "record-vision-answers": "tsx scripts/record-vision-answers.ts"
   },
   "dependencies": {
     "@aws-sdk/client-geo-places": "^3.1150.0",
     "@aws-sdk/client-geo-routes": "^3.1150.0",
     "@aws-sdk/client-sesv2": "^3.1145.0",
     "@faker-js/faker": "^10.6.0",
+    "@tesseract.js-data/eng": "^1.0.0",
     "cookie-session": "^2.1.0",
     "dotenv": "^16.4.5",
     "drizzle-orm": "^0.45.3",
@@ -37,6 +39,7 @@
     "pdfkit": "^0.20.2",
     "pg": "^8.11.5",
     "read-excel-file": "^9.3.12",
+    "tesseract.js": "^7.0.0",
     "write-excel-file": "^4.1.1",
     "zod": "^4.6.5"
   },

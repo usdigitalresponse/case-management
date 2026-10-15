@@ -658,6 +658,14 @@ export interface ImportWarning {
   location?: string;
 }
 
+// Where a file still being read has got to (server/src/imports/extractionJobs.ts):
+// waiting behind other files, reading, recognizing a scan's text, or a vision
+// model reading the page images.
+export type ImportProgress =
+  | { stage: 'queued'; ahead: number }
+  | { stage: 'reading' }
+  | { stage: 'recognizing' | 'model'; page: number; pages: number };
+
 export interface InvoiceImportDetail {
   invoiceImportId: string;
   uploadedAt: string;
@@ -679,6 +687,8 @@ export interface InvoiceImportDetail {
   fileName: string;
   fileAvailable: boolean;
   expiresAt: string | null;
+  // Set while the file is still being read (status received).
+  progress: ImportProgress | null;
   possibleDuplicateTime: Array<{
     invoiceLineId: string;
     timeEntryId: string;
@@ -739,6 +749,8 @@ export interface ImportInProgress {
   // Why a failed import couldn't be read.
   failureMessage: string | null;
   expiresAt: string | null;
+  // Set while the file is still being read (status received).
+  progress: ImportProgress | null;
 }
 
 // A file for one professional whose lines name their cases

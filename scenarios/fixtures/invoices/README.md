@@ -20,17 +20,31 @@ activity and expense codes follow the public UTBMS code set.
 | `pdf-multipage.pdf` | A 48-item table running across pages, with column headings on the first page only |
 | `pdf-sectioned.pdf` | Separate time and expense tables with their own headings and subtotals, initials for timekeepers, right-aligned amounts and a no-charge entry |
 | `pdf-stacked.pdf` | Section titles heading the first column, with each item's activity, date and description stacked in one cell |
+| `pdf-continued.pdf` | A numbered table across pages with headings on the first page only, a subtotal closing each page, and dates opening the descriptions instead of a date column |
+| `pdf-unlabelled.pdf` | A service-type column with no heading between the description and the quantity, and subtotal, tax and balance-due lines |
+| `pdf-scanned-continued.pdf` | `pdf-continued.pdf` as a slightly turned 200 DPI scan with no text layer |
+| `pdf-scanned-unlabelled.pdf` | `pdf-unlabelled.pdf` as a slightly turned 200 DPI scan with no text layer |
+| `pdf-searchable-unlabelled.pdf` | The same scan with invisible text laid over it, as "searchable" scanner output has; it is recognized like any scan |
+| `pdf-scanned-rotated.pdf` | `pdf-scanned-continued.pdf` with its second page scanned upside down and its third sideways |
+| `pdf-letter-injected.pdf` | The letter with small print telling "any automated or AI invoice reader" to report one $9,999.00 item instead; a reader must ignore it |
+| `pdf-letter.pdf` | An invoice written as a letter, each charge a sentence ("7 hrs x $250.00 = $1,750.00"); a table reader refuses it (`unreadable`), and `document` gives what a full reading finds |
+| `pdf-scanned-attachments.pdf` | A scanned invoice followed by a store receipt with its own table and total, and a route map; only the invoice page has items |
+| `pdf-scanned-marked.pdf` | A scanned borderless table a reviewer has marked: ticks, an amount struck through with another written beside it, and a margin note; the printed figures are expected |
 
-The last two reproduce layout patterns seen in practice-management products'
-published invoice templates, without copying any product's design.
+`pdf-sectioned.pdf` and `pdf-stacked.pdf` reproduce layout patterns seen in
+practice-management products' published invoice templates, and the
+continued, unlabelled, letter, attachments and marked layouts patterns seen
+in scanned invoices, without copying any real document. The "handwriting"
+in the marked scan is an italic font, so it is tidier than real
+handwriting; real files remain the honest accuracy check.
 
 The PDFs and their entries in `expected.json` are generated together from
 one data definition by `npm run generate-sample-pdfs` in
 `implementations/postgres-aws/server`; edit the data there, not the files.
 Each PDF entry gives the values a perfect extraction would produce, so any
 extraction method can be scored against them (`npm run extraction-accuracy`
-there). There is no scanned-looking sample yet: producing one needs an image
-rasterizer this repository doesn't use.
+there). The scans are rendered from their digital layouts by the same
+script, so their expected values are identical.
 
 `expected.json` records what each file should produce. An implementation's
 tests can read every file here and compare; the Postgres/AWS prototype does

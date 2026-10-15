@@ -347,6 +347,9 @@ rules:
       - Show the original file beside the draft until the submitter confirms the extracted values. The file is not retained; confirming or discarding the last unresolved import of a document deletes its content and records content_deleted_at, keeping the document metadata, hash and extraction result.
       - After confirmation the draft request and its submission snapshot are the record of the supporting invoice; reviewers and exports do not have the original file.
       - Production extraction runs within the system's processing boundary, which includes services hosted in the organization's own cloud account. Services outside it may be used only with synthetic data during development.
+      - A document without a text layer may be read by text recognition within the processing boundary; the extraction result says so. Extraction uses printed figures and never reads handwritten notes or corrections as values.
+      - When the first extraction method can't read a document or its figures don't reconcile, a further in-boundary method may read it; the result records the method that produced it.
+      - Extraction that takes more than a moment runs after the upload is stored, showing the uploader its progress; the uploader may discard the import meanwhile. An extraction that is interrupted fails with a reason, never leaving the import waiting.
       - Discarding an import records the actor and timestamp and creates no request, time entries or expenses.
       - An import not confirmed or discarded within three days of upload expires: its file content is deleted, the import is discarded without a resolving user, and any unconfirmed draft it created is withdrawn.
 
@@ -358,6 +361,8 @@ rules:
     requirements:
       - Compare any stated total with the sum of draft lines; the request total is still calculated from lines under validate_invoice_total.
       - Compare stated quantity times rate with each line amount; flag service dates outside the billing period.
+      - Compare any page or section subtotal the document states with the lines above it.
+      - Flag lines whose figures text recognition read with low confidence, and lines it could not read, for the submitter to check against the document.
       - Warn when the same document content hash or supporting invoice number for the payee was already imported or submitted from another document; imports split from one document don't warn about each other. Do not merge automatically.
       - Show each warning beside the original document and the extracted value it concerns.
 

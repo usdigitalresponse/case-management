@@ -1,0 +1,91 @@
+{
+  "model": "qwen2.5vl:7b",
+  "digest": "5ced39dfa4ba",
+  "recipe": "534fe206",
+  "pages": [
+    {
+      "is_invoice_items_page": true,
+      "invoice_number": "SAMPLE-PDF-011",
+      "items": [
+        {
+          "date": "2026-01-05",
+          "description": "Initial case assessment and review of charging documents",
+          "quantity": 1.5,
+          "rate": 200,
+          "amount": 300
+        },
+        {
+          "date": "2026-01-07",
+          "description": "Research on suppression standard",
+          "quantity": 2.25,
+          "rate": 150,
+          "amount": 337.5
+        },
+        {
+          "date": "2026-01-12",
+          "description": "Client meeting to review discovery and next steps before the status hearing",
+          "quantity": 1,
+          "rate": 200,
+          "amount": 200
+        },
+        {
+          "date": "2026-01-15",
+          "description": "Draft motion to continue",
+          "quantity": 0.75,
+          "rate": 150,
+          "amount": 112.5
+        },
+        {
+          "date": "2026-01-20",
+          "description": "Filing fee",
+          "quantity": 0,
+          "rate": 0,
+          "amount": 45
+        },
+        {
+          "date": "2026-01-22",
+          "description": "Mileage to courthouse",
+          "quantity": 0,
+          "rate": 0,
+          "amount": 18.9
+        }
+      ],
+      "invoice_total": 1013.9
+    },
+    {
+      "is_invoice_items_page": true,
+      "invoice_number": "880746",
+      "items": [
+        {
+          "date": "2026-01-20",
+          "description": "Folders",
+          "quantity": 2,
+          "rate": 3.99,
+          "amount": 7.98
+        },
+        {
+          "date": "2026-01-20",
+          "description": "Copy paper",
+          "quantity": 1,
+          "rate": 11.5,
+          "amount": 11.5
+        }
+      ],
+      "invoice_total": 19.48
+    },
+    {
+      "is_invoice_items_page": false,
+      "invoice_number": null,
+      "items": [
+        {
+          "date": null,
+          "description": "Route: Office to Courthouse",
+          "quantity": 42,
+          "rate": 1,
+          "amount": 42
+        }
+      ],
+      "invoice_total": null
+    }
+  ]
+}

@@ -150,9 +150,12 @@ export function reviewUrl(row: Pick<ImportInProgress, 'invoiceImportId'>): strin
   return `/portal/imports/${row.invoiceImportId}${FROM_BULK}`;
 }
 
-export type BulkSection = 'review' | 'unreadable' | 'ready';
+export type BulkSection = 'reading' | 'review' | 'unreadable' | 'ready';
 
 export function sectionOf(row: ImportInProgress): BulkSection {
+  if (row.statusCode === 'received') {
+    return 'reading';
+  }
   if (row.statusCode === 'failed') {
     return 'unreadable';
   }
@@ -160,8 +163,9 @@ export function sectionOf(row: ImportInProgress): BulkSection {
 }
 
 // Files still needing attention, in upload order: what "Review next" walks.
+// Files still being read join it once they're read.
 export function reviewQueue(imports: ImportInProgress[]): ImportInProgress[] {
-  return imports.filter((row) => sectionOf(row) !== 'ready');
+  return imports.filter((row) => sectionOf(row) === 'review' || sectionOf(row) === 'unreadable');
 }
 
 // The next file after this one, wrapping round; undefined when it's the last.
@@ -194,7 +198,7 @@ export function currentStep(stagedCount: number, imports: ImportInProgress[]): B
   if (stagedCount > 0) {
     return 1;
   }
-  if (reviewQueue(imports).length > 0) {
+  if (reviewQueue(imports).length > 0 || imports.some((row) => sectionOf(row) === 'reading')) {
     return 2;
   }
   return imports.some((row) => sectionOf(row) === 'ready') ? 3 : 1;
