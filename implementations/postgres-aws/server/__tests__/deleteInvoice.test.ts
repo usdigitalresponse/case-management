@@ -53,6 +53,7 @@ function memoryStore(): DocumentStore & { files: Map<string, Buffer> } {
     delete: async (reference) => {
       files.delete(reference);
     },
+    list: async () => [...files.keys()],
   };
 }
 

@@ -11,7 +11,26 @@ import { extname, join } from 'node:path';
 import type { ExtractionProgress } from './extractors/types';
 import { UnreadableInvoiceFileError, type ParsedInvoice } from './parsedInvoice';
 
-const MEMORY_LIMIT_MB = 1536;
+// The reader's JavaScript heap peaked under 20 MB on a 12-page scan; nearly
+// all its memory is recognition's and page images', which the container
+// limit bounds (docker-compose.prod.yml). This only stops runaway scripts.
+const DEFAULT_MEMORY_LIMIT_MB = 512;
+// A value this small is almost certainly a typo (e.g. one meant in GB), and
+// would leave readers too little to load PDF.js.
+const MIN_MEMORY_LIMIT_MB = 64;
+
+export function memoryLimitMb(env: NodeJS.ProcessEnv = process.env): number {
+  const configured = Number(env.INVOICE_EXTRACTION_MEMORY_MB);
+  if (!Number.isInteger(configured) || configured <= 0) {
+    return DEFAULT_MEMORY_LIMIT_MB;
+  }
+  if (configured < MIN_MEMORY_LIMIT_MB) {
+    // eslint-disable-next-line no-console
+    console.error(`INVOICE_EXTRACTION_MEMORY_MB=${configured} is below ${MIN_MEMORY_LIMIT_MB} MB; using ${DEFAULT_MEMORY_LIMIT_MB}.`);
+    return DEFAULT_MEMORY_LIMIT_MB;
+  }
+  return configured;
+}
 // Long enough for a 50-page scan through recognition and then the vision
 // model at about 45 seconds a page, as measured on a laptop processor.
 const TIME_LIMIT_MS = 60 * 60 * 1000;
@@ -58,7 +77,7 @@ export function parseIsolated(
   return new Promise((resolve, reject) => {
     // Beside this file, as .ts from the sources or .js from a build.
     const child = fork(join(__dirname, `extractionWorker${extname(__filename)}`), [], {
-      execArgv: [...(limits.execArgv ?? loaderFlags()), `--max-old-space-size=${limits.memoryMb ?? MEMORY_LIMIT_MB}`],
+      execArgv: [...(limits.execArgv ?? loaderFlags()), `--max-old-space-size=${limits.memoryMb ?? memoryLimitMb()}`],
       serialization: 'advanced',
     });
     let settled = false;

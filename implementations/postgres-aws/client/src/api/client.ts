@@ -774,41 +774,42 @@ export interface CaseSplitPreview {
   }>;
 }
 
-export async function previewCaseSplit(file: File, professionalId: string): Promise<CaseSplitPreview> {
+// The file is read in the background, like an upload; poll its read.
+export async function startCaseSplit(file: File, professionalId: string): Promise<{ splitReadId: string }> {
   const query = new URLSearchParams({ professionalId });
-  const response = await fetch(`/api/portal/invoice-imports/case-split/preview?${query.toString()}`, {
+  const response = await fetch(`/api/portal/invoice-imports/case-split/reads?${query.toString()}`, {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/octet-stream' },
+    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
     body: file,
   });
   const body = await response.json().catch(() => undefined);
   if (!response.ok) {
     throw new ApiError(response.status, body);
   }
-  return body as CaseSplitPreview;
+  return body as { splitReadId: string };
 }
 
-function fileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
+export type CaseSplitRead =
+  | { status: 'reading'; progress: ImportProgress | null }
+  | { status: 'failed'; failureMessage: string }
+  | { status: 'ready'; preview: CaseSplitPreview };
+
+export function getCaseSplitRead(splitReadId: string): Promise<CaseSplitRead> {
+  return request<CaseSplitRead>(`/api/portal/invoice-imports/case-split/reads/${splitReadId}`);
 }
 
-// One case per line, in the file's order; makes one import per case.
-export async function uploadInvoiceFileByCase(
-  file: File,
-  professionalId: string,
+export function discardCaseSplitRead(splitReadId: string): Promise<{ splitReadId: string }> {
+  return request(`/api/portal/invoice-imports/case-split/reads/${splitReadId}`, { method: 'DELETE' });
+}
+
+// One case per line, in the file's order; makes one import per case from
+// the file and reading already on the server.
+export function uploadInvoiceFileByCase(
+  splitReadId: string,
   caseIds: string[],
 ): Promise<{ imports: Array<{ invoiceImportId: string; caseId: string; invoiceId: string }> }> {
-  return request('/api/portal/invoice-imports/case-split', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/vnd.case-split+json' },
-    body: JSON.stringify({ professionalId, fileName: file.name, fileBase64: await fileAsBase64(file), caseIds }),
-  });
+  return request('/api/portal/invoice-imports/case-split', { method: 'POST', body: JSON.stringify({ splitReadId, caseIds }) });
 }
 
 export function listInvoiceImports(): Promise<{ imports: ImportInProgress[] }> {

@@ -16,6 +16,8 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     logging: *logging
+    # If the host runs out of memory, the kernel kills other processes first.
+    oom_score_adj: -500
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the env file}
       POSTGRES_DB: case_management_postgres_aws
@@ -32,7 +34,18 @@ services:
     image: case-management-server
     restart: unless-stopped
     logging: *logging
+    # Bounds the server and the reader processes it starts for uploaded PDFs
+    # (a scan peaks around 500–700 MB, mostly outside Node's heap): past it
+    # the kernel kills the biggest process here, the reader, whose import
+    # then fails, never Postgres. Defaults fit the 1 GB demo instance with
+    # its 2 GB swap file; raise both on a bigger host.
+    mem_limit: ${SERVER_MEMORY_LIMIT:-700m}
+    memswap_limit: ${SERVER_MEMORY_SWAP_LIMIT:-1700m}
     environment:
+      # Kept below the container limit so Node fails cleanly before the
+      # kernel steps in. The reader's own heap: INVOICE_EXTRACTION_MEMORY_MB.
+      NODE_OPTIONS: --max-old-space-size=${SERVER_HEAP_MB:-256}
+      INVOICE_EXTRACTION_MEMORY_MB: ${INVOICE_EXTRACTION_MEMORY_MB:-512}
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/case_management_postgres_aws
       PORT: 3000
       SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in the env file}

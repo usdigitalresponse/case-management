@@ -375,20 +375,30 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     poll every two seconds. LEDES and spreadsheet files are still read
     during the upload. A result is recorded only if the import is still
     `received`, so a file discarded while it was being read stays
-    discarded. Each document is read in a child process
-    (`isolatedExtraction.ts`, `extractionWorker.ts`) with a 1.5 GB
-    JavaScript heap and a 60-minute limit, killed past either, so a hostile
-    or pathological file fails its import instead of the server
-    (`INVOICE_EXTRACTION_ISOLATION=inline` reads in-process; the tests do).
-    Memory outside that heap (page images, text recognition's WebAssembly)
-    is bounded only by the render cap below, so production needs a
-    container memory limit too. Discarding an import that is still being
-    read cancels it: dropped from the queue, or its process killed. A
-    waiting job holds only the stored file's reference. The case-split
-    preview and creation read their file in the same isolated process,
-    during the request.
-    Renders stop at 25 megapixels whatever size a page claims, and text
-    recognition gives up on a page after 60 seconds. A recognized page that
+    discarded. Every uploaded file, PDF or not, is parsed in a child process
+    (`isolatedExtraction.ts`, `extractionWorker.ts`) with a JavaScript heap
+    limit (`INVOICE_EXTRACTION_MEMORY_MB`, default 512) and a 60-minute
+    limit, killed past either, so a hostile or pathological file fails its
+    import instead of the server (`INVOICE_EXTRACTION_ISOLATION=inline`
+    reads in-process; the tests do). Measured with the compiled code, a
+    scan peaks at about 500 MB for one page and 650 MB for twelve, but the
+    reader's heap stays under 20 MB: the rest is text recognition's
+    WebAssembly memory and page images, which only a container limit
+    bounds. `docker-compose.prod.yml` therefore limits the server container
+    (`SERVER_MEMORY_LIMIT`, default 700m, plus swap to
+    `SERVER_MEMORY_SWAP_LIMIT`, default 1700m, sized for the 1 GB demo
+    instance) and keeps the server's own heap below it (`SERVER_HEAP_MB`,
+    default 256); past the limit the kernel kills the reader, which marks
+    itself first in line (`oom_score_adj` 1000), and the import fails.
+    Postgres has `oom_score_adj: -500`, so in a host-wide shortage the
+    kernel kills other processes before it. A reader whose server went away
+    exits. Each page's rendering resources are freed once it is read.
+    Discarding an import that is still being read cancels it: dropped from
+    the queue, or its process killed. A waiting job holds only the stored
+    file's reference. On startup, stored files no live document refers to
+    are deleted. Renders stop at 25 megapixels whatever size a page claims,
+    embedded images over 50 megapixels aren't decoded (the page reads as
+    blank), and text recognition gives up on a page after 60 seconds. A recognized page that
     reads badly is tried upside down and sideways, keeping the angle with
     the most confidently read words, so misfed sheets are read. Jobs live in the server process: on startup, before taking
     requests, imports still `received` fail with warning `interrupted` for
@@ -505,14 +515,20 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - A bulk file is designated either to one case (as above) or to one
     professional (`src/imports/splitByCase.ts`; `model/rules.yaml`
     `validate_invoice_import`). For a professional, the template's optional
-    `case` column names each line's case: `POST .../invoice-imports/case-split/preview`
-    reads the file and suggests a case per line (a single exact match on
-    case reference, identifier or client name among that person's open
-    cases the user may bill), the page has the user assign every line, and
-    `POST .../invoice-imports/case-split` (the file base64-encoded beside
-    one case per line, under `application/vnd.case-split+json`, since the
-    app-wide JSON parser stops at 100 KB) makes one import and draft per
-    case, all billed to that professional and sharing one document. Every
+    `case` column names each line's case.
+    `POST .../invoice-imports/case-split/reads` stores the file and reads
+    it like an upload (PDFs in the background queue with progress, quick
+    formats straight away, both in the isolated process); `GET
+    .../case-split/reads/:id` reports progress, then suggests a case per
+    line (a single exact match on case reference, identifier or client
+    name among that person's open cases the user may bill), and `DELETE`
+    stops and discards it. The page has the user assign every line, and
+    `POST .../invoice-imports/case-split` (the read's ID and one case per
+    line) makes one import and draft per case from that reading and stored
+    file, all billed to that professional and sharing one document; the
+    file is never read twice. Pending reads live in the server process: one
+    left unused for an hour is dropped with its file, and a restart forgets
+    them, whose files the startup sweep then removes. Every
     line is that professional's work: the extraction result records them as
     `designated_professional_id`, review shows "work done by" fixed rather
     than suggested (items added there are theirs too), and confirmation
@@ -533,10 +549,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - Gaps: no malware scanning (no in-boundary scanner is configured yet;
     PDF.js's core runs no document scripts and nothing in a file is
     executed); background reads need a single server instance and a
-    restart fails the ones in progress; the case-split preview and creation
-    still read a file during the request, so a long scan there keeps the
-    submitter waiting; the extraction process's memory outside its
-    JavaScript heap needs a container memory limit; without a vision model configured, letter-style invoices with
+    restart fails the ones in progress and forgets pending case-split reads
+    (their uploader starts again); a scan on the 1 GB demo instance runs
+    partly in swap, so it is slow; without a vision model configured, letter-style invoices with
     no item table aren't read; no cloud AI method (one needs a cost review
     first); expense lines create no
     `expense` records (no table); credits and adjustment lines are refused

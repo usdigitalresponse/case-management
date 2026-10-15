@@ -172,6 +172,8 @@ async function readRows(bytes: Buffer, options: ExtractOptions): Promise<{ rows:
       if (pageItems.length > 0 && (await drawsOnlyHiddenText(page, OPS))) {
         hiddenTextPages.add(pageNumber);
       }
+      // The drawing operators hold the page's decoded images.
+      page.cleanup();
       const items = pageItems
         .map((item) => ({ x: item.transform[4] ?? 0, y: item.transform[5] ?? 0, width: item.width, text: item.str.trim() }))
         // PDF y grows upward, so higher y is nearer the top.

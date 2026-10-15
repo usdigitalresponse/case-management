@@ -4,11 +4,13 @@ import { Alert, Button, Checkbox, Form, Label, Select } from '@trussworks/react-
 import {
   apiErrorMessage,
   deleteInvoice,
+  discardCaseSplitRead,
+  getCaseSplitRead,
   invoiceTemplateUrl,
   listInvoiceImports,
   listMyCases,
-  previewCaseSplit,
   resolveInvoiceImport,
+  startCaseSplit,
   transitionInvoice,
   uploadInvoiceFile,
   uploadInvoiceFileByCase,
@@ -47,8 +49,32 @@ interface StagedFile {
   choice: string;
   uploading?: boolean;
   error?: string;
-  // For one person: the file's lines, waiting for each to be given a case.
+  // For one person: the server's read of the file, then the file's lines,
+  // waiting for each to be given a case.
+  splitReadId?: string;
   split?: CaseSplitPreview;
+}
+
+// A one-person file being read on the server: its progress, then its lines.
+function SplitReadProgress({
+  splitReadId,
+  onReady,
+  onFailed,
+}: {
+  splitReadId: string;
+  onReady: (preview: CaseSplitPreview) => void;
+  onFailed: (message: string) => void;
+}) {
+  const read = usePoll(() => getCaseSplitRead(splitReadId), true, 2000, splitReadId);
+  useEffect(() => {
+    if (read?.status === 'ready') {
+      onReady(read.preview);
+    } else if (read?.status === 'failed') {
+      onFailed(read.failureMessage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [read]);
+  return <ImportProgressNote compact progress={read?.status === 'reading' ? read.progress : null} />;
 }
 
 function caseOptionLabel(row: CaseSplitPreview['cases'][number]): string {
@@ -59,14 +85,12 @@ function caseOptionLabel(row: CaseSplitPreview['cases'][number]): string {
 // suggestions come from the file's case column.
 function SplitAssignment({
   staged,
-  professionalId,
   whose,
   onBusy,
   onCreated,
   onCancel,
 }: {
-  staged: StagedFile & { split: CaseSplitPreview };
-  professionalId: string;
+  staged: StagedFile & { split: CaseSplitPreview; splitReadId: string };
   // "your", or "Name's".
   whose: string;
   onBusy: (busy: boolean) => void;
@@ -88,7 +112,7 @@ function SplitAssignment({
     onBusy(true);
     setError(null);
     try {
-      const { imports } = await uploadInvoiceFileByCase(staged.file, professionalId, caseIds);
+      const { imports } = await uploadInvoiceFileByCase(staged.splitReadId, caseIds);
       onBusy(false);
       onCreated(imports.map((row) => row.invoiceImportId));
     } catch (err) {
@@ -221,13 +245,14 @@ function StagedFiles({
   }
 
   // One at a time, so each file's result is clear. A one-person file is
-  // only read here; its drafts are made once its lines have cases.
+  // only read here, on the server in the background; its drafts are made
+  // once its lines have cases.
   async function uploadAll(event: FormEvent) {
     event.preventDefault();
     setUploading(true);
     for (const row of staged) {
       const choice = parseChoice(row.choice);
-      if (!choice || row.split) {
+      if (!choice || row.splitReadId) {
         continue;
       }
       update(row.key, { uploading: true, error: undefined });
@@ -239,7 +264,8 @@ function StagedFiles({
           onUploaded([invoiceImportId]);
         } else {
           // eslint-disable-next-line no-await-in-loop
-          update(row.key, { uploading: false, split: await previewCaseSplit(row.file, choice.professionalId) });
+          const { splitReadId } = await startCaseSplit(row.file, choice.professionalId);
+          update(row.key, { uploading: false, splitReadId });
         }
       } catch (err) {
         update(row.key, { uploading: false, error: apiErrorMessage(err, 'The file could not be uploaded.') });
@@ -248,8 +274,18 @@ function StagedFiles({
     setUploading(false);
   }
 
-  const ready = staged.filter((row) => parseChoice(row.choice) && !row.split).length;
-  const splitting = staged.filter((row): row is StagedFile & { split: CaseSplitPreview } => Boolean(row.split));
+  const ready = staged.filter((row) => parseChoice(row.choice) && !row.splitReadId).length;
+  const splitting = staged.filter((row): row is StagedFile & { split: CaseSplitPreview; splitReadId: string } =>
+    Boolean(row.split && row.splitReadId),
+  );
+
+  // Stops the server reading a one-person file, or forgets its reading.
+  function dropSplit(row: StagedFile, changes: Partial<StagedFile>) {
+    if (row.splitReadId) {
+      void discardCaseSplitRead(row.splitReadId).catch(() => undefined);
+    }
+    update(row.key, { splitReadId: undefined, split: undefined, ...changes });
+  }
 
   return (
     <Form className="compact-form compact-card" onSubmit={(event) => void uploadAll(event)}>
@@ -294,7 +330,7 @@ function StagedFiles({
                       name={`bulk-case-${row.key}`}
                       aria-label={`Case for ${row.file.name}`}
                       value={row.choice}
-                      disabled={row.uploading || Boolean(row.split)}
+                      disabled={row.uploading || Boolean(row.splitReadId)}
                       onChange={(event) => update(row.key, { choice: event.target.value, error: undefined })}
                     >
                       <option value="">- Choose a case -</option>
@@ -319,6 +355,17 @@ function StagedFiles({
                     <span role="status">Uploading…</span>
                   ) : row.split ? (
                     <span>Assign cases below</span>
+                  ) : row.splitReadId ? (
+                    <span className="row-actions">
+                      <SplitReadProgress
+                        splitReadId={row.splitReadId}
+                        onReady={(split) => update(row.key, { split })}
+                        onFailed={(message) => update(row.key, { splitReadId: undefined, error: message })}
+                      />
+                      <Button type="button" unstyled onClick={() => dropSplit(row, {})}>
+                        Stop
+                      </Button>
+                    </span>
                   ) : (
                     <Button
                       type="button"
@@ -349,14 +396,13 @@ function StagedFiles({
             <SplitAssignment
               key={row.key}
               staged={row}
-              professionalId={choice.professionalId}
               whose={person?.isSelf ? 'your' : `${person?.displayName ?? 'this person'}'s`}
               onBusy={(busy) => setSplitsCreating((n) => n + (busy ? 1 : -1))}
               onCreated={(importIds) => {
                 setStaged((current) => current.filter((candidate) => candidate.key !== row.key));
                 onUploaded(importIds);
               }}
-              onCancel={() => update(row.key, { split: undefined })}
+              onCancel={() => dropSplit(row, {})}
             />
           )
         );

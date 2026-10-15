@@ -2,19 +2,21 @@
 // (model/rules.yaml validate_invoice_import): previewed with a suggested
 // case per line, then, once the uploader has assigned every line, split
 // into one import and draft per case sharing one document.
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { caseAssignment, caseIdentifier, caseTable, person } from '../db/schema';
-import { ValidationError } from '../errors';
+import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
 import { representedProfessionalIds, type PortalActor } from '../portal/portalActor';
 import type { DocumentStore } from './documentStore';
-import { detectInvoiceFile, MAX_UPLOAD_BYTES } from './detectFormat';
+import { detectInvoiceFile } from './detectFormat';
 import { extractIntoDraft, insertDocument, insertImport, sha256 } from './invoiceImports';
-import { isolationEnabled, parseIsolated } from './isolatedExtraction';
-import { suggestMileage, UnreadableInvoiceFileError, type ParsedInvoice } from './parsedInvoice';
+import { cancelExtraction, enqueueExtraction, extractionProgress } from './extractionJobs';
+import { ExtractionCancelledError, isolationEnabled, parseIsolated } from './isolatedExtraction';
+import { suggestMileage, UnreadableInvoiceFileError, type ImportFormat, type ParsedInvoice } from './parsedInvoice';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { listMileageRates, mileageRateOn } from '../billing/mileageRates';
 
@@ -79,31 +81,149 @@ export function suggestCaseForLabel(label: string | undefined, cases: SplitCase[
   return matches.length === 1 ? matches[0]!.caseId : undefined;
 }
 
-// Read during the request, so a long scan keeps the uploader waiting; PDFs
-// are still read in the isolated process, with its limits.
-async function parseOrRefuse(bytes: Buffer) {
-  const detected = detectInvoiceFile(bytes);
-  try {
-    const parsed = detected.slow && isolationEnabled() ? await parseIsolated(bytes, () => undefined) : await detected.parse();
-    return { detected, parsed };
-  } catch (error) {
-    if (error instanceof UnreadableInvoiceFileError) {
-      throw new ValidationError({ file: error.fieldErrors.file ?? 'The file could not be read.' });
-    }
-    throw error;
+// A file being read, then waiting for its lines to be given cases. Reads
+// run like single uploads: in the background extraction queue (quick
+// formats straight away), in the isolated process, with progress; the
+// stored file and the reading are then used to make the drafts, so nothing
+// is read twice. Held in this process, like the queue: an unused read is
+// dropped with its file after an hour, and a restart forgets them all
+// (removeUnreferencedFiles clears their files at startup).
+interface SplitRead {
+  userAccountId: string;
+  professionalId: string;
+  fileName?: string;
+  storageReference: string;
+  contentHash: string;
+  mediaType: string;
+  format: ImportFormat;
+  extractionMethod: string;
+  startedAt: Date;
+  parsed?: ParsedInvoice;
+  // Why it couldn't be read, shown to the uploader.
+  failure?: string;
+}
+
+export const SPLIT_READ_EXPIRY_MS = 60 * 60 * 1000;
+const splitReads = new Map<string, SplitRead>();
+
+export class CaseSplitReadNotFoundError extends NotFoundError {
+  constructor() {
+    super('This file is no longer waiting to be split; upload it again.');
   }
 }
 
-const professionalSchema = z.object({ professionalId: z.uuid() });
+const UNEXPECTED_FAILURE = 'This file couldn’t be read because of an unexpected error. Upload it again.';
 
-export async function previewCaseSplit(db: Database, actor: PortalActor, input: { professionalId: unknown; bytes: Buffer }) {
-  const params = professionalSchema.safeParse({ professionalId: input.professionalId });
+async function settle(read: SplitRead, parse: () => Promise<ParsedInvoice>): Promise<void> {
+  try {
+    read.parsed = await parse();
+  } catch (error) {
+    if (error instanceof UnreadableInvoiceFileError) {
+      read.failure = error.fieldErrors.file ?? 'The file could not be read.';
+    } else if (!(error instanceof ExtractionCancelledError)) {
+      // eslint-disable-next-line no-console
+      console.error('Case-split read failed', error);
+      read.failure = UNEXPECTED_FAILURE;
+    }
+  }
+}
+
+const startSchema = z.object({ professionalId: z.uuid() });
+
+export async function startCaseSplitRead(
+  db: Database,
+  store: DocumentStore,
+  actor: PortalActor,
+  input: { professionalId: unknown; fileName?: string; bytes: Buffer },
+): Promise<{ splitReadId: string }> {
+  const params = startSchema.safeParse({ professionalId: input.professionalId });
   if (!params.success) {
     throw new ValidationError({ professionalId: 'Choose the professional this file bills for.' });
   }
   const { professionalId } = params.data;
+  await splitCases(db, actor, professionalId);
+  const detected = detectInvoiceFile(input.bytes);
+  const splitReadId = randomUUID();
+  const read: SplitRead = {
+    userAccountId: actor.userAccountId,
+    professionalId,
+    fileName: input.fileName,
+    storageReference: await store.put(input.bytes),
+    contentHash: sha256(input.bytes),
+    mediaType: detected.mediaType,
+    format: detected.format,
+    extractionMethod: detected.extractionMethod,
+    startedAt: new Date(),
+  };
+  splitReads.set(splitReadId, read);
+  if (!detected.slow) {
+    const { bytes } = input;
+    await settle(read, () => (isolationEnabled() ? parseIsolated(bytes, () => undefined) : detected.parse()));
+  } else {
+    queueSplitRead(store, splitReadId, read);
+  }
+  return { splitReadId };
+}
+
+// Out here so the waiting job holds only the stored file's reference.
+function queueSplitRead(store: DocumentStore, splitReadId: string, read: SplitRead) {
+  void enqueueExtraction(splitReadId, async (onProgress, signal) => {
+    const bytes = await store.get(read.storageReference);
+    if (!bytes) {
+      read.failure = 'The uploaded file is no longer available. Upload it again.';
+      return;
+    }
+    await settle(read, () =>
+      isolationEnabled() ? parseIsolated(bytes, onProgress, { signal }) : detectInvoiceFile(bytes).parse({ onProgress }),
+    );
+  }).catch((error: unknown) => {
+    // eslint-disable-next-line no-console
+    console.error('Case-split read failed', error);
+  });
+}
+
+// Anyone but the uploader gets a 404.
+function ownRead(actor: PortalActor, splitReadId: string): SplitRead {
+  const read = splitReads.get(splitReadId);
+  if (!read || read.userAccountId !== actor.userAccountId) {
+    throw new CaseSplitReadNotFoundError();
+  }
+  return read;
+}
+
+export async function getCaseSplitRead(db: Database, actor: PortalActor, splitReadId: string) {
+  const read = ownRead(actor, splitReadId);
+  if (read.failure) {
+    return { status: 'failed' as const, failureMessage: read.failure };
+  }
+  if (!read.parsed) {
+    return { status: 'reading' as const, progress: extractionProgress(splitReadId) ?? null };
+  }
+  return { status: 'ready' as const, preview: await splitPreview(db, actor, read.professionalId, read.parsed) };
+}
+
+export async function discardCaseSplitRead(store: DocumentStore, actor: PortalActor, splitReadId: string) {
+  const read = ownRead(actor, splitReadId);
+  splitReads.delete(splitReadId);
+  cancelExtraction(splitReadId);
+  await store.delete(read.storageReference);
+  return { splitReadId };
+}
+
+// Drops reads left unused for an hour, with their files.
+export async function expireCaseSplitReads(store: DocumentStore, now: Date = new Date()): Promise<number> {
+  const stale = [...splitReads].filter(([, read]) => now.getTime() - read.startedAt.getTime() > SPLIT_READ_EXPIRY_MS);
+  for (const [splitReadId, read] of stale) {
+    splitReads.delete(splitReadId);
+    cancelExtraction(splitReadId);
+    // eslint-disable-next-line no-await-in-loop
+    await store.delete(read.storageReference);
+  }
+  return stale.length;
+}
+
+async function splitPreview(db: Database, actor: PortalActor, professionalId: string, parsed: ParsedInvoice) {
   const cases = await splitCases(db, actor, professionalId);
-  const { parsed } = await parseOrRefuse(input.bytes);
   const rates = await listRates(db, [professionalId]);
   const mileageRates = await listMileageRates(db);
   return {
@@ -140,27 +260,24 @@ export async function previewCaseSplit(db: Database, actor: PortalActor, input: 
 }
 
 const splitInputSchema = z.object({
-  professionalId: z.uuid(),
-  fileName: z.string().max(300).optional(),
-  // The file, base64-encoded, sent with its line assignments.
-  fileBase64: z.string().min(1),
+  splitReadId: z.uuid(),
   // One case per line, in the file's order.
   caseIds: z.array(z.uuid()).min(1),
 });
 
-export async function uploadInvoiceFileByCase(db: Database, store: DocumentStore, actor: PortalActor, rawInput: unknown) {
+export async function uploadInvoiceFileByCase(db: Database, actor: PortalActor, rawInput: unknown) {
   const parsedInput = splitInputSchema.safeParse(rawInput);
   if (!parsedInput.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsedInput.error.issues));
   }
   const input = parsedInput.data;
-  const bytes = Buffer.from(input.fileBase64, 'base64');
-  if (bytes.length > MAX_UPLOAD_BYTES) {
-    throw new ValidationError({ file: 'The file is larger than 10 MB.' });
+  const read = ownRead(actor, input.splitReadId);
+  const { parsed } = read;
+  if (!parsed) {
+    throw new ValidationError({ file: read.failure ?? 'The file is still being read.' });
   }
-  const cases = await splitCases(db, actor, input.professionalId);
+  const cases = await splitCases(db, actor, read.professionalId);
   const allowed = new Set(cases.map((row) => row.caseId));
-  const { detected, parsed } = await parseOrRefuse(bytes);
   if (input.caseIds.length !== parsed.lines.length) {
     throw new ValidationError({ caseIds: 'Assign a case to every line in the file.' });
   }
@@ -174,29 +291,30 @@ export async function uploadInvoiceFileByCase(db: Database, store: DocumentStore
     groups.set(caseId, [...(groups.get(caseId) ?? []), line]);
   });
 
-  const contentHash = sha256(bytes);
-  const storageReference = await store.put(bytes);
+  // Claimed for this request, so a second click can't make the drafts twice;
+  // put back if they couldn't be made, to try again.
+  splitReads.delete(input.splitReadId);
   try {
     return await db.transaction(async (tx) => {
       const now = new Date();
       const documentId = await insertDocument(
         tx,
         actor,
-        { storageReference, fileName: input.fileName, mediaType: detected.mediaType, contentHash },
+        { storageReference: read.storageReference, fileName: read.fileName, mediaType: read.mediaType, contentHash: read.contentHash },
         now,
       );
       const created: Array<{ invoiceImportId: string; caseId: string; invoiceId: string }> = [];
       for (const [caseId, lines] of groups) {
         // eslint-disable-next-line no-await-in-loop
-        const importId = await insertImport(tx, actor, { documentId, caseId, format: detected.format, uploadedAt: now });
+        const importId = await insertImport(tx, actor, { documentId, caseId, format: read.format, uploadedAt: now });
         // eslint-disable-next-line no-await-in-loop
         const invoiceId = await extractIntoDraft(tx, actor, {
           importId,
           documentId,
-          contentHash,
+          contentHash: read.contentHash,
           caseId,
-          billedProfessionalId: input.professionalId,
-          extractionMethod: parsed.extractionMethod ?? detected.extractionMethod,
+          billedProfessionalId: read.professionalId,
+          extractionMethod: parsed.extractionMethod ?? read.extractionMethod,
           extractedAt: now,
           // The file's stated total covers every case, so it isn't compared per case.
           parsed: { ...parsed, statedTotal: undefined, lines },
@@ -207,7 +325,7 @@ export async function uploadInvoiceFileByCase(db: Database, store: DocumentStore
       return { imports: created };
     });
   } catch (error) {
-    await store.delete(storageReference);
+    splitReads.set(input.splitReadId, read);
     throw error;
   }
 }

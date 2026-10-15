@@ -19,6 +19,7 @@ import {
   getInvoiceImport,
   IMPORT_EXPIRY_MS,
   listInvoiceImports,
+  removeUnreferencedFiles,
   uploadInvoiceFile,
 } from '../src/imports/invoiceImports';
 import { extractionsSettled } from '../src/imports/extractionJobs';
@@ -81,6 +82,9 @@ function memoryStore(): DocumentStore & { files: Map<string, Buffer> } {
     },
     async delete(reference) {
       files.delete(reference);
+    },
+    async list() {
+      return [...files.keys()];
     },
   };
 }
@@ -455,6 +459,20 @@ describe('invoice import workflow', () => {
     const detail = await getInvoiceImport(testDb, actor, second.invoiceImportId);
     const warnings = (detail.extractionResult as { warnings: Array<{ code: string }> }).warnings.map((w) => w.code);
     expect(warnings).toEqual(expect.arrayContaining(['duplicate_file', 'duplicate_invoice_number']));
+  });
+
+  // A crash between storing a file and recording it, or a restart forgetting
+  // a pending case-split read, leaves a file nothing refers to.
+  it('deletes stored files no document refers to, keeping those still in use', async () => {
+    const { actor, caseId, store } = await setup();
+    await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'a', bytes: Buffer.from(syntheticLedes('Synthetic Timekeeper')) });
+    const stray = await store.put(Buffer.from('left behind'));
+    const pending = await store.put(Buffer.from('a case-split read'));
+
+    expect(await removeUnreferencedFiles(testDb, store, new Set([pending]))).toBe(1);
+    expect(store.files.has(stray)).toBe(false);
+    expect(store.files.has(pending)).toBe(true);
+    expect(store.files.size).toBe(2);
   });
 
   it('keeps an unreadable file until discarded, then deletes it', async () => {
