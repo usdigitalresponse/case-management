@@ -97,13 +97,16 @@ export async function endAllAssignments(tx: Transaction, invoiceId: string, byUs
 // On submission: the case's reviewer, else the default, else no one; the
 // default sign-off approvers in order. Defaults that no longer have the
 // role are skipped.
-export async function assignOnSubmit(tx: Transaction, invoiceId: string, caseId: string): Promise<void> {
+// With no case, only the default reviewer applies.
+export async function assignOnSubmit(tx: Transaction, invoiceId: string, caseId: string | null): Promise<void> {
   const [settings, [caseReviewer]] = await Promise.all([
     getReviewSettings(tx),
-    tx
-      .select({ userAccountId: caseInvoiceReviewer.reviewerUserAccountId })
-      .from(caseInvoiceReviewer)
-      .where(and(eq(caseInvoiceReviewer.caseId, caseId), isNull(caseInvoiceReviewer.endedAt))),
+    caseId === null
+      ? Promise.resolve([])
+      : tx
+          .select({ userAccountId: caseInvoiceReviewer.reviewerUserAccountId })
+          .from(caseInvoiceReviewer)
+          .where(and(eq(caseInvoiceReviewer.caseId, caseId), isNull(caseInvoiceReviewer.endedAt))),
   ]);
   for (const candidate of [caseReviewer?.userAccountId, settings.defaultReviewerUserAccountId]) {
     // eslint-disable-next-line no-await-in-loop
@@ -201,7 +204,7 @@ export async function reassignReviewer(db: Database, actorUserAccountId: string,
         byUserAccountId: actorUserAccountId,
       });
     }
-    if (input.forCase) {
+    if (input.forCase && locked.caseId) {
       await setCaseReviewerInTx(tx, locked.caseId, input.userAccountId, actorUserAccountId);
     }
     return loadAssignments(tx, invoiceId);

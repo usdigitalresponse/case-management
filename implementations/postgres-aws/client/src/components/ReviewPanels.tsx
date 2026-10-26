@@ -5,18 +5,23 @@ import { formatMoney } from '../formatMoney';
 import type { ReviewTotals } from '../reviewTotals';
 import { Notice } from './Notice';
 
-// Rate check: lines billed at a rate other than the configured one, shown
-// once above the table rather than on every line.
+// Rate check: time lines billed above the pre-authorized rate (or, with no
+// pre-authorization, the configured rate), shown once above the table
+// rather than on every line.
 export function rateCheck(lines: InvoiceReviewLine[]) {
-  const differing = lines.filter(
-    (line) => line.configuredRate !== null && line.billedRate !== null && Number(line.billedRate) !== Number(line.configuredRate),
+  const above = lines.filter(
+    (line) => line.rateLimit !== null && line.billedRate !== null && Number(line.billedRate) > Number(line.rateLimit),
   );
-  if (differing.length === 0) {
+  const sample = above[0];
+  if (!sample) {
     return null;
   }
-  const above = differing.filter((line) => Number(line.billedRate) > Number(line.configuredRate));
-  const sample = differing[0]!;
-  return { differing, above, billed: sample.billedRate as string, configured: sample.configuredRate as string };
+  return {
+    above,
+    billed: sample.billedRate as string,
+    limit: sample.rateLimit as string,
+    limitName: sample.rateLimitSource === 'preauthorized' ? 'pre-authorized rate' : 'configured rate',
+  };
 }
 
 export function RateCheckNotice({
@@ -28,27 +33,26 @@ export function RateCheckNotice({
   lines: InvoiceReviewLine[];
   canReprice: boolean;
   saving: boolean;
-  onReprice: (configuredRate: string) => void;
+  onReprice: (rate: string) => void;
 }) {
   const check = rateCheck(lines);
   if (!check) {
     return null;
   }
-  const offer = canReprice && check.above.length > 0;
   return (
     <Notice
       tone="warning"
       action={
-        offer && (
-          <button type="button" className="btn btn--outline" disabled={saving} onClick={() => onReprice(check.configured)}>
-            Re-price at {formatMoney(check.configured)}
+        canReprice && (
+          <button type="button" className="btn btn--outline" disabled={saving} onClick={() => onReprice(check.limit)}>
+            Re-price at {formatMoney(check.limit)}
           </button>
         )
       }
     >
-      Rate check: {check.differing.length === 1 ? 'one line is' : `${check.differing.length} lines are`} billed at{' '}
-      {formatMoney(check.billed)} an hour; the configured rate is {formatMoney(check.configured)} an hour.
-      {offer && ' Re-pricing approves those lines in part at the configured rate.'}
+      Rate check: {check.above.length === 1 ? 'one line bills' : `${check.above.length} lines bill`} {formatMoney(check.billed)} an
+      hour, above the {check.limitName} of {formatMoney(check.limit)}.
+      {canReprice && ` Re-pricing approves those lines in part at ${formatMoney(check.limit)}.`}
     </Notice>
   );
 }
@@ -75,6 +79,8 @@ export function TotalsBar({
   onFinish: () => void;
 }) {
   const { counts } = totals;
+  const [confirming, setConfirming] = useState(false);
+  const signers = approvers.map((approver) => approver.displayName).join(', then ');
   return (
     <div className="totals-bar">
       <dl>
@@ -86,16 +92,40 @@ export function TotalsBar({
           <dd>{counts.approved} approved, {counts.part} in part, {counts.rejected} rejected</dd>
         </div>
       </dl>
-      {inReview && totals.decided === lineCount && canFinish && (
+      {inReview && totals.decided === lineCount && canFinish && !confirming && (
         <div className="totals-bar__next">
           <p>
             {approvers.length > 0
-              ? `Next, ${approvers.map((approver) => approver.displayName).join(', then ')} ${approvers.length === 1 ? 'signs' : 'sign'} off. Then it can be exported for payment with every reason attached.`
+              ? `Next, ${signers} ${approvers.length === 1 ? 'signs' : 'sign'} off. Then it can be exported for payment with every reason attached.`
               : 'Choose who signs off before finishing.'}
           </p>
-          <button type="button" className="btn btn--primary" disabled={saving || approvers.length === 0} onClick={onFinish}>
+          <button type="button" className="btn btn--primary" disabled={saving || approvers.length === 0} onClick={() => setConfirming(true)}>
             Finish review
           </button>
+        </div>
+      )}
+      {confirming && (
+        <div className="confirm-panel" role="dialog" aria-labelledby="finish-heading">
+          <h3 id="finish-heading">Finish this review?</h3>
+          <p>
+            The decisions lock and the invoice goes to {signers} to sign off. You can reopen the review until
+            {approvers.length === 1 ? ' they sign' : ' the first of them signs'}.
+          </p>
+          <div className="button-row">
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={saving}
+              ref={(element) => element?.focus()}
+              onClick={() => {
+                setConfirming(false);
+                onFinish();
+              }}
+            >
+              Finish review
+            </button>
+            <button type="button" className="link-button" onClick={() => setConfirming(false)}>Keep reviewing</button>
+          </div>
         </div>
       )}
       {inReview && totals.decided < lineCount && <p className="totals-bar__next cell-note">Decide every line to finish the review.</p>}

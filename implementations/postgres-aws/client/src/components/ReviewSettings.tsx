@@ -1,11 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
+  addDecisionReason,
   apiErrorMessage,
   getReviewSettings,
   getStaffRoles,
+  listDecisionReasonSettings,
   listReviewPeople,
   setReviewSettings,
   setStaffRole,
+  updateDecisionReason,
+  type ReasonAppliesTo,
   type ReviewSettings,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
@@ -98,6 +102,118 @@ export function ReviewRoutingSettings({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
     </form>
+  );
+}
+
+const LIST_LABELS: Record<ReasonAppliesTo, string> = {
+  approved_in_part: 'Approving part',
+  rejected: 'Rejecting',
+  both: 'Both',
+};
+
+// The reasons reviewers choose from when they approve part of a line or
+// reject it. Administrators keep the lists current without a code release;
+// a retired reason stays on decisions that used it.
+export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
+  const [version, setVersion] = useState(0);
+  const { data, error } = useApiResource(() => listDecisionReasonSettings(), [version]);
+  const [message, setMessage] = useState<SaveMessage | null>(null);
+  const [displayName, setDisplayName] = useState('');
+  const [appliesTo, setAppliesTo] = useState<ReasonAppliesTo>('rejected');
+
+  if (error || !data) {
+    return <LoadState error={error} what="decision reasons" />;
+  }
+
+  async function run(action: () => Promise<unknown>, success: string) {
+    setMessage(null);
+    try {
+      await action();
+      setMessage({ tone: 'success', text: success });
+      setVersion((v) => v + 1);
+    } catch (err) {
+      setMessage({ tone: 'danger', text: apiErrorMessage(err, 'The reason could not be saved.') });
+    }
+  }
+
+  return (
+    <section className="compact-card">
+      <h3>Reasons for cutting or rejecting a line</h3>
+      <p className="compact-hint">
+        Approving part of a line and rejecting it each have their own list. Reviewers must pick one, and "Another
+        reason" needs a note.
+      </p>
+      {message && <Notice tone={message.tone}>{message.text}</Notice>}
+      <RecordTable
+        label="Decision reasons"
+        rows={data.reasons}
+        rowKey={(reason) => reason.reasonId}
+        rowClassName={(reason) => (reason.active ? undefined : 'is-retired')}
+        columns={[
+          { header: 'Reason', rowHeader: true, render: (reason) => reason.displayName },
+          {
+            header: 'On the list for',
+            render: (reason) =>
+              isAdmin && reason.code !== 'other' ? (
+                <select
+                  className="usa-select settings-role"
+                  aria-label={`List for ${reason.displayName}`}
+                  value={reason.appliesTo}
+                  onChange={(event) =>
+                    void run(() => updateDecisionReason(reason.reasonId, { appliesTo: event.target.value as ReasonAppliesTo }), 'Reason moved.')
+                  }
+                >
+                  {Object.entries(LIST_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              ) : (
+                LIST_LABELS[reason.appliesTo]
+              ),
+          },
+          {
+            header: 'In use',
+            render: (reason) =>
+              isAdmin && reason.code !== 'other' ? (
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => void run(() => updateDecisionReason(reason.reasonId, { active: !reason.active }), reason.active ? 'Reason retired.' : 'Reason restored.')}
+                >
+                  {reason.active ? 'Retire' : 'Restore'}
+                </button>
+              ) : reason.active ? (
+                'Yes'
+              ) : (
+                'Retired'
+              ),
+          },
+        ]}
+      />
+      {isAdmin && (
+        <form
+          className="inline-fields reason-fields"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void run(() => addDecisionReason({ displayName: displayName.trim(), appliesTo }), 'Reason added.').then(() => setDisplayName(''));
+          }}
+        >
+          <div className="usa-form-group">
+            <label className="usa-label" htmlFor="new-reason">New reason</label>
+            <input id="new-reason" className="usa-input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+          </div>
+          <div className="usa-form-group">
+            <label className="usa-label" htmlFor="new-reason-list">For</label>
+            <select id="new-reason-list" className="usa-select" value={appliesTo} onChange={(event) => setAppliesTo(event.target.value as ReasonAppliesTo)}>
+              {Object.entries(LIST_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className="btn btn--primary" disabled={displayName.trim().length < 3}>Add reason</button>
+        </form>
+      )}
+    </section>
   );
 }
 

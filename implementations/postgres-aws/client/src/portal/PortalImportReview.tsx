@@ -48,9 +48,8 @@ async function load(importId: string): Promise<Loaded> {
   const importDetail = await getInvoiceImport(importId);
   const [invoice, timekeepers] = await Promise.all([
     importDetail.invoiceId ? getMyInvoice(importDetail.invoiceId) : Promise.resolve(null),
-    importDetail.caseId
-      ? listBillableProfessionals(importDetail.caseId).then((result) => result.professionals)
-      : Promise.resolve([]),
+    // A file held in intake has no case: staff may match any provider.
+    listBillableProfessionals(importDetail.caseId).then((result) => result.professionals),
   ]);
   return { importDetail, invoice, timekeepers };
 }
@@ -257,7 +256,7 @@ export default function PortalImportReview() {
   const [searchParams] = useSearchParams();
   const fromBulk = searchParams.get('from') === 'bulk';
   const navigate = useNavigate();
-  const { casePath } = useShell();
+  const { casePath, staff } = useShell();
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => load(importId as string), [importId, version]);
   // From bulk import: where this file sits in the queue still to review.
@@ -286,7 +285,7 @@ export default function PortalImportReview() {
   }
 
   const { importDetail } = data;
-  const backTo = fromBulk ? '/portal/imports' : importDetail.caseId ? casePath(importDetail.caseId) : NEW_INVOICE_PATH;
+  const backTo = fromBulk ? '/portal/imports' : importDetail.caseId ? casePath(importDetail.caseId) : staff ? '/intake' : NEW_INVOICE_PATH;
 
   async function discardImport() {
     try {
@@ -305,7 +304,7 @@ export default function PortalImportReview() {
     <div>
       <PageHeader
         crumbs={[
-          { label: fromBulk ? 'Import invoices' : importDetail.caseId ? 'Case' : 'New invoice', to: backTo },
+          { label: fromBulk ? 'Import invoices' : importDetail.caseId ? 'Case' : staff ? 'Invoice intake' : 'New invoice', to: backTo },
           { label: importDetail.fileName },
         ]}
         title={importDetail.fileName}

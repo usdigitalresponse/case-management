@@ -78,6 +78,20 @@
       "when": 1793037591287,
       "tag": "0010_staff_invoice_entry",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793039622150,
+      "tag": "0011_preauthorized_rate_and_reason_lists",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793040901362,
+      "tag": "0012_invoice_intake",
+      "breakpoints": true
     }
   ]
 }

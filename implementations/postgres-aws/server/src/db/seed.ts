@@ -34,7 +34,7 @@ import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase } from '../cases/closeCase';
-import { addKindRate, createKind, setProfessionalKind } from '../billing/professionalRates';
+import { addKindRate, createKind, listRates, setProfessionalKind } from '../billing/professionalRates';
 import { addMileageRate } from '../billing/mileageRates';
 import { addBillingCode, setBillingRule } from '../billing/billingRules';
 import { pairKey } from '../billing/routeCheck';
@@ -430,7 +430,13 @@ async function seedDemoReview(
     getReferenceId(db, preauthorizationStatuses, 'approved'),
     getReferenceId(db, preauthorizationOutcomes, 'approved'),
   ]);
-  for (const assignment of assignments.slice(0, 4)) {
+  const preauthorized = assignments.slice(0, 4);
+  const rates = await listRates(db, preauthorized.map((assignment) => assignment.professionalId));
+  for (const [index, assignment] of preauthorized.entries()) {
+    // Pre-authorized at their configured rate; the investigator's demo
+    // invoice below states more, for the rate check.
+    const configured = rates.filter((rate) => rate.professionalId === assignment.professionalId).at(-1)?.hourlyRate ?? '125.00';
+    const approvedHourlyRate = index === 2 ? '125.00' : configured;
     // eslint-disable-next-line no-await-in-loop
     const { preauthorizationId } = firstRow(
       await db
@@ -451,6 +457,7 @@ async function seedDemoReview(
       sequenceNumber: 1,
       outcomeId: approvedOutcomeId,
       approvedAmount: '2500.00',
+      approvedHourlyRate,
       effectiveAt: new Date('2026-01-06T15:00:00Z'),
       decidedAt: new Date('2026-01-06T15:00:00Z'),
       decidedByUserAccountId: fixtures.staffUserAccountId,

@@ -24,6 +24,8 @@ const importedLine: PortalInvoiceLine = {
   statedAmount: '150.00',
   billedRate: '100.00',
   configuredRate: '120.00',
+  rateLimit: '120.00',
+  rateLimitSource: 'configured',
   timekeeperLabel: 'Synthetic Timekeeper',
   timekeeperProfessionalId: 'professional-1',
   timekeeperDisplayName: 'Synthetic Timekeeper',

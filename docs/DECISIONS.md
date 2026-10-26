@@ -29,13 +29,19 @@ The external submitter portal keeps its sign-in and is restyled to match.
 - Notes are visible to everyone who can see the invoice. Staff keep unofficial
   notes outside the system.
 - Decisions can be undone or changed freely until the reviewer finishes the
-  review. Only finished rounds are recorded, and exports show their history.
+  review. Only finished rounds are recorded. Exports show only each line's
+  latest decision (decided 2026-10-26; may be revisited).
 - A rejected line no longer rejects the invoice.
 
 **Pricing**
 - A time line is requested at the rate the submitter stated.
-- A stated rate that differs from the configured rate is flagged, and a
-  re-price action approves those lines in part at the configured rate.
+- A rate above the pre-authorized rate is flagged (decided 2026-10-26); with no
+  pre-authorized rate, the configured rate is the limit. A re-price action
+  approves those lines in part at the limit.
+
+**Reasons** (decided 2026-10-26)
+- Approving part of a line and rejecting it have separate reason lists, which
+  administrators maintain in Settings.
 
 **Sign-off and routing**
 - Sign-off by a director happens in the tool, for the whole invoice. The
@@ -55,6 +61,9 @@ The external submitter portal keeps its sign-in and is restyled to match.
 **Exports**
 - After sign-off, staff export the documentation for payment.
 - Checking it for confidential information happens outside the system.
+- A billing record with one row per submitted request downloads as CSV or a
+  spreadsheet for reports outside the tool (decided 2026-10-26). Any later
+  route to an external case system reads from the same record.
 
 **Staff entry of invoices received elsewhere** (decided 2026-10-26)
 - Any staff role may enter an invoice a professional sent by email or from
@@ -64,6 +73,19 @@ The external submitter portal keeps its sign-in and is restyled to match.
   that date.
 - The professional sees it read-only. The staff member who entered it may
   review it, but sign-off is still by someone else.
+
+**Invoice intake** (decided 2026-10-26)
+- Staff may save an invoice before its case is known. It waits in an
+  "Invoice intake" list until any staff member matches it to a case by hand,
+  or adds the case and matches it in one step. Matching can add the provider
+  to the case.
+- The person who entered it may instead send it to review without a case.
+  It is reviewed and exported as usual, with warnings that this system did
+  not check its case, the provider's assignment or any pre-authorization.
+- Staff may add a provider who has never signed in (name, kind, optional
+  email) from intake. They are not approved separately; the staff member
+  adding them is trusted. Duplicate emails are refused. Signing in later
+  with that email uses the same profile.
 
 **Later step**
 - Submitters replying to line decisions.
@@ -283,6 +305,10 @@ allowed: they can't be priced, checked against assignments or kept as one
 identity. If the person later signs in with that email, they use the same
 profile. Needs model changes (a pending professional or affiliation awaiting
 approval, and who may approve) before it is built.
+
+Staff may now add a provider with no login directly from invoice intake
+(`add_professional_without_login`); that needs no approval because staff add
+them. Delegates adding colleagues, and the approval step, are still planned.
 
 
 ## Deferred Decisions

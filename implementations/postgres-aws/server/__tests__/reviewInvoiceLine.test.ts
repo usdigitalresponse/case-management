@@ -183,6 +183,19 @@ describe('line decisions', () => {
     await reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'rejected', reasonCode: 'other', note: 'Not ours.' });
   });
 
+  it('takes reasons only from the list for the outcome', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
+    const line = lineIds[0]!;
+    await expect(
+      reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'rejected', reasonCode: 'not_billable' }),
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'approved_in_part', approvedAmount: 10, reasonCode: 'block_billing' }),
+    ).rejects.toThrow(ValidationError);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'rejected', reasonCode: 'no_backup' });
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'approved_in_part', approvedAmount: 10, reasonCode: 'not_billable' });
+  });
+
   it('keeps a partial approval above nothing and below the request', async () => {
     const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
     for (const approvedAmount of [70, 70.01, 0.001]) {
@@ -252,6 +265,44 @@ describe('line decisions', () => {
     });
     expect(lines.find((line) => line.invoiceLineId === lineIds[1])?.working).toBeNull();
   });
+
+  it('checks and re-prices against the pre-authorized rate when the case has one', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines([
+      { amount: '1190.00', quantity: '2.00', billedRate: '595.00', configuredRate: '125.00' },
+      { amount: '140.00', quantity: '1.00', billedRate: '140.00', configuredRate: '125.00' },
+    ]);
+    const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    const [preauth] = await testDb
+      .insert(preauthorization)
+      .values({
+        caseId: row!.caseId!,
+        professionalId: row!.professionalId,
+        statusId: await getReferenceId(testDb, preauthorizationStatuses, 'approved'),
+        requestedAt: new Date(),
+      })
+      .returning();
+    await testDb.insert(preauthorizationDecision).values({
+      preauthorizationId: preauth!.preauthorizationId,
+      sequenceNumber: 1,
+      outcomeId: await getReferenceId(testDb, preauthorizationOutcomes, 'approved'),
+      approvedAmount: '2000.00',
+      approvedHourlyRate: '150.00',
+      effectiveAt: new Date(),
+      decidedAt: new Date(),
+      decidedByUserAccountId: fixtures.staffUserAccountId,
+    });
+
+    const before = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.lines;
+    expect(before.map((line) => [line.rateLimit, line.rateLimitSource])).toEqual([
+      ['150.00', 'preauthorized'],
+      ['150.00', 'preauthorized'],
+    ]);
+    // 140 is above the configured 125 but within the pre-authorized 150.
+    expect(await repriceLines(testDb, reviewer, invoiceId)).toMatchObject({ repriced: 1 });
+    const lines = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.lines;
+    expect(lines.find((line) => line.invoiceLineId === lineIds[0])?.working).toMatchObject({ approvedAmount: '300.00', approvedRate: '150.000' });
+    expect(lines.find((line) => line.invoiceLineId === lineIds[1])?.working).toBeNull();
+  });
 });
 
 describe('finishing and sign-off', () => {
@@ -316,7 +367,7 @@ describe('finishing and sign-off', () => {
     const [preauth] = await testDb
       .insert(preauthorization)
       .values({
-        caseId: row!.caseId,
+        caseId: row!.caseId!,
         professionalId: row!.professionalId,
         statusId: await getReferenceId(testDb, preauthorizationStatuses, 'approved'),
         requestedAt: new Date(),
@@ -339,7 +390,7 @@ describe('finishing and sign-off', () => {
     await signOffInvoice(testDb, approver, approved.invoiceId, { outcome: 'approved' });
 
     // The latest ceiling replaces the first; the rejected line isn't counted.
-    expect(await loadPreauthorizationSummaries(testDb, row!.caseId)).toEqual([
+    expect(await loadPreauthorizationSummaries(testDb, row!.caseId!)).toEqual([
       expect.objectContaining({ ceiling: '150.00', approvedSoFar: '50.00', waiting: '30.00' }),
     ]);
   });

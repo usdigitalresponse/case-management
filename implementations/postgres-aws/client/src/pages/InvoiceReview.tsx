@@ -108,8 +108,8 @@ export default function InvoiceReview() {
 
   const approvers = assignments?.signOff ?? [];
   const sentBack = status === 'under_review' ? data.signOffs.filter((s) => s.outcomeCode === 'changes_requested').at(-1) : undefined;
-  const onRoutingChanged = (message: string) => {
-    setToast({ message });
+  const onRoutingChanged = (message: string, undo?: () => Promise<unknown>) => {
+    setToast({ message, undo });
     void refresh();
   };
 
@@ -131,10 +131,10 @@ export default function InvoiceReview() {
       <PageHeader
         crumbs={[
           { label: 'Invoices', to: '/' },
-          { label: invoice.caseClientDisplayName ?? 'Case', to: `/cases/${invoice.caseId}` },
+          invoice.caseId ? { label: invoice.caseClientDisplayName ?? 'Case', to: `/cases/${invoice.caseId}` } : { label: 'No case' },
           { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` },
         ]}
-        title={invoice.caseClientDisplayName ?? 'Unknown client'}
+        title={invoice.caseId ? (invoice.caseClientDisplayName ?? 'Unknown client') : `Invoice from ${invoice.professionalDisplayName ?? 'an unknown provider'}`}
         status={
           <StatusPill
             code={everyLineDecided ? 'every_line_decided' : status}
@@ -199,6 +199,14 @@ export default function InvoiceReview() {
           <Progress done={totals.decided} total={lines.length} />
         </Fact>
       </FactsStrip>
+
+      {invoice.caseId === null && (
+        <Notice tone="warning" heading="Not linked to a case.">
+          Staff chose to review this invoice without one. This system didn't check the case, whether{' '}
+          {invoice.professionalDisplayName ?? 'the provider'} is assigned to it, or any pre-authorization. Exports and the billing
+          record say so.
+        </Notice>
+      )}
 
       {inReview && (
         <SignOffApprovers
@@ -296,7 +304,7 @@ export default function InvoiceReview() {
           saving={saving}
           onFinish={() =>
             void act(() => finishReview(invoice.invoiceId), {
-              message: 'Review finished. It now waits for sign-off.',
+              message: `Review finished. It went to ${approvers[0]?.displayName ?? 'the approver'} to sign off.`,
               undo: () => reopenReview(invoice.invoiceId),
             })
           }

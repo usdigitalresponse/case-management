@@ -48,7 +48,15 @@ export const invoiceApprovalStepTypes = referenceTable('invoice_approval_step_ty
 export const invoiceApprovalOutcomes = referenceTable('invoice_approval_outcomes');
 export const invoiceEventTypes = referenceTable('invoice_event_types');
 // Why a line was approved in part or rejected (model/rules.yaml decide_invoice_lines).
-export const invoiceDecisionReasons = referenceTable('invoice_decision_reasons');
+// applies_to: which outcome lists a reason, 'approved_in_part', 'rejected'
+// or 'both' (model/rules.yaml decide_invoice_lines).
+export const invoiceDecisionReasons = pgTable('invoice_decision_reasons', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull().unique(),
+  displayName: text('display_name').notNull(),
+  active: boolean('active').notNull().default(true),
+  appliesTo: text('applies_to').notNull().default('both'),
+});
 // How a request staff entered reached the organization (model/rules.yaml authorize_staff_invoice_entry).
 export const invoiceReceiptChannels = referenceTable('invoice_receipt_channels');
 export const preauthorizationStatuses = referenceTable('preauthorization_statuses');
@@ -381,7 +389,9 @@ export const invoice = pgTable(
     // than trusted from the client (model/rules.yaml:
     // validate_invoice_total) — see ../portal/createInvoice.ts.
     submittedTotal: numeric('submitted_total', { precision: 12, scale: 2 }).notNull(),
-    caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+    // Null while staff hold an invoice in intake, or when they review one
+    // without a case (model/rules.yaml match_invoice_to_case).
+    caseId: uuid('case_id').references(() => caseTable.caseId),
     currencyCode: text('currency_code').notNull().default('USD'),
     periodStart: date('period_start'),
     periodEnd: date('period_end'),
@@ -398,7 +408,8 @@ export const invoiceLine = pgTable(
   {
     invoiceLineId: uuid('invoice_line_id').primaryKey().defaultRandom(),
     invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
-    caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+    // The invoice's case; null with it.
+    caseId: uuid('case_id').references(() => caseTable.caseId),
     lineTypeId: uuid('line_type_id').notNull().references(() => invoiceLineTypes.id),
     // Every submitted time line has one (../imports/importedTimeEntries.ts).
     sourceTimeEntryId: uuid('source_time_entry_id').references(() => timeEntry.timeEntryId),
@@ -669,6 +680,9 @@ export const preauthorizationDecision = pgTable(
     sequenceNumber: integer('sequence_number').notNull(),
     outcomeId: uuid('outcome_id').notNull().references(() => preauthorizationOutcomes.id),
     approvedAmount: numeric('approved_amount', { precision: 12, scale: 2 }),
+    // The hourly rate the professional was authorized at; review checks
+    // time lines against it (model/rules.yaml apply_professional_rates).
+    approvedHourlyRate: numeric('approved_hourly_rate', { precision: 12, scale: 2 }),
     effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
     decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
     decidedByUserAccountId: uuid('decided_by_user_account_id')

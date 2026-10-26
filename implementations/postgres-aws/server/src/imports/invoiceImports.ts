@@ -61,7 +61,8 @@ export class InvoiceImportNotFoundError extends NotFoundError {
 }
 
 const uploadParamsSchema = z.object({
-  caseId: z.string().uuid(),
+  // Absent: staff hold it in invoice intake until it is matched to a case.
+  caseId: z.string().uuid().optional(),
   professionalId: z.string().uuid().optional(),
 });
 
@@ -223,11 +224,11 @@ export async function uploadInvoiceFile(
   actor: PortalActor,
   input: UploadInvoiceFileInput,
 ): Promise<{ invoiceImportId: string; status: string; invoiceId: string | null }> {
-  const params = uploadParamsSchema.safeParse({ caseId: input.caseId, professionalId: input.professionalId || undefined });
+  const params = uploadParamsSchema.safeParse({ caseId: input.caseId || undefined, professionalId: input.professionalId || undefined });
   if (!params.success) {
     throw new ValidationError({ caseId: 'Choose a case to import the invoice into.' });
   }
-  const { caseId } = params.data;
+  const caseId = params.data.caseId ?? null;
   const billedProfessionalId = params.data.professionalId ?? actor.professionalId;
   if (!billedProfessionalId) {
     throw new ValidationError({ professionalId: 'Choose the professional this invoice bills for.' });
@@ -319,7 +320,7 @@ interface ExtractionTarget {
   importId: string;
   documentId: string;
   contentHash: string;
-  caseId: string;
+  caseId: string | null;
   billedProfessionalId: string;
   extractionMethod: string;
 }
@@ -489,7 +490,7 @@ export async function insertDocument(
 export async function insertImport(
   tx: Transaction,
   actor: PortalActor,
-  values: { documentId: string; caseId: string; format: string; uploadedAt: Date },
+  values: { documentId: string; caseId: string | null; format: string; uploadedAt: Date },
 ): Promise<string> {
   const imported = firstRow(
     await tx
@@ -517,7 +518,7 @@ export async function extractIntoDraft(
     importId: string;
     documentId: string;
     contentHash: string;
-    caseId: string;
+    caseId: string | null;
     billedProfessionalId: string;
     extractionMethod: string | null;
     extractedAt: Date;

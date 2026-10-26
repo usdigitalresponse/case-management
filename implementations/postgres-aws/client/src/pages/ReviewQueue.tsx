@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { listReviewQueue, type ReviewQueueItem } from '../api/client';
 import { useAuth } from '../AuthContext';
@@ -9,6 +9,8 @@ import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { RecordTable } from '../components/RecordTable';
 import { caseNumberColumn, FlagNotes, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
+import { AssignReviewer } from '../components/ReviewRouting';
+import { Toast, useToast } from '../components/Toast';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
@@ -55,7 +57,10 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
   const [params, setParams] = useSearchParams();
   const filter: FilterId = view === 'open' ? ((params.get('show') as FilterId | null) ?? 'mine') : 'everyone';
   const query = params.get('q') ?? '';
-  const { data, error } = useApiResource(() => listReviewQueue(view), [view]);
+  const [version, setVersion] = useState(0);
+  const { data, error } = useApiResource(() => listReviewQueue(view), [view, version]);
+  const [toast, setToast] = useToast();
+  const canAssign = Boolean(user?.reviewPermissions?.reassign);
 
   const counts = useMemo(
     () =>
@@ -161,6 +166,14 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
                       {invoice.holder.displayName}
                       {invoice.statusCode === 'awaiting_sign_off' && <span className="cell-note">To sign off</span>}
                     </>
+                  ) : canAssign ? (
+                    <AssignReviewer
+                      invoiceId={invoice.invoiceId}
+                      onAssigned={(name) => {
+                        setToast({ message: `Given to ${name}.` });
+                        setVersion((v) => v + 1);
+                      }}
+                    />
                   ) : (
                     <span className="muted">Not assigned</span>
                   ),
@@ -178,6 +191,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
           openInvoiceColumn(() => (open ? 'Review' : 'View')),
         ]}
       />
+      <Toast toast={toast} onUndo={() => undefined} />
     </div>
   );
 }

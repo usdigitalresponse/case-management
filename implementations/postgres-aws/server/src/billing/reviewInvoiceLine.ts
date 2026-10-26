@@ -25,7 +25,8 @@ import {
 import { recordInvoiceEvent } from './invoiceEvents';
 import { claimLineReview, lockInvoiceForReview } from './reviewAssignment';
 import { requireReviewPermission } from './reviewAccess';
-import { OTHER_REASON_CODE, RATE_REASON_CODE } from './decisionReasons';
+import { OTHER_REASON_CODE, RATE_REASON_CODE, reasonAppliesTo } from './decisionReasons';
+import { loadRateLimits, rateLimitFor } from './preauthorizations';
 
 export const reviewOutcomeSchema = z.enum(['approved', 'approved_in_part', 'rejected']);
 export type ReviewOutcome = z.infer<typeof reviewOutcomeSchema>;
@@ -101,15 +102,16 @@ async function markUnderReview(tx: Transaction, invoiceId: string, statusCode: s
   await recordInvoiceEvent(tx, { invoiceId, eventTypeCode: 'review_started', statusId, actorUserAccountId, chainId });
 }
 
-async function activeReasonId(tx: Transaction, code: string | undefined): Promise<string> {
+// An active reason on the list for this outcome.
+async function activeReasonId(tx: Transaction, code: string | undefined, outcome: 'approved_in_part' | 'rejected'): Promise<string> {
   const [row] = code
     ? await tx
-        .select({ id: invoiceDecisionReasons.id })
+        .select({ id: invoiceDecisionReasons.id, appliesTo: invoiceDecisionReasons.appliesTo })
         .from(invoiceDecisionReasons)
         .where(and(eq(invoiceDecisionReasons.code, code), eq(invoiceDecisionReasons.active, true)))
     : [];
-  if (!row) {
-    throw new ValidationError({ reasonCode: 'Choose why.' });
+  if (!row || !reasonAppliesTo(row.appliesTo, outcome)) {
+    throw new ValidationError({ reasonCode: 'Choose a reason first.' });
   }
   return row.id;
 }
@@ -152,7 +154,7 @@ export async function reviewInvoiceLine(
     if (input.outcome === 'approved') {
       decision = { outcomeCode: 'approved', approvedAmount: money(requestedCents) };
     } else {
-      const reasonCodeId = await activeReasonId(tx, input.reasonCode);
+      const reasonCodeId = await activeReasonId(tx, input.reasonCode, input.outcome);
       if (input.reasonCode === OTHER_REASON_CODE && !input.note) {
         throw new ValidationError({ note: 'Explain the reason in the note.' });
       }
@@ -224,19 +226,25 @@ export async function undoLineDecision(db: Database, actorUserAccountId: string,
   });
 }
 
-// Approves in part, at the configured rate, every undecided time line
-// billed above it.
+// Approves in part, at the pre-authorized rate (else the configured one),
+// every undecided time line billed above it.
 export async function repriceLines(db: Database, actorUserAccountId: string, invoiceId: string) {
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
   return db.transaction(async (tx) => {
     const { locked, chainId } = await beginLineChange(tx, actorUserAccountId, invoiceId);
-    const lines = await tx
+    const [header] = await tx
+      .select({ caseId: invoice.caseId, professionalId: invoice.professionalId })
+      .from(invoice)
+      .where(eq(invoice.invoiceId, invoiceId));
+    const limits = await loadRateLimits(tx, header!.caseId);
+    const rows = await tx
       .select({
         invoiceLineId: invoiceLine.invoiceLineId,
         amount: invoiceLine.amount,
         quantity: invoiceLine.quantity,
         billedRate: invoiceLine.billedRate,
         configuredRate: invoiceLine.configuredRate,
+        timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
         decided: invoiceLineWorkingDecision.invoiceLineWorkingDecisionId,
       })
       .from(invoiceLine)
@@ -249,20 +257,21 @@ export async function repriceLines(db: Database, actorUserAccountId: string, inv
         ),
       )
       .where(eq(invoiceLine.invoiceId, invoiceId));
+    const lines = rows.map((line) => ({ ...line, limit: rateLimitFor(line, header!.professionalId, limits)?.rate ?? null }));
     const flagged = lines.filter(
       (line) =>
         !line.decided &&
-        line.configuredRate !== null &&
+        line.limit !== null &&
         line.billedRate !== null &&
         line.quantity !== null &&
-        Number(line.billedRate) > Number(line.configuredRate),
+        Number(line.billedRate) > Number(line.limit),
     );
     if (flagged.length === 0) {
       return { invoiceId, repriced: 0 };
     }
     const [outcomeId, reasonCodeId] = await Promise.all([
       getReferenceId(tx, invoiceApprovalOutcomes, 'approved'),
-      activeReasonId(tx, RATE_REASON_CODE),
+      activeReasonId(tx, RATE_REASON_CODE, 'approved_in_part'),
     ]);
     const decidedAt = new Date();
     await tx.insert(invoiceLineWorkingDecision).values(
@@ -270,9 +279,9 @@ export async function repriceLines(db: Database, actorUserAccountId: string, inv
         invoiceApprovalChainId: chainId,
         invoiceLineId: line.invoiceLineId,
         outcomeId,
-        approvedAmount: money(Math.round(Number(line.quantity) * Number(line.configuredRate) * 100)),
+        approvedAmount: money(Math.round(Number(line.quantity) * Number(line.limit) * 100)),
         approvedQuantity: line.quantity,
-        approvedRate: line.configuredRate,
+        approvedRate: line.limit,
         reasonCodeId,
         decidedByUserAccountId: actorUserAccountId,
         decidedAt,

@@ -13,6 +13,9 @@ import { PageHeader } from '../components/PageHeader';
 // cover several cases), or choose a case and enter or import one invoice for
 // it. Submitters use it for their own work; staff for invoices received by
 // email or from other tools, and they finish their drafts here.
+// The case choice for an invoice whose case staff will add later.
+const LATER = 'later';
+
 export default function PortalNewInvoice() {
   const [params, setParams] = useSearchParams();
   const caseId = params.get('case') ?? '';
@@ -56,6 +59,7 @@ export default function PortalNewInvoice() {
             onChange={(event) => setParams(event.target.value ? { case: event.target.value } : {})}
           >
             <option value="">Choose a case</option>
+            {staff && <option value={LATER}>Add case later (hold in invoice intake)</option>}
             {cases?.map((myCase) => (
               <option key={myCase.caseId} value={myCase.caseId}>
                 {caseDisplayLabel([myCase.externalReference, myCase.clientDisplayName], undefined)}
@@ -68,7 +72,9 @@ export default function PortalNewInvoice() {
         </section>
       </div>
 
-      {caseId && <CaseInvoice key={caseId} caseId={caseId} onSaved={() => setVersion((v) => v + 1)} />}
+      {caseId && (
+        <CaseInvoice key={caseId} caseId={caseId === LATER ? null : caseId} onSaved={() => setVersion((v) => v + 1)} />
+      )}
 
       {staff && drafts && drafts.length > 0 && (
         <section className="detail-section">
@@ -80,15 +86,17 @@ export default function PortalNewInvoice() {
   );
 }
 
-function CaseInvoice({ caseId, onSaved }: { caseId: string; onSaved: () => void }) {
+// caseId null: staff will add the case later, in invoice intake.
+function CaseInvoice({ caseId, onSaved }: { caseId: string | null; onSaved: () => void }) {
   const { casePath } = useShell();
   const [timeVersion, setTimeVersion] = useState(0);
   const { data: billable, error } = useApiResource(
     () => listBillableProfessionals(caseId).then((result) => result.professionals),
     [caseId],
   );
+  // Recorded time belongs to a case.
   const { data: entries } = useApiResource(
-    () => listMyTimeEntries(caseId).then((result) => result.timeEntries),
+    () => (caseId ? listMyTimeEntries(caseId).then((result) => result.timeEntries) : Promise.resolve([])),
     [caseId, timeVersion],
   );
 
@@ -100,9 +108,16 @@ function CaseInvoice({ caseId, onSaved }: { caseId: string; onSaved: () => void 
   }
   return (
     <section className="detail-section">
-      <p className="compact-hint">
-        Recorded time and earlier invoices for this case are on its <RouterLink to={casePath(caseId)}>case page</RouterLink>.
-      </p>
+      {caseId ? (
+        <p className="compact-hint">
+          Recorded time and earlier invoices for this case are on its <RouterLink to={casePath(caseId)}>case page</RouterLink>.
+        </p>
+      ) : (
+        <Notice tone="info">
+          Saved invoices wait in <RouterLink to="/intake">Invoice intake</RouterLink> until someone matches them to a case.
+          A provider who isn't listed can be added there first.
+        </Notice>
+      )}
       <NewInvoiceForm
         caseId={caseId}
         billable={billable}

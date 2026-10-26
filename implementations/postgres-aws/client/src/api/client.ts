@@ -631,8 +631,11 @@ export function rateOn(rates: ProfessionalRate[], date: string): string | undefi
   return found;
 }
 
-export function listBillableProfessionals(caseId: string): Promise<{ professionals: BillableProfessional[] }> {
-  return request<{ professionals: BillableProfessional[] }>(`/api/portal/cases/${caseId}/billable-professionals`);
+// With no case (staff holding an invoice in intake), every active professional.
+export function listBillableProfessionals(caseId: string | null): Promise<{ professionals: BillableProfessional[] }> {
+  return request<{ professionals: BillableProfessional[] }>(
+    caseId ? `/api/portal/cases/${caseId}/billable-professionals` : '/api/portal/billable-professionals',
+  );
 }
 
 export interface DraftInvoiceContent {
@@ -642,18 +645,56 @@ export interface DraftInvoiceContent {
 }
 
 // How and when an invoice staff entered was received
-// (model/rules.yaml authorize_staff_invoice_entry).
+// (model/rules.yaml authorize_staff_invoice_entry), and whether staff chose
+// to review it without a case (match_invoice_to_case).
 export interface InvoiceReceipt {
   receivedVia?: string;
   receivedOn?: string;
+  withoutCase?: boolean;
 }
 
 export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt {
-  caseId: string;
+  // Null: staff add the case later, from invoice intake.
+  caseId: string | null;
   // Whose work the invoice bills; defaults to the caller's own profile.
   professionalId?: string;
   // False keeps it as an editable draft; the server defaults to submitting.
   submit?: boolean;
+}
+
+// Invoice intake: invoices held until they are matched to a case.
+export interface IntakeItem {
+  invoiceId: string | null;
+  invoiceImportId: string | null;
+  fileName: string | null;
+  stage: 'reading' | 'unreadable' | 'to_confirm' | 'ready';
+  professionalId: string | null;
+  professionalDisplayName: string | null;
+  enteredByUserAccountId: string;
+  enteredByDisplayName: string | null;
+  enteredAt: string;
+  receivedViaDisplayName: string | null;
+  receivedOn: string | null;
+  submittedTotal: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+}
+
+export function listInvoiceIntake(): Promise<{ items: IntakeItem[] }> {
+  return request('/api/invoices/intake');
+}
+
+// addMissing adds the invoice's providers to the case when they aren't on it.
+export function matchInvoiceToCase(invoiceId: string, input: { caseId: string; addMissing?: boolean }) {
+  return request<{ invoiceId: string; caseId: string; addedProfessionalIds: string[] }>(`/api/invoices/intake/${invoiceId}/case`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+// A provider who hasn't signed in; they get this profile if they do later.
+export function addProfessional(input: { displayName: string; email?: string; professionalKindId: string }) {
+  return request<{ professionalId: string; displayName: string }>('/api/professionals', { method: 'POST', body: JSON.stringify(input) });
 }
 
 export function listReceiptChannels(): Promise<{ channels: Array<{ code: string; displayName: string }> }> {
@@ -759,12 +800,13 @@ export interface InvoiceImportDetail {
 }
 
 // The file goes as the raw body; the server identifies it from its content.
+// No case: staff hold the file in invoice intake until it is matched.
 export async function uploadInvoiceFile(
-  caseId: string,
+  caseId: string | null,
   file: File,
   professionalId?: string,
 ): Promise<{ invoiceImportId: string; status: string; invoiceId: string | null }> {
-  const query = new URLSearchParams({ caseId, ...(professionalId ? { professionalId } : {}) });
+  const query = new URLSearchParams({ ...(caseId ? { caseId } : {}), ...(professionalId ? { professionalId } : {}) });
   const response = await fetch(`/api/portal/invoice-imports?${query.toString()}`, {
     method: 'POST',
     credentials: 'include',
@@ -934,7 +976,8 @@ export function createInvoice(input: CreateInvoiceInput): Promise<{ invoiceId: s
 // One invoice's header, as the staff queue and the portal both show it.
 export interface QueuedInvoice {
   invoiceId: string;
-  caseId: string;
+  // Null while held in intake, or when staff reviewed it without a case.
+  caseId: string | null;
   caseClientDisplayName: string | null;
   caseExternalReference: string | null;
   professionalId: string;
@@ -997,9 +1040,38 @@ export function listReviewPeople(): Promise<{ people: ReviewPerson[] }> {
   return request('/api/invoices/reviewers');
 }
 
+// Which list a reason is on: approving in part, rejecting, or both.
+export type ReasonAppliesTo = 'approved_in_part' | 'rejected' | 'both';
+
 export interface DecisionReason {
   code: string;
   displayName: string;
+  appliesTo: ReasonAppliesTo;
+}
+
+export interface DecisionReasonSetting extends DecisionReason {
+  reasonId: string;
+  active: boolean;
+}
+
+export function listDecisionReasonSettings(): Promise<{ reasons: DecisionReasonSetting[] }> {
+  return request('/api/settings/decision-reasons');
+}
+
+export function addDecisionReason(input: { displayName: string; appliesTo: ReasonAppliesTo }): Promise<DecisionReasonSetting> {
+  return request('/api/settings/decision-reasons', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateDecisionReason(
+  reasonId: string,
+  input: Partial<{ displayName: string; appliesTo: ReasonAppliesTo; active: boolean }>,
+): Promise<DecisionReasonSetting> {
+  return request(`/api/settings/decision-reasons/${reasonId}`, { method: 'PUT', body: JSON.stringify(input) });
+}
+
+// One row per submitted invoice, for reports outside the tool.
+export function billingRecordUrl(format: 'csv' | 'xlsx'): string {
+  return `/api/invoices/billing-record?format=${format}`;
 }
 
 export function listDecisionReasons(): Promise<{ reasons: DecisionReason[] }> {
@@ -1039,8 +1111,12 @@ export interface InvoiceReviewLine {
   statedAmount: string | null;
   // The rate a time or mileage line is billed at.
   billedRate: string | null;
-  // Time lines: the configured rate, for the rate check.
+  // Time lines: the configured rate for the professional's kind.
   configuredRate: string | null;
+  // Time lines: what the rate check compares to, the pre-authorized rate
+  // when the case has one, else the configured rate.
+  rateLimit: string | null;
+  rateLimitSource: 'preauthorized' | 'configured' | null;
   // 'mileage' on a mileage line; its quantity is the miles claimed.
   expenseTypeCode: string | null;
   tripOrigin: string | null;

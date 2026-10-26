@@ -14,6 +14,7 @@ import { latestRoundNumber, loadRecordedDecisions, signOffProgress } from './rev
 import { loadAssignments } from './reviewAssignment';
 import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
+import { loadRateLimits, rateLimitFor } from './preauthorizations';
 import type { RuleFinding } from './billingRules';
 import {
   APPROVED_INVOICE_STATUS_CODE,
@@ -27,7 +28,7 @@ import {
 export type QueueView = 'open' | 'finished' | 'all';
 
 export interface QueueFlag {
-  kind: 'rate' | 'arithmetic' | 'rule';
+  kind: 'rate' | 'arithmetic' | 'rule' | 'no_case';
   message: string;
 }
 
@@ -57,6 +58,7 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
         statedAmount: invoiceLine.statedAmount,
         billedRate: invoiceLine.billedRate,
         configuredRate: invoiceLine.configuredRate,
+        timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       })
       .from(invoiceLine)
       .where(inArray(invoiceLine.invoiceId, invoiceIds)),
@@ -75,6 +77,8 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
     .select({ chainId: invoiceLineWorkingDecision.invoiceApprovalChainId })
     .from(invoiceLineWorkingDecision)
     .where(inArray(invoiceLineWorkingDecision.invoiceApprovalChainId, chains.map((chain) => chain.chainId)));
+  const caseIds = [...new Set(headers.map((header) => header.caseId))];
+  const rateLimits = new Map(await Promise.all(caseIds.map(async (caseId) => [caseId, await loadRateLimits(db, caseId)] as const)));
 
   const rows = await Promise.all(
     headers.map(async (header) => {
@@ -92,13 +96,19 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
         .reduce((sum, decision) => sum + Math.round(Number(decision.approvedAmount ?? 0) * 100), 0);
 
       const flags: QueueFlag[] = [];
-      const overRate = own.find(
-        (line) => line.configuredRate !== null && line.billedRate !== null && Number(line.billedRate) !== Number(line.configuredRate),
-      );
-      if (overRate) {
+      if (header.caseId === null) {
+        flags.push({ kind: 'no_case', message: 'No case: the provider and case are not tracked in this system' });
+      }
+      // Time lines (the ones with a configured rate) billed above their limit.
+      const limits = rateLimits.get(header.caseId) ?? new Map();
+      const overRate = own
+        .filter((line) => line.configuredRate !== null && line.billedRate !== null)
+        .map((line) => ({ line, limit: rateLimitFor(line, header.professionalId, limits) }))
+        .find(({ line, limit }) => limit && Number(line.billedRate) > Number(limit.rate));
+      if (overRate?.limit) {
         flags.push({
           kind: 'rate',
-          message: `Rate check: invoice bills ${money(overRate.billedRate as string)} an hour, configured ${money(overRate.configuredRate as string)}`,
+          message: `Rate check: bills ${money(overRate.line.billedRate as string)} an hour, ${overRate.limit.source === 'preauthorized' ? 'pre-authorized' : 'configured'} ${money(overRate.limit.rate)}`,
         });
       }
       const mismatch = own.find(

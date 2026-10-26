@@ -51,6 +51,39 @@ export function ReviewerSelect({
   );
 }
 
+// The queue's Assign button for an invoice with no reviewer: pick someone
+// and it is theirs.
+export function AssignReviewer({ invoiceId, onAssigned }: { invoiceId: string; onAssigned: (name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const people = useReviewPeople(open);
+  const [error, setError] = useState<string | null>(null);
+  if (!open) {
+    return (
+      <button type="button" className="btn btn--outline btn--small" onClick={() => setOpen(true)}>
+        Assign
+      </button>
+    );
+  }
+  return (
+    <>
+      <label className="usa-sr-only" htmlFor={`assign-${invoiceId}`}>Who reviews this invoice</label>
+      <ReviewerSelect
+        id={`assign-${invoiceId}`}
+        people={people ?? []}
+        value=""
+        onChange={(userAccountId) => {
+          setError(null);
+          reassignReviewer(invoiceId, { userAccountId, forCase: false }).then(
+            () => onAssigned(people?.find((person) => person.userAccountId === userAccountId)?.displayName ?? 'them'),
+            (err: unknown) => setError(apiErrorMessage(err, 'Could not assign the invoice.')),
+          );
+        }}
+      />
+      {error && <span className="field-error">{error}</span>}
+    </>
+  );
+}
+
 // Who reviews this invoice: only people who review invoices, with how many
 // each has waiting, so the work can be spread.
 export function ReviewerPicker({
@@ -64,7 +97,8 @@ export function ReviewerPicker({
   reviewer: AssignedPerson | null;
   currentUserId: string;
   canChange: boolean;
-  onChanged: (message: string) => void;
+  // Undo gives it back to the previous reviewer; there's none to give it back to when it had none.
+  onChanged: (message: string, undo?: () => Promise<unknown>) => void;
 }) {
   const [open, setOpen] = useState(false);
   const people = useReviewPeople(open);
@@ -83,9 +117,13 @@ export function ReviewerPicker({
     setSaving(true);
     setError(null);
     try {
+      const previous = reviewer?.userAccountId;
       await reassignReviewer(invoiceId, { userAccountId: chosen, forCase });
       setOpen(false);
-      onChanged(`Given to ${chosenName ?? 'the new reviewer'}.`);
+      onChanged(
+        `Given to ${chosenName ?? 'the new reviewer'}.`,
+        previous && previous !== chosen ? () => reassignReviewer(invoiceId, { userAccountId: previous, forCase: false }) : undefined,
+      );
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not change the reviewer.'));
     } finally {

@@ -20,7 +20,8 @@ interface UndatedLine {
 }
 
 interface Period {
-  caseId: string;
+  // Null for an invoice with no case: there is no assignment to check.
+  caseId: string | null;
   periodStart: string;
   periodEnd: string;
 }
@@ -46,17 +47,20 @@ async function periodEndBlockers(
       changes.set(rate.professionalId, rate.effectiveFrom);
     }
   }
-  const covering = await tx
-    .selectDistinct({ professionalId: caseAssignment.professionalId })
-    .from(caseAssignment)
-    .where(
-      and(
-        eq(caseAssignment.caseId, caseId),
-        inArray(caseAssignment.professionalId, professionalIds),
-        lte(sql`${caseAssignment.assignedAt}::date`, periodStart),
-        or(isNull(caseAssignment.endedAt), sql`${caseAssignment.endedAt}::date > ${periodEnd}`),
-      ),
-    );
+  const covering =
+    caseId === null
+      ? professionalIds.map((professionalId) => ({ professionalId }))
+      : await tx
+          .selectDistinct({ professionalId: caseAssignment.professionalId })
+          .from(caseAssignment)
+          .where(
+            and(
+              eq(caseAssignment.caseId, caseId),
+              inArray(caseAssignment.professionalId, professionalIds),
+              lte(sql`${caseAssignment.assignedAt}::date`, periodStart),
+              or(isNull(caseAssignment.endedAt), sql`${caseAssignment.endedAt}::date > ${periodEnd}`),
+            ),
+          );
   const assignedThroughout = new Set(covering.map((row) => row.professionalId));
   const names = new Map(
     (
@@ -80,7 +84,7 @@ async function periodEndBlockers(
 
 export async function inferServiceDates(
   tx: Transaction,
-  args: { caseId: string; periodStart?: string; periodEnd?: string; lines: UndatedLine[] },
+  args: { caseId: string | null; periodStart?: string; periodEnd?: string; lines: UndatedLine[] },
 ): Promise<{ dates: Array<string | undefined>; inferred: boolean[]; warnings: ImportWarning[] }> {
   const { periodStart, periodEnd, caseId, lines } = args;
   const dates = lines.map((line) => line.serviceDate);

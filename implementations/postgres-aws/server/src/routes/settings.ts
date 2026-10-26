@@ -15,6 +15,7 @@ import {
   setBillingRule,
 } from '../billing/billingRules';
 import { getReviewSettings, setReviewSettings } from '../billing/reviewSettings';
+import { addDecisionReason, listDecisionReasons, updateDecisionReason } from '../billing/decisionReasons';
 import { listReviewPeople } from '../billing/reviewAccess';
 import { listStaffRoles, setStaffRole } from '../auth/staffAccountRole';
 import { asyncHandler } from './asyncHandler';
@@ -120,6 +121,31 @@ router.put(
   asyncHandler(async (req, res) => {
     const user = getSessionUser(req)!;
     res.json(await setStaffRole(db, user.userAccountId, req.params.userAccountId as string, req.body));
+  }),
+);
+
+// Reasons for approving a line in part or rejecting it. Retired reasons stay
+// on the decisions that used them.
+router.get(
+  '/decision-reasons',
+  asyncHandler(async (_req, res) => {
+    res.json({ reasons: await listDecisionReasons(db) });
+  }),
+);
+
+router.post(
+  '/decision-reasons',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await addDecisionReason(db, req.body));
+  }),
+);
+
+router.put(
+  '/decision-reasons/:id',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.json(await updateDecisionReason(db, req.params.id as string, req.body));
   }),
 );
 

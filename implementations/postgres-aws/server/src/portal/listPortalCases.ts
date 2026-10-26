@@ -85,7 +85,9 @@ function unsubmittedInvoices(
         inArray(invoiceStatuses.code, UNSUBMITTED_INVOICE_STATUS_CODES),
         portalReadableInvoiceCondition(db, reader),
       ),
-    );
+    )
+    // Filtered to these cases, so none is without one.
+    .then((rows) => rows.flatMap((row) => (row.caseId ? [{ caseId: row.caseId, professionalId: row.professionalId }] : [])));
 }
 
 function idsByCase(pairs: CaseProfessionalPairs): Map<string, string[]> {
@@ -161,7 +163,7 @@ export async function listPortalCases(
       loadCaseNumbers(db, caseIds),
     ]);
     for (const [caseId, { caseNumber }] of numbers) {
-      byCase.get(caseId)!.caseNumber = caseNumber;
+      if (caseId) byCase.get(caseId)!.caseNumber = caseNumber;
     }
     for (const [caseId, ids] of idsByCase(time)) {
       byCase.get(caseId)!.unsubmittedTimeProfessionalIds = ids;

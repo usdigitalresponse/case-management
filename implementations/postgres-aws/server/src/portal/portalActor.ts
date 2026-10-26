@@ -124,11 +124,22 @@ export async function representedProfessionalIds(
   return rows.map((row) => row.professionalId);
 }
 
+// Every active professional, for staff entering an invoice not yet matched
+// to a case (model/rules.yaml match_invoice_to_case).
+async function allActiveProfessionalIds(db: DatabaseOrTransaction): Promise<string[]> {
+  const rows = await db.select({ professionalId: professional.professionalId }).from(professional).where(eq(professional.active, true));
+  return rows.map((row) => row.professionalId);
+}
+
+// With no case, only staff may bill, for any active professional.
 export async function billableProfessionalIds(
   db: DatabaseOrTransaction,
   actor: PortalActor,
-  caseId: string,
+  caseId: string | null,
 ): Promise<string[]> {
+  if (caseId === null) {
+    return (await isStaffAccount(db, actor.userAccountId)) ? allActiveProfessionalIds(db) : [];
+  }
   const ids = new Set(await representedProfessionalIds(db, actor.userAccountId, caseId));
   if (actor.professionalId) {
     const [own] = await db

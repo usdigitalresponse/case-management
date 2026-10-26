@@ -47,6 +47,56 @@ async function approvedCents(db: DatabaseOrTransaction, invoiceId: string): Prom
     .reduce((sum, decision) => sum + toCents(decision.approvedAmount), 0);
 }
 
+// The pre-authorized hourly rate per professional on a case (null key: a
+// pre-authorization for the whole case), from each approved
+// pre-authorization's latest decision that set one.
+export async function loadRateLimits(db: DatabaseOrTransaction, caseId: string | null): Promise<Map<string | null, string>> {
+  if (caseId === null) {
+    return new Map();
+  }
+  const rows = await db
+    .select({
+      preauthorizationId: preauthorization.preauthorizationId,
+      professionalId: preauthorization.professionalId,
+      rate: preauthorizationDecision.approvedHourlyRate,
+      outcomeCode: preauthorizationOutcomes.code,
+    })
+    .from(preauthorization)
+    .innerJoin(preauthorizationStatuses, eq(preauthorization.statusId, preauthorizationStatuses.id))
+    .innerJoin(preauthorizationDecision, eq(preauthorizationDecision.preauthorizationId, preauthorization.preauthorizationId))
+    .innerJoin(preauthorizationOutcomes, eq(preauthorizationDecision.outcomeId, preauthorizationOutcomes.id))
+    .where(and(eq(preauthorization.caseId, caseId), eq(preauthorizationStatuses.code, 'approved')))
+    .orderBy(desc(preauthorizationDecision.sequenceNumber));
+  const limits = new Map<string | null, string>();
+  const seen = new Set<string>();
+  for (const row of rows) {
+    // Only each pre-authorization's latest decision counts.
+    if (seen.has(row.preauthorizationId)) continue;
+    seen.add(row.preauthorizationId);
+    if (row.rate !== null && row.outcomeCode !== 'denied' && !limits.has(row.professionalId)) {
+      limits.set(row.professionalId, row.rate);
+    }
+  }
+  return limits;
+}
+
+export interface RateLimit {
+  rate: string;
+  source: 'preauthorized' | 'configured';
+}
+
+// The rate a time line is checked against: the pre-authorized rate for the
+// professional whose work it is, else the case's, else the configured rate.
+export function rateLimitFor(
+  line: { timekeeperProfessionalId: string | null; configuredRate: string | null },
+  invoiceProfessionalId: string,
+  limits: Map<string | null, string>,
+): RateLimit | null {
+  const preauthorized = limits.get(line.timekeeperProfessionalId ?? invoiceProfessionalId) ?? limits.get(null);
+  if (preauthorized) return { rate: preauthorized, source: 'preauthorized' };
+  return line.configuredRate === null ? null : { rate: line.configuredRate, source: 'configured' };
+}
+
 export async function loadPreauthorizationSummaries(db: DatabaseOrTransaction, caseId: string): Promise<PreauthorizationSummary[]> {
   const authorizations = await db
     .select({

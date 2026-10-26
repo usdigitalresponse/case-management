@@ -45,10 +45,12 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
     [invoice.caseId],
   );
   // Unbilled time can be ticked on; time already on this draft shows ticked.
+  // Recorded time belongs to a case, so an invoice in intake has none.
   const { data: caseTime } = useApiResource(
-    () => listMyTimeEntries(invoice.caseId).then((result) => result.timeEntries),
+    () => (invoice.caseId ? listMyTimeEntries(invoice.caseId).then((result) => result.timeEntries) : Promise.resolve([])),
     [invoice.caseId],
   );
+  const noCase = invoice.caseId === null;
   const billableIds = new Set((timekeepers ?? []).map((p) => p.professionalId));
   const pickable = (caseTime ?? []).filter(
     (entry) =>
@@ -73,7 +75,11 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
         });
       }
       if (action !== 'save') {
-        await transitionInvoice(invoice.invoiceId, action, action === 'submit' && staff ? receipt : undefined);
+        await transitionInvoice(
+          invoice.invoiceId,
+          action,
+          action === 'submit' && staff ? { ...receipt, withoutCase: noCase || undefined } : undefined,
+        );
       }
       if (action === 'save') {
         setMessage({ tone: 'success', text: 'Draft saved.' });
@@ -93,6 +99,13 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
     <div className="compact-card">
       <h2>Edit draft</h2>
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
+      {noCase && (
+        <Notice tone="warning" heading="This invoice isn't linked to a case.">
+          Match it to a case in <RouterLink to="/intake">Invoice intake</RouterLink>. You can still send it to review without one,
+          but this system won't check the case, the provider's assignment or any pre-authorization, and its documents
+          will say so.
+        </Notice>
+      )}
       <RulesInForce rules={billingRules.rules} />
       {/* As last saved; saving shows the effect of edits. */}
       <RuleFindings findings={data.ruleFindings} />
@@ -100,7 +113,9 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
         <ReceivedFields idPrefix="draft" value={receipt} onChange={setReceipt} receivedViaDisplayName={invoice.receivedViaDisplayName} />
       )}
       <PeriodFields idPrefix="draft" start={period.start} end={period.end} onChange={setPeriod} />
-      <UnbilledTimePicker idPrefix="draft" entries={pickable} lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
+      {!noCase && (
+        <UnbilledTimePicker idPrefix="draft" entries={pickable} lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
+      )}
       <InvoiceLinesEditor
         idPrefix="draft"
         lines={lines}
@@ -112,8 +127,13 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
         mileageRates={billingRules.mileageRates}
       />
       <div className="invoice-actions">
-        <button type="button" className="btn btn--primary" disabled={busy || !hasInvoiceItems(lines) || needsReceipt} onClick={() => void run('submit')}>
-          Submit invoice
+        <button
+          type="button"
+          className={`btn ${noCase ? 'btn--outline' : 'btn--primary'}`}
+          disabled={busy || !hasInvoiceItems(lines) || needsReceipt}
+          onClick={() => void run('submit')}
+        >
+          {noCase ? 'Review without a case' : 'Submit invoice'}
         </button>
         <button type="button" className="btn btn--outline" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>
           Save draft
@@ -183,11 +203,21 @@ export default function PortalInvoiceDetail() {
     <div>
       <PageHeader
         crumbs={[
-          fromBulk ? { label: 'Imports', to: '/portal/imports' } : { label: shell.invoicesLabel, to: shell.invoicesPath },
-          { label: invoice.caseClientDisplayName ?? 'Case', to: shell.casePath(invoice.caseId) },
+          fromBulk
+            ? { label: 'Imports', to: '/portal/imports' }
+            : invoice.caseId
+              ? { label: shell.invoicesLabel, to: shell.invoicesPath }
+              : { label: 'Invoice intake', to: '/intake' },
+          invoice.caseId
+            ? { label: invoice.caseClientDisplayName ?? 'Case', to: shell.casePath(invoice.caseId) }
+            : { label: 'No case yet' },
           { label: invoiceReference(invoice.invoiceId) },
         ]}
-        title={invoice.caseClientDisplayName ?? caseDisplayLabel([invoice.caseExternalReference], undefined)}
+        title={
+          invoice.caseId
+            ? (invoice.caseClientDisplayName ?? caseDisplayLabel([invoice.caseExternalReference], undefined))
+            : `Invoice from ${invoice.professionalDisplayName ?? 'an unknown provider'}`
+        }
         status={<StatusPill code={invoice.statusCode} label={isDraft ? 'Draft' : invoice.statusDisplayName} />}
         meta={
           <>

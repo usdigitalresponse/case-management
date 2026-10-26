@@ -2,9 +2,13 @@
 // review, finishing, sign-off, routing and export.
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { and, asc, count, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/client';
-import { invoiceApprovalStepTypes, invoiceDecisionReasons, invoiceReviewAssignment, invoice, invoiceStatuses } from '../db/schema';
+import { invoiceApprovalStepTypes, invoiceReviewAssignment, invoice, invoiceStatuses } from '../db/schema';
+import { listDecisionReasons } from '../billing/decisionReasons';
+import { billingRecordCsv, billingRecordXlsx, loadBillingRecord } from '../billing/billingRecord';
+import { listInvoiceIntake, matchInvoiceToCase } from '../billing/invoiceIntake';
+import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { loadInvoiceDetail } from '../billing/invoiceDetail';
 import { isExportableStatus } from '../billing/invoiceAccess';
 import { getSessionUser, requireFullUser } from '../auth/session';
@@ -31,16 +35,41 @@ router.get(
   }),
 );
 
+// Invoice intake: invoices not yet matched to a case, and matching one.
+router.get(
+  '/intake',
+  asyncHandler(async (req, res) => {
+    res.json({ items: await listInvoiceIntake(db, actorId(req)) });
+  }),
+);
+
+router.post(
+  '/intake/:id/case',
+  asyncHandler(async (req, res) => {
+    res.json(await matchInvoiceToCase(db, actorId(req), req.params.id as string, req.body));
+  }),
+);
+
+// Every submitted invoice, one row each, for reports outside the tool.
+router.get(
+  '/billing-record',
+  asyncHandler(async (req, res) => {
+    const rows = await loadBillingRecord(db);
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.set('Cache-Control', 'no-store');
+    if (req.query.format === 'xlsx') {
+      res.type(INVOICE_EXPORT_MEDIA_TYPES.xlsx).attachment(`billing-record-${stamp}.xlsx`).send(await billingRecordXlsx(rows));
+      return;
+    }
+    res.type('text/csv').attachment(`billing-record-${stamp}.csv`).send(billingRecordCsv(rows));
+  }),
+);
+
 router.get(
   '/decision-reasons',
   asyncHandler(async (_req, res) => {
-    res.json({
-      reasons: await db
-        .select({ code: invoiceDecisionReasons.code, displayName: invoiceDecisionReasons.displayName })
-        .from(invoiceDecisionReasons)
-        .where(eq(invoiceDecisionReasons.active, true))
-        .orderBy(asc(invoiceDecisionReasons.displayName)),
-    });
+    const reasons = await listDecisionReasons(db, { activeOnly: true });
+    res.json({ reasons: reasons.map(({ code, displayName, appliesTo }) => ({ code, displayName, appliesTo })) });
   }),
 );
 
@@ -90,10 +119,11 @@ router.get(
   asyncHandler(async (req, res) => {
     const detail = await loadOrThrow(req.params.id as string);
     // This professional's pre-authorization on the case, for the facts strip.
-    const preauthorization =
-      (await loadPreauthorizationSummaries(db, detail.invoice.caseId)).find(
-        (summary) => summary.professionalId === null || summary.professionalId === detail.invoice.professionalId,
-      ) ?? null;
+    const preauthorization = detail.invoice.caseId
+      ? ((await loadPreauthorizationSummaries(db, detail.invoice.caseId)).find(
+          (summary) => summary.professionalId === null || summary.professionalId === detail.invoice.professionalId,
+        ) ?? null)
+      : null;
     res.json({ ...detail, preauthorization });
   }),
 );

@@ -5,8 +5,9 @@ export interface ToastMessage {
   undo?: () => Promise<unknown>;
 }
 
-// A short-lived message at the bottom of the screen, cleared after a while.
-export function useToast(timeoutMs = 8000) {
+// A short-lived message at the bottom of the screen, cleared after about 4
+// seconds; after that, changes are made on the line itself.
+export function useToast(timeoutMs = 4000) {
   const [toast, setToast] = useState<ToastMessage | null>(null);
   useEffect(() => {
     if (!toast) return undefined;

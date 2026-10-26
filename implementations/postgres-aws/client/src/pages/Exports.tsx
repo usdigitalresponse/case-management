@@ -1,4 +1,4 @@
-import { listReviewQueue } from '../api/client';
+import { billingRecordUrl, listReviewQueue } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
 import { PageHeader } from '../components/PageHeader';
@@ -17,7 +17,20 @@ export default function Exports() {
   }
   return (
     <div>
-      <PageHeader title="Exports" description="Signed-off invoices, with every decision and reason, to send for payment." />
+      <PageHeader
+        title="Exports"
+        description="Signed-off invoices, with every decision and reason, to send for payment."
+        actions={
+          <>
+            <a className="btn btn--outline" href={billingRecordUrl('csv')} download>Billing record (CSV)</a>
+            <a className="btn btn--outline" href={billingRecordUrl('xlsx')} download>Billing record (spreadsheet)</a>
+          </>
+        }
+      />
+      <p className="compact-hint">
+        The billing record has one row per submitted invoice: case number, provider, amounts requested and approved, the
+        cut and its reasons, status and who signed off. Use it for reports outside this tool.
+      </p>
       <Notice tone="info">
         Check each PDF or spreadsheet for confidential information before you send it. This system does not remove it.
       </Notice>

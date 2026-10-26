@@ -132,12 +132,14 @@ router.get(
   }),
 );
 
+// Whom the user may bill for on a case, or, for staff with no case yet
+// (invoice intake), any active professional.
 router.get(
-  '/cases/:caseId/billable-professionals',
+  ['/cases/:caseId/billable-professionals', '/billable-professionals'],
   asyncHandler(async (req, res) => {
     const actor = await sessionActor(req);
-    const caseId = req.params.caseId as string;
-    const ids = z.uuid().safeParse(caseId).success ? await billableProfessionalIds(db, actor, caseId) : [];
+    const caseId = (req.params.caseId as string | undefined) ?? null;
+    const ids = caseId === null || z.uuid().safeParse(caseId).success ? await billableProfessionalIds(db, actor, caseId) : [];
     const rows =
       ids.length === 0
         ? []

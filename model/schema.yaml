@@ -441,8 +441,9 @@ entities:
         required: true
       case_id:
         type: uuid
-        required: true
+        required: false
         references: case.case_id
+        description: Empty while staff hold the request in invoice intake, or when they chose to review it without a case (match_invoice_to_case).
       service_provider_id:
         type: uuid
         required: true
@@ -481,8 +482,9 @@ entities:
         references: invoice.invoice_id
       case_id:
         type: uuid
-        required: true
+        required: false
         references: case.case_id
+        description: The request's case; empty with it.
       line_type_id:
         type: reference
         required: true
@@ -601,7 +603,7 @@ entities:
         type: uuid
         required: false
         references: case.case_id
-        description: Case chosen by the uploader for the whole file, or the case its lines were assigned to when the file was split by case; required before a draft request is created.
+        description: Case chosen by the uploader for the whole file, or the case its lines were assigned to when the file was split by case. Empty for a file staff hold in invoice intake until it is matched (match_invoice_to_case).
       source_format_id:
         type: reference
         required: true
@@ -1625,6 +1627,10 @@ entities:
       approved_amount:
         type: money
         required: false
+      approved_hourly_rate:
+        type: money
+        required: false
+        description: The hourly rate time is authorized at; review checks time lines against it (apply_professional_rates).
       effective_at:
         type: datetime
         required: true

@@ -24,6 +24,7 @@ import {
   userAccount,
 } from '../db/schema';
 import { evaluateBillingRules, type RuleFinding } from './billingRules';
+import { loadRateLimits, rateLimitFor, type RateLimit } from './preauthorizations';
 import { latestRoundNumber, loadRecordedDecisions, signOffProgress, type RecordedDecision } from './reviewRounds';
 import { AWAITING_SIGN_OFF_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
 import { loadAssignments, SIGN_OFF_STEP_TYPE_CODE, type InvoiceAssignments } from './reviewAssignment';
@@ -68,8 +69,10 @@ export type InvoiceHeader = Awaited<ReturnType<typeof selectInvoiceHeaders>>[num
 
 // A case's number is its primary identifier, else its external reference;
 // its other identifiers (such as court numbers) are listed after it.
-export async function loadCaseNumbers(db: DatabaseOrTransaction, caseIds: string[]) {
-  const result = new Map<string, { caseNumber: string | null; otherNumbers: string[] }>();
+// Invoices with no case (null) have no numbers.
+export async function loadCaseNumbers(db: DatabaseOrTransaction, maybeCaseIds: Array<string | null>) {
+  const result = new Map<string | null, { caseNumber: string | null; otherNumbers: string[] }>();
+  const caseIds = maybeCaseIds.filter((caseId): caseId is string => caseId !== null);
   if (caseIds.length === 0) {
     return result;
   }
@@ -169,6 +172,10 @@ export interface PastDecisionView extends LineDecisionView {
 type LineRow = Awaited<ReturnType<typeof selectLines>>[number];
 
 export type InvoiceDetailLine = LineRow & {
+  // The rate check's limit for a time line: the pre-authorized rate, else
+  // the configured one (./preauthorizations.ts rateLimitFor).
+  rateLimit: string | null;
+  rateLimitSource: RateLimit['source'] | null;
   // The latest recorded round's decision, flattened as before.
   decisionOutcomeCode: DecisionOutcomeCode | null;
   decisionOutcomeDisplayName: string | null;
@@ -237,7 +244,7 @@ export async function loadInvoiceDetail(
   if (!header) {
     return undefined;
   }
-  const [lineRows, [attempt], caseNumbers] = await Promise.all([
+  const [lineRows, [attempt], caseNumbers, rateLimits] = await Promise.all([
     selectLines(db, invoiceId),
     db
       .select({
@@ -248,6 +255,7 @@ export async function loadInvoiceDetail(
       .from(invoiceApprovalChain)
       .where(and(eq(invoiceApprovalChain.invoiceId, invoiceId), isNull(invoiceApprovalChain.supersededAt))),
     loadCaseNumbers(db, [header.caseId]),
+    loadRateLimits(db, header.caseId),
   ]);
   const recorded: RecordedDecision[] = attempt ? await loadRecordedDecisions(db, attempt.invoiceApprovalChainId) : [];
   const working =
@@ -313,8 +321,11 @@ export async function loadInvoiceDetail(
       .filter((past) => round !== null && past.sequenceNumber < round)
       .map((past) => ({ ...view(past, past.reason, line.amount), round: past.sequenceNumber }));
     const own = working.find((row) => row.invoiceLineId === line.invoiceLineId);
+    const limit = line.lineTypeCode === 'time' ? rateLimitFor(line, header.professionalId, rateLimits) : null;
     return {
       ...line,
+      rateLimit: limit?.rate ?? null,
+      rateLimitSource: limit?.source ?? null,
       decisionOutcomeCode: decision?.outcomeCode ?? null,
       decisionOutcomeDisplayName: decision?.outcomeDisplayName ?? null,
       decisionApprovedAmount: decision?.approvedAmount ?? null,

@@ -7,6 +7,9 @@ import type { InvoiceDetail, InvoiceDetailLine } from './invoiceDetail';
 
 export type InvoiceExportFormat = 'pdf' | 'xlsx';
 
+export const NO_CASE_WARNING =
+  'Not linked to a case. This system did not check the case, the provider’s assignment or any pre-authorization.';
+
 export const INVOICE_EXPORT_MEDIA_TYPES: Record<InvoiceExportFormat, string> = {
   pdf: 'application/pdf',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -51,11 +54,12 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
   const approvedCents = lines.reduce((sum, line) => sum + toCents(line.decisionApprovedAmount), 0);
   const period =
     invoice.periodStart || invoice.periodEnd ? `${invoice.periodStart ?? ''} to ${invoice.periodEnd ?? ''}` : '';
-  const caseLabel = [invoice.caseExternalReference, invoice.caseClientDisplayName].filter(Boolean).join(' / ');
-
   const summary: Array<[string, string]> = [
     ['Invoice', invoice.invoiceId],
-    ['Case', caseLabel || invoice.caseId],
+    // Reviewed without a case: say so, as the warning on screen does.
+    ['Case number', detail.caseNumber ?? invoice.caseExternalReference ?? invoice.caseId ?? NO_CASE_WARNING],
+    ['Court numbers', detail.otherCaseNumbers.join(', ')],
+    ['Client', invoice.caseClientDisplayName ?? ''],
     ['Professional', invoice.professionalDisplayName ?? ''],
     ['Submitted by', invoice.submittedByDisplayName ?? ''],
     ['Status', invoice.statusDisplayName ?? ''],
@@ -72,11 +76,9 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
     ['Exported', formatInstant(options.exportedAt)],
   ];
 
-  const hasHistory = lines.some((line) => line.history.length > 0);
+  // Each line's latest decision only; earlier rounds stay in the tool
+  // (model/rules.yaml authorize_payment_request_export).
   const columns = ['Date', 'Type', 'Description', 'Timekeeper', 'Codes', 'Hours / qty', 'Rate', 'Requested', 'Decision', 'Approved', 'Reason'];
-  if (hasHistory) {
-    columns.push('Earlier decisions');
-  }
   if (options.includeReviewer) {
     columns.push('Reviewed by');
   }
@@ -96,22 +98,6 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
       toNumber(line.decisionApprovedAmount),
       line.decisionReason ?? '',
     ];
-    if (hasHistory) {
-      row.push(
-        line.history
-          .map((past) =>
-            [
-              `Round ${past.round}: ${past.outcomeDisplayName}`,
-              past.approvedAmount && past.outcomeCode !== 'approved' ? past.approvedAmount : null,
-              past.reasonDisplayName,
-              past.note,
-            ]
-              .filter(Boolean)
-              .join(', '),
-          )
-          .join('; '),
-      );
-    }
     if (options.includeReviewer) {
       row.push(line.decidedByDisplayName ?? '');
     }
@@ -191,7 +177,7 @@ export function renderInvoicePdf(detail: InvoiceDetail, options: InvoiceExportOp
   const formatCell = (cell: string | number | null, index: number, amountColumns = content.amountColumns): string =>
     cell === null ? '' : typeof cell === 'number' ? (amountColumns.has(index) ? formatAmount(cell) : String(cell)) : cell;
   // Widths in points across the landscape page; description takes the rest.
-  const widths = [56, 42, '*', 78, 72, 42, 48, 52, 52, 52, 84, ...(content.columns.includes('Earlier decisions') ? [90] : []), 70];
+  const widths = [56, 42, '*', 78, 72, 42, 48, 52, 52, 52, 84, 70];
   const hoursColumn = content.columns.indexOf('Hours / qty');
   doc.fontSize(8).table({
     columnStyles: (column) => ({

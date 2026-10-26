@@ -1,11 +1,12 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { Checkbox, ErrorMessage, Fieldset, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
 import {
   ApiError,
   createCase,
   getReferenceData,
   isValidationErrorBody,
+  matchInvoiceToCase,
   searchPeople,
   type PersonRecord,
 } from '../api/client';
@@ -21,6 +22,8 @@ function generateRequestId(): string {
 
 export default function NewCaseIntake() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const intakeInvoiceId = searchParams.get('intake');
   const { data: referenceData, error: loadError } = useApiResource(getReferenceData, []);
 
   const [selectedPerson, setSelectedPerson] = useState<PersonRecord | null>(null);
@@ -84,6 +87,17 @@ export default function NewCaseIntake() {
         pendingRequest.current = { payload, requestId: generateRequestId() };
       }
       const result = await createCase({ ...input, requestId: pendingRequest.current.requestId });
+      // Started from invoice intake: match that invoice to the new case,
+      // adding its provider to it.
+      if (intakeInvoiceId) {
+        try {
+          await matchInvoiceToCase(intakeInvoiceId, { caseId: result.caseId, addMissing: true });
+          navigate(`/intake?matched=${intakeInvoiceId}`);
+          return;
+        } catch {
+          // The case exists; the invoice can still be matched from intake.
+        }
+      }
       navigate(`/cases/${result.caseId}`);
     } catch (error) {
       if (error instanceof ApiError && error.status === 400 && isValidationErrorBody(error.body)) {
@@ -99,6 +113,11 @@ export default function NewCaseIntake() {
   const heading = (
     <>
       <PageHeader crumbs={[{ label: 'Cases', to: '/cases' }, { label: 'New case' }]} title="Start a new case" />
+      {intakeInvoiceId && (
+        <Notice tone="info">
+          The invoice from intake is matched to this case when you create it, and its provider is added to the case.
+        </Notice>
+      )}
       {/* Placeholder: importing cases from another system is planned. */}
       <div className="import-case">
         <button type="button" className="btn btn--outline" disabled title="Not available yet">

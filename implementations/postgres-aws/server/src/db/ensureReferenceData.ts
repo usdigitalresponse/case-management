@@ -43,10 +43,10 @@ export async function ensureReferenceData(db: Database): Promise<void> {
       .insert(invoiceStatuses)
       .values([
         { code: 'draft', displayName: 'Draft' },
-        { code: 'submitted', displayName: 'Submitted' },
+        { code: 'submitted', displayName: 'Waiting for review' },
         { code: 'under_review', displayName: 'Being reviewed' },
         { code: 'awaiting_sign_off', displayName: 'Waiting for sign-off' },
-        { code: 'approved', displayName: 'Approved' },
+        { code: 'approved', displayName: 'Signed off' },
         { code: 'rejected', displayName: 'Rejected' },
         { code: 'withdrawn', displayName: 'Withdrawn' },
       ])
@@ -93,6 +93,7 @@ export async function ensureReferenceData(db: Database): Promise<void> {
         { code: 'review_reopened', displayName: 'Review reopened' },
         { code: 'signed_off', displayName: 'Signed off' },
         { code: 'sent_back', displayName: 'Sent back to the reviewer' },
+        { code: 'matched_to_case', displayName: 'Matched to a case' },
       ])
       .onConflictDoNothing({ target: invoiceEventTypes.code }),
     db

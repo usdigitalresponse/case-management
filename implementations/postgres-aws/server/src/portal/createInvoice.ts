@@ -12,10 +12,13 @@ import { billableProfessionalIds, type PortalActor } from './portalActor';
 import { receiptInputSchema, recordReceipt } from '../billing/invoiceReceipt';
 
 export const createInvoiceInputSchema = draftContentSchema.extend({
-  caseId: z.string().uuid(),
+  // Null: staff will add the case later, from invoice intake.
+  caseId: z.string().uuid().nullable(),
   // Defaults to the caller's own profile; a delegate names whom they bill for.
   professionalId: z.string().uuid().optional(),
   submit: z.boolean().default(true),
+  // Staff chose to review it with no case (match_invoice_to_case).
+  withoutCase: z.boolean().optional(),
 }).extend(receiptInputSchema.shape);
 
 export type CreateInvoiceInput = z.input<typeof createInvoiceInputSchema>;
@@ -48,7 +51,7 @@ export async function createInvoice(
     const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content);
     await recordReceipt(tx, invoiceId, { receivedVia: parsed.data.receivedVia, receivedOn: parsed.data.receivedOn });
     if (submit) {
-      await submitInTx(tx, actor, invoiceId);
+      await submitInTx(tx, actor, invoiceId, { withoutCase: parsed.data.withoutCase });
     }
     const [created] = await tx.select({ submittedTotal: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, submittedTotal: created?.submittedTotal ?? '0.00' };

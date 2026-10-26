@@ -50,10 +50,20 @@ external case management system (see `docs/DECISIONS.md`):
   `invoice_review_setting` route requests to reviewers and approvers from
   defaults that staff can change (`assign_invoice_review`).
 - Waiting time counts working days (`measure_review_waiting`).
+- The rate check compares time lines to
+  `preauthorization_decision.approved_hourly_rate`, else the configured rate
+  (`apply_professional_rates`). Reason codes are split into approve-in-part and
+  reject lists (`decide_invoice_lines`). Exports carry only the latest
+  decision. `report_billing_results` defines a per-request billing record.
 - Staff may enter a request a professional sent outside the system, for any
   professional assigned to the case, recording `invoice.received_via_id` and
   `received_on`; waiting counts from `received_on`
   (`authorize_staff_invoice_entry`).
+- `invoice.case_id` and `invoice_line.case_id` are optional for a
+  staff-entered request whose case is not known yet. It waits in invoice
+  intake until staff match it to a case, or is reviewed without one with
+  warnings (`match_invoice_to_case`). Staff may add a professional with no
+  login (`add_professional_without_login`).
 - Configured system roles map to review actions (`authorize_invoice_review`).
 
 ## Coverage and changes

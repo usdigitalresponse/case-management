@@ -84,8 +84,12 @@ export function DecisionPanel({
   const [hours, setHours] = useState(initial?.approvedQuantity ?? line.quantity ?? '');
   const [rate, setRate] = useState(initial?.approvedRate ?? line.billedRate ?? '');
   const [amount, setAmount] = useState(initial?.outcomeCode === 'approved_in_part' ? (initial.approvedAmount ?? '') : '');
-  const [reasonCode, setReasonCode] = useState(initial?.reasonCode ?? '');
+  const [picked, setReasonCode] = useState(initial?.reasonCode ?? '');
   const [note, setNote] = useState(initial?.note ?? '');
+  // Approving in part and rejecting have their own lists; a reason kept from
+  // a decision on the other list doesn't carry over.
+  const options = reasons.filter((reason) => reason.appliesTo === 'both' || reason.appliesTo === mode);
+  const reasonCode = options.some((reason) => reason.code === picked) ? picked : '';
 
   const requestedCents = cents(line.amount);
   const approvedCents = byHours ? cents(Number(hours) * Number(rate)) : cents(Number(amount));
@@ -158,7 +162,7 @@ export function DecisionPanel({
         {mode !== 'note' && (
           <fieldset>
             <legend>{mode === 'rejected' ? 'Why are you rejecting it?' : 'Why are you cutting it?'}</legend>
-            {reasons.map((reason) => (
+            {options.map((reason) => (
               <label key={reason.code} className="radio-row">
                 <input
                   type="radio"
@@ -188,6 +192,7 @@ export function DecisionPanel({
           {mode === 'note' ? 'Save note' : mode === 'rejected' ? 'Reject line' : validAmount ? `Approve ${formatMoney(approvedCents / 100)}` : 'Approve part'}
         </button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
+        {mode !== 'note' && !reasonCode && <span className="cell-note">Choose a reason first.</span>}
       </div>
     </form>
   );
@@ -261,7 +266,10 @@ export function DecisionCell({
       {canDecide && decision && (
         <div className="link-row">
           {decision.outcomeCode === 'rejected' ? (
-            <button type="button" className="link-button" onClick={onUndoRejection}>Undo rejection</button>
+            <>
+              <button type="button" className="link-button" onClick={onUndoRejection}>Undo rejection</button>
+              <button type="button" className="link-button" onClick={() => onPanel('rejected')}>Edit reason</button>
+            </>
           ) : (
             <button type="button" className="link-button" onClick={() => onPanel(decision.outcomeCode === 'approved' ? 'note' : 'approved_in_part')}>
               {decision.note ? 'Edit note' : 'Add a note'}

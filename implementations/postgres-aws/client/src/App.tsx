@@ -10,6 +10,7 @@ import Overview from './pages/Overview';
 import ReviewQueue from './pages/ReviewQueue';
 import InvoiceReview from './pages/InvoiceReview';
 import Exports from './pages/Exports';
+import InvoiceIntake from './pages/InvoiceIntake';
 import PeopleDirectory from './pages/PeopleDirectory';
 import ClientsDirectory from './pages/ClientsDirectory';
 import VendorsDirectory from './pages/VendorsDirectory';
@@ -102,6 +103,8 @@ function Sidebar({ isAdmin, userAccountId }: { isAdmin: boolean; userAccountId: 
         {/* Invoices received by email or from other tools, entered for the professional. */}
         <div className="nav-group">
           <NavLink to={NEW_INVOICE_PATH}>New invoice</NavLink>
+          {/* Invoices waiting for their case, matched by any staff member. */}
+          <NavLink to="/intake" end>Invoice intake</NavLink>
         </div>
         <div className="nav-group">
           <h2>Invoices</h2>
@@ -166,6 +169,7 @@ function AppContent() {
             <Route path="/exports" element={<Exports />} />
             {/* Entering invoices received outside the system: the portal's pages, at its paths. */}
             <Route path={NEW_INVOICE_PATH} element={<div className="portal-main"><PortalNewInvoice /></div>} />
+            <Route path="/intake" element={<InvoiceIntake />} />
             <Route path="/portal/invoices/:invoiceId" element={<div className="portal-main"><PortalInvoiceDetail /></div>} />
             <Route path="/portal/imports" element={<div className="portal-main"><PortalBulkImport /></div>} />
             <Route path="/portal/imports/:importId" element={<div className="portal-main"><PortalImportReview /></div>} />

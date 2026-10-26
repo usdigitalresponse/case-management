@@ -58,6 +58,30 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `server/src/billing/invoiceReceipt.ts`), and queue waiting time counts
     from `received_on`. Staff finish their drafts on New invoice; a
     submitted one links to its review page.
+  - "Invoice intake" (`/intake`, under New invoice;
+    `client/src/pages/InvoiceIntake.tsx`, `server/src/billing/invoiceIntake.ts`)
+    lists staff drafts with no case (migration `0012` makes
+    `invoice.case_id` and `invoice_line.case_id` nullable) and caseless
+    imports still being read (`model/rules.yaml` `match_invoice_to_case`).
+    Staff choose "Add case later" on New invoice; with no case, any active
+    professional can be chosen and there is no unbilled-time picker. "Match
+    to a case" (`POST /api/invoices/intake/:id/case`) sets the case on the
+    invoice, its lines and its import, records `matched_to_case`, and with
+    `addMissing` assigns missing providers as external submitters. "Add case
+    info" opens New case with `?intake=`, which matches after creating it.
+    The invoice page's "Review without a case" submits with `withoutCase`;
+    then no time entries are created, the default reviewer applies (no
+    per-case reviewer), pre-authorization and case-rate limits are skipped,
+    and the queue (`no_case` flag), review page, exports and billing record
+    warn. "Add a provider" (`POST /api/professionals`,
+    `server/src/professionals/addProfessional.ts`) creates a person and
+    professional with no account (`add_professional_without_login`);
+    `ensureProfessional.ts` links it on first sign-in by email.
+    Gaps: only the staff member who entered a draft can submit it; matching
+    is refused once submitted; bulk import has no "later" option; the
+    sidebar shows no intake count; added assignments start on matching,
+    which passes because assignment is checked as of now, not on each
+    line's service date (as for delegates, below).
   - The external portal uses the same shell and opens on "New invoice"
     (`/new-invoice`, which `/` redirects to;
     `client/src/portal/PortalNewInvoice.tsx`): import files (the bulk
@@ -356,8 +380,26 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     audited as `system_role_changed`).
   - Visibility: the portal's invoice detail has no working decisions, no
     reviewer names and no internal comments (`loadInvoiceDetail`
-    `audience`); exports show the latest round, earlier rounds as
-    history, and sign-offs without comments.
+    `audience`); exports show the case and court numbers, each line's
+    latest decision only, and sign-offs without comments.
+  - Rate check (`src/billing/preauthorizations.ts` `rateLimitFor`): a time
+    line's limit is the latest approved `preauthorization_decision`
+    `approved_hourly_rate` for its professional on the case (or a
+    case-wide one), else its configured rate. The invoice detail carries
+    each line's `rateLimit` and its source; the queue flag and Re-price use
+    the same limit. Pre-authorizations are seeded, with no screen to enter
+    them yet.
+  - Reasons (`src/billing/decisionReasons.ts`): `invoice_decision_reasons`
+    has an `applies_to` column (`approved_in_part`, `rejected` or `both`);
+    the review panel offers only the outcome's list and the server refuses
+    others. Administrators add, move and retire reasons in Settings
+    (`/api/settings/decision-reasons`); "Another reason" stays on both.
+  - Billing record (`src/billing/billingRecord.ts`,
+    `GET /api/invoices/billing-record?format=csv|xlsx`, on the Exports page):
+    one row per submitted invoice (`model/rules.yaml`
+    `report_billing_results`). Not yet held, so not in it: payment track,
+    county, budget account code and month, and payment date and reference.
+    Nothing is sent to an external system.
   - The approved total is the latest complete round's approved amounts,
     not stored. Migration `0008` carried invoices part-way through the old
     one-decision-at-a-time review into working decisions, keeping their

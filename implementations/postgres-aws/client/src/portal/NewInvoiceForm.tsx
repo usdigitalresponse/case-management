@@ -18,23 +18,26 @@ import { hasReceipt, ReceivedFields } from './ReceivedFields';
 import { useShell } from './useShell';
 
 // A new invoice on one case: typed items (starting from unbilled time) or an
-// imported file. Shared by the case page and the New invoice page.
+// imported file. Shared by the case page and the New invoice page. With no
+// case (staff only), it is saved to invoice intake.
 export function NewInvoiceForm({
   caseId,
   billable,
   entries,
   onSaved,
 }: {
-  caseId: string;
+  caseId: string | null;
   billable: BillableProfessional[];
   entries: TimeEntryRecord[] | null;
   // Billing changes what time is unbilled.
   onSaved: () => void;
 }) {
   const billingRules = usePortalBillingRules();
-  // Defaults to the user's own profile; a delegate picks whom they bill for.
+  const { staff } = useShell();
+  // Defaults to the user's own profile; a delegate picks whom they bill for,
+  // and staff always choose who it's from.
   const [billedProfessionalId, setBilledProfessionalId] = useState(
-    () => (billable.find((p) => p.isSelf) ?? billable[0])?.professionalId ?? '',
+    () => (billable.find((p) => p.isSelf) ?? (staff ? undefined : billable[0]))?.professionalId ?? '',
   );
   const billableIds = new Set(billable.map((p) => p.professionalId));
   const unbilled = (entries ?? []).filter((entry) => !entry.billing && billableIds.has(entry.professionalId));
@@ -65,7 +68,6 @@ export function NewInvoiceForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saved, setSaved] = useState<'draft' | 'submitted' | null>(null);
   const [mode, setMode] = useState<'enter' | 'import'>('enter');
-  const { staff } = useShell();
   const [receipt, setReceipt] = useState<InvoiceReceipt>({});
 
   // Nothing to save until an item has an amount and someone is billed.
@@ -117,6 +119,7 @@ export function NewInvoiceForm({
                 startAgain(event.target.value);
               }}
             >
+              {!billedProfessionalId && <option value="">Choose who it's from</option>}
               {billable.map((professional) => (
                 <option key={professional.professionalId} value={professional.professionalId}>
                   {professionalLabel(professional)}
@@ -151,13 +154,19 @@ export function NewInvoiceForm({
           )}
           {saved === 'draft' && (
             <Notice tone="success">
-              {staff ? 'Draft saved. Finish it from Drafts on New invoice.' : 'Draft saved. Open it from Your invoices to edit or submit it.'}
+              {caseId === null
+                ? 'Saved to Invoice intake, where it waits for its case.'
+                : staff
+                  ? 'Draft saved. Finish it from Drafts on New invoice.'
+                  : 'Draft saved. Open it from Your invoices to edit or submit it.'}
             </Notice>
           )}
           {staff && <ReceivedFields idPrefix="new-invoice" value={receipt} onChange={setReceipt} />}
           <PeriodFields idPrefix="new-invoice" start={period.start} end={period.end} onChange={setPeriod} />
           <RulesInForce rules={billingRules.rules} />
-          <UnbilledTimePicker idPrefix="new-invoice" entries={unbilled} lines={lines} onChange={setLines} timekeepers={billable} />
+          {caseId !== null && (
+            <UnbilledTimePicker idPrefix="new-invoice" entries={unbilled} lines={lines} onChange={setLines} timekeepers={billable} />
+          )}
           <InvoiceLinesEditor
             idPrefix="new-invoice"
             lines={lines}
@@ -172,14 +181,22 @@ export function NewInvoiceForm({
             Time items are priced at the hourly rate set for that kind of professional, and mileage at the agency's
             rate per mile. New time typed here is recorded when you submit.
           </p>
-          <div className="invoice-actions">
-            <button type="submit" className="btn btn--primary" disabled={submitting || !canSave || (staff && !hasReceipt(receipt))}>
-              {submitting ? 'Saving…' : 'Submit invoice'}
-            </button>
-            <button type="button" className="btn btn--outline" disabled={submitting || !canSave} onClick={() => void save(false)}>
-              Save as draft
-            </button>
-          </div>
+          {caseId === null ? (
+            <div className="invoice-actions">
+              <button type="button" className="btn btn--primary" disabled={submitting || !canSave} onClick={() => void save(false)}>
+                {submitting ? 'Saving…' : 'Save to invoice intake'}
+              </button>
+            </div>
+          ) : (
+            <div className="invoice-actions">
+              <button type="submit" className="btn btn--primary" disabled={submitting || !canSave || (staff && !hasReceipt(receipt))}>
+                {submitting ? 'Saving…' : 'Submit invoice'}
+              </button>
+              <button type="button" className="btn btn--outline" disabled={submitting || !canSave} onClick={() => void save(false)}>
+                Save as draft
+              </button>
+            </div>
+          )}
         </Form>
       )}
     </div>
