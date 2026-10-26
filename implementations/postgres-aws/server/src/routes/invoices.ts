@@ -13,6 +13,7 @@ import { finishReview, reopenReview, signOffInvoice } from '../billing/reviewRou
 import { reassignReviewer, setSignOffApprovers, LINE_REVIEW_STEP_TYPE_CODE } from '../billing/reviewAssignment';
 import { listReviewPeople } from '../billing/reviewAccess';
 import { listReviewQueue } from '../billing/reviewQueue';
+import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { asyncHandler } from './asyncHandler';
 import { parseExportFormat, sendInvoiceExport } from './sendInvoiceExport';
@@ -87,7 +88,13 @@ async function loadOrThrow(invoiceId: string) {
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
-    res.json(await loadOrThrow(req.params.id as string));
+    const detail = await loadOrThrow(req.params.id as string);
+    // This professional's pre-authorization on the case, for the facts strip.
+    const preauthorization =
+      (await loadPreauthorizationSummaries(db, detail.invoice.caseId)).find(
+        (summary) => summary.professionalId === null || summary.professionalId === detail.invoice.professionalId,
+      ) ?? null;
+    res.json({ ...detail, preauthorization });
   }),
 );
 

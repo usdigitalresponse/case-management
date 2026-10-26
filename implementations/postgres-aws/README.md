@@ -14,7 +14,8 @@ Knex; see `MAPPING.md`'s "Stack" section for why.
 ## Status
 
 Server-side data layer, intake handler, HTTP API (routes + auth), the React
-client (case list/detail, intake form), and local Docker Compose loop are
+client (invoice review queue and review, sign-off, exports, case list/detail,
+intake form, external submitter portal), and local Docker Compose loop are
 built. Terraform is an undeployed infrastructure skeleton. See `MAPPING.md`
 for the schema subset in scope and documented gaps, and
 `../../docs/case-intake-comparison-plan.md` for how this relates to the
@@ -27,9 +28,12 @@ optional context and identifier) per `../../model/forms.yaml:new_case`; view a
 saved case; a basic case list/detail view. See `../../scenarios/new-case.md`
 for the acceptance scenarios this implementation targets.
 
-Out of scope: person creation/duplicate review, closing/reopening,
-assignments, time/expense, billing, invoicing, documents, and production-grade
-auth/SSO. See `MAPPING.md` for details.
+Also in scope: invoice submission and import by external submitters, and
+line-by-line review with sign-off (`../../scenarios/invoice-review.md`).
+
+Out of scope: person creation/duplicate review, reopening cases, expense
+tracking, payment, documents, integration with an external case management
+system, and production-grade auth/SSO. See `MAPPING.md` for details.
 
 ## Setup
 
@@ -57,15 +61,23 @@ for initial setup or when intentionally resetting the demo database.
 
 Without a `.env` file (copy
 `.env.example`), Google sign-in is disabled and only the "Demo sign-in"
-(staff, also an administrator who can change rates under Settings) and
-"Demo partner sign-in" (external partner, who is also their office's billing
-delegate) buttons work.
+(staff, also an administrator who can review, sign off and change Settings)
+and "Demo partner sign-in" (external partner, who is also their office's
+billing delegate) buttons work.
 
-Open http://localhost:5173, click "Demo sign-in," and you should see 10
-seeded cases with synthetic (Faker-generated) client names on the overview.
-Cases are grouped by derived stage (Needs assignment, Represented, Billing,
-Closing). Select a card for details or View all to open the case list.
-Unavailable tools and stages are shown as disabled controls.
+Open http://localhost:5173 and click "Demo sign-in." The staff app opens on
+the invoice review queue, filtered to invoices assigned to you; choose "To
+review" for everyone's. The seed leaves invoices signed off, waiting for
+sign-off, part-reviewed, assigned and unassigned, one waiting past the
+callout and one billed above the configured rate. Settings has the demo
+reviewers' and approver's roles, the sign-off default and the callout
+threshold. The case overview board is hidden from the sidebar but still at
+`/overview`. Links to an external case management system are disabled
+placeholders. See `MAPPING.md` "Invoice review".
+
+If you pulled these changes onto an existing database, restart the server
+container (`docker compose restart server`) to apply the new migrations;
+existing data stays. Reseed only if you want the review demo data.
 
 `docker compose down -v` stops everything and removes the Postgres volume
 (a clean-slate reset); drop `-v` to keep data across restarts.

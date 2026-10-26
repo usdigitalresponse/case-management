@@ -179,8 +179,33 @@ export function getCase(caseId: string): Promise<CaseDetail> {
 }
 
 // Read-only, one case; review happens via reviewInvoiceLine below.
-export function getCaseInvoices(caseId: string): Promise<{ invoices: InvoiceRecord[] }> {
-  return request<{ invoices: InvoiceRecord[] }>(`/api/cases/${caseId}/invoices`);
+export interface PreauthorizationSummary {
+  professionalId: string | null;
+  authorizationNumbers: string[];
+  ceiling: string;
+  approvedSoFar: string;
+  waiting: string;
+}
+
+export interface CaseInvoices {
+  invoices: ReviewQueueItem[];
+  preauthorizations: PreauthorizationSummary[];
+  // Where this case's new invoices go, ahead of the default.
+  reviewer: AssignedPerson | null;
+  caseNumber: string | null;
+  otherCaseNumbers: string[];
+}
+
+export function getCaseInvoices(caseId: string): Promise<CaseInvoices> {
+  return request<CaseInvoices>(`/api/cases/${caseId}/invoices`);
+}
+
+export function setCaseReviewer(caseId: string, userAccountId: string): Promise<AssignedPerson | null> {
+  return request(`/api/cases/${caseId}/invoice-reviewer`, { method: 'PUT', body: JSON.stringify({ userAccountId }) });
+}
+
+export function createExternalAssignment(caseId: string, professionalId: string): Promise<{ assignment: CaseAssignment }> {
+  return request(`/api/cases/${caseId}/external-assignments`, { method: 'POST', body: JSON.stringify({ professionalId }) });
 }
 
 export interface StaffAccount {
@@ -543,6 +568,9 @@ export interface InvoiceRecord {
   lastSubmittedAt: string | null;
   // Whether this user may delete it (server/src/billing/deleteInvoice.ts).
   deletable: boolean;
+  caseClientDisplayName: string | null;
+  caseExternalReference: string | null;
+  professionalDisplayName: string | null;
 }
 
 export type InvoiceLineType = 'time' | 'expense' | 'mileage' | 'other';
@@ -619,8 +647,10 @@ export interface CreateInvoiceInput extends DraftInvoiceContent {
   submit?: boolean;
 }
 
-export function listMyInvoices(caseId: string): Promise<{ invoices: InvoiceRecord[] }> {
-  return request<{ invoices: InvoiceRecord[] }>(`/api/portal/invoices?caseId=${encodeURIComponent(caseId)}`);
+// Every invoice this user may read, or one case's.
+export function listMyInvoices(caseId?: string): Promise<{ invoices: InvoiceRecord[] }> {
+  const query = caseId ? `?caseId=${encodeURIComponent(caseId)}` : '';
+  return request<{ invoices: InvoiceRecord[] }>(`/api/portal/invoices${query}`);
 }
 
 export function updateDraftInvoice(invoiceId: string, content: DraftInvoiceContent): Promise<{ invoiceId: string; submittedTotal: string }> {
@@ -641,6 +671,9 @@ export type PortalInvoiceLine = Omit<InvoiceReviewLine, 'decidedByDisplayName'>;
 
 export interface PortalInvoice {
   invoice: QueuedInvoice;
+  caseNumber: string | null;
+  // From the latest finished round of review; null until there is one.
+  approvedTotal: string | null;
   lines: PortalInvoiceLine[];
   // Set when the draft came from an uploaded file.
   import: { invoiceImportId: string; statusCode: string } | null;
@@ -915,6 +948,8 @@ export interface ReviewQueueItem extends QueuedInvoice {
   otherCaseNumbers: string[];
   lineCount: number;
   decidedCount: number;
+  // From the latest finished round; null until one is finished.
+  approvedTotal: string | null;
   reviewer: AssignedPerson | null;
   // Who must act now: the next approver while it waits for sign-off.
   holder: AssignedPerson | null;
@@ -1025,6 +1060,8 @@ export interface SignOff {
 
 export interface InvoiceReview {
   invoice: QueuedInvoice;
+  // This professional's pre-authorization on the case, if there is one.
+  preauthorization: PreauthorizationSummary | null;
   caseNumber: string | null;
   otherCaseNumbers: string[];
   lines: InvoiceReviewLine[];

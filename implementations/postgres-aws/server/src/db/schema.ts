@@ -49,6 +49,8 @@ export const invoiceApprovalOutcomes = referenceTable('invoice_approval_outcomes
 export const invoiceEventTypes = referenceTable('invoice_event_types');
 // Why a line was approved in part or rejected (model/rules.yaml decide_invoice_lines).
 export const invoiceDecisionReasons = referenceTable('invoice_decision_reasons');
+export const preauthorizationStatuses = referenceTable('preauthorization_statuses');
+export const preauthorizationOutcomes = referenceTable('preauthorization_outcomes');
 export const invoiceImportFormats = referenceTable('invoice_import_formats');
 export const invoiceImportStatuses = referenceTable('invoice_import_statuses');
 // Administrator-maintained (../billing/professionalRates.ts); none are seeded.
@@ -629,6 +631,46 @@ export const caseInvoiceReviewer = pgTable(
     endedAt: timestamp('ended_at', { withTimezone: true }),
   },
   (table) => [uniqueIndex('case_invoice_reviewer_open_uidx').on(table.caseId).where(sql`ended_at IS NULL`)],
+);
+
+// An external-service ceiling for one case, here for one professional, as
+// invoice.professional_id stands in for the service provider. Read-only in
+// this implementation: rows come from seed data (../../MAPPING.md).
+export const preauthorization = pgTable(
+  'preauthorization',
+  {
+    preauthorizationId: uuid('preauthorization_id').primaryKey().defaultRandom(),
+    caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+    professionalId: uuid('professional_id').references(() => professional.professionalId),
+    statusId: uuid('status_id').notNull().references(() => preauthorizationStatuses.id),
+    requestedAmount: numeric('requested_amount', { precision: 12, scale: 2 }),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull(),
+    authorizationNumber: text('authorization_number'),
+    currencyCode: text('currency_code').notNull().default('USD'),
+  },
+  (table) => [index('preauthorization_case_idx').on(table.caseId)],
+);
+
+// Insert-only; the latest effective decision sets the ceiling
+// (model/rules.yaml preserve_authorization_decisions).
+export const preauthorizationDecision = pgTable(
+  'preauthorization_decision',
+  {
+    preauthorizationDecisionId: uuid('preauthorization_decision_id').primaryKey().defaultRandom(),
+    preauthorizationId: uuid('preauthorization_id')
+      .notNull()
+      .references(() => preauthorization.preauthorizationId),
+    sequenceNumber: integer('sequence_number').notNull(),
+    outcomeId: uuid('outcome_id').notNull().references(() => preauthorizationOutcomes.id),
+    approvedAmount: numeric('approved_amount', { precision: 12, scale: 2 }),
+    effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+    decidedByUserAccountId: uuid('decided_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    reason: text('reason'),
+  },
+  (table) => [uniqueIndex('preauthorization_decision_sequence_uidx').on(table.preauthorizationId, table.sequenceNumber)],
 );
 
 // Insert-only like billing_rule_setting; the latest row per code is in

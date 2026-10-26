@@ -1,8 +1,9 @@
 // The staff queue: invoices waiting on review or sign-off, or finished, with
 // who has each, how long it has waited and what needs care.
-import { and, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {
+  invoice,
   invoiceApprovalChain,
   invoiceLine,
   invoiceLineWorkingDecision,
@@ -21,7 +22,9 @@ import {
   REJECTED_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
 
-export type QueueView = 'open' | 'finished';
+// open: waiting on review or sign-off; finished: approved or rejected;
+// all: every submitted invoice (one case's list).
+export type QueueView = 'open' | 'finished' | 'all';
 
 export interface QueueFlag {
   kind: 'rate' | 'arithmetic' | 'rule';
@@ -32,9 +35,14 @@ function money(value: string | number): string {
   return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export async function listReviewQueue(db: Database, view: QueueView, now = new Date()) {
-  const statusCodes = view === 'open' ? IN_REVIEW_INVOICE_STATUS_CODES : [APPROVED_INVOICE_STATUS_CODE, REJECTED_INVOICE_STATUS_CODE];
-  const headers = await selectInvoiceHeaders(db).where(inArray(invoiceStatuses.code, statusCodes));
+export async function listReviewQueue(db: Database, view: QueueView, options: { caseId?: string; now?: Date } = {}) {
+  const now = options.now ?? new Date();
+  const finished = [APPROVED_INVOICE_STATUS_CODE, REJECTED_INVOICE_STATUS_CODE];
+  const statusCodes =
+    view === 'open' ? IN_REVIEW_INVOICE_STATUS_CODES : view === 'finished' ? finished : [...IN_REVIEW_INVOICE_STATUS_CODES, ...finished];
+  const headers = await selectInvoiceHeaders(db).where(
+    and(inArray(invoiceStatuses.code, statusCodes), ...(options.caseId ? [eq(invoice.caseId, options.caseId)] : [])),
+  );
   const invoiceIds = headers.map((header) => header.invoiceId);
   if (invoiceIds.length === 0) {
     return { invoices: [], waitingAlertWorkingDays: (await getReviewSettings(db)).waitingAlertWorkingDays };
@@ -77,10 +85,11 @@ export async function listReviewQueue(db: Database, view: QueueView, now = new D
         chain ? loadRecordedDecisions(db, chain.chainId) : Promise.resolve([]),
       ]);
       const round = latestRoundNumber(recorded, own.length);
-      const decided =
-        header.statusCode === AWAITING_SIGN_OFF_INVOICE_STATUS_CODE || view === 'finished'
-          ? own.length
-          : working.filter((row) => row.chainId === chain?.chainId).length;
+      const inReview = IN_REVIEW_INVOICE_STATUS_CODES.includes(header.statusCode ?? '') && header.statusCode !== AWAITING_SIGN_OFF_INVOICE_STATUS_CODE;
+      const decided = inReview ? working.filter((row) => row.chainId === chain?.chainId).length : round === null ? 0 : own.length;
+      const approvedCents = recorded
+        .filter((decision) => decision.sequenceNumber === round && decision.invoiceLineId)
+        .reduce((sum, decision) => sum + Math.round(Number(decision.approvedAmount ?? 0) * 100), 0);
 
       const flags: QueueFlag[] = [];
       const overRate = own.find(
@@ -120,6 +129,8 @@ export async function listReviewQueue(db: Database, view: QueueView, now = new D
         otherCaseNumbers: numbers?.otherNumbers ?? [],
         lineCount: own.length,
         decidedCount: decided,
+        // From the latest finished round; null until one is finished.
+        approvedTotal: round === null ? null : (approvedCents / 100).toFixed(2),
         reviewer: assignments.reviewer,
         // Who must act now: the next approver while awaiting sign-off.
         holder: nextApprover ?? assignments.reviewer,

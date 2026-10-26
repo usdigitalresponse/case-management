@@ -25,8 +25,13 @@ import {
   invoiceLine,
   invoiceLineTypes,
   invoiceStatuses,
+  preauthorization,
+  preauthorizationDecision,
+  preauthorizationOutcomes,
+  preauthorizationStatuses,
   userAccount,
 } from '../src/db/schema';
+import { loadPreauthorizationSummaries } from '../src/billing/preauthorizations';
 import { getReferenceId } from '../src/db/referenceLookups';
 
 let fixtures: BaselineFixtureIds;
@@ -299,6 +304,44 @@ describe('finishing and sign-off', () => {
     expect(first.history).toHaveLength(1);
     expect(first.history[0]?.outcomeCode).toBe('rejected');
     expect(detail.approvedTotal).toBe('120.00');
+  });
+
+  it('totals a pre-authorization against approved and waiting invoices', async () => {
+    const approved = await createInvoiceWithLines(['70.00', '50.00']);
+    const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, approved.invoiceId));
+    const waiting = await createInvoiceWithLines(['30.00']);
+    // Same case and professional as the first.
+    await testDb.update(invoice).set({ caseId: row!.caseId, professionalId: row!.professionalId }).where(eq(invoice.invoiceId, waiting.invoiceId));
+    await testDb.update(invoiceLine).set({ caseId: row!.caseId }).where(eq(invoiceLine.invoiceId, waiting.invoiceId));
+    const [preauth] = await testDb
+      .insert(preauthorization)
+      .values({
+        caseId: row!.caseId,
+        professionalId: row!.professionalId,
+        statusId: await getReferenceId(testDb, preauthorizationStatuses, 'approved'),
+        requestedAt: new Date(),
+      })
+      .returning();
+    for (const [sequenceNumber, approvedAmount] of [[1, '200.00'], [2, '150.00']] as const) {
+      await testDb.insert(preauthorizationDecision).values({
+        preauthorizationId: preauth!.preauthorizationId,
+        sequenceNumber,
+        outcomeId: await getReferenceId(testDb, preauthorizationOutcomes, sequenceNumber === 1 ? 'approved' : 'revised'),
+        approvedAmount,
+        effectiveAt: new Date(),
+        decidedAt: new Date(),
+        decidedByUserAccountId: fixtures.staffUserAccountId,
+      });
+    }
+    await setSignOffApprovers(testDb, reviewer, approved.invoiceId, { userAccountIds: [approver] });
+    await decideAll(approved.invoiceId, approved.lineIds);
+    await finishReview(testDb, reviewer, approved.invoiceId);
+    await signOffInvoice(testDb, approver, approved.invoiceId, { outcome: 'approved' });
+
+    // The latest ceiling replaces the first; the rejected line isn't counted.
+    expect(await loadPreauthorizationSummaries(testDb, row!.caseId)).toEqual([
+      expect.objectContaining({ ceiling: '150.00', approvedSoFar: '50.00', waiting: '30.00' }),
+    ]);
   });
 
   it('signs off in order and sends back to the reviewer with an internal comment', async () => {

@@ -20,6 +20,7 @@ import {
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { PageHeading } from '../components/PageHeading';
+import { ReviewRoutingSettings, StaffRoleSettings } from '../components/ReviewSettings';
 import { RecordTable } from '../components/RecordTable';
 import { formatDate } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
@@ -162,6 +163,11 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
     <div>
       <PageHeading eyebrow="Administration" title="Settings" />
       {!isAdmin && <Alert type="info" slim>Only administrators can change settings.</Alert>}
+      <section className="settings-section">
+        <h2>Invoice review</h2>
+        <ReviewRoutingSettings isAdmin={isAdmin} />
+        {isAdmin && <StaffRoleSettings />}
+      </section>
       <section className="settings-section">
         <h2>Rates</h2>
         <p className="compact-hint">

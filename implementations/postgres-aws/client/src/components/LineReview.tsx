@@ -30,14 +30,15 @@ export function DecisionSummary({ decision, requested }: { decision: LineDecisio
       {(decision.reasonDisplayName || decision.note) && (
         <p className="decision-summary__why">{[decision.reasonDisplayName, decision.note].filter(Boolean).join('. ')}</p>
       )}
+      {/* Submitters don't see who decided. */}
       <p className="cell-note">
-        {decision.decidedByDisplayName ?? 'Someone'}, {formatDateTime(decision.decidedAt)}
+        {[decision.decidedByDisplayName, formatDateTime(decision.decidedAt)].filter(Boolean).join(', ')}
       </p>
     </div>
   );
 }
 
-export function DecisionHistory({ line }: { line: InvoiceReviewLine }) {
+export function DecisionHistory({ line }: { line: Pick<InvoiceReviewLine, 'history'> }) {
   const [open, setOpen] = useState(false);
   if (line.history.length === 0) {
     return null;
@@ -54,7 +55,7 @@ export function DecisionHistory({ line }: { line: InvoiceReviewLine }) {
               Round {past.round}: {past.outcomeDisplayName}
               {past.outcomeCode === 'approved_in_part' ? `, ${formatMoney(past.approvedAmount)}` : ''}
               {past.reasonDisplayName ? `. ${past.reasonDisplayName}` : ''}
-              {past.note ? `. ${past.note}` : ''} ({past.decidedByDisplayName}, {formatDateTime(past.decidedAt)})
+              {past.note ? `. ${past.note}` : ''} ({[past.decidedByDisplayName, formatDateTime(past.decidedAt)].filter(Boolean).join(', ')})
             </li>
           ))}
         </ol>

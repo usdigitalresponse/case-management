@@ -17,6 +17,8 @@ import {
   invoiceEventTypes,
   invoiceImportFormats,
   invoiceImportStatuses,
+  preauthorizationOutcomes,
+  preauthorizationStatuses,
   role,
 } from './schema';
 import { EXTERNAL_SUBMITTER_ROLE_DISPLAY_NAME } from '../professionals/externalSubmitterRole';
@@ -52,6 +54,22 @@ export async function ensureReferenceData(db: Database): Promise<void> {
       .insert(invoiceDecisionReasons)
       .values(INVOICE_DECISION_REASONS)
       .onConflictDoNothing({ target: invoiceDecisionReasons.code }),
+    db
+      .insert(preauthorizationStatuses)
+      .values([
+        { code: 'pending', displayName: 'Pending' },
+        { code: 'approved', displayName: 'Approved' },
+        { code: 'denied', displayName: 'Denied' },
+      ])
+      .onConflictDoNothing({ target: preauthorizationStatuses.code }),
+    db
+      .insert(preauthorizationOutcomes)
+      .values([
+        { code: 'approved', displayName: 'Approved' },
+        { code: 'revised', displayName: 'Revised' },
+        { code: 'denied', displayName: 'Denied' },
+      ])
+      .onConflictDoNothing({ target: preauthorizationOutcomes.code }),
     db
       .insert(invoiceEventTypes)
       .values([

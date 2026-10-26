@@ -64,6 +64,13 @@
       "when": 1792996462721,
       "tag": "0008_invoice_review",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792998096438,
+      "tag": "0009_preauthorizations",
+      "breakpoints": true
     }
   ]
 }

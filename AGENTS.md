@@ -97,6 +97,9 @@ generic requirement in the repository.
   platform auditing.
 - Read `docs/model-review.md` for the 0.2 migration, open decisions and current
   implementation gaps; `model/workflows.yaml` is authoritative for transitions.
+- Invoice line decisions are working decisions until the reviewer finishes a
+  round; only finished rounds are recorded and never changed. Sign-off
+  comments are internal-only and never reach submitters or exports.
 - Prefer validation at data entry over downstream cleanup.
 - Do not silently merge probable duplicate records.
 - Do not overwrite historical facts when requirements call for an audit trail.
@@ -216,6 +219,10 @@ Its offline tests must not authenticate or mutate a live environment.
 
 
 The separate Postgres/AWS prototype lives in `implementations/postgres-aws/`.
+Its staff UI is an invoice review tool designed to sit beside an external
+case management system; links to that system stay inert placeholders, and
+features hidden for it are hidden from navigation, not deleted. Design
+screenshots go in its gitignored `figma/` folder and must never be committed.
 Docker Compose startup must preserve application data. `docker compose exec
 server npm run seed` is an explicit destructive demo reset, never a startup
 step. `docker-compose.prod.yml` (with an untracked `.env.prod`) is the

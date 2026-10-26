@@ -317,6 +317,21 @@ export default function InvoiceReview() {
           </dd>
         </div>
         <div>
+          <dt>Pre-authorized</dt>
+          <dd>
+            {data.preauthorization ? (
+              <>
+                <strong>{formatMoney(data.preauthorization.ceiling)}</strong>
+                <span className="cell-note">
+                  {formatMoney(data.preauthorization.approvedSoFar)} approved, {formatMoney(data.preauthorization.waiting)} waiting
+                </span>
+              </>
+            ) : (
+              'None'
+            )}
+          </dd>
+        </div>
+        <div>
           <dt>Lines decided</dt>
           <dd>
             {decided} of {lines.length}

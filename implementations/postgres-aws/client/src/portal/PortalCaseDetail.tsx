@@ -524,7 +524,7 @@ export default function PortalCaseDetail() {
 
   return (
     <div>
-      <RouterLink className="back-link" to="/">&larr; Back to your cases</RouterLink>
+      <RouterLink className="back-link" to="/portal/cases">&larr; Back to your cases</RouterLink>
       <PageHeading eyebrow="Case" title={title} />
       {billable && billable.length > 0 && (
         <TimeEntrySection

@@ -227,6 +227,19 @@ async function setCaseReviewerInTx(tx: Transaction, caseId: string, reviewerUser
   await tx.insert(caseInvoiceReviewer).values({ caseId, reviewerUserAccountId, setAt: now, setByUserAccountId: actorUserAccountId });
 }
 
+export async function setCaseReviewer(db: Database, actorUserAccountId: string, caseId: string, rawInput: unknown) {
+  const parsed = z.object({ userAccountId: z.uuid() }).safeParse(rawInput);
+  if (!parsed.success || !z.uuid().safeParse(caseId).success) {
+    throw new ValidationError({ userAccountId: 'Choose someone who reviews invoices.' });
+  }
+  await requireReviewPermission(db, actorUserAccountId, 'reassign');
+  if (!(await loadReviewPermissions(db, parsed.data.userAccountId)).reviewLines) {
+    throw new ValidationError({ userAccountId: 'Choose someone who reviews invoices.' });
+  }
+  await db.transaction((tx) => setCaseReviewerInTx(tx, caseId, parsed.data.userAccountId, actorUserAccountId));
+  return loadCaseReviewer(db, caseId);
+}
+
 export async function loadCaseReviewer(db: DatabaseOrTransaction, caseId: string): Promise<AssignedPerson | null> {
   const [row] = await db
     .select({ userAccountId: caseInvoiceReviewer.reviewerUserAccountId, displayName: userAccount.displayName })

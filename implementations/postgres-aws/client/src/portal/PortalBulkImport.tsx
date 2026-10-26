@@ -743,7 +743,7 @@ export default function PortalBulkImport() {
 
   return (
     <div>
-      <RouterLink className="back-link" to="/">&larr; Back to your cases</RouterLink>
+      <RouterLink className="back-link" to="/">&larr; Back to your invoices</RouterLink>
       <div className="case-heading-row portal-cases-heading">
         <PageHeading
           eyebrow="Your cases"

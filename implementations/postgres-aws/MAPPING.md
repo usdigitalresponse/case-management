@@ -28,7 +28,28 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 
 ## Frontend design notes
 
-- **Overview home**: `/` shows four stage columns (Needs assignment,
+- **Invoice review beside an external case management system**
+  (`docs/DECISIONS.md`; design tokens and layout from the invoice review
+  design): the staff app opens on the review queue, not the overview.
+  - `/` is the queue (`client/src/pages/ReviewQueue.tsx`), showing the
+    signed-in person's invoices by default (`?show=everyone`,
+    `unassigned`, `flagged` for the rest); `/finished` lists approved and
+    rejected invoices; `/exports` lists signed-off invoices to export.
+    The header search filters the queue by case number, client or
+    professional.
+  - Hidden, not removed: Overview (`/overview`), Clients, Organizations,
+    People and the case page's lifecycle history and Close case action are
+    out of the sidebar but their routes and code remain. The case page
+    keeps Add case (on the Cases list) and Add person, since invoice
+    access depends on case assignment.
+  - Links to the external case management system ("Open the case in…",
+    the sidebar link) are disabled placeholders; nothing is integrated.
+  - The external portal uses the same shell and opens on "Your invoices"
+    (`client/src/portal/PortalInvoiceList.tsx`); its invoice page shows
+    each line's decision, reason and note in the review table's layout,
+    and the import review's line editor takes the same table styling with
+    the original document beside it.
+- **Overview home** (hidden; reachable at `/overview`): shows four stage columns (Needs assignment,
   Represented, Billing, Closing); `/cases` retains the full list, now
   with its own Stage column. Every column buckets real cases by their
   actual derived stage (`server/src/cases/caseStage.ts` —
@@ -270,27 +291,61 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   implemented: `person`'s `flag_possible_duplicate_client` check, since a
   `professional` here is always auto-created from a unique `user_account`,
   not user-entered.
-- **Invoice review** is line by line (`src/billing/reviewInvoiceLine.ts`,
+- **Invoice review** works in rounds, then sign-off (`model/rules.yaml`
+  `decide_invoice_lines`, `assign_invoice_review`,
+  `enforce_invoice_approval_sequence`; `src/billing/reviewInvoiceLine.ts`,
+  `reviewRounds.ts`, `reviewAssignment.ts`, `reviewQueue.ts`,
   `src/routes/invoices.ts`, `client/src/pages/InvoiceReview.tsx`):
-  - `GET /api/invoices?status=` is the cross-case list, filtered in the UI
-    to awaiting review (default), approved, rejected or all; `GET
-    /api/invoices/:id` returns lines with source time entries and decisions;
-    `POST /api/invoices/:id/lines/:lineId/review` decides one line. Staff
-    lists (this one and `GET /api/cases/:id/invoices`, which links to each
-    invoice) never include drafts or withdrawn drafts, the submitter's own
-    work in progress.
-  - Approval records `approved_amount` (default: requested; lower allowed,
-    higher not). Rejection requires a `reason` (`model/rules.yaml`
-    `enforce_invoice_approval_sequence`).
-  - One immutable decision per line (unique index); the invoice row is
-    locked per decision, so concurrent reviewers share one chain.
-  - The invoice stays `submitted` until every line is decided, then becomes
-    `approved` (case moves to `closing`) or `rejected` (any line rejected).
-    `submitted_total` is unchanged; the approved total is the sum of line
-    `approved_amount`s, not stored.
-  - Not implemented: pre-approval, further stages, "requests changes",
-    `under_review` status, allocation draws. Pre-existing whole-invoice
-    decisions (null `invoice_line_id`) aren't shown in the line view.
+  - `GET /api/invoices?view=open|finished` is the queue: case number,
+    client, who submitted it, lines decided, who holds it (the reviewer,
+    or the next approver while it waits for sign-off), working days waited
+    (`workingDays.ts`, weekends skipped, no holiday calendar yet) and flags
+    (rate differs from the configured rate, a stated amount that doesn't
+    add up, billing rule findings). It never includes drafts.
+  - `PUT|DELETE /api/invoices/:id/lines/:lineId/decision` sets or undoes a
+    working decision (`invoice_line_working_decision`): approve, approve
+    in part (corrected hours or rate on a line with hours, otherwise the
+    amount) or reject; partial and reject need an active
+    `invoice_decision_reasons` code, and "other" a note. Working decisions
+    are not audited. The first one moves the invoice to `under_review`,
+    which ends recall. `POST .../reprice` approves in part, at the
+    configured rate, every undecided time line billed above it.
+  - `POST .../finish` needs a decision on every line and at least one
+    sign-off approver; it records the round as `invoice_approval_decision`
+    rows at the next sequence number and moves the invoice to
+    `awaiting_sign_off`. `POST .../reopen` (the reviewer, before any
+    sign-off) copies the round back into working decisions.
+    `POST .../sign-off` takes `approved` or `changes_requested` with a
+    comment, stored `internal_only`; approvers sign in position order and
+    the last one approves the invoice. A send-back reopens review for the
+    same reviewer in the same chain. A rejected line counts as decided
+    with nothing approved; it no longer rejects the invoice.
+  - Routing: submission assigns line review to the case's
+    `case_invoice_reviewer`, else the `invoice_review_setting` default,
+    else no one, and sign-off to the default approvers. `PUT .../reviewer`
+    (any reviewer or approver) reassigns, optionally for the case's future
+    invoices; `PUT .../sign-off-approvers` (the reviewer, or an
+    administrator) changes approvers before finishing. Deciding a line or
+    choosing approvers on an unassigned invoice takes it. Recall ends the
+    invoice's assignments; delete removes them with the invoice.
+  - Roles (`src/auth/staffAccountRole.ts` `reviewPermissionsForRole`):
+    Billing Reviewer decides lines and reassigns; Sign-off Approver signs
+    off and reassigns; Intake Staff (general staff) only reads;
+    Administrator does all of these and changes settings. One system role
+    per account, set in Settings (`PUT /api/settings/staff-roles/:id`,
+    audited as `system_role_changed`).
+  - Visibility: the portal's invoice detail has no working decisions, no
+    reviewer names and no internal comments (`loadInvoiceDetail`
+    `audience`); exports show the latest round, earlier rounds as
+    history, and sign-offs without comments.
+  - The approved total is the latest complete round's approved amounts,
+    not stored. Migration `0008` carried invoices part-way through the old
+    one-decision-at-a-time review into working decisions, keeping their
+    recorded decisions as an incomplete round that no total uses.
+  - Not implemented: pre-approval, deny or request changes back to the
+    submitter, allocation draws, submitter replies to decisions (planned),
+    a holiday calendar, defaults by kind of invoice. Concurrent decisions
+    are serialized by the invoice row lock.
 - **Drafts, submission, recall and withdrawal** (`src/billing/invoiceLifecycle.ts`,
   `invoiceEvents.ts`; `client/src/components/InvoiceLinesEditor.tsx`):
   - `POST /api/portal/invoices` with `submit: false` saves a draft (the
@@ -298,7 +353,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     draft's period and lines; `POST .../submit`, `.../recall` and
     `.../withdraw` move it (`model/workflows.yaml` `payment_request`).
   - Submitting creates the approval chain with a `submission_snapshot` of
-    the invoice and line rows (`spec_version` 0.4.0). Recall is refused
+    the invoice and line rows (`spec_version` 0.5.0). Recall is refused
     once any decision exists on the current chain; otherwise it supersedes
     the chain, keeping its snapshot, and returns the invoice to draft.
     Withdrawal applies to drafts only. `DELETE /api/portal/invoices/:id`
@@ -667,15 +722,19 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `billable-professionals` carries each billable person's kind rates, so
     everyone who may bill for someone sees their rate (migration `0005`).
   - Every save, import confirmation and submission prices each time line:
-    the linked time entry's hours (else the line's) × the rate for that
-    professional's kind on the date, rounded to cents, stored as
-    `billed_rate` and `amount`; the client can't set either. A draft may be
-    saved with time that can't be priced yet (it keeps its stated amount,
-    or zero); confirming an import and submitting refuse it, saying whether
-    the date, hours, person's kind or that kind's rate for the date is
-    missing. A file's `unit_rate` and `stated_amount` stay as evidence, and
-    import review and staff review flag a line whose stated amount differs.
-    Submission prices again, so the snapshot freezes the rates applied.
+    the linked time entry's hours (else the line's) × its `billed_rate`,
+    rounded to cents. `billed_rate` is the line's stated `unit_rate` when
+    it has one (from an imported file), otherwise the rate for that
+    professional's kind on the date, which is always kept as
+    `configured_rate` for review's rate check and re-pricing (model 0.5.0).
+    A draft may be saved with time that can't be priced yet (it keeps its
+    stated amount, or zero); confirming an import and submitting refuse it,
+    saying whether the date, hours, person's kind or that kind's rate for
+    the date is missing. Submission prices again, so the snapshot freezes
+    the rates applied.
+  - Gap: the draft API accepts `unitRate` on any line, so a submitter
+    editing a draft directly could state a rate; review flags any time line
+    whose billed rate differs from the configured one.
   - Invoice entry shows the pricing before saving (client-side previews of
     the same rule): each time item as "hours × rate", a line naming the
     rates in play for the people on the invoice (with "from" dates when
@@ -885,14 +944,30 @@ list/detail views are implemented as tables:
 `case_identifier`, `professional`, `case_assignment`, `time_entry`,
 `professional_kind_rate`, `mileage_rate`, `billing_rule_setting`,
 `invoice`, `invoice_line`, `invoice_approval_chain`,
-`invoice_approval_decision`, `invoice_event`, `document`, `invoice_import`,
+`invoice_approval_decision`, `invoice_line_working_decision`,
+`invoice_review_assignment`, `case_invoice_reviewer`,
+`invoice_review_setting`, `preauthorization`, `preauthorization_decision`,
+`invoice_event`, `document`, `invoice_import`,
 plus lookup tables for the `reference_data`
 sets these entities use (`case_categories`, `case_statuses`,
 `jurisdictions`, `languages`, `case_identifier_types`,
 `case_lifecycle_event_types`, `case_lifecycle_reasons`, `activity_types`,
 `invoice_statuses`, `invoice_line_types`, `expense_types`, `invoice_approval_step_types`,
 `invoice_approval_outcomes`, `invoice_event_types`, `invoice_import_formats`,
-`invoice_import_statuses`).
+`invoice_import_statuses`, `invoice_decision_reasons`,
+`preauthorization_statuses`, `preauthorization_outcomes`).
+`invoice_review_setting.setting_code` is a code from
+`src/billing/reviewSettings.ts` rather than a lookup table, like
+`billing_rule_setting.rule_code`.
+
+`preauthorization` and its decisions are read-only here: rows come only
+from the demo seed, with `professional_id` standing in for
+`service_provider_id` (as on `invoice`). The case page and invoice facts
+show each professional's ceiling (the latest decision), the approved total
+of their signed-off invoices on the case, and the requested total of those
+still in review. That approximates the model's
+`invoice_authorization_allocation` draws, which aren't built: nothing
+blocks approving past a ceiling.
 
 `document`, `invoice_import` and `time_entry.source_invoice_import_id` back
 structured invoice import (see "Structured invoice import" above).
@@ -908,11 +983,9 @@ form collects date, description, hours and amount.
 submitter workflow and internal staff assignment (see "Case assignment,
 two workflows" above) — not general scheduling/workload support.
 
-`invoice_approval_chain`/`invoice_approval_decision` implement a narrow
-slice of the canonical multi-stage, configurable approval routing: see
-the comment on these tables in `src/db/schema.ts` for exactly what's
-simplified (one chain, a single line-review stage with one decision per
-line, no pre-approval, no further stages).
+`invoice_approval_chain`/`invoice_approval_decision` implement line-review
+rounds and sign-off (see "Invoice review" above); pre-approval and denial
+or change requests back to the submitter are not built.
 
 `person_affiliation` (and `case_participant.affiliation_id`) were added ahead
 of an immediate need: adding them after case data exists would mean
@@ -932,6 +1005,8 @@ changes.
 
 - `organization.organization_type_id`: reference_data classification not
   needed for intake/read scope.
+- `preauthorization.service_provider_id`: no service_provider table;
+  `preauthorization.professional_id` plays that role, as on `invoice`.
 
 ### Known limitation: affiliation-uniqueness and NULLs
 
@@ -944,6 +1019,15 @@ optional and rarely absent-but-duplicated in practice; revisit if a future
 form relies on this being airtight.
 
 ### Synthetic seed data provenance
+
+- **Review demo data** (`src/db/seed.ts` `seedDemoReviewers`,
+  `seedDemoReview`): two demo staff become billing reviewers and one a
+  sign-off approver; cases get synthetic `DEMO-26-…` numbers and `COURT-…`
+  identifiers; four assignments get a $2,500 pre-authorization; an
+  investigator invoice states a $175 rate against the $75 configured one;
+  and invoices are left signed off, awaiting sign-off, part-decided,
+  assigned but not started and unassigned, one backdated past the
+  10-working-day callout. All amounts and identifiers are synthetic.
 
 - **Mileage demo trips** (`src/db/seed.ts` `seedDemoMileage`): street
   addresses of public landmarks in Washington, D.C. (the Library of Congress

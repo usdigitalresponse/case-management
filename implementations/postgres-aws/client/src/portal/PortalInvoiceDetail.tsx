@@ -19,15 +19,14 @@ import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components
 import { useAuth } from '../AuthContext';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { PageHeading } from '../components/PageHeading';
-import { RecordTable } from '../components/RecordTable';
 import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
 import { InvoiceSummary, invoiceReference, isSubmittedStatus } from '../components/InvoiceSummary';
-import { LineDecision } from '../components/LineDecision';
+import { DecisionHistory, DecisionSummary } from '../components/LineReview';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { PeriodFields } from '../components/PeriodFields';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatMoney } from '../formatMoney';
-import { isMileage, lineDate, lineDescription, lineHours, lineTimekeeper, lineType } from '../invoiceLineDisplay';
+import { isMileage, lineDate, lineDescription, lineHours, lineRate, lineTimekeeper, lineType } from '../invoiceLineDisplay';
 import { TravelLog } from '../components/TravelLog';
 
 function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () => void }) {
@@ -210,20 +209,55 @@ export default function PortalInvoiceDetail() {
       ) : (
         <div className="detail-section">
           <h2>Invoice items</h2>
-          <RecordTable
-            rows={lines}
-            rowKey={(line) => line.invoiceLineId}
-            emptyMessage="This invoice has no items."
-            columns={[
-              { header: 'Date', render: lineDate },
-              { header: 'Type', render: lineType },
-              { header: 'Description', render: lineDescription },
-              { header: 'Timekeeper', render: lineTimekeeper },
-              { header: lines.some(isMileage) ? 'Hours / miles' : 'Hours', render: lineHours },
-              { header: 'Requested', render: (l) => <span className="amount">{formatMoney(l.amount)}</span> },
-              ...(submitted ? [{ header: 'Decision', render: (l: (typeof lines)[number]) => <LineDecision line={l} /> }] : []),
-            ]}
-          />
+          {submitted && data.approvedTotal !== null && (
+            <p className="compact-hint">
+              Approved {formatMoney(data.approvedTotal)} of {formatMoney(invoice.submittedTotal)}. Each line shows why.
+            </p>
+          )}
+          {lines.length === 0 ? (
+            <p className="empty-note">This invoice has no items.</p>
+          ) : (
+            <div className="data-card">
+              <table className="usa-table review-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">What was done</th>
+                    <th scope="col" className="amount">{lines.some(isMileage) ? 'Hours / miles' : 'Hours'}</th>
+                    <th scope="col" className="amount">Rate</th>
+                    <th scope="col" className="amount">Requested</th>
+                    {submitted && <th scope="col">Decision</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((line) => (
+                    <tr key={line.invoiceLineId} className={line.decision?.outcomeCode === 'rejected' ? 'is-rejected' : undefined}>
+                      <td>{lineDate(line)}</td>
+                      <td>
+                        {lineDescription(line)}
+                        <span className="cell-note">{lineType(line)} · {lineTimekeeper(line)}</span>
+                      </td>
+                      <td className="amount">{lineHours(line)}</td>
+                      <td className="amount">{lineRate(line)}</td>
+                      <td className="amount"><strong>{formatMoney(line.amount)}</strong></td>
+                      {submitted && (
+                        <td className="decision-cell">
+                          {line.decision ? (
+                            <>
+                              <DecisionSummary decision={line.decision} requested={line.amount} />
+                              <DecisionHistory line={line} />
+                            </>
+                          ) : (
+                            <span className="muted">Not decided yet</span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
       {!editing && <TravelLog lines={lines} findings={data.ruleFindings} />}

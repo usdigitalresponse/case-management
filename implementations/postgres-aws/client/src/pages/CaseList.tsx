@@ -25,7 +25,13 @@ export default function CaseList() {
 
   return (
     <ResourceList
-      heading={<PageHeading eyebrow="Cases" title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'} />}
+      heading={
+        <div className="page-title-row">
+          <PageHeading eyebrow="Cases" title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'} />
+          {/* Kept while cases can still be opened here as well as in the external system. */}
+          <RouterLink className="btn btn--primary" to="/cases/new">Add case</RouterLink>
+        </div>
+      }
       error={error}
       data={cases}
       errorMessage="Failed to load cases."
