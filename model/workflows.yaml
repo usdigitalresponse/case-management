@@ -1,4 +1,4 @@
-spec_version: "0.4.0"
+spec_version: "0.5.0"
 status: draft
 kind: workflows
 
@@ -36,11 +36,23 @@ workflows:
       - action: review
         from: [submitted, under_review]
         to: under_review
-        requires: [current_assigned_reviewer, earlier_steps_complete, immutable_decision]
-      - action: approve
+        requires: [current_assigned_reviewer, earlier_steps_complete, working_line_decision]
+      - action: finish_review
         from: under_review
+        to: awaiting_sign_off
+        requires: [current_assigned_reviewer, every_line_decided, reasons_for_partial_and_rejected_lines, immutable_round_of_decisions]
+      - action: reopen_review
+        from: awaiting_sign_off
+        to: under_review
+        requires: [current_assigned_reviewer, no_sign_off_decision_since_round]
+      - action: send_back
+        from: awaiting_sign_off
+        to: under_review
+        requires: [current_assigned_approver, internal_comment, immutable_decision]
+      - action: approve
+        from: awaiting_sign_off
         to: approved
-        requires: [all_required_reviews_complete, approved_line_amounts, atomic_authorization_draw_check]
+        requires: [current_assigned_approver, every_assigned_approver_signed_off, approved_line_amounts, atomic_authorization_draw_check]
       - action: deny
         from: [submitted, under_review]
         to: denied
@@ -68,6 +80,8 @@ workflows:
     requirements:
       - Configure reference status mappings and actor permissions before enabling transitions.
       - Reviewed timestamps and reviewers come from decisions; final approval cannot be asserted by editing status.
+      - Line decisions during review are working decisions (decide_invoice_lines); finish_review records them as one immutable round. A request with several sign-off approvers stays awaiting sign-off until the last approves.
+      - send_back returns the request to its line reviewer with an internal comment; deny and request_changes are the paths back to the submitter.
       - External completion confirmation references the approved attempt and leaves approval status unchanged; it never executes payment.
       - The submitter may edit a draft until submitting it, and may recall a submission before any review decision is recorded; recalled attempts keep their snapshot and the request returns to draft for editing. Starting over withdraws the draft; a new upload creates a new import and request.
       - Until any review decision is recorded, the submitter may delete a draft or withdrawn request outright, with its lines, events, earlier attempts recalled before review, any import record and file, and time entries its import created that no other request uses. Once a decision is recorded, the request is retained and only ever withdrawn.

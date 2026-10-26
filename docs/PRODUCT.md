@@ -101,8 +101,10 @@ The prototype should demonstrate how a system could:
 - Digital invoice submission
 - Automatic totals and discrepancy detection
 - Duplicate or overlapping billing checks
-- Review and approval workflow
+- Line-by-line review with reasons, then sign-off, routed to assigned
+  reviewers and approvers
 - Requests for additional information
+- Review alongside an external case management system
 - External payment completion tracking; actual payment occurs outside this system
 - Pipeline status and aging
 

@@ -44,7 +44,8 @@ so they stay linked to the same schema instead of maintaining a second model.
    app and inspect related lists/forms. Implement runtime workflows next; the
    0.1 guided baseline cannot deploy the expanded slice.
 3. Map these records into that implementation and exercise `scenarios/new-case.md`,
-   `scenarios/case-history.md`, `scenarios/payment-request.md` and
+   `scenarios/case-history.md`, `scenarios/payment-request.md`,
+   `scenarios/invoice-review.md` and
    `scenarios/invoice-import-export.md` through both forms
    and alternate write paths.
 4. Verify server-side permissions, immutable evidence, atomic multi-record intake,

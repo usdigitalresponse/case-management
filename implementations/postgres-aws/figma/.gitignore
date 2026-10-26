@@ -1,0 +1,3 @@
+# Design screenshots name a real organization and system; keep them out of Git.
+*
+!.gitignore

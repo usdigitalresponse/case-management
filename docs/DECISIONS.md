@@ -7,6 +7,61 @@ entry when a decision materially changes.
 
 ## Current Decisions
 
+### Invoice review beside an external case management system
+
+- **Status:** Active; being built in the Postgres/AWS prototype
+- **Decided:** 2026-10-25
+
+The Postgres/AWS staff app becomes a tool for reviewing invoices, designed to
+sit beside an external case management system. Cases may be managed there, so
+case pages here are mostly read-only. **Add case**, and adding people to a
+case, stay because invoice access depends on case assignment. Other case
+features (overview board, directories, closing a case, lifecycle history)
+are hidden, not removed. Links to the external system are inert placeholders.
+The external submitter portal keeps its sign-in and is restyled to match.
+
+**Line review**
+- Reviewers approve a line, approve part of it (correcting hours or rate, or
+  the amount when it has no hours), or reject it.
+- Approving part of a line or rejecting it needs a reason from a configurable
+  list: rate above the configured rate, work not billable, more time than the
+  task needs, duplicate entry, block billing, or other with a note.
+- Notes are visible to everyone who can see the invoice. Staff keep unofficial
+  notes outside the system.
+- Decisions can be undone or changed freely until the reviewer finishes the
+  review. Only finished rounds are recorded, and exports show their history.
+- A rejected line no longer rejects the invoice.
+
+**Pricing**
+- A time line is requested at the rate the submitter stated.
+- A stated rate that differs from the configured rate is flagged, and a
+  re-price action approves those lines in part at the configured rate.
+
+**Sign-off and routing**
+- Sign-off by a director happens in the tool, for the whole invoice. The
+  director may send it back to the reviewer with an internal-only comment
+  instead.
+- Reviewers may change the sign-off approvers for one invoice when they
+  differ from the default.
+- New invoices go to the case's reviewer, else a default reviewer set in
+  Settings, else stay unassigned. Any reviewer may reassign an invoice.
+- Everyone sees every queue, but their own work is shown first.
+- Waiting time counts working days and excludes weekends. A holiday calendar
+  is planned.
+- The working-day threshold for calling out late invoices is a setting.
+- Roles: billing reviewer, sign-off approver, general staff (duties to be
+  defined) and administrator.
+
+**Exports**
+- After sign-off, staff export the documentation for payment.
+- Checking it for confidential information happens outside the system.
+
+**Later step**
+- Submitters replying to line decisions.
+
+See `scenarios/invoice-review.md` and model 0.5.0 in
+[the model review](model-review.md).
+
 ### Supporting invoice import and export
 
 - **Status:** Active

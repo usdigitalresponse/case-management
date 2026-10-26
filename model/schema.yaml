@@ -1,4 +1,4 @@
-spec_version: "0.4.0"
+spec_version: "0.5.0"
 status: draft
 kind: domain_schema
 
@@ -507,11 +507,15 @@ entities:
       unit_rate:
         type: money
         required: false
-        description: Rate as stated by the payee; evidence only, never used to calculate amount.
+        description: Rate as stated by the payee on an imported supporting invoice; on a time line it becomes billed_rate (apply_professional_rates).
       billed_rate:
         type: money
         required: false
-        description: The rate applied, the professional_kind_rate on a time line or the mileage_rate on a mileage line; the line amount is its quantity times this rate.
+        description: The rate applied; the line amount is its quantity times this rate. On a time line, the rate the payee stated on an imported supporting invoice, otherwise configured_rate; on a mileage line, the mileage_rate.
+      configured_rate:
+        type: money
+        required: false
+        description: Time lines only. The professional_kind_rate in force for the professional on the service date, kept beside billed_rate so review can flag and re-price a stated rate that differs.
       stated_amount:
         type: money
         required: false
@@ -654,9 +658,10 @@ entities:
 
   invoice_approval_decision:
     display_name: Invoice Approval Decision
-    description: An immutable decision on an invoice or one of its lines at one stage of a review chain. There is
-      no separate step entity; sequence_number and step_type_id place each decision within its chain directly,
-      since nothing assigns or routes a stage ahead of the decision that resolves it.
+    description: An immutable decision on an invoice or one of its lines at one stage of a review chain.
+      sequence_number and step_type_id place each decision within its chain; invoice_review_assignment
+      records who is expected to make it. Line decisions are recorded together when the reviewer finishes a
+      round of review; until then they are invoice_line_working_decision rows, which are not history.
     primary_key: invoice_approval_decision_id
     fields:
       invoice_approval_decision_id:
@@ -692,10 +697,173 @@ entities:
       reason:
         type: string
         required: false
+        description: The reviewer's note or comment. Visible to everyone who may read the request unless internal_only.
+      reason_code_id:
+        type: reference
+        required: false
+        reference_data: invoice_decision_reasons
+        description: Why a line was approved in part or rejected; required for those outcomes.
+      internal_only:
+        type: boolean
+        required: false
+        description: True when reason is a staff-only comment, such as a sign-off send-back; never shown to submitters or represented professionals. Line decision notes are never internal.
       approved_amount:
         type: money
         required: false
-        description: Required for an approving line decision; not an invoice pre-approval amount.
+        description: Required for an approving line decision; less than the line amount when approved in part. Not an invoice pre-approval amount.
+      approved_quantity:
+        type: decimal
+        required: false
+        description: Hours or units the reviewer approved when approving in part by correcting them.
+      approved_rate:
+        type: money
+        required: false
+        description: Rate the reviewer approved when approving in part by correcting it.
+
+  invoice_line_working_decision:
+    display_name: Working Line Decision
+    description: A reviewer's current, changeable decision on one line during a round of review. Not history
+      and not audited; replaced or removed freely (undo, change) until the reviewer finishes the round, which
+      records every line's working decision as an invoice_approval_decision and clears them.
+    primary_key: invoice_line_working_decision_id
+    fields:
+      invoice_line_working_decision_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_approval_chain_id:
+        type: uuid
+        required: true
+        references: invoice_approval_chain.invoice_approval_chain_id
+      invoice_line_id:
+        type: uuid
+        required: true
+        references: invoice_line.invoice_line_id
+      outcome_id:
+        type: reference
+        required: true
+        reference_data: invoice_approval_outcomes
+      approved_amount:
+        type: money
+        required: false
+      approved_quantity:
+        type: decimal
+        required: false
+      approved_rate:
+        type: money
+        required: false
+      reason_code_id:
+        type: reference
+        required: false
+        reference_data: invoice_decision_reasons
+      note:
+        type: string
+        required: false
+      decided_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      decided_at:
+        type: datetime
+        required: true
+
+  invoice_review_assignment:
+    display_name: Invoice Review Assignment
+    description: Who is expected to act at one step of a request's review, such as line review or sign-off.
+      Reassigning ends the current row and starts another, so the history of who held the request is kept.
+    primary_key: invoice_review_assignment_id
+    fields:
+      invoice_review_assignment_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      step_type_id:
+        type: reference
+        required: true
+        reference_data: invoice_approval_step_types
+      position:
+        type: integer
+        required: true
+        description: Order among the request's sign-off approvers; 1 for line review.
+      assigned_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      assigned_at:
+        type: datetime
+        required: true
+      assigned_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+        description: Absent when a configured default assigned it on submission.
+      ended_at:
+        type: datetime
+        required: false
+      ended_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+
+  case_invoice_reviewer:
+    display_name: Case Invoice Reviewer
+    description: The reviewer new requests on a case are assigned to, overriding the configured default, from
+      when it is set until it is ended.
+    primary_key: case_invoice_reviewer_id
+    fields:
+      case_invoice_reviewer_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      reviewer_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      set_at:
+        type: datetime
+        required: true
+      set_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      ended_at:
+        type: datetime
+        required: false
+
+  invoice_review_setting:
+    display_name: Invoice Review Setting
+    description: One deployment-wide review setting, such as the default reviewer, the default sign-off
+      approvers or how many working days a request may wait before it is called out. Settings are added,
+      never changed, from when they are recorded until a later setting of the same kind.
+    primary_key: invoice_review_setting_id
+    fields:
+      invoice_review_setting_id:
+        type: uuid
+        required: true
+        generated: true
+      setting_code:
+        type: reference
+        required: true
+        reference_data: invoice_review_setting_types
+      parameters:
+        type: object
+        required: false
+        description: The setting's value, such as a user account, an ordered list of user accounts or a number of working days.
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
 
   payment:
     display_name: External Payment Confirmation

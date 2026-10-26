@@ -31,6 +31,27 @@ a mileage distance billing rule compares claimed miles with the driving
 distance. These tighten earlier behaviour: a manual time line without a rate
 or hours, or a mileage line without miles or a rate, no longer submits.
 
+Model files are now 0.5.0, a breaking revision for invoice review beside an
+external case management system (see `docs/DECISIONS.md`):
+
+- A time line stated on an imported invoice is requested at its stated rate.
+  The configured rate is kept as `invoice_line.configured_rate`, and review
+  flags and can re-price the difference (`apply_professional_rates`).
+- Reviewers work in `invoice_line_working_decision` rows that they can undo
+  or change. Finishing a round records them as immutable decisions with a
+  reason code, an optional note and, for approval in part, the corrected hours
+  or rate (`decide_invoice_lines`).
+- A rejected line no longer blocks the request.
+- Sign-off is a new step after line review. Sign-off approvers may send a
+  request back with an internal-only comment, which starts a new round in the
+  same chain. The latest round's amounts govern
+  (`record_approved_request_amounts`).
+- `invoice_review_assignment`, `case_invoice_reviewer` and
+  `invoice_review_setting` route requests to reviewers and approvers from
+  defaults that staff can change (`assign_invoice_review`).
+- Waiting time counts working days (`measure_review_waiting`).
+- Configured system roles map to review actions (`authorize_invoice_review`).
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |
