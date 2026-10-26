@@ -456,6 +456,15 @@ entities:
       currency_code:
         type: string
         required: true
+      received_via_id:
+        type: reference
+        required: false
+        reference_data: invoice_receipt_channels
+        description: How a request staff entered for a professional reached the organization, such as email or another tool; empty when the submitter entered it themselves.
+      received_on:
+        type: date
+        required: false
+        description: When a staff-entered request was received; review waiting time counts from it.
 
   invoice_line:
     display_name: Invoice Line

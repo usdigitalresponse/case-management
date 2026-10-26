@@ -78,7 +78,10 @@ The `invoice_approval_step_types` reference data must distinguish invoice
 pre-approval, line review and sign-off. `invoice_approval_outcomes` must
 distinguish approval, rejection, and requests for changes.
 `invoice_decision_reasons` lists why a line was approved in part or rejected.
-Reference-data identifiers remain configurable.
+`invoice_receipt_channels` lists how a request that staff entered for a
+professional arrived, such as email or another tool
+(`authorize_staff_invoice_entry`). Reference-data identifiers remain
+configurable.
 
 During review the reviewer's line decisions are `invoice_line_working_decision`
 rows they can undo or change freely; these are not history. Finishing the

@@ -1,23 +1,40 @@
 import { useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
-import { listBillableProfessionals, listMyCases, listMyTimeEntries } from '../api/client';
+import { listBillableProfessionals, listMyCases, listMyInvoices, listMyTimeEntries } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { NewInvoiceForm } from './NewInvoiceForm';
+import { MyInvoicesTable } from './MyInvoicesTable';
+import { useShell } from './useShell';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 
-// The submitter's start page: import invoice files (which can cover several
-// cases), or choose a case and enter or import one invoice for it.
+// The start page for entering invoices: import invoice files (which can
+// cover several cases), or choose a case and enter or import one invoice for
+// it. Submitters use it for their own work; staff for invoices received by
+// email or from other tools, and they finish their drafts here.
 export default function PortalNewInvoice() {
   const [params, setParams] = useSearchParams();
   const caseId = params.get('case') ?? '';
+  const { staff } = useShell();
+  const [version, setVersion] = useState(0);
   const { data: cases, error } = useApiResource(() => listMyCases().then((result) => result.cases), []);
+  const { data: drafts } = useApiResource(
+    () => (staff ? listMyInvoices().then((result) => result.invoices.filter((invoice) => invoice.statusCode === 'draft')) : Promise.resolve([])),
+    [staff, version],
+  );
 
   return (
     <div>
-      <PageHeader title="New invoice" description="Import invoice files, or choose a case to enter an invoice by hand." />
-      {Boolean(error) && <Notice tone="danger">Failed to load your cases.</Notice>}
+      <PageHeader
+        title="New invoice"
+        description={
+          staff
+            ? 'Enter an invoice a professional sent by email or from another tool, for them. Import the file, or choose a case and type it in.'
+            : 'Import invoice files, or choose a case to enter an invoice by hand.'
+        }
+      />
+      {Boolean(error) && <Notice tone="danger">Failed to load cases.</Notice>}
 
       <div className="start-options">
         <section className="compact-card start-option">
@@ -45,16 +62,26 @@ export default function PortalNewInvoice() {
               </option>
             ))}
           </select>
-          {cases && cases.length === 0 && <p className="compact-hint">You aren't assigned to any cases yet.</p>}
+          {cases && cases.length === 0 && (
+            <p className="compact-hint">{staff ? 'No case has a professional assigned yet.' : "You aren't assigned to any cases yet."}</p>
+          )}
         </section>
       </div>
 
-      {caseId && <CaseInvoice key={caseId} caseId={caseId} />}
+      {caseId && <CaseInvoice key={caseId} caseId={caseId} onSaved={() => setVersion((v) => v + 1)} />}
+
+      {staff && drafts && drafts.length > 0 && (
+        <section className="detail-section">
+          <h2>Drafts to finish</h2>
+          <MyInvoicesTable rows={drafts} label="Drafts to finish" onDeleted={() => setVersion((v) => v + 1)} />
+        </section>
+      )}
     </div>
   );
 }
 
-function CaseInvoice({ caseId }: { caseId: string }) {
+function CaseInvoice({ caseId, onSaved }: { caseId: string; onSaved: () => void }) {
+  const { casePath } = useShell();
   const [timeVersion, setTimeVersion] = useState(0);
   const { data: billable, error } = useApiResource(
     () => listBillableProfessionals(caseId).then((result) => result.professionals),
@@ -74,9 +101,17 @@ function CaseInvoice({ caseId }: { caseId: string }) {
   return (
     <section className="detail-section">
       <p className="compact-hint">
-        Recorded time and earlier invoices for this case are on its <RouterLink to={`/portal/cases/${caseId}`}>case page</RouterLink>.
+        Recorded time and earlier invoices for this case are on its <RouterLink to={casePath(caseId)}>case page</RouterLink>.
       </p>
-      <NewInvoiceForm caseId={caseId} billable={billable} entries={entries} onSaved={() => setTimeVersion((v) => v + 1)} />
+      <NewInvoiceForm
+        caseId={caseId}
+        billable={billable}
+        entries={entries}
+        onSaved={() => {
+          setTimeVersion((v) => v + 1);
+          onSaved();
+        }}
+      />
     </section>
   );
 }

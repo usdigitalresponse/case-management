@@ -134,7 +134,12 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
         reviewer: assignments.reviewer,
         // Who must act now: the next approver while awaiting sign-off.
         holder: nextApprover ?? assignments.reviewer,
-        workingDaysWaiting: header.submittedAt ? workingDaysBetween(header.submittedAt, now) : 0,
+        // A staff-entered invoice waits from the day it was received.
+        workingDaysWaiting: header.receivedOn
+          ? workingDaysBetween(new Date(`${header.receivedOn}T12:00:00Z`), now)
+          : header.submittedAt
+            ? workingDaysBetween(header.submittedAt, now)
+            : 0,
         flags,
       };
     }),

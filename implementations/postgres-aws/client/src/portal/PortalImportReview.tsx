@@ -36,6 +36,7 @@ import { Notice, type SaveMessage } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
+import { NEW_INVOICE_PATH, useShell } from './useShell';
 
 interface Loaded {
   importDetail: InvoiceImportDetail;
@@ -256,6 +257,7 @@ export default function PortalImportReview() {
   const [searchParams] = useSearchParams();
   const fromBulk = searchParams.get('from') === 'bulk';
   const navigate = useNavigate();
+  const { casePath } = useShell();
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => load(importId as string), [importId, version]);
   // From bulk import: where this file sits in the queue still to review.
@@ -284,7 +286,7 @@ export default function PortalImportReview() {
   }
 
   const { importDetail } = data;
-  const backTo = fromBulk ? '/portal/imports' : importDetail.caseId ? `/portal/cases/${importDetail.caseId}` : '/';
+  const backTo = fromBulk ? '/portal/imports' : importDetail.caseId ? casePath(importDetail.caseId) : NEW_INVOICE_PATH;
 
   async function discardImport() {
     try {

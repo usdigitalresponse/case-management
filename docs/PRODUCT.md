@@ -98,7 +98,8 @@ The prototype should demonstrate how a system could:
 
 ### Billing and Payments
 
-- Digital invoice submission
+- Digital invoice submission, including staff entering invoices received by
+  email or from other tools
 - Automatic totals and discrepancy detection
 - Duplicate or overlapping billing checks
 - Line-by-line review with reasons, then sign-off, routed to assigned

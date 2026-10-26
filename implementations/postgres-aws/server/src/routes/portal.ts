@@ -40,6 +40,7 @@ import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
 import { loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail';
 import { recallInvoice, submitInvoice, updateDraftInvoice, withdrawInvoice } from '../billing/invoiceLifecycle';
+import { listReceiptChannels } from '../billing/invoiceReceipt';
 import { InvoiceNotFoundError } from '../billing/reviewInvoiceLine';
 import { asyncHandler } from './asyncHandler';
 import { parseExportFormat, sendInvoiceExport } from './sendInvoiceExport';
@@ -123,6 +124,14 @@ router.get(
   }),
 );
 
+// How an invoice staff enter may have been received.
+router.get(
+  '/receipt-channels',
+  asyncHandler(async (_req, res) => {
+    res.json({ channels: await listReceiptChannels(db) });
+  }),
+);
+
 router.get(
   '/cases/:caseId/billable-professionals',
   asyncHandler(async (req, res) => {
@@ -183,7 +192,8 @@ for (const [action, transition] of Object.entries(transitions)) {
   router.post(
     `/invoices/:id/${action}`,
     asyncHandler(async (req, res) => {
-      res.json(await transition(db, await sessionActor(req), req.params.id as string));
+      // Submit takes how and when a staff-entered invoice was received.
+      res.json(await transition(db, await sessionActor(req), req.params.id as string, req.body));
     }),
   );
 }

@@ -16,6 +16,7 @@ import {
   invoiceLineTypes,
   invoiceLineWorkingDecision,
   invoiceStatuses,
+  invoiceReceiptChannels,
   person,
   professional,
   professionalKinds,
@@ -49,6 +50,9 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
       currencyCode: invoice.currencyCode,
       periodStart: invoice.periodStart,
       periodEnd: invoice.periodEnd,
+      // Set when staff entered an invoice received outside the system.
+      receivedViaDisplayName: invoiceReceiptChannels.displayName,
+      receivedOn: invoice.receivedOn,
     })
     .from(invoice)
     .leftJoin(caseTable, eq(invoice.caseId, caseTable.caseId))
@@ -56,7 +60,8 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
     .leftJoin(professional, eq(invoice.professionalId, professional.professionalId))
     .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
     .leftJoin(userAccount, eq(invoice.submittedByUserAccountId, userAccount.userAccountId))
-    .leftJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id));
+    .leftJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+    .leftJoin(invoiceReceiptChannels, eq(invoice.receivedViaId, invoiceReceiptChannels.id));
 }
 
 export type InvoiceHeader = Awaited<ReturnType<typeof selectInvoiceHeaders>>[number];

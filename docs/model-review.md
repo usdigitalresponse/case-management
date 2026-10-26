@@ -50,6 +50,10 @@ external case management system (see `docs/DECISIONS.md`):
   `invoice_review_setting` route requests to reviewers and approvers from
   defaults that staff can change (`assign_invoice_review`).
 - Waiting time counts working days (`measure_review_waiting`).
+- Staff may enter a request a professional sent outside the system, for any
+  professional assigned to the case, recording `invoice.received_via_id` and
+  `received_on`; waiting counts from `received_on`
+  (`authorize_staff_invoice_entry`).
 - Configured system roles map to review actions (`authorize_invoice_review`).
 
 ## Coverage and changes

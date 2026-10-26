@@ -7,6 +7,7 @@ import {
   listMyTimeEntries,
   transitionInvoice,
   updateDraftInvoice,
+  type InvoiceReceipt,
   type InvoiceTransition,
   type PortalInvoice,
 } from '../api/client';
@@ -29,7 +30,9 @@ import { InvoiceLinesTable, lineRowClass } from '../components/InvoiceLinesTable
 import { TravelLog } from '../components/TravelLog';
 import { Notice, type SaveMessage } from '../components/Notice';
 import { caseDisplayLabel } from '../caseDisplayLabel';
-import { formatDateTime, formatPeriod } from '../formatDateTime';
+import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
+import { hasReceipt, ReceivedFields } from './ReceivedFields';
+import { useShell } from './useShell';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
 
@@ -54,6 +57,9 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
   const billingRules = usePortalBillingRules();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<SaveMessage | null>(null);
+  const { staff } = useShell();
+  const [receipt, setReceipt] = useState<InvoiceReceipt>({ receivedOn: invoice.receivedOn ?? undefined });
+  const needsReceipt = staff && !hasReceipt(receipt);
 
   async function run(action: 'save' | InvoiceTransition) {
     setBusy(true);
@@ -67,7 +73,7 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
         });
       }
       if (action !== 'save') {
-        await transitionInvoice(invoice.invoiceId, action);
+        await transitionInvoice(invoice.invoiceId, action, action === 'submit' && staff ? receipt : undefined);
       }
       if (action === 'save') {
         setMessage({ tone: 'success', text: 'Draft saved.' });
@@ -90,6 +96,9 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
       <RulesInForce rules={billingRules.rules} />
       {/* As last saved; saving shows the effect of edits. */}
       <RuleFindings findings={data.ruleFindings} />
+      {staff && (
+        <ReceivedFields idPrefix="draft" value={receipt} onChange={setReceipt} receivedViaDisplayName={invoice.receivedViaDisplayName} />
+      )}
       <PeriodFields idPrefix="draft" start={period.start} end={period.end} onChange={setPeriod} />
       <UnbilledTimePicker idPrefix="draft" entries={pickable} lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
       <InvoiceLinesEditor
@@ -103,7 +112,7 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
         mileageRates={billingRules.mileageRates}
       />
       <div className="invoice-actions">
-        <button type="button" className="btn btn--primary" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('submit')}>
+        <button type="button" className="btn btn--primary" disabled={busy || !hasInvoiceItems(lines) || needsReceipt} onClick={() => void run('submit')}>
           Submit invoice
         </button>
         <button type="button" className="btn btn--outline" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>
@@ -137,6 +146,7 @@ export default function PortalInvoiceDetail() {
   const [recallError, setRecallError] = useState<string | null>(null);
   const [recalling, setRecalling] = useState(false);
   const { user } = useAuth();
+  const shell = useShell();
 
   async function recall() {
     setRecalling(true);
@@ -167,14 +177,14 @@ export default function PortalInvoiceDetail() {
   const { deletable } = data;
   const recallable = isSubmitter && invoice.statusCode === 'submitted' && lines.every((line) => !line.decisionOutcomeCode);
   const decidedCount = lines.filter((line) => line.decision).length;
-  const toInvoices = () => navigate('/portal/invoices');
+  const toInvoices = () => navigate(shell.invoicesPath);
 
   return (
     <div>
       <PageHeader
         crumbs={[
-          fromBulk ? { label: 'Imports', to: '/portal/imports' } : { label: 'Your invoices', to: '/portal/invoices' },
-          { label: invoice.caseClientDisplayName ?? 'Case', to: `/portal/cases/${invoice.caseId}` },
+          fromBulk ? { label: 'Imports', to: '/portal/imports' } : { label: shell.invoicesLabel, to: shell.invoicesPath },
+          { label: invoice.caseClientDisplayName ?? 'Case', to: shell.casePath(invoice.caseId) },
           { label: invoiceReference(invoice.invoiceId) },
         ]}
         title={invoice.caseClientDisplayName ?? caseDisplayLabel([invoice.caseExternalReference], undefined)}
@@ -183,11 +193,20 @@ export default function PortalInvoiceDetail() {
           <>
             <strong>Case {data.caseNumber ?? invoice.caseExternalReference ?? '—'}</strong>
             <span>{submittedByLabel(invoice)}</span>
+            {invoice.receivedOn && (
+              <span>
+                Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
+                {formatDate(invoice.receivedOn)}
+              </span>
+            )}
           </>
         }
         actions={
           (submitted || recallable || (deletable && !editing)) && (
             <>
+              {shell.staff && submitted && (
+                <RouterLink className="btn btn--primary" to={`/billing/${invoice.invoiceId}`}>Open in review</RouterLink>
+              )}
               {recallable && (
                 <button type="button" className="btn btn--outline" disabled={recalling} onClick={() => void recall()}>
                   {recalling ? 'Recalling…' : 'Recall to draft'}

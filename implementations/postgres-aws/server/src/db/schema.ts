@@ -49,6 +49,8 @@ export const invoiceApprovalOutcomes = referenceTable('invoice_approval_outcomes
 export const invoiceEventTypes = referenceTable('invoice_event_types');
 // Why a line was approved in part or rejected (model/rules.yaml decide_invoice_lines).
 export const invoiceDecisionReasons = referenceTable('invoice_decision_reasons');
+// How a request staff entered reached the organization (model/rules.yaml authorize_staff_invoice_entry).
+export const invoiceReceiptChannels = referenceTable('invoice_receipt_channels');
 export const preauthorizationStatuses = referenceTable('preauthorization_statuses');
 export const preauthorizationOutcomes = referenceTable('preauthorization_outcomes');
 export const invoiceImportFormats = referenceTable('invoice_import_formats');
@@ -383,6 +385,10 @@ export const invoice = pgTable(
     currencyCode: text('currency_code').notNull().default('USD'),
     periodStart: date('period_start'),
     periodEnd: date('period_end'),
+    // Set when staff entered a request received outside the system;
+    // waiting time counts from receivedOn.
+    receivedViaId: uuid('received_via_id').references(() => invoiceReceiptChannels.id),
+    receivedOn: date('received_on'),
   },
   (table) => [index('invoice_professional_id_idx').on(table.professionalId), index('invoice_case_id_idx').on(table.caseId)],
 );

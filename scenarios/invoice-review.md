@@ -50,6 +50,18 @@ and day counts are synthetic test values, not configuration defaults.
    - An export of the approved request shows each line's latest decision, with
      earlier recorded rounds as history.
    - Exports never include working decisions or internal-only comments.
+9. **Staff entry:** A staff user with no office affiliation enters a request
+   that an assigned professional emailed in on a Monday, by typing its items
+   or importing the file (`authorize_staff_invoice_entry`).
+   - They can bill only professionals assigned to the case; a professional who
+     is not assigned is refused.
+   - Submitting without how it was received and the date received is blocked,
+     as is a received date in the future.
+   - The staff user is the submitter on every event. The request waits from the
+     Monday it was received, not from the day it was entered.
+   - The professional sees the request and its decisions read-only, and cannot
+     recall it.
+   - The staff user may review its lines but may not sign it off.
 
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

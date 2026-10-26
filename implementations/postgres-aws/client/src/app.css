@@ -180,6 +180,8 @@ button, input, select, textarea { font: inherit; }
    fine for a single-column form, but it squeezes .form-grid's 2-column
    layout into a sliver. Override it for the one form that needs room. */
 form.case-intake-form { max-width: 52rem; }
+.import-case { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; margin: 0 0 1.5rem; }
+.import-case .cell-note { margin: 0; }
 .form-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.6rem 1.7rem; margin-bottom: 1.3rem; }
 .form-card .usa-fieldset { margin: 0; }
 .form-card legend { padding: 0 0 .3rem; }
@@ -543,6 +545,11 @@ form.compact-form { max-width: none; }
 .start-option { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
 .start-option h2 { margin: 0; font-size: 1.05rem; }
 .start-option .usa-select { max-width: 100%; margin: 0; }
+/* Staff entering an invoice received elsewhere: how and when it came in. */
+.received-fields { margin: 0 0 .8rem; padding: .7rem .9rem; border: 1px solid var(--line); border-radius: 6px; background: var(--info-tint); }
+.received-fields legend { padding: 0 .3rem; font-size: .9rem; font-weight: 600; }
+.received-fields__row { grid-template-columns: minmax(10rem, 16rem) 11rem; }
+.received-fields .compact-hint { margin-top: .4rem; }
 
 /* Asking before a destructive action (components/ConfirmButton.tsx). */
 .confirm-inline { padding: .35rem .6rem; background: var(--danger-tint); border-radius: 6px; }

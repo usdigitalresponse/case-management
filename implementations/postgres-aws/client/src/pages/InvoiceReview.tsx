@@ -30,7 +30,7 @@ import { Fact, FactsStrip, Progress } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { Toast, useToast, type ToastMessage } from '../components/Toast';
-import { formatDateTime, formatPeriod } from '../formatDateTime';
+import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { reviewTotals, submittedByLabel } from '../reviewTotals';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
@@ -147,6 +147,12 @@ export default function InvoiceReview() {
             <span>
               {invoice.professionalKindDisplayName ?? 'Professional'} invoice from {submittedByLabel(invoice)}
             </span>
+            {invoice.receivedOn && (
+              <span>
+                Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
+                {formatDate(invoice.receivedOn)}
+              </span>
+            )}
             <button type="button" className="link-button" disabled title="Not connected yet">
               Open the case in your {EXTERNAL_SYSTEM_NAME} ↗
             </button>

@@ -16,6 +16,7 @@ import {
   uploadInvoiceFileByCase,
   type CaseSplitPreview,
   type ImportInProgress,
+  type InvoiceReceipt,
   type MyCasesResult,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
@@ -41,6 +42,8 @@ import {
 } from './bulkImport';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
+import { hasReceipt, ReceivedFields } from './ReceivedFields';
+import { NEW_INVOICE_PATH, useShell } from './useShell';
 
 interface StagedFile {
   key: string;
@@ -539,7 +542,7 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
                 header: '',
                 render: (row) => (
                   <span className="row-actions">
-                    {row.caseId && <RouterLink to={`/portal/cases/${row.caseId}#new-invoice`}>Enter by hand</RouterLink>}
+                    {row.caseId && <RouterLink to={`${NEW_INVOICE_PATH}?case=${row.caseId}`}>Enter by hand</RouterLink>}
                     {discardButton(row)}
                   </span>
                 ),
@@ -561,6 +564,9 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
   const [results, setResults] = useState<{ submitted: ImportInProgress[]; errors: string[] } | null>(null);
   const chosen = ready.filter((row) => !excluded.has(row.invoiceImportId));
   const chosenTotal = chosen.reduce((sum, row) => sum + Math.round(Number(row.submittedTotal ?? 0) * 100), 0) / 100;
+  // Staff say once how and when this batch was received.
+  const { staff } = useShell();
+  const [receipt, setReceipt] = useState<InvoiceReceipt>({});
 
   function toggle(importId: string, included: boolean) {
     setExcluded((current) => {
@@ -582,7 +588,7 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
     for (const row of chosen) {
       try {
         // eslint-disable-next-line no-await-in-loop
-        await transitionInvoice(row.invoiceId as string, 'submit');
+        await transitionInvoice(row.invoiceId as string, 'submit', staff ? receipt : undefined);
         submitted.push(row);
       } catch (err) {
         errors.push(`${row.fileName}: ${apiErrorMessage(err, 'could not be submitted.')}`);
@@ -644,8 +650,14 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
               },
             ]}
           />
+          {staff && <ReceivedFields idPrefix="bulk" value={receipt} onChange={setReceipt} />}
           <div className="invoice-actions">
-            <button type="button" className="btn btn--primary" disabled={submitting || chosen.length === 0} onClick={() => void submitChosen()}>
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={submitting || chosen.length === 0 || (staff && !hasReceipt(receipt))}
+              onClick={() => void submitChosen()}
+            >
               {submitting
                 ? 'Submitting…'
                 : `Submit ${chosen.length} ${chosen.length === 1 ? 'invoice' : 'invoices'} · ${formatMoney(chosenTotal.toFixed(2))}`}
@@ -731,7 +743,7 @@ export default function PortalBulkImport() {
     }
     setBatch([]);
     saveBatch([]);
-    navigate('/');
+    navigate(NEW_INVOICE_PATH);
   }
 
   async function discard(importId: string) {
@@ -745,7 +757,7 @@ export default function PortalBulkImport() {
   return (
     <div>
       <PageHeader
-        crumbs={[{ label: 'New invoice', to: '/' }, { label: 'Import invoices' }]}
+        crumbs={[{ label: 'New invoice', to: NEW_INVOICE_PATH }, { label: 'Import invoices' }]}
         title="Import invoices"
         description="Upload several invoice files at once, review and correct what was read from each, then submit them together."
         actions={

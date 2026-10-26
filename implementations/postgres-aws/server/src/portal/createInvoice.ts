@@ -9,13 +9,14 @@ import { invoice } from '../db/schema';
 import { createDraftInTx, draftContentSchema, parseDraftContent, submitInTx } from '../billing/invoiceLifecycle';
 import { measureTrips } from '../billing/routeCheck';
 import { billableProfessionalIds, type PortalActor } from './portalActor';
+import { receiptInputSchema, recordReceipt } from '../billing/invoiceReceipt';
 
 export const createInvoiceInputSchema = draftContentSchema.extend({
   caseId: z.string().uuid(),
   // Defaults to the caller's own profile; a delegate names whom they bill for.
   professionalId: z.string().uuid().optional(),
   submit: z.boolean().default(true),
-});
+}).extend(receiptInputSchema.shape);
 
 export type CreateInvoiceInput = z.input<typeof createInvoiceInputSchema>;
 
@@ -45,6 +46,7 @@ export async function createInvoice(
   }
   return db.transaction(async (tx) => {
     const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content);
+    await recordReceipt(tx, invoiceId, { receivedVia: parsed.data.receivedVia, receivedOn: parsed.data.receivedOn });
     if (submit) {
       await submitInTx(tx, actor, invoiceId);
     }

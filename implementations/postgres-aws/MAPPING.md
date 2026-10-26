@@ -44,8 +44,23 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     access depends on case assignment.
   - Links to the external case management system ("Open the case in…",
     the sidebar link) are disabled placeholders; nothing is integrated.
+  - Staff "New invoice" (`/new-invoice`, top of the sidebar) enters an
+    invoice a professional sent by email or from another tool
+    (`model/rules.yaml` `authorize_staff_invoice_entry`). It reuses the
+    portal's pages at the same paths (`/portal/imports`,
+    `/portal/imports/:id`, `/portal/invoices/:id`); `portal/useShell.ts`
+    switches the few links that differ, such as the case page. Any active
+    staff role may bill any professional assigned to the case:
+    `server/src/portal/portalActor.ts` treats a staff account as
+    representing every assigned professional, so time, invoice, import and
+    case-list checks all apply unchanged. Submitting requires how and when it
+    was received (`invoice.received_via_id`, `received_on`;
+    `server/src/billing/invoiceReceipt.ts`), and queue waiting time counts
+    from `received_on`. Staff finish their drafts on New invoice; a
+    submitted one links to its review page.
   - The external portal uses the same shell and opens on "New invoice"
-    (`client/src/portal/PortalNewInvoice.tsx`): import files (the bulk
+    (`/new-invoice`, which `/` redirects to;
+    `client/src/portal/PortalNewInvoice.tsx`): import files (the bulk
     import page, which can split a file across cases), or choose a case
     and use the same new-invoice form as the case page
     (`portal/NewInvoiceForm.tsx`). "Your invoices"

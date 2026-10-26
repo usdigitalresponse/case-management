@@ -5,6 +5,7 @@ import { RecordTable } from '../components/RecordTable';
 import { formatDate } from '../formatDateTime';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
+import { NEW_INVOICE_PATH } from './useShell';
 
 interface CaseSection {
   professional: MyCaseProfessional;
@@ -73,7 +74,7 @@ export default function PortalCaseList() {
       <PageHeader
         title="Your cases"
         description={`${isDelegate ? 'Cases for you and the people you bill for.' : 'Cases assigned to you.'} Record time and see each case's invoices from its page.`}
-        actions={<RouterLink className="btn btn--primary" to="/">New invoice</RouterLink>}
+        actions={<RouterLink className="btn btn--primary" to={NEW_INVOICE_PATH}>New invoice</RouterLink>}
       />
       {Boolean(error) && <Notice tone="danger">Failed to load your cases.</Notice>}
       {!data && !error && <p role="status">Loading your cases…</p>}

@@ -33,6 +33,7 @@ import { applyTripDistances, measureTrips } from './routeCheck';
 import { checkInferredDates } from '../imports/inferServiceDates';
 import { enforceBillingRules } from './billingRules';
 import { assignOnSubmit, endAllAssignments } from './reviewAssignment';
+import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry } from './invoiceReceipt';
 import {
   DRAFT_INVOICE_STATUS_CODE,
   SUBMITTED_INVOICE_STATUS_CODE,
@@ -348,6 +349,7 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
   if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
     throw new InvoiceStateError('Only a draft can be submitted.');
   }
+  await requireReceiptForStaffEntry(tx, actor, locked);
   const lines = await tx
     .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
     .from(invoiceLine)
@@ -430,7 +432,12 @@ export async function updateDraftInvoice(db: Database, actor: PortalActor, invoi
   });
 }
 
-export async function submitInvoice(db: Database, actor: PortalActor, invoiceId: string) {
+// Staff entering a request received elsewhere pass how and when it came in.
+export async function submitInvoice(db: Database, actor: PortalActor, invoiceId: string, rawReceipt: unknown = {}) {
+  const receipt = receiptInputSchema.safeParse(rawReceipt ?? {});
+  if (!receipt.success) {
+    throw new ValidationError(fieldErrorsFromZodIssues(receipt.error.issues));
+  }
   if (z.uuid().safeParse(invoiceId).success) {
     const trips = await db
       .select({ tripOrigin: invoiceLine.tripOrigin, tripDestination: invoiceLine.tripDestination })
@@ -439,7 +446,11 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
       .where(and(eq(invoiceLine.invoiceId, invoiceId), eq(invoice.submittedByUserAccountId, actor.userAccountId)));
     await measureTrips(db, trips);
   }
-  await db.transaction((tx) => submitInTx(tx, actor, invoiceId));
+  await db.transaction(async (tx) => {
+    await lockOwnInvoice(tx, actor, invoiceId);
+    await recordReceipt(tx, invoiceId, receipt.data);
+    await submitInTx(tx, actor, invoiceId);
+  });
   return { invoiceId };
 }
 

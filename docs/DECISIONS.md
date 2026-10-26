@@ -56,8 +56,19 @@ The external submitter portal keeps its sign-in and is restyled to match.
 - After sign-off, staff export the documentation for payment.
 - Checking it for confidential information happens outside the system.
 
+**Staff entry of invoices received elsewhere** (decided 2026-10-26)
+- Any staff role may enter an invoice a professional sent by email or from
+  another tool, for any professional assigned to the case, by typing it or
+  importing the file, as submitters do.
+- Staff record how it was received and the date; waiting time counts from
+  that date.
+- The professional sees it read-only. The staff member who entered it may
+  review it, but sign-off is still by someone else.
+
 **Later step**
 - Submitters replying to line decisions.
+- Importing a case from a PDF or spreadsheet from another system (a disabled
+  placeholder on the new case page).
 
 See `scenarios/invoice-review.md` and model 0.5.0 in
 [the model review](model-review.md).

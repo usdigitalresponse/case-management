@@ -4,6 +4,7 @@ import { useApiResource } from '../hooks/useApiResource';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { MyInvoicesTable } from './MyInvoicesTable';
+import { NEW_INVOICE_PATH } from './useShell';
 
 // The submitter's invoices across cases, newest first, with drafts to
 // finish at the top.
@@ -20,7 +21,7 @@ export default function PortalInvoiceList() {
       <PageHeader
         title="Your invoices"
         description="Invoices you submitted or that bill your work. Reviewers' decisions and notes show on each one."
-        actions={<RouterLink className="btn btn--primary" to="/">New invoice</RouterLink>}
+        actions={<RouterLink className="btn btn--primary" to={NEW_INVOICE_PATH}>New invoice</RouterLink>}
       />
       {drafts.length > 0 && (
         <section className="detail-section">

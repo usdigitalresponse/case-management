@@ -108,7 +108,7 @@ rules:
     trigger: on_read
     outcome: informational
     requirements:
-      - Waiting is counted in working days from submission, excluding weekends; a configured holiday calendar may later exclude holidays too.
+      - Waiting is counted in working days from submission, or from received_on for a request staff entered (authorize_staff_invoice_entry), excluding weekends; a configured holiday calendar may later exclude holidays too.
       - Requests waiting more than the configured number of working days are called out to reviewers.
 
   limit_review_comment_visibility:
@@ -450,6 +450,19 @@ rules:
       - Record the actual delegate as submitter and actor on every request event, distinct from the professionals whose time is billed and from any attestor.
       - Represented professionals need not attest or approve before review. They may view and export the request like its submitter.
       - A delegate may read the time entries of each professional they act for on cases that professional is assigned to, and record time for that professional there; the entry's professional is the one whose work it is and recorded_by_user_account_id is the delegate.
+
+  authorize_staff_invoice_entry:
+    description: Allow staff to enter a request that a professional sent outside the system, such as by email or from another tool.
+    applies_to: invoice
+    trigger: before_submit
+    outcome: blocking
+    requirements:
+      - Any active staff user (a configured staff role in role_context user_account) may prepare and submit a request for any professional assigned to the case, by typing its items or importing the received file, with the same validation, pricing, import and billing-rule checks as a submitter.
+      - Staff entry needs no office affiliation and grants no other access; every professional the request relies on must have been assigned to the case on the relevant service date, as for authorize_delegated_submission.
+      - Submitting a staff-entered request requires received_via_id and received_on, a date no later than today; the staff user is recorded as submitter and actor on every request event, distinct from the professionals billed.
+      - The professionals billed may view and export the request like its submitter, read-only; they did not submit it and cannot recall or edit it.
+      - The staff user who entered a request may also review its lines. Sign-off still requires a user other than the submitter (decide_invoice_lines).
+      - Staff may read and record time for professionals on the cases they enter requests for, as a delegate may.
 
   authorize_payment_request_export:
     description: Export submitted requests only to users who may read them.

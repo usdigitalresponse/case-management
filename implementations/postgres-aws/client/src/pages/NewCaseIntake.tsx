@@ -11,7 +11,7 @@ import {
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { ReferenceSelect } from '../components/ReferenceSelect';
-import { PageHeading } from '../components/PageHeading';
+import { PageHeader } from '../components/PageHeader';
 import { TypeAheadPicker } from '../components/TypeAheadPicker';
 import { Notice } from '../components/Notice';
 
@@ -96,7 +96,18 @@ export default function NewCaseIntake() {
     }
   }
 
-  const heading = <PageHeading eyebrow="New case" title="Start a new case" />;
+  const heading = (
+    <>
+      <PageHeader crumbs={[{ label: 'Cases', to: '/cases' }, { label: 'New case' }]} title="Start a new case" />
+      {/* Placeholder: importing cases from another system is planned. */}
+      <div className="import-case">
+        <button type="button" className="btn btn--outline" disabled title="Not available yet">
+          Import a PDF or spreadsheet
+        </button>
+        <span className="cell-note">Bring in a case from another system. Coming soon; enter the case below for now.</span>
+      </div>
+    </>
+  );
 
   if (loadError) {
     return (

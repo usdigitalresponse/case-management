@@ -16,6 +16,11 @@ import VendorsDirectory from './pages/VendorsDirectory';
 import OrganizationsDirectory from './pages/OrganizationsDirectory';
 import Settings from './pages/Settings';
 import ExternalPortalApp from './portal/ExternalPortalApp';
+import PortalNewInvoice from './portal/PortalNewInvoice';
+import PortalInvoiceDetail from './portal/PortalInvoiceDetail';
+import PortalBulkImport from './portal/PortalBulkImport';
+import PortalImportReview from './portal/PortalImportReview';
+import { NEW_INVOICE_PATH } from './portal/useShell';
 import { listReviewQueue } from './api/client';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 
@@ -94,6 +99,10 @@ function Sidebar({ isAdmin, userAccountId }: { isAdmin: boolean; userAccountId: 
   return (
     <aside className="app-sidebar">
       <nav aria-label="Main navigation">
+        {/* Invoices received by email or from other tools, entered for the professional. */}
+        <div className="nav-group">
+          <NavLink to={NEW_INVOICE_PATH}>New invoice</NavLink>
+        </div>
         <div className="nav-group">
           <h2>Invoices</h2>
           <Link to="/?show=everyone" className={allActive ? 'active' : undefined}>
@@ -155,6 +164,11 @@ function AppContent() {
             <Route path="/finished" element={<ReviewQueue view="finished" />} />
             <Route path="/billing/:invoiceId" element={<InvoiceReview />} />
             <Route path="/exports" element={<Exports />} />
+            {/* Entering invoices received outside the system: the portal's pages, at its paths. */}
+            <Route path={NEW_INVOICE_PATH} element={<div className="portal-main"><PortalNewInvoice /></div>} />
+            <Route path="/portal/invoices/:invoiceId" element={<div className="portal-main"><PortalInvoiceDetail /></div>} />
+            <Route path="/portal/imports" element={<div className="portal-main"><PortalBulkImport /></div>} />
+            <Route path="/portal/imports/:importId" element={<div className="portal-main"><PortalImportReview /></div>} />
             <Route path="/cases" element={<CaseList />} />
             <Route path="/cases/new" element={<NewCaseIntake />} />
             <Route path="/cases/:caseId" element={<CaseDetail />} />

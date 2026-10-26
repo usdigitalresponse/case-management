@@ -641,12 +641,23 @@ export interface DraftInvoiceContent {
   lines: CreateInvoiceLineInput[];
 }
 
-export interface CreateInvoiceInput extends DraftInvoiceContent {
+// How and when an invoice staff entered was received
+// (model/rules.yaml authorize_staff_invoice_entry).
+export interface InvoiceReceipt {
+  receivedVia?: string;
+  receivedOn?: string;
+}
+
+export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt {
   caseId: string;
   // Whose work the invoice bills; defaults to the caller's own profile.
   professionalId?: string;
   // False keeps it as an editable draft; the server defaults to submitting.
   submit?: boolean;
+}
+
+export function listReceiptChannels(): Promise<{ channels: Array<{ code: string; displayName: string }> }> {
+  return request('/api/portal/receipt-channels');
 }
 
 // Every invoice this user may read, or one case's.
@@ -664,8 +675,15 @@ export function updateDraftInvoice(invoiceId: string, content: DraftInvoiceConte
 
 export type InvoiceTransition = 'submit' | 'recall' | 'withdraw';
 
-export function transitionInvoice(invoiceId: string, transition: InvoiceTransition): Promise<{ invoiceId: string }> {
-  return request<{ invoiceId: string }>(`/api/portal/invoices/${invoiceId}/${transition}`, { method: 'POST' });
+export function transitionInvoice(
+  invoiceId: string,
+  transition: InvoiceTransition,
+  receipt?: InvoiceReceipt,
+): Promise<{ invoiceId: string }> {
+  return request<{ invoiceId: string }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
+    method: 'POST',
+    body: receipt ? JSON.stringify(receipt) : undefined,
+  });
 }
 
 // Reviewer identities aren't sent to the portal; see ../../server/src/routes/portal.ts.
@@ -932,6 +950,9 @@ export interface QueuedInvoice {
   submittedTotal: string;
   periodStart: string | null;
   periodEnd: string | null;
+  // Set when staff entered an invoice received outside the system.
+  receivedViaDisplayName: string | null;
+  receivedOn: string | null;
 }
 
 export interface AssignedPerson {

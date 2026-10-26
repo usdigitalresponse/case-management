@@ -17,6 +17,7 @@ import {
   invoiceEventTypes,
   invoiceImportFormats,
   invoiceImportStatuses,
+  invoiceReceiptChannels,
   preauthorizationOutcomes,
   preauthorizationStatuses,
   role,
@@ -54,6 +55,14 @@ export async function ensureReferenceData(db: Database): Promise<void> {
       .insert(invoiceDecisionReasons)
       .values(INVOICE_DECISION_REASONS)
       .onConflictDoNothing({ target: invoiceDecisionReasons.code }),
+    db
+      .insert(invoiceReceiptChannels)
+      .values([
+        { code: 'email', displayName: 'Email' },
+        { code: 'other_tool', displayName: 'Another tool or system' },
+        { code: 'mail', displayName: 'Mail or in person' },
+      ])
+      .onConflictDoNothing({ target: invoiceReceiptChannels.code }),
     db
       .insert(preauthorizationStatuses)
       .values([
