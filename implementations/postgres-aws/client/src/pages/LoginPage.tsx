@@ -6,14 +6,60 @@
 // "Magic-link sign-in for external users".
 import { useState, type FormEvent } from 'react';
 import { Form, Label, TextInput } from '@trussworks/react-uswds';
-import { listAuthProviders, requestMagicLink } from '../api/client';
+import { apiErrorMessage, listAuthProviders, listDemoAccounts, requestMagicLink, type DemoAccount } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { useAuth } from '../AuthContext';
 import { Notice } from '../components/Notice';
 
+// Demos only: sign in as any seeded synthetic account, to try each view.
+function DemoSignIn({
+  id,
+  accounts,
+  onSignIn,
+}: {
+  id: string;
+  accounts: DemoAccount[];
+  onSignIn: (userAccountId: string) => Promise<void>;
+}) {
+  const [userAccountId, setUserAccountId] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const chosen = userAccountId || accounts[0]?.userAccountId || '';
+  if (accounts.length === 0) {
+    return null;
+  }
+  return (
+    <form
+      className="login-demo"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setError(null);
+        onSignIn(chosen).catch((err: unknown) => setError(apiErrorMessage(err, 'That demo account could not sign in.')));
+      }}
+    >
+      <label htmlFor={id}>For demos, sign in as</label>
+      <div className="login-demo__row">
+        <select id={id} className="usa-select" value={chosen} onChange={(event) => setUserAccountId(event.target.value)}>
+          {accounts.map((account) => (
+            <option key={account.userAccountId} value={account.userAccountId}>
+              {account.description ? `${account.displayName} (${account.description})` : account.displayName}
+            </option>
+          ))}
+        </select>
+        <button type="submit" className="btn btn--outline">Sign in</button>
+      </div>
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </form>
+  );
+}
+
 export default function LoginPage() {
   const { data } = useApiResource(listAuthProviders, []);
   const providers = data?.providers;
+  const demoEnabled = Boolean(data?.demoLoginEnabled || data?.externalDemoLoginEnabled);
+  const { data: demoAccounts } = useApiResource(
+    () => (demoEnabled ? listDemoAccounts() : Promise.resolve({ staff: [], partners: [] })),
+    [demoEnabled],
+  );
   const { demoLogin, externalDemoLogin } = useAuth();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -48,14 +94,7 @@ export default function LoginPage() {
               Sign in with {provider.displayName}
             </a>
           ))}
-          {data?.demoLoginEnabled && (
-            <div className="login-demo">
-              <span>For demos</span>
-              <button type="button" className="link-button" onClick={() => void demoLogin()}>
-                Sign in as demo staff
-              </button>
-            </div>
-          )}
+          {data?.demoLoginEnabled && <DemoSignIn id="demo-staff" accounts={demoAccounts?.staff ?? []} onSignIn={demoLogin} />}
         </section>
 
         <section className="login-panel" aria-labelledby="login-partners">
@@ -85,12 +124,7 @@ export default function LoginPage() {
             </Form>
           )}
           {data?.externalDemoLoginEnabled && (
-            <div className="login-demo">
-              <span>For demos</span>
-              <button type="button" className="link-button" onClick={() => void externalDemoLogin()}>
-                Sign in as a demo partner
-              </button>
-            </div>
+            <DemoSignIn id="demo-partner" accounts={demoAccounts?.partners ?? []} onSignIn={externalDemoLogin} />
           )}
         </section>
       </div>

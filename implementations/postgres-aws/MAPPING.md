@@ -880,11 +880,17 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   closed case (rejected with 409 `already_closed`). Deliberately not
   implemented: reopening/corrections (a closed case stays closed).
 - **Demo sign-in**: `POST /auth/demo-login` logs in as the seeded
-  synthetic staff account (`staff@example.invalid`) with no credentials.
+  synthetic staff account (`staff@example.invalid`, with a faker name)
+  with no credentials.
   `POST /auth/demo-login/external` likewise signs in as the demo seed's
   first vendor (`demo-vendor-1@example.invalid`) as an external
   (`magic-link`) user, so it needs `npm run seed`, not just the baseline
-  fixtures. The seed puts all four demo vendors in one office and makes
+  fixtures. Both take an optional `userAccountId` from
+  `GET /auth/demo-accounts` (`src/auth/demoAccounts.ts`), which lists the
+  active seeded accounts on `example.invalid`: staff with their role, and
+  `demo-vendor-*` partners with their kind. The sign-in page offers them in
+  a dropdown in each panel, so a demo can try each role's view; any other
+  account is refused. The seed puts all four demo vendors in one office and makes
   that vendor its billing delegate, so the one demo account shows both
   billing for yourself and for several office colleagues. It also makes the
   demo staff account an Administrator and adds synthetic Attorney,

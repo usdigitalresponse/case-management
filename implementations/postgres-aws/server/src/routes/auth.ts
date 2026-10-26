@@ -15,6 +15,7 @@ import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
 import { delegateOfficeIds } from '../portal/portalActor';
 import { EXTERNAL_DEMO_EMAIL } from '../db/demoAccounts';
+import { listDemoPartners, listDemoStaff, STAFF_DEMO_EMAIL } from '../auth/demoAccounts';
 import { sendEmail } from '../email/sendEmail';
 import { asyncHandler } from './asyncHandler';
 
@@ -22,8 +23,8 @@ export interface AuthRouterOptions {
   // Configured full-user providers (see ../auth/oidcProviders.ts) —
   // empty when no provider's credentials are set.
   oidcProviders: OidcProviderConfig[];
-  // Passwordless sign-in as the seeded synthetic staff account (see
-  // ../db/fixtures.ts and MAPPING.md "Demo sign-in").
+  // Passwordless sign-in as a seeded synthetic staff account, by default
+  // the administrator (see ../db/fixtures.ts and MAPPING.md "Demo sign-in").
   demoLoginEnabled: boolean;
   // Passwordless sign-in as a seeded demo vendor (an external user), who is
   // also its office's billing delegate.
@@ -143,14 +144,39 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     }),
   );
 
+  if (options.demoLoginEnabled || options.externalDemoLoginEnabled) {
+    // Whom each demo sign-in may act as.
+    router.get(
+      '/demo-accounts',
+      asyncHandler(async (_req, res) => {
+        res.json({
+          staff: options.demoLoginEnabled ? await listDemoStaff(db) : [],
+          partners: options.externalDemoLoginEnabled ? await listDemoPartners(db) : [],
+        });
+      }),
+    );
+  }
+
+  // Sign in as the chosen demo account, else the default one.
+  const chosenAccountId = (body: unknown) => {
+    const id = (body as { userAccountId?: unknown } | undefined)?.userAccountId;
+    return typeof id === 'string' && id ? id : undefined;
+  };
+
   if (options.demoLoginEnabled) {
     router.post(
       '/demo-login',
       asyncHandler(async (req, res) => {
+        const chosen = chosenAccountId(req.body);
+        const demoStaff = chosen ? (await listDemoStaff(db)).find((account) => account.userAccountId === chosen) : undefined;
+        if (chosen && !demoStaff) {
+          res.status(400).json({ error: 'Choose one of the demo staff accounts.' });
+          return;
+        }
         const [staff] = await db
           .select()
           .from(userAccount)
-          .where(eq(userAccount.email, 'staff@example.invalid'));
+          .where(demoStaff ? eq(userAccount.userAccountId, demoStaff.userAccountId) : eq(userAccount.email, STAFF_DEMO_EMAIL));
         if (!staff) {
           res.status(500).json({ error: 'Seeded demo account not found; run `npm run seed` first.' });
           return;
@@ -171,7 +197,16 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     router.post(
       '/demo-login/external',
       asyncHandler(async (req, res) => {
-        const [vendor] = await db.select().from(userAccount).where(eq(userAccount.email, EXTERNAL_DEMO_EMAIL));
+        const chosen = chosenAccountId(req.body);
+        const partner = chosen ? (await listDemoPartners(db)).find((account) => account.userAccountId === chosen) : undefined;
+        if (chosen && !partner) {
+          res.status(400).json({ error: 'Choose one of the demo partner accounts.' });
+          return;
+        }
+        const [vendor] = await db
+          .select()
+          .from(userAccount)
+          .where(partner ? eq(userAccount.userAccountId, partner.userAccountId) : eq(userAccount.email, EXTERNAL_DEMO_EMAIL));
         if (!vendor) {
           res.status(500).json({ error: 'Seeded demo vendor not found; run `npm run seed` first.' });
           return;

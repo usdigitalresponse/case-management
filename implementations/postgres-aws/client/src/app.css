@@ -100,8 +100,11 @@ button, input, select, textarea { font: inherit; }
 .login-form .usa-label { margin: 0; }
 .login-form .usa-input { max-width: none; height: 2.5rem; margin-top: .3rem; }
 .login-panel .notice { margin: 0; }
-.login-demo { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .3rem 1rem; margin-top: auto; padding-top: .9rem; border-top: 1px solid var(--line); font-size: .85rem; }
-.login-demo > span { color: var(--ink-faint); }
+.login-demo { display: flex; flex-direction: column; gap: .4rem; margin-top: auto; padding-top: .9rem; border-top: 1px solid var(--line); font-size: .85rem; }
+.login-demo > label { color: var(--ink-faint); }
+.login-demo__row { display: flex; gap: .5rem; align-items: center; }
+.login-demo__row .usa-select { flex: 1 1 auto; width: auto; min-width: 0; max-width: none; height: 2.5rem; margin-top: 0; font-size: .85rem; }
+.login-panel .login-demo__row .btn { flex: none; width: auto; }
 
 
 /* List toolbar: result count + client-side filter. */

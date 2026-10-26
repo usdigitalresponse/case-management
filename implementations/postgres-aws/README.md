@@ -163,7 +163,8 @@ npm run dev   # tsx watch src/app.ts, http://localhost:3000
 Without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` set, Google sign-in is
 disabled and only the demo sign-ins are available: `/auth/demo-login`
 (staff) and `/auth/demo-login/external` (a seeded external partner, who is
-also their office's billing delegate). Each
+also their office's billing delegate). The sign-in page lets you pick any
+seeded staff role or partner from a dropdown (`GET /auth/demo-accounts`). Each
 is off when `NODE_ENV=production` unless `DEMO_LOGIN_ENABLED=true` or
 `EXTERNAL_DEMO_LOGIN_ENABLED=true` (see MAPPING.md, "Demo sign-in"). A
 quick smoke test:

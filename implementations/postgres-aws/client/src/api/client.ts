@@ -47,12 +47,25 @@ export function getCurrentUser(): Promise<AuthenticatedUser> {
   return request<AuthenticatedUser>('/auth/me');
 }
 
-export function demoLogin(): Promise<AuthenticatedUser> {
-  return request<AuthenticatedUser>('/auth/demo-login', { method: 'POST' });
+// userAccountId: one of listDemoAccounts(); the server's default without it.
+export function demoLogin(userAccountId?: string): Promise<AuthenticatedUser> {
+  return request<AuthenticatedUser>('/auth/demo-login', { method: 'POST', body: JSON.stringify({ userAccountId }) });
 }
 
-export function externalDemoLogin(): Promise<AuthenticatedUser> {
-  return request<AuthenticatedUser>('/auth/demo-login/external', { method: 'POST' });
+export function externalDemoLogin(userAccountId?: string): Promise<AuthenticatedUser> {
+  return request<AuthenticatedUser>('/auth/demo-login/external', { method: 'POST', body: JSON.stringify({ userAccountId }) });
+}
+
+// The seeded synthetic accounts the demo sign-ins may act as.
+export interface DemoAccount {
+  userAccountId: string;
+  displayName: string;
+  // The staff role, or the partner's kind of work.
+  description: string | null;
+}
+
+export function listDemoAccounts(): Promise<{ staff: DemoAccount[]; partners: DemoAccount[] }> {
+  return request<{ staff: DemoAccount[]; partners: DemoAccount[] }>('/auth/demo-accounts');
 }
 
 export function logout(): Promise<void> {

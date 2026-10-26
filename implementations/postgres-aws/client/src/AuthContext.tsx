@@ -12,8 +12,8 @@ import {
 interface AuthContextValue {
   user: AuthenticatedUser | null;
   loading: boolean;
-  demoLogin: () => Promise<void>;
-  externalDemoLogin: () => Promise<void>;
+  demoLogin: (userAccountId?: string) => Promise<void>;
+  externalDemoLogin: (userAccountId?: string) => Promise<void>;
   verifyMagicLink: (token: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -37,14 +37,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleDemoLogin = useCallback(async () => {
-    await demoLogin();
+  const handleDemoLogin = useCallback(async (userAccountId?: string) => {
+    await demoLogin(userAccountId);
     // The login response lacks isAdmin; /auth/me has it.
     setUser(await getCurrentUser());
   }, []);
 
-  const handleExternalDemoLogin = useCallback(async () => {
-    const nextUser = await externalDemoLogin();
+  const handleExternalDemoLogin = useCallback(async (userAccountId?: string) => {
+    const nextUser = await externalDemoLogin(userAccountId);
     setUser(nextUser);
   }, []);
 

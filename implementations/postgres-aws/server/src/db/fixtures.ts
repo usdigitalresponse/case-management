@@ -283,7 +283,7 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   await db.insert(userAccount).values([
     {
       userAccountId: USER_ACCOUNT_IDS.SYNTHETIC_STAFF,
-      displayName: 'Synthetic Account Staff',
+      displayName: `${staffGivenName} ${staffFamilyName}`,
       active: true,
       email: 'staff@example.invalid',
       personId: PERSON_IDS.SYNTHETIC_STAFF,
