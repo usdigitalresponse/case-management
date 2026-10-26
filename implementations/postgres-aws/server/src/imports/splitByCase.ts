@@ -314,7 +314,7 @@ export async function uploadInvoiceFileByCase(db: Database, actor: PortalActor, 
           contentHash: read.contentHash,
           caseId,
           billedProfessionalId: read.professionalId,
-          extractionMethod: parsed.extractionMethod ?? read.extractionMethod,
+          extractionMethod: read.extractionMethod,
           extractedAt: now,
           // The file's stated total covers every case, so it isn't compared per case.
           parsed: { ...parsed, statedTotal: undefined, lines },

@@ -31,14 +31,13 @@ export function memoryLimitMb(env: NodeJS.ProcessEnv = process.env): number {
   }
   return configured;
 }
-// Long enough for a 50-page scan through recognition and then the vision
-// model at about 45 seconds a page, as measured on a laptop processor.
+// Generous for a 50-page scan through recognition on a small server.
 const TIME_LIMIT_MS = 60 * 60 * 1000;
 
 export type WorkerMessage =
   | { type: 'progress'; progress: ExtractionProgress }
   | { type: 'result'; parsed: ParsedInvoice }
-  | { type: 'unreadable'; message: string; found: Pick<ParsedInvoice, 'statedTotal'> }
+  | { type: 'unreadable'; message: string }
   | { type: 'error'; message: string };
 
 // The TypeScript loader flags a development server runs with (tsx), so the
@@ -104,7 +103,7 @@ export function parseIsolated(
       } else if (message.type === 'result') {
         finish(() => resolve(message.parsed));
       } else if (message.type === 'unreadable') {
-        finish(() => reject(new UnreadableInvoiceFileError(message.message, message.found)));
+        finish(() => reject(new UnreadableInvoiceFileError(message.message)));
       } else {
         finish(() => reject(new Error(`Extraction failed in its process: ${message.message}`)));
       }

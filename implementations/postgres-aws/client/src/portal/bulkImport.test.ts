@@ -56,7 +56,6 @@ describe('files still being read', () => {
     expect(progressText({ stage: 'queued', ahead: 2 })).toBe('Waiting to be read: 2 files ahead');
     expect(progressText({ stage: 'queued', ahead: 0 })).toBe('Waiting to be read');
     expect(progressText({ stage: 'recognizing', page: 3, pages: 12 })).toBe('Recognizing the scanned text: page 3 of 12');
-    expect(progressText({ stage: 'model', page: 1, pages: 4 })).toBe('Taking a closer look with an AI model: page 1 of 4');
     expect(progressFraction({ stage: 'recognizing', page: 3, pages: 12 })).toBeCloseTo(2 / 12);
     expect(progressFraction({ stage: 'reading' })).toBeUndefined();
   });

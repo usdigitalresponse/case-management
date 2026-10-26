@@ -20,8 +20,7 @@
     "demo-invoices": "tsx scripts/demo-invoices.ts",
     "generate-sample-pdfs": "tsx scripts/generate-sample-pdfs.ts",
     "extraction-accuracy": "tsx scripts/extraction-accuracy.ts",
-    "extract-invoice": "tsx scripts/extract-invoice.ts",
-    "record-vision-answers": "tsx scripts/record-vision-answers.ts"
+    "extract-invoice": "tsx scripts/extract-invoice.ts"
   },
   "dependencies": {
     "@aws-sdk/client-geo-places": "^3.1150.0",

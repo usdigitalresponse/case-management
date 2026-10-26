@@ -3,7 +3,7 @@ import type { ParsedInvoice } from '../parsedInvoice';
 // Where a slow extraction has got to, shown to the uploader.
 export type ExtractionProgress =
   | { stage: 'reading' }
-  | { stage: 'recognizing' | 'model'; page: number; pages: number };
+  | { stage: 'recognizing'; page: number; pages: number };
 
 export interface ExtractOptions {
   onProgress?: (progress: ExtractionProgress) => void;

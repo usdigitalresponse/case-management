@@ -659,12 +659,11 @@ export interface ImportWarning {
 }
 
 // Where a file still being read has got to (server/src/imports/extractionJobs.ts):
-// waiting behind other files, reading, recognizing a scan's text, or a vision
-// model reading the page images.
+// waiting behind other files, reading, or recognizing a scan's text.
 export type ImportProgress =
   | { stage: 'queued'; ahead: number }
   | { stage: 'reading' }
-  | { stage: 'recognizing' | 'model'; page: number; pages: number };
+  | { stage: 'recognizing'; page: number; pages: number };
 
 export interface InvoiceImportDetail {
   invoiceImportId: string;

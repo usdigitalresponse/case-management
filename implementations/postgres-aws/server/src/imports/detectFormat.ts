@@ -6,7 +6,7 @@ import type { ParsedInvoice, ImportFormat } from './parsedInvoice';
 import { UnreadableInvoiceFileError } from './parsedInvoice';
 import { LEDES_1998B_SIGNATURE, parseLedes1998b } from './parseLedes';
 import { looksLikeTemplateHeader, parseCsvRows, parseTemplateCsv, parseTemplateXlsx } from './parseSpreadsheet';
-import { documentPipeline } from './extractors';
+import { documentExtractor } from './extractors';
 import type { ExtractOptions } from './extractors/types';
 
 // Upload defaults (docs/invoice-import-export-plan.md "Upload defaults").
@@ -21,7 +21,7 @@ export interface DetectedFile {
   format: ImportFormat;
   mediaType: string;
   extractionMethod: string;
-  // Documents can take minutes (text recognition, a vision model), so
+  // Documents can take minutes (text recognition of a scan), so
   // uploads read them in the background (extractionJobs.ts).
   slow: boolean;
   parse: (options?: ExtractOptions) => Promise<ParsedInvoice>;
@@ -44,7 +44,7 @@ export function detectInvoiceFile(bytes: Buffer): DetectedFile {
     throw new UnsupportedInvoiceFileError('Files must be 10 MB or smaller.');
   }
   if (bytes.subarray(0, 5).toString('latin1') === '%PDF-') {
-    const extractor = documentPipeline();
+    const extractor = documentExtractor();
     return {
       format: 'document',
       mediaType: 'application/pdf',

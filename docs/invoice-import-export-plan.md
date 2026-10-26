@@ -106,9 +106,16 @@ processing boundary, which includes the organization's own cloud account.
    reviewers' handwritten marks. The recognition itself read 97–100% of
    printed amounts with every free engine tried (Tesseract, PaddleOCR,
    docTR); losses came from the table reader, which now handles those
-   patterns except letters and handwriting. On those scans it found 86% of
-   items (94% excluding the letter) with 80% of quantities and 85% of
-   rates, and flags low-confidence figures, page subtotals and totals that
+   patterns except handwriting: letter-style items written as sentences
+   are read, attachments after the amount due are left out of the total,
+   and a recognized item whose quantity × rate doesn't make its amount is
+   repaired when one explanation fits (a dropped decimal point, say), with
+   a warning; page-number lines and margin notes read without confidence
+   aren't taken for items. On those scans it found 99% of items (2 extra
+   lines, both scribbled-over figures) with 97% of quantities, 97% of rates
+   and every date, and six of the seven files added up to their stated
+   totals (up from 86%, 80%, 85% and two). It flags
+   low-confidence figures, page subtotals and totals that
    don't add up. "Searchable" scans, whose invisible text another program
    recognized, are detected from their drawing operators and recognized
    again: read from that hidden text, the same scans gave 76% of items and
@@ -121,21 +128,17 @@ processing boundary, which includes the organization's own cloud account.
 
 ### Future work
 
-- Letter-style invoices and unusual layouts: a self-hosted vision language
-  model (Qwen2.5-VL 7B through the Ollama API) with a fixed output schema is
-  in place as an optional follow-up pass for files the table reader can't
-  read or whose figures don't reconcile, with PDF reading moved to the
-  background and progress shown. On the same real scans the model alone
-  found 98% of items with 96% of quantities and 97% of rates, but at about
-  45 seconds a page on a laptop processor and with extra lines from
-  attachments. Run only on the files whose first reading didn't add up,
-  the combined pipeline found 99% of items (6 extra lines) with 95% of
-  quantities, 98% of rates and every date, and six of the seven files
-  added up to their stated totals; the one that didn't carries reviewers'
-  strike-throughs, and is flagged. Still open: a GPU host inside the boundary, the model
-  licence review, and how often files need it in practice. A newer model
-  (Qwen3-VL 8B) looped under the fixed schema, so models are pinned by
-  build and re-measured before any change.
+- Unusual layouts and handwriting: a self-hosted vision language model
+  (Qwen2.5-VL 7B through the Ollama API, fixed output schema) was tried
+  as a follow-up pass for files whose first reading didn't add up. On the
+  same real scans the combined pipeline found 99% of items with 95% of
+  quantities and 98% of rates, and six of the seven files added up, but at
+  about 45 seconds a page on a laptop processor; it needs a GPU host or a
+  much larger server than the 1 GB demo, so it was removed rather than
+  kept unused. Other CPU engines that fit the demo server (RapidOCR,
+  docTR, OCRmyPDF, Table Transformer) did no better than Tesseract with
+  the table reader. Reconsider a model only with its hosting cost agreed,
+  a licence review, and evidence of how often files need it.
 - A cloud AI extraction method in the organization's own account, compared
   on the same corpus after a cost review. Paused while heuristics and
   existing libraries are tried first.

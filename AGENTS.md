@@ -231,11 +231,8 @@ figures in its `expected.json`; score them with `npm run extraction-accuracy
 -- --samples ../local-samples`. Never copy them, their values or details
 from them into Git, fixtures or docs; describe findings generically.
 PDF imports are read in a background queue in the server process (one
-instance only). The optional vision-model pass (`INVOICE_VISION_URL`,
-`INVOICE_VISION_MODEL`) must point inside the processing boundary, record
-the model's build, and be re-scored before a model change; tests stub its
-API or replay recorded answers (`npm run record-vision-answers`, synthetic
-samples only) and never call a model.
+instance only), entirely in-process on the demo server's 1 GB; any model or
+service added to reading needs its hosting cost agreed first.
 Driving-distance lookups for the mileage rule (`ROUTE_CHECK_PROVIDER=aws`)
 are billed per request: keep them to submission with the rule on and cached
 by address pair, and have tests use `setRouteProviderForTests`, never AWS.
