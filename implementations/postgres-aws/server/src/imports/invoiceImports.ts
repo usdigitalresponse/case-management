@@ -23,7 +23,7 @@ import {
 } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
-import { billableProfessionalIds, type PortalActor } from '../portal/portalActor';
+import { authorizeBilling, billableProfessionalIds, type PortalActor } from '../portal/portalActor';
 import {
   createDraftInTx,
   InvoiceStateError,
@@ -234,16 +234,13 @@ export async function uploadInvoiceFile(
     throw new ValidationError({ caseId: 'Choose a case to import the invoice into.' });
   }
   const caseId = params.data.caseId ?? null;
-  const billedProfessionalId = params.data.professionalId ?? actor.professionalId ?? null;
-  const billable = await billableProfessionalIds(db, actor, caseId);
   // Staff may import with neither a case nor a professional; both are
-  // chosen when it's matched (model/rules.yaml match_invoice_to_case).
-  if (!billedProfessionalId && (caseId !== null || billable.length === 0)) {
+  // chosen when it's matched.
+  const billedProfessionalId = params.data.professionalId ?? actor.professionalId ?? null;
+  if (!billedProfessionalId && caseId !== null) {
     throw new ValidationError({ professionalId: 'Choose the professional this invoice bills for.' });
   }
-  if (billedProfessionalId && !billable.includes(billedProfessionalId)) {
-    throw new NotAssignedToCaseError();
-  }
+  await authorizeBilling(db, actor, caseId, billedProfessionalId);
 
   const detected = detectInvoiceFile(input.bytes);
   const contentHash = sha256(input.bytes);
@@ -705,11 +702,10 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
       throw new InvoiceStateError('Only an import that was read successfully and not yet resolved can be confirmed.');
     }
     const draft = await lockDraft(tx, row.invoiceId);
-    const billable = draft ? await billableProfessionalIds(tx, actor, draft.caseId) : [];
-    // No professional yet: a staff import held in intake.
-    if (!draft || (draft.professionalId === null ? billable.length === 0 : !billable.includes(draft.professionalId))) {
+    if (!draft) {
       throw new NotAssignedToCaseError();
     }
+    await authorizeBilling(tx, actor, draft.caseId, draft.professionalId);
     const lines = await tx
       .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
       .from(invoiceLine)

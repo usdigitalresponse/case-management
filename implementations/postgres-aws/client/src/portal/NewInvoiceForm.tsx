@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Form, FormGroup, Label, Select } from '@trussworks/react-uswds';
-import { apiErrorMessage, createInvoice, type BillableProfessional, type InvoiceReceipt, type TimeEntryRecord } from '../api/client';
+import { apiErrorMessage, createInvoice, type BillableProfessional, type TimeEntryRecord } from '../api/client';
 import { lineFromTimeEntry, UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 import {
@@ -14,10 +14,14 @@ import {
 import { InvoiceImportForm } from '../components/InvoiceImportForm';
 import { PeriodFields } from '../components/PeriodFields';
 import { Notice } from '../components/Notice';
-import { hasReceipt, ReceivedFields } from './ReceivedFields';
-import { useShell } from './useShell';
+import { useReceipt } from './ReceivedFields';
+import { LATER, useShell } from './useShell';
 
-const PROFESSIONAL_LATER = 'later';
+function draftSavedMessage(caseId: string | null, staff: boolean): string {
+  if (caseId === null) return 'Saved. Match it to a case under "Waiting for a case".';
+  if (staff) return 'Draft saved. Finish it from "Drafts to finish" below.';
+  return 'Draft saved. Open it from Your invoices to edit or submit it.';
+}
 
 // A new invoice on one case: typed items (starting from unbilled time) or an
 // imported file. Shared by the case page, the portal's New invoice page and
@@ -73,14 +77,11 @@ export function NewInvoiceForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saved, setSaved] = useState<'draft' | 'submitted' | null>(null);
   const [mode, setMode] = useState<'enter' | 'import'>('enter');
-  const [receipt, setReceipt] = useState<InvoiceReceipt>({});
+  const receipt = useReceipt('new-invoice');
 
   // Staff holding an invoice with no case may also leave who it's from to matching.
-  const professionalLater = billedProfessionalId === PROFESSIONAL_LATER;
-  // The professional whose work it is, once chosen.
+  const professionalLater = billedProfessionalId === LATER;
   const billedId = professionalLater ? '' : billedProfessionalId;
-
-  // Nothing to save until an item has an amount and someone is billed.
   const canSave = hasInvoiceItems(lines) && Boolean(billedProfessionalId);
 
   async function save(submit: boolean) {
@@ -95,10 +96,10 @@ export function NewInvoiceForm({
         periodStart: period.start || undefined,
         periodEnd: period.end || undefined,
         lines: linesFromDrafts(lines),
-        ...(staff ? receipt : {}),
+        ...receipt.payload,
       });
       setPeriod({ start: '', end: '' });
-      setReceipt({});
+      receipt.reset();
       setSaved(submit ? 'submitted' : 'draft');
       // Refilled from what's still unbilled once the time reloads.
       setTouched(false);
@@ -130,7 +131,7 @@ export function NewInvoiceForm({
               }}
             >
               {!billedProfessionalId && <option value="">Choose who it's from</option>}
-              {staff && caseId === null && <option value={PROFESSIONAL_LATER}>No professional yet: match it later</option>}
+              {staff && caseId === null && <option value={LATER}>No professional yet: match it later</option>}
               {billable.map((professional) => (
                 <option key={professional.professionalId} value={professional.professionalId}>
                   {professionalLabel(professional)}
@@ -165,16 +166,8 @@ export function NewInvoiceForm({
           {saved === 'submitted' && (
             <Notice tone="success">{staff ? 'Invoice submitted. It is in the review queue.' : "Invoice submitted. It's under Your invoices."}</Notice>
           )}
-          {saved === 'draft' && (
-            <Notice tone="success">
-              {caseId === null
-                ? 'Saved. Match it to a case under "Waiting for a case".'
-                : staff
-                  ? 'Draft saved. Finish it from "Drafts to finish" below.'
-                  : 'Draft saved. Open it from Your invoices to edit or submit it.'}
-            </Notice>
-          )}
-          {staff && <ReceivedFields idPrefix="new-invoice" value={receipt} onChange={setReceipt} />}
+          {saved === 'draft' && <Notice tone="success">{draftSavedMessage(caseId, staff)}</Notice>}
+          {receipt.fields}
           <PeriodFields idPrefix="new-invoice" start={period.start} end={period.end} onChange={setPeriod} />
           <RulesInForce rules={billingRules.rules} />
           {caseId !== null && (
@@ -202,7 +195,7 @@ export function NewInvoiceForm({
             </div>
           ) : (
             <div className="invoice-actions">
-              <button type="submit" className="btn btn--primary" disabled={submitting || !canSave || (staff && !hasReceipt(receipt))}>
+              <button type="submit" className="btn btn--primary" disabled={submitting || !canSave || receipt.missing}>
                 {submitting ? 'Saving…' : 'Submit invoice'}
               </button>
               <button type="button" className="btn btn--outline" disabled={submitting || !canSave} onClick={() => void save(false)}>

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import passport from 'passport';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client';
@@ -13,7 +14,7 @@ import { normalizeEmail } from '../auth/emailLists';
 import { issueMagicLinkToken, consumeMagicLinkToken } from '../auth/magicLink';
 import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
-import { delegateOfficeIds } from '../portal/portalActor';
+import { delegateOfficeIds, isStaffAccount } from '../portal/portalActor';
 import { EXTERNAL_DEMO_EMAIL } from '../db/demoAccounts';
 import { listDemoPartners, listDemoStaff, STAFF_DEMO_EMAIL } from '../auth/demoAccounts';
 import { sendEmail } from '../email/sendEmail';
@@ -78,7 +79,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
         // the caller.
         sendEmail(
           email,
-          'Sign in to Case Management',
+          'Sign in to Invoice Review Prototype',
           `Use this link to sign in (it expires in 15 minutes): ${link}`,
         ).catch((error: unknown) => {
           // eslint-disable-next-line no-console
@@ -136,11 +137,14 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
       }
       // Shows or hides Settings and review actions; the routes check them themselves.
       const staff = user.authType === 'sso';
-      res.json({
-        ...user,
-        isAdmin: staff && (await isAdmin(db, user.userAccountId)),
-        reviewPermissions: staff ? await loadReviewPermissions(db, user.userAccountId) : null,
-      });
+      const [admin, reviewPermissions, staffRole] = staff
+        ? await Promise.all([
+            isAdmin(db, user.userAccountId),
+            loadReviewPermissions(db, user.userAccountId),
+            isStaffAccount(db, user.userAccountId),
+          ])
+        : [false, null, false];
+      res.json({ ...user, isAdmin: admin, isStaff: staffRole, reviewPermissions });
     }),
   );
 
@@ -149,78 +153,61 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     router.get(
       '/demo-accounts',
       asyncHandler(async (_req, res) => {
-        res.json({
-          staff: options.demoLoginEnabled ? await listDemoStaff(db) : [],
-          partners: options.externalDemoLoginEnabled ? await listDemoPartners(db) : [],
-        });
+        const [staff, partners] = await Promise.all([
+          options.demoLoginEnabled ? listDemoStaff(db) : [],
+          options.externalDemoLoginEnabled ? listDemoPartners(db) : [],
+        ]);
+        res.json({ staff, partners });
       }),
     );
   }
 
-  // Sign in as the chosen demo account, else the default one.
-  const chosenAccountId = (body: unknown) => {
-    const id = (body as { userAccountId?: unknown } | undefined)?.userAccountId;
-    return typeof id === 'string' && id ? id : undefined;
-  };
+  // Signs in as the chosen demo account, which must be on `list`, else the
+  // default one.
+  const demoLogin = (
+    path: string,
+    list: typeof listDemoStaff,
+    defaultEmail: string,
+    authType: AuthenticatedUser['authType'],
+    who: string,
+  ) =>
+    router.post(
+      path,
+      asyncHandler(async (req, res) => {
+        const chosen = (req.body as { userAccountId?: unknown } | undefined)?.userAccountId;
+        let accountId: string | undefined;
+        if (chosen !== undefined && chosen !== '') {
+          const [listed] = z.uuid().safeParse(chosen).success ? await list(db, chosen as string) : [];
+          if (!listed) {
+            res.status(400).json({ error: `Choose one of the demo ${who} accounts.` });
+            return;
+          }
+          accountId = listed.userAccountId;
+        }
+        const [account] = await db
+          .select()
+          .from(userAccount)
+          .where(accountId ? eq(userAccount.userAccountId, accountId) : eq(userAccount.email, defaultEmail));
+        if (!account) {
+          res.status(500).json({ error: `Seeded demo ${who} account not found; run \`npm run seed\` first.` });
+          return;
+        }
+        const user: AuthenticatedUser = {
+          userAccountId: account.userAccountId,
+          email: account.email,
+          displayName: account.displayName,
+          authType,
+        };
+        setSessionUser(req, user);
+        res.json(user);
+      }),
+    );
 
   if (options.demoLoginEnabled) {
-    router.post(
-      '/demo-login',
-      asyncHandler(async (req, res) => {
-        const chosen = chosenAccountId(req.body);
-        const demoStaff = chosen ? (await listDemoStaff(db)).find((account) => account.userAccountId === chosen) : undefined;
-        if (chosen && !demoStaff) {
-          res.status(400).json({ error: 'Choose one of the demo staff accounts.' });
-          return;
-        }
-        const [staff] = await db
-          .select()
-          .from(userAccount)
-          .where(demoStaff ? eq(userAccount.userAccountId, demoStaff.userAccountId) : eq(userAccount.email, STAFF_DEMO_EMAIL));
-        if (!staff) {
-          res.status(500).json({ error: 'Seeded demo account not found; run `npm run seed` first.' });
-          return;
-        }
-        const user: AuthenticatedUser = {
-          userAccountId: staff.userAccountId,
-          email: staff.email,
-          displayName: staff.displayName,
-          authType: 'sso',
-        };
-        setSessionUser(req, user);
-        res.json(user);
-      }),
-    );
+    demoLogin('/demo-login', listDemoStaff, STAFF_DEMO_EMAIL, 'sso', 'staff');
   }
-
   if (options.externalDemoLoginEnabled) {
-    router.post(
-      '/demo-login/external',
-      asyncHandler(async (req, res) => {
-        const chosen = chosenAccountId(req.body);
-        const partner = chosen ? (await listDemoPartners(db)).find((account) => account.userAccountId === chosen) : undefined;
-        if (chosen && !partner) {
-          res.status(400).json({ error: 'Choose one of the demo partner accounts.' });
-          return;
-        }
-        const [vendor] = await db
-          .select()
-          .from(userAccount)
-          .where(partner ? eq(userAccount.userAccountId, partner.userAccountId) : eq(userAccount.email, EXTERNAL_DEMO_EMAIL));
-        if (!vendor) {
-          res.status(500).json({ error: 'Seeded demo vendor not found; run `npm run seed` first.' });
-          return;
-        }
-        const user: AuthenticatedUser = {
-          userAccountId: vendor.userAccountId,
-          email: vendor.email,
-          displayName: vendor.displayName,
-          authType: 'magic-link',
-        };
-        setSessionUser(req, user);
-        res.json(user);
-      }),
-    );
+    demoLogin('/demo-login/external', listDemoPartners, EXTERNAL_DEMO_EMAIL, 'magic-link', 'partner');
   }
 
   return router;

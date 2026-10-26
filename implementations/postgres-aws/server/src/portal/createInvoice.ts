@@ -8,7 +8,7 @@ import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { invoice } from '../db/schema';
 import { createDraftInTx, draftContentSchema, parseDraftContent, submitInTx } from '../billing/invoiceLifecycle';
 import { measureTrips } from '../billing/routeCheck';
-import { billableProfessionalIds, type PortalActor } from './portalActor';
+import { authorizeBilling, type PortalActor } from './portalActor';
 import { receiptInputSchema, recordReceipt } from '../billing/invoiceReceipt';
 
 export const createInvoiceInputSchema = draftContentSchema.extend({
@@ -40,13 +40,15 @@ export async function createInvoice(
   }
   const { caseId, submit } = parsed.data;
   const content = parseDraftContent(parsed.data);
-  const later = parsed.data.professionalId === null;
-  const billedProfessionalId = later ? null : (parsed.data.professionalId ?? actor.professionalId ?? null);
-  if (!billedProfessionalId && !(later && caseId === null && !submit)) {
+  // Only a held draft may leave its professional to be chosen on matching.
+  const heldForMatching = parsed.data.professionalId === null && caseId === null && !submit;
+  const billedProfessionalId = parsed.data.professionalId === null ? null : (parsed.data.professionalId ?? actor.professionalId ?? null);
+  if (!billedProfessionalId && !heldForMatching) {
     throw new ValidationError({ professionalId: 'Choose the professional this invoice bills for.' });
   }
-
-  if (submit && billedProfessionalId && (await billableProfessionalIds(db, actor, caseId)).includes(billedProfessionalId)) {
+  // Checked before measuring trips, which are billed lookups.
+  await authorizeBilling(db, actor, caseId, billedProfessionalId);
+  if (submit) {
     await measureTrips(db, content.lines.filter((line) => line.lineType === 'mileage'));
   }
   return db.transaction(async (tx) => {

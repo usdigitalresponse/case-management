@@ -181,6 +181,12 @@ export function sectionOf(row: ImportInProgress): BulkSection {
   return row.statusCode === 'confirmed' && row.invoiceId ? 'ready' : 'review';
 }
 
+// Confirmed and ready to submit together. Those with no case wait on Intake
+// to be matched instead.
+export function readyToSubmit(imports: ImportInProgress[]): ImportInProgress[] {
+  return imports.filter((row) => sectionOf(row) === 'ready' && row.caseId);
+}
+
 // Files still needing attention, in upload order: what "Review next" walks.
 // Files still being read join it once they're read.
 export function reviewQueue(imports: ImportInProgress[]): ImportInProgress[] {

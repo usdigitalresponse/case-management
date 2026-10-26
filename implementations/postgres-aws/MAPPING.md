@@ -59,7 +59,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     here. It reuses the portal's pages at the same paths
     (`/portal/imports`, `/portal/imports/:id`, `/portal/invoices/:id`);
     `portal/useShell.ts` switches the few links that differ, such as the
-    case page and where "back" goes. Any active
+    case page and where "back" goes, using `isStaff` from `/auth/me` (the
+    server's `isStaffAccount` role check, not the sign-in method). Staff-only
+    receipt fields come from `portal/ReceivedFields.tsx` `useReceipt`, and
+    every billing entry point checks `portalActor.ts` `authorizeBilling`. Any active
     staff role may bill any professional assigned to the case:
     `server/src/portal/portalActor.ts` treats a staff account as
     representing every assigned professional, so time, invoice, import and

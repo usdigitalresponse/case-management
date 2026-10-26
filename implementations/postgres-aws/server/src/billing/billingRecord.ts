@@ -4,13 +4,14 @@
 // external case system (a direct write, a nightly file or a shared
 // spreadsheet) reads these rows; for now they download as CSV or a
 // spreadsheet.
-import { desc, inArray } from 'drizzle-orm';
+import { inArray, max } from 'drizzle-orm';
 import writeXlsxFile, { type Row } from 'write-excel-file/node';
 import type { Database } from '../db/client';
 import { invoiceEvent } from '../db/schema';
 import { loadInvoiceDetail } from './invoiceDetail';
 import { listReviewQueue } from './reviewQueue';
 import { APPROVED_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
+import { csvCell } from '../imports/template';
 
 export const BILLING_RECORD_COLUMNS = [
   'Case number',
@@ -45,15 +46,19 @@ export async function loadBillingRecord(db: Database): Promise<BillingRecordRow[
   if (invoices.length === 0) {
     return [];
   }
-  const events = await db
-    .select({ invoiceId: invoiceEvent.invoiceId, occurredAt: invoiceEvent.occurredAt })
-    .from(invoiceEvent)
-    .where(inArray(invoiceEvent.invoiceId, invoices.map((row) => row.invoiceId)))
-    .orderBy(desc(invoiceEvent.occurredAt));
+  const invoiceIds = invoices.map((row) => row.invoiceId);
+  const [lastEvents, details] = await Promise.all([
+    db
+      .select({ invoiceId: invoiceEvent.invoiceId, occurredAt: max(invoiceEvent.occurredAt) })
+      .from(invoiceEvent)
+      .where(inArray(invoiceEvent.invoiceId, invoiceIds))
+      .groupBy(invoiceEvent.invoiceId),
+    Promise.all(invoiceIds.map((invoiceId) => loadInvoiceDetail(db, invoiceId, 'staff'))),
+  ]);
+  const statusChanged = new Map(lastEvents.map((event) => [event.invoiceId, event.occurredAt]));
   const rows: BillingRecordRow[] = [];
-  for (const queued of invoices) {
-    // eslint-disable-next-line no-await-in-loop
-    const detail = await loadInvoiceDetail(db, queued.invoiceId, 'staff');
+  for (const [index, queued] of invoices.entries()) {
+    const detail = details[index];
     if (!detail) continue;
     const signedOff = queued.statusCode === APPROVED_INVOICE_STATUS_CODE;
     const signOff = detail.signOffs.filter((entry) => entry.outcomeCode === 'approved').at(-1);
@@ -83,7 +88,7 @@ export async function loadBillingRecord(db: Database): Promise<BillingRecordRow[
       'Amount cut': approved === null ? null : Math.round((Number(queued.submittedTotal) - approved) * 100) / 100,
       'Reasons used': signedOff ? reasons.join('; ') || null : null,
       Status: queued.statusDisplayName,
-      'Status changed': day(events.find((event) => event.invoiceId === queued.invoiceId)?.occurredAt),
+      'Status changed': day(statusChanged.get(queued.invoiceId)),
       Reviewer: queued.reviewer?.displayName ?? null,
       'Signed off by': signOff?.displayName ?? null,
       'Signed off on': day(signOff?.decidedAt),
@@ -92,14 +97,15 @@ export async function loadBillingRecord(db: Database): Promise<BillingRecordRow[
   return rows;
 }
 
-function csvCell(value: string | number | null): string {
+// Amounts to cents; blank for none.
+function cell(value: string | number | null): string {
   if (value === null) return '';
-  const text = typeof value === 'number' ? value.toFixed(2) : value;
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  return csvCell(typeof value === 'number' ? value.toFixed(2) : value);
 }
 
 export function billingRecordCsv(rows: BillingRecordRow[]): string {
-  return [BILLING_RECORD_COLUMNS.join(','), ...rows.map((row) => BILLING_RECORD_COLUMNS.map((column) => csvCell(row[column])).join(','))].join('\n');
+  const lines = [BILLING_RECORD_COLUMNS.join(','), ...rows.map((row) => BILLING_RECORD_COLUMNS.map((column) => cell(row[column])).join(','))];
+  return `${lines.join('\r\n')}\r\n`;
 }
 
 export function billingRecordXlsx(rows: BillingRecordRow[]): Promise<Buffer> {

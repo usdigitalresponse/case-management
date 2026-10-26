@@ -18,8 +18,7 @@ import {
   invoiceStatuses,
   timeEntry,
 } from '../db/schema';
-import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
-import { billableProfessionalIds, type PortalActor } from '../portal/portalActor';
+import { authorizeBilling, type PortalActor } from '../portal/portalActor';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { recordInvoiceEvent } from './invoiceEvents';
 import {
@@ -127,10 +126,7 @@ async function replaceLines(
   // Off for an unconfirmed import: unmatched lines stay unmatched.
   fillTimekeepers: boolean,
 ): Promise<string> {
-  const billable = new Set(await billableProfessionalIds(tx, actor, caseId));
-  if (billedProfessionalId === null ? caseId !== null || billable.size === 0 : !billable.has(billedProfessionalId)) {
-    throw new NotAssignedToCaseError();
-  }
+  const billable = await authorizeBilling(tx, actor, caseId, billedProfessionalId);
   const delegated = billedProfessionalId !== actor.professionalId;
   let lines = content.lines.map((line) => ({
     ...line,
@@ -324,12 +320,8 @@ async function lockOwnInvoice(tx: Transaction, actor: PortalActor, invoiceId: st
   if (!locked || locked.submittedByUserAccountId !== actor.userAccountId) {
     throw new InvoiceNotFoundError();
   }
-  const billable = await billableProfessionalIds(tx, actor, locked.caseId);
-  // With no professional yet, only staff (who may bill anyone in intake) may act.
-  if (locked.professionalId === null ? billable.length === 0 : !billable.includes(locked.professionalId)) {
-    throw new NotAssignedToCaseError();
-  }
-  return locked;
+  const billable = await authorizeBilling(tx, actor, locked.caseId, locked.professionalId);
+  return { locked, billable };
 }
 
 async function buildSubmissionSnapshot(
@@ -358,7 +350,7 @@ export async function submitInTx(
   // Staff chose to review an invoice with no case (match_invoice_to_case).
   options: { withoutCase?: boolean } = {},
 ): Promise<void> {
-  const locked = await lockOwnInvoice(tx, actor, invoiceId);
+  const { locked, billable } = await lockOwnInvoice(tx, actor, invoiceId);
   if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
     throw new InvoiceStateError('Only a draft can be submitted.');
   }
@@ -378,7 +370,6 @@ export async function submitInTx(
     throw new ValidationError({ lines: 'Add at least one invoice item before submitting.' });
   }
   // Rechecked: a timekeeper may have left the office or case since saving.
-  const billable = new Set(await billableProfessionalIds(tx, actor, locked.caseId));
   if (lines.some((line) => line.timekeeperProfessionalId && !billable.has(line.timekeeperProfessionalId))) {
     throw new ValidationError({
       lines: 'An item bills a professional you can no longer act for on this case. Edit the draft first.',
@@ -440,7 +431,7 @@ export async function submitInTx(
 export async function updateDraftInvoice(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
   const content = parseDraftContent(rawInput);
   return db.transaction(async (tx) => {
-    const locked = await lockOwnInvoice(tx, actor, invoiceId);
+    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
     if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
       throw new InvoiceStateError('Only a draft can be edited.');
     }
@@ -471,6 +462,7 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
     await measureTrips(db, trips);
   }
   await db.transaction(async (tx) => {
+    // The receipt is recorded only on an invoice this actor may submit; submitInTx locks it again.
     await lockOwnInvoice(tx, actor, invoiceId);
     await recordReceipt(tx, invoiceId, receipt.data);
     await submitInTx(tx, actor, invoiceId, { withoutCase: receipt.data.withoutCase });
@@ -482,7 +474,7 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
 // snapshot.
 export async function recallInvoice(db: Database, actor: PortalActor, invoiceId: string) {
   return db.transaction(async (tx) => {
-    const locked = await lockOwnInvoice(tx, actor, invoiceId);
+    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
     if (locked.statusId !== (await statusId(tx, SUBMITTED_INVOICE_STATUS_CODE))) {
       throw new InvoiceStateError('Only a submitted invoice can be recalled.');
     }
@@ -520,7 +512,7 @@ export async function recallInvoice(db: Database, actor: PortalActor, invoiceId:
 
 export async function withdrawInvoice(db: Database, actor: PortalActor, invoiceId: string) {
   return db.transaction(async (tx) => {
-    const locked = await lockOwnInvoice(tx, actor, invoiceId);
+    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
     if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
       throw new InvoiceStateError('Only a draft can be withdrawn; recall a submitted invoice first.');
     }

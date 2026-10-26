@@ -18,7 +18,7 @@ import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { loadReviewPermissions, requireReviewPermission } from './reviewAccess';
 import { getReviewSettings } from './reviewSettings';
-import { SUBMITTED_INVOICE_STATUS_CODE, UNDER_REVIEW_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
+import { LINE_REVIEW_STATUS_CODES } from './invoiceStatusCodes';
 
 export const LINE_REVIEW_STEP_TYPE_CODE = 'line_review';
 export const SIGN_OFF_STEP_TYPE_CODE = 'sign_off';
@@ -178,19 +178,27 @@ const reassignInputSchema = z.object({
   forCase: z.boolean().default(false),
 });
 
+// The actor may reassign, and the person given the work reviews invoices.
+async function requireReviewerAssignment(db: Database, actorUserAccountId: string, reviewerUserAccountId: string) {
+  const [, reviewer] = await Promise.all([
+    requireReviewPermission(db, actorUserAccountId, 'reassign'),
+    loadReviewPermissions(db, reviewerUserAccountId),
+  ]);
+  if (!reviewer.reviewLines) {
+    throw new ValidationError({ userAccountId: 'Choose someone who reviews invoices.' });
+  }
+}
+
 export async function reassignReviewer(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   const parsed = reassignInputSchema.safeParse(rawInput);
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
   const input = parsed.data;
-  await requireReviewPermission(db, actorUserAccountId, 'reassign');
-  if (!(await loadReviewPermissions(db, input.userAccountId)).reviewLines) {
-    throw new ValidationError({ userAccountId: 'Choose someone who reviews invoices.' });
-  }
+  await requireReviewerAssignment(db, actorUserAccountId, input.userAccountId);
   return db.transaction(async (tx) => {
     const locked = await lockInvoiceForReview(tx, invoiceId);
-    if (![SUBMITTED_INVOICE_STATUS_CODE, UNDER_REVIEW_INVOICE_STATUS_CODE].includes(locked.statusCode)) {
+    if (!LINE_REVIEW_STATUS_CODES.includes(locked.statusCode)) {
       throw new ConflictError('invalid_state', 'Only an invoice waiting for review or being reviewed can be given to someone else.');
     }
     const { reviewer } = await loadAssignments(tx, invoiceId);
@@ -235,10 +243,7 @@ export async function setCaseReviewer(db: Database, actorUserAccountId: string, 
   if (!parsed.success || !z.uuid().safeParse(caseId).success) {
     throw new ValidationError({ userAccountId: 'Choose someone who reviews invoices.' });
   }
-  await requireReviewPermission(db, actorUserAccountId, 'reassign');
-  if (!(await loadReviewPermissions(db, parsed.data.userAccountId)).reviewLines) {
-    throw new ValidationError({ userAccountId: 'Choose someone who reviews invoices.' });
-  }
+  await requireReviewerAssignment(db, actorUserAccountId, parsed.data.userAccountId);
   await db.transaction((tx) => setCaseReviewerInTx(tx, caseId, parsed.data.userAccountId, actorUserAccountId));
   return loadCaseReviewer(db, caseId);
 }
@@ -274,7 +279,7 @@ export async function setSignOffApprovers(db: Database, actorUserAccountId: stri
   const actorPermissions = await loadReviewPermissions(db, actorUserAccountId);
   return db.transaction(async (tx) => {
     const locked = await lockInvoiceForReview(tx, invoiceId);
-    if (![SUBMITTED_INVOICE_STATUS_CODE, UNDER_REVIEW_INVOICE_STATUS_CODE].includes(locked.statusCode)) {
+    if (!LINE_REVIEW_STATUS_CODES.includes(locked.statusCode)) {
       throw new ConflictError('invalid_state', 'Who signs off can only change before the review is finished.');
     }
     // Like deciding a line, choosing approvers takes an unassigned invoice.

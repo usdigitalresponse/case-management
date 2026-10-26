@@ -15,6 +15,7 @@ import { ReferenceSelect } from '../components/ReferenceSelect';
 import { PageHeader } from '../components/PageHeader';
 import { TypeAheadPicker } from '../components/TypeAheadPicker';
 import { Notice } from '../components/Notice';
+import { INTAKE_PATH } from '../portal/useShell';
 
 function generateRequestId(): string {
   return crypto.randomUUID();
@@ -89,8 +90,7 @@ export default function NewCaseIntake() {
         pendingRequest.current = { payload, requestId: generateRequestId() };
       }
       const result = await createCase({ ...input, requestId: pendingRequest.current.requestId });
-      // Started from invoice intake: match that invoice to the new case,
-      // adding its provider to it.
+      // Started from Intake: match that invoice to the new case, adding its provider.
       if (intakeInvoiceId) {
         try {
           await matchInvoiceToCase(intakeInvoiceId, {
@@ -98,10 +98,10 @@ export default function NewCaseIntake() {
             addMissing: true,
             professionalId: intakeProfessionalId,
           });
-          navigate(`/intake?matched=${intakeInvoiceId}`);
+          navigate(`${INTAKE_PATH}?matched=${intakeInvoiceId}`);
           return;
         } catch {
-          // The case exists; the invoice can still be matched from intake.
+          // The case exists; the invoice can still be matched from Intake.
         }
       }
       navigate(`/cases/${result.caseId}`);

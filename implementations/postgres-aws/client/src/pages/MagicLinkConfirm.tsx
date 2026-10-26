@@ -39,7 +39,7 @@ export default function MagicLinkConfirm() {
           </>
         ) : (
           <>
-            <p>Continue to sign in to Case Management.</p>
+            <p>Continue to sign in to Invoice Review Prototype.</p>
             <button type="button" className="btn btn--primary" disabled={submitting} onClick={() => void handleContinue()}>
               {submitting ? 'Signing in…' : 'Continue'}
             </button>

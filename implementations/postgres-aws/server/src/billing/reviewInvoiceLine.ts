@@ -19,9 +19,11 @@ import {
   invoice,
 } from '../db/schema';
 import {
+  LINE_REVIEW_STATUS_CODES,
   SUBMITTED_INVOICE_STATUS_CODE,
   UNDER_REVIEW_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
+import { fromCents as money, toCents } from './money';
 import { recordInvoiceEvent } from './invoiceEvents';
 import { claimLineReview, lockInvoiceForReview } from './reviewAssignment';
 import { requireReviewPermission } from './reviewAccess';
@@ -60,17 +62,11 @@ export class InvoiceNotInReviewError extends ConflictError {
   }
 }
 
-function toCents(amount: number | string): number {
-  return Math.round(Number(amount) * 100);
-}
-
-const money = (cents: number) => (cents / 100).toFixed(2);
-
 // Locks the invoice, checks it is reviewable by this actor (taking it if
 // unassigned) and returns its current chain.
 async function beginLineChange(tx: Transaction, actorUserAccountId: string, invoiceId: string) {
   const locked = await lockInvoiceForReview(tx, invoiceId);
-  if (![SUBMITTED_INVOICE_STATUS_CODE, UNDER_REVIEW_INVOICE_STATUS_CODE].includes(locked.statusCode)) {
+  if (!LINE_REVIEW_STATUS_CODES.includes(locked.statusCode)) {
     throw new InvoiceNotInReviewError();
   }
   await claimLineReview(tx, invoiceId, actorUserAccountId);
@@ -279,7 +275,7 @@ export async function repriceLines(db: Database, actorUserAccountId: string, inv
         invoiceApprovalChainId: chainId,
         invoiceLineId: line.invoiceLineId,
         outcomeId,
-        approvedAmount: money(Math.round(Number(line.quantity) * Number(line.limit) * 100)),
+        approvedAmount: money(toCents(Number(line.quantity) * Number(line.limit))),
         approvedQuantity: line.quantity,
         approvedRate: line.limit,
         reasonCodeId,

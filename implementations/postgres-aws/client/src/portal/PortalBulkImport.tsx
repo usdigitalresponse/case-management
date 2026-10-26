@@ -18,7 +18,6 @@ import {
   type BillableProfessional,
   type CaseSplitPreview,
   type ImportInProgress,
-  type InvoiceReceipt,
   type MyCasesResult,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
@@ -38,6 +37,7 @@ import {
   reviewQueue,
   reviewUrl,
   saveBatch,
+  readyToSubmit,
   sectionOf,
   suggestChoice,
   type BulkStep,
@@ -45,8 +45,8 @@ import {
 } from './bulkImport';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
-import { hasReceipt, ReceivedFields } from './ReceivedFields';
-import { useShell } from './useShell';
+import { useReceipt } from './ReceivedFields';
+import { LATER, useShell } from './useShell';
 
 interface StagedFile {
   key: string;
@@ -298,11 +298,11 @@ function StagedFiles({
   );
 
   // Stops the server reading a one-person file, or forgets its reading.
-  function dropSplit(row: StagedFile, changes: Partial<StagedFile>) {
+  function dropSplit(row: StagedFile) {
     if (row.splitReadId) {
       void discardCaseSplitRead(row.splitReadId).catch(() => undefined);
     }
-    update(row.key, { splitReadId: undefined, split: undefined, ...changes });
+    update(row.key, { splitReadId: undefined, split: undefined });
   }
 
   return (
@@ -381,7 +381,7 @@ function StagedFiles({
                         onReady={(split) => update(row.key, { split })}
                         onFailed={(message) => update(row.key, { splitReadId: undefined, error: message })}
                       />
-                      <button type="button" className="link-button" onClick={() => dropSplit(row, {})}>
+                      <button type="button" className="link-button" onClick={() => dropSplit(row)}>
                         Stop
                       </button>
                     </span>
@@ -421,7 +421,7 @@ function StagedFiles({
                 setStaged((current) => current.filter((candidate) => candidate.key !== row.key));
                 onUploaded(importIds);
               }}
-              onCancel={() => dropSplit(row, {})}
+              onCancel={() => dropSplit(row)}
             />
           )
         );
@@ -559,7 +559,7 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
                 render: (row) => (
                   <span className="row-actions">
                     {(row.caseId || staff) && (
-                      <RouterLink to={`${newInvoicePath}?case=${row.caseId ?? 'later'}`}>Enter by hand</RouterLink>
+                      <RouterLink to={`${newInvoicePath}?case=${row.caseId ?? LATER}`}>Enter by hand</RouterLink>
                     )}
                     {discardButton(row)}
                   </span>
@@ -575,11 +575,9 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
 }
 
 function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onChanged: () => void }) {
-  const confirmed = imports.filter((row) => sectionOf(row) === 'ready');
-  // Confirmed with no case: they wait on Intake to be matched, not submitted here.
-  const ready = confirmed.filter((row) => row.caseId);
-  const waiting = confirmed.length - ready.length;
-  const { newInvoicePath } = useShell();
+  const ready = readyToSubmit(imports);
+  const waiting = imports.filter((row) => sectionOf(row) === 'ready').length - ready.length;
+  const { newInvoicePath, newInvoiceLabel } = useShell();
   // Everything ready is included unless unticked.
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
@@ -587,8 +585,7 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
   const chosen = ready.filter((row) => !excluded.has(row.invoiceImportId));
   const chosenTotal = chosen.reduce((sum, row) => sum + Math.round(Number(row.submittedTotal ?? 0) * 100), 0) / 100;
   // Staff say once how and when this batch was received.
-  const { staff } = useShell();
-  const [receipt, setReceipt] = useState<InvoiceReceipt>({});
+  const receipt = useReceipt('bulk');
 
   function toggle(importId: string, included: boolean) {
     setExcluded((current) => {
@@ -610,7 +607,7 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
     for (const row of chosen) {
       try {
         // eslint-disable-next-line no-await-in-loop
-        await transitionInvoice(row.invoiceId as string, 'submit', staff ? receipt : undefined);
+        await transitionInvoice(row.invoiceId as string, 'submit', receipt.payload);
         submitted.push(row);
       } catch (err) {
         errors.push(`${row.fileName}: ${apiErrorMessage(err, 'could not be submitted.')}`);
@@ -644,7 +641,7 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
       {waiting > 0 && (
         <Notice tone="info">
           {waiting} confirmed {waiting === 1 ? 'invoice has' : 'invoices have'} no case yet and{' '}
-          {waiting === 1 ? 'waits' : 'wait'} on <RouterLink to={newInvoicePath}>Intake</RouterLink> to be matched to a case.
+          {waiting === 1 ? 'waits' : 'wait'} on <RouterLink to={newInvoicePath}>{newInvoiceLabel}</RouterLink> to be matched to a case.
         </Notice>
       )}
       {ready.length === 0 ? (
@@ -678,12 +675,12 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
               },
             ]}
           />
-          {staff && <ReceivedFields idPrefix="bulk" value={receipt} onChange={setReceipt} />}
+          {receipt.fields}
           <div className="invoice-actions">
             <button
               type="button"
               className="btn btn--primary"
-              disabled={submitting || chosen.length === 0 || (staff && !hasReceipt(receipt))}
+              disabled={submitting || chosen.length === 0 || receipt.missing}
               onClick={() => void submitChosen()}
             >
               {submitting
@@ -739,7 +736,7 @@ export default function PortalBulkImport() {
     }
   }, [loaded, hash]);
   const queue = imports ? reviewQueue(imports) : [];
-  const readyCount = imports?.filter((row) => sectionOf(row) === 'ready' && row.caseId).length ?? 0;
+  const readyCount = imports ? readyToSubmit(imports).length : 0;
   const step = currentStep(stagedCount, imports ?? []);
 
   // This browser session's uploads still in progress; other imports and

@@ -6,10 +6,13 @@ import { useAuth } from '../AuthContext';
 export const NEW_INVOICE_PATH = '/new-invoice';
 // Staff enter invoices, finish drafts and match invoices to cases here.
 export const INTAKE_PATH = '/intake';
+// The case (or professional) choice meaning "not known yet; match it later".
+export const LATER = 'later';
 
 export function useShell() {
   const { user } = useAuth();
-  const staff = user?.authType === 'sso';
+  // The server's role check, so staff-only options match what it allows.
+  const staff = Boolean(user?.isStaff);
   return {
     staff,
     casePath: (caseId: string) => (staff ? `/cases/${caseId}` : `/portal/cases/${caseId}`),

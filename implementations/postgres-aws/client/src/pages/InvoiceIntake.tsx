@@ -19,10 +19,13 @@ import { RecordTable } from '../components/RecordTable';
 import { Toast, useToast } from '../components/Toast';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
+import { StatusPill, type Tone } from '../components/StatusPill';
+import { professionalLabel } from '../components/InvoiceLinesEditor';
+import { caseDisplayLabel } from '../caseDisplayLabel';
 import { NewInvoiceStart } from '../portal/PortalNewInvoice';
 import { MyInvoicesTable } from '../portal/MyInvoicesTable';
 
-const STAGES: Record<IntakeItem['stage'], { label: string; tone: string }> = {
+const STAGES: Record<IntakeItem['stage'], { label: string; tone: Tone }> = {
   reading: { label: 'Reading the file', tone: 'neutral' },
   unreadable: { label: "Couldn't be read", tone: 'danger' },
   to_confirm: { label: 'Check the import', tone: 'warning' },
@@ -68,7 +71,7 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
   }
 
   return (
-    <div className="decision-panel intake-panel">
+    <div className="decision-panel">
       <h3>Match to a case</h3>
       <div className="inline-fields intake-match">
         <div className="usa-form-group">
@@ -77,7 +80,7 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
             <option value="">{data ? 'Choose an open case' : 'Loading cases…'}</option>
             {data?.map((c) => (
               <option key={c.caseId} value={c.caseId}>
-                {[c.externalReference, c.clientDisplayName].filter(Boolean).join(' · ') || c.caseId.slice(0, 8)}
+                {caseDisplayLabel([c.externalReference, c.clientDisplayName], undefined)}
               </option>
             ))}
           </select>
@@ -93,7 +96,7 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
             >
               <option value="">{providers ? 'Choose who it’s from' : 'Loading…'}</option>
               {providers?.map((p) => (
-                <option key={p.professionalId} value={p.professionalId}>{p.displayName ?? 'Unnamed professional'}</option>
+                <option key={p.professionalId} value={p.professionalId}>{professionalLabel(p)}</option>
               ))}
             </select>
           </div>
@@ -232,7 +235,7 @@ function WaitingTable({ items, onMatched }: { items: IntakeItem[]; onMatched: (m
         { header: 'Amount', align: 'right', render: (item) => (item.submittedTotal ? <strong>{formatMoney(item.submittedTotal)}</strong> : '—') },
         {
           header: 'Status',
-          render: (item) => <span className={`chip chip--${STAGES[item.stage].tone}`}>{STAGES[item.stage].label}</span>,
+          render: (item) => <StatusPill tone={STAGES[item.stage].tone} label={STAGES[item.stage].label} />,
         },
         {
           header: 'Actions',
@@ -273,6 +276,7 @@ export default function InvoiceIntake() {
   const [version, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
   const { data, error } = useApiResource(() => listInvoiceIntake().then((result) => result.items), [version]);
+  // Drafts with no case are listed under "Waiting for a case" instead.
   const { data: drafts } = useApiResource(
     () => listMyInvoices().then((result) => result.invoices.filter((invoice) => invoice.statusCode === 'draft' && invoice.caseId)),
     [version],
@@ -308,7 +312,7 @@ export default function InvoiceIntake() {
       <section className="detail-section">
         <h2>
           Waiting for a case
-          {data && data.length > 0 && <span className="heading-count">{data.length}</span>}
+          {data && data.length > 0 && <span className="chip chip--neutral heading-count">{data.length}</span>}
         </h2>
         {error || !data ? (
           <LoadState error={error} what="invoices waiting for a case" />
@@ -330,7 +334,7 @@ export default function InvoiceIntake() {
           <MyInvoicesTable rows={drafts} label="Drafts to finish" onDeleted={refresh} />
         </section>
       )}
-      <Toast toast={toast} onUndo={() => undefined} />
+      <Toast toast={toast} />
     </div>
   );
 }

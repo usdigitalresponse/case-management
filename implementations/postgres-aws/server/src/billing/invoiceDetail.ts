@@ -25,7 +25,7 @@ import {
 } from '../db/schema';
 import { evaluateBillingRules, type RuleFinding } from './billingRules';
 import { loadRateLimits, rateLimitFor, type RateLimit } from './preauthorizations';
-import { latestRoundNumber, loadRecordedDecisions, signOffProgress, type RecordedDecision } from './reviewRounds';
+import { approvedTotal, latestRoundNumber, loadRecordedDecisions, signOffProgress, type RecordedDecision } from './reviewRounds';
 import { AWAITING_SIGN_OFF_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
 import { loadAssignments, SIGN_OFF_STEP_TYPE_CODE, type InvoiceAssignments } from './reviewAssignment';
 
@@ -176,7 +176,7 @@ export type InvoiceDetailLine = LineRow & {
   // the configured one (./preauthorizations.ts rateLimitFor).
   rateLimit: string | null;
   rateLimitSource: RateLimit['source'] | null;
-  // The latest recorded round's decision, flattened as before.
+  // The latest recorded round's decision, flattened (also in decision).
   decisionOutcomeCode: DecisionOutcomeCode | null;
   decisionOutcomeDisplayName: string | null;
   decisionApprovedAmount: string | null;
@@ -244,7 +244,7 @@ export async function loadInvoiceDetail(
   if (!header) {
     return undefined;
   }
-  const [lineRows, [attempt], caseNumbers, rateLimits] = await Promise.all([
+  const [lineRows, [attempt], caseNumbers, rateLimits, assignments] = await Promise.all([
     selectLines(db, invoiceId),
     db
       .select({
@@ -256,11 +256,12 @@ export async function loadInvoiceDetail(
       .where(and(eq(invoiceApprovalChain.invoiceId, invoiceId), isNull(invoiceApprovalChain.supersededAt))),
     loadCaseNumbers(db, [header.caseId]),
     loadRateLimits(db, header.caseId),
+    audience === 'staff' ? loadAssignments(db, invoiceId) : null,
   ]);
-  const recorded: RecordedDecision[] = attempt ? await loadRecordedDecisions(db, attempt.invoiceApprovalChainId) : [];
-  const working =
+  const [recorded, working, ruleFindings] = await Promise.all([
+    attempt ? loadRecordedDecisions(db, attempt.invoiceApprovalChainId) : ([] as RecordedDecision[]),
     attempt && audience === 'staff'
-      ? await db
+      ? db
           .select({
             invoiceLineId: invoiceLineWorkingDecision.invoiceLineId,
             outcomeCode: invoiceApprovalOutcomes.code,
@@ -277,7 +278,11 @@ export async function loadInvoiceDetail(
           .innerJoin(invoiceApprovalOutcomes, eq(invoiceLineWorkingDecision.outcomeId, invoiceApprovalOutcomes.id))
           .leftJoin(invoiceDecisionReasons, eq(invoiceLineWorkingDecision.reasonCodeId, invoiceDecisionReasons.id))
           .where(eq(invoiceLineWorkingDecision.invoiceApprovalChainId, attempt.invoiceApprovalChainId))
-      : [];
+      : [],
+    attempt
+      ? ((attempt.snapshot as { billing_rules?: { findings?: RuleFinding[] } } | null)?.billing_rules?.findings ?? [])
+      : evaluateBillingRules(db, invoiceId),
+  ]);
   const names = await displayNames(db, [
     ...recorded.map((decision) => decision.decidedByUserAccountId),
     ...working.map((decision) => decision.decidedByUserAccountId),
@@ -313,14 +318,20 @@ export async function loadInvoiceDetail(
     };
   };
 
+  // Sign-off decisions have no line and are grouped under null.
+  const recordedFor = new Map<string | null, RecordedDecision[]>();
+  for (const decision of recorded) {
+    recordedFor.set(decision.invoiceLineId, [...(recordedFor.get(decision.invoiceLineId) ?? []), decision]);
+  }
+  const workingFor = new Map(working.map((row) => [row.invoiceLineId, row]));
   const lines: InvoiceDetailLine[] = lineRows.map((line) => {
-    const lineDecisions = recorded.filter((decision) => decision.invoiceLineId === line.invoiceLineId);
+    const lineDecisions = recordedFor.get(line.invoiceLineId) ?? [];
     const latest = round === null ? undefined : lineDecisions.find((decision) => decision.sequenceNumber === round);
     const decision = latest ? view(latest, latest.reason, line.amount) : null;
     const history = lineDecisions
       .filter((past) => round !== null && past.sequenceNumber < round)
       .map((past) => ({ ...view(past, past.reason, line.amount), round: past.sequenceNumber }));
-    const own = working.find((row) => row.invoiceLineId === line.invoiceLineId);
+    const own = workingFor.get(line.invoiceLineId);
     const limit = line.lineTypeCode === 'time' ? rateLimitFor(line, header.professionalId, rateLimits) : null;
     return {
       ...line,
@@ -338,10 +349,6 @@ export async function loadInvoiceDetail(
     };
   });
 
-  const approvedCents = lines.reduce(
-    (sum, line) => sum + (line.decision?.approvedAmount ? Math.round(Number(line.decision.approvedAmount) * 100) : 0),
-    0,
-  );
   const signOffs = recorded
     .filter((decision) => decision.stepCode === SIGN_OFF_STEP_TYPE_CODE)
     .map((decision) => ({
@@ -350,11 +357,7 @@ export async function loadInvoiceDetail(
       comment: audience === 'staff' || !decision.internalOnly ? decision.reason : null,
       decidedAt: decision.decidedAt,
     }));
-  const ruleFindings = attempt
-    ? ((attempt.snapshot as { billing_rules?: { findings?: RuleFinding[] } } | null)?.billing_rules?.findings ?? [])
-    : await evaluateBillingRules(db, invoiceId);
   const numbers = caseNumbers.get(header.caseId);
-  const assignments = audience === 'staff' ? await loadAssignments(db, invoiceId) : null;
   const progress = signOffProgress(recorded, round, assignments?.signOff ?? []);
   const awaitingSignOff = header.statusCode === AWAITING_SIGN_OFF_INVOICE_STATUS_CODE;
   return {
@@ -365,7 +368,7 @@ export async function loadInvoiceDetail(
     submissionAttempt: attempt ? { invoiceApprovalChainId: attempt.invoiceApprovalChainId, submittedAt: attempt.submittedAt } : null,
     ruleFindings,
     round,
-    approvedTotal: round === null ? null : (approvedCents / 100).toFixed(2),
+    approvedTotal: approvedTotal(recorded, round),
     signOffs,
     assignments,
     nextSignOff: awaitingSignOff && progress.next ? { userAccountId: progress.next.userAccountId, displayName: progress.next.displayName } : null,

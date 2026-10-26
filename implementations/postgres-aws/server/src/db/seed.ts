@@ -46,7 +46,7 @@ import { firstRow } from './rowHelpers';
 // assert zero pre-existing cases).
 const DEMO_CASE_COUNT = 10;
 const DEMO_PROFESSIONAL_COUNT = 4;
-// Two become billing reviewers and one a sign-off approver (seedDemoReview).
+// Two become billing reviewers and one a sign-off approver (seedDemoReviewers).
 const DEMO_STAFF_COUNT = 3;
 // How many demo cases get an external-submitter assignment; the rest stay unassigned.
 const ASSIGNED_CASE_COUNT = 6;
@@ -389,11 +389,8 @@ async function seedStaffAssignment(
   await assignStaffToCase(db, fixtures.staffUserAccountId, caseId, { userAccountId: staffUserAccountId });
 }
 
-// Review demo data: two reviewers and an approver, a sign-off default,
-// case and court numbers, pre-authorizations, an invoice billed above the
-// configured rate, and invoices at each review state, one waiting long
-// enough to be called out. Every value is synthetic.
-// Before any invoice is submitted, so each is routed to the sign-off default.
+// Two reviewers, an approver and a sign-off default. Before any invoice is
+// submitted, so each is routed to the sign-off default.
 async function seedDemoReviewers(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   staffUserAccountIds: string[],
@@ -409,6 +406,9 @@ async function seedDemoReviewers(
   await setReviewSettings(db, fixtures.staffUserAccountId, { defaultSignOffUserAccountIds: [approver] });
 }
 
+// Review demo data: case and court numbers, pre-authorizations, an invoice
+// billed above the configured rate, and invoices at each review state, one
+// waiting long enough to be called out. Every value is synthetic.
 async function seedDemoReview(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   caseIds: string[],

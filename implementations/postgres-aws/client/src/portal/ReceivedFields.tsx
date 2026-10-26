@@ -1,12 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { listReceiptChannels, type InvoiceReceipt } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { useShell } from './useShell';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Staff entering an invoice received outside the system say how and when it
 // came in; review waiting time counts from that date.
-export function ReceivedFields({
+function ReceivedFields({
   idPrefix,
   value,
   onChange,
@@ -62,6 +63,21 @@ export function ReceivedFields({
   );
 }
 
-export function hasReceipt(value: InvoiceReceipt): boolean {
+function hasReceipt(value: InvoiceReceipt): boolean {
   return Boolean(value.receivedVia && value.receivedOn);
+}
+
+// How and when an invoice reached staff, asked only of staff: the fields to
+// render, whether submitting must wait for them, and what to send.
+export function useReceipt(idPrefix: string, recorded?: { receivedOn?: string | null; receivedViaDisplayName?: string | null }) {
+  const { staff } = useShell();
+  const [receipt, setReceipt] = useState<InvoiceReceipt>({ receivedOn: recorded?.receivedOn ?? undefined });
+  return {
+    fields: staff ? (
+      <ReceivedFields idPrefix={idPrefix} value={receipt} onChange={setReceipt} receivedViaDisplayName={recorded?.receivedViaDisplayName} />
+    ) : null,
+    missing: staff && !hasReceipt(receipt),
+    payload: staff ? receipt : undefined,
+    reset: () => setReceipt({}),
+  };
 }

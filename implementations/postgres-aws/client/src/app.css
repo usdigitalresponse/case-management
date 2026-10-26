@@ -40,7 +40,6 @@ button, input, select, textarea { font: inherit; }
 .header-search { flex: 0 1 26rem; margin-left: 2rem; }
 .header-search input { width: 100%; box-sizing: border-box; height: 2.1rem; padding: 0 .9rem; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--neutral-tint); color: var(--ink); }
 .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; margin-left: auto; }
-.create-button { white-space: nowrap; margin: 0; }
 .user-name { font-size: .9rem; max-width: 160px; overflow-wrap: anywhere; }
 .app-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: calc(100vh - 57px); }
 .app-sidebar { padding: 1.4rem .5rem; border-right: 1px solid var(--line); background: var(--sidebar); }
@@ -49,8 +48,8 @@ button, input, select, textarea { font: inherit; }
 .app-sidebar a.active { background: var(--primary-tint); color: var(--primary); }
 .nav-count { font-size: .78rem; color: var(--ink-muted); }
 .app-sidebar a.active .nav-count { color: var(--primary); }
-/* A count beside a section heading. */
-.heading-count { display: inline-block; min-width: 1.5em; margin-left: .5rem; padding: .1em .5em; border-radius: 999px; background: var(--neutral-tint); color: var(--ink-muted); font-size: .75em; font-weight: 600; line-height: 1.4; text-align: center; vertical-align: .15em; }
+/* A count chip beside a section heading. */
+.heading-count { margin-left: .5rem; vertical-align: .2em; }
 /* Intake: where invoices come in, so it reads as the main action. */
 .app-sidebar a.nav-primary { background: var(--primary); color: white; font-weight: 700; padding: .6rem .85rem; }
 .app-sidebar a.nav-primary:hover { background: var(--primary-hover); }
@@ -59,7 +58,6 @@ button, input, select, textarea { font: inherit; }
 .nav-group + .nav-group { margin-top: 1.6rem; }
 .nav-group h2 { padding: 0 .75rem; margin: 0 0 .35rem; font-size: .68rem; line-height: 1.5; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
 .nav-group button:disabled { color: var(--ink-faint); cursor: not-allowed; justify-content: flex-start; gap: .4rem; }
-.sidebar-note { margin: 2rem .7rem; font-size: .78rem; color: var(--ink-faint); }
 .app-main { min-width: 0; padding: 2rem 2rem 6rem; }
 /* <main tabIndex={-1}> is a skip-link landing target, not an interactive
    control — once it's focused (e.g. via "Skip to main content"), the
@@ -102,7 +100,9 @@ button, input, select, textarea { font: inherit; }
 .login-panel h1, .login-panel h2 { margin: 0; font-size: 1.1rem; }
 .login-panel--single { max-width: 26rem; margin: 0 auto; }
 .login-panel > p { margin: -.4rem 0 .25rem; color: var(--ink-muted); font-size: .92rem; }
-.login-panel .btn { width: 100%; min-height: 2.5rem; }
+/* Sign-in buttons span the panel; the demo row's sits beside its select. */
+.login-panel > .btn, .login-form .btn { width: 100%; }
+.login-panel .btn { min-height: 2.5rem; }
 .login-form { display: flex; flex-direction: column; gap: .75rem; max-width: none; }
 .login-form .usa-label { margin: 0; }
 .login-form .usa-input { max-width: none; height: 2.5rem; margin-top: .3rem; }
@@ -111,7 +111,6 @@ button, input, select, textarea { font: inherit; }
 .login-demo > label { color: var(--ink-faint); }
 .login-demo__row { display: flex; gap: .5rem; align-items: center; }
 .login-demo__row .usa-select { flex: 1 1 auto; width: auto; min-width: 0; max-width: none; height: 2.5rem; margin-top: 0; font-size: .85rem; }
-.login-panel .login-demo__row .btn { flex: none; width: auto; }
 
 
 /* List toolbar: result count + client-side filter. */
@@ -221,7 +220,7 @@ form.case-intake-form { max-width: 52rem; }
   .app-sidebar nav { display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
   .nav-group, .nav-group + .nav-group { display: flex; flex-wrap: wrap; gap: .2rem; margin: 0; }
   .app-sidebar .nav-group a:not(.btn) { width: auto; gap: .4rem; }
-  .nav-group h2, .nav-group button, .sidebar-note { display: none; }
+  .nav-group h2, .nav-group button { display: none; }
   .stage-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 480px) {
@@ -524,7 +523,7 @@ form.compact-form { max-width: none; }
 .section-heading-row h2 { margin: 0; }
 .add-person { flex-basis: 100%; max-width: 36rem; }
 
-/* Portal: the import's line items look like the staff review table. */
+/* Invoice line editor, styled like the staff review table. */
 .line-editor { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 1rem .6rem; }
 .line-editor-head { margin: 0 -1rem; padding: .7rem 1rem .6rem; background: var(--table-head); border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; font-size: .68rem; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
 .line-editor .line-row { padding: .9rem 0; border-top: 1px solid var(--line); align-items: start; column-gap: 1rem; }
@@ -546,14 +545,18 @@ form.compact-form { max-width: none; }
 .line-editor input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .line-editor input[type="number"]::-webkit-inner-spin-button,
 .line-editor input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-/* Sized by the editor's own width, not the window's: beside the original
-   file it is narrow, so "What was done" takes a line of its own. The
-   columns are inline styles from the component, hence !important. */
+/* Columns: kind, date, what was done, hours, rate, amount, remove. They
+   follow the editor's own width, not the window's: beside the original file
+   it is narrow, so "What was done" takes a line of its own. */
 .line-editor { container-type: inline-size; }
+.line-editor .line-row,
+.line-editor .line-editor-head {
+  grid-template-columns: minmax(8.75rem, 9.5rem) minmax(8.5rem, 9.5rem) minmax(12rem, 1fr) minmax(5rem, 6rem) minmax(6rem, 7rem) minmax(6rem, 7.5rem) 1.75rem;
+}
 @container (max-width: 55rem) {
   .line-editor .line-row,
   .line-editor .line-editor-head {
-    grid-template-columns: minmax(7.5rem, 9.5rem) minmax(8.5rem, 9.5rem) minmax(4.5rem, 6rem) minmax(5.5rem, 1fr) minmax(5.5rem, 7.5rem) 1.75rem !important;
+    grid-template-columns: minmax(7.5rem, 9.5rem) minmax(8.5rem, 9.5rem) minmax(4.5rem, 6rem) minmax(5.5rem, 1fr) minmax(5.5rem, 7.5rem) 1.75rem;
     grid-template-areas: "kind date qty rate amount remove" "what what what what what what";
     row-gap: .5rem;
   }
@@ -570,7 +573,7 @@ form.compact-form { max-width: none; }
 @container (max-width: 38rem) {
   .line-editor .line-editor-head { display: none; }
   .line-editor .line-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) 1.75rem !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 1.75rem;
     grid-template-areas: "kind kind date remove" "qty rate amount amount" "what what what what";
   }
   .line-editor .line-row > [data-label]::before {
@@ -591,7 +594,7 @@ form.compact-form { max-width: none; }
 }
 @container (max-width: 26rem) {
   .line-editor .line-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.75rem !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.75rem;
     grid-template-areas: "kind kind remove" "date date date" "qty rate rate" "amount amount amount" "what what what";
   }
 }
@@ -603,7 +606,7 @@ form.compact-form { max-width: none; }
 .data-card table thead th { background: var(--table-head); font-size: .68rem; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
 .data-card table td, .data-card table th { border-bottom-color: var(--line); }
 
-/* Portal New invoice: two ways to start, side by side. */
+/* New invoice and Intake: two ways to start, side by side. */
 .start-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1rem; margin-top: 1.2rem; }
 .start-option { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
 .start-option h2 { margin: 0; font-size: 1.05rem; }
@@ -644,11 +647,11 @@ form.compact-form { max-width: none; }
 .settings-number { max-width: 6rem; margin-top: .3rem; }
 .settings-role { margin: 0; max-width: 14rem; height: 2.25rem; padding: .25rem 2rem .25rem .5rem; }
 .reason-fields { grid-template-columns: minmax(0, 1fr) 11rem auto; margin-top: .9rem; }
-/* Invoice intake */
+.data-card table tr.is-retired th, .data-card table tr.is-retired td { color: var(--ink-faint); }
+/* Intake */
 .intake-match { grid-template-columns: minmax(0, 24rem) auto; margin-bottom: .6rem; }
 .intake-provider { margin: 0 0 1.2rem; }
 .intake-provider__fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 12rem; }
-.data-card table tr.is-retired th, .data-card table tr.is-retired td { color: var(--ink-faint); }
 /* Finish this review? */
 .confirm-panel { flex-basis: 100%; padding: .9rem 1.1rem; border-radius: var(--radius); background: var(--info-tint); border-left: 3px solid var(--primary); }
 .confirm-panel h3 { margin: 0 0 .3rem; font-size: 1rem; }

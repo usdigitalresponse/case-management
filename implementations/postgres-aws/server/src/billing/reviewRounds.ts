@@ -26,6 +26,7 @@ import {
 import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments, lockInvoiceForReview, SIGN_OFF_STEP_TYPE_CODE } from './reviewAssignment';
 import { requireReviewPermission } from './reviewAccess';
 import { OTHER_REASON_CODE } from './decisionReasons';
+import { fromCents, toCents } from './money';
 
 async function currentChainId(db: DatabaseOrTransaction, invoiceId: string): Promise<string | undefined> {
   const [chain] = await db
@@ -87,6 +88,15 @@ export function latestRoundNumber(decisions: RecordedDecision[], lineCount: numb
   }
   const complete = [...linesBySequence.entries()].filter(([, count]) => count >= lineCount && lineCount > 0);
   return complete.length === 0 ? null : Math.max(...complete.map(([sequence]) => sequence));
+}
+
+// What the latest finished round approved; null until a round is finished.
+export function approvedTotal(decisions: RecordedDecision[], round: number | null): string | null {
+  if (round === null) return null;
+  const cents = decisions
+    .filter((decision) => decision.sequenceNumber === round && decision.invoiceLineId)
+    .reduce((sum, decision) => sum + toCents(decision.approvedAmount), 0);
+  return fromCents(cents);
 }
 
 // Sign-off after the latest round: who signs next, in order, and whether

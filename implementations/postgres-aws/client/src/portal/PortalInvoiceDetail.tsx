@@ -7,7 +7,6 @@ import {
   listMyTimeEntries,
   transitionInvoice,
   updateDraftInvoice,
-  type InvoiceReceipt,
   type InvoiceTransition,
   type PortalInvoice,
 } from '../api/client';
@@ -31,7 +30,7 @@ import { TravelLog } from '../components/TravelLog';
 import { Notice, type SaveMessage } from '../components/Notice';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
-import { hasReceipt, ReceivedFields } from './ReceivedFields';
+import { useReceipt } from './ReceivedFields';
 import { INTAKE_PATH, useShell } from './useShell';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
@@ -59,9 +58,7 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
   const billingRules = usePortalBillingRules();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<SaveMessage | null>(null);
-  const { staff } = useShell();
-  const [receipt, setReceipt] = useState<InvoiceReceipt>({ receivedOn: invoice.receivedOn ?? undefined });
-  const needsReceipt = staff && !hasReceipt(receipt);
+  const receipt = useReceipt('draft', invoice);
 
   async function run(action: 'save' | InvoiceTransition) {
     setBusy(true);
@@ -78,7 +75,7 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
         await transitionInvoice(
           invoice.invoiceId,
           action,
-          action === 'submit' && staff ? { ...receipt, withoutCase: noCase || undefined } : undefined,
+          action === 'submit' && receipt.payload ? { ...receipt.payload, withoutCase: noCase || undefined } : undefined,
         );
       }
       if (action === 'save') {
@@ -117,9 +114,7 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
       <RulesInForce rules={billingRules.rules} />
       {/* As last saved; saving shows the effect of edits. */}
       <RuleFindings findings={data.ruleFindings} />
-      {staff && (
-        <ReceivedFields idPrefix="draft" value={receipt} onChange={setReceipt} receivedViaDisplayName={invoice.receivedViaDisplayName} />
-      )}
+      {receipt.fields}
       <PeriodFields idPrefix="draft" start={period.start} end={period.end} onChange={setPeriod} />
       {!noCase && (
         <UnbilledTimePicker idPrefix="draft" entries={pickable} lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
@@ -140,7 +135,7 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
           <button
             type="button"
             className={`btn ${noCase ? 'btn--outline' : 'btn--primary'}`}
-            disabled={busy || !hasInvoiceItems(lines) || needsReceipt}
+            disabled={busy || !hasInvoiceItems(lines) || receipt.missing}
             onClick={() => void run('submit')}
           >
             {noCase ? 'Review without a case' : 'Submit invoice'}

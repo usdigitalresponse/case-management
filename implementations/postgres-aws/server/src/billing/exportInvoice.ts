@@ -34,10 +34,6 @@ function toNumber(value: string | null): number | null {
   return value === null ? null : Number(value);
 }
 
-function toCents(value: string | null): number {
-  return value === null ? 0 : Math.round(Number(value) * 100);
-}
-
 function formatInstant(value: Date | null): string {
   return value ? value.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC') : '';
 }
@@ -51,7 +47,6 @@ const LINE_TYPE_LABELS: Record<string, string> = { time: 'Time', expense: 'Expen
 
 export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExportOptions): InvoiceExportContent {
   const { invoice, lines } = detail;
-  const approvedCents = lines.reduce((sum, line) => sum + toCents(line.decisionApprovedAmount), 0);
   const period =
     invoice.periodStart || invoice.periodEnd ? `${invoice.periodStart ?? ''} to ${invoice.periodEnd ?? ''}` : '';
   const summary: Array<[string, string]> = [
@@ -68,7 +63,7 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
     ['Billing period', period],
     ['Currency', invoice.currencyCode],
     ['Requested total', invoice.submittedTotal],
-    ['Approved total', (approvedCents / 100).toFixed(2)],
+    ['Approved total', detail.approvedTotal ?? '0.00'],
     // Sign-off comments are internal and never exported.
     ...detail.signOffs
       .filter((signOff) => signOff.outcomeCode === 'approved')

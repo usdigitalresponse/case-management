@@ -4,7 +4,7 @@ import { Form, Label } from '@trussworks/react-uswds';
 import { apiErrorMessage, invoiceTemplateUrl, uploadInvoiceFile } from '../api/client';
 import { Notice } from './Notice';
 
-// caseId null: the file waits in invoice intake for its case.
+// caseId null: the file waits on Intake for its case.
 export function InvoiceImportForm({ caseId, professionalId }: { caseId: string | null; professionalId: string }) {
   const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);

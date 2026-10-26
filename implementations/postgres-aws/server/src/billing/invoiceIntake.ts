@@ -4,7 +4,7 @@
 // adding its providers to the case if they aren't on it; or its submitter
 // may send it to review without a case.
 import { z } from 'zod';
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, min } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {
   caseAssignment,
@@ -73,10 +73,10 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       : Promise.resolve([]),
     draftIds.length
       ? db
-          .select({ invoiceId: invoiceEvent.invoiceId, occurredAt: invoiceEvent.occurredAt })
+          .select({ invoiceId: invoiceEvent.invoiceId, occurredAt: min(invoiceEvent.occurredAt) })
           .from(invoiceEvent)
           .where(inArray(invoiceEvent.invoiceId, draftIds))
-          .orderBy(asc(invoiceEvent.occurredAt))
+          .groupBy(invoiceEvent.invoiceId)
       : Promise.resolve([]),
     // Files with no case still being read, or that couldn't be read.
     db
@@ -95,8 +95,10 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       .where(and(isNull(invoiceImport.caseId), isNull(invoiceImport.invoiceId), inArray(invoiceImportStatuses.code, ['received', 'failed']))),
   ]);
 
+  const importFor = new Map(imports.map((entry) => [entry.invoiceId, entry]));
+  const createdAt = new Map(created.map((event) => [event.invoiceId, event.occurredAt]));
   const items: IntakeItem[] = drafts.map((row) => {
-    const imported = imports.find((entry) => entry.invoiceId === row.invoiceId);
+    const imported = importFor.get(row.invoiceId);
     return {
       invoiceId: row.invoiceId,
       invoiceImportId: imported?.invoiceImportId ?? null,
@@ -106,7 +108,7 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       professionalDisplayName: row.professionalDisplayName,
       enteredByUserAccountId: row.submittedByUserAccountId,
       enteredByDisplayName: row.submittedByDisplayName,
-      enteredAt: created.find((event) => event.invoiceId === row.invoiceId)?.occurredAt ?? new Date(),
+      enteredAt: createdAt.get(row.invoiceId) ?? new Date(),
       receivedViaDisplayName: row.receivedViaDisplayName,
       receivedOn: row.receivedOn,
       submittedTotal: row.submittedTotal,

@@ -11,8 +11,8 @@ const STATUS_TONE: Record<string, Tone> = {
   rejected: 'danger',
 };
 
-// A status as the design's chip, colored by status code; the text always
-// carries the meaning.
-export function StatusPill({ code, label }: { code?: string | null; label: string | null }) {
-  return <span className={`chip chip--${(code && STATUS_TONE[code]) || 'neutral'}`}>{label ?? 'Unknown'}</span>;
+// A status as the design's chip, colored by status code or an explicit tone;
+// the text always carries the meaning.
+export function StatusPill({ code, tone, label }: { code?: string | null; tone?: Tone; label: string | null }) {
+  return <span className={`chip chip--${tone ?? ((code && STATUS_TONE[code]) || 'neutral')}`}>{label ?? 'Unknown'}</span>;
 }

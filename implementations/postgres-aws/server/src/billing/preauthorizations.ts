@@ -15,7 +15,8 @@ import {
   preauthorizationOutcomes,
   preauthorizationStatuses,
 } from '../db/schema';
-import { latestRoundNumber, loadRecordedDecisions } from './reviewRounds';
+import { approvedTotal, latestRoundNumber, loadRecordedDecisions } from './reviewRounds';
+import { fromCents as money, toCents } from './money';
 import { APPROVED_INVOICE_STATUS_CODE, IN_REVIEW_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
 
 export interface PreauthorizationSummary {
@@ -26,8 +27,6 @@ export interface PreauthorizationSummary {
   waiting: string;
 }
 
-const money = (cents: number) => (cents / 100).toFixed(2);
-const toCents = (value: string | null) => Math.round(Number(value ?? 0) * 100);
 
 async function approvedCents(db: DatabaseOrTransaction, invoiceId: string): Promise<number> {
   const [chain] = await db
@@ -41,10 +40,7 @@ async function approvedCents(db: DatabaseOrTransaction, invoiceId: string): Prom
     loadRecordedDecisions(db, chain.id),
     db.select({ id: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)),
   ]);
-  const round = latestRoundNumber(decisions, lines.length);
-  return decisions
-    .filter((decision) => decision.sequenceNumber === round && decision.invoiceLineId)
-    .reduce((sum, decision) => sum + toCents(decision.approvedAmount), 0);
+  return toCents(approvedTotal(decisions, latestRoundNumber(decisions, lines.length)));
 }
 
 // The pre-authorized hourly rate per professional on a case (null key: a

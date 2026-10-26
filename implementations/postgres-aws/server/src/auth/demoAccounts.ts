@@ -18,7 +18,8 @@ export interface DemoAccount {
   description: string | null;
 }
 
-export async function listDemoStaff(db: DatabaseOrTransaction): Promise<DemoAccount[]> {
+// userAccountId: just that account, if it is one of them.
+export async function listDemoStaff(db: DatabaseOrTransaction, userAccountId?: string): Promise<DemoAccount[]> {
   const staffRoleIds = await getStaffAccountRoleIds(db);
   if (staffRoleIds.length === 0) {
     return [];
@@ -27,11 +28,18 @@ export async function listDemoStaff(db: DatabaseOrTransaction): Promise<DemoAcco
     .select({ userAccountId: userAccount.userAccountId, displayName: userAccount.displayName, description: role.displayName })
     .from(userAccount)
     .innerJoin(role, eq(userAccount.systemRoleId, role.roleId))
-    .where(and(eq(userAccount.active, true), like(userAccount.email, DEMO_DOMAIN), inArray(userAccount.systemRoleId, staffRoleIds)))
+    .where(
+      and(
+        eq(userAccount.active, true),
+        like(userAccount.email, DEMO_DOMAIN),
+        inArray(userAccount.systemRoleId, staffRoleIds),
+        userAccountId ? eq(userAccount.userAccountId, userAccountId) : undefined,
+      ),
+    )
     .orderBy(asc(role.displayName), asc(userAccount.displayName));
 }
 
-export async function listDemoPartners(db: DatabaseOrTransaction): Promise<DemoAccount[]> {
+export async function listDemoPartners(db: DatabaseOrTransaction, userAccountId?: string): Promise<DemoAccount[]> {
   const rows = await db
     .select({
       userAccountId: userAccount.userAccountId,
@@ -42,7 +50,13 @@ export async function listDemoPartners(db: DatabaseOrTransaction): Promise<DemoA
     .from(userAccount)
     .leftJoin(professional, eq(professional.userAccountId, userAccount.userAccountId))
     .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
-    .where(and(eq(userAccount.active, true), like(userAccount.email, DEMO_VENDOR_EMAILS)))
+    .where(
+      and(
+        eq(userAccount.active, true),
+        like(userAccount.email, DEMO_VENDOR_EMAILS),
+        userAccountId ? eq(userAccount.userAccountId, userAccountId) : undefined,
+      ),
+    )
     .orderBy(asc(userAccount.email));
   return rows.map(({ email, kind, ...row }) => ({
     ...row,

@@ -31,8 +31,10 @@ export interface AuthenticatedUser {
   displayName: string;
   authType: 'sso' | 'magic-link';
   ssoProvider?: string;
-  // From /auth/me only; just show or hide Settings and review actions.
+  // From /auth/me only. They show or hide parts of the UI; the server
+  // enforces each. isStaff: a staff role, so may enter invoices for others.
   isAdmin?: boolean;
+  isStaff?: boolean;
   reviewPermissions?: ReviewPermissions | null;
 }
 
@@ -191,7 +193,6 @@ export function getCase(caseId: string): Promise<CaseDetail> {
   return request<CaseDetail>(`/api/cases/${caseId}`);
 }
 
-// Read-only, one case; review happens via reviewInvoiceLine below.
 export interface PreauthorizationSummary {
   professionalId: string | null;
   authorizationNumbers: string[];
@@ -645,7 +646,7 @@ export function rateOn(rates: ProfessionalRate[], date: string): string | undefi
   return found;
 }
 
-// With no case (staff holding an invoice in intake), every active professional.
+// With no case (staff, on Intake), every active professional.
 export function listBillableProfessionals(caseId: string | null): Promise<{ professionals: BillableProfessional[] }> {
   return request<{ professionals: BillableProfessional[] }>(
     caseId ? `/api/portal/cases/${caseId}/billable-professionals` : '/api/portal/billable-professionals',
@@ -668,7 +669,7 @@ export interface InvoiceReceipt {
 }
 
 export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt {
-  // Null: staff add the case later, from invoice intake.
+  // Null: it waits on Intake for its case.
   caseId: string | null;
   // Whose work the invoice bills; defaults to the caller's own profile. Null:
   // staff choose when they match it to a case (no case, draft only).
@@ -677,7 +678,7 @@ export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt 
   submit?: boolean;
 }
 
-// Invoice intake: invoices held until they are matched to a case.
+// Intake: invoices held until they are matched to a case.
 export interface IntakeItem {
   invoiceId: string | null;
   invoiceImportId: string | null;
@@ -816,7 +817,7 @@ export interface InvoiceImportDetail {
 }
 
 // The file goes as the raw body; the server identifies it from its content.
-// No case: staff hold the file in invoice intake until it is matched.
+// No case: the file waits on Intake until it is matched.
 export async function uploadInvoiceFile(
   caseId: string | null,
   file: File,

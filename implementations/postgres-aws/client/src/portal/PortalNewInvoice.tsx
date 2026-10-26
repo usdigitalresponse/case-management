@@ -4,7 +4,7 @@ import { listBillableProfessionals, listMyCases, listMyTimeEntries } from '../ap
 import { useApiResource } from '../hooks/useApiResource';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { NewInvoiceForm } from './NewInvoiceForm';
-import { useShell } from './useShell';
+import { LATER, useShell } from './useShell';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 
@@ -19,9 +19,6 @@ export default function PortalNewInvoice() {
     </div>
   );
 }
-
-// The case choice for an invoice whose case staff will add later.
-const LATER = 'later';
 
 // Two ways in: enter an invoice by hand for a chosen case, or import files
 // through the bulk import flow (which can cover several cases). Staff may
@@ -75,7 +72,7 @@ export function NewInvoiceStart({ onSaved, providersVersion = 0 }: { onSaved?: (
   );
 }
 
-// caseId null: staff will add the case later, from Intake.
+// caseId null: "No case yet"; it waits on Intake.
 function CaseInvoice({
   caseId,
   providersVersion,

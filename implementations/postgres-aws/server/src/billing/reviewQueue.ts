@@ -10,7 +10,8 @@ import {
   invoiceStatuses,
 } from '../db/schema';
 import { loadCaseNumbers, selectInvoiceHeaders } from './invoiceDetail';
-import { latestRoundNumber, loadRecordedDecisions, signOffProgress } from './reviewRounds';
+import { approvedTotal, latestRoundNumber, loadRecordedDecisions, signOffProgress } from './reviewRounds';
+import { toCents } from './money';
 import { loadAssignments } from './reviewAssignment';
 import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
@@ -20,6 +21,7 @@ import {
   APPROVED_INVOICE_STATUS_CODE,
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
   IN_REVIEW_INVOICE_STATUS_CODES,
+  LINE_REVIEW_STATUS_CODES,
   REJECTED_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
 
@@ -73,27 +75,35 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
     loadCaseNumbers(db, [...new Set(headers.map((header) => header.caseId))]),
     getReviewSettings(db),
   ]);
-  const working = await db
-    .select({ chainId: invoiceLineWorkingDecision.invoiceApprovalChainId })
-    .from(invoiceLineWorkingDecision)
-    .where(inArray(invoiceLineWorkingDecision.invoiceApprovalChainId, chains.map((chain) => chain.chainId)));
   const caseIds = [...new Set(headers.map((header) => header.caseId))];
-  const rateLimits = new Map(await Promise.all(caseIds.map(async (caseId) => [caseId, await loadRateLimits(db, caseId)] as const)));
+  const [working, rateLimits] = await Promise.all([
+    db
+      .select({ chainId: invoiceLineWorkingDecision.invoiceApprovalChainId })
+      .from(invoiceLineWorkingDecision)
+      .where(inArray(invoiceLineWorkingDecision.invoiceApprovalChainId, chains.map((chain) => chain.chainId))),
+    Promise.all(caseIds.map(async (caseId) => [caseId, await loadRateLimits(db, caseId)] as const)).then((pairs) => new Map(pairs)),
+  ]);
+  const linesFor = new Map<string, typeof lines>();
+  for (const line of lines) {
+    linesFor.set(line.invoiceId, [...(linesFor.get(line.invoiceId) ?? []), line]);
+  }
+  const chainFor = new Map(chains.map((chain) => [chain.invoiceId, chain]));
+  const workingCount = new Map<string, number>();
+  for (const row of working) {
+    workingCount.set(row.chainId, (workingCount.get(row.chainId) ?? 0) + 1);
+  }
 
   const rows = await Promise.all(
     headers.map(async (header) => {
-      const own = lines.filter((line) => line.invoiceId === header.invoiceId);
-      const chain = chains.find((row) => row.invoiceId === header.invoiceId);
+      const own = linesFor.get(header.invoiceId) ?? [];
+      const chain = chainFor.get(header.invoiceId);
       const [assignments, recorded] = await Promise.all([
         loadAssignments(db, header.invoiceId),
         chain ? loadRecordedDecisions(db, chain.chainId) : Promise.resolve([]),
       ]);
       const round = latestRoundNumber(recorded, own.length);
-      const inReview = IN_REVIEW_INVOICE_STATUS_CODES.includes(header.statusCode ?? '') && header.statusCode !== AWAITING_SIGN_OFF_INVOICE_STATUS_CODE;
-      const decided = inReview ? working.filter((row) => row.chainId === chain?.chainId).length : round === null ? 0 : own.length;
-      const approvedCents = recorded
-        .filter((decision) => decision.sequenceNumber === round && decision.invoiceLineId)
-        .reduce((sum, decision) => sum + Math.round(Number(decision.approvedAmount ?? 0) * 100), 0);
+      const inLineReview = LINE_REVIEW_STATUS_CODES.includes(header.statusCode ?? '');
+      const decided = inLineReview ? (chain ? (workingCount.get(chain.chainId) ?? 0) : 0) : round === null ? 0 : own.length;
 
       const flags: QueueFlag[] = [];
       if (header.caseId === null) {
@@ -116,7 +126,7 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
           line.quantity !== null &&
           line.unitRate !== null &&
           line.statedAmount !== null &&
-          Math.round(Number(line.quantity) * Number(line.unitRate) * 100) !== Math.round(Number(line.statedAmount) * 100),
+          toCents(Number(line.quantity) * Number(line.unitRate)) !== toCents(line.statedAmount),
       );
       if (mismatch) {
         flags.push({
@@ -139,8 +149,7 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
         otherCaseNumbers: numbers?.otherNumbers ?? [],
         lineCount: own.length,
         decidedCount: decided,
-        // From the latest finished round; null until one is finished.
-        approvedTotal: round === null ? null : (approvedCents / 100).toFixed(2),
+        approvedTotal: approvedTotal(recorded, round),
         reviewer: assignments.reviewer,
         // Who must act now: the next approver while awaiting sign-off.
         holder: nextApprover ?? assignments.reviewer,

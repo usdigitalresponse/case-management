@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { BrowserRouter, Routes, Route, Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router';
+import { BrowserRouter, Routes, Route, Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { AuthProvider, useAuth } from './AuthContext';
 import LoginPage from './pages/LoginPage';
 import MagicLinkConfirm from './pages/MagicLinkConfirm';
@@ -32,8 +32,9 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
   function search(event: FormEvent) {
     event.preventDefault();
     const params = new URLSearchParams({ show: 'everyone' });
-    if (query.trim()) {
-      params.set('q', query.trim());
+    const q = query.trim();
+    if (q) {
+      params.set('q', q);
     }
     navigate(`/?${params.toString()}`);
   }
@@ -69,7 +70,8 @@ function useQueueCounts(userAccountId: string) {
   const [counts, setCounts] = useState<{ all: number; mine: number; waiting: number } | null>(null);
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listReviewQueue('open'), listInvoiceIntake()]).then(
+    // Intake is for staff roles only; without one there is nothing waiting to count.
+    Promise.all([listReviewQueue('open'), listInvoiceIntake().catch(() => ({ items: [] }))]).then(
       ([{ invoices }, { items }]) => {
         if (!cancelled) {
           setCounts({
@@ -95,12 +97,11 @@ function Sidebar({ isAdmin, userAccountId }: { isAdmin: boolean; userAccountId: 
   const show = new URLSearchParams(location.search).get('show');
   // "/" with no filter is the reviewer's own work.
   const mineActive = onQueue && (!show || show === 'mine');
-  const allActive = onQueue && Boolean(show) && show !== 'mine';
+  const allActive = onQueue && !mineActive;
 
   return (
     <aside className="app-sidebar">
       <nav aria-label="Main navigation">
-        {/* Invoices received by email or from other tools: entered, finished and matched to their case. */}
         <div className="nav-group">
           <NavLink to={INTAKE_PATH} end className="nav-primary" title="Enter invoices and match them to cases">
             <span><span aria-hidden="true">+ </span>Intake</span>
@@ -143,7 +144,7 @@ function Sidebar({ isAdmin, userAccountId }: { isAdmin: boolean; userAccountId: 
   );
 }
 
-// Staff New invoice moved into Intake; keep old links, and their ?case=, working.
+// Old staff /new-invoice links, ?case= included, open Intake.
 function NewInvoiceRedirect() {
   const { search } = useLocation();
   return <Navigate to={`${INTAKE_PATH}${search}`} replace />;
@@ -179,12 +180,14 @@ function AppContent() {
             <Route path="/finished" element={<ReviewQueue view="finished" />} />
             <Route path="/billing/:invoiceId" element={<InvoiceReview />} />
             <Route path="/exports" element={<Exports />} />
-            {/* Entering invoices received outside the system: Intake, then the portal's pages at its paths. */}
-            <Route path={INTAKE_PATH} element={<div className="portal-main"><InvoiceIntake /></div>} />
+            {/* Intake and the portal invoice and import pages it links to, in the staff shell. */}
+            <Route element={<div className="portal-main"><Outlet /></div>}>
+              <Route path={INTAKE_PATH} element={<InvoiceIntake />} />
+              <Route path="/portal/invoices/:invoiceId" element={<PortalInvoiceDetail />} />
+              <Route path="/portal/imports" element={<PortalBulkImport />} />
+              <Route path="/portal/imports/:importId" element={<PortalImportReview />} />
+            </Route>
             <Route path={NEW_INVOICE_PATH} element={<NewInvoiceRedirect />} />
-            <Route path="/portal/invoices/:invoiceId" element={<div className="portal-main"><PortalInvoiceDetail /></div>} />
-            <Route path="/portal/imports" element={<div className="portal-main"><PortalBulkImport /></div>} />
-            <Route path="/portal/imports/:importId" element={<div className="portal-main"><PortalImportReview /></div>} />
             <Route path="/cases" element={<CaseList />} />
             <Route path="/cases/new" element={<NewCaseIntake />} />
             <Route path="/cases/:caseId" element={<CaseDetail />} />

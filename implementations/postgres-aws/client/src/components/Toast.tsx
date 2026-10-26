@@ -17,7 +17,8 @@ export function useToast(timeoutMs = 4000) {
   return [toast, setToast] as const;
 }
 
-export function Toast({ toast, onUndo }: { toast: ToastMessage | null; onUndo: (undo: () => Promise<unknown>) => void }) {
+// onUndo wraps the undo (for errors and refreshing); without it, Undo just runs it.
+export function Toast({ toast, onUndo }: { toast: ToastMessage | null; onUndo?: (undo: () => Promise<unknown>) => void }) {
   if (!toast) {
     return null;
   }
@@ -26,7 +27,7 @@ export function Toast({ toast, onUndo }: { toast: ToastMessage | null; onUndo: (
     <div className="toast" role="status">
       <span>{toast.message}</span>
       {undo && (
-        <button type="button" className="toast__undo" onClick={() => onUndo(undo)}>
+        <button type="button" className="toast__undo" onClick={() => (onUndo ? onUndo(undo) : void undo())}>
           Undo
         </button>
       )}

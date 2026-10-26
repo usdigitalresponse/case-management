@@ -9,6 +9,7 @@ import { expenseTypes, invoice, invoiceLine, invoiceLineTypes, timeEntry } from 
 import { ValidationError } from '../errors';
 import { listRates, professionalRateLabels, rateOn } from './professionalRates';
 import { listMileageRates, mileageRateOn } from './mileageRates';
+import { fromCents, toCents } from './money';
 
 export interface PriceOptions {
   // Null until staff choose the professional of an invoice in intake.
@@ -76,7 +77,7 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
   ) =>
     tx
       .update(invoiceLine)
-      .set({ amount: (cents / 100).toFixed(2), billedRate: rate, ...changes })
+      .set({ amount: fromCents(cents), billedRate: rate, ...changes })
       .where(and(eq(invoiceLine.invoiceLineId, invoiceLineId), eq(invoiceLine.invoiceId, invoiceId)));
 
   let totalCents = 0;
@@ -94,7 +95,7 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
                 : `No mileage rate is set for ${line.serviceDate}, so mileage can't be priced. Ask an administrator to set one.`,
           });
         }
-        totalCents += Math.round(Number(line.amount) * 100);
+        totalCents += toCents(line.amount);
         continue;
       }
       const cents = Math.round(miles * Number(rate) * 100);
@@ -104,7 +105,7 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
       continue;
     }
     if (line.lineTypeCode !== 'time') {
-      totalCents += Math.round(Number(line.amount) * 100);
+      totalCents += toCents(line.amount);
       continue;
     }
     const rate = line.professionalId && line.date ? rateOn(rates, line.professionalId, line.date) : undefined;
@@ -121,7 +122,7 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
               : missingRate(line.professionalId, line.date),
         });
       }
-      totalCents += Math.round(Number(line.amount) * 100);
+      totalCents += toCents(line.amount);
       continue;
     }
     // A rate stated on the supporting invoice is what was requested; review
@@ -136,7 +137,7 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
       configuredRate: rate,
     });
   }
-  const total = (totalCents / 100).toFixed(2);
+  const total = fromCents(totalCents);
   await tx.update(invoice).set({ submittedTotal: total }).where(eq(invoice.invoiceId, invoiceId));
   return total;
 }

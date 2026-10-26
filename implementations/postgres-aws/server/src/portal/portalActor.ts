@@ -9,6 +9,7 @@ import { caseAssignment, personAffiliation, professional, userAccount } from '..
 import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
 import { getDelegateAffiliationRoleId } from '../professionals/delegateRole';
 import { getProfessionalIdForUserAccount } from '../professionals/ensureProfessional';
+import { NotAssignedToCaseError } from './caseAssignmentAuthorization';
 
 export interface PortalActor {
   userAccountId: string;
@@ -157,6 +158,24 @@ export async function billableProfessionalIds(
     }
   }
   return [...ids];
+}
+
+// The one check for billing (caseId, professionalId): the professional must
+// be billable on the case. Only staff may leave the professional unknown, and
+// only with no case (match_invoice_to_case). Returns whom the actor may bill,
+// for checking each line.
+export async function authorizeBilling(
+  db: DatabaseOrTransaction,
+  actor: PortalActor,
+  caseId: string | null,
+  professionalId: string | null,
+): Promise<Set<string>> {
+  const billable = new Set(await billableProfessionalIds(db, actor, caseId));
+  const allowed = professionalId === null ? caseId === null && billable.size > 0 : billable.has(professionalId);
+  if (!allowed) {
+    throw new NotAssignedToCaseError();
+  }
+  return billable;
 }
 
 // Whose time on a case the user may read: their own, and that of the

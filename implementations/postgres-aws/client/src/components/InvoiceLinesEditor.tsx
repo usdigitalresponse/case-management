@@ -143,11 +143,9 @@ export function mileageItemPreview(
   return { amount: (Math.round(miles * Number(rate) * 100) / 100).toFixed(2), rate, miles };
 }
 
-// What the server will bill for a time item, for display; it prices again
-// on save (server/src/billing/priceLines.ts).
-// Mirrors server/src/billing/priceLines.ts: a rate stated on an imported
-// file prices the item; otherwise the configured rate does, and a
-// configured rate must exist either way.
+// What the server will bill for a time item, for display; it prices again on
+// save, as server/src/billing/priceLines.ts does: a rate stated on an imported
+// file, else the configured rate, which must exist either way.
 export function timeItemPreview(
   line: Pick<LineDraft, 'serviceDate' | 'quantity' | 'timekeeperProfessionalId'> & { carried?: Pick<LineDraft['carried'], 'unitRate'> },
   timekeepers: BillableProfessional[],
@@ -269,8 +267,9 @@ export interface DuplicateTimeSuggestion {
   description: string;
 }
 
-// One grid row per item. More than one timekeeper adds a "work done by"
-// column; importReview adds notes and duplicate-time links.
+// One grid row per item. With several timekeepers, or on import review, "work
+// done by" shows under the description; importReview adds notes and
+// duplicate-time links.
 export function InvoiceLinesEditor({
   idPrefix,
   lines,
@@ -304,18 +303,17 @@ export function InvoiceLinesEditor({
   const showTimekeeper = timekeepers.length > 1 || Boolean(importReview);
   // Staff review's columns (client/src/pages/InvoiceReview.tsx), led by the
   // kind of item, which decides whether it takes hours, miles or an amount.
-  // Who did it and its code sit under the description.
-  // In a narrow editor, app.css moves "What was done" onto its own line.
+  // Who did it and its code sit under the description. Widths and the
+  // narrow layouts are in app.css (.line-editor).
   const columns = [
-    ['Kind', 'minmax(8.75rem, 9.5rem)'],
-    ['Date', 'minmax(8.5rem, 9.5rem)'],
-    ['What was done', 'minmax(12rem, 1fr)'],
-    [lines.some((line) => line.lineType === 'mileage') ? 'Hours / miles' : 'Hours', 'minmax(5rem, 6rem)'],
-    ['Rate', 'minmax(6rem, 7rem)'],
-    ['Amount', 'minmax(6rem, 7.5rem)'],
-    ['', '1.75rem'],
+    'Kind',
+    'Date',
+    'What was done',
+    lines.some((line) => line.lineType === 'mileage') ? 'Hours / miles' : 'Hours',
+    'Rate',
+    'Amount',
+    '',
   ];
-  const gridTemplateColumns = columns.map(([, width]) => width).join(' ');
 
   function update(index: number, changes: Partial<LineDraft>) {
     onChange(lines.map((line, i) => (i === index ? { ...line, ...changes } : line)));
@@ -352,9 +350,10 @@ export function InvoiceLinesEditor({
         </p>
       )}
     <div className="line-editor">
-      <div className="line-editor-head" style={{ gridTemplateColumns }} aria-hidden="true">
-        {columns.map(([label], index) => (
-          <span key={index} className={['Hours', 'Hours / miles', 'Rate', 'Amount'].includes(label ?? '') ? 'amount' : undefined}>
+      <div className="line-editor-head" aria-hidden="true">
+        {columns.map((label, index) => (
+          // Hours to Amount are right-aligned figures.
+          <span key={index} className={index >= 3 && index <= 5 ? 'amount' : undefined}>
             {label}
           </span>
         ))}
@@ -386,7 +385,7 @@ export function InvoiceLinesEditor({
             : undefined;
         return (
           // data-label: a short visible label when a narrow editor stacks its cells (app.css).
-          <div key={index} className="line-row inline-fields" style={{ gridTemplateColumns }} role="group" aria-label={item}>
+          <div key={index} className="line-row inline-fields" role="group" aria-label={item}>
             <div className="usa-form-group" data-label="Kind">
               <Label htmlFor={id('type')} className="line-label">{`${item} kind`}</Label>
               <Select
@@ -426,7 +425,6 @@ export function InvoiceLinesEditor({
                 value={line.description}
                 onChange={(event) => update(index, { description: event.target.value })}
               />
-              {/* Who did it and its code, as review shows them under the description. */}
               {(showTimekeeper || (billingCodes.length > 0 && line.lineType === 'time')) && (
               <div className="line-meta">
                 {showTimekeeper && (

@@ -191,7 +191,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
           openInvoiceColumn(() => (open ? 'Review' : 'View')),
         ]}
       />
-      <Toast toast={toast} onUndo={() => undefined} />
+      <Toast toast={toast} />
     </div>
   );
 }

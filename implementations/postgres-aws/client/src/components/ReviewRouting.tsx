@@ -97,7 +97,7 @@ export function ReviewerPicker({
   reviewer: AssignedPerson | null;
   currentUserId: string;
   canChange: boolean;
-  // Undo gives it back to the previous reviewer; there's none to give it back to when it had none.
+  // Undo restores the previous reviewer; omitted when there was none.
   onChanged: (message: string, undo?: () => Promise<unknown>) => void;
 }) {
   const [open, setOpen] = useState(false);
