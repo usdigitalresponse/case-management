@@ -37,10 +37,15 @@ a { color: var(--primary); }
 button, input, select, textarea { font: inherit; }
 .app-header { display: flex; align-items: center; gap: 1rem; min-height: 56px; padding: .5rem 2rem; background: var(--surface); border-bottom: 1px solid var(--line); }
 .app-brand { color: var(--ink); text-decoration: none; font-size: 1.05rem; font-weight: 700; white-space: nowrap; }
-.header-search { flex: 0 1 26rem; margin-left: 2rem; }
+/* One row, as in the design: the search shrinks before anything wraps. The
+   note sits under the name. */
+.app-brand-block { display: flex; flex: none; flex-direction: column; line-height: 1.2; }
+.header-badge { white-space: nowrap; font-size: .72rem; color: var(--ink-muted); }
+.header-search { flex: 0 1 26rem; min-width: 12rem; margin-left: 2rem; }
 .header-search input { width: 100%; box-sizing: border-box; height: 2.1rem; padding: 0 .9rem; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--neutral-tint); color: var(--ink); }
-.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; margin-left: auto; }
-.user-name { font-size: .9rem; max-width: 160px; overflow-wrap: anywhere; }
+.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; margin-left: auto; white-space: nowrap; }
+.user-name { font-size: .9rem; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; }
+.header-actions .link-button { font-size: .9rem; }
 .app-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: calc(100vh - 57px); }
 .app-sidebar { padding: 1.4rem .5rem; border-right: 1px solid var(--line); background: var(--sidebar); }
 .app-sidebar a:not(.btn), .nav-group button { display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; padding: .45rem .75rem; text-align: left; border: 0; border-radius: 6px; text-decoration: none; color: var(--ink); background: transparent; font-size: .92rem; }
@@ -205,8 +210,6 @@ form.case-intake-form { max-width: 52rem; }
 .portal-case-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
 .portal-case-section + .portal-case-section { margin-top: 2rem; }
 @media (max-width: 1250px) {
-  .app-header { flex-wrap: wrap; gap: 1rem; }
-  .header-actions { gap: 1rem; }
   .app-layout { grid-template-columns: 195px minmax(0, 1fr); }
   .app-main { padding: 2rem 1.2rem; }
   .stage-board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -639,6 +642,8 @@ form.compact-form { max-width: none; }
 .portal-main .compact-card h3 { font-size: 1rem; }
 
 /* Settings: review routing and roles */
+.section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.section-title-row h3 { margin: 0; }
 .settings-form { max-width: 40rem; }
 .settings-field { display: block; margin: 1rem 0 0; padding: 0; border: 0; font-weight: 600; font-size: .9rem; }
 .settings-field legend { font-weight: 600; margin-bottom: .4rem; }

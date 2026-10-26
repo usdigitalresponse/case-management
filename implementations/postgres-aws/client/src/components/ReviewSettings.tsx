@@ -1,17 +1,21 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   addDecisionReason,
+  addStaffAccount,
   apiErrorMessage,
   getReviewSettings,
   getStaffRoles,
   listDecisionReasonSettings,
   listReviewPeople,
   setReviewSettings,
+  setStaffActive,
   setStaffRole,
   updateDecisionReason,
   type ReasonAppliesTo,
   type ReviewSettings,
+  type StaffRolesResponse,
 } from '../api/client';
+import { StatusPill } from './StatusPill';
 import { useApiResource } from '../hooks/useApiResource';
 import { Notice, type SaveMessage } from './Notice';
 import { LoadState } from './LoadState';
@@ -217,42 +221,118 @@ export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-// Accounts are created when someone first signs in; administrators give
-// them a role here. Every change is kept in the audit history.
+// Add a staff account before its first sign-in. Signing in still needs an
+// allowed email domain; the person then gets this account and role.
+function AddStaff({ roles, onAdded, onCancel }: { roles: StaffRolesResponse['roles']; onAdded: (name: string) => void; onCancel: () => void }) {
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [roleId, setRoleId] = useState(roles[0]?.roleId ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    try {
+      await addStaffAccount({ displayName: displayName.trim(), email: email.trim(), roleId });
+      onAdded(displayName.trim());
+    } catch (err) {
+      setError(apiErrorMessage(err, 'They could not be added.'));
+    }
+  }
+
+  return (
+    <form className="decision-panel" onSubmit={(event) => void save(event)}>
+      <div className="inline-fields intake-provider__fields">
+        <div className="usa-form-group">
+          <label className="usa-label" htmlFor="staff-name">Name</label>
+          <input id="staff-name" className="usa-input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+        </div>
+        <div className="usa-form-group">
+          <label className="usa-label" htmlFor="staff-email">Work email</label>
+          <input id="staff-email" type="email" className="usa-input" value={email} onChange={(event) => setEmail(event.target.value)} />
+        </div>
+        <div className="usa-form-group">
+          <label className="usa-label" htmlFor="staff-role">Role</label>
+          <select id="staff-role" className="usa-select" value={roleId} onChange={(event) => setRoleId(event.target.value)}>
+            {roles.map((role) => (
+              <option key={role.roleId} value={role.roleId}>{role.displayName}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <p className="compact-hint">They sign in with their organization's account, from an allowed email domain.</p>
+      {error && <Notice tone="danger">{error}</Notice>}
+      <div className="button-row">
+        <button type="submit" className="btn btn--primary" disabled={displayName.trim().length < 2 || !email.trim() || !roleId}>Add</button>
+        <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+// Accounts are created on first sign-in from an allowed domain, or added
+// here first. Administrators change roles and deactivate accounts here; every
+// change is kept in the audit history.
 export function StaffRoleSettings() {
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => getStaffRoles(), [version]);
   const [message, setMessage] = useState<SaveMessage | null>(null);
+  const [adding, setAdding] = useState(false);
 
   if (error || !data) {
     return <LoadState error={error} what="staff roles" />;
   }
 
-  async function change(userAccountId: string, roleId: string) {
+  async function run(action: () => Promise<unknown>, done: string, failed: string) {
     setMessage(null);
     try {
-      await setStaffRole(userAccountId, roleId);
-      setMessage({ tone: 'success', text: 'Role changed.' });
+      await action();
+      setMessage({ tone: 'success', text: done });
       setVersion((v) => v + 1);
     } catch (err) {
-      setMessage({ tone: 'danger', text: apiErrorMessage(err, 'The role could not be changed.') });
+      setMessage({ tone: 'danger', text: apiErrorMessage(err, failed) });
     }
   }
 
   return (
     <section className="compact-card">
-      <h3>People who use this tool</h3>
+      <div className="section-title-row">
+        <h3>People who use this tool</h3>
+        {!adding && (
+          <button type="button" className="btn btn--outline btn--small" onClick={() => setAdding(true)}>Add staff</button>
+        )}
+      </div>
       <p className="compact-hint">
         Billing reviewers decide lines and can give invoices to each other. Sign-off approvers sign off whole invoices
         or send them back. Intake staff can look but not decide. Administrators can do everything, including Settings.
       </p>
+      {adding && (
+        <AddStaff
+          roles={data.roles}
+          onCancel={() => setAdding(false)}
+          onAdded={(name) => {
+            setAdding(false);
+            setMessage({ tone: 'success', text: `Added ${name}.` });
+            setVersion((v) => v + 1);
+          }}
+        />
+      )}
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
       <RecordTable
         label="Staff roles"
         rows={data.people}
         rowKey={(person) => person.userAccountId}
         columns={[
-          { header: 'Person', rowHeader: true, render: (person) => person.displayName },
+          {
+            header: 'Person',
+            rowHeader: true,
+            render: (person) => (
+              <>
+                {person.displayName}
+                <span className="cell-note">{person.email}</span>
+              </>
+            ),
+          },
           {
             header: 'Role',
             render: (person) => (
@@ -261,14 +341,38 @@ export function StaffRoleSettings() {
                 <select
                   id={`role-${person.userAccountId}`}
                   className="usa-select settings-role"
-                  value={data.roles.find((role) => role.displayName === person.roleName)?.roleId ?? ''}
-                  onChange={(event) => void change(person.userAccountId, event.target.value)}
+                  value={person.roleId}
+                  disabled={!person.active}
+                  onChange={(event) =>
+                    void run(() => setStaffRole(person.userAccountId, event.target.value), 'Role changed.', 'The role could not be changed.')
+                  }
                 >
                   {data.roles.map((role) => (
                     <option key={role.roleId} value={role.roleId}>{role.displayName}</option>
                   ))}
                 </select>
               </>
+            ),
+          },
+          {
+            header: 'Status',
+            render: (person) => (
+              <span className="row-actions">
+                <StatusPill tone={person.active ? 'success' : 'neutral'} label={person.active ? 'Active' : 'Deactivated'} />
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() =>
+                    void run(
+                      () => setStaffActive(person.userAccountId, !person.active),
+                      person.active ? `${person.displayName} was deactivated.` : `${person.displayName} was reactivated.`,
+                      'Their account could not be changed.',
+                    )
+                  }
+                >
+                  {person.active ? 'Deactivate' : 'Reactivate'}
+                </button>
+              </span>
             ),
           },
         ]}

@@ -267,7 +267,7 @@ export function listClients(query: string): Promise<{ clients: ClientRecord[] }>
   return request<{ clients: ClientRecord[] }>(`/api/clients?q=${encodeURIComponent(query)}`);
 }
 
-// External vendors (professionals) — the sidebar's Vendors directory.
+// Providers (attorneys, experts and vendors): the sidebar's Providers list.
 export interface VendorRecord {
   professionalId: string;
   displayName: string | null;
@@ -1254,7 +1254,8 @@ export function setReviewSettings(input: Partial<ReviewSettings>): Promise<Revie
 
 export interface StaffRolesResponse {
   roles: Array<{ roleId: string; displayName: string }>;
-  people: Array<{ userAccountId: string; displayName: string; roleName: string }>;
+  // Deactivated accounts too.
+  people: Array<{ userAccountId: string; displayName: string; email: string; active: boolean; roleId: string }>;
 }
 
 export function getStaffRoles(): Promise<StaffRolesResponse> {
@@ -1263,6 +1264,14 @@ export function getStaffRoles(): Promise<StaffRolesResponse> {
 
 export function setStaffRole(userAccountId: string, roleId: string): Promise<unknown> {
   return request(`/api/settings/staff-roles/${userAccountId}`, { method: 'PUT', body: JSON.stringify({ roleId }) });
+}
+
+export function addStaffAccount(input: { displayName: string; email: string; roleId: string }): Promise<{ userAccountId: string }> {
+  return request('/api/settings/staff', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function setStaffActive(userAccountId: string, active: boolean): Promise<unknown> {
+  return request(`/api/settings/staff/${userAccountId}/active`, { method: 'PUT', body: JSON.stringify({ active }) });
 }
 
 export function closeCase(

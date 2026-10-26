@@ -135,6 +135,13 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
         res.status(401).json({ error: 'Not signed in.' });
         return;
       }
+      // A session outlives deactivation; end it on the next load.
+      const [account] = await db.select({ active: userAccount.active }).from(userAccount).where(eq(userAccount.userAccountId, user.userAccountId));
+      if (!account?.active) {
+        req.session = null;
+        res.status(401).json({ error: 'This account has been deactivated.' });
+        return;
+      }
       // Shows or hides Settings and review actions; the routes check them themselves.
       const staff = user.authType === 'sso';
       const [admin, reviewPermissions, staffRole] = staff

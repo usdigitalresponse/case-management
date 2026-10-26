@@ -12,6 +12,8 @@ import {
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { SearchDirectory } from '../components/SearchDirectory';
+import { AddProvider } from '../components/AddProvider';
+import { Toast, useToast } from '../components/Toast';
 import { formatMoney } from '../formatMoney';
 
 function rateText(rates: ProfessionalKind['rates']): string {
@@ -19,7 +21,7 @@ function rateText(rates: ProfessionalKind['rates']): string {
   return rate ? `${formatMoney(rate)}/h` : 'no rate set';
 }
 
-// The kind whose rates price this vendor's time; administrators change it.
+// The kind whose rates price this provider's time; administrators change it.
 function KindAndRate({ vendor, kinds, editable }: { vendor: VendorRecord; kinds: ProfessionalKind[] | null; editable: boolean }) {
   const [kindId, setKindId] = useState(vendor.professionalKindId ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ function KindAndRate({ vendor, kinds, editable }: { vendor: VendorRecord; kinds:
       <Select
         id={`kind-${vendor.professionalId}`}
         name={`kind-${vendor.professionalId}`}
-        aria-label={`Kind of professional for ${vendor.displayName ?? 'this vendor'}`}
+        aria-label={`Kind of professional for ${vendor.displayName ?? 'this provider'}`}
         value={kindId}
         onChange={(event) => void change(event.target.value)}
       >
@@ -68,6 +70,8 @@ function KindAndRate({ vendor, kinds, editable }: { vendor: VendorRecord; kinds:
   );
 }
 
+export const DIRECTORY_TITLE = 'Providers';
+
 export default function VendorsDirectory() {
   const { user } = useAuth();
   const isAdmin = Boolean(user?.isAdmin);
@@ -75,14 +79,23 @@ export default function VendorsDirectory() {
     () => (isAdmin ? listProfessionalKinds().then((result) => result.kinds) : Promise.resolve(null)),
     [isAdmin],
   );
+  const [adding, setAdding] = useState(false);
+  const [version, setVersion] = useState(0);
+  const [toast, setToast] = useToast();
   return (
     <SearchDirectory
       eyebrow="Look something up"
-      title="Vendors"
-      description="External professionals who can be assigned to a case. Each one's kind sets the hourly rate their time is invoiced at."
-      searchLabel="Search vendors by name or email"
+      title={DIRECTORY_TITLE}
+      description="Attorneys, experts and vendors who can be assigned to a case and bill for their work. Each one's kind sets the hourly rate their time is invoiced at."
+      searchLabel="Search providers by name or email"
       searchPlaceholder="Search by name or email"
       loadInitially
+      reloadKey={version}
+      actions={
+        <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
+          Add
+        </button>
+      }
       fetchFn={(query) => listVendors(query).then((r) => r.professionals)}
       rowKey={(vendor) => vendor.professionalId}
       columns={[
@@ -91,6 +104,18 @@ export default function VendorsDirectory() {
         { header: 'Kind and rate', render: (vendor) => <KindAndRate vendor={vendor} kinds={kinds} editable={isAdmin} /> },
         { header: 'Active', render: (vendor) => (vendor.active ? 'Yes' : 'No') },
       ]}
-    />
+    >
+      {adding && (
+        <AddProvider
+          onCancel={() => setAdding(false)}
+          onAdded={(name) => {
+            setAdding(false);
+            setVersion((v) => v + 1);
+            setToast({ message: `Added ${name}.` });
+          }}
+        />
+      )}
+      <Toast toast={toast} />
+    </SearchDirectory>
   );
 }

@@ -174,7 +174,7 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
         <h2>Rates</h2>
         <p className="compact-hint">
           Time is invoiced at the hourly rate for each professional's kind on the date of the work, and mileage at the
-          rate per mile on the date of the trip. Give each vendor a kind on the Vendors page.
+          rate per mile on the date of the trip. Give each provider a kind on the Providers page.
         </p>
         {Boolean(error) && <Notice tone="danger">Failed to load rates.</Notice>}
         {data && data.length === 0 && <p>No kinds of professional yet.</p>}

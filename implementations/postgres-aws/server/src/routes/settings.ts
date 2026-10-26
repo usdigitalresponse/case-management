@@ -16,8 +16,7 @@ import {
 } from '../billing/billingRules';
 import { getReviewSettings, setReviewSettings } from '../billing/reviewSettings';
 import { addDecisionReason, listDecisionReasons, updateDecisionReason } from '../billing/decisionReasons';
-import { listReviewPeople } from '../billing/reviewAccess';
-import { listStaffRoles, setStaffRole } from '../auth/staffAccountRole';
+import { addStaffAccount, listStaffAccounts, listStaffRoles, setStaffActive, setStaffRole } from '../auth/staffAccountRole';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -106,12 +105,32 @@ router.put(
 );
 
 // Who uses this tool and in which role. Accounts are created on first
-// sign-in; administrators change their role here.
+// sign-in from an allowed domain, or added here first; administrators
+// change roles and deactivate accounts here.
 router.get(
   '/staff-roles',
   requireAdmin,
   asyncHandler(async (_req, res) => {
-    res.json({ roles: await listStaffRoles(db), people: await listReviewPeople(db) });
+    const [roles, people] = await Promise.all([listStaffRoles(db), listStaffAccounts(db)]);
+    res.json({ roles, people });
+  }),
+);
+
+router.post(
+  '/staff',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const user = getSessionUser(req)!;
+    res.status(201).json(await addStaffAccount(db, user.userAccountId, req.body));
+  }),
+);
+
+router.put(
+  '/staff/:userAccountId/active',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const user = getSessionUser(req)!;
+    res.json(await setStaffActive(db, user.userAccountId, req.params.userAccountId as string, req.body));
   }),
 );
 

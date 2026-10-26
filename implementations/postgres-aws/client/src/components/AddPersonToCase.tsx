@@ -4,9 +4,9 @@ import { AssignStaffForm } from './AssignStaffForm';
 import { TypeAheadPicker } from './TypeAheadPicker';
 import { Notice } from './Notice';
 
-// Adds someone to a case after it was opened. An attorney or vendor needs
-// this to submit invoices on the case, and their invoices are checked
-// against it; staff are added for their own work on the case.
+// Adds someone to a case after it was opened. A provider (attorney, expert or
+// vendor) needs this to submit invoices on the case, and their invoices are
+// checked against it; staff are added for their own work on the case.
 export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: () => void }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<'external' | 'staff'>('external');
@@ -38,12 +38,12 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
   return (
     <div className="inline-editor add-person">
       <div className="choice-toggle" role="group" aria-label="Who are you adding?">
-        <button type="button" aria-pressed={kind === 'external'} onClick={() => setKind('external')}>Attorney or vendor</button>
+        <button type="button" aria-pressed={kind === 'external'} onClick={() => setKind('external')}>Provider</button>
         <button type="button" aria-pressed={kind === 'staff'} onClick={() => setKind('staff')}>Staff</button>
       </div>
       {kind === 'external' ? (
         <>
-          <label className="settings-field" htmlFor="vendor-query">Find an attorney or vendor</label>
+          <label className="settings-field" htmlFor="vendor-query">Find a provider (attorney, expert or vendor)</label>
           <div className="assign-staff-row">
             <TypeAheadPicker
               key={resetKey}

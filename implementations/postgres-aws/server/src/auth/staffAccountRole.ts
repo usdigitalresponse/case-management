@@ -5,11 +5,13 @@
 // from the presence/absence of a professional row. reviewPermissions maps
 // each role to review actions (model/rules.yaml authorize_invoice_review).
 import { z } from 'zod';
-import { eq, inArray } from 'drizzle-orm';
+import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import { getSeededRoleId } from '../db/referenceLookups';
+import { firstRow } from '../db/rowHelpers';
 import { auditEvent, role, userAccount } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
+import { fieldErrorsFromZodIssues } from '../intake/validation';
 
 // General staff: reads the review queue; their other work is not yet defined.
 export const STAFF_ACCOUNT_ROLE_DISPLAY_NAME = 'Intake Staff';
@@ -107,6 +109,94 @@ export async function setStaffRole(db: Database, adminUserAccountId: string, use
     });
     return { userAccountId, roleId: parsed.data.roleId };
   });
+}
+
+const addStaffSchema = z.object({
+  displayName: z.string().trim().min(2, 'Enter their name.').max(200),
+  email: z.email('Enter their work email.').trim().toLowerCase(),
+  roleId: z.uuid('Choose a role.'),
+});
+
+// An administrator adds a staff account before its first sign-in. Sign-in
+// still requires an allowed email domain; when they sign in with this
+// email, they get this account and role (./userAccounts.ts).
+export async function addStaffAccount(db: Database, adminUserAccountId: string, rawInput: unknown) {
+  const parsed = addStaffSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
+  }
+  const { displayName, email, roleId } = parsed.data;
+  if (!(await getStaffAccountRoleIds(db)).includes(roleId)) {
+    throw new ValidationError({ roleId: 'Choose a staff role.' });
+  }
+  return db.transaction(async (tx) => {
+    const [existing] = await tx.select({ id: userAccount.userAccountId }).from(userAccount).where(sql`lower(${userAccount.email}) = ${email}`);
+    if (existing) {
+      throw new ValidationError({ email: 'Someone with this email already has an account.' });
+    }
+    const created = firstRow(
+      await tx.insert(userAccount).values({ displayName, email, active: true, systemRoleId: roleId }).returning(),
+    );
+    await tx.insert(auditEvent).values({
+      entityType: 'user_account',
+      entityId: created.userAccountId,
+      eventType: 'staff_account_added',
+      actorUserAccountId: adminUserAccountId,
+      occurredAt: new Date(),
+    });
+    return { userAccountId: created.userAccountId };
+  });
+}
+
+// An administrator deactivates a staff account, or restores it. A
+// deactivated account can't sign in or act, and keeps its history. No one
+// deactivates themselves.
+export async function setStaffActive(db: Database, adminUserAccountId: string, userAccountId: string, rawInput: unknown) {
+  const parsed = z.object({ active: z.boolean() }).safeParse(rawInput);
+  if (!parsed.success || !z.uuid().safeParse(userAccountId).success) {
+    throw new ValidationError({ active: 'Choose active or deactivated.' });
+  }
+  if (userAccountId === adminUserAccountId && !parsed.data.active) {
+    throw new ValidationError({ active: 'Ask another administrator to deactivate your account.' });
+  }
+  const staffRoleIds = await getStaffAccountRoleIds(db);
+  return db.transaction(async (tx) => {
+    const [account] = await tx
+      .select({ systemRoleId: userAccount.systemRoleId, active: userAccount.active })
+      .from(userAccount)
+      .where(eq(userAccount.userAccountId, userAccountId))
+      .for('update');
+    if (!account?.systemRoleId || !staffRoleIds.includes(account.systemRoleId)) {
+      throw new NotFoundError('Staff account not found.');
+    }
+    if (account.active !== parsed.data.active) {
+      await tx.update(userAccount).set({ active: parsed.data.active }).where(eq(userAccount.userAccountId, userAccountId));
+      await tx.insert(auditEvent).values({
+        entityType: 'user_account',
+        entityId: userAccountId,
+        eventType: parsed.data.active ? 'staff_account_reactivated' : 'staff_account_deactivated',
+        actorUserAccountId: adminUserAccountId,
+        occurredAt: new Date(),
+        priorValues: { active: account.active },
+      });
+    }
+    return { userAccountId, active: parsed.data.active };
+  });
+}
+
+// Every staff account, deactivated ones too, for Settings.
+export async function listStaffAccounts(db: DatabaseOrTransaction) {
+  return db
+    .select({
+      userAccountId: userAccount.userAccountId,
+      displayName: userAccount.displayName,
+      email: userAccount.email,
+      active: userAccount.active,
+      roleId: userAccount.systemRoleId,
+    })
+    .from(userAccount)
+    .where(inArray(userAccount.systemRoleId, await getStaffAccountRoleIds(db)))
+    .orderBy(desc(userAccount.active), asc(userAccount.displayName));
 }
 
 export async function listStaffRoles(db: DatabaseOrTransaction) {

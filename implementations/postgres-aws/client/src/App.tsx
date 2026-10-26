@@ -13,7 +13,7 @@ import Exports from './pages/Exports';
 import InvoiceIntake from './pages/InvoiceIntake';
 import PeopleDirectory from './pages/PeopleDirectory';
 import ClientsDirectory from './pages/ClientsDirectory';
-import VendorsDirectory from './pages/VendorsDirectory';
+import VendorsDirectory, { DIRECTORY_TITLE } from './pages/VendorsDirectory';
 import OrganizationsDirectory from './pages/OrganizationsDirectory';
 import Settings from './pages/Settings';
 import ExternalPortalApp from './portal/ExternalPortalApp';
@@ -43,8 +43,10 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
     <>
       <a className="usa-skipnav" href="#main-content">Skip to main content</a>
       <header className="app-header">
-        <Link className="app-brand" to="/">Invoice Review Prototype</Link>
-        <span className="chip chip--neutral">Works beside your {EXTERNAL_SYSTEM_NAME}</span>
+        <div className="app-brand-block">
+          <Link className="app-brand" to="/">Invoice Review Prototype</Link>
+          <span className="header-badge">Works beside your {EXTERNAL_SYSTEM_NAME}</span>
+        </div>
         <form className="header-search" role="search" onSubmit={search}>
           <label className="usa-sr-only" htmlFor="header-search-input">Search invoices</label>
           <input
@@ -126,7 +128,7 @@ function Sidebar({ isAdmin, userAccountId }: { isAdmin: boolean; userAccountId: 
         <div className="nav-group">
           <h2>Look something up</h2>
           <NavLink to="/cases">Cases</NavLink>
-          <NavLink to="/vendors" end>Attorneys and vendors</NavLink>
+          <NavLink to="/vendors" end>{DIRECTORY_TITLE}</NavLink>
           <NavLink to="/exports" end>Exports</NavLink>
         </div>
         {isAdmin && (
@@ -208,10 +210,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
         <AppContent />
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

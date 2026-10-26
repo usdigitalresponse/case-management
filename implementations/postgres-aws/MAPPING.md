@@ -136,7 +136,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   were removed outright (disabled controls with no planned near-term
   feature).
 - **Lookup directories**: the sidebar's People (`/people`), Clients
-  (`/clients`), Vendors (`/vendors`), and Organizations (`/organizations`)
+  (`/clients`), Providers (`/vendors`; attorneys, experts and vendors), and
+  Organizations (`/organizations`)
   all share one component, `client/src/components/SearchDirectory.tsx`
   (search box + results table), each wired to a different fetch:
   - People/Clients/Vendors hit a server search endpoint
@@ -153,8 +154,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     (test/dev), not `src/db/ensureReferenceData.ts`.
   - `GET /api/professionals` (`src/routes/professionals.ts`) used to
     return `[]` without a query and was otherwise unused by the client;
-    it now also backs the Vendors directory, listing everyone when no
-    query is given. It excludes professionals created for internal staff
+    it now also backs the Providers list, listing everyone when no query is
+    given; its Add button uses the same form as Intake's "Add a provider"
+    (`client/src/components/AddProvider.tsx`, `POST /api/professionals`). It excludes professionals created for internal staff
     (`src/cases/assignStaffToCase.ts` lazily creates one on first staff
     assignment) via the same staff-account system role
     `src/routes/staff.ts` filters on — otherwise a staff member assigned
@@ -394,6 +396,17 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     Administrator does all of these and changes settings. One system role
     per account, set in Settings (`PUT /api/settings/staff-roles/:id`,
     audited as `system_role_changed`).
+  - Staff accounts: created on first SSO sign-in from an allowed domain
+    (`*_ALLOWED_DOMAINS`), or added first by an administrator in Settings
+    with a name, work email and role (`POST /api/settings/staff`, audited
+    `staff_account_added`); the allowed domains still gate sign-in, and the
+    person gets that account and role on first sign-in. Administrators
+    deactivate and reactivate staff (`PUT /api/settings/staff/:id/active`,
+    audited), never themselves. A deactivated account can't sign in, and
+    `/auth/me` ends its session on the next page load; role, staff-entry and
+    admin checks already require an active account. Gap: until that reload,
+    an existing session can still read staff pages (sessions are signed
+    cookies with no per-request account lookup).
   - Visibility: the portal's invoice detail has no working decisions, no
     reviewer names and no internal comments (`loadInvoiceDetail`
     `audience`); exports show the case and court numbers, each line's
@@ -794,7 +807,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - Administrators (`user_account.system_role_id` = the seeded
     "Administrator" role, which also counts as staff) maintain
     `professional_kinds`, add effective-dated `professional_kind_rate` rows
-    on Settings, and set each vendor's kind on the Vendors page
+    on Settings, and set each provider's kind on the Providers page
     (`PUT /api/professionals/:id/kind`; `/api/settings/professional-kinds`).
     Rates are never edited. Staff see kinds and rates; the portal's
     `billable-professionals` carries each billable person's kind rates, so
