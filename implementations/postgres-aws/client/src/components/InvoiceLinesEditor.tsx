@@ -302,9 +302,11 @@ export function InvoiceLinesEditor({
   };
 }) {
   const showTimekeeper = timekeepers.length > 1 || Boolean(importReview);
-  // The same columns as staff review (client/src/pages/InvoiceReview.tsx):
-  // what kind of item, who and its code sit under the description.
+  // Staff review's columns (client/src/pages/InvoiceReview.tsx), led by the
+  // kind of item, which decides whether it takes hours, miles or an amount.
+  // Who did it and its code sit under the description.
   const columns = [
+    ['Kind', 'minmax(7.5rem, 8.5rem)'],
     ['Date', 'minmax(8.5rem, 9.5rem)'],
     ['What was done', 'minmax(12rem, 1fr)'],
     [lines.some((line) => line.lineType === 'mileage') ? 'Hours / miles' : 'Hours', 'minmax(4.5rem, 5.5rem)'],
@@ -324,31 +326,31 @@ export function InvoiceLinesEditor({
   const mileageRateToday = mileageRateOn(mileageRates, new Date().toISOString().slice(0, 10));
 
   return (
-    <div className="line-editor">
+    <>
       {inPlay.length > 0 && (
         <p className="rate-note">
-          Time billed at:{' '}
+          Time is billed at{' '}
           {inPlay
             .map(({ professional, rates }) => {
               const amounts =
                 rates.length === 0
-                  ? 'no rate set'
+                  ? 'no rate set yet'
                   : rates
                       .map((rate) => `${formatMoney(rate.hourlyRate)}/h${rate.from ? ` from ${formatDate(rate.from)}` : ''}`)
-                      .join(', ');
-              const who = [professional.kindDisplayName, `(${professionalLabel(professional)})`].filter(Boolean).join(' ');
-              return `${amounts} ${who}`;
+                      .join(', then ');
+              const kind = professional.kindDisplayName ? `, ${professional.kindDisplayName.toLowerCase()}` : '';
+              return `${amounts} for ${professionalLabel(professional)}${kind}`;
             })
-            .join(' · ')}
-          . Set by administrators.
+            .join('; ')}
+          . Administrators set the rates.
         </p>
       )}
       {lines.some((line) => line.lineType === 'mileage') && (
         <p className="rate-note">
-          Mileage billed at {mileageRateToday ? `${formatRate(mileageRateToday)} per mile` : 'no rate set yet'}. Set by
-          administrators.
+          Mileage is billed at {mileageRateToday ? `${formatRate(mileageRateToday)} per mile` : 'a rate not set yet'}.
         </p>
       )}
+    <div className="line-editor">
       <div className="line-editor-head" style={{ gridTemplateColumns }} aria-hidden="true">
         {columns.map(([label], index) => (
           <span key={index} className={['Hours', 'Hours / miles', 'Rate', 'Amount'].includes(label ?? '') ? 'amount' : undefined}>
@@ -384,6 +386,22 @@ export function InvoiceLinesEditor({
         return (
           <div key={index} className="line-row inline-fields" style={{ gridTemplateColumns }} role="group" aria-label={item}>
             <div className="usa-form-group">
+              <Label htmlFor={id('type')} className="line-label">{`${item} kind`}</Label>
+              <Select
+                id={id('type')}
+                name={id('type')}
+                value={line.lineType}
+                disabled={linked}
+                title="Time is priced by the hour, mileage by the mile; enter an amount for an expense or other cost."
+                onChange={(event) => update(index, { lineType: event.target.value as InvoiceLineType })}
+              >
+                <option value="time">Time worked</option>
+                <option value="mileage">Mileage</option>
+                <option value="expense">Expense</option>
+                <option value="other">Other cost</option>
+              </Select>
+            </div>
+            <div className="usa-form-group">
               <Label htmlFor={id('date')} className="line-label">{`${item} date`}</Label>
               <input
                 id={id('date')}
@@ -406,21 +424,9 @@ export function InvoiceLinesEditor({
                 value={line.description}
                 onChange={(event) => update(index, { description: event.target.value })}
               />
-              {/* Kind of item, who did it and its code, as review shows them under the description. */}
+              {/* Who did it and its code, as review shows them under the description. */}
+              {(showTimekeeper || (billingCodes.length > 0 && line.lineType === 'time')) && (
               <div className="line-meta">
-                <Label htmlFor={id('type')} className="line-label">{`${item} type`}</Label>
-                <Select
-                  id={id('type')}
-                  name={id('type')}
-                  value={line.lineType}
-                  disabled={linked}
-                  onChange={(event) => update(index, { lineType: event.target.value as InvoiceLineType })}
-                >
-                  <option value="time">Time</option>
-                  <option value="expense">Expense</option>
-                  <option value="mileage">Mileage</option>
-                  <option value="other">Other</option>
-                </Select>
                 {showTimekeeper && (
                   <>
                     <Label htmlFor={id('timekeeper')} className="line-label">{`${item} work done by`}</Label>
@@ -467,6 +473,7 @@ export function InvoiceLinesEditor({
                   </>
                 )}
               </div>
+              )}
             </div>
             <div className="usa-form-group">
               <Label htmlFor={id('quantity')} className="line-label">{`${item} ${mileage ? 'miles' : 'hours'}`}</Label>
@@ -476,6 +483,7 @@ export function InvoiceLinesEditor({
                 type="number"
                 min="0"
                 step="0.01"
+                placeholder={line.lineType === 'time' ? 'Hours' : mileage ? 'Miles' : 'Optional'}
                 value={line.quantity}
                 onChange={(event) => update(index, { quantity: event.target.value })}
               />
@@ -648,5 +656,6 @@ export function InvoiceLinesEditor({
         )}
       </div>
     </div>
+    </>
   );
 }
