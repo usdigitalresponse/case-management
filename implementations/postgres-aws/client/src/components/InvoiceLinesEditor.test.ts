@@ -133,10 +133,24 @@ describe('previewing what a time item bills', () => {
   const line = { serviceDate: '2026-02-10', quantity: '1.5', timekeeperProfessionalId: '' };
 
   it("uses the billed professional's rate on the item's date", () => {
-    expect(timeItemPreview(line, [attorney], 'professional-1')).toEqual({ amount: '150.00', rate: '100.00', hours: 1.5 });
+    expect(timeItemPreview(line, [attorney], 'professional-1')).toEqual({
+      amount: '150.00',
+      rate: '100.00',
+      hours: 1.5,
+      configuredRate: '100.00',
+    });
     expect(timeItemPreview({ ...line, serviceDate: '2026-03-01' }, [attorney], 'professional-1')).toMatchObject({
       amount: '225.00',
       rate: '150.00',
+    });
+  });
+
+  it('uses a rate stated on an imported file, as the server does, and still shows the configured one', () => {
+    expect(timeItemPreview({ ...line, carried: { unitRate: 175 } }, [attorney], 'professional-1')).toEqual({
+      amount: '262.50',
+      rate: '175.00',
+      hours: 1.5,
+      configuredRate: '100.00',
     });
   });
 

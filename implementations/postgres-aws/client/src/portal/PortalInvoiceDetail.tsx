@@ -18,9 +18,10 @@ import { UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 import { useAuth } from '../AuthContext';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
-import { PageHeading } from '../components/PageHeading';
 import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
-import { InvoiceSummary, invoiceReference, isSubmittedStatus } from '../components/InvoiceSummary';
+import { invoiceReference, isSubmittedStatus } from '../components/InvoiceSummary';
+import { StatusPill } from '../components/StatusPill';
+import { formatDateTime, formatPeriod } from '../formatDateTime';
 import { DecisionHistory, DecisionSummary } from '../components/LineReview';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { PeriodFields } from '../components/PeriodFields';
@@ -163,38 +164,87 @@ export default function PortalInvoiceDetail() {
   // While editing, the editor offers Delete itself.
   const { deletable } = data;
   const recallable = isSubmitter && invoice.statusCode === 'submitted' && lines.every((line) => !line.decisionOutcomeCode);
+  const decidedCount = lines.filter((line) => line.decision).length;
+  const delegated = invoice.submittedByDisplayName && invoice.submittedByDisplayName !== invoice.professionalDisplayName;
 
   return (
     <div>
-      {fromBulk ? (
-        <RouterLink className="back-link" to="/portal/imports">&larr; Back to imports</RouterLink>
-      ) : (
-        <RouterLink className="back-link" to={`/portal/cases/${invoice.caseId}`}>&larr; Back to case</RouterLink>
-      )}
-      <PageHeading
-        eyebrow={isDraft ? 'Draft invoice' : 'Invoice'}
-        title={caseDisplayLabel([invoice.caseExternalReference, invoice.caseClientDisplayName], undefined)}
-        description={invoiceReference(invoice.invoiceId)}
-      />
-
-      <InvoiceSummary invoice={invoice} lines={lines} />
-      {submitted && <RuleFindings findings={data.ruleFindings} submitted />}
-
-      {(submitted || recallable || (deletable && !editing)) && (
-        <div className="invoice-actions">
-          {submitted && <InvoiceExportLinks scope="portal" invoiceId={invoice.invoiceId} />}
-          {recallable && (
-            <Button type="button" outline disabled={recalling} onClick={() => void recall()}>
-              {recalling ? 'Recalling…' : 'Recall to draft'}
-            </Button>
-          )}
-          {deletable && !editing && (
-            <DeleteInvoiceButton invoiceId={invoice.invoiceId} onDeleted={() => navigate(`/portal/cases/${invoice.caseId}`)} />
-          )}
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        {fromBulk ? (
+          <RouterLink to="/portal/imports">Imports</RouterLink>
+        ) : (
+          <RouterLink to="/portal/invoices">Your invoices</RouterLink>
+        )}
+        <span aria-hidden="true">›</span>
+        <RouterLink to={`/portal/cases/${invoice.caseId}`}>{invoice.caseClientDisplayName ?? 'Case'}</RouterLink>
+        <span aria-hidden="true">›</span>
+        <span>{invoiceReference(invoice.invoiceId)}</span>
+      </nav>
+      <div className="page-title-row">
+        <div>
+          <h1>
+            {invoice.caseClientDisplayName ?? caseDisplayLabel([invoice.caseExternalReference], undefined)}{' '}
+            <StatusPill code={invoice.statusCode} label={isDraft ? 'Draft' : invoice.statusDisplayName} />
+          </h1>
+          <p className="title-meta">
+            <strong>Case {data.caseNumber ?? invoice.caseExternalReference ?? '—'}</strong>
+            <span>
+              {invoice.professionalDisplayName ?? 'Unknown'}
+              {delegated ? `, sent by ${invoice.submittedByDisplayName}` : ''}
+            </span>
+          </p>
         </div>
+        {(submitted || recallable || (deletable && !editing)) && (
+          <div className="title-actions">
+            {recallable && (
+              <button type="button" className="btn btn--outline" disabled={recalling} onClick={() => void recall()}>
+                {recalling ? 'Recalling…' : 'Recall to draft'}
+              </button>
+            )}
+            {submitted && <InvoiceExportLinks scope="portal" invoiceId={invoice.invoiceId} />}
+            {deletable && !editing && (
+              <DeleteInvoiceButton invoiceId={invoice.invoiceId} onDeleted={() => navigate(`/portal/cases/${invoice.caseId}`)} />
+            )}
+          </div>
+        )}
+      </div>
+
+      <dl className="facts-strip">
+        <div>
+          <dt>Submitted</dt>
+          <dd><strong>{invoice.submittedAt ? formatDateTime(invoice.submittedAt) : 'Not yet'}</strong></dd>
+        </div>
+        <div>
+          <dt>Billing period</dt>
+          <dd>{formatPeriod(invoice.periodStart, invoice.periodEnd)}</dd>
+        </div>
+        <div>
+          <dt>{submitted ? 'Requested' : 'Total'}</dt>
+          <dd><strong>{formatMoney(invoice.submittedTotal)}</strong></dd>
+        </div>
+        {submitted && (
+          <>
+            <div>
+              <dt>Approved</dt>
+              <dd>{data.approvedTotal === null ? 'Not reviewed yet' : formatMoney(data.approvedTotal)}</dd>
+            </div>
+            <div>
+              <dt>Lines decided</dt>
+              <dd>
+                {decidedCount} of {lines.length}
+                <span className="progress" aria-hidden="true">
+                  <span style={{ width: `${lines.length ? (decidedCount / lines.length) * 100 : 0}%` }} />
+                </span>
+              </dd>
+            </div>
+          </>
+        )}
+      </dl>
+      {submitted && <RuleFindings findings={data.ruleFindings} submitted />}
+      {recallable && (
+        <div className="notice notice--info">No one has reviewed this invoice yet, so you can recall it, change it and submit it again.</div>
       )}
-      {recallable && <p className="compact-hint">No one has reviewed this invoice yet, so you can recall it, change it and submit it again.</p>}
-      {recallError && <Alert type="error" slim>{recallError}</Alert>}
+      {recallError && <div className="notice notice--danger" role="alert">{recallError}</div>}
 
       {isDraft && isSubmitter && importUnconfirmed && (
         <Alert type="info" slim>
@@ -248,7 +298,7 @@ export default function PortalInvoiceDetail() {
                               <DecisionHistory line={line} />
                             </>
                           ) : (
-                            <span className="muted">Not decided yet</span>
+                            <span className="muted">Not reviewed yet</span>
                           )}
                         </td>
                       )}

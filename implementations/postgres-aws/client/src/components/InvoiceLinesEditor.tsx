@@ -145,11 +145,14 @@ export function mileageItemPreview(
 
 // What the server will bill for a time item, for display; it prices again
 // on save (server/src/billing/priceLines.ts).
+// Mirrors server/src/billing/priceLines.ts: a rate stated on an imported
+// file prices the item; otherwise the configured rate does, and a
+// configured rate must exist either way.
 export function timeItemPreview(
-  line: Pick<LineDraft, 'serviceDate' | 'quantity' | 'timekeeperProfessionalId'>,
+  line: Pick<LineDraft, 'serviceDate' | 'quantity' | 'timekeeperProfessionalId'> & { carried?: Pick<LineDraft['carried'], 'unitRate'> },
   timekeepers: BillableProfessional[],
   billedProfessionalId: string | undefined,
-): { amount: string; rate: string; hours: number } | { missing: string } {
+): { amount: string; rate: string; hours: number; configuredRate: string } | { missing: string } {
   const professional = timekeepers.find(
     (candidate) => candidate.professionalId === (line.timekeeperProfessionalId || billedProfessionalId),
   );
@@ -162,11 +165,13 @@ export function timeItemPreview(
       missing: !line.serviceDate && !(hours > 0) ? 'Add a date and hours' : !line.serviceDate ? 'Add a date' : 'Add the hours',
     };
   }
-  const rate = rateOn(professional.rates, line.serviceDate);
-  if (rate === undefined) {
+  const configuredRate = rateOn(professional.rates, line.serviceDate);
+  if (configuredRate === undefined) {
     return { missing: 'No rate set for this date' };
   }
-  return { amount: (Math.round(hours * Number(rate) * 100) / 100).toFixed(2), rate, hours };
+  const stated = line.carried?.unitRate;
+  const rate = stated !== undefined && stated > 0 ? stated.toFixed(2) : configuredRate;
+  return { amount: (Math.round(hours * Number(rate) * 100) / 100).toFixed(2), rate, hours, configuredRate };
 }
 
 // The invoice as it would be billed, before saving. `complete` is false
@@ -297,14 +302,14 @@ export function InvoiceLinesEditor({
   };
 }) {
   const showTimekeeper = timekeepers.length > 1 || Boolean(importReview);
+  // The same columns as staff review (client/src/pages/InvoiceReview.tsx):
+  // what kind of item, who and its code sit under the description.
   const columns = [
-    ['Type', 'minmax(5.5rem, 6.5rem)'],
     ['Date', 'minmax(8.5rem, 9.5rem)'],
-    ['Description', 'minmax(6rem, 1fr)'],
-    ...(showTimekeeper ? [['Work done by', 'minmax(7rem, 12rem)']] : []),
-    ...(billingCodes.length > 0 ? [['Task code', 'minmax(6rem, 8rem)']] : []),
-    [lines.some((line) => line.lineType === 'mileage') ? 'Hours / miles' : 'Hours', 'minmax(4rem, 5rem)'],
-    ['Amount ($)', 'minmax(5.5rem, 7rem)'],
+    ['What was done', 'minmax(12rem, 1fr)'],
+    [lines.some((line) => line.lineType === 'mileage') ? 'Hours / miles' : 'Hours', 'minmax(4.5rem, 5.5rem)'],
+    ['Rate', 'minmax(5rem, 6.5rem)'],
+    ['Amount', 'minmax(6rem, 7.5rem)'],
     ['', '1.75rem'],
   ];
   const gridTemplateColumns = columns.map(([, width]) => width).join(' ');
@@ -346,7 +351,9 @@ export function InvoiceLinesEditor({
       )}
       <div className="line-editor-head" style={{ gridTemplateColumns }} aria-hidden="true">
         {columns.map(([label], index) => (
-          <span key={index}>{label}</span>
+          <span key={index} className={['Hours', 'Hours / miles', 'Rate', 'Amount'].includes(label ?? '') ? 'amount' : undefined}>
+            {label}
+          </span>
         ))}
       </div>
       {lines.map((line, index) => {
@@ -377,21 +384,6 @@ export function InvoiceLinesEditor({
         return (
           <div key={index} className="line-row inline-fields" style={{ gridTemplateColumns }} role="group" aria-label={item}>
             <div className="usa-form-group">
-              <Label htmlFor={id('type')} className="line-label">{`${item} type`}</Label>
-              <Select
-                id={id('type')}
-                name={id('type')}
-                value={line.lineType}
-                disabled={linked}
-                onChange={(event) => update(index, { lineType: event.target.value as InvoiceLineType })}
-              >
-                <option value="time">Time</option>
-                <option value="expense">Expense</option>
-                <option value="mileage">Mileage</option>
-                <option value="other">Other</option>
-              </Select>
-            </div>
-            <div className="usa-form-group">
               <Label htmlFor={id('date')} className="line-label">{`${item} date`}</Label>
               <input
                 id={id('date')}
@@ -404,64 +396,78 @@ export function InvoiceLinesEditor({
                 }
               />
             </div>
-            <div className="usa-form-group">
+            <div className="usa-form-group line-what">
               <Label htmlFor={id('description')} className="line-label">{`${item} description`}</Label>
               <TextInput
                 id={id('description')}
                 name={id('description')}
                 type="text"
+                placeholder="What was done"
                 value={line.description}
                 onChange={(event) => update(index, { description: event.target.value })}
               />
-            </div>
-            {showTimekeeper && (
-              <div className="usa-form-group">
-                <Label htmlFor={id('timekeeper')} className="line-label">{`${item} work done by`}</Label>
+              {/* Kind of item, who did it and its code, as review shows them under the description. */}
+              <div className="line-meta">
+                <Label htmlFor={id('type')} className="line-label">{`${item} type`}</Label>
                 <Select
-                  id={id('timekeeper')}
-                  name={id('timekeeper')}
-                  value={line.timekeeperProfessionalId}
-                  // Recorded time stays whose it is.
-                  disabled={linked || Boolean(importReview?.fixedTimekeeper)}
-                  validationStatus={unmatched ? 'error' : undefined}
-                  aria-describedby={unmatched ? id('timekeeper-error') : undefined}
-                  onChange={(event) => update(index, { timekeeperProfessionalId: event.target.value, suggestedTimekeeper: false })}
+                  id={id('type')}
+                  name={id('type')}
+                  value={line.lineType}
+                  disabled={linked}
+                  onChange={(event) => update(index, { lineType: event.target.value as InvoiceLineType })}
                 >
-                  <option value="">{importReview ? '- Choose -' : 'Billed professional'}</option>
-                  {timekeepers.map((professional) => (
-                    <option key={professional.professionalId} value={professional.professionalId}>
-                      {professionalLabel(professional)}
-                    </option>
-                  ))}
+                  <option value="time">Time</option>
+                  <option value="expense">Expense</option>
+                  <option value="mileage">Mileage</option>
+                  <option value="other">Other</option>
                 </Select>
+                {showTimekeeper && (
+                  <>
+                    <Label htmlFor={id('timekeeper')} className="line-label">{`${item} work done by`}</Label>
+                    <Select
+                      id={id('timekeeper')}
+                      name={id('timekeeper')}
+                      value={line.timekeeperProfessionalId}
+                      // Recorded time stays whose it is.
+                      disabled={linked || Boolean(importReview?.fixedTimekeeper)}
+                      validationStatus={unmatched ? 'error' : undefined}
+                      aria-describedby={unmatched ? id('timekeeper-error') : undefined}
+                      onChange={(event) => update(index, { timekeeperProfessionalId: event.target.value, suggestedTimekeeper: false })}
+                    >
+                      <option value="">{importReview ? '- Who did the work? -' : 'Billed professional'}</option>
+                      {timekeepers.map((professional) => (
+                        <option key={professional.professionalId} value={professional.professionalId}>
+                          {professionalLabel(professional)}
+                        </option>
+                      ))}
+                    </Select>
+                  </>
+                )}
+                {billingCodes.length > 0 && line.lineType === 'time' && (
+                  <>
+                    <Label htmlFor={id('task-code')} className="line-label">{`${item} task code`}</Label>
+                    <Select
+                      id={id('task-code')}
+                      name={id('task-code')}
+                      value={line.carried.taskCode ?? ''}
+                      onChange={(event) =>
+                        update(index, { carried: { ...line.carried, taskCode: event.target.value || undefined } })
+                      }
+                    >
+                      <option value="">- Task code -</option>
+                      {line.carried.taskCode && !billingCodes.some((code) => code.code === line.carried.taskCode) && (
+                        <option value={line.carried.taskCode}>{line.carried.taskCode} (not on list)</option>
+                      )}
+                      {billingCodes.map((code) => (
+                        <option key={code.code} value={code.code}>
+                          {code.code} {code.displayName}
+                        </option>
+                      ))}
+                    </Select>
+                  </>
+                )}
               </div>
-            )}
-            {billingCodes.length > 0 &&
-              (line.lineType === 'time' ? (
-                <div className="usa-form-group">
-                  <Label htmlFor={id('task-code')} className="line-label">{`${item} task code`}</Label>
-                  <Select
-                    id={id('task-code')}
-                    name={id('task-code')}
-                    value={line.carried.taskCode ?? ''}
-                    onChange={(event) =>
-                      update(index, { carried: { ...line.carried, taskCode: event.target.value || undefined } })
-                    }
-                  >
-                    <option value="">- Code -</option>
-                    {line.carried.taskCode && !billingCodes.some((code) => code.code === line.carried.taskCode) && (
-                      <option value={line.carried.taskCode}>{line.carried.taskCode} (not on list)</option>
-                    )}
-                    {billingCodes.map((code) => (
-                      <option key={code.code} value={code.code}>
-                        {code.code} {code.displayName}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              ) : (
-                <span />
-              ))}
+            </div>
             <div className="usa-form-group">
               <Label htmlFor={id('quantity')} className="line-label">{`${item} ${mileage ? 'miles' : 'hours'}`}</Label>
               <TextInput
@@ -474,16 +480,26 @@ export function InvoiceLinesEditor({
                 onChange={(event) => update(index, { quantity: event.target.value })}
               />
             </div>
+            <div className="line-amount line-rate">
+              <span className="line-label">{`${item} rate`}</span>
+              {preview && 'amount' in preview ? (
+                <span className="line-amount-priced">
+                  <span className="amount">{formatMoney(preview.rate)}/h</span>
+                  {Number(preview.rate) !== Number(preview.configuredRate) && (
+                    <span className="line-amount-basis line-rate-differs">Configured {formatMoney(preview.configuredRate)}</span>
+                  )}
+                </span>
+              ) : mileagePreview && 'amount' in mileagePreview ? (
+                <span className="amount">{formatRate(mileagePreview.rate)}/mi</span>
+              ) : (
+                <span className="muted amount">—</span>
+              )}
+            </div>
             {line.lineType === 'time' ? (
               <div className="usa-form-group line-amount">
                 <span className="line-label">{`${item} amount in dollars`}</span>
                 {preview && 'amount' in preview ? (
-                  <span className="line-amount-priced">
-                    <span className="amount">{formatMoney(preview.amount)}</span>
-                    <span className="line-amount-basis">
-                      {preview.hours} h × {formatMoney(preview.rate)}
-                    </span>
-                  </span>
+                  <strong className="amount">{formatMoney(preview.amount)}</strong>
                 ) : (
                   <span className="line-amount-missing">{preview?.missing}</span>
                 )}
@@ -492,12 +508,7 @@ export function InvoiceLinesEditor({
               <div className="usa-form-group line-amount">
                 <span className="line-label">{`${item} amount in dollars`}</span>
                 {'amount' in mileagePreview ? (
-                  <span className="line-amount-priced">
-                    <span className="amount">{formatMoney(mileagePreview.amount)}</span>
-                    <span className="line-amount-basis">
-                      {mileagePreview.miles} mi × {formatRate(mileagePreview.rate)}
-                    </span>
-                  </span>
+                  <strong className="amount">{formatMoney(mileagePreview.amount)}</strong>
                 ) : (
                   <span className="line-amount-missing">{mileagePreview.missing}</span>
                 )}
@@ -596,8 +607,7 @@ export function InvoiceLinesEditor({
                     {line.carried.unitRate !== undefined
                       ? ` at ${formatRate(String(line.carried.unitRate))}${mileage ? '/mi' : '/h'}`
                       : ''}
-                    ; billed at
-                    the configured rate.
+                    , which doesn't match the hours and rate.
                   </span>
                 ) : null}
                 {unmatched ? (

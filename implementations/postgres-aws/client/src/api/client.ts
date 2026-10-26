@@ -482,6 +482,8 @@ export interface MyCaseRecord {
   statusId: string;
   statusDisplayName: string;
   externalReference: string | null;
+  // The primary case identifier, else the external reference.
+  caseNumber: string | null;
   clientDisplayName: string | null;
   assignedAt: string;
   assignedProfessionalIds: string[];

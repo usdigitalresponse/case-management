@@ -21,7 +21,6 @@ import {
 import { useApiResource } from '../hooks/useApiResource';
 import { usePoll } from '../hooks/usePoll';
 import { ImportProgressNote } from '../components/ImportProgressNote';
-import { PageHeading } from '../components/PageHeading';
 import { RecordTable } from '../components/RecordTable';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { caseDisplayLabel } from '../caseDisplayLabel';
@@ -743,17 +742,24 @@ export default function PortalBulkImport() {
 
   return (
     <div>
-      <RouterLink className="back-link" to="/">&larr; Back to new invoice</RouterLink>
-      <div className="case-heading-row portal-cases-heading">
-        <PageHeading
-          eyebrow="Your cases"
-          title="Import invoices"
-          description="Upload several invoice files at once, review and correct what was read from each, then submit them together."
-        />
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <RouterLink to="/">New invoice</RouterLink>
+        <span aria-hidden="true">›</span>
+        <span>Import invoices</span>
+      </nav>
+      <div className="page-title-row">
+        <div>
+          <h1>Import invoices</h1>
+          <p className="page-description">
+            Upload several invoice files at once, review and correct what was read from each, then submit them together.
+          </p>
+        </div>
         {(stagedCount > 0 || batchInProgress.length > 0) && !confirmingCancel && !uploadingNow && (
-          <Button type="button" outline onClick={() => setConfirmingCancel(true)}>
-            Cancel import
-          </Button>
+          <div className="title-actions">
+            <button type="button" className="btn btn--outline" onClick={() => setConfirmingCancel(true)}>
+              Cancel import
+            </button>
+          </div>
         )}
       </div>
       {confirmingCancel && (

@@ -18,7 +18,6 @@ import { professionalLabel } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
 import { NewInvoiceForm } from './NewInvoiceForm';
 import { RecordTable } from '../components/RecordTable';
-import { PageHeading } from '../components/PageHeading';
 import { StatusPill } from '../components/StatusPill';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { ConfirmButton } from '../components/ConfirmButton';
@@ -381,8 +380,23 @@ export default function PortalCaseDetail() {
 
   return (
     <div>
-      <RouterLink className="back-link" to="/portal/cases">&larr; Back to your cases</RouterLink>
-      <PageHeading eyebrow="Case" title={title} />
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <RouterLink to="/portal/cases">Your cases</RouterLink>
+        <span aria-hidden="true">›</span>
+        <span>{myCase?.clientDisplayName ?? 'Case'}</span>
+      </nav>
+      <div className="page-title-row">
+        <div>
+          <h1>{myCase?.clientDisplayName ?? title}</h1>
+          <p className="title-meta">
+            {myCase?.externalReference && <strong>Case {myCase.externalReference}</strong>}
+            {myCase && <span>Assigned {formatDate(myCase.assignedAt.slice(0, 10))}</span>}
+          </p>
+        </div>
+        <div className="title-actions">
+          <a className="btn btn--primary" href="#new-invoice">New invoice</a>
+        </div>
+      </div>
       {billable && billable.length > 0 && (
         <TimeEntrySection
           key={timeEntryVersion}

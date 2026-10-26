@@ -536,7 +536,14 @@ form.compact-form { max-width: none; }
 /* Portal: the import's line items look like the staff review table. */
 .line-editor { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 1rem .6rem; }
 .line-editor-head { margin: 0 -1rem; padding: .7rem 1rem .6rem; background: #f9fafb; border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; font-size: .68rem; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
-.line-editor .line-row { padding: .7rem 0; border-top: 1px solid var(--line); }
+.line-editor .line-row { padding: .7rem 0; border-top: 1px solid var(--line); align-items: start; }
+.line-editor-head .amount, .line-editor .line-amount { justify-content: flex-end; text-align: right; }
+/* Type, who and code sit under the description, as review shows them. */
+.line-what .line-meta { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; }
+.line-what .line-meta .usa-select { width: auto; min-width: 0; max-width: 14rem; height: 1.85rem; padding: 0 1.8rem 0 .5rem; font-size: .8rem; color: var(--ink-muted); }
+.line-editor .line-amount { min-height: 2.25rem; align-items: center; }
+.line-editor .line-amount-priced { align-items: flex-end; }
+.line-rate-differs { color: var(--warning); }
 .line-editor .line-row:first-of-type { border-top: 0; }
 .line-row-error { color: var(--danger); }
 .line-row-suggested { color: var(--primary); }
@@ -552,6 +559,68 @@ form.compact-form { max-width: none; }
 .start-option { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
 .start-option h2 { margin: 0; font-size: 1.05rem; }
 .start-option .usa-select { max-width: 100%; margin: 0; }
+
+.notice--danger { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
+
+/* Portal: the older design-system controls take the review design's look.
+   Scoped to the portal so staff forms (intake, settings) are unchanged. */
+.portal-main .usa-button { display: inline-flex; align-items: center; justify-content: center; min-height: 2.1rem; width: auto; margin: 0; padding: .35rem .9rem; border-radius: 6px; border: 1px solid transparent; box-shadow: none; background: var(--primary); color: white; font-weight: 600; font-size: .88rem; line-height: 1.2; }
+.portal-main .usa-button:hover:not(:disabled) { background: var(--primary-hover); }
+.portal-main .usa-button--outline { background: var(--surface); color: var(--primary); border-color: #d1d5db; box-shadow: none; }
+.portal-main .usa-button--outline:hover:not(:disabled) { background: var(--surface); color: var(--primary); border-color: var(--primary); box-shadow: none; }
+/* "Secondary" is used for destructive actions: discard, withdraw, delete. */
+.portal-main .usa-button--secondary { background: var(--surface); color: var(--danger); border-color: var(--danger-line); }
+.portal-main .usa-button--secondary:hover:not(:disabled) { background: var(--danger-tint); color: var(--danger); }
+.portal-main .usa-button--unstyled { min-height: 0; padding: 0; border: 0; background: none; color: var(--primary); font-weight: 400; }
+.portal-main .usa-button--unstyled:hover:not(:disabled) { background: none; color: var(--primary); text-decoration: underline; }
+.portal-main .usa-button:disabled { opacity: .55; }
+.portal-main .usa-button.confirm-compact { color: var(--danger); }
+.portal-main .confirm-inline { padding: .35rem .6rem; background: var(--danger-tint); border-radius: 6px; }
+.portal-main .confirm-inline__prompt { color: var(--danger); }
+
+.portal-main .usa-alert { margin: 0 0 1rem; padding: .75rem 1rem; border-radius: 4px; border-left: 3px solid; background-image: none; font-size: .88rem; }
+.portal-main .usa-alert__body { padding: 0; }
+.portal-main .usa-alert--slim .usa-alert__body { padding-left: 0; }
+.portal-main .usa-alert::before, .portal-main .usa-alert__body::before { display: none; }
+.portal-main .usa-alert__heading { font-size: .95rem; margin: 0 0 .25rem; }
+.portal-main .usa-alert--warning { background-color: var(--warning-tint); border-color: var(--warning-line); color: var(--warning); }
+.portal-main .usa-alert--error { background-color: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
+.portal-main .usa-alert--success { background-color: var(--success-tint); border-color: var(--success); color: var(--success); }
+.portal-main .usa-alert--info { background-color: var(--info-tint); border-color: var(--primary); color: #1e3a8a; }
+
+.portal-main .usa-input, .portal-main .usa-select, .portal-main .usa-textarea { border: 1px solid #d1d5db; border-radius: 6px; color: var(--ink); background-color: white; }
+.portal-main .usa-input:focus, .portal-main .usa-select:focus, .portal-main .usa-textarea:focus { outline: 2px solid var(--primary); outline-offset: 0; }
+.portal-main .usa-label, .portal-main .usa-legend { font-size: .85rem; color: var(--ink-muted); font-weight: 600; }
+.portal-main .usa-checkbox { background: transparent; }
+
+/* Enter items / Import a file, and the bulk import steps, as chips. */
+.portal-main .choice-toggle { gap: .4rem; border: 0; overflow: visible; }
+.portal-main .choice-toggle button { border: 0; border-radius: 999px; padding: .3rem .8rem; background: var(--neutral-tint); color: var(--ink-muted); font-size: .82rem; font-weight: 600; }
+.portal-main .choice-toggle button + button { border-left: 0; }
+.portal-main .choice-toggle button[aria-pressed="true"] { background: var(--ink); color: white; }
+.portal-main .bulk-steps { gap: .5rem; padding: 0; background: none; }
+.portal-main .bulk-steps li { padding: .3rem .8rem .3rem .4rem; border-radius: 999px; background: var(--neutral-tint); color: var(--ink-muted); font-size: .85rem; }
+.portal-main .bulk-steps .bulk-step-number { width: 1.3rem; height: 1.3rem; border-width: 0; background: white; font-size: .75rem; }
+.portal-main .bulk-steps li.is-current { background: var(--ink); color: white; }
+.portal-main .bulk-steps li.is-current .bulk-step-number { background: white; color: var(--ink); }
+.portal-main .bulk-steps li.is-done { background: var(--success-tint); color: var(--success); }
+
+/* Status pills read as the design's chips. */
+.portal-main .status-pill { padding: .15rem .6rem; font-size: .75rem; }
+.portal-main .status-pill--pending { background: var(--warning-tint); color: var(--warning); }
+.portal-main .status-pill--submitted { background: var(--primary-tint); color: var(--primary); }
+.portal-main .status-pill--approved { background: var(--success-tint); color: var(--success); }
+.portal-main .status-pill--rejected { background: var(--danger-tint); color: var(--danger); }
+
+/* RecordTable with column widths: tables repeated per section line up. */
+.data-card table.fixed-columns { table-layout: fixed; }
+.data-card table.fixed-columns td, .data-card table.fixed-columns th { overflow-wrap: anywhere; }
+.data-card table .amount { text-align: right; }
+
+/* Case page tables: amounts and row actions as in the queue. */
+.portal-main .data-card .amount { font-weight: 600; }
+.portal-main .row-actions a { font-weight: 600; text-decoration: none; }
+.portal-main .compact-card h3 { font-size: 1rem; }
 
 /* Settings: review routing and roles */
 .settings-form { max-width: 40rem; }

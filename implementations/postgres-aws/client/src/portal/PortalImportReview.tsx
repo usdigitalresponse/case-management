@@ -16,7 +16,6 @@ import {
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { usePoll } from '../hooks/usePoll';
-import { PageHeading } from '../components/PageHeading';
 import { ImportProgressNote } from '../components/ImportProgressNote';
 import {
   assignTimekeeper,
@@ -304,7 +303,11 @@ export default function PortalImportReview() {
 
   return (
     <div>
-      <RouterLink className="back-link" to={backTo}>&larr; {fromBulk ? 'Back to imports' : 'Back to case'}</RouterLink>
+      <nav className="breadcrumb" aria-label="Breadcrumb">
+        <RouterLink to={backTo}>{fromBulk ? 'Import invoices' : importDetail.caseId ? 'Case' : 'New invoice'}</RouterLink>
+        <span aria-hidden="true">›</span>
+        <span>{importDetail.fileName}</span>
+      </nav>
       {fromBulk && position >= 0 && (
         <p className="bulk-position">
           File {position + 1} of {queue.length} to review
@@ -322,24 +325,27 @@ export default function PortalImportReview() {
           )}
         </p>
       )}
-      <PageHeading eyebrow="Invoice import" title={importDetail.fileName} description={importDetail.formatDisplayName} />
-      <dl className="fact-grid">
-        <div className="fact">
-          <dt>Status</dt>
-          <dd><span className="status-pill">{importDetail.statusDisplayName}</span></dd>
+      <div className="page-title-row">
+        <div>
+          <h1>
+            {importDetail.fileName} <span className="chip chip--neutral">{importDetail.statusDisplayName}</span>
+          </h1>
+          <p className="page-description">{importDetail.formatDisplayName}. Check what was read before you confirm it.</p>
         </div>
-        <div className="fact">
+      </div>
+      <dl className="facts-strip">
+        <div>
           <dt>Uploaded</dt>
           <dd>{formatDateTime(importDetail.uploadedAt)}</dd>
         </div>
         {importDetail.extractionResult?.invoice?.invoice_number && (
-          <div className="fact">
+          <div>
             <dt>Invoice number on file</dt>
-            <dd>{importDetail.extractionResult.invoice.invoice_number.value}</dd>
+            <dd><strong>{importDetail.extractionResult.invoice.invoice_number.value}</strong></dd>
           </div>
         )}
         {importDetail.expiresAt && (
-          <div className="fact">
+          <div>
             <dt>Deleted if not confirmed by</dt>
             <dd>{formatDateTime(importDetail.expiresAt)}</dd>
           </div>
