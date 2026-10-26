@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button } from '@trussworks/react-uswds';
 import { PageHeading } from './PageHeading';
 import { RecordTable, type RecordTableColumn } from './RecordTable';
 import { SearchInput } from './SearchInput';
+import { Notice } from './Notice';
 
 // Shared "search-then-list" shape for the sidebar's lookup pages (People,
 // Clients, Vendors) — each just differs in what it fetches and how it
@@ -76,9 +76,9 @@ export function SearchDirectory<T>({
           // loadInitially directory, otherwise no results until a search.
           onClear={() => (loadInitially ? void runSearch('') : setResults(null))}
         />
-        <Button type="submit" outline disabled={loading}>{loading ? 'Searching…' : 'Search'}</Button>
+        <button type="submit" className="btn btn--outline" disabled={loading}>{loading ? 'Searching…' : 'Search'}</button>
       </form>
-      {error && <Alert type="error">{error}</Alert>}
+      {error && <Notice tone="danger">{error}</Notice>}
       {results && <RecordTable rows={results} rowKey={rowKey} columns={columns} emptyMessage="No results." />}
     </>
   );

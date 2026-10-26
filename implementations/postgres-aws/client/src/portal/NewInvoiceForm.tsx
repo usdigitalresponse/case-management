@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Alert, Button, Form, FormGroup, Label, Select } from '@trussworks/react-uswds';
+import { Form, FormGroup, Label, Select } from '@trussworks/react-uswds';
 import { apiErrorMessage, createInvoice, type BillableProfessional, type TimeEntryRecord } from '../api/client';
 import { lineFromTimeEntry, UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { RulesInForce, usePortalBillingRules } from '../components/BillingRules';
@@ -13,6 +13,7 @@ import {
 } from '../components/InvoiceLinesEditor';
 import { InvoiceImportForm } from '../components/InvoiceImportForm';
 import { PeriodFields } from '../components/PeriodFields';
+import { Notice } from '../components/Notice';
 
 // A new invoice on one case: typed items (starting from unbilled time) or an
 // imported file. Shared by the case page and the New invoice page.
@@ -138,9 +139,9 @@ export function NewInvoiceForm({
             void save(true);
           }}
         >
-          {submitError && <Alert type="error" slim>{submitError}</Alert>}
-          {saved === 'submitted' && <Alert type="success" slim>Invoice submitted. It's under Your invoices.</Alert>}
-          {saved === 'draft' && <Alert type="success" slim>Draft saved. Open it from Your invoices to edit or submit it.</Alert>}
+          {submitError && <Notice tone="danger">{submitError}</Notice>}
+          {saved === 'submitted' && <Notice tone="success">Invoice submitted. It's under Your invoices.</Notice>}
+          {saved === 'draft' && <Notice tone="success">Draft saved. Open it from Your invoices to edit or submit it.</Notice>}
           <PeriodFields idPrefix="new-invoice" start={period.start} end={period.end} onChange={setPeriod} />
           <RulesInForce rules={billingRules.rules} />
           <UnbilledTimePicker idPrefix="new-invoice" entries={unbilled} lines={lines} onChange={setLines} timekeepers={billable} />
@@ -159,12 +160,12 @@ export function NewInvoiceForm({
             rate per mile. New time typed here is recorded when you submit.
           </p>
           <div className="invoice-actions">
-            <Button type="submit" disabled={submitting || !canSave}>
+            <button type="submit" className="btn btn--primary" disabled={submitting || !canSave}>
               {submitting ? 'Saving…' : 'Submit invoice'}
-            </Button>
-            <Button type="button" outline disabled={submitting || !canSave} onClick={() => void save(false)}>
+            </button>
+            <button type="button" className="btn btn--outline" disabled={submitting || !canSave} onClick={() => void save(false)}>
               Save as draft
-            </Button>
+            </button>
           </div>
         </Form>
       )}

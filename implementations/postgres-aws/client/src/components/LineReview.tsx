@@ -1,24 +1,15 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import type { DecisionReason, InvoiceReviewLine, LineDecision, LineDecisionInput } from '../api/client';
 import { formatDateTime } from '../formatDateTime';
-import { formatMoney } from '../formatMoney';
-
-const PILL_CLASS: Record<string, string> = {
-  approved: 'chip--success',
-  approved_in_part: 'chip--warning',
-  rejected: 'chip--danger',
-};
-
-export function DecisionChip({ decision }: { decision: Pick<LineDecision, 'outcomeCode' | 'outcomeDisplayName'> }) {
-  return <span className={`chip ${PILL_CLASS[decision.outcomeCode] ?? ''}`}>{decision.outcomeDisplayName}</span>;
-}
+import { cents, formatMoney } from '../formatMoney';
+import { StatusPill } from './StatusPill';
 
 // A decision as recorded or in progress: what, how much, why, by whom.
 export function DecisionSummary({ decision, requested }: { decision: LineDecision; requested: string }) {
   return (
     <div className="decision-summary">
       <div className="decision-summary__head">
-        <DecisionChip decision={decision} />
+        <StatusPill code={decision.outcomeCode} label={decision.outcomeDisplayName} />
         {decision.outcomeCode === 'approved_in_part' ? (
           <strong>
             {formatMoney(decision.approvedAmount)} of {formatMoney(requested)}
@@ -68,10 +59,6 @@ function hasHours(line: InvoiceReviewLine): boolean {
   return line.quantity !== null && Number(line.quantity) > 0 && line.billedRate !== null && line.expenseTypeCode !== 'mileage';
 }
 
-function cents(value: number): number {
-  return Math.round(value * 100);
-}
-
 // Approve part (corrected hours or rate, or the amount) or reject: both ask
 // why. The note is seen by everyone who can see the invoice.
 export function DecisionPanel({
@@ -85,7 +72,7 @@ export function DecisionPanel({
   onCancel,
 }: {
   line: InvoiceReviewLine;
-  mode: 'approved_in_part' | 'rejected' | 'note';
+  mode: PanelMode;
   reasons: DecisionReason[];
   initial: LineDecision | null;
   saving: boolean;
@@ -100,7 +87,7 @@ export function DecisionPanel({
   const [reasonCode, setReasonCode] = useState(initial?.reasonCode ?? '');
   const [note, setNote] = useState(initial?.note ?? '');
 
-  const requestedCents = cents(Number(line.amount));
+  const requestedCents = cents(line.amount);
   const approvedCents = byHours ? cents(Number(hours) * Number(rate)) : cents(Number(amount));
   const validAmount = Number.isFinite(approvedCents) && approvedCents > 0 && approvedCents < requestedCents;
 
@@ -204,4 +191,121 @@ export function DecisionPanel({
       </div>
     </form>
   );
+}
+
+export type PanelMode = 'approved_in_part' | 'rejected' | 'note';
+
+// A line's decision column: Approve, Approve part and Reject while it is
+// undecided (or being changed), else the decision with ways to change it.
+export function DecisionCell({
+  line,
+  decision,
+  inReview,
+  canDecide,
+  changing,
+  openPanel,
+  saving,
+  onApprove,
+  onPanel,
+  onChanging,
+  onUndoRejection,
+}: {
+  line: InvoiceReviewLine;
+  decision: LineDecision | null;
+  inReview: boolean;
+  canDecide: boolean;
+  changing: boolean;
+  openPanel: PanelMode | null;
+  saving: boolean;
+  onApprove: () => void;
+  onPanel: (mode: PanelMode | null) => void;
+  onChanging: (changing: boolean) => void;
+  onUndoRejection: () => void;
+}) {
+  if (canDecide && (!decision || changing)) {
+    const toggle = (mode: PanelMode) => onPanel(openPanel === mode ? null : mode);
+    return (
+      <div className="decision-buttons">
+        <div className="decision-button-row">
+          <button type="button" className="btn btn--outline" disabled={saving} onClick={onApprove}>
+            Approve
+          </button>
+          <button
+            type="button"
+            className={`btn ${openPanel === 'approved_in_part' ? 'btn--primary' : 'btn--outline'}`}
+            aria-expanded={openPanel === 'approved_in_part'}
+            onClick={() => toggle('approved_in_part')}
+          >
+            Approve part
+          </button>
+          <button
+            type="button"
+            className={`btn ${openPanel === 'rejected' ? 'btn--danger-solid' : 'btn--danger'}`}
+            aria-expanded={openPanel === 'rejected'}
+            onClick={() => toggle('rejected')}
+          >
+            Reject
+          </button>
+        </div>
+        {openPanel && <span className="cell-note decision-hint">Give a reason below</span>}
+        {decision && (
+          <button type="button" className="link-button" onClick={() => onChanging(false)}>
+            Keep {decision.outcomeDisplayName.toLowerCase()}
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <RecordedDecision line={line} decision={decision} pending={inReview ? 'Not decided' : 'Not reviewed yet'}>
+      {canDecide && decision && (
+        <div className="link-row">
+          {decision.outcomeCode === 'rejected' ? (
+            <button type="button" className="link-button" onClick={onUndoRejection}>Undo rejection</button>
+          ) : (
+            <button type="button" className="link-button" onClick={() => onPanel(decision.outcomeCode === 'approved' ? 'note' : 'approved_in_part')}>
+              {decision.note ? 'Edit note' : 'Add a note'}
+            </button>
+          )}
+          <button type="button" className="link-button" onClick={() => onChanging(true)}>Change</button>
+        </div>
+      )}
+    </RecordedDecision>
+  );
+}
+
+// A decision as it stands, with any actions on it, then earlier rounds.
+export function RecordedDecision({
+  line,
+  decision,
+  pending = 'Not reviewed yet',
+  children,
+}: {
+  line: Pick<InvoiceReviewLine, 'amount' | 'history'>;
+  decision: LineDecision | null;
+  pending?: string;
+  children?: ReactNode;
+}) {
+  if (!decision) {
+    return <span className="muted">{pending}</span>;
+  }
+  return (
+    <>
+      <DecisionSummary decision={decision} requested={line.amount} />
+      {children}
+      <DecisionHistory line={line} />
+    </>
+  );
+}
+
+// The decision the reviewer just replaced, to put back on Undo.
+export function decisionInput(previous: LineDecision): LineDecisionInput {
+  return {
+    outcome: previous.outcomeCode,
+    approvedAmount: previous.approvedQuantity ? undefined : Number(previous.approvedAmount ?? 0) || undefined,
+    approvedQuantity: previous.approvedQuantity ? Number(previous.approvedQuantity) : undefined,
+    approvedRate: previous.approvedRate ? Number(previous.approvedRate) : undefined,
+    reasonCode: previous.reasonCode ?? undefined,
+    note: previous.note ?? undefined,
+  };
 }

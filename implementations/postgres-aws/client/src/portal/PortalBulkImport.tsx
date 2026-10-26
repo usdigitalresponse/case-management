@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
-import { Alert, Button, Checkbox, Form, Label, Select } from '@trussworks/react-uswds';
+import { Checkbox, Form, Label, Select } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
   deleteInvoice,
@@ -39,6 +39,8 @@ import {
   suggestChoice,
   type BulkStep,
 } from './bulkImport';
+import { Notice } from '../components/Notice';
+import { PageHeader } from '../components/PageHeader';
 
 interface StagedFile {
   key: string;
@@ -128,8 +130,8 @@ function SplitAssignment({
         Every line is recorded as {whose} work. Each case becomes its own draft invoice. Cases are suggested where
         the file's case column matches a case reference or client name; check them.
       </p>
-      {error && <Alert type="error" slim>{error}</Alert>}
-      {split.cases.length === 0 && <Alert type="warning" slim>This person has no open cases you can bill for.</Alert>}
+      {error && <Notice tone="danger">{error}</Notice>}
+      {split.cases.length === 0 && <Notice tone="warning">This person has no open cases you can bill for.</Notice>}
       <RecordTable
         rows={split.lines}
         rowKey={(line) => String(line.index)}
@@ -198,12 +200,12 @@ function SplitAssignment({
         at configured rates. You can still correct dates and hours on each draft.
       </p>
       <div className="invoice-actions">
-        <Button type="button" disabled={creating || unassigned > 0} onClick={() => void create()}>
+        <button type="button" className="btn btn--primary" disabled={creating || unassigned > 0} onClick={() => void create()}>
           {creating ? 'Creating…' : `Create ${draftCount} draft ${draftCount === 1 ? 'invoice' : 'invoices'}`}
-        </Button>
-        <Button type="button" unstyled disabled={creating} onClick={onCancel}>
+        </button>
+        <button type="button" className="link-button" disabled={creating} onClick={onCancel}>
           Cancel
-        </Button>
+        </button>
         {unassigned > 0 && <span className="compact-hint">{unassigned} {unassigned === 1 ? 'line needs' : 'lines need'} a case.</span>}
       </div>
     </section>
@@ -361,26 +363,26 @@ function StagedFiles({
                         onReady={(split) => update(row.key, { split })}
                         onFailed={(message) => update(row.key, { splitReadId: undefined, error: message })}
                       />
-                      <Button type="button" unstyled onClick={() => dropSplit(row, {})}>
+                      <button type="button" className="link-button" onClick={() => dropSplit(row, {})}>
                         Stop
-                      </Button>
+                      </button>
                     </span>
                   ) : (
-                    <Button
+                    <button
                       type="button"
-                      unstyled
+                      className="link-button"
                       onClick={() => setStaged((current) => current.filter((candidate) => candidate.key !== row.key))}
                     >
                       Remove
-                    </Button>
+                    </button>
                   ),
               },
             ]}
           />
           <div className="invoice-actions">
-            <Button type="submit" disabled={uploading || ready === 0}>
+            <button type="submit" className="btn btn--primary" disabled={uploading || ready === 0}>
               {uploading ? 'Uploading…' : `Upload ${ready} ${ready === 1 ? 'file' : 'files'}`}
-            </Button>
+            </button>
             {staged.some((row) => !parseChoice(row.choice)) && !uploading && (
               <span className="compact-hint">Files without a case stay here until you choose one.</span>
             )}
@@ -465,7 +467,7 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
       </p>
       {next && (
         <div className="invoice-actions">
-          <RouterLink className="usa-button" to={reviewUrl(next)}>
+          <RouterLink className="btn btn--primary" to={reviewUrl(next)}>
             Review next: {next.fileName}
           </RouterLink>
         </div>
@@ -596,20 +598,20 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
     <section className="bulk-step-section" id="submit">
       <h2>3. Submit</h2>
       {results && results.submitted.length > 0 && (
-        <Alert type="success" slim>
+        <Notice tone="success">
           Submitted {results.submitted.length} {results.submitted.length === 1 ? 'invoice' : 'invoices'}:{' '}
           {results.submitted.map((row) => `${caseOf(row)} (${formatMoney(row.submittedTotal ?? '0')})`).join(', ')}.{' '}
           <a href="#bulk-files">Start another batch</a>
-        </Alert>
+        </Notice>
       )}
       {results && results.errors.length > 0 && (
-        <Alert type="error" slim>
+        <Notice tone="danger">
           <ul>
             {results.errors.map((error) => (
               <li key={error}>{error}</li>
             ))}
           </ul>
-        </Alert>
+        </Notice>
       )}
       {ready.length === 0 ? (
         <p>Confirmed files appear here, ready to submit together.</p>
@@ -643,11 +645,11 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
             ]}
           />
           <div className="invoice-actions">
-            <Button type="button" disabled={submitting || chosen.length === 0} onClick={() => void submitChosen()}>
+            <button type="button" className="btn btn--primary" disabled={submitting || chosen.length === 0} onClick={() => void submitChosen()}>
               {submitting
                 ? 'Submitting…'
                 : `Submit ${chosen.length} ${chosen.length === 1 ? 'invoice' : 'invoices'} · ${formatMoney(chosenTotal.toFixed(2))}`}
-            </Button>
+            </button>
           </div>
         </>
       )}
@@ -742,52 +744,48 @@ export default function PortalBulkImport() {
 
   return (
     <div>
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <RouterLink to="/">New invoice</RouterLink>
-        <span aria-hidden="true">›</span>
-        <span>Import invoices</span>
-      </nav>
-      <div className="page-title-row">
-        <div>
-          <h1>Import invoices</h1>
-          <p className="page-description">
-            Upload several invoice files at once, review and correct what was read from each, then submit them together.
-          </p>
-        </div>
-        {(stagedCount > 0 || batchInProgress.length > 0) && !confirmingCancel && !uploadingNow && (
-          <div className="title-actions">
+      <PageHeader
+        crumbs={[{ label: 'New invoice', to: '/' }, { label: 'Import invoices' }]}
+        title="Import invoices"
+        description="Upload several invoice files at once, review and correct what was read from each, then submit them together."
+        actions={
+          (stagedCount > 0 || batchInProgress.length > 0) &&
+          !confirmingCancel &&
+          !uploadingNow && (
             <button type="button" className="btn btn--outline" onClick={() => setConfirmingCancel(true)}>
               Cancel import
             </button>
-          </div>
-        )}
-      </div>
+          )
+        }
+      />
       {confirmingCancel && (
-        <Alert type="warning" slim className="bulk-cancel">
-          <span>
-            {batchInProgress.length > 0
-              ? `Cancel this import? The ${batchInProgress.length} ${batchInProgress.length === 1 ? 'file' : 'files'} you uploaded in this session ${batchInProgress.length === 1 ? 'is' : 'are'} discarded and nothing from ${batchInProgress.length === 1 ? 'it' : 'them'} is submitted.`
-              : "Cancel this import? The files you've chosen aren't uploaded."}
-          </span>
-          <span className="row-actions">
-            <Button type="button" secondary disabled={cancelling || uploadingNow} onClick={() => void cancel()}>
-              {cancelling ? 'Cancelling…' : 'Yes, cancel'}
-            </Button>
-            <Button type="button" unstyled disabled={cancelling} onClick={() => setConfirmingCancel(false)}>
-              Keep going
-            </Button>
-          </span>
-        </Alert>
+        <Notice
+          tone="warning"
+          action={
+            <span className="row-actions">
+              <button type="button" className="btn btn--danger" disabled={cancelling || uploadingNow} onClick={() => void cancel()}>
+                {cancelling ? 'Cancelling…' : 'Yes, cancel'}
+              </button>
+              <button type="button" className="link-button" disabled={cancelling} onClick={() => setConfirmingCancel(false)}>
+                Keep going
+              </button>
+            </span>
+          }
+        >
+          {batchInProgress.length > 0
+            ? `Cancel this import? The ${batchInProgress.length} ${batchInProgress.length === 1 ? 'file' : 'files'} you uploaded in this session ${batchInProgress.length === 1 ? 'is' : 'are'} discarded and nothing from ${batchInProgress.length === 1 ? 'it' : 'them'} is submitted.`
+            : "Cancel this import? The files you've chosen aren't uploaded."}
+        </Notice>
       )}
-      {cancelError && <Alert type="error" slim>{cancelError}</Alert>}
+      {cancelError && <Notice tone="danger">{cancelError}</Notice>}
       <StepHeader step={step} toReview={queue.length} ready={readyCount} />
       {uploadedCount > 0 && stagedCount === 0 && queue.length > 0 && (
-        <Alert type="success" slim className="bulk-next">
+        <Notice tone="success">
           {uploadedCount} {uploadedCount === 1 ? 'file' : 'files'} uploaded. Next, check what was read from each.{' '}
           <RouterLink to={reviewUrl(queue[0]!)}>Review next: {queue[0]!.fileName}</RouterLink>
-        </Alert>
+        </Notice>
       )}
-      {Boolean(casesError) && <Alert type="error">Failed to load your cases.</Alert>}
+      {Boolean(casesError) && <Notice tone="danger">Failed to load your cases.</Notice>}
       {cases && cases.cases.length === 0 && <p>You aren't assigned to any cases yet, so there's nothing to import for.</p>}
       {cases && cases.cases.length > 0 && (
         <StagedFiles
@@ -801,7 +799,7 @@ export default function PortalBulkImport() {
           }}
         />
       )}
-      {Boolean(importsError) && <Alert type="error">Failed to load your imports.</Alert>}
+      {Boolean(importsError) && <Notice tone="danger">Failed to load your imports.</Notice>}
       {imports && (
         <>
           <ReviewStep imports={shownImports ?? imports} onDiscard={(importId) => void discard(importId)} />

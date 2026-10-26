@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Alert, Button, Checkbox, Form, FormGroup, Label, Select, TextInput } from '@trussworks/react-uswds';
+import { Checkbox, Form, FormGroup, Label, Select, TextInput } from '@trussworks/react-uswds';
 import {
   addBillingCode,
   addKindRate,
@@ -24,6 +24,7 @@ import { ReviewRoutingSettings, StaffRoleSettings } from '../components/ReviewSe
 import { RecordTable } from '../components/RecordTable';
 import { formatDate } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
+import { Notice, type SaveMessage } from '../components/Notice';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -54,7 +55,7 @@ function AddRateForm({ kind, onAdded }: { kind: ProfessionalKind; onAdded: () =>
 
   return (
     <Form className="compact-form" onSubmit={(event) => void submit(event)}>
-      {error && <Alert type="error" slim>{error}</Alert>}
+      {error && <Notice tone="danger">{error}</Notice>}
       <div className="inline-fields rate-fields">
         <FormGroup>
           <Label htmlFor={id('rate')}>New hourly rate ($)</Label>
@@ -81,9 +82,9 @@ function AddRateForm({ kind, onAdded }: { kind: ProfessionalKind; onAdded: () =>
             onChange={(event) => setEffectiveFrom(event.target.value)}
           />
         </FormGroup>
-        <Button type="submit" disabled={saving || !(Number(hourlyRate) > 0) || !effectiveFrom}>
+        <button type="submit" className="btn btn--primary"disabled={saving || !(Number(hourlyRate) > 0) || !effectiveFrom}>
           {saving ? 'Saving…' : 'Add rate'}
-        </Button>
+        </button>
       </div>
     </Form>
   );
@@ -132,7 +133,7 @@ function AddKindForm({ onAdded }: { onAdded: () => void }) {
   return (
     <Form className="compact-form compact-card" onSubmit={(event) => void submit(event)}>
       <h3>Add a kind of professional</h3>
-      {error && <Alert type="error" slim>{error}</Alert>}
+      {error && <Notice tone="danger">{error}</Notice>}
       <div className="inline-fields rate-fields">
         <FormGroup>
           <Label htmlFor="new-kind-name">Name</Label>
@@ -146,9 +147,9 @@ function AddKindForm({ onAdded }: { onAdded: () => void }) {
             onChange={(event) => setDisplayName(event.target.value)}
           />
         </FormGroup>
-        <Button type="submit" disabled={saving || !displayName.trim()}>
+        <button type="submit" className="btn btn--primary"disabled={saving || !displayName.trim()}>
           {saving ? 'Adding…' : 'Add kind'}
-        </Button>
+        </button>
       </div>
     </Form>
   );
@@ -162,7 +163,7 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div>
       <PageHeading eyebrow="Administration" title="Settings" />
-      {!isAdmin && <Alert type="info" slim>Only administrators can change settings.</Alert>}
+      {!isAdmin && <Notice tone="info">Only administrators can change settings.</Notice>}
       <section className="settings-section">
         <h2>Invoice review</h2>
         <ReviewRoutingSettings isAdmin={isAdmin} />
@@ -174,7 +175,7 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
           Time is invoiced at the hourly rate for each professional's kind on the date of the work, and mileage at the
           rate per mile on the date of the trip. Give each vendor a kind on the Vendors page.
         </p>
-        {Boolean(error) && <Alert type="error">Failed to load rates.</Alert>}
+        {Boolean(error) && <Notice tone="danger">Failed to load rates.</Notice>}
         {data && data.length === 0 && <p>No kinds of professional yet.</p>}
         {data?.map((kind) => <KindCard key={kind.professionalKindId} kind={kind} isAdmin={isAdmin} onChanged={refresh} />)}
         {isAdmin && <AddKindForm onAdded={refresh} />}
@@ -214,7 +215,7 @@ function MileageRates({ isAdmin }: { isAdmin: boolean }) {
     <section className="compact-card settings-kind">
       <h3>Mileage</h3>
       <p className="rate-note">Rate per mile today: {current ? formatRate(current) : 'not set'}</p>
-      {Boolean(loadError) && <Alert type="error" slim>Failed to load mileage rates.</Alert>}
+      {Boolean(loadError) && <Notice tone="danger">Failed to load mileage rates.</Notice>}
       {data && (
         <RecordTable
           rows={[...data].reverse()}
@@ -228,7 +229,7 @@ function MileageRates({ isAdmin }: { isAdmin: boolean }) {
       )}
       {isAdmin && (
         <Form className="compact-form" onSubmit={(event) => void submit(event)}>
-          {error && <Alert type="error" slim>{error}</Alert>}
+          {error && <Notice tone="danger">{error}</Notice>}
           <div className="inline-fields rate-fields">
             <FormGroup>
               <Label htmlFor="mileage-rate">New rate per mile ($)</Label>
@@ -255,9 +256,9 @@ function MileageRates({ isAdmin }: { isAdmin: boolean }) {
                 onChange={(event) => setEffectiveFrom(event.target.value)}
               />
             </FormGroup>
-            <Button type="submit" disabled={saving || !(Number(ratePerMile) > 0) || !effectiveFrom}>
+            <button type="submit" className="btn btn--primary"disabled={saving || !(Number(ratePerMile) > 0) || !effectiveFrom}>
               {saving ? 'Saving…' : 'Add rate'}
-            </Button>
+            </button>
           </div>
         </Form>
       )}
@@ -270,7 +271,7 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
   const [enforcement, setEnforcement] = useState<RuleEnforcement>(rule.enforcement);
   const [parameters, setParameters] = useState(rule.parameters);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [message, setMessage] = useState<SaveMessage | null>(null);
   const id = (field: string) => `rule-${rule.code}-${field}`;
   const changed = enforcement !== rule.enforcement || JSON.stringify(parameters) !== JSON.stringify(rule.parameters);
 
@@ -280,10 +281,10 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
     setMessage(null);
     try {
       await setBillingRule(rule.code, { enforcement, parameters });
-      setMessage({ type: 'success', text: 'Saved. It applies to invoices confirmed or submitted from now on.' });
+      setMessage({ tone: 'success', text: 'Saved. It applies to invoices confirmed or submitted from now on.' });
       onSaved();
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'The rule could not be saved.') });
+      setMessage({ tone: 'danger', text: apiErrorMessage(err, 'The rule could not be saved.') });
     } finally {
       setSaving(false);
     }
@@ -309,7 +310,7 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
     <Form className="compact-form compact-card settings-rule" onSubmit={(event) => void save(event)}>
       <h3>{rule.label}</h3>
       <p className="compact-hint">{rule.description}</p>
-      {message && <Alert type={message.type} slim>{message.text}</Alert>}
+      {message && <Notice tone={message.tone}>{message.text}</Notice>}
       <div className="inline-fields rule-fields">
         <FormGroup>
           <Label htmlFor={id('enforcement')}>Applies as</Label>
@@ -339,9 +340,9 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
           />
         )}
         {isAdmin && (
-          <Button type="submit" disabled={saving || !changed}>
+          <button type="submit" className="btn btn--primary"disabled={saving || !changed}>
             {saving ? 'Saving…' : 'Save'}
-          </Button>
+          </button>
         )}
       </div>
     </Form>
@@ -383,7 +384,7 @@ function BillingCodes({ codes, isAdmin, onChanged }: { codes: BillingCode[]; isA
         The task codes firms choose from when the billing codes rule is on, such as a standard legal billing code set.
         Retired codes stay on invoices that used them.
       </p>
-      {error && <Alert type="error" slim>{error}</Alert>}
+      {error && <Notice tone="danger">{error}</Notice>}
       <RecordTable
         rows={codes}
         rowKey={(row) => row.billingCodeId}
@@ -397,9 +398,9 @@ function BillingCodes({ codes, isAdmin, onChanged }: { codes: BillingCode[]; isA
                 {
                   header: '',
                   render: (row: BillingCode) => (
-                    <Button type="button" unstyled onClick={() => void toggle(row)}>
+                    <button type="button" className="link-button" onClick={() => void toggle(row)}>
                       {row.active ? 'Retire' : 'Restore'}
-                    </Button>
+                    </button>
                   ),
                 },
               ]
@@ -423,9 +424,9 @@ function BillingCodes({ codes, isAdmin, onChanged }: { codes: BillingCode[]; isA
                 onChange={(event) => setDisplayName(event.target.value)}
               />
             </FormGroup>
-            <Button type="submit" disabled={!code.trim() || !displayName.trim()}>
+            <button type="submit" className="btn btn--primary"disabled={!code.trim() || !displayName.trim()}>
               Add code
-            </Button>
+            </button>
           </div>
         </Form>
       )}
@@ -444,7 +445,7 @@ function BillingRulesSettings({ isAdmin }: { isAdmin: boolean }) {
         Each rule is off unless turned on. Warn shows the finding to firms and reviewers; require also blocks import
         confirmation and submission until it's fixed. Submitted invoices keep the rules they were checked against.
       </p>
-      {Boolean(error) && <Alert type="error">Failed to load billing rules.</Alert>}
+      {Boolean(error) && <Notice tone="danger">Failed to load billing rules.</Notice>}
       {data?.rules.map((rule) => (
         <RuleCard key={rule.code} rule={rule} isAdmin={isAdmin} onSaved={refresh} />
       ))}

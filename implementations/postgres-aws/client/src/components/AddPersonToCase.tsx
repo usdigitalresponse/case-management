@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Alert } from '@trussworks/react-uswds';
 import { apiErrorMessage, createExternalAssignment, listVendors, type VendorRecord } from '../api/client';
 import { AssignStaffForm } from './AssignStaffForm';
 import { TypeAheadPicker } from './TypeAheadPicker';
+import { Notice } from './Notice';
 
 // Adds someone to a case after it was opened. An attorney or vendor needs
 // this to submit invoices on the case, and their invoices are checked
@@ -65,7 +65,7 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
               Add to case
             </button>
           </div>
-          {error && <Alert type="error" slim>{error}</Alert>}
+          {error && <Notice tone="danger">{error}</Notice>}
         </>
       ) : (
         <AssignStaffForm caseId={caseId} onAssigned={onAdded} />

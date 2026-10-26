@@ -1,4 +1,4 @@
-import { Button, Checkbox, Label, Select, TextInput } from '@trussworks/react-uswds';
+import { Checkbox, Label, Select, TextInput } from '@trussworks/react-uswds';
 import {
   mileageRateOn,
   rateOn,
@@ -253,7 +253,7 @@ function SourceLocation({ location }: { location: string }) {
   return (
     <button
       type="button"
-      className="usa-button usa-button--unstyled"
+      className="link-button"
       onClick={() => document.getElementById(`original-page-${page}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
     >
       {location}
@@ -588,7 +588,7 @@ export function InvoiceLinesEditor({
                     Matches time already recorded on {formatDate(sameAsRecorded.activityOn)} ({Number(sameAsRecorded.durationHours)} h).{' '}
                     <button
                       type="button"
-                      className="usa-button usa-button--unstyled"
+                      className="link-button"
                       onClick={() =>
                         update(index, {
                           sourceTimeEntryId: sameAsRecorded.timeEntryId,
@@ -640,9 +640,9 @@ export function InvoiceLinesEditor({
         );
       })}
       <div className="line-editor-foot">
-        <Button type="button" unstyled className="line-add" onClick={() => onChange([...lines, emptyLine])}>
+        <button type="button" className="link-button line-add" onClick={() => onChange([...lines, emptyLine])}>
           + Add item
-        </Button>
+        </button>
         {hasInvoiceItems(lines) && (
           <p className="line-total" aria-live="polite">
             <strong>

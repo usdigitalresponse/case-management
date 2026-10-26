@@ -1,6 +1,6 @@
-import { Alert } from '@trussworks/react-uswds';
 import { getPortalBillingRules, type BillingRule, type RuleFinding } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { Notice } from './Notice';
 
 // The rules in force for invoice entry, and the code list when codes are in use.
 export function usePortalBillingRules() {
@@ -49,24 +49,22 @@ export function RuleFindings({ findings, submitted = false }: { findings: RuleFi
   return (
     <>
       {required.length > 0 && (
-        <Alert type="error" slim className="rule-findings">
-          <strong>{submitted ? 'Required by billing rules:' : 'Fix before submitting:'}</strong>
+        <Notice tone="danger" className="rule-findings" heading={submitted ? 'Required by billing rules:' : 'Fix before submitting:'}>
           <ul>
             {required.map((finding, index) => (
               <li key={index}>{finding.message}</li>
             ))}
           </ul>
-        </Alert>
+        </Notice>
       )}
       {warnings.length > 0 && (
-        <Alert type="warning" slim className="rule-findings">
-          <strong>{submitted ? 'Billing rule warnings when submitted:' : 'Billing rule warnings:'}</strong>
+        <Notice tone="warning" className="rule-findings" heading={submitted ? 'Billing rule warnings when submitted:' : 'Billing rule warnings:'}>
           <ul>
             {warnings.map((finding, index) => (
               <li key={index}>{finding.message}</li>
             ))}
           </ul>
-        </Alert>
+        </Notice>
       )}
     </>
   );

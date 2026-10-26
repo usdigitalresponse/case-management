@@ -1,9 +1,10 @@
 import { Link as RouterLink } from 'react-router';
-import { Alert } from '@trussworks/react-uswds';
 import { listMyCases, type MyCaseProfessional, type MyCaseRecord, type MyCasesResult } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { RecordTable } from '../components/RecordTable';
 import { formatDate } from '../formatDateTime';
+import { Notice } from '../components/Notice';
+import { PageHeader } from '../components/PageHeader';
 
 interface CaseSection {
   professional: MyCaseProfessional;
@@ -69,19 +70,12 @@ export default function PortalCaseList() {
 
   return (
     <div>
-      <div className="page-title-row">
-        <div>
-          <h1>Your cases</h1>
-          <p className="page-description">
-            {isDelegate ? 'Cases for you and the people you bill for.' : 'Cases assigned to you.'} Record time and see each
-            case's invoices from its page.
-          </p>
-        </div>
-        <div className="title-actions">
-          <RouterLink className="btn btn--primary" to="/">New invoice</RouterLink>
-        </div>
-      </div>
-      {Boolean(error) && <Alert type="error">Failed to load your cases.</Alert>}
+      <PageHeader
+        title="Your cases"
+        description={`${isDelegate ? 'Cases for you and the people you bill for.' : 'Cases assigned to you.'} Record time and see each case's invoices from its page.`}
+        actions={<RouterLink className="btn btn--primary" to="/">New invoice</RouterLink>}
+      />
+      {Boolean(error) && <Notice tone="danger">Failed to load your cases.</Notice>}
       {!data && !error && <p role="status">Loading your cases…</p>}
       {data &&
         (isDelegate ? (

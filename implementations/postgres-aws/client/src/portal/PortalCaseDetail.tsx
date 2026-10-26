@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useParams, Link as RouterLink } from 'react-router';
-import { Alert, Button, Checkbox, Form, FormGroup, Label, Select, TextInput } from '@trussworks/react-uswds';
+import { Checkbox, Form, FormGroup, Label, Select, TextInput } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
   createTimeEntry,
@@ -17,13 +17,14 @@ import {
 import { professionalLabel } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
 import { NewInvoiceForm } from './NewInvoiceForm';
+import { MyInvoicesTable } from './MyInvoicesTable';
 import { RecordTable } from '../components/RecordTable';
-import { StatusPill } from '../components/StatusPill';
-import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { ConfirmButton } from '../components/ConfirmButton';
+import { PageHeader } from '../components/PageHeader';
 import { caseDisplayLabel } from '../caseDisplayLabel';
-import { formatDate, formatDateTime } from '../formatDateTime';
+import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
+import { Notice } from '../components/Notice';
 
 const BILLING_LABELS: Record<string, string> = {
   draft: 'On a draft',
@@ -34,7 +35,7 @@ const BILLING_LABELS: Record<string, string> = {
 
 function BillingState({ entry }: { entry: TimeEntryRecord }) {
   if (!entry.billing) {
-    return <span className="status-pill status-pill--pending">Unbilled</span>;
+    return <span className="chip chip--warning">Unbilled</span>;
   }
   return (
     <RouterLink to={`/portal/invoices/${entry.billing.invoiceId}`}>
@@ -142,8 +143,8 @@ function TimeEntrySection({
     <section>
       <h2>Time</h2>
       <RateNote billable={billable} />
-      {Boolean(error) && <Alert type="error">Failed to load time entries.</Alert>}
-      {rowError && <Alert type="warning" slim>{rowError}</Alert>}
+      {Boolean(error) && <Notice tone="danger">Failed to load time entries.</Notice>}
+      {rowError && <Notice tone="warning">{rowError}</Notice>}
       {unbilledCount > 0 && (
         <p className="compact-hint">
           {unbilledCount} {unbilledCount === 1 ? 'entry is' : 'entries are'} not on an invoice yet.{' '}
@@ -171,17 +172,17 @@ function TimeEntrySection({
                   <RouterLink to={`/portal/invoices/${e.billing.invoiceId}`}>Edit on draft</RouterLink>
                 ) : (
                   <span className="row-actions">
-                    <Button
+                    <button
                       type="button"
-                      unstyled
+                      className="link-button"
                       onClick={() => (e.lockedReason ? setRowError(e.lockedReason) : startEditing(e))}
                     >
                       Edit
-                    </Button>
+                    </button>
                     {e.lockedReason ? (
-                      <Button type="button" unstyled className="confirm-compact" onClick={() => setRowError(e.lockedReason)}>
+                      <button type="button" className="link-button link-button--danger" onClick={() => setRowError(e.lockedReason)}>
                         Delete
-                      </Button>
+                      </button>
                     ) : (
                       <ConfirmButton
                         compact
@@ -200,7 +201,7 @@ function TimeEntrySection({
 
       <Form className="compact-form compact-card" onSubmit={(event) => void handleSubmit(event)}>
         <h3>{editingId ? 'Edit time' : 'Log time'}</h3>
-        {submitError && <Alert type="error" slim>{submitError}</Alert>}
+        {submitError && <Notice tone="danger">{submitError}</Notice>}
         <div className={`inline-fields time-entry-fields${billable.length > 1 ? ' time-entry-fields--with-professional' : ''}`}>
           {billable.length > 1 && (
             <FormGroup>
@@ -258,13 +259,13 @@ function TimeEntrySection({
             />
           </FormGroup>
           <span className="row-actions">
-            <Button type="submit" disabled={submitting || !activityOn || !durationHours || !description.trim()}>
+            <button type="submit" className="btn btn--primary" disabled={submitting || !activityOn || !durationHours || !description.trim()}>
               {editingId ? (submitting ? 'Saving…' : 'Save') : submitting ? 'Logging…' : 'Log time'}
-            </Button>
+            </button>
             {editingId && (
-              <Button type="button" unstyled onClick={onLogged}>
+              <button type="button" className="link-button" onClick={onLogged}>
                 Cancel
-              </Button>
+              </button>
             )}
           </span>
         </div>
@@ -293,7 +294,7 @@ function InvoiceSection({
   return (
     <section>
       <h2>Invoices</h2>
-      {Boolean(error) && <Alert type="error">Failed to load invoices.</Alert>}
+      {Boolean(error) && <Notice tone="danger">Failed to load invoices.</Notice>}
       {data && withdrawnCount > 0 && (
         <Checkbox
           id="invoices-show-withdrawn"
@@ -305,37 +306,12 @@ function InvoiceSection({
         />
       )}
       {data && (
-        <RecordTable
+        <MyInvoicesTable
+          label="Invoices on this case"
+          showClient={false}
           rows={showWithdrawn ? data : data.filter((i) => i.statusCode !== 'withdrawn')}
-          rowKey={(invoiceRecord) => invoiceRecord.invoiceId}
           emptyMessage={withdrawnCount > 0 && !showWithdrawn ? 'No invoices besides withdrawn ones.' : 'No invoices yet.'}
-          columns={[
-            {
-              header: 'Submitted',
-              // A recall clears submittedAt; show the earlier submission.
-              render: (i) =>
-                i.submittedAt
-                  ? formatDateTime(i.submittedAt)
-                  : i.lastSubmittedAt
-                    ? `${formatDateTime(i.lastSubmittedAt)}, then recalled`
-                    : 'Not yet',
-            },
-            { header: 'Total', render: (i) => <span className="amount">{formatMoney(i.submittedTotal)}</span> },
-            { header: 'Status', render: (i) => <StatusPill code={i.statusCode} label={i.statusDisplayName} /> },
-            {
-              header: 'Actions',
-              render: (i) => (
-                <span className="row-actions">
-                  <RouterLink to={`/portal/invoices/${i.invoiceId}`}>
-                    {i.statusCode === 'draft' ? 'Edit draft' : 'View invoice'}
-                  </RouterLink>
-                  {i.deletable && (
-                    <DeleteInvoiceButton compact invoiceId={i.invoiceId} onDeleted={() => setListVersion((v) => v + 1)} />
-                  )}
-                </span>
-              ),
-            },
-          ]}
+          onDeleted={() => setListVersion((v) => v + 1)}
         />
       )}
 
@@ -380,23 +356,17 @@ export default function PortalCaseDetail() {
 
   return (
     <div>
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <RouterLink to="/portal/cases">Your cases</RouterLink>
-        <span aria-hidden="true">›</span>
-        <span>{myCase?.clientDisplayName ?? 'Case'}</span>
-      </nav>
-      <div className="page-title-row">
-        <div>
-          <h1>{myCase?.clientDisplayName ?? title}</h1>
-          <p className="title-meta">
+      <PageHeader
+        crumbs={[{ label: 'Your cases', to: '/portal/cases' }, { label: myCase?.clientDisplayName ?? 'Case' }]}
+        title={myCase?.clientDisplayName ?? title}
+        meta={
+          <>
             {myCase?.externalReference && <strong>Case {myCase.externalReference}</strong>}
             {myCase && <span>Assigned {formatDate(myCase.assignedAt.slice(0, 10))}</span>}
-          </p>
-        </div>
-        <div className="title-actions">
-          <a className="btn btn--primary" href="#new-invoice">New invoice</a>
-        </div>
-      </div>
+          </>
+        }
+        actions={<a className="btn btn--primary" href="#new-invoice">New invoice</a>}
+      />
       {billable && billable.length > 0 && (
         <TimeEntrySection
           key={timeEntryVersion}

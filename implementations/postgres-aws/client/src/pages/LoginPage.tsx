@@ -5,10 +5,11 @@
 // link by email instead. See ../../MAPPING.md "Multi-IdP SSO" and
 // "Magic-link sign-in for external users".
 import { useState, type FormEvent } from 'react';
-import { Alert, Button, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
+import { Form, Label, TextInput } from '@trussworks/react-uswds';
 import { listAuthProviders, requestMagicLink } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { useAuth } from '../AuthContext';
+import { Notice } from '../components/Notice';
 
 export default function LoginPage() {
   const { data } = useApiResource(listAuthProviders, []);
@@ -34,54 +35,65 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      <section className="login-panel">
-        <h1>Sign in</h1>
-        <p>Staff sign in with their organization's account.</p>
-        {providers?.length === 0 && <p>No sign-in provider is configured yet.</p>}
-        {providers?.map((provider) => (
-          <a key={provider.id} className="usa-button" href={`/auth/${provider.id}`}>
-            Sign in with {provider.displayName}
-          </a>
-        ))}
-        {data?.demoLoginEnabled && (
-          <Button type="button" outline onClick={() => void demoLogin()}>
-            Demo sign-in
-          </Button>
-        )}
-      </section>
+      <header className="login-intro">
+        <h1>Invoice Review</h1>
+      </header>
+      <div className="login-panels">
+        <section className="login-panel" aria-labelledby="login-staff">
+          <h2 id="login-staff">Staff</h2>
+          <p>Use your organization's account.</p>
+          {providers?.length === 0 && <p>No sign-in provider is configured yet.</p>}
+          {providers?.map((provider) => (
+            <a key={provider.id} className="btn btn--primary" href={`/auth/${provider.id}`}>
+              Sign in with {provider.displayName}
+            </a>
+          ))}
+          {data?.demoLoginEnabled && (
+            <div className="login-demo">
+              <span>For demos</span>
+              <button type="button" className="link-button" onClick={() => void demoLogin()}>
+                Sign in as demo staff
+              </button>
+            </div>
+          )}
+        </section>
 
-      <section className="login-panel">
-        <h2>External partners</h2>
-        <p>Enter your email for a one-time sign-in link.</p>
-        {requested ? (
-          <Alert type="success">
-            <strong>Check your email.</strong> If that address is recognized, a sign-in link is on its way. The
-            link expires in 15 minutes.
-          </Alert>
-        ) : (
-          <Form onSubmit={(event) => void handleSubmit(event)}>
-            <FormGroup>
-              <Label htmlFor="magic-link-email">Email address</Label>
-              <TextInput
-                id="magic-link-email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </FormGroup>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Sending…' : 'Send me a sign-in link'}
-            </Button>
-          </Form>
-        )}
-        {data?.externalDemoLoginEnabled && (
-          <Button type="button" outline onClick={() => void externalDemoLogin()}>
-            Demo partner sign-in
-          </Button>
-        )}
-      </section>
+        <section className="login-panel" aria-labelledby="login-partners">
+          <h2 id="login-partners">External Partners</h2>
+          <p>We'll email you a one-time sign-in link.</p>
+          {requested ? (
+            <Notice tone="success" heading="Check your email.">
+              If that address is recognized, a sign-in link is on its way. The link expires in 15 minutes.
+            </Notice>
+          ) : (
+            <Form className="login-form" onSubmit={(event) => void handleSubmit(event)}>
+              <div>
+                <Label htmlFor="magic-link-email">Email address</Label>
+                <TextInput
+                  id="magic-link-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
+              <button type="submit" className="btn btn--primary" disabled={submitting}>
+                {submitting ? 'Sending…' : 'Email me a sign-in link'}
+              </button>
+            </Form>
+          )}
+          {data?.externalDemoLoginEnabled && (
+            <div className="login-demo">
+              <span>For demos</span>
+              <button type="button" className="link-button" onClick={() => void externalDemoLogin()}>
+                Sign in as a demo partner
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

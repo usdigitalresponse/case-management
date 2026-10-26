@@ -18,3 +18,8 @@ export function formatMoney(amount: string | number | null | undefined): string 
   }
   return usd.format(Number(amount));
 }
+
+// Whole cents, so sums of money add up exactly.
+export function cents(amount: string | number | null | undefined): number {
+  return Math.round(Number(amount ?? 0) * 100);
+}

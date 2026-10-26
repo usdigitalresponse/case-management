@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
-import { Alert } from '@trussworks/react-uswds';
 import { listBillableProfessionals, listMyCases, listMyTimeEntries } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { NewInvoiceForm } from './NewInvoiceForm';
+import { Notice } from '../components/Notice';
+import { PageHeader } from '../components/PageHeader';
 
 // The submitter's start page: import invoice files (which can cover several
 // cases), or choose a case and enter or import one invoice for it.
@@ -15,9 +16,8 @@ export default function PortalNewInvoice() {
 
   return (
     <div>
-      <h1>New invoice</h1>
-      <p className="page-description">Import invoice files, or choose a case to enter an invoice by hand.</p>
-      {Boolean(error) && <Alert type="error">Failed to load your cases.</Alert>}
+      <PageHeader title="New invoice" description="Import invoice files, or choose a case to enter an invoice by hand." />
+      {Boolean(error) && <Notice tone="danger">Failed to load your cases.</Notice>}
 
       <div className="start-options">
         <section className="compact-card start-option">
@@ -66,7 +66,7 @@ function CaseInvoice({ caseId }: { caseId: string }) {
   );
 
   if (error) {
-    return <Alert type="error">You can't bill on this case.</Alert>;
+    return <Notice tone="danger">You can't bill on this case.</Notice>;
   }
   if (!billable) {
     return <p role="status">Loading…</p>;

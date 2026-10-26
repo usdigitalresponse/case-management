@@ -82,8 +82,8 @@ export default function CaseList() {
                           {caseDisplayLabel([caseRecord.clientDisplayName], { label: 'Case opened', date: caseRecord.openedOn })}
                         </RouterLink>
                       </th>
-                      <td><span className="status-pill">{caseRecord.statusDisplayName}</span></td>
-                      <td><span className="status-pill">{stageLabel(caseRecord.stage)}</span></td>
+                      <td><span className="chip chip--neutral">{caseRecord.statusDisplayName}</span></td>
+                      <td><span className="chip chip--neutral">{stageLabel(caseRecord.stage)}</span></td>
                       <td>{caseRecord.openedOn ?? '—'}</td>
                       <td>{caseRecord.externalReference ?? '—'}</td>
                     </tr>
@@ -100,8 +100,8 @@ export default function CaseList() {
                       {caseDisplayLabel([caseRecord.clientDisplayName], { label: 'Case opened', date: caseRecord.openedOn })}
                     </span>
                     <span className="row-card-meta">
-                      <span className="status-pill">{caseRecord.statusDisplayName}</span>
-                      <span className="status-pill">{stageLabel(caseRecord.stage)}</span>
+                      <span className="chip chip--neutral">{caseRecord.statusDisplayName}</span>
+                      <span className="chip chip--neutral">{stageLabel(caseRecord.stage)}</span>
                       <span>Opened {caseRecord.openedOn ?? '—'}</span>
                       {caseRecord.externalReference && <span>{caseRecord.externalReference}</span>}
                     </span>

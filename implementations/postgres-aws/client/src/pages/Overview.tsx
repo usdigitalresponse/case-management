@@ -1,13 +1,13 @@
 import { Link } from 'react-router';
-import { Alert } from '@trussworks/react-uswds';
 import { listCases } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { overviewStages } from '../overviewStages';
 import { PageHeading } from '../components/PageHeading';
+import { Notice } from '../components/Notice';
 
 export default function Overview() {
   const { data, error } = useApiResource(listCases, []);
-  if (error) return <Alert type="error">Unable to load the overview. Please refresh to try again.</Alert>;
+  if (error) return <Notice tone="danger">Unable to load the overview. Please refresh to try again.</Notice>;
   if (!data) return <p role="status">Loading overview…</p>;
 
   const cases = [...data.cases].sort((a, b) =>

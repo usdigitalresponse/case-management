@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router';
-import { Alert, AlertHeading, Button, Label, Select } from '@trussworks/react-uswds';
+import { Label, Select } from '@trussworks/react-uswds';
 import {
-  ApiError,
   apiErrorMessage,
   getInvoiceImport,
   getMyInvoice,
@@ -33,6 +32,10 @@ import { ConfirmButton } from '../components/ConfirmButton';
 import { OriginalDocument } from '../components/OriginalDocument';
 import { nextInQueue, reviewQueue, reviewUrl } from './bulkImport';
 import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
+import { Notice, type SaveMessage } from '../components/Notice';
+import { PageHeader } from '../components/PageHeader';
+import { Fact, FactsStrip } from '../components/FactsStrip';
+import { LoadState } from '../components/LoadState';
 
 interface Loaded {
   importDetail: InvoiceImportDetail;
@@ -72,12 +75,12 @@ function AssignAllTimekeepers({
           </option>
         ))}
       </Select>
-      <Button type="button" outline disabled={!professionalId || unmatched === 0} onClick={() => onAssign(professionalId, 'unassigned')}>
+      <button type="button" className="btn btn--outline" disabled={!professionalId || unmatched === 0} onClick={() => onAssign(professionalId, 'unassigned')}>
         Apply to {unmatched} unassigned
-      </Button>
-      <Button type="button" unstyled disabled={!professionalId} onClick={() => onAssign(professionalId, 'all')}>
+      </button>
+      <button type="button" className="link-button" disabled={!professionalId} onClick={() => onAssign(professionalId, 'all')}>
         Apply to all items
-      </Button>
+      </button>
     </div>
   );
 }
@@ -91,10 +94,10 @@ function FileTotalComparison({ lines, timekeepers }: { lines: LineDraft[]; timek
     return null;
   }
   return (
-    <Alert type="info" slim className="file-total-comparison">
+    <Notice tone="info">
       The file totals {formatMoney(stated.toFixed(2))}; at configured rates this invoice is{' '}
       <strong>{formatMoney(billed.total.toFixed(2))}</strong>.
-    </Alert>
+    </Notice>
   );
 }
 
@@ -127,7 +130,7 @@ function ExtractedReview({
     setLinesState(designatedId ? next.map((line) => ({ ...line, timekeeperProfessionalId: designatedId })) : next);
   const billingRules = usePortalBillingRules();
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [message, setMessage] = useState<SaveMessage | null>(null);
   const warnings = importDetail.extractionResult?.warnings ?? [];
   const unmatched = lines.filter((line) => !line.timekeeperProfessionalId).length;
   const hasItems = hasInvoiceItems(lines);
@@ -150,7 +153,7 @@ function ExtractedReview({
         });
       }
       if (action === 'save') {
-        setMessage({ type: 'success', text: 'Changes saved.' });
+        setMessage({ tone: 'success', text: 'Changes saved.' });
         onChanged();
       } else {
         await resolveInvoiceImport(importDetail.invoiceImportId, action);
@@ -163,7 +166,7 @@ function ExtractedReview({
         }
       }
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Something went wrong. Try again.') });
+      setMessage({ tone: 'danger', text: apiErrorMessage(err, 'Something went wrong. Try again.') });
     } finally {
       setBusy(false);
     }
@@ -172,8 +175,7 @@ function ExtractedReview({
   return (
     <>
       {warnings.length > 0 && (
-        <Alert type="warning" slim className="import-warnings">
-          <strong>Check before confirming:</strong>
+        <Notice tone="warning" heading="Check before confirming:">
           <ul>
             {warnings.map((warning, index) => (
               <li key={index}>
@@ -182,7 +184,7 @@ function ExtractedReview({
               </li>
             ))}
           </ul>
-        </Alert>
+        </Notice>
       )}
       <p className="import-review-intro">
         {designatedId
@@ -198,7 +200,7 @@ function ExtractedReview({
         )}
       <div className="import-review-items">
         <h2>Items read from the file</h2>
-        {message && <Alert type={message.type} slim>{message.text}</Alert>}
+        {message && <Notice tone={message.tone}>{message.text}</Notice>}
         <FileTotalComparison lines={lines} timekeepers={timekeepers} />
         <RulesInForce rules={billingRules.rules} />
         <RuleFindings findings={invoice?.ruleFindings ?? []} />
@@ -227,12 +229,12 @@ function ExtractedReview({
           </p>
         )}
         <div className="invoice-actions">
-          <Button type="button" disabled={busy || !hasItems || unmatched > 0} onClick={() => void run('confirm')}>
+          <button type="button" className="btn btn--primary" disabled={busy || !hasItems || unmatched > 0} onClick={() => void run('confirm')}>
             {!afterResolve ? 'Confirm import' : hasNext ? 'Confirm and review next' : 'Confirm and go to submit'}
-          </Button>
-          <Button type="button" outline disabled={busy || !hasItems} onClick={() => void run('save')}>
+          </button>
+          <button type="button" className="btn btn--outline" disabled={busy || !hasItems} onClick={() => void run('save')}>
             Save changes
-          </Button>
+          </button>
           <span className="actions-end">
             <ConfirmButton
               label="Discard import"
@@ -277,12 +279,8 @@ export default function PortalImportReview() {
   // After confirming or discarding: the next file, or the submit step.
   const afterResolve = fromBulk ? (next ? reviewUrl(next) : '/portal/imports#submit') : undefined;
 
-  if (error) {
-    const message = error instanceof ApiError && error.status === 404 ? 'Import not found.' : 'Failed to load the import.';
-    return <Alert type="error">{message}</Alert>;
-  }
-  if (!data) {
-    return <p role="status">Loading import…</p>;
+  if (error || !data) {
+    return <LoadState error={error} what="import" />;
   }
 
   const { importDetail } = data;
@@ -303,11 +301,15 @@ export default function PortalImportReview() {
 
   return (
     <div>
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <RouterLink to={backTo}>{fromBulk ? 'Import invoices' : importDetail.caseId ? 'Case' : 'New invoice'}</RouterLink>
-        <span aria-hidden="true">›</span>
-        <span>{importDetail.fileName}</span>
-      </nav>
+      <PageHeader
+        crumbs={[
+          { label: fromBulk ? 'Import invoices' : importDetail.caseId ? 'Case' : 'New invoice', to: backTo },
+          { label: importDetail.fileName },
+        ]}
+        title={importDetail.fileName}
+        status={<span className="chip chip--neutral">{importDetail.statusDisplayName}</span>}
+        description={`${importDetail.formatDisplayName}. Check what was read before you confirm it.`}
+      />
       {fromBulk && position >= 0 && (
         <p className="bulk-position">
           File {position + 1} of {queue.length} to review
@@ -325,32 +327,15 @@ export default function PortalImportReview() {
           )}
         </p>
       )}
-      <div className="page-title-row">
-        <div>
-          <h1>
-            {importDetail.fileName} <span className="chip chip--neutral">{importDetail.statusDisplayName}</span>
-          </h1>
-          <p className="page-description">{importDetail.formatDisplayName}. Check what was read before you confirm it.</p>
-        </div>
-      </div>
-      <dl className="facts-strip">
-        <div>
-          <dt>Uploaded</dt>
-          <dd>{formatDateTime(importDetail.uploadedAt)}</dd>
-        </div>
+      <FactsStrip>
+        <Fact label="Uploaded">{formatDateTime(importDetail.uploadedAt)}</Fact>
         {importDetail.extractionResult?.invoice?.invoice_number && (
-          <div>
-            <dt>Invoice number on file</dt>
-            <dd><strong>{importDetail.extractionResult.invoice.invoice_number.value}</strong></dd>
-          </div>
+          <Fact label="Invoice number on file">
+            <strong>{importDetail.extractionResult.invoice.invoice_number.value}</strong>
+          </Fact>
         )}
-        {importDetail.expiresAt && (
-          <div>
-            <dt>Deleted if not confirmed by</dt>
-            <dd>{formatDateTime(importDetail.expiresAt)}</dd>
-          </div>
-        )}
-      </dl>
+        {importDetail.expiresAt && <Fact label="Deleted if not confirmed by">{formatDateTime(importDetail.expiresAt)}</Fact>}
+      </FactsStrip>
 
       {importDetail.statusCode === 'extracted' && (
         <ExtractedReview
@@ -364,20 +349,20 @@ export default function PortalImportReview() {
 
       {importDetail.statusCode === 'failed' && (
         <>
-          <Alert type="error">
-            <AlertHeading level="h2">This file couldn't be read</AlertHeading>
+          <Notice tone="danger">
+            <h2 className="notice__heading">This file couldn't be read</h2>
             {importDetail.extractionResult?.warnings?.[0]?.message ?? 'The file could not be read.'}
-          </Alert>
-          {discardError && <Alert type="error" slim>{discardError}</Alert>}
+          </Notice>
+          {discardError && <Notice tone="danger">{discardError}</Notice>}
           <p>Discard it and upload a corrected file, or enter the items by hand on the case page.</p>
-          <Button type="button" secondary onClick={() => void discardImport()}>Discard import</Button>
+          <button type="button" className="btn btn--danger" onClick={() => void discardImport()}>Discard import</button>
         </>
       )}
 
       {importDetail.statusCode === 'received' && (
         <>
           <ImportProgressNote progress={polled?.progress ?? importDetail.progress} />
-          {discardError && <Alert type="error" slim>{discardError}</Alert>}
+          {discardError && <Notice tone="danger">{discardError}</Notice>}
           <ConfirmButton
             label="Stop and discard"
             prompt="Stop reading this file and discard it? The file is deleted and nothing is submitted."
@@ -388,18 +373,18 @@ export default function PortalImportReview() {
       )}
 
       {importDetail.statusCode === 'confirmed' && importDetail.invoiceId && (
-        <Alert type="success">
-          <AlertHeading level="h2">Import confirmed</AlertHeading>
+        <Notice tone="success">
+          <h2 className="notice__heading">Import confirmed</h2>
           The uploaded file has been deleted.{' '}
           <RouterLink to={`/portal/invoices/${importDetail.invoiceId}`}>Open the draft invoice</RouterLink> to submit it.
-        </Alert>
+        </Notice>
       )}
 
       {importDetail.statusCode === 'discarded' && (
-        <Alert type="info">
-          <AlertHeading level="h2">Import discarded</AlertHeading>
+        <Notice tone="info">
+          <h2 className="notice__heading">Import discarded</h2>
           The uploaded file has been deleted and nothing was submitted.
-        </Alert>
+        </Notice>
       )}
     </div>
   );

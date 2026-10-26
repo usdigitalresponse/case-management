@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { Alert, Button, Checkbox, ErrorMessage, Fieldset, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
+import { Checkbox, ErrorMessage, Fieldset, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
 import {
   ApiError,
   createCase,
@@ -13,6 +13,7 @@ import { useApiResource } from '../hooks/useApiResource';
 import { ReferenceSelect } from '../components/ReferenceSelect';
 import { PageHeading } from '../components/PageHeading';
 import { TypeAheadPicker } from '../components/TypeAheadPicker';
+import { Notice } from '../components/Notice';
 
 function generateRequestId(): string {
   return crypto.randomUUID();
@@ -101,7 +102,7 @@ export default function NewCaseIntake() {
     return (
       <>
         {heading}
-        <Alert type="error">Failed to load reference data.</Alert>
+        <Notice tone="danger">Failed to load reference data.</Notice>
       </>
     );
   }
@@ -300,12 +301,12 @@ export default function NewCaseIntake() {
       </Fieldset>
       </div>
 
-      {submitError && <Alert type="error">{submitError}</Alert>}
+      {submitError && <Notice tone="danger">{submitError}</Notice>}
 
       <div className="form-actions">
-        <Button type="submit" disabled={submitting}>
+        <button type="submit" className="btn btn--primary" disabled={submitting}>
           {submitting ? 'Creating…' : 'Create case'}
-        </Button>
+        </button>
       </div>
       </Form>
     </>

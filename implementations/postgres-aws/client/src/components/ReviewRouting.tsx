@@ -7,15 +7,48 @@ import {
   type AssignedPerson,
   type ReviewPerson,
 } from '../api/client';
+import { useApiResource } from '../hooks/useApiResource';
+import { OrderedChoiceList } from './OrderedChoiceList';
 
-function usePeople(open: boolean) {
-  const [people, setPeople] = useState<ReviewPerson[] | null>(null);
-  useEffect(() => {
-    if (open && !people) {
-      listReviewPeople().then((result) => setPeople(result.people), () => setPeople([]));
-    }
-  }, [open, people]);
-  return people;
+// Staff who review or sign off, with how many invoices each has waiting.
+// Loaded only once `enabled`, such as when a picker opens.
+export function useReviewPeople(enabled = true): ReviewPerson[] | null {
+  const { data, error } = useApiResource(
+    () => (enabled ? listReviewPeople().then((result) => result.people) : Promise.resolve(null)),
+    [enabled],
+  );
+  return data ?? (error ? [] : null);
+}
+
+// A dropdown of reviewers: a case's reviewer, or the default in Settings.
+export function ReviewerSelect({
+  id,
+  people,
+  value,
+  emptyLabel,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  people: ReviewPerson[];
+  value: string;
+  // The choice for no one; omitted when someone must be chosen.
+  emptyLabel?: string;
+  disabled?: boolean;
+  onChange: (userAccountId: string) => void;
+}) {
+  return (
+    <select id={id} className="usa-select settings-role" disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)}>
+      <option value="" disabled={!emptyLabel}>{emptyLabel ?? 'Choose a reviewer'}</option>
+      {people
+        .filter((person) => person.reviewsLines)
+        .map((person) => (
+          <option key={person.userAccountId} value={person.userAccountId}>
+            {person.displayName} ({person.waiting} waiting)
+          </option>
+        ))}
+    </select>
+  );
 }
 
 // Who reviews this invoice: only people who review invoices, with how many
@@ -34,7 +67,7 @@ export function ReviewerPicker({
   onChanged: (message: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const people = usePeople(open);
+  const people = useReviewPeople(open);
   const [chosen, setChosen] = useState<string>(reviewer?.userAccountId ?? '');
   const [forCase, setForCase] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +166,7 @@ export function SignOffApprovers({
   onChanged: (message: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const people = usePeople(editing);
+  const people = useReviewPeople(editing);
   const [chosen, setChosen] = useState<string[]>(approvers.map((approver) => approver.userAccountId));
   const [error, setError] = useState<string | null>(null);
 
@@ -166,35 +199,18 @@ export function SignOffApprovers({
           {!people ? (
             <p role="status">Loading…</p>
           ) : (
-            <ul className="choice-list">
-              {people
-                .filter((person) => person.signsOff)
-                .map((person) => {
-                  const position = chosen.indexOf(person.userAccountId);
-                  return (
-                    <li key={person.userAccountId}>
-                      <label className={position >= 0 ? 'is-chosen' : undefined}>
-                        <input
-                          type="checkbox"
-                          checked={position >= 0}
-                          onChange={(event) =>
-                            setChosen(
-                              event.target.checked
-                                ? [...chosen, person.userAccountId]
-                                : chosen.filter((id) => id !== person.userAccountId),
-                            )
-                          }
-                        />
-                        <span>
-                          {position >= 0 && <span className="order-badge">{position + 1}</span>}
-                          {person.displayName}
-                          <span className="cell-note">{person.roleName}</span>
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
-            </ul>
+            <OrderedChoiceList
+              options={people.filter((person) => person.signsOff)}
+              optionKey={(person) => person.userAccountId}
+              chosen={chosen}
+              onChange={setChosen}
+              render={(person) => (
+                <>
+                  {person.displayName}
+                  <span className="cell-note">{person.roleName}</span>
+                </>
+              )}
+            />
           )}
           <p className="cell-note">They sign off in the order you tick them.</p>
           {error && <p className="field-error" role="alert">{error}</p>}

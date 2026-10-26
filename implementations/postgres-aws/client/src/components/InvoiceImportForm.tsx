@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { Alert, Button, Form, Label } from '@trussworks/react-uswds';
+import { Form, Label } from '@trussworks/react-uswds';
 import { apiErrorMessage, invoiceTemplateUrl, uploadInvoiceFile } from '../api/client';
+import { Notice } from './Notice';
 
 export function InvoiceImportForm({ caseId, professionalId }: { caseId: string; professionalId: string }) {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export function InvoiceImportForm({ caseId, professionalId }: { caseId: string; 
 
   return (
     <Form className="compact-form" onSubmit={(event) => void handleSubmit(event)}>
-      {error && <Alert type="error" slim>{error}</Alert>}
+      {error && <Notice tone="danger">{error}</Notice>}
       <div className="inline-fields import-fields">
         <div className="usa-form-group">
           <Label htmlFor="invoice-file">Invoice file</Label>
@@ -42,9 +43,9 @@ export function InvoiceImportForm({ caseId, professionalId }: { caseId: string; 
             onChange={(event) => setFile(event.target.files?.[0] ?? null)}
           />
         </div>
-        <Button type="submit" disabled={uploading || !file}>
+        <button type="submit" className="btn btn--primary" disabled={uploading || !file}>
           {uploading ? 'Uploading…' : 'Upload and review'}
-        </Button>
+        </button>
       </div>
       <p className="compact-hint" id="invoice-file-hint">
         A PDF invoice, LEDES 1998B, or the invoice template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}

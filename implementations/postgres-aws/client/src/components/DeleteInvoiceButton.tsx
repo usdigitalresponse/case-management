@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Alert } from '@trussworks/react-uswds';
 import { apiErrorMessage, deleteInvoice } from '../api/client';
 import { ConfirmButton } from './ConfirmButton';
+import { Notice } from './Notice';
 
 // Show only where the server says the invoice is `deletable`.
 export function DeleteInvoiceButton({
@@ -35,7 +35,7 @@ export function DeleteInvoiceButton({
         compact={compact}
         onConfirm={() => void remove()}
       />
-      {error && <Alert type="error" slim>{error}</Alert>}
+      {error && <Notice tone="danger">{error}</Notice>}
     </>
   );
 }
