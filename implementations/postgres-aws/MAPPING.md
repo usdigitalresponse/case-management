@@ -44,8 +44,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     access depends on case assignment.
   - Links to the external case management system ("Open the case in…",
     the sidebar link) are disabled placeholders; nothing is integrated.
-  - The external portal uses the same shell and opens on "Your invoices"
-    (`client/src/portal/PortalInvoiceList.tsx`); its invoice page shows
+  - The external portal uses the same shell and opens on "New invoice"
+    (`client/src/portal/PortalNewInvoice.tsx`): import files (the bulk
+    import page, which can split a file across cases), or choose a case
+    and use the same new-invoice form as the case page
+    (`portal/NewInvoiceForm.tsx`). "Your invoices"
+    (`/portal/invoices`, `PortalInvoiceList.tsx`) and "Your cases" follow
+    in the sidebar. Its invoice page shows
     each line's decision, reason and note in the review table's layout,
     and the import review's line editor takes the same table styling with
     the original document beside it.

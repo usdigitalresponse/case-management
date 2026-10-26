@@ -547,6 +547,12 @@ form.compact-form { max-width: none; }
 .data-card table thead th { background: #f9fafb; font-size: .68rem; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
 .data-card table td, .data-card table th { border-bottom-color: var(--line); }
 
+/* Portal New invoice: two ways to start, side by side. */
+.start-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1rem; margin-top: 1.2rem; }
+.start-option { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
+.start-option h2 { margin: 0; font-size: 1.05rem; }
+.start-option .usa-select { max-width: 100%; margin: 0; }
+
 /* Settings: review routing and roles */
 .settings-form { max-width: 40rem; }
 .settings-field { display: block; margin: 1rem 0 0; padding: 0; border: 0; font-weight: 600; font-size: .9rem; }

@@ -6,8 +6,8 @@ import { StatusPill } from '../components/StatusPill';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
-// The submitter's start page: their invoices across cases, newest first,
-// with drafts to finish at the top.
+// The submitter's invoices across cases, newest first, with drafts to
+// finish at the top.
 export default function PortalInvoiceList() {
   const { data, error } = useApiResource(() => listMyInvoices().then((result) => result.invoices), []);
   if (error) {
@@ -63,8 +63,7 @@ export default function PortalInvoiceList() {
           <p className="page-description">Invoices you submitted or that bill your work. Reviewers' decisions and notes show on each one.</p>
         </div>
         <div className="title-actions">
-          <RouterLink className="btn btn--primary" to="/portal/imports">Import invoices</RouterLink>
-          <RouterLink className="btn btn--outline" to="/portal/cases">Your cases</RouterLink>
+          <RouterLink className="btn btn--primary" to="/">New invoice</RouterLink>
         </div>
       </div>
       {drafts.length > 0 && (
@@ -75,7 +74,7 @@ export default function PortalInvoiceList() {
       )}
       <section className="detail-section">
         <h2>Submitted</h2>
-        {rest.length === 0 ? <p className="empty-note">Nothing submitted yet. Import an invoice or start one from a case.</p> : table(rest, 'Submitted invoices')}
+        {rest.length === 0 ? <p className="empty-note">Nothing submitted yet. Start one under New invoice.</p> : table(rest, 'Submitted invoices')}
       </section>
     </div>
   );
