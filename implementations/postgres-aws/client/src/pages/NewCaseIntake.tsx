@@ -1,18 +1,21 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router';
-import { Alert, Button, Checkbox, ErrorMessage, Fieldset, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
+import { useNavigate, useSearchParams } from 'react-router';
+import { Checkbox, ErrorMessage, Fieldset, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
 import {
   ApiError,
   createCase,
   getReferenceData,
   isValidationErrorBody,
+  matchInvoiceToCase,
   searchPeople,
   type PersonRecord,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { ReferenceSelect } from '../components/ReferenceSelect';
-import { PageHeading } from '../components/PageHeading';
+import { PageHeader } from '../components/PageHeader';
 import { TypeAheadPicker } from '../components/TypeAheadPicker';
+import { Notice } from '../components/Notice';
+import { INTAKE_PATH } from '../portal/useShell';
 
 function generateRequestId(): string {
   return crypto.randomUUID();
@@ -20,6 +23,10 @@ function generateRequestId(): string {
 
 export default function NewCaseIntake() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const intakeInvoiceId = searchParams.get('intake');
+  // Whom that invoice bills, when it was saved without one.
+  const intakeProfessionalId = searchParams.get('from') ?? undefined;
   const { data: referenceData, error: loadError } = useApiResource(getReferenceData, []);
 
   const [selectedPerson, setSelectedPerson] = useState<PersonRecord | null>(null);
@@ -83,6 +90,20 @@ export default function NewCaseIntake() {
         pendingRequest.current = { payload, requestId: generateRequestId() };
       }
       const result = await createCase({ ...input, requestId: pendingRequest.current.requestId });
+      // Started from Intake: match that invoice to the new case, adding its provider.
+      if (intakeInvoiceId) {
+        try {
+          await matchInvoiceToCase(intakeInvoiceId, {
+            caseId: result.caseId,
+            addMissing: true,
+            professionalId: intakeProfessionalId,
+          });
+          navigate(`${INTAKE_PATH}?matched=${intakeInvoiceId}`);
+          return;
+        } catch {
+          // The case exists; the invoice can still be matched from Intake.
+        }
+      }
       navigate(`/cases/${result.caseId}`);
     } catch (error) {
       if (error instanceof ApiError && error.status === 400 && isValidationErrorBody(error.body)) {
@@ -95,13 +116,29 @@ export default function NewCaseIntake() {
     }
   }
 
-  const heading = <PageHeading eyebrow="New case" title="Start a new case" />;
+  const heading = (
+    <>
+      <PageHeader crumbs={[{ label: 'Cases', to: '/cases' }, { label: 'New case' }]} title="Start a new case" />
+      {intakeInvoiceId && (
+        <Notice tone="info">
+          The invoice from intake is matched to this case when you create it, and its provider is added to the case.
+        </Notice>
+      )}
+      {/* Placeholder: importing cases from another system is planned. */}
+      <div className="import-case">
+        <button type="button" className="btn btn--outline" disabled title="Not available yet">
+          Import a PDF or spreadsheet
+        </button>
+        <span className="cell-note">Bring in a case from another system. Coming soon; enter the case below for now.</span>
+      </div>
+    </>
+  );
 
   if (loadError) {
     return (
       <>
         {heading}
-        <Alert type="error">Failed to load reference data.</Alert>
+        <Notice tone="danger">Failed to load reference data.</Notice>
       </>
     );
   }
@@ -300,12 +337,12 @@ export default function NewCaseIntake() {
       </Fieldset>
       </div>
 
-      {submitError && <Alert type="error">{submitError}</Alert>}
+      {submitError && <Notice tone="danger">{submitError}</Notice>}
 
       <div className="form-actions">
-        <Button type="submit" disabled={submitting}>
+        <button type="submit" className="btn btn--primary" disabled={submitting}>
           {submitting ? 'Creating…' : 'Create case'}
-        </Button>
+        </button>
       </div>
       </Form>
     </>

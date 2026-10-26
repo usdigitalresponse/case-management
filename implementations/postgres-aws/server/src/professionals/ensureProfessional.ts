@@ -6,9 +6,9 @@
 // the first time a staff user is assigned to a case
 // (../routes/cases.ts POST /:id/staff-assignments) — staff otherwise has
 // no reason to need one.
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
-import { person, professional, PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT } from '../db/schema';
+import { person, professional, PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT, userAccount } from '../db/schema';
 import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
 
 // Read-only lookup, used wherever a route needs "the current session's
@@ -37,6 +37,21 @@ export async function ensureProfessionalForUserAccount(
     .where(eq(professional.userAccountId, userAccountId));
   if (existing) {
     return existing.professionalId;
+  }
+
+  // Staff may have added them before they signed in (./addProfessional.ts):
+  // the same email takes over that profile.
+  const [account] = await db.select({ email: userAccount.email }).from(userAccount).where(eq(userAccount.userAccountId, userAccountId));
+  if (account?.email) {
+    const [added] = await db
+      .select({ professionalId: professional.professionalId })
+      .from(professional)
+      .innerJoin(person, eq(professional.personId, person.personId))
+      .where(and(isNull(professional.userAccountId), sql`lower(${person.email}) = ${account.email.toLowerCase()}`));
+    if (added) {
+      await db.update(professional).set({ userAccountId }).where(eq(professional.professionalId, added.professionalId));
+      return added.professionalId;
+    }
   }
 
   try {

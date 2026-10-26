@@ -63,26 +63,39 @@ be associated with offices or professionals remains unresolved.
 
 ## Invoice approvals
 
-Each invoice has an ordered `invoice_approval_chain`. There is no separate step
-entity: each `invoice_approval_decision` carries its own `sequence_number` and
-`step_type_id` directly against the chain, since nothing pre-assigns or routes
-a stage ahead of the decision that resolves it — that pre-assignment concept is
-deferred until a real approval-routing engine exists. Configured policy may
-require invoice-level pre-approval by another user before line review begins.
-This pre-approval is separate from external-service `preauthorization`.
+Each invoice has an ordered `invoice_approval_chain`. Each
+`invoice_approval_decision` carries its own `sequence_number` and
+`step_type_id` against the chain. `invoice_review_assignment` records who is
+expected to act at each step: one line reviewer, and one or more sign-off
+approvers in order. Assignments come from the case's `case_invoice_reviewer`
+or the deployment's `invoice_review_setting` defaults, and staff may change
+them (`assign_invoice_review`); ending and replacing an assignment keeps who
+held the request. Configured policy may require invoice-level pre-approval by
+another user before line review begins. This pre-approval is separate from
+external-service `preauthorization`.
 
 The `invoice_approval_step_types` reference data must distinguish invoice
-pre-approval from line review. `invoice_approval_outcomes` must distinguish
-approval, rejection, and requests for changes. Reference-data identifiers and
-the policies that select pre-approval and reviewers remain to be defined.
+pre-approval, line review and sign-off. `invoice_approval_outcomes` must
+distinguish approval, rejection, and requests for changes.
+`invoice_decision_reasons` lists why a line was approved in part or rejected;
+each entry says which of the two lists it is on, or both, and administrators
+maintain the lists.
+`invoice_receipt_channels` lists how a request that staff entered for a
+professional arrived, such as email or another tool
+(`authorize_staff_invoice_entry`). Reference-data identifiers remain
+configurable.
 
-An `invoice_approval_decision` records the outcome, actual reviewer, timestamp,
-and any reason. Pre-approval decisions cover the invoice and omit a line
-reference. Line-review decisions reference an individual invoice line. Every
-line must be approved at each line-review sequence_number before the next can
-proceed. Missing decisions are pending; rejection or a request for changes
-blocks the chain. Overall approval is derived from completion of all required
-sequence numbers.
+During review the reviewer's line decisions are `invoice_line_working_decision`
+rows they can undo or change freely; these are not history. Finishing the
+round records every line's decision as an immutable `invoice_approval_decision`
+at a new sequence number (`decide_invoice_lines`). A rejected line is decided
+with nothing approved and does not block the request. Sign-off decisions cover
+the whole request; an approver may send it back to the reviewer with an
+`internal_only` comment, which opens another round in the same chain. The
+latest round's amounts are the approved amounts, and earlier rounds remain as
+history. Line decision notes are visible to submitters; internal-only comments
+are not (`limit_review_comment_visibility`). Overall approval is derived from a
+complete latest round and every assigned approver's sign-off.
 
 Only one chain per invoice may be non-superseded. Invoice contents and the
 chain's decisions are frozen during that review attempt. Corrections or renewed
@@ -91,11 +104,11 @@ decisions, and starting a new chain without reusing old approvals. Each chain
 now requires an immutable `submission_snapshot`, as described below.
 Implementations must enforce the history requirement or document the gap.
 
-The initial model uses sequential steps with one assigned user per step.
+The model uses sequential steps with one assigned user per step.
 Parallel review and delegation remain unresolved. External payment execution is
 outside the system boundary.
-Line decisions now record approved amounts separately from requested amounts;
-a later step may reduce but cannot increase an earlier approval in that attempt.
+Line decisions record approved amounts separately from requested amounts. An
+approval in part may also record the corrected hours or rate it was priced at.
 
 ## Identity and participation
 

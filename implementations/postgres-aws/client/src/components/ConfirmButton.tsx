@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Button } from '@trussworks/react-uswds';
 
 // Asks inline before a destructive action, never with a browser dialog.
 export function ConfirmButton({
@@ -22,24 +21,22 @@ export function ConfirmButton({
 
   if (!asking) {
     return (
-      <Button
+      <button
         type="button"
-        secondary={!compact}
-        unstyled={compact}
-        className={compact ? 'confirm-compact' : undefined}
+        className={compact ? 'link-button link-button--danger' : 'btn btn--danger'}
         disabled={disabled}
         onClick={() => setAsking(true)}
       >
         {label}
-      </Button>
+      </button>
     );
   }
   return (
     <span className="confirm-inline" role="group" aria-label={prompt}>
       <span className="confirm-inline__prompt">{prompt}</span>
-      <Button
+      <button
         type="button"
-        secondary
+        className="btn btn--danger"
         disabled={disabled}
         ref={(element: HTMLButtonElement | null) => element?.focus()}
         onClick={() => {
@@ -48,10 +45,10 @@ export function ConfirmButton({
         }}
       >
         {confirmLabel}
-      </Button>
-      <Button type="button" unstyled onClick={() => setAsking(false)}>
+      </button>
+      <button type="button" className="link-button" onClick={() => setAsking(false)}>
         Cancel
-      </Button>
+      </button>
     </span>
   );
 }

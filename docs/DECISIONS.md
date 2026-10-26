@@ -7,6 +7,96 @@ entry when a decision materially changes.
 
 ## Current Decisions
 
+### Invoice review beside an external case management system
+
+- **Status:** Active; being built in the Postgres/AWS prototype
+- **Decided:** 2026-10-25
+
+The Postgres/AWS staff app becomes a tool for reviewing invoices, designed to
+sit beside an external case management system. Cases may be managed there, so
+case pages here are mostly read-only. **Add case**, and adding people to a
+case, stay because invoice access depends on case assignment. Other case
+features (overview board, directories, closing a case, lifecycle history)
+are hidden, not removed. Links to the external system are inert placeholders.
+The external submitter portal keeps its sign-in and is restyled to match.
+
+**Line review**
+- Reviewers approve a line, approve part of it (correcting hours or rate, or
+  the amount when it has no hours), or reject it.
+- Approving part of a line or rejecting it needs a reason from a configurable
+  list: rate above the configured rate, work not billable, more time than the
+  task needs, duplicate entry, block billing, or other with a note.
+- Notes are visible to everyone who can see the invoice. Staff keep unofficial
+  notes outside the system.
+- Decisions can be undone or changed freely until the reviewer finishes the
+  review. Only finished rounds are recorded. Exports show only each line's
+  latest decision (decided 2026-10-26; may be revisited).
+- A rejected line no longer rejects the invoice.
+
+**Pricing**
+- A time line is requested at the rate the submitter stated.
+- A rate above the pre-authorized rate is flagged (decided 2026-10-26); with no
+  pre-authorized rate, the configured rate is the limit. A re-price action
+  approves those lines in part at the limit.
+
+**Reasons** (decided 2026-10-26)
+- Approving part of a line and rejecting it have separate reason lists, which
+  administrators maintain in Settings.
+
+**Sign-off and routing**
+- Sign-off by a director happens in the tool, for the whole invoice. The
+  director may send it back to the reviewer with an internal-only comment
+  instead.
+- Reviewers may change the sign-off approvers for one invoice when they
+  differ from the default.
+- New invoices go to the case's reviewer, else a default reviewer set in
+  Settings, else stay unassigned. Any reviewer may reassign an invoice.
+- Everyone sees every queue, but their own work is shown first.
+- Waiting time counts working days and excludes weekends. A holiday calendar
+  is planned.
+- The working-day threshold for calling out late invoices is a setting.
+- Roles: billing reviewer, sign-off approver, general staff (duties to be
+  defined) and administrator.
+
+**Exports**
+- After sign-off, staff export the documentation for payment.
+- Checking it for confidential information happens outside the system.
+- A billing record with one row per submitted request downloads as CSV or a
+  spreadsheet for reports outside the tool (decided 2026-10-26). Any later
+  route to an external case system reads from the same record.
+
+**Staff entry of invoices received elsewhere** (decided 2026-10-26)
+- Any staff role may enter an invoice a professional sent by email or from
+  another tool, for any professional assigned to the case, by typing it or
+  importing the file, as submitters do.
+- Staff record how it was received and the date; waiting time counts from
+  that date.
+- The professional sees it read-only. The staff member who entered it may
+  review it, but sign-off is still by someone else.
+
+**Invoice intake** (decided 2026-10-26)
+- Staff enter invoices, finish drafts and match invoices to cases on one
+  Intake page.
+- Staff may save an invoice before its case is known. It waits under
+  "Waiting for a case" until any staff member matches it to a case by hand,
+  or adds the case and matches it in one step. Matching can add the provider
+  to the case.
+- The person who entered it may instead send it to review without a case.
+  It is reviewed and exported as usual, with warnings that this system did
+  not check its case, the provider's assignment or any pre-authorization.
+- Staff may add a provider who has never signed in (name, kind, optional
+  email) from intake. They are not approved separately; the staff member
+  adding them is trusted. Duplicate emails are refused. Signing in later
+  with that email uses the same profile.
+
+**Later step**
+- Submitters replying to line decisions.
+- Importing a case from a PDF or spreadsheet from another system (a disabled
+  placeholder on the new case page).
+
+See `scenarios/invoice-review.md` and model 0.5.0 in
+[the model review](model-review.md).
+
 ### Supporting invoice import and export
 
 - **Status:** Active
@@ -217,6 +307,10 @@ allowed: they can't be priced, checked against assignments or kept as one
 identity. If the person later signs in with that email, they use the same
 profile. Needs model changes (a pending professional or affiliation awaiting
 approval, and who may approve) before it is built.
+
+Staff may now add a provider with no login directly from invoice intake
+(`add_professional_without_login`); that needs no approval because staff add
+them. Delegates adding colleagues, and the approval step, are still planned.
 
 
 ## Deferred Decisions

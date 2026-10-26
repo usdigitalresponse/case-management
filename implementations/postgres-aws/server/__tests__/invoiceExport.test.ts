@@ -10,6 +10,7 @@ import { canPortalReaderReadInvoice, isExportableStatus, portalReadableInvoiceCo
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { invoiceExportContent, renderInvoicePdf, renderInvoiceXlsx } from '../src/billing/exportInvoice';
 import { addMileageRate } from '../src/billing/mileageRates';
+import { billingRecordCsv, loadBillingRecord } from '../src/billing/billingRecord';
 import { caseAssignment, invoice, invoiceLine, invoiceStatuses, userAccount } from '../src/db/schema';
 import { getReferenceId } from '../src/db/referenceLookups';
 import { DRAFT_INVOICE_STATUS_CODE } from '../src/billing/invoiceStatusCodes';
@@ -141,6 +142,24 @@ describe('invoice export', () => {
       '2026-02-03', 'Other', 'Synthetic research', '', 'SAMPLE-TASK', 1.5, 100, 150, 'Not reviewed', null, '',
     ]);
     expect(external.summary).toContainEqual(['Submitted by', 'exporter@example.com']);
+    // The case number leads; each line carries its latest decision only.
+    expect(external.summary.map(([label]) => label)).toEqual(expect.arrayContaining(['Case number', 'Court numbers', 'Client']));
+    expect(external.columns).not.toContain('Earlier decisions');
+  });
+
+  it('lists every submitted invoice once in the billing record', async () => {
+    const detail = await exportFixture();
+    const rows = await loadBillingRecord(testDb);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      'Invoice number': detail.invoice.invoiceId.slice(0, 8),
+      'Amount requested': 175,
+      'Amount approved': null,
+      Status: 'Waiting for review',
+    });
+    const csv = billingRecordCsv(rows).trimEnd().split('\r\n');
+    expect(csv[0]?.startsWith('Case number,Court numbers,Invoice number')).toBe(true);
+    expect(csv).toHaveLength(2);
   });
 
   it('adds a travel log for mileage, in both formats', async () => {

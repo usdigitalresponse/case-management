@@ -5,14 +5,61 @@
 // link by email instead. See ../../MAPPING.md "Multi-IdP SSO" and
 // "Magic-link sign-in for external users".
 import { useState, type FormEvent } from 'react';
-import { Alert, Button, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
-import { listAuthProviders, requestMagicLink } from '../api/client';
+import { Form, Label, TextInput } from '@trussworks/react-uswds';
+import { apiErrorMessage, listAuthProviders, listDemoAccounts, requestMagicLink, type DemoAccount } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { useAuth } from '../AuthContext';
+import { Notice } from '../components/Notice';
+
+// Demos only: sign in as any seeded synthetic account, to try each view.
+function DemoSignIn({
+  id,
+  accounts,
+  onSignIn,
+}: {
+  id: string;
+  accounts: DemoAccount[];
+  onSignIn: (userAccountId: string) => Promise<void>;
+}) {
+  const [userAccountId, setUserAccountId] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const chosen = userAccountId || accounts[0]?.userAccountId || '';
+  if (accounts.length === 0) {
+    return null;
+  }
+  return (
+    <form
+      className="login-demo"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setError(null);
+        onSignIn(chosen).catch((err: unknown) => setError(apiErrorMessage(err, 'That demo account could not sign in.')));
+      }}
+    >
+      <label htmlFor={id}>For demos, sign in as</label>
+      <div className="login-demo__row">
+        <select id={id} className="usa-select" value={chosen} onChange={(event) => setUserAccountId(event.target.value)}>
+          {accounts.map((account) => (
+            <option key={account.userAccountId} value={account.userAccountId}>
+              {account.description ? `${account.displayName} (${account.description})` : account.displayName}
+            </option>
+          ))}
+        </select>
+        <button type="submit" className="btn btn--outline">Sign in</button>
+      </div>
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </form>
+  );
+}
 
 export default function LoginPage() {
   const { data } = useApiResource(listAuthProviders, []);
   const providers = data?.providers;
+  const demoEnabled = Boolean(data?.demoLoginEnabled || data?.externalDemoLoginEnabled);
+  const { data: demoAccounts } = useApiResource(
+    () => (demoEnabled ? listDemoAccounts() : Promise.resolve({ staff: [], partners: [] })),
+    [demoEnabled],
+  );
   const { demoLogin, externalDemoLogin } = useAuth();
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -34,54 +81,53 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      <section className="login-panel">
-        <h1>Sign in</h1>
-        <p>Staff sign in with their organization's account.</p>
-        {providers?.length === 0 && <p>No sign-in provider is configured yet.</p>}
-        {providers?.map((provider) => (
-          <a key={provider.id} className="usa-button" href={`/auth/${provider.id}`}>
-            Sign in with {provider.displayName}
-          </a>
-        ))}
-        {data?.demoLoginEnabled && (
-          <Button type="button" outline onClick={() => void demoLogin()}>
-            Demo sign-in
-          </Button>
-        )}
-      </section>
+      <header className="login-intro">
+        <h1>Invoice Review Prototype</h1>
+      </header>
+      <div className="login-panels">
+        <section className="login-panel" aria-labelledby="login-staff">
+          <h2 id="login-staff">Staff</h2>
+          <p>Use your organization's account.</p>
+          {providers?.length === 0 && <p>No sign-in provider is configured yet.</p>}
+          {providers?.map((provider) => (
+            <a key={provider.id} className="btn btn--primary" href={`/auth/${provider.id}`}>
+              Sign in with {provider.displayName}
+            </a>
+          ))}
+          {data?.demoLoginEnabled && <DemoSignIn id="demo-staff" accounts={demoAccounts?.staff ?? []} onSignIn={demoLogin} />}
+        </section>
 
-      <section className="login-panel">
-        <h2>External partners</h2>
-        <p>Enter your email for a one-time sign-in link.</p>
-        {requested ? (
-          <Alert type="success">
-            <strong>Check your email.</strong> If that address is recognized, a sign-in link is on its way. The
-            link expires in 15 minutes.
-          </Alert>
-        ) : (
-          <Form onSubmit={(event) => void handleSubmit(event)}>
-            <FormGroup>
-              <Label htmlFor="magic-link-email">Email address</Label>
-              <TextInput
-                id="magic-link-email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </FormGroup>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Sending…' : 'Send me a sign-in link'}
-            </Button>
-          </Form>
-        )}
-        {data?.externalDemoLoginEnabled && (
-          <Button type="button" outline onClick={() => void externalDemoLogin()}>
-            Demo partner sign-in
-          </Button>
-        )}
-      </section>
+        <section className="login-panel" aria-labelledby="login-partners">
+          <h2 id="login-partners">External Partners</h2>
+          <p>We'll email you a one-time sign-in link.</p>
+          {requested ? (
+            <Notice tone="success" heading="Check your email.">
+              If that address is recognized, a sign-in link is on its way. The link expires in 15 minutes.
+            </Notice>
+          ) : (
+            <Form className="login-form" onSubmit={(event) => void handleSubmit(event)}>
+              <div>
+                <Label htmlFor="magic-link-email">Email address</Label>
+                <TextInput
+                  id="magic-link-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
+              <button type="submit" className="btn btn--primary" disabled={submitting}>
+                {submitting ? 'Sending…' : 'Email me a sign-in link'}
+              </button>
+            </Form>
+          )}
+          {data?.externalDemoLoginEnabled && (
+            <DemoSignIn id="demo-partner" accounts={demoAccounts?.partners ?? []} onSignIn={externalDemoLogin} />
+          )}
+        </section>
+      </div>
     </div>
   );
 }

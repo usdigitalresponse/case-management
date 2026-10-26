@@ -7,6 +7,9 @@ import type { InvoiceDetail, InvoiceDetailLine } from './invoiceDetail';
 
 export type InvoiceExportFormat = 'pdf' | 'xlsx';
 
+export const NO_CASE_WARNING =
+  'Not linked to a case. This system did not check the case, the provider’s assignment or any pre-authorization.';
+
 export const INVOICE_EXPORT_MEDIA_TYPES: Record<InvoiceExportFormat, string> = {
   pdf: 'application/pdf',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -31,10 +34,6 @@ function toNumber(value: string | null): number | null {
   return value === null ? null : Number(value);
 }
 
-function toCents(value: string | null): number {
-  return value === null ? 0 : Math.round(Number(value) * 100);
-}
-
 function formatInstant(value: Date | null): string {
   return value ? value.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC') : '';
 }
@@ -48,14 +47,14 @@ const LINE_TYPE_LABELS: Record<string, string> = { time: 'Time', expense: 'Expen
 
 export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExportOptions): InvoiceExportContent {
   const { invoice, lines } = detail;
-  const approvedCents = lines.reduce((sum, line) => sum + toCents(line.decisionApprovedAmount), 0);
   const period =
     invoice.periodStart || invoice.periodEnd ? `${invoice.periodStart ?? ''} to ${invoice.periodEnd ?? ''}` : '';
-  const caseLabel = [invoice.caseExternalReference, invoice.caseClientDisplayName].filter(Boolean).join(' / ');
-
   const summary: Array<[string, string]> = [
     ['Invoice', invoice.invoiceId],
-    ['Case', caseLabel || invoice.caseId],
+    // Reviewed without a case: say so, as the warning on screen does.
+    ['Case number', detail.caseNumber ?? invoice.caseExternalReference ?? invoice.caseId ?? NO_CASE_WARNING],
+    ['Court numbers', detail.otherCaseNumbers.join(', ')],
+    ['Client', invoice.caseClientDisplayName ?? ''],
     ['Professional', invoice.professionalDisplayName ?? ''],
     ['Submitted by', invoice.submittedByDisplayName ?? ''],
     ['Status', invoice.statusDisplayName ?? ''],
@@ -64,10 +63,16 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
     ['Billing period', period],
     ['Currency', invoice.currencyCode],
     ['Requested total', invoice.submittedTotal],
-    ['Approved total', (approvedCents / 100).toFixed(2)],
+    ['Approved total', detail.approvedTotal ?? '0.00'],
+    // Sign-off comments are internal and never exported.
+    ...detail.signOffs
+      .filter((signOff) => signOff.outcomeCode === 'approved')
+      .map((signOff): [string, string] => ['Signed off', `${signOff.displayName ?? ''} ${formatInstant(signOff.decidedAt)}`.trim()]),
     ['Exported', formatInstant(options.exportedAt)],
   ];
 
+  // Each line's latest decision only; earlier rounds stay in the tool
+  // (model/rules.yaml authorize_payment_request_export).
   const columns = ['Date', 'Type', 'Description', 'Timekeeper', 'Codes', 'Hours / qty', 'Rate', 'Requested', 'Decision', 'Approved', 'Reason'];
   if (options.includeReviewer) {
     columns.push('Reviewed by');
@@ -81,7 +86,7 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
       line.timekeeperDisplayName ?? line.timekeeperLabel ?? '',
       lineCodes(line),
       toNumber(line.quantity ?? line.sourceDurationHours),
-      // The configured rate billed; a non-time line's stated rate otherwise.
+      // The rate billed; a non-time line's stated rate otherwise.
       toNumber(line.billedRate ?? line.unitRate),
       toNumber(line.amount),
       line.decisionOutcomeDisplayName ?? 'Not reviewed',

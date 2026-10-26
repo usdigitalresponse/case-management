@@ -13,10 +13,11 @@
 // so a plain join would list staff as "vendors" too — excluded below by
 // the same staff-account system roles ../routes/staff.ts filters on.
 import { Router } from 'express';
-import { and, eq, ilike, isNull, notInArray, or } from 'drizzle-orm';
+import { and, eq, ilike, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
-import { professional, professionalKinds, userAccount } from '../db/schema';
-import { requireFullUser } from '../auth/session';
+import { person, professional, professionalKinds, userAccount } from '../db/schema';
+import { getSessionUser, requireFullUser } from '../auth/session';
+import { addProfessional } from '../professionals/addProfessional';
 import { requireAdmin } from '../auth/requireAdmin';
 import { listRates, setProfessionalKind } from '../billing/professionalRates';
 import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
@@ -35,19 +36,23 @@ router.get(
     // must be allowed through explicitly.
     const filters = [or(isNull(userAccount.systemRoleId), notInArray(userAccount.systemRoleId, staffAccountRoleIds))!];
     if (q) {
-      filters.push(or(ilike(userAccount.email, `%${q}%`), ilike(professional.displayName, `%${q}%`))!);
+      filters.push(or(ilike(userAccount.email, `%${q}%`), ilike(person.email, `%${q}%`), ilike(professional.displayName, `%${q}%`))!);
     }
+    // Providers staff added who haven't signed in have no account; their
+    // email is on their person record.
     const matches = await db
       .select({
         professionalId: professional.professionalId,
         displayName: professional.displayName,
         active: professional.active,
-        email: userAccount.email,
+        email: sql<string | null>`coalesce(${userAccount.email}, ${person.email})`,
+        signedIn: sql<boolean>`${professional.userAccountId} is not null`,
         professionalKindId: professional.professionalKindId,
         professionalKindDisplayName: professionalKinds.displayName,
       })
       .from(professional)
-      .innerJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
+      .innerJoin(person, eq(professional.personId, person.personId))
+      .leftJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
       .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
       .where(and(...filters))
       .limit(50);
@@ -63,6 +68,14 @@ router.get(
           .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
       })),
     });
+  }),
+);
+
+// Any staff member adds a provider who hasn't signed in, from invoice intake.
+router.post(
+  '/',
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await addProfessional(db, getSessionUser(req)!.userAccountId, req.body));
   }),
 );
 

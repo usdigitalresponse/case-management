@@ -16,7 +16,7 @@ export const overviewStages: { id: CaseStage; label: string; description: string
     description: 'Follow active case work and upcoming activity.',
     route: '/cases?stage=represented',
   },
-  { id: 'billing', label: 'Billing', description: 'Track payment requests and their review.', route: '/billing' },
+  { id: 'billing', label: 'Billing', description: 'Track payment requests and their review.', route: '/?show=everyone' },
   {
     id: 'closing',
     label: 'Closing',

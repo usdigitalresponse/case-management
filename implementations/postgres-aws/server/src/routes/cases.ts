@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { and, asc, desc, eq, notInArray, type SQL } from 'drizzle-orm';
-import { UNSUBMITTED_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
+import { z } from 'zod';
+import { and, asc, eq, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db } from '../db/client';
 import {
@@ -11,11 +11,13 @@ import {
   caseAssignment,
   professional,
   person,
-  invoice,
-  invoiceStatuses,
   caseStatuses,
   role,
 } from '../db/schema';
+import { listReviewQueue } from '../billing/reviewQueue';
+import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
+import { loadCaseReviewer, setCaseReviewer } from '../billing/reviewAssignment';
+import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { createCase } from '../intake/createCase';
 import { caseStageExpression } from '../cases/caseStage';
 import { getSessionUser, requireFullUser } from '../auth/session';
@@ -211,30 +213,40 @@ router.post(
   }),
 );
 
-// Viewing only, scoped to one case — the review action itself
-// (approve/reject) lives on the cross-case queue, ../routes/invoices.ts,
-// since reviewing isn't done case-by-case. Staff see submitted invoices only.
+// The case's submitted invoices, with who has each and what was approved,
+// and its pre-authorizations and invoice reviewer. Review itself happens on
+// the invoice page (../routes/invoices.ts).
 router.get(
   '/:id/invoices',
   asyncHandler(async (req, res) => {
     const caseId = req.params.id as string;
-    const rows = await db
-      .select({
-        invoiceId: invoice.invoiceId,
-        caseId: invoice.caseId,
-        statusId: invoice.statusId,
-        statusCode: invoiceStatuses.code,
-        statusDisplayName: invoiceStatuses.displayName,
-        submittedAt: invoice.submittedAt,
-        submittedTotal: invoice.submittedTotal,
-        periodStart: invoice.periodStart,
-        periodEnd: invoice.periodEnd,
-      })
-      .from(invoice)
-      .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
-      .where(and(eq(invoice.caseId, caseId), notInArray(invoiceStatuses.code, UNSUBMITTED_INVOICE_STATUS_CODES)))
-      .orderBy(desc(invoice.submittedAt));
-    res.json({ invoices: rows });
+    if (!z.uuid().safeParse(caseId).success) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
+    const [{ invoices: rows }, preauthorizations, reviewer, numbers] = await Promise.all([
+      listReviewQueue(db, 'all', { caseId }),
+      loadPreauthorizationSummaries(db, caseId),
+      loadCaseReviewer(db, caseId),
+      loadCaseNumbers(db, [caseId]),
+    ]);
+    rows.sort((a, b) => Number(b.submittedAt) - Number(a.submittedAt));
+    res.json({
+      invoices: rows,
+      preauthorizations,
+      reviewer,
+      caseNumber: numbers.get(caseId)?.caseNumber ?? null,
+      otherCaseNumbers: numbers.get(caseId)?.otherNumbers ?? [],
+    });
+  }),
+);
+
+// Where this case's new invoices go, ahead of the default in Settings.
+router.put(
+  '/:id/invoice-reviewer',
+  asyncHandler(async (req, res) => {
+    const actor = getSessionUser(req)!;
+    res.json(await setCaseReviewer(db, actor.userAccountId, req.params.id as string, req.body));
   }),
 );
 

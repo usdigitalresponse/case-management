@@ -1,9 +1,11 @@
 import { Link as RouterLink } from 'react-router';
 import { listMyCases, type MyCaseProfessional, type MyCaseRecord, type MyCasesResult } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
-import { PageHeading } from '../components/PageHeading';
-import { ResourceList } from '../components/ResourceList';
-import { caseDisplayLabel } from '../caseDisplayLabel';
+import { RecordTable } from '../components/RecordTable';
+import { formatDate } from '../formatDateTime';
+import { Notice } from '../components/Notice';
+import { PageHeader } from '../components/PageHeader';
+import { NEW_INVOICE_PATH } from './useShell';
 
 interface CaseSection {
   professional: MyCaseProfessional;
@@ -18,36 +20,48 @@ function caseSections({ professionals, cases }: MyCasesResult): CaseSection[] {
   }));
 }
 
-function CaseCards({ professionalId, cases }: { professionalId: string; cases: MyCaseRecord[] }) {
+function CaseTable({ professionalId, cases, label }: { professionalId: string; cases: MyCaseRecord[]; label: string }) {
+  // Widths are shared by every section's table, so their columns line up.
   return (
-    <ul className="portal-case-cards">
-      {cases.map((caseRecord) => {
-        const unsubmittedTime = caseRecord.unsubmittedTimeProfessionalIds.includes(professionalId);
-        const unsubmittedInvoice = caseRecord.unsubmittedInvoiceProfessionalIds.includes(professionalId);
-        return (
-          <li key={caseRecord.caseId}>
-            <RouterLink className="row-card" to={`/portal/cases/${caseRecord.caseId}`}>
-              <span className="row-card-title">
-                {caseDisplayLabel(
-                  [caseRecord.externalReference, caseRecord.clientDisplayName],
-                  { label: 'Case assigned', date: caseRecord.assignedAt },
-                )}
-              </span>
-              <span className="row-card-meta">
-                <span className="status-pill">{caseRecord.statusDisplayName}</span>
-                <span>Assigned {caseRecord.assignedAt.slice(0, 10)}</span>
-              </span>
-              {(unsubmittedTime || unsubmittedInvoice) && (
-                <span className="row-card-meta">
-                  {unsubmittedTime && <span className="status-pill status-pill--pending">Unsubmitted time</span>}
-                  {unsubmittedInvoice && <span className="status-pill status-pill--pending">Unsubmitted invoice</span>}
-                </span>
-              )}
+    <RecordTable
+      label={label}
+      className="queue-table"
+      rows={cases}
+      rowKey={(caseRecord) => caseRecord.caseId}
+      columns={[
+        { header: 'Client', width: '24%', rowHeader: true, render: (c) => c.clientDisplayName ?? 'Unknown client' },
+        { header: 'Case', width: '15%', render: (c) => c.caseNumber ?? '—' },
+        { header: 'Status', width: '10%', render: (c) => <span className="chip chip--neutral">{c.statusDisplayName}</span> },
+        { header: 'Assigned', width: '14%', render: (c) => formatDate(c.assignedAt.slice(0, 10)) },
+        {
+          header: 'Still to bill',
+          width: '27%',
+          render: (c) => {
+            const time = c.unsubmittedTimeProfessionalIds.includes(professionalId);
+            const draft = c.unsubmittedInvoiceProfessionalIds.includes(professionalId);
+            return (
+              <>
+                {time && <span className="chip chip--warning">Time not on an invoice</span>}{' '}
+                {draft && <span className="chip chip--warning">Draft invoice</span>}
+                {!time && !draft && <span className="muted">Nothing</span>}
+              </>
+            );
+          },
+        },
+        {
+          header: 'Open',
+          width: '10%',
+          align: 'right',
+          hiddenHeader: true,
+          render: (c) => (
+            <RouterLink className="row-action" to={`/portal/cases/${c.caseId}`}>
+              Open <span aria-hidden="true">→</span>
+              <span className="usa-sr-only"> case for {c.clientDisplayName ?? 'this client'}</span>
             </RouterLink>
-          </li>
-        );
-      })}
-    </ul>
+          ),
+        },
+      ]}
+    />
   );
 }
 
@@ -56,37 +70,34 @@ export default function PortalCaseList() {
   const isDelegate = data?.some((section) => !section.professional.isSelf) ?? false;
 
   return (
-    <ResourceList
-      heading={
-        <div className="case-heading-row portal-cases-heading">
-          <PageHeading
-            eyebrow="Your cases"
-            title={isDelegate ? 'Cases' : 'Cases assigned to you'}
-          />
-          <RouterLink className="usa-button usa-button--outline" to="/portal/imports">
-            Import invoices
-          </RouterLink>
-        </div>
-      }
-      error={error}
-      data={data}
-      errorMessage="Failed to load your cases."
-      emptyMessage="You aren't assigned to any cases yet."
-    >
-      {(sections) =>
-        isDelegate ? (
-          sections.map(({ professional, cases }) => (
-            <section key={professional.professionalId} className="portal-case-section">
-              <h2>{professional.isSelf ? 'Assigned to you' : `Assigned to ${professional.displayName ?? 'an unnamed professional'}`}</h2>
-              {cases.length > 0 ? <CaseCards professionalId={professional.professionalId} cases={cases} /> : <p>No open cases.</p>}
-            </section>
-          ))
-        ) : sections[0] && sections[0].cases.length > 0 ? (
-          <CaseCards professionalId={sections[0].professional.professionalId} cases={sections[0].cases} />
+    <div>
+      <PageHeader
+        title="Your cases"
+        description={`${isDelegate ? 'Cases for you and the people you bill for.' : 'Cases assigned to you.'} Record time and see each case's invoices from its page.`}
+        actions={<RouterLink className="btn btn--primary" to={NEW_INVOICE_PATH}>New invoice</RouterLink>}
+      />
+      {Boolean(error) && <Notice tone="danger">Failed to load your cases.</Notice>}
+      {!data && !error && <p role="status">Loading your cases…</p>}
+      {data &&
+        (isDelegate ? (
+          data.map(({ professional, cases }) => {
+            const heading = professional.isSelf ? 'Assigned to you' : `Assigned to ${professional.displayName ?? 'an unnamed professional'}`;
+            return (
+              <section key={professional.professionalId} className="detail-section">
+                <h2>{heading}</h2>
+                {cases.length > 0 ? (
+                  <CaseTable professionalId={professional.professionalId} cases={cases} label={heading} />
+                ) : (
+                  <p className="empty-note">No open cases.</p>
+                )}
+              </section>
+            );
+          })
+        ) : data[0] && data[0].cases.length > 0 ? (
+          <CaseTable professionalId={data[0].professional.professionalId} cases={data[0].cases} label="Your cases" />
         ) : (
-          <p>You aren't assigned to any cases yet.</p>
-        )
-      }
-    </ResourceList>
+          <p className="empty-note">You aren't assigned to any cases yet.</p>
+        ))}
+    </div>
   );
 }

@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Alert } from '@trussworks/react-uswds';
 import { getReferenceData, type NamedOption } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
 import { RecordTable } from '../components/RecordTable';
+import { Notice } from '../components/Notice';
 
 // Organizations are already loaded whole for the New Case form's
 // reference data (../api/client.ts's getReferenceData) — a small enough
@@ -14,7 +14,7 @@ export default function OrganizationsDirectory() {
   const { data, error } = useApiResource(getReferenceData, []);
   const [query, setQuery] = useState('');
 
-  if (error) return <Alert type="error">Failed to load organizations.</Alert>;
+  if (error) return <Notice tone="danger">Failed to load organizations.</Notice>;
   if (!data) return <p role="status">Loading organizations…</p>;
 
   const filtered = data.organizations.filter((org: NamedOption) =>

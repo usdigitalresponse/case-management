@@ -4,7 +4,28 @@ import { faker } from '@faker-js/faker';
 import { db, pool } from './client';
 import { resetAndSeedBaselineFixtures } from './fixtures';
 import { eq, inArray } from 'drizzle-orm';
-import { person, personAffiliation, professional, userAccount, caseCategories, caseAssignment, routeCheck } from './schema';
+import {
+  person,
+  personAffiliation,
+  professional,
+  userAccount,
+  caseCategories,
+  caseAssignment,
+  caseIdentifier,
+  invoice,
+  invoiceLine,
+  invoiceStatuses,
+  preauthorization,
+  preauthorizationDecision,
+  preauthorizationOutcomes,
+  preauthorizationStatuses,
+  routeCheck,
+} from './schema';
+import { getReferenceId } from './referenceLookups';
+import { reassignReviewer } from '../billing/reviewAssignment';
+import { reviewInvoiceLine } from '../billing/reviewInvoiceLine';
+import { finishReview, signOffInvoice } from '../billing/reviewRounds';
+import { setReviewSettings } from '../billing/reviewSettings';
 import { getDelegateAffiliationRoleId } from '../professionals/delegateRole';
 import { createCase } from '../intake/createCase';
 import { createTimeEntry } from '../portal/createTimeEntry';
@@ -13,11 +34,11 @@ import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase } from '../cases/closeCase';
-import { addKindRate, createKind, setProfessionalKind } from '../billing/professionalRates';
+import { addKindRate, createKind, listRates, setProfessionalKind } from '../billing/professionalRates';
 import { addMileageRate } from '../billing/mileageRates';
 import { addBillingCode, setBillingRule } from '../billing/billingRules';
 import { pairKey } from '../billing/routeCheck';
-import { getAdminAccountRoleId } from '../auth/staffAccountRole';
+import { getAdminAccountRoleId, getBillingReviewerRoleId, getSignOffApproverRoleId } from '../auth/staffAccountRole';
 import { firstRow } from './rowHelpers';
 
 // Dev/demo data only — deliberately not part of resetAndSeedBaselineFixtures,
@@ -25,7 +46,8 @@ import { firstRow } from './rowHelpers';
 // assert zero pre-existing cases).
 const DEMO_CASE_COUNT = 10;
 const DEMO_PROFESSIONAL_COUNT = 4;
-const DEMO_STAFF_COUNT = 2;
+// Two become billing reviewers and one a sign-off approver (seedDemoReviewers).
+const DEMO_STAFF_COUNT = 3;
 // How many demo cases get an external-submitter assignment; the rest stay unassigned.
 const ASSIGNED_CASE_COUNT = 6;
 
@@ -367,6 +389,158 @@ async function seedStaffAssignment(
   await assignStaffToCase(db, fixtures.staffUserAccountId, caseId, { userAccountId: staffUserAccountId });
 }
 
+// Two reviewers, an approver and a sign-off default. Before any invoice is
+// submitted, so each is routed to the sign-off default.
+async function seedDemoReviewers(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+  staffUserAccountIds: string[],
+): Promise<void> {
+  const [firstReviewer, secondReviewer, approver] = staffUserAccountIds;
+  if (!firstReviewer || !secondReviewer || !approver) {
+    throw new Error('Expected three demo staff accounts.');
+  }
+  await giveRole(firstReviewer, await getBillingReviewerRoleId(db));
+  await giveRole(secondReviewer, await getBillingReviewerRoleId(db));
+  await giveRole(approver, await getSignOffApproverRoleId(db));
+  // No default reviewer, so new invoices wait to be taken.
+  await setReviewSettings(db, fixtures.staffUserAccountId, { defaultSignOffUserAccountIds: [approver] });
+}
+
+// Review demo data: case and court numbers, pre-authorizations, an invoice
+// billed above the configured rate, and invoices at each review state, one
+// waiting long enough to be called out. Every value is synthetic.
+async function seedDemoReview(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+  caseIds: string[],
+  assignments: DemoAssignment[],
+  staffUserAccountIds: string[],
+): Promise<void> {
+  const [firstReviewer, secondReviewer, approver] = staffUserAccountIds as [string, string, string];
+
+  for (const [index, caseId] of caseIds.entries()) {
+    const number = String(index + 101).padStart(5, '0');
+    // eslint-disable-next-line no-await-in-loop
+    await db.insert(caseIdentifier).values([
+      { caseId, identifierTypeId: fixtures.identifierTypeSampleId, issuer: 'Demo office', value: `DEMO-26-${number}`, isPrimary: true },
+      { caseId, identifierTypeId: fixtures.identifierTypeSampleId, issuer: 'Demo court', value: `COURT-${number}` },
+    ]);
+  }
+
+  const [approvedStatusId, approvedOutcomeId] = await Promise.all([
+    getReferenceId(db, preauthorizationStatuses, 'approved'),
+    getReferenceId(db, preauthorizationOutcomes, 'approved'),
+  ]);
+  const preauthorized = assignments.slice(0, 4);
+  const rates = await listRates(db, preauthorized.map((assignment) => assignment.professionalId));
+  for (const [index, assignment] of preauthorized.entries()) {
+    // Pre-authorized at their configured rate; the investigator's demo
+    // invoice below states more, for the rate check.
+    const configured = rates.filter((rate) => rate.professionalId === assignment.professionalId).at(-1)?.hourlyRate ?? '125.00';
+    const approvedHourlyRate = index === 2 ? '125.00' : configured;
+    // eslint-disable-next-line no-await-in-loop
+    const { preauthorizationId } = firstRow(
+      await db
+        .insert(preauthorization)
+        .values({
+          caseId: assignment.caseId,
+          professionalId: assignment.professionalId,
+          statusId: approvedStatusId,
+          requestedAmount: '2500.00',
+          requestedAt: new Date('2026-01-05T15:00:00Z'),
+          authorizationNumber: `PA-${assignment.caseId.slice(0, 6).toUpperCase()}`,
+        })
+        .returning(),
+    );
+    // eslint-disable-next-line no-await-in-loop
+    await db.insert(preauthorizationDecision).values({
+      preauthorizationId,
+      sequenceNumber: 1,
+      outcomeId: approvedOutcomeId,
+      approvedAmount: '2500.00',
+      approvedHourlyRate,
+      effectiveAt: new Date('2026-01-06T15:00:00Z'),
+      decidedAt: new Date('2026-01-06T15:00:00Z'),
+      decidedByUserAccountId: fixtures.staffUserAccountId,
+    });
+  }
+
+  // An imported-style invoice stating a rate above the investigator's
+  // configured rate, for the rate check and re-pricing.
+  const investigator = assignments[2];
+  if (!investigator) {
+    throw new Error('Expected a demo investigator assignment.');
+  }
+  await createInvoice(db, { userAccountId: investigator.userAccountId, professionalId: investigator.professionalId }, {
+    caseId: investigator.caseId,
+    periodStart: '2026-02-01',
+    periodEnd: '2026-02-28',
+    lines: [
+      { lineType: 'time', serviceDate: '2026-02-04', quantity: 0.5, unitRate: 175, description: 'Call with the client about the video evidence' },
+      { lineType: 'time', serviceDate: '2026-02-08', quantity: 1.5, unitRate: 175, description: 'Researched the product and emailed the manufacturer' },
+      { lineType: 'time', serviceDate: '2026-02-14', quantity: 1, unitRate: 175, description: 'Software update and file transfer to the client' },
+      { lineType: 'time', serviceDate: '2026-02-14', quantity: 5.5, unitRate: 175, description: 'Script revision, filming and editing of a demonstration' },
+    ],
+  });
+
+  const submitted = await db
+    .select({ invoiceId: invoice.invoiceId })
+    .from(invoice)
+    .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+    .where(eq(invoiceStatuses.code, 'submitted'))
+    .orderBy(invoice.submittedAt);
+  // Calendar days ago, by state; the unassigned one waits long enough to be called out.
+  const daysAgo = [24, 9, 6, 16, 3, 1];
+  for (const [index, row] of submitted.entries()) {
+    // eslint-disable-next-line no-await-in-loop
+    await db
+      .update(invoice)
+      .set({ submittedAt: new Date(Date.now() - (daysAgo[index] ?? 1) * 24 * 60 * 60 * 1000) })
+      .where(eq(invoice.invoiceId, row.invoiceId));
+  }
+
+  const lineIds = async (invoiceId: string) =>
+    (await db.select({ id: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)).orderBy(invoiceLine.serviceDate)).map(
+      (line) => line.id,
+    );
+  const approveAll = async (reviewer: string, invoiceId: string) => {
+    for (const lineId of await lineIds(invoiceId)) {
+      // eslint-disable-next-line no-await-in-loop
+      await reviewInvoiceLine(db, reviewer, invoiceId, lineId, { outcome: 'approved' });
+    }
+  };
+  const [signedOff, awaiting, inProgress, , mileage] = submitted.map((row) => row.invoiceId);
+  // Signed off and ready to export.
+  if (signedOff) {
+    await approveAll(firstReviewer, signedOff);
+    await finishReview(db, firstReviewer, signedOff);
+    await signOffInvoice(db, approver, signedOff, { outcome: 'approved' });
+  }
+  // Finished and waiting for sign-off.
+  if (awaiting) {
+    await approveAll(secondReviewer, awaiting);
+    await finishReview(db, secondReviewer, awaiting);
+  }
+  // Part way through, with one line cut.
+  if (inProgress) {
+    const [first] = await lineIds(inProgress);
+    if (first) {
+      await reviewInvoiceLine(db, firstReviewer, inProgress, first, {
+        outcome: 'rejected',
+        reasonCode: 'duplicate',
+        note: 'Same call as the entry the day before.',
+      });
+    }
+  }
+  // Given to a reviewer but not started.
+  if (mileage) {
+    await reassignReviewer(db, firstReviewer, mileage, { userAccountId: firstReviewer });
+  }
+}
+
+async function giveRole(userAccountId: string, systemRoleId: string): Promise<void> {
+  await db.update(userAccount).set({ systemRoleId }).where(eq(userAccount.userAccountId, userAccountId));
+}
+
 async function main(): Promise<void> {
   const fixtures = await resetAndSeedBaselineFixtures(db);
   const caseIds = await seedDemoCases(fixtures);
@@ -375,11 +549,13 @@ async function main(): Promise<void> {
   await seedDemoRates(fixtures, professionals);
   await seedDemoBillingCodes();
   const staffUserAccountIds = await seedDemoStaff(fixtures);
+  await seedDemoReviewers(fixtures, staffUserAccountIds);
   const assignments = await seedDemoAssignments(fixtures, caseIds, professionals);
   await seedDemoTimeEntriesAndInvoices(fixtures, assignments);
   await seedDemoMileage(fixtures, assignments);
   await seedClosedCase(fixtures, caseIds);
   await seedStaffAssignment(fixtures, caseIds, staffUserAccountIds);
+  await seedDemoReview(fixtures, caseIds, assignments, staffUserAccountIds);
   // eslint-disable-next-line no-console
   console.log(
     `Seed complete (${DEMO_CASE_COUNT} demo cases, ${assignments.length} external assignments with time/invoices, ` +

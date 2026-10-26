@@ -14,6 +14,10 @@ import {
   withdrawInvoice,
 } from '../src/billing/invoiceLifecycle';
 import { reviewInvoiceLine, InvoiceNotFoundError } from '../src/billing/reviewInvoiceLine';
+import { finishReview, signOffInvoice } from '../src/billing/reviewRounds';
+import { loadAssignments } from '../src/billing/reviewAssignment';
+import { setReviewSettings } from '../src/billing/reviewSettings';
+import { createStaff, giveRole } from './reviewHelpers';
 import {
   caseAssignment,
   invoice,
@@ -92,7 +96,7 @@ describe('invoice lifecycle', () => {
     expect(await statusCode(invoiceId)).toBe('submitted');
     const [chain] = await testDb.select().from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
     const snapshot = chain?.submissionSnapshot as { spec_version: string; records: { invoice_line: unknown[] } };
-    expect(snapshot.spec_version).toBe('0.4.0');
+    expect(snapshot.spec_version).toBe('0.5.0');
     expect(snapshot.records.invoice_line).toHaveLength(2);
     expect((await eventCodes(invoiceId)).map((e) => e.code)).toEqual(['draft_created', 'submitted']);
 
@@ -127,10 +131,11 @@ describe('invoice lifecycle', () => {
     const { actor, caseId } = await createSubmitter('lifecycle3@example.com');
     const { invoiceId } = await createInvoice(testDb, actor, { caseId, lines: [{ amount: 100 }, { amount: 50 }] });
     const [line] = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
+    await giveRole(fixtures.staffUserAccountId, 'reviewer');
     await reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, line!.invoiceLineId, { outcome: 'approved' });
 
     await expect(recallInvoice(testDb, actor, invoiceId)).rejects.toThrow(InvoiceStateError);
-    expect(await statusCode(invoiceId)).toBe('submitted');
+    expect(await statusCode(invoiceId)).toBe('under_review');
   });
 
   it('withdraws only drafts', async () => {
@@ -154,14 +159,33 @@ describe('invoice lifecycle', () => {
     await expect(withdrawInvoice(testDb, other.actor, invoiceId)).rejects.toThrow(InvoiceNotFoundError);
   });
 
-  it('records the final review outcome as an event', async () => {
+  it('records review, finishing and sign-off as events, routed by the configured defaults', async () => {
+    const reviewer = await createStaff('reviewer');
+    const approver = await createStaff('approver');
+    await setReviewSettings(testDb, fixtures.staffUserAccountId, {
+      defaultReviewerUserAccountId: reviewer,
+      defaultSignOffUserAccountIds: [approver],
+    });
     const { actor, caseId } = await createSubmitter('lifecycle5@example.com');
     const { invoiceId } = await createInvoice(testDb, actor, { caseId, lines: [{ amount: 100 }] });
     const [line] = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
-    await reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, line!.invoiceLineId, { outcome: 'approved' });
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, line!.invoiceLineId, { outcome: 'approved' });
+    await finishReview(testDb, reviewer, invoiceId);
+    await signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' });
 
     const events = await eventCodes(invoiceId);
-    expect(events.map((e) => e.code)).toEqual(['draft_created', 'submitted', 'approved']);
-    expect(events[2]?.actor).toBe(fixtures.staffUserAccountId);
+    expect(events.map((e) => e.code)).toEqual(['draft_created', 'submitted', 'review_started', 'review_finished', 'approved']);
+    expect(events[4]?.actor).toBe(approver);
+  });
+
+  it('ends routing on recall so the invoice can be submitted again', async () => {
+    const reviewer = await createStaff('reviewer');
+    await setReviewSettings(testDb, fixtures.staffUserAccountId, { defaultReviewerUserAccountId: reviewer });
+    const { actor, caseId } = await createSubmitter('lifecycle6@example.com');
+    const { invoiceId } = await createInvoice(testDb, actor, { caseId, lines: [{ amount: 100 }] });
+
+    await recallInvoice(testDb, actor, invoiceId);
+    await submitInvoice(testDb, actor, invoiceId);
+    expect((await loadAssignments(testDb, invoiceId)).reviewer?.userAccountId).toBe(reviewer);
   });
 });

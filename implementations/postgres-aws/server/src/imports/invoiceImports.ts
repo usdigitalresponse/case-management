@@ -23,7 +23,7 @@ import {
 } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
-import { billableProfessionalIds, type PortalActor } from '../portal/portalActor';
+import { authorizeBilling, billableProfessionalIds, type PortalActor } from '../portal/portalActor';
 import {
   createDraftInTx,
   InvoiceStateError,
@@ -61,7 +61,8 @@ export class InvoiceImportNotFoundError extends NotFoundError {
 }
 
 const uploadParamsSchema = z.object({
-  caseId: z.string().uuid(),
+  // Absent: staff hold it in invoice intake until it is matched to a case.
+  caseId: z.string().uuid().optional(),
   professionalId: z.string().uuid().optional(),
 });
 
@@ -85,10 +86,14 @@ async function duplicateWarnings(
   importId: string,
   documentId: string,
   contentHash: string,
-  billedProfessionalId: string,
+  billedProfessionalId: string | null,
   invoiceNumber: string | undefined,
 ): Promise<ImportWarning[]> {
   const warnings: ImportWarning[] = [];
+  // Duplicates are judged per professional; none is known yet.
+  if (!billedProfessionalId) {
+    return warnings;
+  }
   const sameFile = await tx
     .select({ invoiceImportId: invoiceImport.invoiceImportId })
     .from(invoiceImport)
@@ -134,7 +139,8 @@ async function duplicateWarnings(
 // unique name match.
 async function suggestTimekeepers(
   tx: Transaction,
-  billedProfessionalId: string,
+  // Null: no payee yet, so only name matches.
+  billedProfessionalId: string | null,
   billable: string[],
   labels: string[],
 ): Promise<Map<string, string>> {
@@ -143,7 +149,7 @@ async function suggestTimekeepers(
     return suggestions;
   }
   const lowered = [...new Set(labels.map((label) => label.toLowerCase()))];
-  const previous = await tx
+  const previous = !billedProfessionalId ? [] : await tx
     .select({ label: sql<string>`lower(${invoiceLine.timekeeperLabel})`, professionalId: invoiceLine.timekeeperProfessionalId })
     .from(invoiceLine)
     .innerJoin(invoice, eq(invoiceLine.invoiceId, invoice.invoiceId))
@@ -223,18 +229,18 @@ export async function uploadInvoiceFile(
   actor: PortalActor,
   input: UploadInvoiceFileInput,
 ): Promise<{ invoiceImportId: string; status: string; invoiceId: string | null }> {
-  const params = uploadParamsSchema.safeParse({ caseId: input.caseId, professionalId: input.professionalId || undefined });
+  const params = uploadParamsSchema.safeParse({ caseId: input.caseId || undefined, professionalId: input.professionalId || undefined });
   if (!params.success) {
     throw new ValidationError({ caseId: 'Choose a case to import the invoice into.' });
   }
-  const { caseId } = params.data;
-  const billedProfessionalId = params.data.professionalId ?? actor.professionalId;
-  if (!billedProfessionalId) {
+  const caseId = params.data.caseId ?? null;
+  // Staff may import with neither a case nor a professional; both are
+  // chosen when it's matched.
+  const billedProfessionalId = params.data.professionalId ?? actor.professionalId ?? null;
+  if (!billedProfessionalId && caseId !== null) {
     throw new ValidationError({ professionalId: 'Choose the professional this invoice bills for.' });
   }
-  if (!(await billableProfessionalIds(db, actor, caseId)).includes(billedProfessionalId)) {
-    throw new NotAssignedToCaseError();
-  }
+  await authorizeBilling(db, actor, caseId, billedProfessionalId);
 
   const detected = detectInvoiceFile(input.bytes);
   const contentHash = sha256(input.bytes);
@@ -319,8 +325,9 @@ interface ExtractionTarget {
   importId: string;
   documentId: string;
   contentHash: string;
-  caseId: string;
-  billedProfessionalId: string;
+  caseId: string | null;
+  // Null: a staff import whose professional is chosen on matching.
+  billedProfessionalId: string | null;
   extractionMethod: string;
 }
 
@@ -489,7 +496,7 @@ export async function insertDocument(
 export async function insertImport(
   tx: Transaction,
   actor: PortalActor,
-  values: { documentId: string; caseId: string; format: string; uploadedAt: Date },
+  values: { documentId: string; caseId: string | null; format: string; uploadedAt: Date },
 ): Promise<string> {
   const imported = firstRow(
     await tx
@@ -517,8 +524,8 @@ export async function extractIntoDraft(
     importId: string;
     documentId: string;
     contentHash: string;
-    caseId: string;
-    billedProfessionalId: string;
+    caseId: string | null;
+    billedProfessionalId: string | null;
     extractionMethod: string | null;
     extractedAt: Date;
     parsed: ParsedInvoice;
@@ -569,7 +576,9 @@ export async function extractIntoDraft(
       expenseCode: line.expenseCode,
       // No timekeeper named: suggest the billed professional.
       timekeeperProfessionalId:
-        args.everyLineBilled || !line.timekeeperLabel ? billedProfessionalId : suggestions.get(line.timekeeperLabel.toLowerCase()),
+        args.everyLineBilled || !line.timekeeperLabel
+          ? (billedProfessionalId ?? undefined)
+          : suggestions.get(line.timekeeperLabel.toLowerCase()),
     })),
   };
   // Undated lines take the billing period's end where that's safe.
@@ -601,7 +610,7 @@ export async function extractIntoDraft(
         importId,
         args.parsed,
         warnings,
-        args.everyLineBilled ? billedProfessionalId : undefined,
+        args.everyLineBilled ? (billedProfessionalId ?? undefined) : undefined,
       ),
       invoiceId,
     })
@@ -693,9 +702,10 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
       throw new InvoiceStateError('Only an import that was read successfully and not yet resolved can be confirmed.');
     }
     const draft = await lockDraft(tx, row.invoiceId);
-    if (!draft || !(await billableProfessionalIds(tx, actor, draft.caseId)).includes(draft.professionalId)) {
+    if (!draft) {
       throw new NotAssignedToCaseError();
     }
+    await authorizeBilling(tx, actor, draft.caseId, draft.professionalId);
     const lines = await tx
       .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
       .from(invoiceLine)

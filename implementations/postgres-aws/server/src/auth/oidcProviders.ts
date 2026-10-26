@@ -193,6 +193,11 @@ export function configureOidcProviders(): OidcProviderConfig[] {
 
               const staffAccountRoleId = await getStaffAccountRoleId(db);
               const account = await ensureUserAccountForEmail(db, email, profile.displayName || email, staffAccountRoleId);
+              // An administrator deactivated it (Settings).
+              if (!account.active) {
+                done(null, false, { message: 'This account has been deactivated.' });
+                return;
+              }
 
               const user: AuthenticatedUser = {
                 userAccountId: account.userAccountId,

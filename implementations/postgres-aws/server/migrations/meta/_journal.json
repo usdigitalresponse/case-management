@@ -57,6 +57,48 @@
       "when": 1791860720503,
       "tag": "0007_mileage",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792996462721,
+      "tag": "0008_invoice_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792998096438,
+      "tag": "0009_preauthorizations",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793037591287,
+      "tag": "0010_staff_invoice_entry",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793039622150,
+      "tag": "0011_preauthorized_rate_and_reason_lists",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793040901362,
+      "tag": "0012_invoice_intake",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793054673815,
+      "tag": "0013_invoice_without_professional",
+      "breakpoints": true
     }
   ]
 }

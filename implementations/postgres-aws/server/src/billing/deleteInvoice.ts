@@ -13,6 +13,7 @@ import {
   invoiceImport,
   invoiceImportStatuses,
   invoiceLine,
+  invoiceReviewAssignment,
   invoiceStatuses,
   timeEntry,
 } from '../db/schema';
@@ -91,6 +92,8 @@ export async function deleteUnsubmittedInvoice(
     const importIds = imports.map((row) => row.invoiceImportId);
 
     await tx.delete(invoiceEvent).where(eq(invoiceEvent.invoiceId, invoiceId));
+    // Who it was routed to while submitted, before it was recalled.
+    await tx.delete(invoiceReviewAssignment).where(eq(invoiceReviewAssignment.invoiceId, invoiceId));
     await tx.delete(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
     await tx.delete(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
     if (importIds.length > 0) {

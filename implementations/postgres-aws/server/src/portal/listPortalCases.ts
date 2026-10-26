@@ -16,6 +16,7 @@ import {
 } from '../db/schema';
 import { portalReadableInvoiceCondition } from '../billing/invoiceAccess';
 import { UNSUBMITTED_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
+import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { representedProfessionalIds, resolvePortalActor, type PortalActor } from './portalActor';
 
 export interface PortalCaseProfessional {
@@ -29,6 +30,8 @@ export interface PortalCase {
   statusId: string;
   statusDisplayName: string | null;
   externalReference: string | null;
+  // The primary case identifier, else the external reference.
+  caseNumber: string | null;
   clientDisplayName: string | null;
   // The earliest open assignment among the listed professionals.
   assignedAt: Date;
@@ -82,6 +85,10 @@ function unsubmittedInvoices(
         inArray(invoiceStatuses.code, UNSUBMITTED_INVOICE_STATUS_CODES),
         portalReadableInvoiceCondition(db, reader),
       ),
+    )
+    // Filtered to these cases and professionals, so none is without either.
+    .then((rows) =>
+      rows.flatMap((row) => (row.caseId && row.professionalId ? [{ caseId: row.caseId, professionalId: row.professionalId }] : [])),
     );
 }
 
@@ -141,6 +148,7 @@ export async function listPortalCases(
     if (!existing) {
       byCase.set(row.caseId, {
         ...row,
+        caseNumber: row.externalReference,
         assignedProfessionalIds: [professionalId],
         unsubmittedTimeProfessionalIds: [],
         unsubmittedInvoiceProfessionalIds: [],
@@ -151,10 +159,14 @@ export async function listPortalCases(
   }
   const caseIds = [...byCase.keys()];
   if (caseIds.length > 0) {
-    const [time, invoices] = await Promise.all([
+    const [time, invoices, numbers] = await Promise.all([
       unsubmittedTime(db, professionalIds, caseIds),
       unsubmittedInvoices(db, actor, professionalIds, caseIds),
+      loadCaseNumbers(db, caseIds),
     ]);
+    for (const [caseId, { caseNumber }] of numbers) {
+      if (caseId) byCase.get(caseId)!.caseNumber = caseNumber;
+    }
     for (const [caseId, ids] of idsByCase(time)) {
       byCase.get(caseId)!.unsubmittedTimeProfessionalIds = ids;
     }

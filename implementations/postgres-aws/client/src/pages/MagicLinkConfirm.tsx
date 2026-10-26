@@ -4,8 +4,8 @@
 // the single-use token.
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { Alert, Button } from '@trussworks/react-uswds';
 import { useAuth } from '../AuthContext';
+import { Notice } from '../components/Notice';
 
 export default function MagicLinkConfirm() {
   const [searchParams] = useSearchParams();
@@ -28,21 +28,21 @@ export default function MagicLinkConfirm() {
 
   return (
     <div className="login-page">
-      <section className="login-panel">
+      <section className="login-panel login-panel--single">
         <h1>Sign in</h1>
         {failed || !token ? (
           <>
-            <Alert type="error" slim>
+            <Notice tone="danger">
               This sign-in link is invalid, expired, or already used.
-            </Alert>
-            <a className="usa-button" href="/">Request a new link</a>
+            </Notice>
+            <a className="btn btn--primary" href="/">Request a new link</a>
           </>
         ) : (
           <>
-            <p>Continue to sign in to Case Management.</p>
-            <Button type="button" disabled={submitting} onClick={() => void handleContinue()}>
+            <p>Continue to sign in to Invoice Review Prototype.</p>
+            <button type="button" className="btn btn--primary" disabled={submitting} onClick={() => void handleContinue()}>
               {submitting ? 'Signing in…' : 'Continue'}
-            </Button>
+            </button>
           </>
         )}
       </section>

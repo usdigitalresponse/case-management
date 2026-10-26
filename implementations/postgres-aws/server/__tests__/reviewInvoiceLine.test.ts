@@ -2,23 +2,46 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
+import { createStaff } from './reviewHelpers';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase, type CreateCaseInput } from '../src/intake/createCase';
 import {
+  repriceLines,
   reviewInvoiceLine,
-  InvoiceLineAlreadyReviewedError,
+  undoLineDecision,
   InvoiceLineNotFoundError,
   InvoiceNotFoundError,
-  InvoiceNotSubmittedError,
+  InvoiceNotInReviewError,
 } from '../src/billing/reviewInvoiceLine';
-import { ValidationError } from '../src/errors';
+import { finishReview, reopenReview, signOffInvoice } from '../src/billing/reviewRounds';
+import { NotYourInvoiceError, reassignReviewer, setSignOffApprovers } from '../src/billing/reviewAssignment';
+import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
+import { ConflictError, ForbiddenError, ValidationError } from '../src/errors';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
-import { invoice, invoiceApprovalChain, invoiceApprovalDecision, invoiceLine, userAccount } from '../src/db/schema';
+import {
+  invoice,
+  invoiceApprovalChain,
+  invoiceApprovalDecision,
+  invoiceLine,
+  invoiceLineTypes,
+  invoiceStatuses,
+  preauthorization,
+  preauthorizationDecision,
+  preauthorizationOutcomes,
+  preauthorizationStatuses,
+  userAccount,
+} from '../src/db/schema';
+import { loadPreauthorizationSummaries } from '../src/billing/preauthorizations';
+import { getReferenceId } from '../src/db/referenceLookups';
 
 let fixtures: BaselineFixtureIds;
+let reviewer: string;
+let approver: string;
 
 beforeEach(async () => {
   fixtures = await resetAndSeedBaselineFixtures(testDb);
+  reviewer = await createStaff('reviewer', 'Reviewer One');
+  approver = await createStaff('approver', 'Approver One');
 });
 
 afterAll(async () => {
@@ -46,217 +69,358 @@ async function createProfessional(): Promise<{ userAccountId: string; profession
   return { userAccountId: account.userAccountId, professionalId };
 }
 
-async function createInvoiceWithLines(
-  amounts: string[],
-  statusId = fixtures.invoiceStatusSubmittedId,
-): Promise<{ invoiceId: string; lineIds: string[] }> {
+type LineSpec = string | { amount: string; quantity: string; billedRate: string; configuredRate?: string };
+
+async function createInvoiceWithLines(specs: LineSpec[], statusCode = 'submitted') {
   const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
   const { userAccountId, professionalId } = await createProfessional();
+  const lines = specs.map((spec) => (typeof spec === 'string' ? { amount: spec } : spec));
   const [row] = await testDb
     .insert(invoice)
     .values({
       submittedByUserAccountId: userAccountId,
       professionalId,
-      statusId,
+      statusId: await getReferenceId(testDb, invoiceStatuses, statusCode),
       submittedAt: new Date(),
-      submittedTotal: amounts.reduce((sum, amount) => sum + Number(amount), 0).toFixed(2),
+      submittedTotal: lines.reduce((sum, line) => sum + Number(line.amount), 0).toFixed(2),
       caseId,
     })
     .returning();
   if (!row) {
     throw new Error('Expected insert to return a row.');
   }
-  const lines = await testDb
+  await testDb.insert(invoiceApprovalChain).values({ invoiceId: row.invoiceId, createdByUserAccountId: userAccountId, createdAt: new Date() });
+  const timeTypeId = await getReferenceId(testDb, invoiceLineTypes, 'time');
+  const inserted = await testDb
     .insert(invoiceLine)
-    .values(amounts.map((amount) => ({ invoiceId: row.invoiceId, caseId, lineTypeId: fixtures.invoiceLineTypeSampleId, amount })))
+    .values(
+      lines.map((line) => ({
+        invoiceId: row.invoiceId,
+        caseId,
+        lineTypeId: 'quantity' in line ? timeTypeId : fixtures.invoiceLineTypeSampleId,
+        ...line,
+      })),
+    )
     .returning();
-  return { invoiceId: row.invoiceId, lineIds: lines.map((line) => line.invoiceLineId) };
+  return { invoiceId: row.invoiceId, lineIds: inserted.map((line) => line.invoiceLineId) };
 }
 
-async function invoiceStatusId(invoiceId: string): Promise<string | undefined> {
-  const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
-  return row?.statusId;
+async function statusCode(invoiceId: string) {
+  const [row] = await testDb
+    .select({ code: invoiceStatuses.code })
+    .from(invoice)
+    .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+    .where(eq(invoice.invoiceId, invoiceId));
+  return row?.code;
 }
 
-async function decisionsFor(invoiceId: string) {
-  return testDb
-    .select({ decision: invoiceApprovalDecision })
+async function recordedCount(invoiceId: string) {
+  const rows = await testDb
+    .select({ id: invoiceApprovalDecision.invoiceApprovalDecisionId })
     .from(invoiceApprovalDecision)
     .innerJoin(invoiceApprovalChain, eq(invoiceApprovalDecision.invoiceApprovalChainId, invoiceApprovalChain.invoiceApprovalChainId))
-    .where(eq(invoiceApprovalChain.invoiceId, invoiceId))
-    .then((rows) => rows.map((row) => row.decision));
+    .where(eq(invoiceApprovalChain.invoiceId, invoiceId));
+  return rows.length;
 }
 
-describe('reviewInvoiceLine', () => {
-  it('records a line decision at the requested amount and leaves the invoice submitted until every line is decided', async () => {
+describe('line decisions', () => {
+  it('takes an unassigned invoice, starts review and records nothing until finished', async () => {
     const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
 
-    const result = await reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'approved' });
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved' });
 
-    expect(result.statusId).toBe(fixtures.invoiceStatusSubmittedId);
-    expect(await invoiceStatusId(invoiceId)).toBe(fixtures.invoiceStatusSubmittedId);
-    const [chain] = await testDb.select().from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
-    expect(chain?.createdByUserAccountId).toBe(fixtures.staffUserAccountId);
-    const decisions = await decisionsFor(invoiceId);
-    expect(decisions).toHaveLength(1);
-    expect(decisions[0]).toMatchObject({
-      sequenceNumber: 1,
-      invoiceLineId: lineIds[0],
-      outcomeId: fixtures.invoiceApprovalOutcomeApprovedId,
-      stepTypeId: fixtures.invoiceApprovalStepTypeLineReviewId,
+    expect(await statusCode(invoiceId)).toBe('under_review');
+    expect(await recordedCount(invoiceId)).toBe(0);
+    const detail = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
+    expect(detail.assignments?.reviewer?.userAccountId).toBe(reviewer);
+    expect(detail.lines.find((line) => line.invoiceLineId === lineIds[0])?.working).toMatchObject({
+      outcomeCode: 'approved',
       approvedAmount: '70.00',
-      decidedByUserAccountId: fixtures.staffUserAccountId,
     });
+    // Submitters never see working decisions.
+    const submitterView = (await loadInvoiceDetail(testDb, invoiceId))!;
+    expect(submitterView.lines.every((line) => line.working === null)).toBe(true);
   });
 
-  it('approves the invoice once every line is approved, keeping partial approved amounts per line', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
-
-    await reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'approved', approvedAmount: 60 });
-    const result = await reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[1]!, {
-      outcome: 'approved',
-      approvedAmount: '40.00',
-    });
-
-    expect(result.statusId).toBe(fixtures.invoiceStatusApprovedId);
-    expect(await invoiceStatusId(invoiceId)).toBe(fixtures.invoiceStatusApprovedId);
-    const chains = await testDb.select().from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
-    expect(chains).toHaveLength(1);
-    const approved = (await decisionsFor(invoiceId)).map((d) => d.approvedAmount).sort();
-    expect(approved).toEqual(['40.00', '60.00']);
-    const [submitted] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
-    expect(submitted?.submittedTotal).toBe('120.00');
-  });
-
-  it('rejects the invoice once every line is decided and any line was rejected', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
-
-    const afterReject = await reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, {
-      outcome: 'rejected',
-      reason: 'Not supported by the attached time entries.',
-    });
-    expect(afterReject.statusId).toBe(fixtures.invoiceStatusSubmittedId);
-
-    const result = await reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[1]!, { outcome: 'approved' });
-
-    expect(result.statusId).toBe(fixtures.invoiceStatusRejectedId);
-    const rejected = (await decisionsFor(invoiceId)).find((d) => d.invoiceLineId === lineIds[0]);
-    expect(rejected?.reason).toBe('Not supported by the attached time entries.');
-    expect(rejected?.approvedAmount).toBeNull();
-  });
-
-  it('requires a reason to reject a line', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
-
-    await expect(
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'rejected' }),
-    ).rejects.toThrow(ValidationError);
-  });
-
-  it('rejects an approved amount on a rejected line', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
-
-    await expect(
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, {
-        outcome: 'rejected',
-        reason: 'Duplicate.',
-        approvedAmount: 10,
-      }),
-    ).rejects.toThrow(ValidationError);
-  });
-
-  it('rejects approving more than the line requested, or a non-positive amount', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
-
-    for (const approvedAmount of [70.01, 0, -5, 0.001]) {
-      await expect(
-        reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'approved', approvedAmount }),
-      ).rejects.toThrow(ValidationError);
-    }
-    expect(await decisionsFor(invoiceId)).toHaveLength(0);
-  });
-
-  it('rejects a second decision on the same line', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
-    await reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'approved' });
-
-    await expect(
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'rejected', reason: 'Changed mind.' }),
-    ).rejects.toThrow(InvoiceLineAlreadyReviewedError);
-  });
-
-  it('rejects reviewing an invoice that is no longer submitted', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
-    await reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'approved' });
-
-    await expect(
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'approved' }),
-    ).rejects.toThrow(InvoiceNotSubmittedError);
-  });
-
-  it('rejects reviewing a draft invoice (not yet submitted)', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00'], fixtures.invoiceStatusDraftId);
-
-    await expect(
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'approved' }),
-    ).rejects.toThrow(InvoiceNotSubmittedError);
-  });
-
-  it('rejects a line that belongs to a different invoice', async () => {
-    const first = await createInvoiceWithLines(['70.00']);
-    const second = await createInvoiceWithLines(['50.00']);
-
-    await expect(
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, first.invoiceId, second.lineIds[0]!, { outcome: 'approved' }),
-    ).rejects.toThrow(InvoiceLineNotFoundError);
-  });
-
-  it('rejects an unknown or malformed invoice or line id', async () => {
-    const { invoiceId } = await createInvoiceWithLines(['70.00']);
-
-    await expect(
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, randomUUID(), randomUUID(), { outcome: 'approved' }),
-    ).rejects.toThrow(InvoiceNotFoundError);
-    await expect(
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, 'not-a-uuid', randomUUID(), { outcome: 'approved' }),
-    ).rejects.toThrow(InvoiceNotFoundError);
-    await expect(
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, 'not-a-uuid', { outcome: 'approved' }),
-    ).rejects.toThrow(InvoiceLineNotFoundError);
-  });
-
-  it('rejects an invalid outcome value', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
-
-    await expect(
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'maybe' }),
-    ).rejects.toThrow(ValidationError);
-  });
-
-  it('shares one chain between concurrent reviews of different lines and completes the invoice', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
-
-    await Promise.all(
-      lineIds.map((lineId) => reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineId, { outcome: 'approved' })),
-    );
-
-    const chains = await testDb.select().from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
-    expect(chains).toHaveLength(1);
-    expect(await decisionsFor(invoiceId)).toHaveLength(2);
-    expect(await invoiceStatusId(invoiceId)).toBe(fixtures.invoiceStatusApprovedId);
-  });
-
-  it('lets exactly one of two concurrent reviews of the same line decide it', async () => {
-    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
-
-    const results = await Promise.allSettled([
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'approved' }),
-      reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'rejected', reason: 'Duplicate.' }),
+  it('prices a partial approval from corrected hours, or from the amount when a line has none', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines([
+      { amount: '125.00', quantity: '1.00', billedRate: '125.00' },
+      '40.00',
     ]);
 
-    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
-    const rejected = results.find((result) => result.status === 'rejected');
-    expect(rejected?.reason).toBeInstanceOf(InvoiceLineAlreadyReviewedError);
-    expect(await decisionsFor(invoiceId)).toHaveLength(1);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, {
+      outcome: 'approved_in_part',
+      approvedQuantity: 0.2,
+      reasonCode: 'not_billable',
+      note: 'Updates are office overhead.',
+    });
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[1]!, {
+      outcome: 'approved_in_part',
+      approvedAmount: 30,
+      reasonCode: 'duplicate',
+    });
+
+    const lines = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.lines;
+    expect(lines.find((line) => line.invoiceLineId === lineIds[0])?.working).toMatchObject({
+      outcomeCode: 'approved_in_part',
+      approvedAmount: '25.00',
+      reasonCode: 'not_billable',
+    });
+    expect(lines.find((line) => line.invoiceLineId === lineIds[1])?.working?.approvedAmount).toBe('30.00');
+  });
+
+  it('requires a reason to approve in part or reject, and a note for another reason', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
+    const line = lineIds[0]!;
+
+    await expect(reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'rejected' })).rejects.toThrow(ValidationError);
+    await expect(
+      reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'approved_in_part', approvedAmount: 10 }),
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'rejected', reasonCode: 'other' }),
+    ).rejects.toThrow(ValidationError);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'rejected', reasonCode: 'other', note: 'Not ours.' });
+  });
+
+  it('takes reasons only from the list for the outcome', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
+    const line = lineIds[0]!;
+    await expect(
+      reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'rejected', reasonCode: 'not_billable' }),
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'approved_in_part', approvedAmount: 10, reasonCode: 'block_billing' }),
+    ).rejects.toThrow(ValidationError);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'rejected', reasonCode: 'no_backup' });
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, line, { outcome: 'approved_in_part', approvedAmount: 10, reasonCode: 'not_billable' });
+  });
+
+  it('keeps a partial approval above nothing and below the request', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
+    for (const approvedAmount of [70, 70.01, 0.001]) {
+      await expect(
+        reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved_in_part', approvedAmount, reasonCode: 'duplicate' }),
+      ).rejects.toThrow(ValidationError);
+    }
+  });
+
+  it('lets the reviewer change and undo a decision without history', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'rejected', reasonCode: 'duplicate' });
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved' });
+    await undoLineDecision(testDb, reviewer, invoiceId, lineIds[0]!);
+
+    const [line] = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.lines;
+    expect(line?.working).toBeNull();
+    expect(await recordedCount(invoiceId)).toBe(0);
+  });
+
+  it('only lets reviewers decide, and only the assigned one', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
+    await expect(reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'approved' })).rejects.toThrow(
+      ForbiddenError,
+    );
+    await expect(reviewInvoiceLine(testDb, approver, invoiceId, lineIds[0]!, { outcome: 'approved' })).rejects.toThrow(ForbiddenError);
+
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved' });
+    const other = await createStaff('reviewer');
+    await expect(reviewInvoiceLine(testDb, other, invoiceId, lineIds[0]!, { outcome: 'approved' })).rejects.toThrow(NotYourInvoiceError);
+
+    // Any reviewer may give it to themselves, keeping the decisions made.
+    await reassignReviewer(testDb, other, invoiceId, { userAccountId: other });
+    await reviewInvoiceLine(testDb, other, invoiceId, lineIds[0]!, { outcome: 'rejected', reasonCode: 'duplicate' });
+  });
+
+  it('rejects drafts, other invoices’ lines and unknown ids', async () => {
+    const draft = await createInvoiceWithLines(['70.00'], 'draft');
+    await expect(reviewInvoiceLine(testDb, reviewer, draft.invoiceId, draft.lineIds[0]!, { outcome: 'approved' })).rejects.toThrow(
+      InvoiceNotInReviewError,
+    );
+    const first = await createInvoiceWithLines(['70.00']);
+    const second = await createInvoiceWithLines(['50.00']);
+    await expect(
+      reviewInvoiceLine(testDb, reviewer, first.invoiceId, second.lineIds[0]!, { outcome: 'approved' }),
+    ).rejects.toThrow(InvoiceLineNotFoundError);
+    await expect(reviewInvoiceLine(testDb, reviewer, randomUUID(), randomUUID(), { outcome: 'approved' })).rejects.toThrow(
+      InvoiceNotFoundError,
+    );
+    await expect(reviewInvoiceLine(testDb, reviewer, first.invoiceId, 'not-a-uuid', { outcome: 'approved' })).rejects.toThrow(
+      InvoiceLineNotFoundError,
+    );
+  });
+
+  it('re-prices undecided time lines billed above the configured rate', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines([
+      { amount: '1190.00', quantity: '2.00', billedRate: '595.00', configuredRate: '125.00' },
+      { amount: '125.00', quantity: '1.00', billedRate: '125.00', configuredRate: '125.00' },
+    ]);
+
+    expect(await repriceLines(testDb, reviewer, invoiceId)).toMatchObject({ repriced: 1 });
+    const lines = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.lines;
+    expect(lines.find((line) => line.invoiceLineId === lineIds[0])?.working).toMatchObject({
+      outcomeCode: 'approved_in_part',
+      approvedAmount: '250.00',
+      reasonCode: 'rate_above_configured',
+    });
+    expect(lines.find((line) => line.invoiceLineId === lineIds[1])?.working).toBeNull();
+  });
+
+  it('checks and re-prices against the pre-authorized rate when the case has one', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines([
+      { amount: '1190.00', quantity: '2.00', billedRate: '595.00', configuredRate: '125.00' },
+      { amount: '140.00', quantity: '1.00', billedRate: '140.00', configuredRate: '125.00' },
+    ]);
+    const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    const [preauth] = await testDb
+      .insert(preauthorization)
+      .values({
+        caseId: row!.caseId!,
+        professionalId: row!.professionalId,
+        statusId: await getReferenceId(testDb, preauthorizationStatuses, 'approved'),
+        requestedAt: new Date(),
+      })
+      .returning();
+    await testDb.insert(preauthorizationDecision).values({
+      preauthorizationId: preauth!.preauthorizationId,
+      sequenceNumber: 1,
+      outcomeId: await getReferenceId(testDb, preauthorizationOutcomes, 'approved'),
+      approvedAmount: '2000.00',
+      approvedHourlyRate: '150.00',
+      effectiveAt: new Date(),
+      decidedAt: new Date(),
+      decidedByUserAccountId: fixtures.staffUserAccountId,
+    });
+
+    const before = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.lines;
+    expect(before.map((line) => [line.rateLimit, line.rateLimitSource])).toEqual([
+      ['150.00', 'preauthorized'],
+      ['150.00', 'preauthorized'],
+    ]);
+    // 140 is above the configured 125 but within the pre-authorized 150.
+    expect(await repriceLines(testDb, reviewer, invoiceId)).toMatchObject({ repriced: 1 });
+    const lines = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.lines;
+    expect(lines.find((line) => line.invoiceLineId === lineIds[0])?.working).toMatchObject({ approvedAmount: '300.00', approvedRate: '150.000' });
+    expect(lines.find((line) => line.invoiceLineId === lineIds[1])?.working).toBeNull();
+  });
+});
+
+describe('finishing and sign-off', () => {
+  async function decideAll(invoiceId: string, lineIds: string[]) {
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'rejected', reasonCode: 'duplicate' });
+    for (const lineId of lineIds.slice(1)) {
+      await reviewInvoiceLine(testDb, reviewer, invoiceId, lineId, { outcome: 'approved' });
+    }
+  }
+
+  it('records a round only when every line is decided, then signs off to approval', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'rejected', reasonCode: 'duplicate' });
+    await setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [approver] });
+    await expect(finishReview(testDb, reviewer, invoiceId)).rejects.toThrow(ValidationError);
+
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[1]!, { outcome: 'approved' });
+    await finishReview(testDb, reviewer, invoiceId);
+    expect(await statusCode(invoiceId)).toBe('awaiting_sign_off');
+    expect(await recordedCount(invoiceId)).toBe(2);
+
+    // A rejected line doesn't reject the invoice.
+    await signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' });
+    expect(await statusCode(invoiceId)).toBe('approved');
+    const detail = (await loadInvoiceDetail(testDb, invoiceId))!;
+    expect(detail.approvedTotal).toBe('50.00');
+  });
+
+  it('needs someone to sign off before finishing', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved' });
+    await expect(finishReview(testDb, reviewer, invoiceId)).rejects.toThrow(ValidationError);
+  });
+
+  it('reopens before sign-off as a new round, keeping the first', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
+    await setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [approver] });
+    await decideAll(invoiceId, lineIds);
+    await finishReview(testDb, reviewer, invoiceId);
+
+    await reopenReview(testDb, reviewer, invoiceId);
+    expect(await statusCode(invoiceId)).toBe('under_review');
+    // Starts from the finished round's decisions.
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved' });
+    await finishReview(testDb, reviewer, invoiceId);
+
+    const detail = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
+    const first = detail.lines.find((line) => line.invoiceLineId === lineIds[0])!;
+    expect(first.decision?.outcomeCode).toBe('approved');
+    expect(first.history).toHaveLength(1);
+    expect(first.history[0]?.outcomeCode).toBe('rejected');
+    expect(detail.approvedTotal).toBe('120.00');
+  });
+
+  it('totals a pre-authorization against approved and waiting invoices', async () => {
+    const approved = await createInvoiceWithLines(['70.00', '50.00']);
+    const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, approved.invoiceId));
+    const waiting = await createInvoiceWithLines(['30.00']);
+    // Same case and professional as the first.
+    await testDb.update(invoice).set({ caseId: row!.caseId, professionalId: row!.professionalId }).where(eq(invoice.invoiceId, waiting.invoiceId));
+    await testDb.update(invoiceLine).set({ caseId: row!.caseId }).where(eq(invoiceLine.invoiceId, waiting.invoiceId));
+    const [preauth] = await testDb
+      .insert(preauthorization)
+      .values({
+        caseId: row!.caseId!,
+        professionalId: row!.professionalId,
+        statusId: await getReferenceId(testDb, preauthorizationStatuses, 'approved'),
+        requestedAt: new Date(),
+      })
+      .returning();
+    for (const [sequenceNumber, approvedAmount] of [[1, '200.00'], [2, '150.00']] as const) {
+      await testDb.insert(preauthorizationDecision).values({
+        preauthorizationId: preauth!.preauthorizationId,
+        sequenceNumber,
+        outcomeId: await getReferenceId(testDb, preauthorizationOutcomes, sequenceNumber === 1 ? 'approved' : 'revised'),
+        approvedAmount,
+        effectiveAt: new Date(),
+        decidedAt: new Date(),
+        decidedByUserAccountId: fixtures.staffUserAccountId,
+      });
+    }
+    await setSignOffApprovers(testDb, reviewer, approved.invoiceId, { userAccountIds: [approver] });
+    await decideAll(approved.invoiceId, approved.lineIds);
+    await finishReview(testDb, reviewer, approved.invoiceId);
+    await signOffInvoice(testDb, approver, approved.invoiceId, { outcome: 'approved' });
+
+    // The latest ceiling replaces the first; the rejected line isn't counted.
+    expect(await loadPreauthorizationSummaries(testDb, row!.caseId!)).toEqual([
+      expect.objectContaining({ ceiling: '150.00', approvedSoFar: '50.00', waiting: '30.00' }),
+    ]);
+  });
+
+  it('signs off in order and sends back to the reviewer with an internal comment', async () => {
+    const second = await createStaff('approver', 'Approver Two');
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
+    await setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [approver, second] });
+    await decideAll(invoiceId, lineIds);
+    await finishReview(testDb, reviewer, invoiceId);
+
+    await expect(signOffInvoice(testDb, second, invoiceId, { outcome: 'approved' })).rejects.toThrow(ConflictError);
+    await signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' });
+    expect(await statusCode(invoiceId)).toBe('awaiting_sign_off');
+    await expect(reopenReview(testDb, reviewer, invoiceId)).rejects.toThrow(ConflictError);
+
+    await expect(signOffInvoice(testDb, second, invoiceId, { outcome: 'changes_requested' })).rejects.toThrow(ValidationError);
+    await signOffInvoice(testDb, second, invoiceId, { outcome: 'changes_requested', comment: 'Check the duplicate.' });
+    expect(await statusCode(invoiceId)).toBe('under_review');
+
+    const staffView = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
+    expect(staffView.signOffs.at(-1)?.comment).toBe('Check the duplicate.');
+    expect(staffView.lines.every((line) => line.working !== null)).toBe(true);
+    const submitterView = (await loadInvoiceDetail(testDb, invoiceId))!;
+    expect(submitterView.signOffs.every((signOff) => signOff.comment === null)).toBe(true);
+
+    // The next round needs both sign-offs again.
+    await finishReview(testDb, reviewer, invoiceId);
+    await signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' });
+    await signOffInvoice(testDb, second, invoiceId, { outcome: 'approved' });
+    expect(await statusCode(invoiceId)).toBe('approved');
   });
 });

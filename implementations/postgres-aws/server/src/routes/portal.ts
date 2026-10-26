@@ -40,6 +40,7 @@ import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
 import { loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail';
 import { recallInvoice, submitInvoice, updateDraftInvoice, withdrawInvoice } from '../billing/invoiceLifecycle';
+import { listReceiptChannels } from '../billing/invoiceReceipt';
 import { InvoiceNotFoundError } from '../billing/reviewInvoiceLine';
 import { asyncHandler } from './asyncHandler';
 import { parseExportFormat, sendInvoiceExport } from './sendInvoiceExport';
@@ -123,12 +124,22 @@ router.get(
   }),
 );
 
+// How an invoice staff enter may have been received.
 router.get(
-  '/cases/:caseId/billable-professionals',
+  '/receipt-channels',
+  asyncHandler(async (_req, res) => {
+    res.json({ channels: await listReceiptChannels(db) });
+  }),
+);
+
+// Whom the user may bill for on a case, or, for staff with no case yet
+// (invoice intake), any active professional.
+router.get(
+  ['/cases/:caseId/billable-professionals', '/billable-professionals'],
   asyncHandler(async (req, res) => {
     const actor = await sessionActor(req);
-    const caseId = req.params.caseId as string;
-    const ids = z.uuid().safeParse(caseId).success ? await billableProfessionalIds(db, actor, caseId) : [];
+    const caseId = (req.params.caseId as string | undefined) ?? null;
+    const ids = caseId === null || z.uuid().safeParse(caseId).success ? await billableProfessionalIds(db, actor, caseId) : [];
     const rows =
       ids.length === 0
         ? []
@@ -183,7 +194,8 @@ for (const [action, transition] of Object.entries(transitions)) {
   router.post(
     `/invoices/:id/${action}`,
     asyncHandler(async (req, res) => {
-      res.json(await transition(db, await sessionActor(req), req.params.id as string));
+      // Submit takes how and when a staff-entered invoice was received.
+      res.json(await transition(db, await sessionActor(req), req.params.id as string, req.body));
     }),
   );
 }
@@ -212,13 +224,22 @@ async function loadReadableOrThrow(req: Request) {
   return detail;
 }
 
-// Reviewer identities stay internal; external users see outcomes and reasons.
+// Reviewer identities stay internal; external users see outcomes, reasons
+// and notes of finished rounds (the detail was loaded for a submitter, so
+// it has no working decisions or internal comments).
 function withoutReviewer(detail: InvoiceDetail) {
+  const anonymous = <T extends { decidedByDisplayName: string | null }>(decision: T) => ({ ...decision, decidedByDisplayName: null });
   return {
     invoice: detail.invoice,
+    caseNumber: detail.caseNumber,
     submissionAttempt: detail.submissionAttempt,
     ruleFindings: detail.ruleFindings,
-    lines: detail.lines.map(({ decidedByDisplayName: _reviewer, ...line }) => line),
+    approvedTotal: detail.approvedTotal,
+    lines: detail.lines.map(({ decidedByDisplayName: _reviewer, decision, history, ...line }) => ({
+      ...line,
+      decision: decision ? anonymous(decision) : null,
+      history: history.map(anonymous),
+    })),
   };
 }
 

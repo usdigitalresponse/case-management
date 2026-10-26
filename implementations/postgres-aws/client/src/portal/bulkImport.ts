@@ -3,7 +3,9 @@ import { caseDisplayLabel } from '../caseDisplayLabel';
 
 // A file is designated either to one case, which also says whom it bills
 // (a case shared by colleagues is offered under each), or to one
-// professional whose lines name their cases (split after upload).
+// professional whose lines name their cases (split after upload). Staff may
+// also import a file for a professional with no case yet; it waits on Intake
+// until it is matched (model/rules.yaml match_invoice_to_case).
 export interface CaseChoice {
   value: string;
   label: string;
@@ -16,7 +18,9 @@ export interface CaseChoiceGroup {
 
 export type ParsedChoice =
   | { kind: 'case'; caseId: string; professionalId: string }
-  | { kind: 'professional'; professionalId: string };
+  | { kind: 'professional'; professionalId: string }
+  // Staff only; with no professional either, both are chosen on matching.
+  | { kind: 'no_case'; professionalId?: string };
 
 export function choiceValue(caseId: string, professionalId: string): string {
   return `case|${caseId}|${professionalId}`;
@@ -26,12 +30,16 @@ export function professionalChoiceValue(professionalId: string): string {
   return `professional|${professionalId}`;
 }
 
+export function noCaseChoiceValue(professionalId: string): string {
+  return `no_case|${professionalId}`;
+}
+
 export function parseChoice(value: string): ParsedChoice | undefined {
   const [kind, first, second] = value.split('|');
   if (kind === 'case' && first && second) {
     return { kind, caseId: first, professionalId: second };
   }
-  if (kind === 'professional' && first) {
+  if ((kind === 'professional' || kind === 'no_case') && first) {
     return { kind, professionalId: first };
   }
   return undefined;
@@ -48,7 +56,11 @@ function personName(professional: MyCasesResult['professionals'][number]): strin
   return professional.isSelf ? 'You' : (professional.displayName ?? 'An unnamed professional');
 }
 
-export function caseChoiceGroups({ professionals, cases }: MyCasesResult): CaseChoiceGroup[] {
+// noCase: the professionals staff may import for with no case yet.
+export function caseChoiceGroups(
+  { professionals, cases }: MyCasesResult,
+  noCase: Array<{ professionalId: string; displayName: string | null }> = [],
+): CaseChoiceGroup[] {
   const byCase = professionals
     .map((professional) => ({
       label: professional.isSelf ? 'Your cases' : `Cases for ${professional.displayName ?? 'an unnamed professional'}`,
@@ -70,6 +82,13 @@ export function caseChoiceGroups({ professionals, cases }: MyCasesResult): CaseC
       choices: severalCases.map((professional) => ({
         value: professionalChoiceValue(professional.professionalId),
         label: `${personName(professional)}: split by case`,
+      })),
+    },
+    {
+      label: 'No case yet (match it later on Intake)',
+      choices: noCase.map((professional) => ({
+        value: noCaseChoiceValue(professional.professionalId),
+        label: `${professional.displayName ?? 'An unnamed professional'}: no case yet`,
       })),
     },
   ].filter((group) => group.choices.length > 0);
@@ -160,6 +179,12 @@ export function sectionOf(row: ImportInProgress): BulkSection {
     return 'unreadable';
   }
   return row.statusCode === 'confirmed' && row.invoiceId ? 'ready' : 'review';
+}
+
+// Confirmed and ready to submit together. Those with no case wait on Intake
+// to be matched instead.
+export function readyToSubmit(imports: ImportInProgress[]): ImportInProgress[] {
+  return imports.filter((row) => sectionOf(row) === 'ready' && row.caseId);
 }
 
 // Files still needing attention, in upload order: what "Review next" walks.

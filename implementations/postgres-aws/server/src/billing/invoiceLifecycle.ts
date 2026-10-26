@@ -18,8 +18,7 @@ import {
   invoiceStatuses,
   timeEntry,
 } from '../db/schema';
-import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
-import { billableProfessionalIds, type PortalActor } from '../portal/portalActor';
+import { authorizeBilling, type PortalActor } from '../portal/portalActor';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { recordInvoiceEvent } from './invoiceEvents';
 import {
@@ -32,6 +31,8 @@ import { priceLines } from './priceLines';
 import { applyTripDistances, measureTrips } from './routeCheck';
 import { checkInferredDates } from '../imports/inferServiceDates';
 import { enforceBillingRules } from './billingRules';
+import { assignOnSubmit, endAllAssignments } from './reviewAssignment';
+import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry } from './invoiceReceipt';
 import {
   DRAFT_INVOICE_STATUS_CODE,
   SUBMITTED_INVOICE_STATUS_CODE,
@@ -39,7 +40,7 @@ import {
 } from './invoiceStatusCodes';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.4.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.5.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
 // Mileage is an expense line with the mileage expense type.
@@ -62,7 +63,7 @@ export const invoiceLineInputSchema = z
     serviceDateInferred: z.boolean().optional(),
     description: z.string().trim().min(1).optional(),
     quantity: z.coerce.number().positive().optional(),
-    // Supplier-stated evidence; never used to compute the amount.
+    // Supplier-stated; prices a time line in place of the configured rate.
     unitRate: z.coerce.number().nonnegative().optional(),
     statedAmount: z.coerce.number().nonnegative().optional(),
     timekeeperLabel: z.string().trim().min(1).optional(),
@@ -117,22 +118,21 @@ async function replaceLines(
   tx: Transaction,
   actor: PortalActor,
   invoiceId: string,
-  caseId: string,
-  billedProfessionalId: string,
+  // Null for an invoice held in intake (match_invoice_to_case).
+  caseId: string | null,
+  // Null: staff will choose the professional when they match it to a case.
+  billedProfessionalId: string | null,
   content: DraftContent,
   // Off for an unconfirmed import: unmatched lines stay unmatched.
   fillTimekeepers: boolean,
 ): Promise<string> {
-  const billable = new Set(await billableProfessionalIds(tx, actor, caseId));
-  if (!billable.has(billedProfessionalId)) {
-    throw new NotAssignedToCaseError();
-  }
+  const billable = await authorizeBilling(tx, actor, caseId, billedProfessionalId);
   const delegated = billedProfessionalId !== actor.professionalId;
   let lines = content.lines.map((line) => ({
     ...line,
     amount: line.amount === undefined ? undefined : Math.round(line.amount * 100) / 100,
     timekeeperProfessionalId:
-      line.timekeeperProfessionalId ?? (delegated && fillTimekeepers ? billedProfessionalId : undefined),
+      line.timekeeperProfessionalId ?? (delegated && fillTimekeepers ? (billedProfessionalId ?? undefined) : undefined),
   }));
   if (lines.some((line) => line.timekeeperProfessionalId && !billable.has(line.timekeeperProfessionalId))) {
     throw new ValidationError({
@@ -141,7 +141,10 @@ async function replaceLines(
   }
 
   const sourceTimeEntryIds = lines.flatMap((line) => (line.sourceTimeEntryId ? [line.sourceTimeEntryId] : []));
-  if (sourceTimeEntryIds.length > 0) {
+  if (sourceTimeEntryIds.length > 0 && caseId === null) {
+    throw new ValidationError({ lines: 'Recorded time belongs to a case. Match the invoice to its case first.' });
+  }
+  if (sourceTimeEntryIds.length > 0 && caseId !== null) {
     if (new Set(sourceTimeEntryIds).size !== sourceTimeEntryIds.length) {
       throw new ValidationError({ lines: 'The same time entry is on this invoice more than once.' });
     }
@@ -276,8 +279,8 @@ async function statusId(tx: Transaction, code: string): Promise<string> {
 export async function createDraftInTx(
   tx: Transaction,
   actor: PortalActor,
-  caseId: string,
-  billedProfessionalId: string,
+  caseId: string | null,
+  billedProfessionalId: string | null,
   content: DraftContent,
   options: { fillTimekeepers: boolean } = { fillTimekeepers: true },
 ): Promise<string> {
@@ -317,10 +320,8 @@ async function lockOwnInvoice(tx: Transaction, actor: PortalActor, invoiceId: st
   if (!locked || locked.submittedByUserAccountId !== actor.userAccountId) {
     throw new InvoiceNotFoundError();
   }
-  if (!(await billableProfessionalIds(tx, actor, locked.caseId)).includes(locked.professionalId)) {
-    throw new NotAssignedToCaseError();
-  }
-  return locked;
+  const billable = await authorizeBilling(tx, actor, locked.caseId, locked.professionalId);
+  return { locked, billable };
 }
 
 async function buildSubmissionSnapshot(
@@ -342,11 +343,25 @@ async function buildSubmissionSnapshot(
   };
 }
 
-export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId: string): Promise<void> {
-  const locked = await lockOwnInvoice(tx, actor, invoiceId);
+export async function submitInTx(
+  tx: Transaction,
+  actor: PortalActor,
+  invoiceId: string,
+  // Staff chose to review an invoice with no case (match_invoice_to_case).
+  options: { withoutCase?: boolean } = {},
+): Promise<void> {
+  const { locked, billable } = await lockOwnInvoice(tx, actor, invoiceId);
   if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
     throw new InvoiceStateError('Only a draft can be submitted.');
   }
+  if (locked.professionalId === null) {
+    throw new ValidationError({ professionalId: 'Choose who this invoice is from when you match it to a case.' });
+  }
+  if (locked.caseId === null && !options.withoutCase) {
+    throw new ValidationError({ caseId: 'Match this invoice to a case, or choose to review it without one.' });
+  }
+  const billedProfessionalId = locked.professionalId;
+  await requireReceiptForStaffEntry(tx, actor, { ...locked, professionalId: billedProfessionalId });
   const lines = await tx
     .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
     .from(invoiceLine)
@@ -355,7 +370,6 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
     throw new ValidationError({ lines: 'Add at least one invoice item before submitting.' });
   }
   // Rechecked: a timekeeper may have left the office or case since saving.
-  const billable = new Set(await billableProfessionalIds(tx, actor, locked.caseId));
   if (lines.some((line) => line.timekeeperProfessionalId && !billable.has(line.timekeeperProfessionalId))) {
     throw new ValidationError({
       lines: 'An item bills a professional you can no longer act for on this case. Edit the draft first.',
@@ -366,19 +380,22 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
     throw new InvoiceStateError('Confirm the imported values before submitting this invoice.');
   }
   await checkInferredDates(tx, invoiceId);
+  // Time is recorded against a case; with none, time lines stand alone.
+  if (locked.caseId !== null) {
+    await createTimeEntriesForTimeLines(
+      tx,
+      {
+        invoiceId,
+        caseId: locked.caseId,
+        billedProfessionalId,
+        invoiceImportId: imported?.invoiceImportId,
+      },
+      actor.userAccountId,
+    );
+  }
   // Priced again so the snapshot below freezes the rates in force.
-  await createTimeEntriesForTimeLines(
-    tx,
-    {
-      invoiceId,
-      caseId: locked.caseId,
-      billedProfessionalId: locked.professionalId,
-      invoiceImportId: imported?.invoiceImportId,
-    },
-    actor.userAccountId,
-  );
   await priceLines(tx, invoiceId, {
-    billedProfessionalId: locked.professionalId,
+    billedProfessionalId,
     unmatchedMeansBilled: true,
     strict: true,
   });
@@ -408,12 +425,13 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
     actorUserAccountId: actor.userAccountId,
     chainId: invoiceApprovalChainId,
   });
+  await assignOnSubmit(tx, invoiceId, locked.caseId);
 }
 
 export async function updateDraftInvoice(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
   const content = parseDraftContent(rawInput);
   return db.transaction(async (tx) => {
-    const locked = await lockOwnInvoice(tx, actor, invoiceId);
+    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
     if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
       throw new InvoiceStateError('Only a draft can be edited.');
     }
@@ -428,7 +446,13 @@ export async function updateDraftInvoice(db: Database, actor: PortalActor, invoi
   });
 }
 
-export async function submitInvoice(db: Database, actor: PortalActor, invoiceId: string) {
+// Staff entering a request received elsewhere pass how and when it came in,
+// and whether to review it without a case.
+export async function submitInvoice(db: Database, actor: PortalActor, invoiceId: string, rawReceipt: unknown = {}) {
+  const receipt = receiptInputSchema.extend({ withoutCase: z.boolean().optional() }).safeParse(rawReceipt ?? {});
+  if (!receipt.success) {
+    throw new ValidationError(fieldErrorsFromZodIssues(receipt.error.issues));
+  }
   if (z.uuid().safeParse(invoiceId).success) {
     const trips = await db
       .select({ tripOrigin: invoiceLine.tripOrigin, tripDestination: invoiceLine.tripDestination })
@@ -437,7 +461,12 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
       .where(and(eq(invoiceLine.invoiceId, invoiceId), eq(invoice.submittedByUserAccountId, actor.userAccountId)));
     await measureTrips(db, trips);
   }
-  await db.transaction((tx) => submitInTx(tx, actor, invoiceId));
+  await db.transaction(async (tx) => {
+    // The receipt is recorded only on an invoice this actor may submit; submitInTx locks it again.
+    await lockOwnInvoice(tx, actor, invoiceId);
+    await recordReceipt(tx, invoiceId, receipt.data);
+    await submitInTx(tx, actor, invoiceId, { withoutCase: receipt.data.withoutCase });
+  });
   return { invoiceId };
 }
 
@@ -445,7 +474,7 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
 // snapshot.
 export async function recallInvoice(db: Database, actor: PortalActor, invoiceId: string) {
   return db.transaction(async (tx) => {
-    const locked = await lockOwnInvoice(tx, actor, invoiceId);
+    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
     if (locked.statusId !== (await statusId(tx, SUBMITTED_INVOICE_STATUS_CODE))) {
       throw new InvoiceStateError('Only a submitted invoice can be recalled.');
     }
@@ -467,6 +496,7 @@ export async function recallInvoice(db: Database, actor: PortalActor, invoiceId:
         .set({ supersededAt: new Date() })
         .where(eq(invoiceApprovalChain.invoiceApprovalChainId, chain.invoiceApprovalChainId));
     }
+    await endAllAssignments(tx, invoiceId, actor.userAccountId);
     const draftStatusId = await statusId(tx, DRAFT_INVOICE_STATUS_CODE);
     await tx.update(invoice).set({ statusId: draftStatusId, submittedAt: null }).where(eq(invoice.invoiceId, invoiceId));
     await recordInvoiceEvent(tx, {
@@ -482,7 +512,7 @@ export async function recallInvoice(db: Database, actor: PortalActor, invoiceId:
 
 export async function withdrawInvoice(db: Database, actor: PortalActor, invoiceId: string) {
   return db.transaction(async (tx) => {
-    const locked = await lockOwnInvoice(tx, actor, invoiceId);
+    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
     if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
       throw new InvoiceStateError('Only a draft can be withdrawn; recall a submitted invoice first.');
     }

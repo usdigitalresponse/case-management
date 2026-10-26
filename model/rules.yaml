@@ -1,4 +1,4 @@
-spec_version: "0.4.0"
+spec_version: "0.5.0"
 status: draft
 kind: business_rules
 
@@ -57,24 +57,69 @@ rules:
       - Allow only one non-superseded chain per invoice.
 
   enforce_invoice_approval_sequence:
-    description: Record decisions only at the current authorized stage, in order, since there is no separate
-      pre-assigned step record to check against.
+    description: Record decisions only at the current stage of the chain, in order, by the user assigned to it.
     applies_to: invoice_approval_decision
     trigger: before_create
     outcome: blocking
     requirements:
       - Reject decisions for superseded chains.
-      - Require a positive sequence_number, unique within the chain.
+      - Require a positive sequence_number, unique within the chain for invoice-level decisions and per line for line decisions.
       - Include invoice pre-approval decisions before line-review decisions when required by configured policy.
-      - Require the deciding user to be an active user authorized for that step_type; a user other than the invoice submitter for pre-approval.
-      - Require every earlier sequence_number in the chain to be approved before accepting a decision.
-      - For invoice pre-approval, omit invoice_line_id and allow one decision per sequence_number.
-      - For line review, require invoice_line_id and allow one decision per line per sequence_number.
+      - Require the deciding user to be an active user authorized for that step_type and holding the active invoice_review_assignment for it; a user other than the invoice submitter for pre-approval and sign-off.
+      - For invoice pre-approval and sign-off, omit invoice_line_id and allow one decision per sequence_number.
+      - For line review, require invoice_line_id and allow one decision per line per sequence_number. A round of line review is recorded at one sequence_number, for every line at once, when the reviewer finishes it (decide_invoice_lines).
       - Require the reviewed line to belong to the invoice referenced by the chain.
-      - Treat a line-review stage as approved only when every invoice line has an approval at that sequence_number.
-      - Require a reason for rejection or a request for changes; either outcome blocks advancement.
+      - A line-review round is complete when every line has a decision; a rejected line counts as decided with nothing approved and does not block the request.
+      - Sign-off decisions follow the latest complete line-review round, one per assigned approver in position order.
+      - A sign-off send-back (changes requested) requires an internal_only comment and opens a new line-review round in the same chain; it does not return the request to the submitter.
+      - Denial or a request for changes from the submitter requires a reason and blocks advancement.
       - Record the actual deciding user and decision timestamp.
       - Apply record_approved_request_amounts to every decision and final allocation draw.
+
+  decide_invoice_lines:
+    description: Let the assigned reviewer decide each line, change their mind freely, and record the round only when they finish it.
+    applies_to: invoice_line_working_decision
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Only the user holding the active line-review invoice_review_assignment may record, change or undo working decisions, and only while the request is under review.
+      - Each line has at most one working decision; changing or undoing it replaces or removes it without history.
+      - Approve takes the requested amount and needs no reason. Approve in part needs a reason code and an approved amount above zero and below the requested amount; on a line with hours the reviewer corrects the hours or the rate and the amount is their product rounded to cents, otherwise the reviewer corrects the amount. A reviewer may approve a line that states no hours.
+      - Reject needs a reason code and approves nothing. Any decision may carry a note; the reason code for another reason requires one.
+      - Approving in part and rejecting each draw from their own list of reason codes (invoice_decision_reasons.applies_to); a reason may be on both. A reason not on the list for the outcome is refused. Administrators maintain the lists without a code release; a retired reason stays on decisions that used it.
+      - Re-pricing applies approve-in-part decisions at the line's rate limit (apply_professional_rates), with the rate reason, to every undecided time line whose billed_rate is above it.
+      - Finishing a round requires a working decision on every line; it records them all as invoice_approval_decision rows at a new sequence_number with the finishing reviewer and time, clears the working decisions, records an invoice event and moves the request to awaiting sign-off.
+      - Until the first sign-off decision after a round, the reviewer may reopen review; the next round starts from that round's decisions as working decisions and is recorded as a new round when finished. Recorded rounds are never changed.
+
+  assign_invoice_review:
+    description: Route each request to a reviewer and its sign-off approvers, from configured defaults that staff can change.
+    applies_to: invoice_review_assignment
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - On submission, assign line review to the case's active case_invoice_reviewer, else the configured default reviewer, else leave it unassigned. Assign sign-off to the configured default sign-off approvers in order.
+      - Any user with a reviewing system role may reassign line review on any request, ending the current assignment and recording who reassigned it; the same action may set the new reviewer as the case's reviewer for future requests.
+      - The line reviewer may change the request's sign-off approvers, their order or number, until the round is finished.
+      - Assignees must be active users whose system role allows the step.
+      - Every reviewer can see every request under review; their own work is shown first.
+
+  measure_review_waiting:
+    description: Show how long a request has waited for review in working days.
+    applies_to: invoice
+    trigger: on_read
+    outcome: informational
+    requirements:
+      - Waiting is counted in working days from submission, or from received_on for a request staff entered (authorize_staff_invoice_entry), excluding weekends; a configured holiday calendar may later exclude holidays too.
+      - Requests waiting more than the configured number of working days are called out to reviewers.
+
+  limit_review_comment_visibility:
+    description: Keep review notes transparent and internal comments internal.
+    applies_to: invoice_approval_decision
+    trigger: on_read
+    outcome: blocking
+    requirements:
+      - Line decision reasons and notes are visible to everyone who may read the request, including its submitter and represented professionals.
+      - internal_only comments are visible only to staff users and never appear in submitter views or exports sent outside the review team.
 
   require_completed_invoice_approval:
     description: Complete approval only after the invoice and all its lines pass the chain.
@@ -83,7 +128,7 @@ rules:
     outcome: blocking
     requirements:
       - Require a non-superseded approval chain and at least one invoice line.
-      - Require approval at every pre-approval decision and for every line at every line-review sequence_number.
+      - Require approval at every pre-approval decision, a decision for every line in the latest line-review round, and an approving sign-off from every assigned approver after that round.
       - Derive approval progress from decisions in the non-superseded chain.
 
   preserve_invoice_approval_history:
@@ -92,7 +137,7 @@ rules:
     trigger: before_change
     outcome: blocking
     requirements:
-      - Do not overwrite or delete recorded decisions.
+      - Do not overwrite or delete recorded decisions. Working line decisions are not recorded decisions.
       - Freeze the invoice, its lines, and the chain's decisions while the chain is non-superseded.
       - Before editing or resubmitting, supersede the chain and invalidate its approval for current use.
       - Preserve the reviewed invoice and line values in immutable history before permitting edits.
@@ -202,11 +247,11 @@ rules:
     trigger: before_submit
     outcome: blocking
     requirements:
-      - Require one case, one provider/payee, at least one line and a currency for each request; all lines belong to that case.
+      - Require one case, one provider/payee, at least one line and a currency for each request; all lines belong to that case. A staff-entered request may instead have no case (match_invoice_to_case); then none of its lines has one. A staff draft with no case may also leave its provider to be chosen on matching.
       - Require both billing period bounds or neither and reject inverted periods, including supporting invoices.
       - Requested line and allocation amounts must be positive; submitted_total equals the sum of request lines.
       - An invoice line sets at most one of source_time_entry_id or source_expense_id, and the referenced time_entry or expense must be on the same case; a manual line sets neither.
-      - Every submitted time line references a time entry: one the submitter chose from the case's unbilled time, or one created from the line on submission (with a service date, positive hours and the professional whose work it is). Only expense and other lines may be manual. A time entry is on at most one request that is not withdrawn; time on a withdrawn request is unbilled again.
+      - Every submitted time line references a time entry: one the submitter chose from the case's unbilled time, or one created from the line on submission (with a service date, positive hours and the professional whose work it is). Only expense and other lines may be manual. A time entry is on at most one request that is not withdrawn; time on a withdrawn request is unbilled again. On a request with no case, time lines are manual and create no time entry, since time is recorded against a case.
       - Editing a time line on a draft edits its time entry, preserving the prior values; removing the line leaves the entry unbilled.
       - Currency applies to all request amounts; referenced preauthorizations must use the same currency. Do not infer exchange rates.
       - Supporting supplier invoice numbers are scoped to the request payee; warn on duplicates across requests rather than silently merging.
@@ -217,16 +262,18 @@ rules:
       - Only a draft or withdrawn request with no recorded review decision may be deleted, by its submitter; deleting removes its lines, events, unreviewed earlier attempts and import records, deletes any retained file, and deletes time entries its import created unless another request uses them (those are unlinked). Any request with a review decision is retained.
 
   apply_professional_rates:
-    description: Price time lines from administrator-configured rates rather than payee-stated amounts.
+    description: Price time lines at the payee's stated rate or, when none is stated, the administrator-configured rate, and keep the configured rate for review.
     applies_to: invoice_line
     trigger: before_change
     outcome: blocking
     requirements:
       - Administrators, a configured system role, maintain the professional_kinds vocabulary, each professional's kind, and each kind's hourly rate as a professional_kind_rate with an effective date; a new rate is added from a date, never by changing an earlier one. Further rate rules may be added later as configuration, not code.
       - The rate for a professional on a date is their kind's rate with the latest effective_from on or before it. Staff and anyone who may bill for that professional can see it.
-      - A time line's amount is its time entry's hours, or before one exists the line's hours, times that rate for the professional whose work it is on the service date, rounded to cents; billed_rate records the rate applied and the submitter cannot override it.
-      - A draft may be saved with time lines not yet priceable, but a time line without a service date, positive hours, a professional kind or an effective rate cannot be confirmed from an import or submitted; the error says which is missing, for whom and for which date.
-      - Rates and amounts stated on an imported supporting invoice stay as evidence (unit_rate, stated_amount) and in the import's extraction result; review flags a line whose stated amount differs from its billed amount.
+      - configured_rate records that rate for the professional whose work it is on the service date. A time line's amount is its time entry's hours, or before one exists the line's hours, times its billed_rate, rounded to cents. billed_rate is the rate stated on the imported supporting invoice (unit_rate) when there is one, otherwise configured_rate; a submitter entering time directly cannot set a rate.
+      - A draft may be saved with time lines not yet priceable, but a time line without a service date, positive hours, a professional kind or an effective configured rate cannot be confirmed from an import or submitted; the error says which is missing, for whom and for which date.
+      - Amounts stated on an imported supporting invoice stay as evidence (stated_amount) and in the import's extraction result.
+      - A time line's rate limit is the approved_hourly_rate of the latest decision on an approved preauthorization for the professional whose work it is on the request case (or for the whole case), else its configured_rate.
+      - Review flags a time line whose billed_rate is above its rate limit, and a line whose stated amount differs from its quantity times its stated rate; neither blocks submission. Reviewers may re-price flagged lines (decide_invoice_lines).
       - Submission prices lines again, so the frozen snapshot carries the rates applied; a later rate change never alters a submitted attempt.
 
   apply_mileage_rates:
@@ -266,8 +313,8 @@ rules:
     outcome: blocking
     requirements:
       - Approving a line requires approved_amount between zero and that line requested amount. Pre-approval and non-approval outcomes omit approved_amount.
-      - The approved request amount is the sum of approved line amounts at the final required line-review sequence_number of the current chain; it is not submitted_total.
-      - A later review decision cannot increase an earlier approved line amount; changes require a new review attempt.
+      - The approved request amount is the sum of approved line amounts in the latest line-review round of the current chain; it is not submitted_total. Rejected lines contribute nothing.
+      - A later line-review round in the same chain replaces the earlier round's amounts and may raise or lower them; earlier rounds stay in history. Changes to the request itself require a new review attempt.
       - Final decisions, allocation decisions and completion events are recorded atomically; final approval requires all requested lines reviewed.
       - Denial requires a reason and preserves requested values; a denied attempt has no spendable approved amount.
       - Attestation policy specifies required attestor roles and evidence; verify their case relationship as of attestation time without assuming all attestors have accounts.
@@ -406,6 +453,45 @@ rules:
       - Represented professionals need not attest or approve before review. They may view and export the request like its submitter.
       - A delegate may read the time entries of each professional they act for on cases that professional is assigned to, and record time for that professional there; the entry's professional is the one whose work it is and recorded_by_user_account_id is the delegate.
 
+  authorize_staff_invoice_entry:
+    description: Allow staff to enter a request that a professional sent outside the system, such as by email or from another tool.
+    applies_to: invoice
+    trigger: before_submit
+    outcome: blocking
+    requirements:
+      - Any active staff user (a configured staff role in role_context user_account) may prepare and submit a request for any professional assigned to the case, by typing its items or importing the received file, with the same validation, pricing, import and billing-rule checks as a submitter.
+      - Staff entry needs no office affiliation and grants no other access; every professional the request relies on must have been assigned to the case on the relevant service date, as for authorize_delegated_submission.
+      - Submitting a staff-entered request requires received_via_id and received_on, a date no later than today; the staff user is recorded as submitter and actor on every request event, distinct from the professionals billed.
+      - The professionals billed may view and export the request like its submitter, read-only; they did not submit it and cannot recall or edit it.
+      - The staff user who entered a request may also review its lines. Sign-off still requires a user other than the submitter (decide_invoice_lines).
+      - Staff may read and record time for professionals on the cases they enter requests for, as a delegate may.
+      - Staff may save a request before its case is known; it waits in invoice intake (match_invoice_to_case) and may then be for any active professional.
+
+  match_invoice_to_case:
+    description: Hold requests whose case is not yet known until staff match them to a case, or review them without one.
+    applies_to: invoice
+    trigger: before_update
+    outcome: blocking
+    requirements:
+      - A staff-entered draft request with no case is listed in invoice intake, with imports still being read or confirmed whose case is not known.
+      - Matching is manual. Any active staff user may match a draft request to an open case, setting the case on the request and all its lines; a submitted request is not rematched.
+      - A request saved without its provider gets one on matching, chosen from active professionals, and its time with no one named is then priced as theirs; until then it cannot be submitted, even without a case.
+      - Every professional the request relies on must be assigned to the case on matching; on request, matching assigns any who are not, as an external submitter. Record a matched_to_case request event with the actor.
+      - Staff may instead add the case first and match the request to it in the same step.
+      - The submitter may submit a request with no case only by choosing to review it without one. It is then reviewed and signed off like any other, with no assignment, pre-authorization or case-based rate checks, and warnings that this system did not check its case, its professional's assignment or any pre-authorization.
+      - Exports and the billing record of a request with no case carry the same warning in place of the case number.
+
+  add_professional_without_login:
+    description: Let staff add a professional who has not signed in, so a request can say whose work it is.
+    applies_to: professional
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Any active staff user may add a professional with a name, a professional kind and optionally an email; this creates a person and a professional profile with no user account. Record the actor.
+      - Refuse an email already used by a user account or another professional rather than creating a probable duplicate.
+      - When someone later signs in with that email, they receive the existing profile instead of a new one.
+      - Adding a professional assigns them to no case and grants no access.
+
   authorize_payment_request_export:
     description: Export submitted requests only to users who may read them.
     applies_to: invoice
@@ -415,7 +501,29 @@ rules:
       - Configured billing staff roles may export any submitted request. A submitter may export requests they submitted, and a represented professional requests a delegate submitted for them; no one else may.
       - Exports are reads and are not recorded as audit events.
       - Render the values of an identified submission attempt, its status and line decisions as of export time, labelled with that time; never mix values from different attempts.
+      - Show the case number and court or other case numbers, and each line's latest recorded decision, reason and note. Earlier recorded rounds stay in the request's history but are not exported. Working decisions and internal_only comments are never exported.
       - Offer the same content in document and spreadsheet formats. Imported originals are not retained, so exports never include them.
+      - Exports of signed-off requests are the documentation sent on for payment. The system does not redact them; staff check them for confidential information before sending.
+
+  report_billing_results:
+    description: Keep one billing record per submitted request, so spending can be reported outside the system without retyping.
+    applies_to: invoice
+    trigger: on_read
+    outcome: informational
+    requirements:
+      - One row per submitted request, keyed by case number, with court or other case numbers, the request's own reference, the professional and their kind, who submitted it and how and when a staff-entered one was received, the billing period, submitted date, requested amount, status and the date it last changed, and the line reviewer.
+      - The approved amount, the amount cut, the reasons used for cuts and rejections, and who signed off and when are filled once the request is signed off; a request still in review or awaiting sign-off shows none, since its numbers can still change.
+      - Line detail stays in the system. Configured billing staff roles may download the record; any route to an external system reads from it.
+      - Unresolved: payment track, county, budget account code and budget month, and the external payment date and reference are not yet held, so the record omits them.
+
+  authorize_invoice_review:
+    description: Map configured system roles to review actions.
+    applies_to: invoice_approval_decision
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Configured system roles decide who may review lines, sign off, reassign, change review settings and read the review queue. A reference configuration has a billing reviewer (review lines, reassign), a sign-off approver (sign off or send back, reassign), general staff (read only, until their work is defined) and an administrator (settings).
+      - Review access is by role, not by case assignment; submitter access stays as authorize_payment_request_export and authorize_delegated_submission describe.
 
   recommend_configured_resources:
     description: Recommend configured resources.

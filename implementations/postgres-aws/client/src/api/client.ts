@@ -31,20 +31,43 @@ export interface AuthenticatedUser {
   displayName: string;
   authType: 'sso' | 'magic-link';
   ssoProvider?: string;
-  // From /auth/me only; just shows or hides Settings.
+  // From /auth/me only. They show or hide parts of the UI; the server
+  // enforces each. isStaff: a staff role, so may enter invoices for others.
   isAdmin?: boolean;
+  isStaff?: boolean;
+  reviewPermissions?: ReviewPermissions | null;
+}
+
+export interface ReviewPermissions {
+  reviewLines: boolean;
+  signOff: boolean;
+  reassign: boolean;
+  changeSettings: boolean;
 }
 
 export function getCurrentUser(): Promise<AuthenticatedUser> {
   return request<AuthenticatedUser>('/auth/me');
 }
 
-export function demoLogin(): Promise<AuthenticatedUser> {
-  return request<AuthenticatedUser>('/auth/demo-login', { method: 'POST' });
+// userAccountId: one of listDemoAccounts(); the server's default without it.
+export function demoLogin(userAccountId?: string): Promise<AuthenticatedUser> {
+  return request<AuthenticatedUser>('/auth/demo-login', { method: 'POST', body: JSON.stringify({ userAccountId }) });
 }
 
-export function externalDemoLogin(): Promise<AuthenticatedUser> {
-  return request<AuthenticatedUser>('/auth/demo-login/external', { method: 'POST' });
+export function externalDemoLogin(userAccountId?: string): Promise<AuthenticatedUser> {
+  return request<AuthenticatedUser>('/auth/demo-login/external', { method: 'POST', body: JSON.stringify({ userAccountId }) });
+}
+
+// The seeded synthetic accounts the demo sign-ins may act as.
+export interface DemoAccount {
+  userAccountId: string;
+  displayName: string;
+  // The staff role, or the partner's kind of work.
+  description: string | null;
+}
+
+export function listDemoAccounts(): Promise<{ staff: DemoAccount[]; partners: DemoAccount[] }> {
+  return request<{ staff: DemoAccount[]; partners: DemoAccount[] }>('/auth/demo-accounts');
 }
 
 export function logout(): Promise<void> {
@@ -170,9 +193,33 @@ export function getCase(caseId: string): Promise<CaseDetail> {
   return request<CaseDetail>(`/api/cases/${caseId}`);
 }
 
-// Read-only, one case; review happens via reviewInvoiceLine below.
-export function getCaseInvoices(caseId: string): Promise<{ invoices: InvoiceRecord[] }> {
-  return request<{ invoices: InvoiceRecord[] }>(`/api/cases/${caseId}/invoices`);
+export interface PreauthorizationSummary {
+  professionalId: string | null;
+  authorizationNumbers: string[];
+  ceiling: string;
+  approvedSoFar: string;
+  waiting: string;
+}
+
+export interface CaseInvoices {
+  invoices: ReviewQueueItem[];
+  preauthorizations: PreauthorizationSummary[];
+  // Where this case's new invoices go, ahead of the default.
+  reviewer: AssignedPerson | null;
+  caseNumber: string | null;
+  otherCaseNumbers: string[];
+}
+
+export function getCaseInvoices(caseId: string): Promise<CaseInvoices> {
+  return request<CaseInvoices>(`/api/cases/${caseId}/invoices`);
+}
+
+export function setCaseReviewer(caseId: string, userAccountId: string): Promise<AssignedPerson | null> {
+  return request(`/api/cases/${caseId}/invoice-reviewer`, { method: 'PUT', body: JSON.stringify({ userAccountId }) });
+}
+
+export function createExternalAssignment(caseId: string, professionalId: string): Promise<{ assignment: CaseAssignment }> {
+  return request(`/api/cases/${caseId}/external-assignments`, { method: 'POST', body: JSON.stringify({ professionalId }) });
 }
 
 export interface StaffAccount {
@@ -220,7 +267,7 @@ export function listClients(query: string): Promise<{ clients: ClientRecord[] }>
   return request<{ clients: ClientRecord[] }>(`/api/clients?q=${encodeURIComponent(query)}`);
 }
 
-// External vendors (professionals) — the sidebar's Vendors directory.
+// Providers (attorneys, experts and vendors): the sidebar's Providers list.
 export interface VendorRecord {
   professionalId: string;
   displayName: string | null;
@@ -449,6 +496,8 @@ export interface MyCaseRecord {
   statusId: string;
   statusDisplayName: string;
   externalReference: string | null;
+  // The primary case identifier, else the external reference.
+  caseNumber: string | null;
   clientDisplayName: string | null;
   assignedAt: string;
   assignedProfessionalIds: string[];
@@ -523,7 +572,8 @@ export function deleteTimeEntry(timeEntryId: string): Promise<{ timeEntryId: str
 
 export interface InvoiceRecord {
   invoiceId: string;
-  caseId: string;
+  // Null while a staff-entered invoice waits on Intake for its case.
+  caseId: string | null;
   statusId: string;
   statusCode: string;
   statusDisplayName: string;
@@ -535,6 +585,9 @@ export interface InvoiceRecord {
   lastSubmittedAt: string | null;
   // Whether this user may delete it (server/src/billing/deleteInvoice.ts).
   deletable: boolean;
+  caseClientDisplayName: string | null;
+  caseExternalReference: string | null;
+  professionalDisplayName: string | null;
 }
 
 export type InvoiceLineType = 'time' | 'expense' | 'mileage' | 'other';
@@ -593,8 +646,11 @@ export function rateOn(rates: ProfessionalRate[], date: string): string | undefi
   return found;
 }
 
-export function listBillableProfessionals(caseId: string): Promise<{ professionals: BillableProfessional[] }> {
-  return request<{ professionals: BillableProfessional[] }>(`/api/portal/cases/${caseId}/billable-professionals`);
+// With no case (staff, on Intake), every active professional.
+export function listBillableProfessionals(caseId: string | null): Promise<{ professionals: BillableProfessional[] }> {
+  return request<{ professionals: BillableProfessional[] }>(
+    caseId ? `/api/portal/cases/${caseId}/billable-professionals` : '/api/portal/billable-professionals',
+  );
 }
 
 export interface DraftInvoiceContent {
@@ -603,16 +659,69 @@ export interface DraftInvoiceContent {
   lines: CreateInvoiceLineInput[];
 }
 
-export interface CreateInvoiceInput extends DraftInvoiceContent {
-  caseId: string;
-  // Whose work the invoice bills; defaults to the caller's own profile.
-  professionalId?: string;
+// How and when an invoice staff entered was received
+// (model/rules.yaml authorize_staff_invoice_entry), and whether staff chose
+// to review it without a case (match_invoice_to_case).
+export interface InvoiceReceipt {
+  receivedVia?: string;
+  receivedOn?: string;
+  withoutCase?: boolean;
+}
+
+export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt {
+  // Null: it waits on Intake for its case.
+  caseId: string | null;
+  // Whose work the invoice bills; defaults to the caller's own profile. Null:
+  // staff choose when they match it to a case (no case, draft only).
+  professionalId?: string | null;
   // False keeps it as an editable draft; the server defaults to submitting.
   submit?: boolean;
 }
 
-export function listMyInvoices(caseId: string): Promise<{ invoices: InvoiceRecord[] }> {
-  return request<{ invoices: InvoiceRecord[] }>(`/api/portal/invoices?caseId=${encodeURIComponent(caseId)}`);
+// Intake: invoices held until they are matched to a case.
+export interface IntakeItem {
+  invoiceId: string | null;
+  invoiceImportId: string | null;
+  fileName: string | null;
+  stage: 'reading' | 'unreadable' | 'to_confirm' | 'ready';
+  professionalId: string | null;
+  professionalDisplayName: string | null;
+  enteredByUserAccountId: string;
+  enteredByDisplayName: string | null;
+  enteredAt: string;
+  receivedViaDisplayName: string | null;
+  receivedOn: string | null;
+  submittedTotal: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+}
+
+export function listInvoiceIntake(): Promise<{ items: IntakeItem[] }> {
+  return request('/api/invoices/intake');
+}
+
+// addMissing adds the invoice's providers to the case when they aren't on it.
+// professionalId: whom it bills, when it was saved without one.
+export function matchInvoiceToCase(invoiceId: string, input: { caseId: string; addMissing?: boolean; professionalId?: string }) {
+  return request<{ invoiceId: string; caseId: string; addedProfessionalIds: string[] }>(`/api/invoices/intake/${invoiceId}/case`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+// A provider who hasn't signed in; they get this profile if they do later.
+export function addProfessional(input: { displayName: string; email?: string; professionalKindId: string }) {
+  return request<{ professionalId: string; displayName: string }>('/api/professionals', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function listReceiptChannels(): Promise<{ channels: Array<{ code: string; displayName: string }> }> {
+  return request('/api/portal/receipt-channels');
+}
+
+// Every invoice this user may read, or one case's.
+export function listMyInvoices(caseId?: string): Promise<{ invoices: InvoiceRecord[] }> {
+  const query = caseId ? `?caseId=${encodeURIComponent(caseId)}` : '';
+  return request<{ invoices: InvoiceRecord[] }>(`/api/portal/invoices${query}`);
 }
 
 export function updateDraftInvoice(invoiceId: string, content: DraftInvoiceContent): Promise<{ invoiceId: string; submittedTotal: string }> {
@@ -624,8 +733,15 @@ export function updateDraftInvoice(invoiceId: string, content: DraftInvoiceConte
 
 export type InvoiceTransition = 'submit' | 'recall' | 'withdraw';
 
-export function transitionInvoice(invoiceId: string, transition: InvoiceTransition): Promise<{ invoiceId: string }> {
-  return request<{ invoiceId: string }>(`/api/portal/invoices/${invoiceId}/${transition}`, { method: 'POST' });
+export function transitionInvoice(
+  invoiceId: string,
+  transition: InvoiceTransition,
+  receipt?: InvoiceReceipt,
+): Promise<{ invoiceId: string }> {
+  return request<{ invoiceId: string }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
+    method: 'POST',
+    body: receipt ? JSON.stringify(receipt) : undefined,
+  });
 }
 
 // Reviewer identities aren't sent to the portal; see ../../server/src/routes/portal.ts.
@@ -633,6 +749,9 @@ export type PortalInvoiceLine = Omit<InvoiceReviewLine, 'decidedByDisplayName'>;
 
 export interface PortalInvoice {
   invoice: QueuedInvoice;
+  caseNumber: string | null;
+  // From the latest finished round of review; null until there is one.
+  approvedTotal: string | null;
   lines: PortalInvoiceLine[];
   // Set when the draft came from an uploaded file.
   import: { invoiceImportId: string; statusCode: string } | null;
@@ -698,12 +817,13 @@ export interface InvoiceImportDetail {
 }
 
 // The file goes as the raw body; the server identifies it from its content.
+// No case: the file waits on Intake until it is matched.
 export async function uploadInvoiceFile(
-  caseId: string,
+  caseId: string | null,
   file: File,
   professionalId?: string,
 ): Promise<{ invoiceImportId: string; status: string; invoiceId: string | null }> {
-  const query = new URLSearchParams({ caseId, ...(professionalId ? { professionalId } : {}) });
+  const query = new URLSearchParams({ ...(caseId ? { caseId } : {}), ...(professionalId ? { professionalId } : {}) });
   const response = await fetch(`/api/portal/invoice-imports?${query.toString()}`, {
     method: 'POST',
     credentials: 'include',
@@ -870,15 +990,17 @@ export function createInvoice(input: CreateInvoiceInput): Promise<{ invoiceId: s
   });
 }
 
-// The staff-facing billing review queue (../pages/BillingQueue.tsx) — a
-// cross-case listing, unlike getCaseInvoices above (one case).
+// One invoice's header, as the staff queue and the portal both show it.
 export interface QueuedInvoice {
   invoiceId: string;
-  caseId: string;
+  // Null while held in intake, or when staff reviewed it without a case.
+  caseId: string | null;
   caseClientDisplayName: string | null;
   caseExternalReference: string | null;
-  professionalId: string;
+  // Null only on a staff draft in intake, chosen when it is matched.
+  professionalId: string | null;
   professionalDisplayName: string | null;
+  professionalKindDisplayName: string | null;
   submittedByUserAccountId: string;
   // Differs from the professional when an office delegate submitted.
   submittedByDisplayName: string | null;
@@ -889,14 +1011,106 @@ export interface QueuedInvoice {
   submittedTotal: string;
   periodStart: string | null;
   periodEnd: string | null;
+  // Set when staff entered an invoice received outside the system.
+  receivedViaDisplayName: string | null;
+  receivedOn: string | null;
 }
 
-export function listInvoices(status?: string): Promise<{ invoices: QueuedInvoice[] }> {
-  const query = status ? `?status=${encodeURIComponent(status)}` : '';
-  return request<{ invoices: QueuedInvoice[] }>(`/api/invoices${query}`);
+export interface AssignedPerson {
+  userAccountId: string;
+  displayName: string;
 }
 
-export type ReviewOutcome = 'approved' | 'rejected';
+export interface QueueFlag {
+  kind: 'rate' | 'arithmetic' | 'rule';
+  message: string;
+}
+
+// The staff review queue (../pages/ReviewQueue.tsx).
+export interface ReviewQueueItem extends QueuedInvoice {
+  caseNumber: string | null;
+  otherCaseNumbers: string[];
+  lineCount: number;
+  decidedCount: number;
+  // From the latest finished round; null until one is finished.
+  approvedTotal: string | null;
+  reviewer: AssignedPerson | null;
+  // Who must act now: the next approver while it waits for sign-off.
+  holder: AssignedPerson | null;
+  workingDaysWaiting: number;
+  flags: QueueFlag[];
+}
+
+export function listReviewQueue(view: 'open' | 'finished'): Promise<{ invoices: ReviewQueueItem[]; waitingAlertWorkingDays: number }> {
+  return request(`/api/invoices?view=${view}`);
+}
+
+export interface ReviewPerson {
+  userAccountId: string;
+  displayName: string;
+  roleName: string;
+  reviewsLines: boolean;
+  signsOff: boolean;
+  waiting: number;
+}
+
+export function listReviewPeople(): Promise<{ people: ReviewPerson[] }> {
+  return request('/api/invoices/reviewers');
+}
+
+// Which list a reason is on: approving in part, rejecting, or both.
+export type ReasonAppliesTo = 'approved_in_part' | 'rejected' | 'both';
+
+export interface DecisionReason {
+  code: string;
+  displayName: string;
+  appliesTo: ReasonAppliesTo;
+}
+
+export interface DecisionReasonSetting extends DecisionReason {
+  reasonId: string;
+  active: boolean;
+}
+
+export function listDecisionReasonSettings(): Promise<{ reasons: DecisionReasonSetting[] }> {
+  return request('/api/settings/decision-reasons');
+}
+
+export function addDecisionReason(input: { displayName: string; appliesTo: ReasonAppliesTo }): Promise<DecisionReasonSetting> {
+  return request('/api/settings/decision-reasons', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function updateDecisionReason(
+  reasonId: string,
+  input: Partial<{ displayName: string; appliesTo: ReasonAppliesTo; active: boolean }>,
+): Promise<DecisionReasonSetting> {
+  return request(`/api/settings/decision-reasons/${reasonId}`, { method: 'PUT', body: JSON.stringify(input) });
+}
+
+// One row per submitted invoice, for reports outside the tool.
+export function billingRecordUrl(format: 'csv' | 'xlsx'): string {
+  return `/api/invoices/billing-record?format=${format}`;
+}
+
+export function listDecisionReasons(): Promise<{ reasons: DecisionReason[] }> {
+  return request('/api/invoices/decision-reasons');
+}
+
+// approved_in_part is an approval below the requested amount.
+export type DecisionOutcome = 'approved' | 'approved_in_part' | 'rejected';
+
+export interface LineDecision {
+  outcomeCode: DecisionOutcome;
+  outcomeDisplayName: string;
+  approvedAmount: string | null;
+  approvedQuantity: string | null;
+  approvedRate: string | null;
+  reasonCode: string | null;
+  reasonDisplayName: string | null;
+  note: string | null;
+  decidedByDisplayName: string | null;
+  decidedAt: string;
+}
 
 // Decision fields are null until the line is reviewed.
 export interface InvoiceReviewLine {
@@ -910,11 +1124,17 @@ export interface InvoiceReviewLine {
   serviceDateInferred: boolean;
   description: string | null;
   quantity: string | null;
-  // As stated on an imported file; evidence only.
+  // As stated on an imported file; a time line is billed at it.
   unitRate: string | null;
   statedAmount: string | null;
-  // The configured rate a time or mileage line is billed at.
+  // The rate a time or mileage line is billed at.
   billedRate: string | null;
+  // Time lines: the configured rate for the professional's kind.
+  configuredRate: string | null;
+  // Time lines: what the rate check compares to, the pre-authorized rate
+  // when the case has one, else the configured rate.
+  rateLimit: string | null;
+  rateLimitSource: 'preauthorized' | 'configured' | null;
   // 'mileage' on a mileage line; its quantity is the miles claimed.
   expenseTypeCode: string | null;
   tripOrigin: string | null;
@@ -933,35 +1153,125 @@ export interface InvoiceReviewLine {
   sourceActivityOn: string | null;
   sourceDurationHours: string | null;
   sourceDescription: string | null;
-  decisionOutcomeCode: ReviewOutcome | null;
+  // The latest finished round's decision, flattened.
+  decisionOutcomeCode: DecisionOutcome | null;
   decisionOutcomeDisplayName: string | null;
   decisionApprovedAmount: string | null;
   decisionReason: string | null;
   decidedByDisplayName: string | null;
   decidedAt: string | null;
+  decision: LineDecision | null;
+  // Earlier finished rounds, oldest first.
+  history: Array<LineDecision & { round: number }>;
+  // Staff only: the decision in the round in progress.
+  working: LineDecision | null;
 }
 
-export function getInvoiceForReview(
-  invoiceId: string,
-): Promise<{ invoice: QueuedInvoice; lines: InvoiceReviewLine[]; ruleFindings: RuleFinding[] }> {
+export interface SignOff {
+  displayName: string | null;
+  outcomeCode: string;
+  // Staff only.
+  comment: string | null;
+  decidedAt: string;
+}
+
+export interface InvoiceReview {
+  invoice: QueuedInvoice;
+  // This professional's pre-authorization on the case, if there is one.
+  preauthorization: PreauthorizationSummary | null;
+  caseNumber: string | null;
+  otherCaseNumbers: string[];
+  lines: InvoiceReviewLine[];
+  ruleFindings: RuleFinding[];
+  round: number | null;
+  approvedTotal: string | null;
+  signOffs: SignOff[];
+  assignments: { reviewer: AssignedPerson | null; signOff: Array<AssignedPerson & { position: number }> } | null;
+  // Staff only, while waiting for sign-off: who signs next, and whether
+  // anyone has signed this round (which ends reopening).
+  nextSignOff: AssignedPerson | null;
+  signOffStarted: boolean;
+}
+
+export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {
   return request(`/api/invoices/${invoiceId}`);
 }
 
-export interface ReviewInvoiceLineInput {
-  outcome: ReviewOutcome;
+export interface LineDecisionInput {
+  outcome: DecisionOutcome;
+  approvedQuantity?: number;
+  approvedRate?: number;
   approvedAmount?: number;
-  reason?: string;
+  reasonCode?: string;
+  note?: string;
 }
 
-export function reviewInvoiceLine(
-  invoiceId: string,
-  invoiceLineId: string,
-  input: ReviewInvoiceLineInput,
-): Promise<{ invoiceId: string; invoiceLineId: string; statusId: string }> {
-  return request<{ invoiceId: string; invoiceLineId: string; statusId: string }>(
-    `/api/invoices/${invoiceId}/lines/${invoiceLineId}/review`,
-    { method: 'POST', body: JSON.stringify(input) },
-  );
+export function decideInvoiceLine(invoiceId: string, invoiceLineId: string, input: LineDecisionInput): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/decision`, { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export function undoInvoiceLineDecision(invoiceId: string, invoiceLineId: string): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/decision`, { method: 'DELETE' });
+}
+
+export function repriceInvoice(invoiceId: string): Promise<{ repriced: number }> {
+  return request(`/api/invoices/${invoiceId}/reprice`, { method: 'POST' });
+}
+
+export function finishReview(invoiceId: string): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/finish`, { method: 'POST' });
+}
+
+export function reopenReview(invoiceId: string): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/reopen`, { method: 'POST' });
+}
+
+export function signOffInvoice(invoiceId: string, input: { outcome: 'approved' | 'changes_requested'; comment?: string }): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/sign-off`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function reassignReviewer(invoiceId: string, input: { userAccountId: string; forCase: boolean }): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/reviewer`, { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export function setSignOffApprovers(invoiceId: string, userAccountIds: string[]): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/sign-off-approvers`, { method: 'PUT', body: JSON.stringify({ userAccountIds }) });
+}
+
+export interface ReviewSettings {
+  defaultReviewerUserAccountId: string | null;
+  defaultSignOffUserAccountIds: string[];
+  waitingAlertWorkingDays: number;
+}
+
+export function getReviewSettings(): Promise<ReviewSettings> {
+  return request('/api/settings/review');
+}
+
+export function setReviewSettings(input: Partial<ReviewSettings>): Promise<ReviewSettings> {
+  return request('/api/settings/review', { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export interface StaffRolesResponse {
+  roles: Array<{ roleId: string; displayName: string }>;
+  // Deactivated accounts too.
+  people: Array<{ userAccountId: string; displayName: string; email: string; active: boolean; roleId: string }>;
+}
+
+export function getStaffRoles(): Promise<StaffRolesResponse> {
+  return request('/api/settings/staff-roles');
+}
+
+export function setStaffRole(userAccountId: string, roleId: string): Promise<unknown> {
+  return request(`/api/settings/staff-roles/${userAccountId}`, { method: 'PUT', body: JSON.stringify({ roleId }) });
+}
+
+export function addStaffAccount(input: { displayName: string; email: string; roleId: string }): Promise<{ userAccountId: string }> {
+  return request('/api/settings/staff', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function setStaffActive(userAccountId: string, active: boolean): Promise<unknown> {
+  return request(`/api/settings/staff/${userAccountId}/active`, { method: 'PUT', body: JSON.stringify({ active }) });
 }
 
 export function closeCase(

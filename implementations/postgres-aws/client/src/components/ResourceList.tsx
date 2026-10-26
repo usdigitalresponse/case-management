@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Alert } from '@trussworks/react-uswds';
+import { Notice } from './Notice';
 
 // CaseList and PortalCaseList each hand-rolled this same error/loading/
 // empty/content branching under a shared heading — this is that shape,
@@ -25,7 +25,7 @@ export function ResourceList<T>({
     return (
       <>
         {heading}
-        <Alert type="error">{errorMessage}</Alert>
+        <Notice tone="danger">{errorMessage}</Notice>
       </>
     );
   }

@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { Alert, Button } from '@trussworks/react-uswds';
+import { useEffect, useState, type ReactNode } from 'react';
 import { PageHeading } from './PageHeading';
 import { RecordTable, type RecordTableColumn } from './RecordTable';
 import { SearchInput } from './SearchInput';
+import { Notice } from './Notice';
 
 // Shared "search-then-list" shape for the sidebar's lookup pages (People,
-// Clients, Vendors) — each just differs in what it fetches and how it
-// renders a row. `loadInitially` is for a small-enough table (Vendors)
+// Clients, Providers) — each just differs in what it fetches and how it
+// renders a row. `loadInitially` is for a small-enough table (Providers)
 // where showing everything up front makes sense; People/Clients leave it
 // off since those tables could be large and a query is expected first.
 export function SearchDirectory<T>({
@@ -19,6 +19,9 @@ export function SearchDirectory<T>({
   columns,
   rowKey,
   loadInitially = false,
+  actions,
+  children,
+  reloadKey = 0,
 }: {
   eyebrow: string;
   title: string;
@@ -29,6 +32,12 @@ export function SearchDirectory<T>({
   columns: RecordTableColumn<T>[];
   rowKey: (row: T) => string;
   loadInitially?: boolean;
+  // Beside the title, e.g. an Add button.
+  actions?: ReactNode;
+  // Above the search, e.g. the form an action opens.
+  children?: ReactNode;
+  // Changing it runs the current search again, e.g. after adding a row.
+  reloadKey?: number;
 }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<T[] | null>(null);
@@ -48,16 +57,25 @@ export function SearchDirectory<T>({
   }
 
   useEffect(() => {
-    if (loadInitially) {
-      void runSearch('');
+    if (loadInitially || results) {
+      void runSearch(query);
     }
-    // Only ever run once, on mount.
+    // On mount, and when reloadKey changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reloadKey]);
 
+  const heading = <PageHeading eyebrow={eyebrow} title={title} description={description} />;
   return (
     <>
-      <PageHeading eyebrow={eyebrow} title={title} description={description} />
+      {actions ? (
+        <div className="page-title-row">
+          {heading}
+          <div className="title-actions">{actions}</div>
+        </div>
+      ) : (
+        heading
+      )}
+      {children}
       <form
         className="list-toolbar"
         onSubmit={(event) => {
@@ -76,9 +94,9 @@ export function SearchDirectory<T>({
           // loadInitially directory, otherwise no results until a search.
           onClear={() => (loadInitially ? void runSearch('') : setResults(null))}
         />
-        <Button type="submit" outline disabled={loading}>{loading ? 'Searching…' : 'Search'}</Button>
+        <button type="submit" className="btn btn--outline" disabled={loading}>{loading ? 'Searching…' : 'Search'}</button>
       </form>
-      {error && <Alert type="error">{error}</Alert>}
+      {error && <Notice tone="danger">{error}</Notice>}
       {results && <RecordTable rows={results} rowKey={rowKey} columns={columns} emptyMessage="No results." />}
     </>
   );

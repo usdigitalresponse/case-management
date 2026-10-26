@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router';
-import { Alert, Button } from '@trussworks/react-uswds';
 import {
-  ApiError,
   apiErrorMessage,
   getMyInvoice,
   listBillableProfessionals,
@@ -18,21 +16,27 @@ import { UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 import { useAuth } from '../AuthContext';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
-import { PageHeading } from '../components/PageHeading';
-import { RecordTable } from '../components/RecordTable';
 import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
-import { InvoiceSummary, invoiceReference, isSubmittedStatus } from '../components/InvoiceSummary';
-import { LineDecision } from '../components/LineDecision';
+import { invoiceReference, isSubmittedStatus } from '../components/InvoiceSummary';
+import { StatusPill } from '../components/StatusPill';
+import { RecordedDecision } from '../components/LineReview';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { PeriodFields } from '../components/PeriodFields';
-import { caseDisplayLabel } from '../caseDisplayLabel';
-import { formatMoney } from '../formatMoney';
-import { isMileage, lineDate, lineDescription, lineHours, lineTimekeeper, lineType } from '../invoiceLineDisplay';
+import { PageHeader } from '../components/PageHeader';
+import { Fact, FactsStrip, Progress } from '../components/FactsStrip';
+import { LoadState } from '../components/LoadState';
+import { InvoiceLinesTable, lineRowClass } from '../components/InvoiceLinesTable';
 import { TravelLog } from '../components/TravelLog';
+import { Notice, type SaveMessage } from '../components/Notice';
+import { caseDisplayLabel } from '../caseDisplayLabel';
+import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
+import { useReceipt } from './ReceivedFields';
+import { INTAKE_PATH, useShell } from './useShell';
+import { formatMoney } from '../formatMoney';
+import { submittedByLabel } from '../reviewTotals';
 
-function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () => void }) {
+function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onChanged: () => void; onDeleted: () => void }) {
   const { invoice } = data;
-  const navigate = useNavigate();
   const [lines, setLines] = useState<LineDraft[]>(() => lineDraftsFrom(data.lines));
   const [period, setPeriod] = useState({ start: invoice.periodStart ?? '', end: invoice.periodEnd ?? '' });
   const { data: timekeepers } = useApiResource(
@@ -40,10 +44,12 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
     [invoice.caseId],
   );
   // Unbilled time can be ticked on; time already on this draft shows ticked.
+  // Recorded time belongs to a case, so an invoice in intake has none.
   const { data: caseTime } = useApiResource(
-    () => listMyTimeEntries(invoice.caseId).then((result) => result.timeEntries),
+    () => (invoice.caseId ? listMyTimeEntries(invoice.caseId).then((result) => result.timeEntries) : Promise.resolve([])),
     [invoice.caseId],
   );
+  const noCase = invoice.caseId === null;
   const billableIds = new Set((timekeepers ?? []).map((p) => p.professionalId));
   const pickable = (caseTime ?? []).filter(
     (entry) =>
@@ -51,7 +57,8 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
   );
   const billingRules = usePortalBillingRules();
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+  const [message, setMessage] = useState<SaveMessage | null>(null);
+  const receipt = useReceipt('draft', invoice);
 
   async function run(action: 'save' | InvoiceTransition) {
     setBusy(true);
@@ -65,15 +72,19 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
         });
       }
       if (action !== 'save') {
-        await transitionInvoice(invoice.invoiceId, action);
+        await transitionInvoice(
+          invoice.invoiceId,
+          action,
+          action === 'submit' && receipt.payload ? { ...receipt.payload, withoutCase: noCase || undefined } : undefined,
+        );
       }
       if (action === 'save') {
-        setMessage({ type: 'success', text: 'Draft saved.' });
+        setMessage({ tone: 'success', text: 'Draft saved.' });
       }
       onChanged();
     } catch (err) {
       setMessage({
-        type: 'error',
+        tone: 'danger',
         text: apiErrorMessage(err, 'The draft could not be saved. Time items need a date and hours, mileage a date and miles, and other items an amount above zero.'),
       });
     } finally {
@@ -84,25 +95,55 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
   return (
     <div className="compact-card">
       <h2>Edit draft</h2>
-      {message && <Alert type={message.type} slim>{message.text}</Alert>}
+      {message && <Notice tone={message.tone}>{message.text}</Notice>}
+      {noCase && (
+        <Notice tone="warning" heading="This invoice isn't linked to a case.">
+          {invoice.professionalId === null ? (
+            <>
+              Match it to a case on <RouterLink to={INTAKE_PATH}>Intake</RouterLink>, where you also choose who it's from.
+            </>
+          ) : (
+            <>
+              Match it to a case on <RouterLink to={INTAKE_PATH}>Intake</RouterLink>. You can still send it to review without
+              one, but this system won't check the case, the provider's assignment or any pre-authorization, and its
+              documents will say so.
+            </>
+          )}
+        </Notice>
+      )}
       <RulesInForce rules={billingRules.rules} />
       {/* As last saved; saving shows the effect of edits. */}
       <RuleFindings findings={data.ruleFindings} />
+      {receipt.fields}
       <PeriodFields idPrefix="draft" start={period.start} end={period.end} onChange={setPeriod} />
-      <UnbilledTimePicker idPrefix="draft" entries={pickable} lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
+      {!noCase && (
+        <UnbilledTimePicker idPrefix="draft" entries={pickable} lines={lines} onChange={setLines} timekeepers={timekeepers ?? []} />
+      )}
       <InvoiceLinesEditor
         idPrefix="draft"
         lines={lines}
         onChange={setLines}
         timekeepers={timekeepers ?? []}
-        billedProfessionalId={invoice.professionalId}
+        billedProfessionalId={invoice.professionalId ?? undefined}
         recordedTime={pickable}
         billingCodes={billingRules.codes}
         mileageRates={billingRules.mileageRates}
       />
       <div className="invoice-actions">
-        <Button type="button" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('submit')}>Submit invoice</Button>
-        <Button type="button" outline disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>Save draft</Button>
+        {/* Who it's from is chosen when it's matched, so it can't go to review yet. */}
+        {invoice.professionalId !== null && (
+          <button
+            type="button"
+            className={`btn ${noCase ? 'btn--outline' : 'btn--primary'}`}
+            disabled={busy || !hasInvoiceItems(lines) || receipt.missing}
+            onClick={() => void run('submit')}
+          >
+            {noCase ? 'Review without a case' : 'Submit invoice'}
+          </button>
+        )}
+        <button type="button" className="btn btn--outline" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>
+          Save draft
+        </button>
         <span className="actions-end">
           {!data.deletable ? (
             <ConfirmButton
@@ -113,7 +154,7 @@ function DraftEditor({ data, onChanged }: { data: PortalInvoice; onChanged: () =
               onConfirm={() => void run('withdraw')}
             />
           ) : (
-            <DeleteInvoiceButton invoiceId={invoice.invoiceId} disabled={busy} onDeleted={() => navigate(`/portal/cases/${invoice.caseId}`)} />
+            <DeleteInvoiceButton invoiceId={invoice.invoiceId} disabled={busy} onDeleted={onDeleted} />
           )}
         </span>
       </div>
@@ -131,6 +172,7 @@ export default function PortalInvoiceDetail() {
   const [recallError, setRecallError] = useState<string | null>(null);
   const [recalling, setRecalling] = useState(false);
   const { user } = useAuth();
+  const shell = useShell();
 
   async function recall() {
     setRecalling(true);
@@ -145,12 +187,8 @@ export default function PortalInvoiceDetail() {
     }
   }
 
-  if (error) {
-    const message = error instanceof ApiError && error.status === 404 ? 'Invoice not found.' : 'Failed to load invoice.';
-    return <Alert type="error">{message}</Alert>;
-  }
-  if (!data) {
-    return <p role="status">Loading invoice…</p>;
+  if (error || !data) {
+    return <LoadState error={error} what="invoice" />;
   }
 
   const { invoice, lines } = data;
@@ -164,65 +202,102 @@ export default function PortalInvoiceDetail() {
   // While editing, the editor offers Delete itself.
   const { deletable } = data;
   const recallable = isSubmitter && invoice.statusCode === 'submitted' && lines.every((line) => !line.decisionOutcomeCode);
+  const decidedCount = lines.filter((line) => line.decision).length;
+  const toInvoices = () => navigate(shell.invoicesPath);
 
   return (
     <div>
-      {fromBulk ? (
-        <RouterLink className="back-link" to="/portal/imports">&larr; Back to imports</RouterLink>
-      ) : (
-        <RouterLink className="back-link" to={`/portal/cases/${invoice.caseId}`}>&larr; Back to case</RouterLink>
-      )}
-      <PageHeading
-        eyebrow={isDraft ? 'Draft invoice' : 'Invoice'}
-        title={caseDisplayLabel([invoice.caseExternalReference, invoice.caseClientDisplayName], undefined)}
-        description={invoiceReference(invoice.invoiceId)}
+      <PageHeader
+        crumbs={[
+          fromBulk
+            ? { label: 'Imports', to: '/portal/imports' }
+            : { label: shell.invoicesLabel, to: shell.invoicesPath },
+          invoice.caseId
+            ? { label: invoice.caseClientDisplayName ?? 'Case', to: shell.casePath(invoice.caseId) }
+            : { label: 'No case yet' },
+          { label: invoiceReference(invoice.invoiceId) },
+        ]}
+        title={
+          invoice.caseId
+            ? (invoice.caseClientDisplayName ?? caseDisplayLabel([invoice.caseExternalReference], undefined))
+            : `Invoice from ${invoice.professionalDisplayName ?? 'an unknown provider'}`
+        }
+        status={<StatusPill code={invoice.statusCode} label={isDraft ? 'Draft' : invoice.statusDisplayName} />}
+        meta={
+          <>
+            <strong>Case {data.caseNumber ?? invoice.caseExternalReference ?? '—'}</strong>
+            <span>{submittedByLabel(invoice)}</span>
+            {invoice.receivedOn && (
+              <span>
+                Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
+                {formatDate(invoice.receivedOn)}
+              </span>
+            )}
+          </>
+        }
+        actions={
+          (submitted || recallable || (deletable && !editing)) && (
+            <>
+              {shell.staff && submitted && (
+                <RouterLink className="btn btn--primary" to={`/billing/${invoice.invoiceId}`}>Open in review</RouterLink>
+              )}
+              {recallable && (
+                <button type="button" className="btn btn--outline" disabled={recalling} onClick={() => void recall()}>
+                  {recalling ? 'Recalling…' : 'Recall to draft'}
+                </button>
+              )}
+              {submitted && <InvoiceExportLinks scope="portal" invoiceId={invoice.invoiceId} />}
+              {deletable && !editing && <DeleteInvoiceButton invoiceId={invoice.invoiceId} onDeleted={toInvoices} />}
+            </>
+          )
+        }
       />
 
-      <InvoiceSummary invoice={invoice} lines={lines} />
+      <FactsStrip>
+        <Fact label="Submitted">
+          <strong>{invoice.submittedAt ? formatDateTime(invoice.submittedAt) : 'Not yet'}</strong>
+        </Fact>
+        <Fact label="Billing period">{formatPeriod(invoice.periodStart, invoice.periodEnd)}</Fact>
+        <Fact label={submitted ? 'Requested' : 'Total'}>
+          <strong>{formatMoney(invoice.submittedTotal)}</strong>
+        </Fact>
+        {submitted && (
+          <>
+            <Fact label="Approved">{data.approvedTotal === null ? 'Not reviewed yet' : formatMoney(data.approvedTotal)}</Fact>
+            <Fact label="Lines decided">
+              <Progress done={decidedCount} total={lines.length} />
+            </Fact>
+          </>
+        )}
+      </FactsStrip>
       {submitted && <RuleFindings findings={data.ruleFindings} submitted />}
-
-      {(submitted || recallable || (deletable && !editing)) && (
-        <div className="invoice-actions">
-          {submitted && <InvoiceExportLinks scope="portal" invoiceId={invoice.invoiceId} />}
-          {recallable && (
-            <Button type="button" outline disabled={recalling} onClick={() => void recall()}>
-              {recalling ? 'Recalling…' : 'Recall to draft'}
-            </Button>
-          )}
-          {deletable && !editing && (
-            <DeleteInvoiceButton invoiceId={invoice.invoiceId} onDeleted={() => navigate(`/portal/cases/${invoice.caseId}`)} />
-          )}
-        </div>
+      {recallable && (
+        <Notice tone="info">No one has reviewed this invoice yet, so you can recall it, change it and submit it again.</Notice>
       )}
-      {recallable && <p className="compact-hint">No one has reviewed this invoice yet, so you can recall it, change it and submit it again.</p>}
-      {recallError && <Alert type="error" slim>{recallError}</Alert>}
+      {recallError && <Notice tone="danger">{recallError}</Notice>}
 
       {isDraft && isSubmitter && importUnconfirmed && (
-        <Alert type="info" slim>
+        <Notice tone="info">
           This draft was read from an uploaded file.{' '}
           <RouterLink to={`/portal/imports/${data.import?.invoiceImportId}`}>Review and confirm the import</RouterLink> before
           editing or submitting it.
-        </Alert>
+        </Notice>
       )}
 
       {editing ? (
-        <DraftEditor key={version} data={data} onChanged={() => setVersion((v) => v + 1)} />
+        <DraftEditor key={version} data={data} onChanged={() => setVersion((v) => v + 1)} onDeleted={toInvoices} />
       ) : (
         <div className="detail-section">
           <h2>Invoice items</h2>
-          <RecordTable
-            rows={lines}
-            rowKey={(line) => line.invoiceLineId}
-            emptyMessage="This invoice has no items."
-            columns={[
-              { header: 'Date', render: lineDate },
-              { header: 'Type', render: lineType },
-              { header: 'Description', render: lineDescription },
-              { header: 'Timekeeper', render: lineTimekeeper },
-              { header: lines.some(isMileage) ? 'Hours / miles' : 'Hours', render: lineHours },
-              { header: 'Requested', render: (l) => <span className="amount">{formatMoney(l.amount)}</span> },
-              ...(submitted ? [{ header: 'Decision', render: (l: (typeof lines)[number]) => <LineDecision line={l} /> }] : []),
-            ]}
+          {submitted && data.approvedTotal !== null && (
+            <p className="compact-hint">
+              Approved {formatMoney(data.approvedTotal)} of {formatMoney(invoice.submittedTotal)}. Each line shows why.
+            </p>
+          )}
+          <InvoiceLinesTable
+            lines={lines}
+            rowClassName={(line) => lineRowClass(line.decision?.outcomeCode, false)}
+            decision={submitted ? (line) => <RecordedDecision line={line} decision={line.decision} /> : undefined}
           />
         </div>
       )}

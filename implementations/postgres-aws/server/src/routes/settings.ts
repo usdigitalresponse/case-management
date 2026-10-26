@@ -1,5 +1,6 @@
-// Administrator settings: professional kinds and their rates, mileage rates, and billing
-// rules with their codes. Staff can read them; only administrators change them.
+// Administrator settings: professional kinds and their rates, mileage rates,
+// billing rules with their codes, review routing and staff roles. Staff can
+// read most of them; only administrators change them.
 import { Router } from 'express';
 import { db } from '../db/client';
 import { getSessionUser, requireFullUser } from '../auth/session';
@@ -13,6 +14,9 @@ import {
   setBillingCodeActive,
   setBillingRule,
 } from '../billing/billingRules';
+import { getReviewSettings, setReviewSettings } from '../billing/reviewSettings';
+import { addDecisionReason, listDecisionReasons, updateDecisionReason } from '../billing/decisionReasons';
+import { addStaffAccount, listStaffAccounts, listStaffRoles, setStaffActive, setStaffRole } from '../auth/staffAccountRole';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -81,6 +85,86 @@ router.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     res.status(201).json(await addBillingCode(db, req.body));
+  }),
+);
+
+router.get(
+  '/review',
+  asyncHandler(async (_req, res) => {
+    res.json(await getReviewSettings(db));
+  }),
+);
+
+router.put(
+  '/review',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const user = getSessionUser(req)!;
+    res.json(await setReviewSettings(db, user.userAccountId, req.body));
+  }),
+);
+
+// Who uses this tool and in which role. Accounts are created on first
+// sign-in from an allowed domain, or added here first; administrators
+// change roles and deactivate accounts here.
+router.get(
+  '/staff-roles',
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
+    const [roles, people] = await Promise.all([listStaffRoles(db), listStaffAccounts(db)]);
+    res.json({ roles, people });
+  }),
+);
+
+router.post(
+  '/staff',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const user = getSessionUser(req)!;
+    res.status(201).json(await addStaffAccount(db, user.userAccountId, req.body));
+  }),
+);
+
+router.put(
+  '/staff/:userAccountId/active',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const user = getSessionUser(req)!;
+    res.json(await setStaffActive(db, user.userAccountId, req.params.userAccountId as string, req.body));
+  }),
+);
+
+router.put(
+  '/staff-roles/:userAccountId',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const user = getSessionUser(req)!;
+    res.json(await setStaffRole(db, user.userAccountId, req.params.userAccountId as string, req.body));
+  }),
+);
+
+// Reasons for approving a line in part or rejecting it. Retired reasons stay
+// on the decisions that used them.
+router.get(
+  '/decision-reasons',
+  asyncHandler(async (_req, res) => {
+    res.json({ reasons: await listDecisionReasons(db) });
+  }),
+);
+
+router.post(
+  '/decision-reasons',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await addDecisionReason(db, req.body));
+  }),
+);
+
+router.put(
+  '/decision-reasons/:id',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.json(await updateDecisionReason(db, req.params.id as string, req.body));
   }),
 );
 

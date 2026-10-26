@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
-import { Alert, Button, Checkbox, Form, Label, Select } from '@trussworks/react-uswds';
+import { Checkbox, Form, Label, Select } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
   deleteInvoice,
   discardCaseSplitRead,
   getCaseSplitRead,
   invoiceTemplateUrl,
+  listBillableProfessionals,
   listInvoiceImports,
   listMyCases,
   resolveInvoiceImport,
@@ -14,6 +15,7 @@ import {
   transitionInvoice,
   uploadInvoiceFile,
   uploadInvoiceFileByCase,
+  type BillableProfessional,
   type CaseSplitPreview,
   type ImportInProgress,
   type MyCasesResult,
@@ -21,7 +23,6 @@ import {
 import { useApiResource } from '../hooks/useApiResource';
 import { usePoll } from '../hooks/usePoll';
 import { ImportProgressNote } from '../components/ImportProgressNote';
-import { PageHeading } from '../components/PageHeading';
 import { RecordTable } from '../components/RecordTable';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { caseDisplayLabel } from '../caseDisplayLabel';
@@ -36,10 +37,16 @@ import {
   reviewQueue,
   reviewUrl,
   saveBatch,
+  readyToSubmit,
   sectionOf,
   suggestChoice,
   type BulkStep,
+  type ParsedChoice,
 } from './bulkImport';
+import { Notice } from '../components/Notice';
+import { PageHeader } from '../components/PageHeader';
+import { useReceipt } from './ReceivedFields';
+import { LATER, useShell } from './useShell';
 
 interface StagedFile {
   key: string;
@@ -129,8 +136,8 @@ function SplitAssignment({
         Every line is recorded as {whose} work. Each case becomes its own draft invoice. Cases are suggested where
         the file's case column matches a case reference or client name; check them.
       </p>
-      {error && <Alert type="error" slim>{error}</Alert>}
-      {split.cases.length === 0 && <Alert type="warning" slim>This person has no open cases you can bill for.</Alert>}
+      {error && <Notice tone="danger">{error}</Notice>}
+      {split.cases.length === 0 && <Notice tone="warning">This person has no open cases you can bill for.</Notice>}
       <RecordTable
         rows={split.lines}
         rowKey={(line) => String(line.index)}
@@ -199,12 +206,12 @@ function SplitAssignment({
         at configured rates. You can still correct dates and hours on each draft.
       </p>
       <div className="invoice-actions">
-        <Button type="button" disabled={creating || unassigned > 0} onClick={() => void create()}>
+        <button type="button" className="btn btn--primary" disabled={creating || unassigned > 0} onClick={() => void create()}>
           {creating ? 'Creating…' : `Create ${draftCount} draft ${draftCount === 1 ? 'invoice' : 'invoices'}`}
-        </Button>
-        <Button type="button" unstyled disabled={creating} onClick={onCancel}>
+        </button>
+        <button type="button" className="link-button" disabled={creating} onClick={onCancel}>
           Cancel
-        </Button>
+        </button>
         {unassigned > 0 && <span className="compact-hint">{unassigned} {unassigned === 1 ? 'line needs' : 'lines need'} a case.</span>}
       </div>
     </section>
@@ -213,11 +220,14 @@ function SplitAssignment({
 
 function StagedFiles({
   cases,
+  noCase,
   onStagedCount,
   onUploading,
   onUploaded,
 }: {
   cases: MyCasesResult;
+  // Staff only: whom a file with no case yet may be from.
+  noCase: BillableProfessional[];
   // Files chosen but not yet uploaded, for the step header.
   onStagedCount: (count: number) => void;
   // Cancel waits while files are uploading, so none are left untracked.
@@ -227,7 +237,11 @@ function StagedFiles({
   const [staged, setStaged] = useState<StagedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [splitsCreating, setSplitsCreating] = useState(0);
-  const groups = caseChoiceGroups(cases);
+  const groups = caseChoiceGroups(cases, noCase);
+  // Staff may upload a file with nothing chosen: no case or professional yet.
+  const blankUploads = noCase.length > 0;
+  const choiceOf = (row: StagedFile): ParsedChoice | undefined =>
+    parseChoice(row.choice) ?? (blankUploads ? { kind: 'no_case' } : undefined);
   useEffect(() => onStagedCount(staged.length), [staged.length, onStagedCount]);
   useEffect(() => onUploading(uploading || splitsCreating > 0), [uploading, splitsCreating, onUploading]);
 
@@ -251,15 +265,19 @@ function StagedFiles({
     event.preventDefault();
     setUploading(true);
     for (const row of staged) {
-      const choice = parseChoice(row.choice);
+      const choice = choiceOf(row);
       if (!choice || row.splitReadId) {
         continue;
       }
       update(row.key, { uploading: true, error: undefined });
       try {
-        if (choice.kind === 'case') {
+        if (choice.kind === 'case' || choice.kind === 'no_case') {
           // eslint-disable-next-line no-await-in-loop
-          const { invoiceImportId } = await uploadInvoiceFile(choice.caseId, row.file, choice.professionalId);
+          const { invoiceImportId } = await uploadInvoiceFile(
+            choice.kind === 'case' ? choice.caseId : null,
+            row.file,
+            choice.professionalId,
+          );
           setStaged((current) => current.filter((candidate) => candidate.key !== row.key));
           onUploaded([invoiceImportId]);
         } else {
@@ -274,17 +292,17 @@ function StagedFiles({
     setUploading(false);
   }
 
-  const ready = staged.filter((row) => parseChoice(row.choice) && !row.splitReadId).length;
+  const ready = staged.filter((row) => choiceOf(row) && !row.splitReadId).length;
   const splitting = staged.filter((row): row is StagedFile & { split: CaseSplitPreview; splitReadId: string } =>
     Boolean(row.split && row.splitReadId),
   );
 
   // Stops the server reading a one-person file, or forgets its reading.
-  function dropSplit(row: StagedFile, changes: Partial<StagedFile>) {
+  function dropSplit(row: StagedFile) {
     if (row.splitReadId) {
       void discardCaseSplitRead(row.splitReadId).catch(() => undefined);
     }
-    update(row.key, { splitReadId: undefined, split: undefined, ...changes });
+    update(row.key, { splitReadId: undefined, split: undefined });
   }
 
   return (
@@ -307,12 +325,13 @@ function StagedFiles({
         />
       </div>
       <p className="compact-hint" id="bulk-files-hint">
-        PDF invoices, LEDES 1998B files or the invoice template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}
-        <a href={invoiceTemplateUrl('csv')} download>CSV</a>), up to 10 MB each. Each file is either for one case
-        (suggested when its name includes the case reference or client's name), or for one person across several
-        cases, when a spreadsheet's <code>case</code> column names each line's case; you then assign every line before
-        a draft is made for each case.
+        PDFs, LEDES 1998B files or the template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}
+        <a href={invoiceTemplateUrl('csv')} download>CSV</a>), up to 10 MB each. Then choose each file's case.
       </p>
+      <ul className="compact-hint">
+        <li>One person's spreadsheet covering several cases: choose "split by case".</li>
+        {blankUploads && <li>Case or provider not known yet: leave it blank and match it later on Intake.</li>}
+      </ul>
       {staged.length > 0 && (
         <>
           <RecordTable
@@ -333,7 +352,7 @@ function StagedFiles({
                       disabled={row.uploading || Boolean(row.splitReadId)}
                       onChange={(event) => update(row.key, { choice: event.target.value, error: undefined })}
                     >
-                      <option value="">- Choose a case -</option>
+                      <option value="">{blankUploads ? 'No case or provider yet' : '- Choose a case -'}</option>
                       {groups.map((group) => (
                         <optgroup key={group.label} label={group.label}>
                           {group.choices.map((choice) => (
@@ -362,28 +381,28 @@ function StagedFiles({
                         onReady={(split) => update(row.key, { split })}
                         onFailed={(message) => update(row.key, { splitReadId: undefined, error: message })}
                       />
-                      <Button type="button" unstyled onClick={() => dropSplit(row, {})}>
+                      <button type="button" className="link-button" onClick={() => dropSplit(row)}>
                         Stop
-                      </Button>
+                      </button>
                     </span>
                   ) : (
-                    <Button
+                    <button
                       type="button"
-                      unstyled
+                      className="link-button"
                       onClick={() => setStaged((current) => current.filter((candidate) => candidate.key !== row.key))}
                     >
                       Remove
-                    </Button>
+                    </button>
                   ),
               },
             ]}
           />
           <div className="invoice-actions">
-            <Button type="submit" disabled={uploading || ready === 0}>
+            <button type="submit" className="btn btn--primary" disabled={uploading || ready === 0}>
               {uploading ? 'Uploading…' : `Upload ${ready} ${ready === 1 ? 'file' : 'files'}`}
-            </Button>
-            {staged.some((row) => !parseChoice(row.choice)) && !uploading && (
-              <span className="compact-hint">Files without a case stay here until you choose one.</span>
+            </button>
+            {staged.some((row) => !choiceOf(row)) && !uploading && (
+              <span className="compact-hint">Choose a case for each file to upload it.</span>
             )}
           </div>
         </>
@@ -402,7 +421,7 @@ function StagedFiles({
                 setStaged((current) => current.filter((candidate) => candidate.key !== row.key));
                 onUploaded(importIds);
               }}
-              onCancel={() => dropSplit(row, {})}
+              onCancel={() => dropSplit(row)}
             />
           )
         );
@@ -412,7 +431,7 @@ function StagedFiles({
 }
 
 function caseOf(row: ImportInProgress): string {
-  return caseDisplayLabel([row.caseExternalReference, row.caseClientDisplayName], undefined);
+  return row.caseId ? caseDisplayLabel([row.caseExternalReference, row.caseClientDisplayName], undefined) : 'No case yet';
 }
 
 function totalWithFile(row: ImportInProgress) {
@@ -448,6 +467,7 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
   const toReview = imports.filter((row) => sectionOf(row) === 'review');
   const unreadable = imports.filter((row) => sectionOf(row) === 'unreadable');
   const next = reviewQueue(imports)[0];
+  const { newInvoicePath, staff } = useShell();
   const discardButton = (row: ImportInProgress) => (
     <ConfirmButton
       compact
@@ -466,7 +486,7 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
       </p>
       {next && (
         <div className="invoice-actions">
-          <RouterLink className="usa-button" to={reviewUrl(next)}>
+          <RouterLink className="btn btn--primary" to={reviewUrl(next)}>
             Review next: {next.fileName}
           </RouterLink>
         </div>
@@ -538,7 +558,9 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
                 header: '',
                 render: (row) => (
                   <span className="row-actions">
-                    {row.caseId && <RouterLink to={`/portal/cases/${row.caseId}#new-invoice`}>Enter by hand</RouterLink>}
+                    {(row.caseId || staff) && (
+                      <RouterLink to={`${newInvoicePath}?case=${row.caseId ?? LATER}`}>Enter by hand</RouterLink>
+                    )}
                     {discardButton(row)}
                   </span>
                 ),
@@ -553,13 +575,17 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
 }
 
 function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onChanged: () => void }) {
-  const ready = imports.filter((row) => sectionOf(row) === 'ready');
+  const ready = readyToSubmit(imports);
+  const waiting = imports.filter((row) => sectionOf(row) === 'ready').length - ready.length;
+  const { newInvoicePath, newInvoiceLabel } = useShell();
   // Everything ready is included unless unticked.
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<{ submitted: ImportInProgress[]; errors: string[] } | null>(null);
   const chosen = ready.filter((row) => !excluded.has(row.invoiceImportId));
   const chosenTotal = chosen.reduce((sum, row) => sum + Math.round(Number(row.submittedTotal ?? 0) * 100), 0) / 100;
+  // Staff say once how and when this batch was received.
+  const receipt = useReceipt('bulk');
 
   function toggle(importId: string, included: boolean) {
     setExcluded((current) => {
@@ -581,7 +607,7 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
     for (const row of chosen) {
       try {
         // eslint-disable-next-line no-await-in-loop
-        await transitionInvoice(row.invoiceId as string, 'submit');
+        await transitionInvoice(row.invoiceId as string, 'submit', receipt.payload);
         submitted.push(row);
       } catch (err) {
         errors.push(`${row.fileName}: ${apiErrorMessage(err, 'could not be submitted.')}`);
@@ -597,20 +623,26 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
     <section className="bulk-step-section" id="submit">
       <h2>3. Submit</h2>
       {results && results.submitted.length > 0 && (
-        <Alert type="success" slim>
+        <Notice tone="success">
           Submitted {results.submitted.length} {results.submitted.length === 1 ? 'invoice' : 'invoices'}:{' '}
           {results.submitted.map((row) => `${caseOf(row)} (${formatMoney(row.submittedTotal ?? '0')})`).join(', ')}.{' '}
           <a href="#bulk-files">Start another batch</a>
-        </Alert>
+        </Notice>
       )}
       {results && results.errors.length > 0 && (
-        <Alert type="error" slim>
+        <Notice tone="danger">
           <ul>
             {results.errors.map((error) => (
               <li key={error}>{error}</li>
             ))}
           </ul>
-        </Alert>
+        </Notice>
+      )}
+      {waiting > 0 && (
+        <Notice tone="info">
+          {waiting} confirmed {waiting === 1 ? 'invoice has' : 'invoices have'} no case yet and{' '}
+          {waiting === 1 ? 'waits' : 'wait'} on <RouterLink to={newInvoicePath}>{newInvoiceLabel}</RouterLink> to be matched to a case.
+        </Notice>
       )}
       {ready.length === 0 ? (
         <p>Confirmed files appear here, ready to submit together.</p>
@@ -643,12 +675,18 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
               },
             ]}
           />
+          {receipt.fields}
           <div className="invoice-actions">
-            <Button type="button" disabled={submitting || chosen.length === 0} onClick={() => void submitChosen()}>
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={submitting || chosen.length === 0 || receipt.missing}
+              onClick={() => void submitChosen()}
+            >
               {submitting
                 ? 'Submitting…'
                 : `Submit ${chosen.length} ${chosen.length === 1 ? 'invoice' : 'invoices'} · ${formatMoney(chosenTotal.toFixed(2))}`}
-            </Button>
+            </button>
           </div>
         </>
       )}
@@ -661,6 +699,12 @@ export default function PortalBulkImport() {
   const [stagedCount, setStagedCount] = useState(0);
   const [uploadedCount, setUploadedCount] = useState(0);
   const { data: cases, error: casesError } = useApiResource(() => listMyCases(), []);
+  const { staff, newInvoicePath, newInvoiceLabel } = useShell();
+  // Staff may import for any active professional with no case yet.
+  const { data: noCase } = useApiResource(
+    () => (staff ? listBillableProfessionals(null).then((result) => result.professionals) : Promise.resolve([])),
+    [staff],
+  );
   const { data: imports, error: importsError } = useApiResource(
     () => listInvoiceImports().then((result) => result.imports),
     [version],
@@ -692,7 +736,7 @@ export default function PortalBulkImport() {
     }
   }, [loaded, hash]);
   const queue = imports ? reviewQueue(imports) : [];
-  const readyCount = imports?.filter((row) => sectionOf(row) === 'ready').length ?? 0;
+  const readyCount = imports ? readyToSubmit(imports).length : 0;
   const step = currentStep(stagedCount, imports ?? []);
 
   // This browser session's uploads still in progress; other imports and
@@ -730,7 +774,7 @@ export default function PortalBulkImport() {
     }
     setBatch([]);
     saveBatch([]);
-    navigate('/');
+    navigate(newInvoicePath);
   }
 
   async function discard(importId: string) {
@@ -743,49 +787,53 @@ export default function PortalBulkImport() {
 
   return (
     <div>
-      <RouterLink className="back-link" to="/">&larr; Back to your cases</RouterLink>
-      <div className="case-heading-row portal-cases-heading">
-        <PageHeading
-          eyebrow="Your cases"
-          title="Import invoices"
-          description="Upload several invoice files at once, review and correct what was read from each, then submit them together."
-        />
-        {(stagedCount > 0 || batchInProgress.length > 0) && !confirmingCancel && !uploadingNow && (
-          <Button type="button" outline onClick={() => setConfirmingCancel(true)}>
-            Cancel import
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        crumbs={[{ label: newInvoiceLabel, to: newInvoicePath }, { label: 'Import invoices' }]}
+        title="Import invoices"
+        description="Upload several invoice files at once, review and correct what was read from each, then submit them together."
+        actions={
+          (stagedCount > 0 || batchInProgress.length > 0) &&
+          !confirmingCancel &&
+          !uploadingNow && (
+            <button type="button" className="btn btn--outline" onClick={() => setConfirmingCancel(true)}>
+              Cancel import
+            </button>
+          )
+        }
+      />
       {confirmingCancel && (
-        <Alert type="warning" slim className="bulk-cancel">
-          <span>
-            {batchInProgress.length > 0
-              ? `Cancel this import? The ${batchInProgress.length} ${batchInProgress.length === 1 ? 'file' : 'files'} you uploaded in this session ${batchInProgress.length === 1 ? 'is' : 'are'} discarded and nothing from ${batchInProgress.length === 1 ? 'it' : 'them'} is submitted.`
-              : "Cancel this import? The files you've chosen aren't uploaded."}
-          </span>
-          <span className="row-actions">
-            <Button type="button" secondary disabled={cancelling || uploadingNow} onClick={() => void cancel()}>
-              {cancelling ? 'Cancelling…' : 'Yes, cancel'}
-            </Button>
-            <Button type="button" unstyled disabled={cancelling} onClick={() => setConfirmingCancel(false)}>
-              Keep going
-            </Button>
-          </span>
-        </Alert>
+        <Notice
+          tone="warning"
+          action={
+            <span className="row-actions">
+              <button type="button" className="btn btn--danger" disabled={cancelling || uploadingNow} onClick={() => void cancel()}>
+                {cancelling ? 'Cancelling…' : 'Yes, cancel'}
+              </button>
+              <button type="button" className="link-button" disabled={cancelling} onClick={() => setConfirmingCancel(false)}>
+                Keep going
+              </button>
+            </span>
+          }
+        >
+          {batchInProgress.length > 0
+            ? `Cancel this import? The ${batchInProgress.length} ${batchInProgress.length === 1 ? 'file' : 'files'} you uploaded in this session ${batchInProgress.length === 1 ? 'is' : 'are'} discarded and nothing from ${batchInProgress.length === 1 ? 'it' : 'them'} is submitted.`
+            : "Cancel this import? The files you've chosen aren't uploaded."}
+        </Notice>
       )}
-      {cancelError && <Alert type="error" slim>{cancelError}</Alert>}
+      {cancelError && <Notice tone="danger">{cancelError}</Notice>}
       <StepHeader step={step} toReview={queue.length} ready={readyCount} />
       {uploadedCount > 0 && stagedCount === 0 && queue.length > 0 && (
-        <Alert type="success" slim className="bulk-next">
+        <Notice tone="success">
           {uploadedCount} {uploadedCount === 1 ? 'file' : 'files'} uploaded. Next, check what was read from each.{' '}
           <RouterLink to={reviewUrl(queue[0]!)}>Review next: {queue[0]!.fileName}</RouterLink>
-        </Alert>
+        </Notice>
       )}
-      {Boolean(casesError) && <Alert type="error">Failed to load your cases.</Alert>}
-      {cases && cases.cases.length === 0 && <p>You aren't assigned to any cases yet, so there's nothing to import for.</p>}
-      {cases && cases.cases.length > 0 && (
+      {Boolean(casesError) && <Notice tone="danger">Failed to load your cases.</Notice>}
+      {cases && cases.cases.length === 0 && !staff && <p>You aren't assigned to any cases yet, so there's nothing to import for.</p>}
+      {cases && noCase && (cases.cases.length > 0 || staff) && (
         <StagedFiles
           cases={cases}
+          noCase={noCase}
           onStagedCount={setStagedCount}
           onUploading={setUploadingNow}
           onUploaded={(importIds) => {
@@ -795,7 +843,7 @@ export default function PortalBulkImport() {
           }}
         />
       )}
-      {Boolean(importsError) && <Alert type="error">Failed to load your imports.</Alert>}
+      {Boolean(importsError) && <Notice tone="danger">Failed to load your imports.</Notice>}
       {imports && (
         <>
           <ReviewStep imports={shownImports ?? imports} onDiscard={(importId) => void discard(importId)} />
