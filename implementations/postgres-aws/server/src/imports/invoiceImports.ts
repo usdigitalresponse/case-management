@@ -34,7 +34,7 @@ import {
 import { DRAFT_INVOICE_STATUS_CODE } from '../billing/invoiceStatusCodes';
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile } from './detectFormat';
-import { documentPipeline } from './extractors';
+import { documentExtractor } from './extractors';
 import { cancelExtraction, enqueueExtraction, extractionProgress } from './extractionJobs';
 import { ExtractionCancelledError, isolationEnabled, parseIsolated } from './isolatedExtraction';
 import {
@@ -332,8 +332,7 @@ async function recordExtraction(
   outcome: Pick<ReadOutcome, 'parsed' | 'failure'>,
 ): Promise<{ invoiceImportId: string; status: string; invoiceId: string | null }> {
   const extractedAt = new Date();
-  // The method that produced the result, when a fallback was used.
-  const extractionMethod = outcome.parsed?.extractionMethod ?? target.extractionMethod;
+  const { extractionMethod } = target;
   if (!outcome.parsed) {
     await tx
       .update(invoiceImport)
@@ -441,7 +440,7 @@ export async function removeUnreferencedFiles(db: Database, store: DocumentStore
 
 export async function failInterruptedExtractions(db: Database): Promise<number> {
   const receivedId = await importStatusId(db, 'received');
-  const pipeline = documentPipeline();
+  const extractor = documentExtractor();
   const interrupted = await db
     .select({ invoiceImportId: invoiceImport.invoiceImportId })
     .from(invoiceImport)
@@ -452,7 +451,7 @@ export async function failInterruptedExtractions(db: Database): Promise<number> 
       .update(invoiceImport)
       .set({
         statusId: await importStatusId(db, 'failed'),
-        extractionMethod: `${pipeline.id} ${pipeline.version}`,
+        extractionMethod: `${extractor.id} ${extractor.version}`,
         extractedAt: new Date(),
         extractionResult: {
           spec_version: SUBMISSION_SNAPSHOT_SPEC_VERSION,

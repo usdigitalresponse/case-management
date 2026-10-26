@@ -8,7 +8,6 @@ import { describe, expect, it } from 'vitest';
 import { detectInvoiceFile } from '../src/imports/detectFormat';
 import { reconciliationWarnings } from '../src/imports/parsedInvoice';
 import { scoreExtraction, type ExpectedDocument } from '../src/imports/extractors/scoreExtraction';
-import { reconciles } from '../src/imports/extractors';
 import type { ParsedInvoice } from '../src/imports/parsedInvoice';
 
 const SAMPLES_DIR = join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices');
@@ -16,7 +15,7 @@ const SAMPLES_DIR = join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtur
 // The in-app text-layer extractor's measured accuracy on each PDF (npm run
 // extraction-accuracy). Raise these as it improves; a drop is a regression.
 // The voucher's counsel name sits outside its table, so timekeepers miss;
-// recognition drops some decimal points in the scans' quantities.
+// recognition misreads a word in some scanned descriptions.
 const TEXT_LAYER_BASELINE: Record<string, number> = {
   'pdf-itemized.pdf': 1,
   'pdf-coded.pdf': 1,
@@ -27,20 +26,22 @@ const TEXT_LAYER_BASELINE: Record<string, number> = {
   'pdf-stacked.pdf': 1,
   'pdf-continued.pdf': 1,
   'pdf-unlabelled.pdf': 1,
-  'pdf-scanned-continued.pdf': 0.94,
-  'pdf-scanned-unlabelled.pdf': 0.96,
-  'pdf-searchable-unlabelled.pdf': 0.96,
+  'pdf-scanned-continued.pdf': 0.99,
+  'pdf-scanned-unlabelled.pdf': 1,
+  'pdf-searchable-unlabelled.pdf': 1,
   'pdf-scanned-attachments.pdf': 1,
+  'pdf-letter.pdf': 1,
+  'pdf-letter-injected.pdf': 1,
   // Its second page is upside down and its third sideways.
-  'pdf-scanned-rotated.pdf': 0.94,
+  'pdf-scanned-rotated.pdf': 0.99,
 };
 
 // Scans are recognized page by page, which takes seconds.
 const SCANNED_TIMEOUT = 120_000;
 
 // Files the in-app reader misreads on purpose (handwritten marks): what
-// matters is that its figures don't add up, so the vision-model pass runs.
-const NEEDS_FOLLOW_UP = new Set(['pdf-scanned-marked.pdf']);
+// matters is that the reviewer is told to check the figures.
+const MISREAD_ON_PURPOSE = new Set(['pdf-scanned-marked.pdf']);
 
 interface Expected {
   format: string;
@@ -77,8 +78,7 @@ describe('shared synthetic invoice samples', () => {
       }
 
       const parsed = await parse(fileName);
-      if (NEEDS_FOLLOW_UP.has(fileName)) {
-        expect(reconciles(parsed)).toBe(false);
+      if (MISREAD_ON_PURPOSE.has(fileName)) {
         expect(parsed.warnings?.map((warning) => warning.code)).toContain('low_confidence');
         return;
       }

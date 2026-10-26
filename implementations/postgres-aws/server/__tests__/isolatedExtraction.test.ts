@@ -3,6 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import PDFDocument from 'pdfkit';
 import { describe, expect, it } from 'vitest';
 import { ExtractionCancelledError, isolationEnabled, memoryLimitMb, parseIsolated } from '../src/imports/isolatedExtraction';
 import { UnreadableInvoiceFileError } from '../src/imports/parsedInvoice';
@@ -11,6 +12,16 @@ import type { ExtractionProgress } from '../src/imports/extractors/types';
 const tsx = dirname(require.resolve('tsx/package.json'));
 const execArgv = ['--require', join(tsx, 'dist', 'preflight.cjs'), '--import', pathToFileURL(join(tsx, 'dist', 'loader.mjs')).href];
 const sample = (file: string) => readFileSync(join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices', file));
+
+function notAnInvoicePdf(): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'LETTER' });
+  const chunks: Buffer[] = [];
+  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+  const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+  doc.text('Meeting notes: nothing to bill this month.');
+  doc.end();
+  return done;
+}
 
 describe('isolated extraction', () => {
   it('is on unless set to inline', () => {
@@ -33,10 +44,10 @@ describe('isolated extraction', () => {
     expect(progress).toContainEqual({ stage: 'recognizing', page: 1, pages: 1 });
   }, 60_000);
 
-  it('passes back why a document can’t be read, with what was found', async () => {
-    const failure = await parseIsolated(sample('pdf-letter.pdf'), () => undefined, { execArgv }).catch((error: unknown) => error);
+  it('passes back why a document can’t be read', async () => {
+    const failure = await parseIsolated(await notAnInvoicePdf(), () => undefined, { execArgv }).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(UnreadableInvoiceFileError);
-    expect((failure as UnreadableInvoiceFileError).found.statedTotal).toBe(6211);
+    expect((failure as UnreadableInvoiceFileError).fieldErrors.file).toMatch(/No table of invoice items/);
   }, 60_000);
 
   it('stops a read whose import is discarded', async () => {

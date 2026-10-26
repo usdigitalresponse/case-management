@@ -34,7 +34,7 @@ process.once('message', (bytes: Uint8Array) => {
     } catch (error) {
       await send(
         error instanceof UnreadableInvoiceFileError
-          ? { type: 'unreadable', message: error.fieldErrors.file ?? '', found: error.found }
+          ? { type: 'unreadable', message: error.fieldErrors.file ?? '' }
           : { type: 'error', message: error instanceof Error ? (error.stack ?? error.message) : String(error) },
       );
     }

@@ -345,11 +345,18 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     up to 50 pages. Page subtotals don't end a table (each is checked
     against the items above it, warning `subtotal_mismatch`), and nothing
     after the amount or balance due is read, so attachments behind the
-    invoice aren't. Text under no heading goes to the description, not a
+    invoice aren't (nor is a later page's total taken for the invoice's).
+    Text under no heading goes to the description, not a
     neighbouring figure column; with no quantity heading, the first of two
     figures under the rate is the quantity; without a date column, a date
     opening the description is the item's; a line described as mileage is
-    an expense.
+    an expense. Outside tables, items written as sentences, as in a letter
+    ("Site visit, March 9: 2 hrs x $100.00 = $200.00"), are read too, with
+    a numbered line ending in an amount once such sentences have appeared;
+    a total after the last of them ends the invoice like an amount due.
+    Amounts with cents are preferred over stray digits, rates can have
+    three places ($0.725), points as thousands separators ("2.500.00") are
+    read, and a page-number line ("Page 2 of 5") is never an item.
   - Scans: a PDF is recognized rather than read from its text layer when
     no page has visible text, which covers image-only scans and
     "searchable" scans whose invisible text (rendering mode 3 or 7, over
@@ -364,14 +371,29 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     same table reader. The result warns `read_by_ocr`, flags items whose
     figures were recognized with low confidence (`low_confidence`, e.g.
     handwriting or strike-through) and skips an amount read as negative
-    (`line_not_read`) instead of refusing the file. Printed figures are
-    used; handwritten corrections are not read. Recognition takes a few
-    seconds a page.
+    (`line_not_read`) instead of refusing the file. When a recognized
+    item's quantity × rate doesn't make its amount, the one cheapest
+    explanation is applied with warning `figures_repaired`: a dropped
+    decimal point ("89250" for 892.50), a number among stray marks, or
+    else one unreadable or low-confidence figure worked out from the other
+    two; with no single fit the figures stay as read. Digital text is never
+    repaired, so its own errors show as rate mismatches. Handwriting is
+    never imported: the printed figures are, and reviewers apply any
+    handwritten correction in review. Words recognized without confidence
+    on average (handwriting, a correction or a poor scan of print, in the
+    margin or as a minus under a figure column such as "-40") are attached
+    to the item above as warning `unclear_text`, quoting recognition's best
+    guess when it is mostly figures and saying it couldn't be read
+    otherwise; a confident minus there is printed text ("pages 1-40") and
+    continues the description. Every warning on a recognized item ends
+    "Compare with the file." A line's
+    height is taken from its typical word, so a tall handwritten mark
+    doesn't merge it with the next. Recognition takes a few seconds a page.
   - PDFs are read in the background (`extractionJobs.ts`): the upload stores
     the file, creates the import as `received` and returns; one file is read
     at a time, and the import detail and list carry `progress` (waiting
-    with how many files ahead, reading, recognizing page n of m, or the
-    vision model on page n of m), which the review and bulk import pages
+    with how many files ahead, reading, or recognizing page n of m), which
+    the review and bulk import pages
     poll every two seconds. LEDES and spreadsheet files are still read
     during the upload. A result is recorded only if the import is still
     `received`, so a file discarded while it was being read stays
@@ -404,49 +426,18 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     requests, imports still `received` fail with warning `interrupted` for
     the uploader to upload again, which means this needs a single server
     instance.
-  - Vision-model follow-up (`vision.ts`), on when `INVOICE_VISION_URL` and
-    `INVOICE_VISION_MODEL` are set: a self-hosted model behind the Ollama
-    API, measured with `qwen2.5vl:7b`. It runs only when the reader above
-    finds no table or items, when its items don't add up to the stated
-    total or a page subtotal, or for a recognized scan with no stated total
-    to check against. Each page is rendered at 1,600 pixels on the long
-    side and sent with a fixed JSON schema (temperature 0, answers capped
-    at 3,000 tokens); attachment pages it marks as such are skipped, and
-    their totals count only when no invoice page states one (a folio's zero
-    balance never does). Its result replaces the first when it adds up, or
-    when the first found nothing; when neither adds up, the one nearer the
-    stated total is kept with warning `readings_did_not_reconcile`.
-    Results warn `read_by_model`, and the import
-    records the model's exact build, e.g.
-    `pdf-vision qwen2.5vl:7b@5ced39dfa4ba recipe 1a2b3c4d`, where the
-    recipe is a hash of the instructions, schema, image size and
-    generation settings, so a prompt change is as visible as a model
-    change. The instructions sit in a system message that treats all text
-    in the document as data, never as instructions. Because text in a
-    document could still talk a model into items and a total that agree
-    with each other, the model's reading is held to the total read from
-    the document's own text (kept even when the table reader gives up). A
-    text-layer total is trusted: the model's items must add up to it to
-    be preferred. A recognized total may itself be misread, so a model
-    reading that adds up on its own is accepted and flagged
-    `totals_disagree` where its total differs. A model reading with no
-    total takes the document's, so the usual mismatch warning applies. An unreachable model leaves
-    the first reading in place. On real scans tried locally the combined
-    pipeline found 99% of items, against 86% for the reader alone. On a laptop processor the model takes
-    about 45 seconds a page; production would need a GPU host inside the
-    boundary.
-    Methods marked outside the processing boundary are refused in
-    production. Layouts without a recognizable table are imported as
-    `failed`, for the submitter to discard or enter by hand.
+  - Methods marked outside the processing boundary are refused in
+    production. Layouts with neither a recognizable table nor item
+    sentences are imported as `failed`, for the submitter to discard or
+    enter by hand. No model reads documents: a self-hosted vision model was
+    tried as a follow-up pass and removed, since it needs a GPU host or a
+    much larger server than the demo's (see
+    `docs/invoice-import-export-plan.md`).
     `npm run extraction-accuracy` scores methods against the synthetic PDFs
-    in `scenarios/fixtures/invoices/`: the text-layer reader alone gets
-    92.8% of 1,271 fields across fifteen files, five of them scans (all
-    digital fields but the voucher's counsel name, which sits outside its
-    table; recognition drops some decimal points in the scans). The letter
-    it refuses and the marked-up scan it misreads are there for the vision
-    pass: `__tests__/visionReplay.test.ts` replays a real model's recorded
-    answers for them (`npm run record-vision-answers`, re-run when the model
-    or prompt changes), so tests check real model output without a model.
+    in `scenarios/fixtures/invoices/`: the text-layer reader gets 98.0% of
+    1,545 fields across seventeen files, six of them scans (all digital
+    fields but the voucher's counsel name, which sits outside its table; the
+    marked-up scan is misread on purpose and its figures are flagged).
     That corpus was made for this purpose, so real
     invoices will score lower. `npm run extract-invoice -- <files>` shows
     what any file yields; vendor templates, exports and real samples for
@@ -551,8 +542,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     executed); background reads need a single server instance and a
     restart fails the ones in progress and forgets pending case-split reads
     (their uploader starts again); a scan on the 1 GB demo instance runs
-    partly in swap, so it is slow; without a vision model configured, letter-style invoices with
-    no item table aren't read; no cloud AI method (one needs a cost review
+    partly in swap, so it is slow; invoices with neither an item table
+    nor items written as "hours × rate = amount" sentences aren't read;
+    handwritten figures are flagged, not read; no cloud AI method (one needs a cost review
     first); expense lines create no
     `expense` records (no table); credits and adjustment lines are refused
     rather than imported; a file's container-local

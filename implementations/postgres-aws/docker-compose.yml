@@ -47,18 +47,11 @@ services:
       ROUTE_CHECK_MONTHLY_CALL_WARNING: ${ROUTE_CHECK_MONTHLY_CALL_WARNING:-1000}
       ROUTE_CHECK_MONTHLY_CALL_LIMIT: ${ROUTE_CHECK_MONTHLY_CALL_LIMIT:-}
       ROUTE_CHECK_COUNTRY: ${ROUTE_CHECK_COUNTRY:-USA}
-      # Optional vision-model pass for PDFs — see .env.example.
-      INVOICE_VISION_URL: ${INVOICE_VISION_URL:-}
-      INVOICE_VISION_MODEL: ${INVOICE_VISION_MODEL:-}
       AWS_REGION: ${AWS_REGION:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     ports:
       - "3000:3000"
-    # Lets INVOICE_VISION_URL reach Ollama on this machine on Linux too
-    # (Docker Desktop provides the name already).
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

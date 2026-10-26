@@ -14,15 +14,13 @@ export function progressText(progress: ImportProgress | null): string {
       return 'Reading the file…';
     case 'recognizing':
       return `Recognizing the scanned text: page ${progress.page} of ${progress.pages}`;
-    case 'model':
-      return `Taking a closer look with an AI model: page ${progress.page} of ${progress.pages}`;
   }
 }
 
 // How far through its pages the current stage is (0–1); undefined when
 // there's no page count to show.
 export function progressFraction(progress: ImportProgress | null): number | undefined {
-  if (!progress || (progress.stage !== 'recognizing' && progress.stage !== 'model')) {
+  if (!progress || progress.stage !== 'recognizing') {
     return undefined;
   }
   return (progress.page - 1) / progress.pages;

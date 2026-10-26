@@ -136,23 +136,7 @@ each file's printed figures; the format is at the top of
 `scripts/extraction-accuracy.ts`.
 
 PDF uploads are read in the background and the review screens show
-progress. To try the optional vision-model pass for PDFs the reader can't
-read or whose figures don't add up, run Ollama on this machine
-(`brew install ollama`, `ollama serve`, `ollama pull qwen2.5vl:7b`) and set
-in `.env`:
-
-```sh
-INVOICE_VISION_URL=http://host.docker.internal:11434   # http://127.0.0.1:11434 outside Docker
-INVOICE_VISION_MODEL=qwen2.5vl:7b
-```
-
-With those set, `npm run extraction-accuracy -- --samples ../local-samples
-pdf-text-layer+vision` scores the combined pipeline and `pdf-vision` the
-model alone. Tests never call a model: they stub its API, or replay
-answers a real model gave for the synthetic samples. After changing the
-model or its prompt, re-record those with `npm run record-vision-answers`
-(same two settings, `127.0.0.1` address) and update the baselines in
-`__tests__/visionReplay.test.ts`.
+progress.
 
 ### Running the API server
 

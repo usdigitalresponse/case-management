@@ -1,4 +1,4 @@
-// Slow extractions (scans, the vision model) run in the background, one at a
+// Slow extractions (scans) run in the background, one at a
 // time so they don't compete for the processor, and report where they are
 // for the uploader's screen. Jobs live in this process: an import left
 // received by a restart is failed on startup (failInterruptedExtractions in

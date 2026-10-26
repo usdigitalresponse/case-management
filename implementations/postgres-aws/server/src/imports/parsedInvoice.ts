@@ -31,29 +31,14 @@ export interface ParsedInvoice {
   lines: ParsedLine[];
   // The parser's own findings, such as text read by recognition.
   warnings?: ImportWarning[];
-  // Set when an extractor that chose between methods used another one,
-  // e.g. "pdf-vision qwen2.5vl:7b@5ced39dfa4ba recipe 1a2b3c4d"; recorded on
-  // the import.
-  extractionMethod?: string;
 }
 
 // Larger files are almost certainly bulk exports of many invoices.
 const MAX_IMPORTED_LINES = 1000;
 
-// What a reader found before giving up, for a follow-up method to check its
-// reading against; `recognized` when it came from text recognition, which
-// can misread the total itself.
-export interface FoundBeforeFailing {
-  statedTotal?: number;
-  recognized?: boolean;
-}
-
 // Its message is shown to the submitter.
 export class UnreadableInvoiceFileError extends ValidationError {
-  constructor(
-    message: string,
-    readonly found: FoundBeforeFailing = {},
-  ) {
+  constructor(message: string) {
     super({ file: message });
   }
 }
