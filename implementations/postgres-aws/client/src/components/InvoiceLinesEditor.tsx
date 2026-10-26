@@ -305,12 +305,13 @@ export function InvoiceLinesEditor({
   // Staff review's columns (client/src/pages/InvoiceReview.tsx), led by the
   // kind of item, which decides whether it takes hours, miles or an amount.
   // Who did it and its code sit under the description.
+  // In a narrow editor, app.css moves "What was done" onto its own line.
   const columns = [
-    ['Kind', 'minmax(7.5rem, 8.5rem)'],
+    ['Kind', 'minmax(8.75rem, 9.5rem)'],
     ['Date', 'minmax(8.5rem, 9.5rem)'],
     ['What was done', 'minmax(12rem, 1fr)'],
-    [lines.some((line) => line.lineType === 'mileage') ? 'Hours / miles' : 'Hours', 'minmax(4.5rem, 5.5rem)'],
-    ['Rate', 'minmax(5rem, 6.5rem)'],
+    [lines.some((line) => line.lineType === 'mileage') ? 'Hours / miles' : 'Hours', 'minmax(5rem, 6rem)'],
+    ['Rate', 'minmax(6rem, 7rem)'],
     ['Amount', 'minmax(6rem, 7.5rem)'],
     ['', '1.75rem'],
   ];
@@ -384,8 +385,9 @@ export function InvoiceLinesEditor({
               )
             : undefined;
         return (
+          // data-label: a short visible label when a narrow editor stacks its cells (app.css).
           <div key={index} className="line-row inline-fields" style={{ gridTemplateColumns }} role="group" aria-label={item}>
-            <div className="usa-form-group">
+            <div className="usa-form-group" data-label="Kind">
               <Label htmlFor={id('type')} className="line-label">{`${item} kind`}</Label>
               <Select
                 id={id('type')}
@@ -401,7 +403,7 @@ export function InvoiceLinesEditor({
                 <option value="other">Other cost</option>
               </Select>
             </div>
-            <div className="usa-form-group">
+            <div className="usa-form-group" data-label="Date">
               <Label htmlFor={id('date')} className="line-label">{`${item} date`}</Label>
               <input
                 id={id('date')}
@@ -414,7 +416,7 @@ export function InvoiceLinesEditor({
                 }
               />
             </div>
-            <div className="usa-form-group line-what">
+            <div className="usa-form-group line-what" data-label="What was done">
               <Label htmlFor={id('description')} className="line-label">{`${item} description`}</Label>
               <TextInput
                 id={id('description')}
@@ -475,7 +477,7 @@ export function InvoiceLinesEditor({
               </div>
               )}
             </div>
-            <div className="usa-form-group">
+            <div className="usa-form-group" data-label={mileage ? 'Miles' : 'Hours'}>
               <Label htmlFor={id('quantity')} className="line-label">{`${item} ${mileage ? 'miles' : 'hours'}`}</Label>
               <TextInput
                 id={id('quantity')}
@@ -488,7 +490,7 @@ export function InvoiceLinesEditor({
                 onChange={(event) => update(index, { quantity: event.target.value })}
               />
             </div>
-            <div className="line-amount line-rate">
+            <div className="line-amount line-rate" data-label="Rate">
               <span className="line-label">{`${item} rate`}</span>
               {preview && 'amount' in preview ? (
                 <span className="line-amount-priced">
@@ -504,7 +506,7 @@ export function InvoiceLinesEditor({
               )}
             </div>
             {line.lineType === 'time' ? (
-              <div className="usa-form-group line-amount">
+              <div className="usa-form-group line-amount" data-label="Amount">
                 <span className="line-label">{`${item} amount in dollars`}</span>
                 {preview && 'amount' in preview ? (
                   <strong className="amount">{formatMoney(preview.amount)}</strong>
@@ -513,7 +515,7 @@ export function InvoiceLinesEditor({
                 )}
               </div>
             ) : mileagePreview ? (
-              <div className="usa-form-group line-amount">
+              <div className="usa-form-group line-amount" data-label="Amount">
                 <span className="line-label">{`${item} amount in dollars`}</span>
                 {'amount' in mileagePreview ? (
                   <strong className="amount">{formatMoney(mileagePreview.amount)}</strong>
@@ -522,7 +524,7 @@ export function InvoiceLinesEditor({
                 )}
               </div>
             ) : (
-              <div className="usa-form-group">
+              <div className="usa-form-group" data-label="Amount">
                 <Label htmlFor={id('amount')} className="line-label">{`${item} amount in dollars`}</Label>
                 <TextInput
                   id={id('amount')}

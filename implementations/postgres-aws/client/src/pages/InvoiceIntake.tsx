@@ -306,7 +306,10 @@ export default function InvoiceIntake() {
       <NewInvoiceStart onSaved={refresh} providersVersion={providersVersion} />
 
       <section className="detail-section">
-        <h2>Waiting for a case{data && data.length > 0 && <span className="nav-count">{data.length}</span>}</h2>
+        <h2>
+          Waiting for a case
+          {data && data.length > 0 && <span className="heading-count">{data.length}</span>}
+        </h2>
         {error || !data ? (
           <LoadState error={error} what="invoices waiting for a case" />
         ) : (

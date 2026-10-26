@@ -21,7 +21,7 @@ import PortalInvoiceDetail from './portal/PortalInvoiceDetail';
 import PortalBulkImport from './portal/PortalBulkImport';
 import PortalImportReview from './portal/PortalImportReview';
 import { INTAKE_PATH, NEW_INVOICE_PATH } from './portal/useShell';
-import { listReviewQueue } from './api/client';
+import { listInvoiceIntake, listReviewQueue } from './api/client';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 
 // Only rendered for a signed-in staff user (see AppContent) — the signed-out screen is LoginPage's alone.
@@ -66,15 +66,16 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
 // Counts for the sidebar, refreshed as the reviewer moves around.
 function useQueueCounts(userAccountId: string) {
   const location = useLocation();
-  const [counts, setCounts] = useState<{ all: number; mine: number } | null>(null);
+  const [counts, setCounts] = useState<{ all: number; mine: number; waiting: number } | null>(null);
   useEffect(() => {
     let cancelled = false;
-    listReviewQueue('open').then(
-      ({ invoices }) => {
+    Promise.all([listReviewQueue('open'), listInvoiceIntake()]).then(
+      ([{ invoices }, { items }]) => {
         if (!cancelled) {
           setCounts({
             all: invoices.length,
             mine: invoices.filter((invoice) => invoice.holder?.userAccountId === userAccountId).length,
+            waiting: items.length,
           });
         }
       },
@@ -101,7 +102,15 @@ function Sidebar({ isAdmin, userAccountId }: { isAdmin: boolean; userAccountId: 
       <nav aria-label="Main navigation">
         {/* Invoices received by email or from other tools: entered, finished and matched to their case. */}
         <div className="nav-group">
-          <NavLink to={INTAKE_PATH} end>Intake</NavLink>
+          <NavLink to={INTAKE_PATH} end className="nav-primary" title="Enter invoices and match them to cases">
+            <span><span aria-hidden="true">+ </span>Intake</span>
+            {counts && counts.waiting > 0 && (
+              <span className="nav-count" title="Waiting for a case">
+                {counts.waiting}
+                <span className="usa-sr-only"> waiting for a case</span>
+              </span>
+            )}
+          </NavLink>
         </div>
         <div className="nav-group">
           <h2>Invoices</h2>

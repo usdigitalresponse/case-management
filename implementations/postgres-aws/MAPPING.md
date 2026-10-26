@@ -92,7 +92,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `ensureProfessional.ts` links it on first sign-in by email.
     Gaps: only the staff member who entered a draft can submit it; matching
     is refused once submitted; a one-person file split across cases
-    needs a case for every line; the sidebar shows no waiting count; added assignments start on matching,
+    needs a case for every line; added assignments start on matching,
     which passes because assignment is checked as of now, not on each
     line's service date (as for delegates, below).
   - The external portal uses the same shell and opens on "New invoice"
