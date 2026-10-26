@@ -558,7 +558,8 @@ export function deleteTimeEntry(timeEntryId: string): Promise<{ timeEntryId: str
 
 export interface InvoiceRecord {
   invoiceId: string;
-  caseId: string;
+  // Null while a staff-entered invoice waits on Intake for its case.
+  caseId: string | null;
   statusId: string;
   statusCode: string;
   statusDisplayName: string;
@@ -656,8 +657,9 @@ export interface InvoiceReceipt {
 export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt {
   // Null: staff add the case later, from invoice intake.
   caseId: string | null;
-  // Whose work the invoice bills; defaults to the caller's own profile.
-  professionalId?: string;
+  // Whose work the invoice bills; defaults to the caller's own profile. Null:
+  // staff choose when they match it to a case (no case, draft only).
+  professionalId?: string | null;
   // False keeps it as an editable draft; the server defaults to submitting.
   submit?: boolean;
 }
@@ -685,7 +687,8 @@ export function listInvoiceIntake(): Promise<{ items: IntakeItem[] }> {
 }
 
 // addMissing adds the invoice's providers to the case when they aren't on it.
-export function matchInvoiceToCase(invoiceId: string, input: { caseId: string; addMissing?: boolean }) {
+// professionalId: whom it bills, when it was saved without one.
+export function matchInvoiceToCase(invoiceId: string, input: { caseId: string; addMissing?: boolean; professionalId?: string }) {
   return request<{ invoiceId: string; caseId: string; addedProfessionalIds: string[] }>(`/api/invoices/intake/${invoiceId}/case`, {
     method: 'POST',
     body: JSON.stringify(input),
@@ -980,7 +983,8 @@ export interface QueuedInvoice {
   caseId: string | null;
   caseClientDisplayName: string | null;
   caseExternalReference: string | null;
-  professionalId: string;
+  // Null only on a staff draft in intake, chosen when it is matched.
+  professionalId: string | null;
   professionalDisplayName: string | null;
   professionalKindDisplayName: string | null;
   submittedByUserAccountId: string;

@@ -85,6 +85,36 @@ describe('invoice intake', () => {
     await submitInvoice(testDb, staff, invoiceId, receipt);
   });
 
+  it('holds an invoice with no professional either, chosen and priced when it is matched', async () => {
+    const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const provider = await addProvider();
+    const { invoiceId } = await createInvoice(testDb, staff, {
+      caseId: null,
+      professionalId: null,
+      submit: false,
+      lines: [{ lineType: 'time', quantity: 2, serviceDate: '2026-02-02', description: 'Synthetic interview' }],
+      ...receipt,
+    });
+    // Only as a held draft: not with a case, and not submitted.
+    await expect(
+      createInvoice(testDb, staff, { caseId: await openCase(), professionalId: null, submit: false, ...items }),
+    ).rejects.toThrow();
+    await expect(submitInvoice(testDb, staff, invoiceId, { ...receipt, withoutCase: true })).rejects.toThrow(ValidationError);
+
+    const caseId = await openCase();
+    await expect(matchInvoiceToCase(testDb, fixtures.staffUserAccountId, invoiceId, { caseId, addMissing: true })).rejects.toThrow(
+      ValidationError,
+    );
+    await matchInvoiceToCase(testDb, fixtures.staffUserAccountId, invoiceId, {
+      caseId,
+      addMissing: true,
+      professionalId: provider.professionalId,
+    });
+    const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(row).toMatchObject({ professionalId: provider.professionalId, submittedTotal: '200.00' });
+    await submitInvoice(testDb, staff, invoiceId, receipt);
+  });
+
   it('lets staff review an invoice without a case, flagged everywhere', async () => {
     const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
     const provider = await addProvider();

@@ -58,7 +58,6 @@ export function ReceivedFields({
           />
         </div>
       </div>
-      <p className="compact-hint">Review waiting time counts from the date received.</p>
     </fieldset>
   );
 }

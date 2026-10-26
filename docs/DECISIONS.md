@@ -75,8 +75,10 @@ The external submitter portal keeps its sign-in and is restyled to match.
   review it, but sign-off is still by someone else.
 
 **Invoice intake** (decided 2026-10-26)
-- Staff may save an invoice before its case is known. It waits in an
-  "Invoice intake" list until any staff member matches it to a case by hand,
+- Staff enter invoices, finish drafts and match invoices to cases on one
+  Intake page.
+- Staff may save an invoice before its case is known. It waits under
+  "Waiting for a case" until any staff member matches it to a case by hand,
   or adds the case and matches it in one step. Matching can add the provider
   to the case.
 - The person who entered it may instead send it to review without a case.

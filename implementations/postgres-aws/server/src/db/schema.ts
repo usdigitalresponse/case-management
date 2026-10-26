@@ -382,7 +382,9 @@ export const invoice = pgTable(
     submittedByUserAccountId: uuid('submitted_by_user_account_id')
       .notNull()
       .references(() => userAccount.userAccountId),
-    professionalId: uuid('professional_id').notNull().references(() => professional.professionalId),
+    // Null only on a staff draft in intake whose professional is chosen when
+    // it is matched to a case (model/rules.yaml match_invoice_to_case).
+    professionalId: uuid('professional_id').references(() => professional.professionalId),
     statusId: uuid('status_id').notNull().references(() => invoiceStatuses.id),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     // Frozen at submit time, computed from invoice_line amounts rather

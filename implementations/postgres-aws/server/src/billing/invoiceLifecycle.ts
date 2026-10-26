@@ -121,13 +121,14 @@ async function replaceLines(
   invoiceId: string,
   // Null for an invoice held in intake (match_invoice_to_case).
   caseId: string | null,
-  billedProfessionalId: string,
+  // Null: staff will choose the professional when they match it to a case.
+  billedProfessionalId: string | null,
   content: DraftContent,
   // Off for an unconfirmed import: unmatched lines stay unmatched.
   fillTimekeepers: boolean,
 ): Promise<string> {
   const billable = new Set(await billableProfessionalIds(tx, actor, caseId));
-  if (!billable.has(billedProfessionalId)) {
+  if (billedProfessionalId === null ? caseId !== null || billable.size === 0 : !billable.has(billedProfessionalId)) {
     throw new NotAssignedToCaseError();
   }
   const delegated = billedProfessionalId !== actor.professionalId;
@@ -135,7 +136,7 @@ async function replaceLines(
     ...line,
     amount: line.amount === undefined ? undefined : Math.round(line.amount * 100) / 100,
     timekeeperProfessionalId:
-      line.timekeeperProfessionalId ?? (delegated && fillTimekeepers ? billedProfessionalId : undefined),
+      line.timekeeperProfessionalId ?? (delegated && fillTimekeepers ? (billedProfessionalId ?? undefined) : undefined),
   }));
   if (lines.some((line) => line.timekeeperProfessionalId && !billable.has(line.timekeeperProfessionalId))) {
     throw new ValidationError({
@@ -283,7 +284,7 @@ export async function createDraftInTx(
   tx: Transaction,
   actor: PortalActor,
   caseId: string | null,
-  billedProfessionalId: string,
+  billedProfessionalId: string | null,
   content: DraftContent,
   options: { fillTimekeepers: boolean } = { fillTimekeepers: true },
 ): Promise<string> {
@@ -323,7 +324,9 @@ async function lockOwnInvoice(tx: Transaction, actor: PortalActor, invoiceId: st
   if (!locked || locked.submittedByUserAccountId !== actor.userAccountId) {
     throw new InvoiceNotFoundError();
   }
-  if (!(await billableProfessionalIds(tx, actor, locked.caseId)).includes(locked.professionalId)) {
+  const billable = await billableProfessionalIds(tx, actor, locked.caseId);
+  // With no professional yet, only staff (who may bill anyone in intake) may act.
+  if (locked.professionalId === null ? billable.length === 0 : !billable.includes(locked.professionalId)) {
     throw new NotAssignedToCaseError();
   }
   return locked;
@@ -359,10 +362,14 @@ export async function submitInTx(
   if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
     throw new InvoiceStateError('Only a draft can be submitted.');
   }
+  if (locked.professionalId === null) {
+    throw new ValidationError({ professionalId: 'Choose who this invoice is from when you match it to a case.' });
+  }
   if (locked.caseId === null && !options.withoutCase) {
     throw new ValidationError({ caseId: 'Match this invoice to a case, or choose to review it without one.' });
   }
-  await requireReceiptForStaffEntry(tx, actor, locked);
+  const billedProfessionalId = locked.professionalId;
+  await requireReceiptForStaffEntry(tx, actor, { ...locked, professionalId: billedProfessionalId });
   const lines = await tx
     .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
     .from(invoiceLine)
@@ -389,7 +396,7 @@ export async function submitInTx(
       {
         invoiceId,
         caseId: locked.caseId,
-        billedProfessionalId: locked.professionalId,
+        billedProfessionalId,
         invoiceImportId: imported?.invoiceImportId,
       },
       actor.userAccountId,
@@ -397,7 +404,7 @@ export async function submitInTx(
   }
   // Priced again so the snapshot below freezes the rates in force.
   await priceLines(tx, invoiceId, {
-    billedProfessionalId: locked.professionalId,
+    billedProfessionalId,
     unmatchedMeansBilled: true,
     strict: true,
   });

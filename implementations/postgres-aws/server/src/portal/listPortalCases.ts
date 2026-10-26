@@ -86,8 +86,10 @@ function unsubmittedInvoices(
         portalReadableInvoiceCondition(db, reader),
       ),
     )
-    // Filtered to these cases, so none is without one.
-    .then((rows) => rows.flatMap((row) => (row.caseId ? [{ caseId: row.caseId, professionalId: row.professionalId }] : [])));
+    // Filtered to these cases and professionals, so none is without either.
+    .then((rows) =>
+      rows.flatMap((row) => (row.caseId && row.professionalId ? [{ caseId: row.caseId, professionalId: row.professionalId }] : [])),
+    );
 }
 
 function idsByCase(pairs: CaseProfessionalPairs): Map<string, string[]> {

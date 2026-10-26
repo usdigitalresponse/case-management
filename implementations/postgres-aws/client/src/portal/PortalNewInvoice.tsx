@@ -1,56 +1,46 @@
 import { useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
-import { listBillableProfessionals, listMyCases, listMyInvoices, listMyTimeEntries } from '../api/client';
+import { listBillableProfessionals, listMyCases, listMyTimeEntries } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { NewInvoiceForm } from './NewInvoiceForm';
-import { MyInvoicesTable } from './MyInvoicesTable';
 import { useShell } from './useShell';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 
-// The start page for entering invoices: import invoice files (which can
-// cover several cases), or choose a case and enter or import one invoice for
-// it. Submitters use it for their own work; staff for invoices received by
-// email or from other tools, and they finish their drafts here.
+// The submitter's start page for entering invoices. Staff enter invoices
+// received by email or from other tools on Intake (pages/InvoiceIntake.tsx),
+// which uses the same NewInvoiceStart.
+export default function PortalNewInvoice() {
+  return (
+    <div>
+      <PageHeader title="New invoice" description="Enter an invoice by hand for a case, or import invoice files." />
+      <NewInvoiceStart />
+    </div>
+  );
+}
+
 // The case choice for an invoice whose case staff will add later.
 const LATER = 'later';
 
-export default function PortalNewInvoice() {
+// Two ways in: enter an invoice by hand for a chosen case, or import files
+// through the bulk import flow (which can cover several cases). Staff may
+// leave the case for later in either. providersVersion reloads who can be
+// billed after a provider is added.
+export function NewInvoiceStart({ onSaved, providersVersion = 0 }: { onSaved?: () => void; providersVersion?: number }) {
   const [params, setParams] = useSearchParams();
   const caseId = params.get('case') ?? '';
   const { staff } = useShell();
-  const [version, setVersion] = useState(0);
   const { data: cases, error } = useApiResource(() => listMyCases().then((result) => result.cases), []);
-  const { data: drafts } = useApiResource(
-    () => (staff ? listMyInvoices().then((result) => result.invoices.filter((invoice) => invoice.statusCode === 'draft')) : Promise.resolve([])),
-    [staff, version],
-  );
 
   return (
-    <div>
-      <PageHeader
-        title="New invoice"
-        description={
-          staff
-            ? 'Enter an invoice a professional sent by email or from another tool, for them. Import the file, or choose a case and type it in.'
-            : 'Import invoice files, or choose a case to enter an invoice by hand.'
-        }
-      />
+    <>
       {Boolean(error) && <Notice tone="danger">Failed to load cases.</Notice>}
 
       <div className="start-options">
         <section className="compact-card start-option">
-          <h2>Import invoice files</h2>
-          <p className="compact-hint">
-            Upload PDFs, spreadsheets or billing files. You check what was read before anything is submitted, and a
-            file covering several cases can be split between them.
-          </p>
-          <RouterLink className="btn btn--primary" to="/portal/imports">Import files</RouterLink>
-        </section>
-
-        <section className="compact-card start-option">
-          <h2>Enter an invoice for a case</h2>
+          <h2>Enter invoice manually</h2>
+          <p className="compact-hint">Choose the case, then type in the items.</p>
           <label className="settings-field" htmlFor="new-invoice-case">Case</label>
           <select
             id="new-invoice-case"
@@ -59,7 +49,7 @@ export default function PortalNewInvoice() {
             onChange={(event) => setParams(event.target.value ? { case: event.target.value } : {})}
           >
             <option value="">Choose a case</option>
-            {staff && <option value={LATER}>Add case later (hold in invoice intake)</option>}
+            {staff && <option value={LATER}>No case yet: match it later</option>}
             {cases?.map((myCase) => (
               <option key={myCase.caseId} value={myCase.caseId}>
                 {caseDisplayLabel([myCase.externalReference, myCase.clientDisplayName], undefined)}
@@ -70,30 +60,43 @@ export default function PortalNewInvoice() {
             <p className="compact-hint">{staff ? 'No case has a professional assigned yet.' : "You aren't assigned to any cases yet."}</p>
           )}
         </section>
+
+        <section className="compact-card start-option">
+          <h2>Import invoice</h2>
+          <p className="compact-hint">Upload PDFs, spreadsheets or billing files, then check what was imported before submitting.</p>
+          <RouterLink className="btn btn--primary" to="/portal/imports">Import files</RouterLink>
+        </section>
       </div>
 
       {caseId && (
-        <CaseInvoice key={caseId} caseId={caseId === LATER ? null : caseId} onSaved={() => setVersion((v) => v + 1)} />
+        <CaseInvoice key={caseId} caseId={caseId === LATER ? null : caseId} providersVersion={providersVersion} onSaved={onSaved} />
       )}
-
-      {staff && drafts && drafts.length > 0 && (
-        <section className="detail-section">
-          <h2>Drafts to finish</h2>
-          <MyInvoicesTable rows={drafts} label="Drafts to finish" onDeleted={() => setVersion((v) => v + 1)} />
-        </section>
-      )}
-    </div>
+    </>
   );
 }
 
-// caseId null: staff will add the case later, in invoice intake.
-function CaseInvoice({ caseId, onSaved }: { caseId: string | null; onSaved: () => void }) {
+// caseId null: staff will add the case later, from Intake.
+function CaseInvoice({
+  caseId,
+  providersVersion,
+  onSaved,
+}: {
+  caseId: string | null;
+  providersVersion: number;
+  onSaved?: () => void;
+}) {
   const { casePath } = useShell();
   const [timeVersion, setTimeVersion] = useState(0);
-  const { data: billable, error } = useApiResource(
+  const { data: loaded, error } = useApiResource(
     () => listBillableProfessionals(caseId).then((result) => result.professionals),
-    [caseId],
+    [caseId, providersVersion],
   );
+  // Keep the form, and what was typed, while the list reloads.
+  const [lastLoaded, setLastLoaded] = useState(loaded);
+  if (loaded && loaded !== lastLoaded) {
+    setLastLoaded(loaded);
+  }
+  const billable = loaded ?? lastLoaded;
   // Recorded time belongs to a case.
   const { data: entries } = useApiResource(
     () => (caseId ? listMyTimeEntries(caseId).then((result) => result.timeEntries) : Promise.resolve([])),
@@ -114,17 +117,18 @@ function CaseInvoice({ caseId, onSaved }: { caseId: string | null; onSaved: () =
         </p>
       ) : (
         <Notice tone="info">
-          Saved invoices wait in <RouterLink to="/intake">Invoice intake</RouterLink> until someone matches them to a case.
-          A provider who isn't listed can be added there first.
+          It will wait under "Waiting for a case" until it's matched. Provider not listed? Use "Add a provider" above.
         </Notice>
       )}
+      {/* Files go through "Import invoice" instead. */}
       <NewInvoiceForm
         caseId={caseId}
         billable={billable}
         entries={entries}
+        allowImport={false}
         onSaved={() => {
           setTimeVersion((v) => v + 1);
-          onSaved();
+          onSaved?.();
         }}
       />
     </section>

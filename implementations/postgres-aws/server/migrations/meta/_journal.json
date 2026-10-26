@@ -92,6 +92,13 @@
       "when": 1793040901362,
       "tag": "0012_invoice_intake",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793054673815,
+      "tag": "0013_invoice_without_professional",
+      "breakpoints": true
     }
   ]
 }

@@ -11,7 +11,8 @@ import { listRates, professionalRateLabels, rateOn } from './professionalRates';
 import { listMileageRates, mileageRateOn } from './mileageRates';
 
 export interface PriceOptions {
-  billedProfessionalId: string;
+  // Null until staff choose the professional of an invoice in intake.
+  billedProfessionalId: string | null;
   // A line with no timekeeper is the billed professional's work, except on
   // an unconfirmed import, where it is not matched yet.
   unmatchedMeansBilled: boolean;

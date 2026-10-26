@@ -17,18 +17,23 @@ import { Notice } from '../components/Notice';
 import { hasReceipt, ReceivedFields } from './ReceivedFields';
 import { useShell } from './useShell';
 
+const PROFESSIONAL_LATER = 'later';
+
 // A new invoice on one case: typed items (starting from unbilled time) or an
-// imported file. Shared by the case page and the New invoice page. With no
-// case (staff only), it is saved to invoice intake.
+// imported file. Shared by the case page, the portal's New invoice page and
+// staff Intake. With no case (staff only), it waits on Intake for its case.
 export function NewInvoiceForm({
   caseId,
   billable,
   entries,
   onSaved,
+  allowImport = true,
 }: {
   caseId: string | null;
   billable: BillableProfessional[];
   entries: TimeEntryRecord[] | null;
+  // Off where the page offers the bulk import flow beside the form.
+  allowImport?: boolean;
   // Billing changes what time is unbilled.
   onSaved: () => void;
 }) {
@@ -70,6 +75,11 @@ export function NewInvoiceForm({
   const [mode, setMode] = useState<'enter' | 'import'>('enter');
   const [receipt, setReceipt] = useState<InvoiceReceipt>({});
 
+  // Staff holding an invoice with no case may also leave who it's from to matching.
+  const professionalLater = billedProfessionalId === PROFESSIONAL_LATER;
+  // The professional whose work it is, once chosen.
+  const billedId = professionalLater ? '' : billedProfessionalId;
+
   // Nothing to save until an item has an amount and someone is billed.
   const canSave = hasInvoiceItems(lines) && Boolean(billedProfessionalId);
 
@@ -81,7 +91,7 @@ export function NewInvoiceForm({
       await createInvoice({
         caseId,
         submit,
-        professionalId: billedProfessionalId || undefined,
+        professionalId: professionalLater ? null : billedProfessionalId || undefined,
         periodStart: period.start || undefined,
         periodEnd: period.end || undefined,
         lines: linesFromDrafts(lines),
@@ -120,6 +130,7 @@ export function NewInvoiceForm({
               }}
             >
               {!billedProfessionalId && <option value="">Choose who it's from</option>}
+              {staff && caseId === null && <option value={PROFESSIONAL_LATER}>No professional yet: match it later</option>}
               {billable.map((professional) => (
                 <option key={professional.professionalId} value={professional.professionalId}>
                   {professionalLabel(professional)}
@@ -129,17 +140,19 @@ export function NewInvoiceForm({
           </FormGroup>
         </div>
       )}
-      <div className="choice-toggle" role="group" aria-label="How to add the invoice">
-        <button type="button" aria-pressed={mode === 'enter'} onClick={() => setMode('enter')}>
-          Enter items
-        </button>
-        <button type="button" aria-pressed={mode === 'import'} onClick={() => setMode('import')}>
-          Import a file
-        </button>
-      </div>
+      {allowImport && (
+        <div className="choice-toggle" role="group" aria-label="How to add the invoice">
+          <button type="button" aria-pressed={mode === 'enter'} onClick={() => setMode('enter')}>
+            Enter items
+          </button>
+          <button type="button" aria-pressed={mode === 'import'} onClick={() => setMode('import')}>
+            Import a file
+          </button>
+        </div>
+      )}
 
-      {mode === 'import' ? (
-        <InvoiceImportForm caseId={caseId} professionalId={billedProfessionalId} />
+      {allowImport && mode === 'import' ? (
+        <InvoiceImportForm caseId={caseId} professionalId={billedId} />
       ) : (
         <Form
           className="compact-form"
@@ -155,9 +168,9 @@ export function NewInvoiceForm({
           {saved === 'draft' && (
             <Notice tone="success">
               {caseId === null
-                ? 'Saved to Invoice intake, where it waits for its case.'
+                ? 'Saved. Match it to a case under "Waiting for a case".'
                 : staff
-                  ? 'Draft saved. Finish it from Drafts on New invoice.'
+                  ? 'Draft saved. Finish it from "Drafts to finish" below.'
                   : 'Draft saved. Open it from Your invoices to edit or submit it.'}
             </Notice>
           )}
@@ -172,19 +185,19 @@ export function NewInvoiceForm({
             lines={lines}
             onChange={setLines}
             timekeepers={billable}
-            billedProfessionalId={billedProfessionalId}
+            billedProfessionalId={billedId}
             recordedTime={unbilled}
             billingCodes={billingRules.codes}
             mileageRates={billingRules.mileageRates}
           />
           <p className="compact-hint">
-            Time items are priced at the hourly rate set for that kind of professional, and mileage at the agency's
-            rate per mile. New time typed here is recorded when you submit.
+            Time is priced at the hourly rate for the professional's kind, and mileage at the per-mile rate.
+            {caseId !== null && ' New time typed here is recorded when you submit.'}
           </p>
           {caseId === null ? (
             <div className="invoice-actions">
               <button type="button" className="btn btn--primary" disabled={submitting || !canSave} onClick={() => void save(false)}>
-                {submitting ? 'Saving…' : 'Save to invoice intake'}
+                {submitting ? 'Saving…' : 'Save for matching'}
               </button>
             </div>
           ) : (

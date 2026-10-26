@@ -89,10 +89,11 @@ export interface RateLimit {
 // professional whose work it is, else the case's, else the configured rate.
 export function rateLimitFor(
   line: { timekeeperProfessionalId: string | null; configuredRate: string | null },
-  invoiceProfessionalId: string,
+  invoiceProfessionalId: string | null,
   limits: Map<string | null, string>,
 ): RateLimit | null {
-  const preauthorized = limits.get(line.timekeeperProfessionalId ?? invoiceProfessionalId) ?? limits.get(null);
+  const professionalId = line.timekeeperProfessionalId ?? invoiceProfessionalId;
+  const preauthorized = (professionalId ? limits.get(professionalId) : undefined) ?? limits.get(null);
   if (preauthorized) return { rate: preauthorized, source: 'preauthorized' };
   return line.configuredRate === null ? null : { rate: line.configuredRate, source: 'configured' };
 }

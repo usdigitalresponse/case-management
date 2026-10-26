@@ -30,6 +30,7 @@ import { detectInvoiceFile, UnsupportedInvoiceFileError } from '../src/imports/d
 import { UnreadableInvoiceFileError } from '../src/imports/parsedInvoice';
 import type { DocumentStore } from '../src/imports/documentStore';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
+import { listInvoiceIntake } from '../src/billing/invoiceIntake';
 import { ValidationError } from '../src/errors';
 import { giveRate } from './rateHelpers';
 import { addKindRate } from '../src/billing/professionalRates';
@@ -232,6 +233,44 @@ describe('invoice import workflow', () => {
     });
     const [row] = await testDb.select({ total: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
     expect(row?.total).toBe('190.00');
+  });
+
+  it('lets staff import a file with no case, which waits on intake once confirmed', async () => {
+    const { professionalId, store } = await setup();
+    const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const uploaded = await uploadInvoiceFile(testDb, store, staff, {
+      caseId: undefined, professionalId, fileName: 'synthetic.ledes', bytes: Buffer.from(syntheticLedes('synthetic timekeeper')),
+    });
+    const [listed] = await listInvoiceImports(testDb, staff);
+    expect(listed).toMatchObject({ invoiceImportId: uploaded.invoiceImportId, caseId: null });
+
+    await confirmInvoiceImport(testDb, store, staff, uploaded.invoiceImportId);
+    const waiting = await listInvoiceIntake(testDb, fixtures.staffUserAccountId);
+    expect(waiting.map((item) => [item.invoiceId, item.stage])).toEqual([[uploaded.invoiceId, 'ready']]);
+    const lines = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, uploaded.invoiceId as string));
+    expect(lines.every((line) => line.caseId === null)).toBe(true);
+  });
+
+  it('lets staff import a file with neither a case nor a professional, chosen when it is matched', async () => {
+    const { professionalId, store } = await setup();
+    const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const uploaded = await uploadInvoiceFile(testDb, store, staff, {
+      caseId: undefined, fileName: 'synthetic.ledes', bytes: Buffer.from(syntheticLedes('synthetic timekeeper')),
+    });
+    const [draft] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, uploaded.invoiceId as string));
+    expect(draft?.professionalId).toBeNull();
+    // The named timekeeper is still suggested from every active professional.
+    const lines = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, uploaded.invoiceId as string));
+    expect(lines.map((line) => line.timekeeperProfessionalId)).toEqual([professionalId, professionalId]);
+    await confirmInvoiceImport(testDb, store, staff, uploaded.invoiceImportId);
+    const [waiting] = await listInvoiceIntake(testDb, fixtures.staffUserAccountId);
+    expect(waiting).toMatchObject({ invoiceId: uploaded.invoiceId, professionalId: null, stage: 'ready' });
+
+    // A submitter must still name a case.
+    const { actor } = await setup('Synthetic Submitter');
+    await expect(
+      uploadInvoiceFile(testDb, store, actor, { caseId: undefined, fileName: 'synthetic.ledes', bytes: Buffer.from(syntheticLedes('x')) }),
+    ).rejects.toThrow();
   });
 
   it('suggests "Last, First" names and, for unnamed lines, the billed professional', async () => {

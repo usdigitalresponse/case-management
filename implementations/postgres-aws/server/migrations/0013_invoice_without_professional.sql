@@ -1,0 +1,1 @@
+ALTER TABLE "invoice" ALTER COLUMN "professional_id" DROP NOT NULL;

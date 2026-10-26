@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { BrowserRouter, Routes, Route, Link, NavLink, useLocation, useNavigate } from 'react-router';
+import { BrowserRouter, Routes, Route, Link, Navigate, NavLink, useLocation, useNavigate } from 'react-router';
 import { AuthProvider, useAuth } from './AuthContext';
 import LoginPage from './pages/LoginPage';
 import MagicLinkConfirm from './pages/MagicLinkConfirm';
@@ -17,11 +17,10 @@ import VendorsDirectory from './pages/VendorsDirectory';
 import OrganizationsDirectory from './pages/OrganizationsDirectory';
 import Settings from './pages/Settings';
 import ExternalPortalApp from './portal/ExternalPortalApp';
-import PortalNewInvoice from './portal/PortalNewInvoice';
 import PortalInvoiceDetail from './portal/PortalInvoiceDetail';
 import PortalBulkImport from './portal/PortalBulkImport';
 import PortalImportReview from './portal/PortalImportReview';
-import { NEW_INVOICE_PATH } from './portal/useShell';
+import { INTAKE_PATH, NEW_INVOICE_PATH } from './portal/useShell';
 import { listReviewQueue } from './api/client';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 
@@ -43,7 +42,7 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
     <>
       <a className="usa-skipnav" href="#main-content">Skip to main content</a>
       <header className="app-header">
-        <Link className="app-brand" to="/">Invoice Review</Link>
+        <Link className="app-brand" to="/">Invoice Review Prototype</Link>
         <span className="chip chip--neutral">Works beside your {EXTERNAL_SYSTEM_NAME}</span>
         <form className="header-search" role="search" onSubmit={search}>
           <label className="usa-sr-only" htmlFor="header-search-input">Search invoices</label>
@@ -100,11 +99,9 @@ function Sidebar({ isAdmin, userAccountId }: { isAdmin: boolean; userAccountId: 
   return (
     <aside className="app-sidebar">
       <nav aria-label="Main navigation">
-        {/* Invoices received by email or from other tools, entered for the professional. */}
+        {/* Invoices received by email or from other tools: entered, finished and matched to their case. */}
         <div className="nav-group">
-          <NavLink to={NEW_INVOICE_PATH}>New invoice</NavLink>
-          {/* Invoices waiting for their case, matched by any staff member. */}
-          <NavLink to="/intake" end>Invoice intake</NavLink>
+          <NavLink to={INTAKE_PATH} end>Intake</NavLink>
         </div>
         <div className="nav-group">
           <h2>Invoices</h2>
@@ -137,6 +134,12 @@ function Sidebar({ isAdmin, userAccountId }: { isAdmin: boolean; userAccountId: 
   );
 }
 
+// Staff New invoice moved into Intake; keep old links, and their ?case=, working.
+function NewInvoiceRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`${INTAKE_PATH}${search}`} replace />;
+}
+
 // Order matters: loading (render nothing, don't flash the login screen),
 // signed out (LoginPage, or the emailed link's confirm page), magic-link
 // (narrow portal shell), else staff layout.
@@ -167,9 +170,9 @@ function AppContent() {
             <Route path="/finished" element={<ReviewQueue view="finished" />} />
             <Route path="/billing/:invoiceId" element={<InvoiceReview />} />
             <Route path="/exports" element={<Exports />} />
-            {/* Entering invoices received outside the system: the portal's pages, at its paths. */}
-            <Route path={NEW_INVOICE_PATH} element={<div className="portal-main"><PortalNewInvoice /></div>} />
-            <Route path="/intake" element={<InvoiceIntake />} />
+            {/* Entering invoices received outside the system: Intake, then the portal's pages at its paths. */}
+            <Route path={INTAKE_PATH} element={<div className="portal-main"><InvoiceIntake /></div>} />
+            <Route path={NEW_INVOICE_PATH} element={<NewInvoiceRedirect />} />
             <Route path="/portal/invoices/:invoiceId" element={<div className="portal-main"><PortalInvoiceDetail /></div>} />
             <Route path="/portal/imports" element={<div className="portal-main"><PortalBulkImport /></div>} />
             <Route path="/portal/imports/:importId" element={<div className="portal-main"><PortalImportReview /></div>} />

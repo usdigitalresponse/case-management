@@ -44,26 +44,39 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     access depends on case assignment.
   - Links to the external case management system ("Open the case in…",
     the sidebar link) are disabled placeholders; nothing is integrated.
-  - Staff "New invoice" (`/new-invoice`, top of the sidebar) enters an
-    invoice a professional sent by email or from another tool
-    (`model/rules.yaml` `authorize_staff_invoice_entry`). It reuses the
-    portal's pages at the same paths (`/portal/imports`,
-    `/portal/imports/:id`, `/portal/invoices/:id`); `portal/useShell.ts`
-    switches the few links that differ, such as the case page. Any active
+  - Staff "Intake" (`/intake`, top of the sidebar;
+    `client/src/pages/InvoiceIntake.tsx`) is one page for invoices a
+    professional sent by email or from another tool (`model/rules.yaml`
+    `authorize_staff_invoice_entry`). It offers two ways in (the portal's
+    `NewInvoiceStart`): "Enter invoice manually" (choose a case, or "No
+    case yet", then type it) and "Import invoice" (the bulk import flow).
+    In bulk import, staff may choose a provider under "No case yet", or
+    leave the choice blank for no case and no provider
+    (`client/src/portal/bulkImport.ts`); the file uploads with no case, is
+    reviewed and confirmed as usual, and its draft then waits on Intake
+    rather than in the submit step. "Waiting for a case" and "Drafts to
+    finish" follow below. The old staff `/new-invoice` redirects
+    here. It reuses the portal's pages at the same paths
+    (`/portal/imports`, `/portal/imports/:id`, `/portal/invoices/:id`);
+    `portal/useShell.ts` switches the few links that differ, such as the
+    case page and where "back" goes. Any active
     staff role may bill any professional assigned to the case:
     `server/src/portal/portalActor.ts` treats a staff account as
     representing every assigned professional, so time, invoice, import and
     case-list checks all apply unchanged. Submitting requires how and when it
     was received (`invoice.received_via_id`, `received_on`;
     `server/src/billing/invoiceReceipt.ts`), and queue waiting time counts
-    from `received_on`. Staff finish their drafts on New invoice; a
-    submitted one links to its review page.
-  - "Invoice intake" (`/intake`, under New invoice;
-    `client/src/pages/InvoiceIntake.tsx`, `server/src/billing/invoiceIntake.ts`)
+    from `received_on`. Staff finish their drafts on Intake; a submitted
+    one links to its review page.
+  - Intake's "Waiting for a case" (`server/src/billing/invoiceIntake.ts`)
     lists staff drafts with no case (migration `0012` makes
     `invoice.case_id` and `invoice_line.case_id` nullable) and caseless
     imports still being read (`model/rules.yaml` `match_invoice_to_case`).
-    Staff choose "Add case later" on New invoice; with no case, any active
+    With no case, "Billing for" also offers "No professional yet: match it
+    later" (migration `0013` makes `invoice.professional_id` nullable for
+    these drafts only); Match then asks "From" and reprices the time, and
+    such a draft has no submit button.
+    Staff choose "No case yet" as the case; with no case, any active
     professional can be chosen and there is no unbilled-time picker. "Match
     to a case" (`POST /api/invoices/intake/:id/case`) sets the case on the
     invoice, its lines and its import, records `matched_to_case`, and with
@@ -78,8 +91,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     professional with no account (`add_professional_without_login`);
     `ensureProfessional.ts` links it on first sign-in by email.
     Gaps: only the staff member who entered a draft can submit it; matching
-    is refused once submitted; bulk import has no "later" option; the
-    sidebar shows no intake count; added assignments start on matching,
+    is refused once submitted; a one-person file split across cases
+    needs a case for every line; the sidebar shows no waiting count; added assignments start on matching,
     which passes because assignment is checked as of now, not on each
     line's service date (as for delegates, below).
   - The external portal uses the same shell and opens on "New invoice"

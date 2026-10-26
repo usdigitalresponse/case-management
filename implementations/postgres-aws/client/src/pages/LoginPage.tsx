@@ -36,7 +36,7 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <header className="login-intro">
-        <h1>Invoice Review</h1>
+        <h1>Invoice Review Prototype</h1>
       </header>
       <div className="login-panels">
         <section className="login-panel" aria-labelledby="login-staff">

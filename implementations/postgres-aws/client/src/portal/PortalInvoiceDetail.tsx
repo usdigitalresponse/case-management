@@ -32,7 +32,7 @@ import { Notice, type SaveMessage } from '../components/Notice';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
 import { hasReceipt, ReceivedFields } from './ReceivedFields';
-import { useShell } from './useShell';
+import { INTAKE_PATH, useShell } from './useShell';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
 
@@ -101,9 +101,17 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
       {noCase && (
         <Notice tone="warning" heading="This invoice isn't linked to a case.">
-          Match it to a case in <RouterLink to="/intake">Invoice intake</RouterLink>. You can still send it to review without one,
-          but this system won't check the case, the provider's assignment or any pre-authorization, and its documents
-          will say so.
+          {invoice.professionalId === null ? (
+            <>
+              Match it to a case on <RouterLink to={INTAKE_PATH}>Intake</RouterLink>, where you also choose who it's from.
+            </>
+          ) : (
+            <>
+              Match it to a case on <RouterLink to={INTAKE_PATH}>Intake</RouterLink>. You can still send it to review without
+              one, but this system won't check the case, the provider's assignment or any pre-authorization, and its
+              documents will say so.
+            </>
+          )}
         </Notice>
       )}
       <RulesInForce rules={billingRules.rules} />
@@ -121,20 +129,23 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
         lines={lines}
         onChange={setLines}
         timekeepers={timekeepers ?? []}
-        billedProfessionalId={invoice.professionalId}
+        billedProfessionalId={invoice.professionalId ?? undefined}
         recordedTime={pickable}
         billingCodes={billingRules.codes}
         mileageRates={billingRules.mileageRates}
       />
       <div className="invoice-actions">
-        <button
-          type="button"
-          className={`btn ${noCase ? 'btn--outline' : 'btn--primary'}`}
-          disabled={busy || !hasInvoiceItems(lines) || needsReceipt}
-          onClick={() => void run('submit')}
-        >
-          {noCase ? 'Review without a case' : 'Submit invoice'}
-        </button>
+        {/* Who it's from is chosen when it's matched, so it can't go to review yet. */}
+        {invoice.professionalId !== null && (
+          <button
+            type="button"
+            className={`btn ${noCase ? 'btn--outline' : 'btn--primary'}`}
+            disabled={busy || !hasInvoiceItems(lines) || needsReceipt}
+            onClick={() => void run('submit')}
+          >
+            {noCase ? 'Review without a case' : 'Submit invoice'}
+          </button>
+        )}
         <button type="button" className="btn btn--outline" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>
           Save draft
         </button>
@@ -205,9 +216,7 @@ export default function PortalInvoiceDetail() {
         crumbs={[
           fromBulk
             ? { label: 'Imports', to: '/portal/imports' }
-            : invoice.caseId
-              ? { label: shell.invoicesLabel, to: shell.invoicesPath }
-              : { label: 'Invoice intake', to: '/intake' },
+            : { label: shell.invoicesLabel, to: shell.invoicesPath },
           invoice.caseId
             ? { label: invoice.caseClientDisplayName ?? 'Case', to: shell.casePath(invoice.caseId) }
             : { label: 'No case yet' },

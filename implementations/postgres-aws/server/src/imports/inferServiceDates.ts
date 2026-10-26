@@ -154,10 +154,12 @@ export async function checkInferredDates(tx: Transaction, invoiceId: string): Pr
   const blocker = await periodEndBlockers(
     tx,
     { caseId: row.caseId, periodStart: row.periodStart, periodEnd: row.periodEnd },
-    [...new Set(lines.map(whoFor))],
+    [...new Set(lines.flatMap((line) => whoFor(line) ?? []))],
   );
   for (const line of lines) {
-    const reason = blocker(whoFor(line), line.lineTypeCode === 'time' ? 'time' : 'other');
+    const professionalId = whoFor(line);
+    // No one to check yet: an intake invoice whose professional isn't chosen.
+    const reason = professionalId ? blocker(professionalId, line.lineTypeCode === 'time' ? 'time' : 'other') : undefined;
     if (reason) {
       const item = line.description ? `"${line.description}"` : 'An item';
       throw new ValidationError({

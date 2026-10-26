@@ -75,12 +75,19 @@ and day counts are synthetic test values, not configuration defaults.
      recall it.
    - The staff user may review its lines but may not sign it off.
 10. **Invoice intake:** A staff user saves an emailed request before its case is
-    known (`match_invoice_to_case`).
+    known, either typed in or imported from the file with no case chosen
+    (`match_invoice_to_case`). An imported one is checked and confirmed as
+    usual before it waits.
     - It waits in invoice intake, and any staff user may match it to an open
       case. Matching to a case its professional is not on is blocked unless
       they ask to add the professional, who is then assigned to the case. The
       match is recorded as an event. A submitted request cannot be rematched.
     - Starting a new case from an intake request matches the request to it.
+    - A typed or imported request may also be saved with no professional; an
+      imported one's lines still need who did the work before it is
+      confirmed. It cannot be
+      submitted; matching it requires choosing who it is from, and its time
+      is then priced at that professional's rate.
     - Submitting it without a case is blocked unless the submitter chooses to
       review it without one. It is then reviewed and signed off as usual, with
       no time entries, assignment or pre-authorization checks; the review page,

@@ -1,7 +1,8 @@
 // Invoice intake: invoices staff entered or imported before their case was
 // known (model/rules.yaml match_invoice_to_case). Any staff member may
-// match one to a case, adding its providers to the case if they aren't on
-// it; or its submitter may send it to review without a case.
+// match one to a case, choosing whom it bills if that wasn't known and
+// adding its providers to the case if they aren't on it; or its submitter
+// may send it to review without a case.
 import { z } from 'zod';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client';
@@ -24,6 +25,7 @@ import { isStaffAccount } from '../portal/portalActor';
 import { assignExternalSubmitterToCase } from '../cases/assignExternalSubmitterToCase';
 import { selectInvoiceHeaders } from './invoiceDetail';
 import { recordInvoiceEvent } from './invoiceEvents';
+import { priceLines } from './priceLines';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { DRAFT_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
 
@@ -138,6 +140,8 @@ const matchInputSchema = z.object({
   caseId: z.uuid(),
   // Add providers who aren't on the case yet; refused without it.
   addMissing: z.boolean().default(false),
+  // Whom it bills, for an invoice saved before that was known.
+  professionalId: z.uuid().optional(),
 });
 
 // Who the invoice bills: its professional and every line's.
@@ -178,7 +182,20 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
     throw new ValidationError({ caseId: 'That case is closed. Choose an open case.' });
   }
 
-  const billed = await billedProfessionals(db, invoiceId, row.professionalId);
+  const billedProfessionalId = row.professionalId ?? parsed.data.professionalId;
+  if (!billedProfessionalId) {
+    throw new ValidationError({ professionalId: 'Choose who this invoice is from.' });
+  }
+  if (row.professionalId === null) {
+    const [chosen] = await db
+      .select({ active: professional.active })
+      .from(professional)
+      .where(eq(professional.professionalId, billedProfessionalId));
+    if (!chosen?.active) {
+      throw new ValidationError({ professionalId: 'Choose who this invoice is from.' });
+    }
+  }
+  const billed = await billedProfessionals(db, invoiceId, billedProfessionalId);
   const onCase = await db
     .select({ professionalId: caseAssignment.professionalId })
     .from(caseAssignment)
@@ -205,9 +222,13 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
     if (!locked || locked.caseId !== null) {
       throw new ValidationError({ caseId: 'Someone else matched this invoice first.' });
     }
-    await tx.update(invoice).set({ caseId }).where(eq(invoice.invoiceId, invoiceId));
+    await tx.update(invoice).set({ caseId, professionalId: billedProfessionalId }).where(eq(invoice.invoiceId, invoiceId));
     await tx.update(invoiceLine).set({ caseId }).where(eq(invoiceLine.invoiceId, invoiceId));
     await tx.update(invoiceImport).set({ caseId }).where(eq(invoiceImport.invoiceId, invoiceId));
+    if (row.professionalId === null) {
+      // Time with no one named is now the chosen professional's, at their rate.
+      await priceLines(tx, invoiceId, { billedProfessionalId, unmatchedMeansBilled: true, strict: false });
+    }
     await recordInvoiceEvent(tx, {
       invoiceId,
       eventTypeCode: 'matched_to_case',

@@ -86,10 +86,14 @@ async function duplicateWarnings(
   importId: string,
   documentId: string,
   contentHash: string,
-  billedProfessionalId: string,
+  billedProfessionalId: string | null,
   invoiceNumber: string | undefined,
 ): Promise<ImportWarning[]> {
   const warnings: ImportWarning[] = [];
+  // Duplicates are judged per professional; none is known yet.
+  if (!billedProfessionalId) {
+    return warnings;
+  }
   const sameFile = await tx
     .select({ invoiceImportId: invoiceImport.invoiceImportId })
     .from(invoiceImport)
@@ -135,7 +139,8 @@ async function duplicateWarnings(
 // unique name match.
 async function suggestTimekeepers(
   tx: Transaction,
-  billedProfessionalId: string,
+  // Null: no payee yet, so only name matches.
+  billedProfessionalId: string | null,
   billable: string[],
   labels: string[],
 ): Promise<Map<string, string>> {
@@ -144,7 +149,7 @@ async function suggestTimekeepers(
     return suggestions;
   }
   const lowered = [...new Set(labels.map((label) => label.toLowerCase()))];
-  const previous = await tx
+  const previous = !billedProfessionalId ? [] : await tx
     .select({ label: sql<string>`lower(${invoiceLine.timekeeperLabel})`, professionalId: invoiceLine.timekeeperProfessionalId })
     .from(invoiceLine)
     .innerJoin(invoice, eq(invoiceLine.invoiceId, invoice.invoiceId))
@@ -229,11 +234,14 @@ export async function uploadInvoiceFile(
     throw new ValidationError({ caseId: 'Choose a case to import the invoice into.' });
   }
   const caseId = params.data.caseId ?? null;
-  const billedProfessionalId = params.data.professionalId ?? actor.professionalId;
-  if (!billedProfessionalId) {
+  const billedProfessionalId = params.data.professionalId ?? actor.professionalId ?? null;
+  const billable = await billableProfessionalIds(db, actor, caseId);
+  // Staff may import with neither a case nor a professional; both are
+  // chosen when it's matched (model/rules.yaml match_invoice_to_case).
+  if (!billedProfessionalId && (caseId !== null || billable.length === 0)) {
     throw new ValidationError({ professionalId: 'Choose the professional this invoice bills for.' });
   }
-  if (!(await billableProfessionalIds(db, actor, caseId)).includes(billedProfessionalId)) {
+  if (billedProfessionalId && !billable.includes(billedProfessionalId)) {
     throw new NotAssignedToCaseError();
   }
 
@@ -321,7 +329,8 @@ interface ExtractionTarget {
   documentId: string;
   contentHash: string;
   caseId: string | null;
-  billedProfessionalId: string;
+  // Null: a staff import whose professional is chosen on matching.
+  billedProfessionalId: string | null;
   extractionMethod: string;
 }
 
@@ -519,7 +528,7 @@ export async function extractIntoDraft(
     documentId: string;
     contentHash: string;
     caseId: string | null;
-    billedProfessionalId: string;
+    billedProfessionalId: string | null;
     extractionMethod: string | null;
     extractedAt: Date;
     parsed: ParsedInvoice;
@@ -570,7 +579,9 @@ export async function extractIntoDraft(
       expenseCode: line.expenseCode,
       // No timekeeper named: suggest the billed professional.
       timekeeperProfessionalId:
-        args.everyLineBilled || !line.timekeeperLabel ? billedProfessionalId : suggestions.get(line.timekeeperLabel.toLowerCase()),
+        args.everyLineBilled || !line.timekeeperLabel
+          ? (billedProfessionalId ?? undefined)
+          : suggestions.get(line.timekeeperLabel.toLowerCase()),
     })),
   };
   // Undated lines take the billing period's end where that's safe.
@@ -602,7 +613,7 @@ export async function extractIntoDraft(
         importId,
         args.parsed,
         warnings,
-        args.everyLineBilled ? billedProfessionalId : undefined,
+        args.everyLineBilled ? (billedProfessionalId ?? undefined) : undefined,
       ),
       invoiceId,
     })
@@ -694,7 +705,9 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
       throw new InvoiceStateError('Only an import that was read successfully and not yet resolved can be confirmed.');
     }
     const draft = await lockDraft(tx, row.invoiceId);
-    if (!draft || !(await billableProfessionalIds(tx, actor, draft.caseId)).includes(draft.professionalId)) {
+    const billable = draft ? await billableProfessionalIds(tx, actor, draft.caseId) : [];
+    // No professional yet: a staff import held in intake.
+    if (!draft || (draft.professionalId === null ? billable.length === 0 : !billable.includes(draft.professionalId))) {
       throw new NotAssignedToCaseError();
     }
     const lines = await tx

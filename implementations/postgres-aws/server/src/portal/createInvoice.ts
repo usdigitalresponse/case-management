@@ -15,7 +15,8 @@ export const createInvoiceInputSchema = draftContentSchema.extend({
   // Null: staff will add the case later, from invoice intake.
   caseId: z.string().uuid().nullable(),
   // Defaults to the caller's own profile; a delegate names whom they bill for.
-  professionalId: z.string().uuid().optional(),
+  // Null: staff will choose when they match it to a case (no case only).
+  professionalId: z.string().uuid().nullable().optional(),
   submit: z.boolean().default(true),
   // Staff chose to review it with no case (match_invoice_to_case).
   withoutCase: z.boolean().optional(),
@@ -39,12 +40,13 @@ export async function createInvoice(
   }
   const { caseId, submit } = parsed.data;
   const content = parseDraftContent(parsed.data);
-  const billedProfessionalId = parsed.data.professionalId ?? actor.professionalId;
-  if (!billedProfessionalId) {
+  const later = parsed.data.professionalId === null;
+  const billedProfessionalId = later ? null : (parsed.data.professionalId ?? actor.professionalId ?? null);
+  if (!billedProfessionalId && !(later && caseId === null && !submit)) {
     throw new ValidationError({ professionalId: 'Choose the professional this invoice bills for.' });
   }
 
-  if (submit && (await billableProfessionalIds(db, actor, caseId)).includes(billedProfessionalId)) {
+  if (submit && billedProfessionalId && (await billableProfessionalIds(db, actor, caseId)).includes(billedProfessionalId)) {
     await measureTrips(db, content.lines.filter((line) => line.lineType === 'mileage'));
   }
   return db.transaction(async (tx) => {

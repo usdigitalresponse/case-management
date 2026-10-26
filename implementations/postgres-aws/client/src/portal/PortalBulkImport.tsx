@@ -7,6 +7,7 @@ import {
   discardCaseSplitRead,
   getCaseSplitRead,
   invoiceTemplateUrl,
+  listBillableProfessionals,
   listInvoiceImports,
   listMyCases,
   resolveInvoiceImport,
@@ -14,6 +15,7 @@ import {
   transitionInvoice,
   uploadInvoiceFile,
   uploadInvoiceFileByCase,
+  type BillableProfessional,
   type CaseSplitPreview,
   type ImportInProgress,
   type InvoiceReceipt,
@@ -39,11 +41,12 @@ import {
   sectionOf,
   suggestChoice,
   type BulkStep,
+  type ParsedChoice,
 } from './bulkImport';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { hasReceipt, ReceivedFields } from './ReceivedFields';
-import { NEW_INVOICE_PATH, useShell } from './useShell';
+import { useShell } from './useShell';
 
 interface StagedFile {
   key: string;
@@ -217,11 +220,14 @@ function SplitAssignment({
 
 function StagedFiles({
   cases,
+  noCase,
   onStagedCount,
   onUploading,
   onUploaded,
 }: {
   cases: MyCasesResult;
+  // Staff only: whom a file with no case yet may be from.
+  noCase: BillableProfessional[];
   // Files chosen but not yet uploaded, for the step header.
   onStagedCount: (count: number) => void;
   // Cancel waits while files are uploading, so none are left untracked.
@@ -231,7 +237,11 @@ function StagedFiles({
   const [staged, setStaged] = useState<StagedFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [splitsCreating, setSplitsCreating] = useState(0);
-  const groups = caseChoiceGroups(cases);
+  const groups = caseChoiceGroups(cases, noCase);
+  // Staff may upload a file with nothing chosen: no case or professional yet.
+  const blankUploads = noCase.length > 0;
+  const choiceOf = (row: StagedFile): ParsedChoice | undefined =>
+    parseChoice(row.choice) ?? (blankUploads ? { kind: 'no_case' } : undefined);
   useEffect(() => onStagedCount(staged.length), [staged.length, onStagedCount]);
   useEffect(() => onUploading(uploading || splitsCreating > 0), [uploading, splitsCreating, onUploading]);
 
@@ -255,15 +265,19 @@ function StagedFiles({
     event.preventDefault();
     setUploading(true);
     for (const row of staged) {
-      const choice = parseChoice(row.choice);
+      const choice = choiceOf(row);
       if (!choice || row.splitReadId) {
         continue;
       }
       update(row.key, { uploading: true, error: undefined });
       try {
-        if (choice.kind === 'case') {
+        if (choice.kind === 'case' || choice.kind === 'no_case') {
           // eslint-disable-next-line no-await-in-loop
-          const { invoiceImportId } = await uploadInvoiceFile(choice.caseId, row.file, choice.professionalId);
+          const { invoiceImportId } = await uploadInvoiceFile(
+            choice.kind === 'case' ? choice.caseId : null,
+            row.file,
+            choice.professionalId,
+          );
           setStaged((current) => current.filter((candidate) => candidate.key !== row.key));
           onUploaded([invoiceImportId]);
         } else {
@@ -278,7 +292,7 @@ function StagedFiles({
     setUploading(false);
   }
 
-  const ready = staged.filter((row) => parseChoice(row.choice) && !row.splitReadId).length;
+  const ready = staged.filter((row) => choiceOf(row) && !row.splitReadId).length;
   const splitting = staged.filter((row): row is StagedFile & { split: CaseSplitPreview; splitReadId: string } =>
     Boolean(row.split && row.splitReadId),
   );
@@ -311,12 +325,13 @@ function StagedFiles({
         />
       </div>
       <p className="compact-hint" id="bulk-files-hint">
-        PDF invoices, LEDES 1998B files or the invoice template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}
-        <a href={invoiceTemplateUrl('csv')} download>CSV</a>), up to 10 MB each. Each file is either for one case
-        (suggested when its name includes the case reference or client's name), or for one person across several
-        cases, when a spreadsheet's <code>case</code> column names each line's case; you then assign every line before
-        a draft is made for each case.
+        PDFs, LEDES 1998B files or the template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}
+        <a href={invoiceTemplateUrl('csv')} download>CSV</a>), up to 10 MB each. Then choose each file's case.
       </p>
+      <ul className="compact-hint">
+        <li>One person's spreadsheet covering several cases: choose "split by case".</li>
+        {blankUploads && <li>Case or provider not known yet: leave it blank and match it later on Intake.</li>}
+      </ul>
       {staged.length > 0 && (
         <>
           <RecordTable
@@ -337,7 +352,7 @@ function StagedFiles({
                       disabled={row.uploading || Boolean(row.splitReadId)}
                       onChange={(event) => update(row.key, { choice: event.target.value, error: undefined })}
                     >
-                      <option value="">- Choose a case -</option>
+                      <option value="">{blankUploads ? 'No case or provider yet' : '- Choose a case -'}</option>
                       {groups.map((group) => (
                         <optgroup key={group.label} label={group.label}>
                           {group.choices.map((choice) => (
@@ -386,8 +401,8 @@ function StagedFiles({
             <button type="submit" className="btn btn--primary" disabled={uploading || ready === 0}>
               {uploading ? 'Uploading…' : `Upload ${ready} ${ready === 1 ? 'file' : 'files'}`}
             </button>
-            {staged.some((row) => !parseChoice(row.choice)) && !uploading && (
-              <span className="compact-hint">Files without a case stay here until you choose one.</span>
+            {staged.some((row) => !choiceOf(row)) && !uploading && (
+              <span className="compact-hint">Choose a case for each file to upload it.</span>
             )}
           </div>
         </>
@@ -416,7 +431,7 @@ function StagedFiles({
 }
 
 function caseOf(row: ImportInProgress): string {
-  return caseDisplayLabel([row.caseExternalReference, row.caseClientDisplayName], undefined);
+  return row.caseId ? caseDisplayLabel([row.caseExternalReference, row.caseClientDisplayName], undefined) : 'No case yet';
 }
 
 function totalWithFile(row: ImportInProgress) {
@@ -452,6 +467,7 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
   const toReview = imports.filter((row) => sectionOf(row) === 'review');
   const unreadable = imports.filter((row) => sectionOf(row) === 'unreadable');
   const next = reviewQueue(imports)[0];
+  const { newInvoicePath, staff } = useShell();
   const discardButton = (row: ImportInProgress) => (
     <ConfirmButton
       compact
@@ -542,7 +558,9 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
                 header: '',
                 render: (row) => (
                   <span className="row-actions">
-                    {row.caseId && <RouterLink to={`${NEW_INVOICE_PATH}?case=${row.caseId}`}>Enter by hand</RouterLink>}
+                    {(row.caseId || staff) && (
+                      <RouterLink to={`${newInvoicePath}?case=${row.caseId ?? 'later'}`}>Enter by hand</RouterLink>
+                    )}
                     {discardButton(row)}
                   </span>
                 ),
@@ -557,7 +575,11 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
 }
 
 function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onChanged: () => void }) {
-  const ready = imports.filter((row) => sectionOf(row) === 'ready');
+  const confirmed = imports.filter((row) => sectionOf(row) === 'ready');
+  // Confirmed with no case: they wait on Intake to be matched, not submitted here.
+  const ready = confirmed.filter((row) => row.caseId);
+  const waiting = confirmed.length - ready.length;
+  const { newInvoicePath } = useShell();
   // Everything ready is included unless unticked.
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
@@ -619,6 +641,12 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
           </ul>
         </Notice>
       )}
+      {waiting > 0 && (
+        <Notice tone="info">
+          {waiting} confirmed {waiting === 1 ? 'invoice has' : 'invoices have'} no case yet and{' '}
+          {waiting === 1 ? 'waits' : 'wait'} on <RouterLink to={newInvoicePath}>Intake</RouterLink> to be matched to a case.
+        </Notice>
+      )}
       {ready.length === 0 ? (
         <p>Confirmed files appear here, ready to submit together.</p>
       ) : (
@@ -674,6 +702,12 @@ export default function PortalBulkImport() {
   const [stagedCount, setStagedCount] = useState(0);
   const [uploadedCount, setUploadedCount] = useState(0);
   const { data: cases, error: casesError } = useApiResource(() => listMyCases(), []);
+  const { staff, newInvoicePath, newInvoiceLabel } = useShell();
+  // Staff may import for any active professional with no case yet.
+  const { data: noCase } = useApiResource(
+    () => (staff ? listBillableProfessionals(null).then((result) => result.professionals) : Promise.resolve([])),
+    [staff],
+  );
   const { data: imports, error: importsError } = useApiResource(
     () => listInvoiceImports().then((result) => result.imports),
     [version],
@@ -705,7 +739,7 @@ export default function PortalBulkImport() {
     }
   }, [loaded, hash]);
   const queue = imports ? reviewQueue(imports) : [];
-  const readyCount = imports?.filter((row) => sectionOf(row) === 'ready').length ?? 0;
+  const readyCount = imports?.filter((row) => sectionOf(row) === 'ready' && row.caseId).length ?? 0;
   const step = currentStep(stagedCount, imports ?? []);
 
   // This browser session's uploads still in progress; other imports and
@@ -743,7 +777,7 @@ export default function PortalBulkImport() {
     }
     setBatch([]);
     saveBatch([]);
-    navigate(NEW_INVOICE_PATH);
+    navigate(newInvoicePath);
   }
 
   async function discard(importId: string) {
@@ -757,7 +791,7 @@ export default function PortalBulkImport() {
   return (
     <div>
       <PageHeader
-        crumbs={[{ label: 'New invoice', to: NEW_INVOICE_PATH }, { label: 'Import invoices' }]}
+        crumbs={[{ label: newInvoiceLabel, to: newInvoicePath }, { label: 'Import invoices' }]}
         title="Import invoices"
         description="Upload several invoice files at once, review and correct what was read from each, then submit them together."
         actions={
@@ -798,10 +832,11 @@ export default function PortalBulkImport() {
         </Notice>
       )}
       {Boolean(casesError) && <Notice tone="danger">Failed to load your cases.</Notice>}
-      {cases && cases.cases.length === 0 && <p>You aren't assigned to any cases yet, so there's nothing to import for.</p>}
-      {cases && cases.cases.length > 0 && (
+      {cases && cases.cases.length === 0 && !staff && <p>You aren't assigned to any cases yet, so there's nothing to import for.</p>}
+      {cases && noCase && (cases.cases.length > 0 || staff) && (
         <StagedFiles
           cases={cases}
+          noCase={noCase}
           onStagedCount={setStagedCount}
           onUploading={setUploadingNow}
           onUploaded={(importIds) => {

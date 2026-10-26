@@ -36,7 +36,7 @@ import { Notice, type SaveMessage } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
-import { NEW_INVOICE_PATH, useShell } from './useShell';
+import { useShell } from './useShell';
 
 interface Loaded {
   importDetail: InvoiceImportDetail;
@@ -256,7 +256,7 @@ export default function PortalImportReview() {
   const [searchParams] = useSearchParams();
   const fromBulk = searchParams.get('from') === 'bulk';
   const navigate = useNavigate();
-  const { casePath, staff } = useShell();
+  const { casePath, newInvoicePath, newInvoiceLabel } = useShell();
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => load(importId as string), [importId, version]);
   // From bulk import: where this file sits in the queue still to review.
@@ -285,7 +285,7 @@ export default function PortalImportReview() {
   }
 
   const { importDetail } = data;
-  const backTo = fromBulk ? '/portal/imports' : importDetail.caseId ? casePath(importDetail.caseId) : staff ? '/intake' : NEW_INVOICE_PATH;
+  const backTo = fromBulk ? '/portal/imports' : importDetail.caseId ? casePath(importDetail.caseId) : newInvoicePath;
 
   async function discardImport() {
     try {
@@ -304,7 +304,7 @@ export default function PortalImportReview() {
     <div>
       <PageHeader
         crumbs={[
-          { label: fromBulk ? 'Import invoices' : importDetail.caseId ? 'Case' : staff ? 'Invoice intake' : 'New invoice', to: backTo },
+          { label: fromBulk ? 'Import invoices' : importDetail.caseId ? 'Case' : newInvoiceLabel, to: backTo },
           { label: importDetail.fileName },
         ]}
         title={importDetail.fileName}

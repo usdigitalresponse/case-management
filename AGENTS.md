@@ -222,7 +222,8 @@ The separate Postgres/AWS prototype lives in `implementations/postgres-aws/`.
 Its staff UI is an invoice review tool designed to sit beside an external
 case management system; links to that system stay inert placeholders, and
 features hidden for it are hidden from navigation, not deleted. Staff and
-external submitters share the New invoice and import pages; links that differ
+external submitters share the new-invoice form (staff use it on Intake) and
+the import pages; links that differ
 between the two apps go through `client/src/portal/useShell.ts`. Design
 screenshots go in its gitignored `figma/` folder and must never be committed.
 Docker Compose startup must preserve application data. `docker compose exec

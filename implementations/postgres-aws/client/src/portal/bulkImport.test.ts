@@ -6,6 +6,7 @@ import {
   choiceValue,
   currentStep,
   nextInQueue,
+  noCaseChoiceValue,
   outstanding,
   parseChoice,
   professionalChoiceValue,
@@ -118,6 +119,15 @@ describe('bulk import case choices', () => {
     expect(parseChoice(choiceValue('shared', 'colleague'))).toEqual({ kind: 'case', caseId: 'shared', professionalId: 'colleague' });
     expect(parseChoice(professionalChoiceValue('me'))).toEqual({ kind: 'professional', professionalId: 'me' });
     expect(parseChoice('')).toBeUndefined();
+  });
+
+  it('lets staff import for a professional with no case yet', () => {
+    const groups = caseChoiceGroups(result, [{ professionalId: 'new', displayName: 'Riley New' }]);
+    expect(groups.at(-1)).toEqual({
+      label: 'No case yet (match it later on Intake)',
+      choices: [{ value: noCaseChoiceValue('new'), label: 'Riley New: no case yet' }],
+    });
+    expect(parseChoice(noCaseChoiceValue('new'))).toEqual({ kind: 'no_case', professionalId: 'new' });
   });
 
   it('suggests a case from the file name only when one fits', () => {

@@ -24,6 +24,8 @@ export default function NewCaseIntake() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const intakeInvoiceId = searchParams.get('intake');
+  // Whom that invoice bills, when it was saved without one.
+  const intakeProfessionalId = searchParams.get('from') ?? undefined;
   const { data: referenceData, error: loadError } = useApiResource(getReferenceData, []);
 
   const [selectedPerson, setSelectedPerson] = useState<PersonRecord | null>(null);
@@ -91,7 +93,11 @@ export default function NewCaseIntake() {
       // adding its provider to it.
       if (intakeInvoiceId) {
         try {
-          await matchInvoiceToCase(intakeInvoiceId, { caseId: result.caseId, addMissing: true });
+          await matchInvoiceToCase(intakeInvoiceId, {
+            caseId: result.caseId,
+            addMissing: true,
+            professionalId: intakeProfessionalId,
+          });
           navigate(`/intake?matched=${intakeInvoiceId}`);
           return;
         } catch {
