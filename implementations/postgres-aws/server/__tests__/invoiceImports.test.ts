@@ -222,10 +222,16 @@ describe('invoice import workflow', () => {
     expect(entries[0]).toMatchObject({ professionalId, activityOn: '2026-01-10', durationHours: '1.50' });
     const [timeLine] = await testDb.select().from(invoiceLine).where(eq(invoiceLine.sourceTimeEntryId, entries[0]!.timeEntryId));
     expect(timeLine?.invoiceId).toBe(invoiceId);
-    // Billed at the configured rate; the file's rate and amount stay as evidence.
-    expect(timeLine).toMatchObject({ amount: '180.00', billedRate: '120.000', unitRate: '100.00', statedAmount: '150.00' });
+    // Requested at the file's rate; the configured rate is kept for the rate check.
+    expect(timeLine).toMatchObject({
+      amount: '150.00',
+      billedRate: '100.000',
+      configuredRate: '120.00',
+      unitRate: '100.00',
+      statedAmount: '150.00',
+    });
     const [row] = await testDb.select({ total: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
-    expect(row?.total).toBe('220.00');
+    expect(row?.total).toBe('190.00');
   });
 
   it('suggests "Last, First" names and, for unnamed lines, the billed professional', async () => {
@@ -317,7 +323,7 @@ describe('invoice import workflow', () => {
     expect(before[0]).toMatchObject({
       unitRate: '100.00',
       statedAmount: '150.00',
-      billedRate: '120.000',
+      billedRate: '100.000',
       timekeeperLabel: 'Synthetic Timekeeper',
       taskCode: 'SAMPLE-TASK',
     });
@@ -336,7 +342,7 @@ describe('invoice import workflow', () => {
 
     const listed = await listInvoiceImports(testDb, actor);
     expect(listed.map((row) => row.fileName)).toEqual(['a.ledes', 'b.ledes', 'c.ledes']);
-    // The file says $190; its 1.5 h are billed at $120/h, so $220.
+    // The file says $190 and its stated rates price it, so $190 is requested.
     expect(listed[0]).toMatchObject({
       statusCode: 'extracted',
       invoiceStatusCode: 'draft',
@@ -347,7 +353,7 @@ describe('invoice import workflow', () => {
       otherWarningCount: 0,
       failureMessage: null,
       statedTotal: '190.00',
-      submittedTotal: '220.00',
+      submittedTotal: '190.00',
     });
     expect(listed[0]?.expiresAt).not.toBeNull();
 

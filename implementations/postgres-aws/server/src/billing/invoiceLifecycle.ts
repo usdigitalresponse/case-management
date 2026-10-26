@@ -32,6 +32,7 @@ import { priceLines } from './priceLines';
 import { applyTripDistances, measureTrips } from './routeCheck';
 import { checkInferredDates } from '../imports/inferServiceDates';
 import { enforceBillingRules } from './billingRules';
+import { assignOnSubmit, endAllAssignments } from './reviewAssignment';
 import {
   DRAFT_INVOICE_STATUS_CODE,
   SUBMITTED_INVOICE_STATUS_CODE,
@@ -39,7 +40,7 @@ import {
 } from './invoiceStatusCodes';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.4.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.5.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
 // Mileage is an expense line with the mileage expense type.
@@ -62,7 +63,7 @@ export const invoiceLineInputSchema = z
     serviceDateInferred: z.boolean().optional(),
     description: z.string().trim().min(1).optional(),
     quantity: z.coerce.number().positive().optional(),
-    // Supplier-stated evidence; never used to compute the amount.
+    // Supplier-stated; prices a time line in place of the configured rate.
     unitRate: z.coerce.number().nonnegative().optional(),
     statedAmount: z.coerce.number().nonnegative().optional(),
     timekeeperLabel: z.string().trim().min(1).optional(),
@@ -408,6 +409,7 @@ export async function submitInTx(tx: Transaction, actor: PortalActor, invoiceId:
     actorUserAccountId: actor.userAccountId,
     chainId: invoiceApprovalChainId,
   });
+  await assignOnSubmit(tx, invoiceId, locked.caseId);
 }
 
 export async function updateDraftInvoice(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
@@ -467,6 +469,7 @@ export async function recallInvoice(db: Database, actor: PortalActor, invoiceId:
         .set({ supersededAt: new Date() })
         .where(eq(invoiceApprovalChain.invoiceApprovalChainId, chain.invoiceApprovalChainId));
     }
+    await endAllAssignments(tx, invoiceId, actor.userAccountId);
     const draftStatusId = await statusId(tx, DRAFT_INVOICE_STATUS_CODE);
     await tx.update(invoice).set({ statusId: draftStatusId, submittedAt: null }).where(eq(invoice.invoiceId, invoiceId));
     await recordInvoiceEvent(tx, {

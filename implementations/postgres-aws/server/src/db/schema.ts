@@ -47,6 +47,8 @@ export const expenseTypes = referenceTable('expense_types');
 export const invoiceApprovalStepTypes = referenceTable('invoice_approval_step_types');
 export const invoiceApprovalOutcomes = referenceTable('invoice_approval_outcomes');
 export const invoiceEventTypes = referenceTable('invoice_event_types');
+// Why a line was approved in part or rejected (model/rules.yaml decide_invoice_lines).
+export const invoiceDecisionReasons = referenceTable('invoice_decision_reasons');
 export const invoiceImportFormats = referenceTable('invoice_import_formats');
 export const invoiceImportStatuses = referenceTable('invoice_import_statuses');
 // Administrator-maintained (../billing/professionalRates.ts); none are seeded.
@@ -399,11 +401,13 @@ export const invoiceLine = pgTable(
     serviceDateInferred: boolean('service_date_inferred').notNull().default(false),
     description: text('description'),
     quantity: numeric('quantity', { precision: 10, scale: 2 }),
-    // Supplier-stated evidence; never used to compute the amount.
+    // Supplier-stated; on a time line it is the billed rate.
     unitRate: numeric('unit_rate', { precision: 12, scale: 2 }),
     statedAmount: numeric('stated_amount', { precision: 12, scale: 2 }),
     // Three places for a per-mile rate.
     billedRate: numeric('billed_rate', { precision: 12, scale: 3 }),
+    // Time lines: the professional kind's rate on the service date, for the rate check.
+    configuredRate: numeric('configured_rate', { precision: 12, scale: 2 }),
     timekeeperLabel: text('timekeeper_label'),
     // Whom the submitter matched the label to.
     timekeeperProfessionalId: uuid('timekeeper_professional_id').references(
@@ -494,9 +498,9 @@ export const invoiceImport = pgTable(
   ],
 );
 
-// Single-stage slice of the canonical approval chain: one chain per invoice,
-// one line_review decision (sequence_number 1) per line. No pre-approval,
-// further stages, "requests changes" or superseding; see ../../MAPPING.md.
+// One chain per submission attempt. Each finished round of line review is a
+// sequence_number with a decision per line; sign-off decisions follow it.
+// No pre-approval; see ../../MAPPING.md.
 export const invoiceApprovalChain = pgTable(
   'invoice_approval_chain',
   {
@@ -527,17 +531,21 @@ export const invoiceApprovalDecision = pgTable(
       .references(() => invoiceApprovalChain.invoiceApprovalChainId),
     sequenceNumber: integer('sequence_number').notNull(),
     stepTypeId: uuid('step_type_id').notNull().references(() => invoiceApprovalStepTypes.id),
-    // Null only on legacy whole-invoice decisions.
+    // Null on sign-off decisions, which cover the invoice.
     invoiceLineId: uuid('invoice_line_id').references(() => invoiceLine.invoiceLineId),
     outcomeId: uuid('outcome_id').notNull().references(() => invoiceApprovalOutcomes.id),
     decidedByUserAccountId: uuid('decided_by_user_account_id')
       .notNull()
       .references(() => userAccount.userAccountId),
     decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
-    // Rejection reason and approved amount (at most the line amount) are
-    // required per outcome by ../billing/reviewInvoiceLine.ts.
+    // The note, or a sign-off comment.
     reason: text('reason'),
+    reasonCodeId: uuid('reason_code_id').references(() => invoiceDecisionReasons.id),
+    // Staff-only comment (model/rules.yaml limit_review_comment_visibility).
+    internalOnly: boolean('internal_only').notNull().default(false),
     approvedAmount: numeric('approved_amount', { precision: 12, scale: 2 }),
+    approvedQuantity: numeric('approved_quantity', { precision: 10, scale: 2 }),
+    approvedRate: numeric('approved_rate', { precision: 12, scale: 3 }),
   },
   (table) => [
     uniqueIndex('invoice_approval_decision_line_uidx').on(
@@ -545,7 +553,98 @@ export const invoiceApprovalDecision = pgTable(
       table.sequenceNumber,
       table.invoiceLineId,
     ),
+    // One sign-off decision per sequence number.
+    uniqueIndex('invoice_approval_decision_invoice_uidx')
+      .on(table.invoiceApprovalChainId, table.sequenceNumber)
+      .where(sql`invoice_line_id IS NULL`),
   ],
+);
+
+// Changeable, unaudited decisions during a round of review
+// (model/rules.yaml decide_invoice_lines); cleared when the round is finished.
+export const invoiceLineWorkingDecision = pgTable(
+  'invoice_line_working_decision',
+  {
+    invoiceLineWorkingDecisionId: uuid('invoice_line_working_decision_id').primaryKey().defaultRandom(),
+    invoiceApprovalChainId: uuid('invoice_approval_chain_id')
+      .notNull()
+      .references(() => invoiceApprovalChain.invoiceApprovalChainId),
+    invoiceLineId: uuid('invoice_line_id')
+      .notNull()
+      .references(() => invoiceLine.invoiceLineId),
+    outcomeId: uuid('outcome_id').notNull().references(() => invoiceApprovalOutcomes.id),
+    approvedAmount: numeric('approved_amount', { precision: 12, scale: 2 }),
+    approvedQuantity: numeric('approved_quantity', { precision: 10, scale: 2 }),
+    approvedRate: numeric('approved_rate', { precision: 12, scale: 3 }),
+    reasonCodeId: uuid('reason_code_id').references(() => invoiceDecisionReasons.id),
+    note: text('note'),
+    decidedByUserAccountId: uuid('decided_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [uniqueIndex('invoice_line_working_decision_line_uidx').on(table.invoiceApprovalChainId, table.invoiceLineId)],
+);
+
+// Who holds each review step; ended rows are the history
+// (model/rules.yaml assign_invoice_review).
+export const invoiceReviewAssignment = pgTable(
+  'invoice_review_assignment',
+  {
+    invoiceReviewAssignmentId: uuid('invoice_review_assignment_id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
+    stepTypeId: uuid('step_type_id').notNull().references(() => invoiceApprovalStepTypes.id),
+    position: integer('position').notNull(),
+    assignedUserAccountId: uuid('assigned_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    assignedAt: timestamp('assigned_at', { withTimezone: true }).notNull(),
+    // Null when a configured default assigned it on submission.
+    assignedByUserAccountId: uuid('assigned_by_user_account_id').references(() => userAccount.userAccountId),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    endedByUserAccountId: uuid('ended_by_user_account_id').references(() => userAccount.userAccountId),
+  },
+  (table) => [
+    index('invoice_review_assignment_invoice_idx').on(table.invoiceId),
+    index('invoice_review_assignment_user_idx').on(table.assignedUserAccountId),
+    uniqueIndex('invoice_review_assignment_open_uidx')
+      .on(table.invoiceId, table.stepTypeId, table.position)
+      .where(sql`ended_at IS NULL`),
+  ],
+);
+
+// Where new invoices on a case go, ahead of the configured default.
+export const caseInvoiceReviewer = pgTable(
+  'case_invoice_reviewer',
+  {
+    caseInvoiceReviewerId: uuid('case_invoice_reviewer_id').primaryKey().defaultRandom(),
+    caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+    reviewerUserAccountId: uuid('reviewer_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    setAt: timestamp('set_at', { withTimezone: true }).notNull(),
+    setByUserAccountId: uuid('set_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+  },
+  (table) => [uniqueIndex('case_invoice_reviewer_open_uidx').on(table.caseId).where(sql`ended_at IS NULL`)],
+);
+
+// Insert-only like billing_rule_setting; the latest row per code is in
+// force. setting_code is one of those in ../billing/reviewSettings.ts.
+export const invoiceReviewSetting = pgTable(
+  'invoice_review_setting',
+  {
+    invoiceReviewSettingId: uuid('invoice_review_setting_id').primaryKey().defaultRandom(),
+    settingCode: text('setting_code').notNull(),
+    parameters: jsonb('parameters'),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('invoice_review_setting_code_idx').on(table.settingCode, table.recordedAt)],
 );
 
 export const caseParticipant = pgTable(

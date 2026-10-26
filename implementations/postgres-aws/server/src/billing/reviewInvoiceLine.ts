@@ -1,40 +1,45 @@
-// Approves (up to the requested amount) or rejects one line of a submitted
-// invoice. Once every line is decided, the invoice becomes approved, or
-// rejected if any line was (model/rules.yaml: a rejection "blocks advancement").
+// A reviewer's working decision on one line: approve, approve in part or
+// reject, changeable until they finish the round (model/rules.yaml
+// decide_invoice_lines; ./reviewRounds.ts records it).
 import { z } from 'zod';
 import { and, eq, isNull } from 'drizzle-orm';
-import type { Database } from '../db/client';
+import type { Database, Transaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { getReferenceId } from '../db/referenceLookups';
 import { ConflictError, NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import {
-  invoice,
-  invoiceLine,
-  invoiceStatuses,
   invoiceApprovalChain,
-  invoiceApprovalDecision,
-  invoiceApprovalStepTypes,
   invoiceApprovalOutcomes,
+  invoiceDecisionReasons,
+  invoiceLine,
+  invoiceLineTypes,
+  invoiceLineWorkingDecision,
+  invoiceStatuses,
+  invoice,
 } from '../db/schema';
-import { APPROVED_INVOICE_STATUS_CODE, SUBMITTED_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
+import {
+  SUBMITTED_INVOICE_STATUS_CODE,
+  UNDER_REVIEW_INVOICE_STATUS_CODE,
+} from './invoiceStatusCodes';
 import { recordInvoiceEvent } from './invoiceEvents';
+import { claimLineReview, lockInvoiceForReview } from './reviewAssignment';
+import { requireReviewPermission } from './reviewAccess';
+import { OTHER_REASON_CODE, RATE_REASON_CODE } from './decisionReasons';
 
-const LINE_REVIEW_STEP_TYPE_CODE = 'line_review';
-const LINE_REVIEW_SEQUENCE_NUMBER = 1;
-
-export const reviewOutcomeSchema = z.enum(['approved', 'rejected']);
+export const reviewOutcomeSchema = z.enum(['approved', 'approved_in_part', 'rejected']);
 export type ReviewOutcome = z.infer<typeof reviewOutcomeSchema>;
 
 export const reviewInvoiceLineInputSchema = z.object({
   outcome: reviewOutcomeSchema,
-  // Approval only; defaults to the line amount.
+  // Approving in part: corrected hours or rate on a line with hours,
+  // otherwise the amount.
+  approvedQuantity: z.coerce.number().nonnegative().optional(),
+  approvedRate: z.coerce.number().nonnegative().optional(),
   approvedAmount: z.coerce.number().positive().optional(),
-  // Required to reject; checked below.
-  reason: z.string().trim().min(1).optional(),
+  reasonCode: z.string().trim().min(1).optional(),
+  note: z.string().trim().max(2000).optional(),
 });
-
-export type ReviewInvoiceLineInput = z.infer<typeof reviewInvoiceLineInputSchema>;
 
 export class InvoiceNotFoundError extends NotFoundError {
   constructor() {
@@ -48,27 +53,65 @@ export class InvoiceLineNotFoundError extends NotFoundError {
   }
 }
 
-export class InvoiceNotSubmittedError extends ConflictError {
+export class InvoiceNotInReviewError extends ConflictError {
   constructor() {
-    super('invalid_state', 'Only a submitted invoice can be reviewed.');
+    super('invalid_state', 'Lines can only be decided while the invoice is being reviewed.');
   }
-}
-
-export class InvoiceLineAlreadyReviewedError extends ConflictError {
-  constructor() {
-    super('already_reviewed', 'This invoice item has already been reviewed.');
-  }
-}
-
-export interface ReviewInvoiceLineResult {
-  invoiceId: string;
-  invoiceLineId: string;
-  // Stays submitted until every line is decided.
-  statusId: string;
 }
 
 function toCents(amount: number | string): number {
   return Math.round(Number(amount) * 100);
+}
+
+const money = (cents: number) => (cents / 100).toFixed(2);
+
+// Locks the invoice, checks it is reviewable by this actor (taking it if
+// unassigned) and returns its current chain.
+async function beginLineChange(tx: Transaction, actorUserAccountId: string, invoiceId: string) {
+  const locked = await lockInvoiceForReview(tx, invoiceId);
+  if (![SUBMITTED_INVOICE_STATUS_CODE, UNDER_REVIEW_INVOICE_STATUS_CODE].includes(locked.statusCode)) {
+    throw new InvoiceNotInReviewError();
+  }
+  await claimLineReview(tx, invoiceId, actorUserAccountId);
+  // Submission creates the chain; only invoices submitted before that
+  // existed get one here, without a snapshot.
+  const [existing] = await tx
+    .select({ invoiceApprovalChainId: invoiceApprovalChain.invoiceApprovalChainId })
+    .from(invoiceApprovalChain)
+    .where(and(eq(invoiceApprovalChain.invoiceId, invoiceId), isNull(invoiceApprovalChain.supersededAt)));
+  const chainId =
+    existing?.invoiceApprovalChainId ??
+    firstRow(
+      await tx
+        .insert(invoiceApprovalChain)
+        .values({ invoiceId, createdByUserAccountId: actorUserAccountId, createdAt: new Date() })
+        .returning({ invoiceApprovalChainId: invoiceApprovalChain.invoiceApprovalChainId }),
+    ).invoiceApprovalChainId;
+  return { locked, chainId };
+}
+
+// The first decision moves the invoice from waiting to being reviewed, which
+// also ends the submitter's chance to recall it.
+async function markUnderReview(tx: Transaction, invoiceId: string, statusCode: string, actorUserAccountId: string, chainId: string) {
+  if (statusCode !== SUBMITTED_INVOICE_STATUS_CODE) {
+    return;
+  }
+  const statusId = await getReferenceId(tx, invoiceStatuses, UNDER_REVIEW_INVOICE_STATUS_CODE);
+  await tx.update(invoice).set({ statusId }).where(eq(invoice.invoiceId, invoiceId));
+  await recordInvoiceEvent(tx, { invoiceId, eventTypeCode: 'review_started', statusId, actorUserAccountId, chainId });
+}
+
+async function activeReasonId(tx: Transaction, code: string | undefined): Promise<string> {
+  const [row] = code
+    ? await tx
+        .select({ id: invoiceDecisionReasons.id })
+        .from(invoiceDecisionReasons)
+        .where(and(eq(invoiceDecisionReasons.code, code), eq(invoiceDecisionReasons.active, true)))
+    : [];
+  if (!row) {
+    throw new ValidationError({ reasonCode: 'Choose why.' });
+  }
+  return row.id;
 }
 
 export async function reviewInvoiceLine(
@@ -77,143 +120,165 @@ export async function reviewInvoiceLine(
   invoiceId: string,
   invoiceLineId: string,
   rawInput: unknown,
-): Promise<ReviewInvoiceLineResult> {
-  // A malformed path id can't match a row.
-  if (!z.uuid().safeParse(invoiceId).success) {
-    throw new InvoiceNotFoundError();
-  }
+) {
   if (!z.uuid().safeParse(invoiceLineId).success) {
     throw new InvoiceLineNotFoundError();
   }
-
   const parsed = reviewInvoiceLineInputSchema.safeParse(rawInput);
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
   const input = parsed.data;
-  if (input.outcome === 'rejected') {
-    if (!input.reason) {
-      throw new ValidationError({ reason: 'A reason is required to reject an invoice item.' });
-    }
-    if (input.approvedAmount !== undefined) {
-      throw new ValidationError({ approvedAmount: 'A rejected invoice item has no approved amount.' });
-    }
-  }
-
-  const [submittedStatusId, approvedStatusId, rejectedStatusId, lineReviewStepTypeId, approvedOutcomeId, rejectedOutcomeId] =
-    await Promise.all([
-      getReferenceId(db, invoiceStatuses, SUBMITTED_INVOICE_STATUS_CODE),
-      getReferenceId(db, invoiceStatuses, APPROVED_INVOICE_STATUS_CODE),
-      getReferenceId(db, invoiceStatuses, 'rejected'),
-      getReferenceId(db, invoiceApprovalStepTypes, LINE_REVIEW_STEP_TYPE_CODE),
-      getReferenceId(db, invoiceApprovalOutcomes, 'approved'),
-      getReferenceId(db, invoiceApprovalOutcomes, 'rejected'),
-    ]);
+  await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
 
   return db.transaction(async (tx) => {
-    // Serializes decisions on this invoice so chain creation, the
-    // completion check and a submitter's recall can't race.
-    const [locked] = await tx
-      .select({ statusId: invoice.statusId })
-      .from(invoice)
-      .where(eq(invoice.invoiceId, invoiceId))
-      .for('update');
-    if (!locked) {
-      throw new InvoiceNotFoundError();
-    }
-    if (locked.statusId !== submittedStatusId) {
-      throw new InvoiceNotSubmittedError();
-    }
-
+    const { locked, chainId } = await beginLineChange(tx, actorUserAccountId, invoiceId);
     const [line] = await tx
-      .select({ amount: invoiceLine.amount })
+      .select({ amount: invoiceLine.amount, quantity: invoiceLine.quantity, billedRate: invoiceLine.billedRate })
       .from(invoiceLine)
       .where(and(eq(invoiceLine.invoiceLineId, invoiceLineId), eq(invoiceLine.invoiceId, invoiceId)));
     if (!line) {
       throw new InvoiceLineNotFoundError();
     }
 
-    let approvedAmount: string | undefined;
+    const requestedCents = toCents(line.amount);
+    let decision: {
+      outcomeCode: 'approved' | 'rejected';
+      approvedAmount?: string;
+      approvedQuantity?: string;
+      approvedRate?: string;
+      reasonCodeId?: string;
+    };
     if (input.outcome === 'approved') {
-      const approvedCents = toCents(input.approvedAmount ?? line.amount);
-      if (approvedCents > toCents(line.amount)) {
-        throw new ValidationError({ approvedAmount: `Cannot approve more than the requested ${line.amount}.` });
+      decision = { outcomeCode: 'approved', approvedAmount: money(requestedCents) };
+    } else {
+      const reasonCodeId = await activeReasonId(tx, input.reasonCode);
+      if (input.reasonCode === OTHER_REASON_CODE && !input.note) {
+        throw new ValidationError({ note: 'Explain the reason in the note.' });
       }
-      if (approvedCents <= 0) {
-        throw new ValidationError({ approvedAmount: 'Approved amount must be at least 0.01.' });
+      if (input.outcome === 'rejected') {
+        decision = { outcomeCode: 'rejected', reasonCodeId };
+      } else {
+        const hasHours = line.quantity !== null && Number(line.quantity) > 0 && line.billedRate !== null;
+        let cents: number;
+        let approvedQuantity: string | undefined;
+        let approvedRate: string | undefined;
+        if (hasHours && (input.approvedQuantity !== undefined || input.approvedRate !== undefined)) {
+          const quantity = input.approvedQuantity ?? Number(line.quantity);
+          const rate = input.approvedRate ?? Number(line.billedRate);
+          cents = Math.round(quantity * rate * 100);
+          approvedQuantity = String(quantity);
+          approvedRate = String(rate);
+        } else if (input.approvedAmount !== undefined) {
+          cents = toCents(input.approvedAmount);
+        } else {
+          throw new ValidationError({ approvedAmount: hasHours ? 'Correct the hours or the rate.' : 'Enter the amount to approve.' });
+        }
+        if (cents <= 0) {
+          throw new ValidationError({ approvedAmount: 'Approve more than nothing, or reject the line.' });
+        }
+        if (cents >= requestedCents) {
+          throw new ValidationError({ approvedAmount: `Approve less than the requested ${money(requestedCents)}, or approve the whole line.` });
+        }
+        decision = { outcomeCode: 'approved', approvedAmount: money(cents), approvedQuantity, approvedRate, reasonCodeId };
       }
-      approvedAmount = (approvedCents / 100).toFixed(2);
     }
 
-    // Submission creates the chain with its snapshot; only invoices
-    // submitted before that existed get one lazily here, without a snapshot.
-    const [existingChain] = await tx
-      .select({ invoiceApprovalChainId: invoiceApprovalChain.invoiceApprovalChainId })
-      .from(invoiceApprovalChain)
-      .where(and(eq(invoiceApprovalChain.invoiceId, invoiceId), isNull(invoiceApprovalChain.supersededAt)));
-    const chainId =
-      existingChain?.invoiceApprovalChainId ??
-      firstRow(
-        await tx
-          .insert(invoiceApprovalChain)
-          .values({ invoiceId, createdByUserAccountId: actorUserAccountId, createdAt: new Date() })
-          .returning({ invoiceApprovalChainId: invoiceApprovalChain.invoiceApprovalChainId }),
-      ).invoiceApprovalChainId;
-
-    const [existingDecision] = await tx
-      .select({ id: invoiceApprovalDecision.invoiceApprovalDecisionId })
-      .from(invoiceApprovalDecision)
-      .where(
-        and(
-          eq(invoiceApprovalDecision.invoiceApprovalChainId, chainId),
-          eq(invoiceApprovalDecision.sequenceNumber, LINE_REVIEW_SEQUENCE_NUMBER),
-          eq(invoiceApprovalDecision.invoiceLineId, invoiceLineId),
-        ),
-      );
-    if (existingDecision) {
-      throw new InvoiceLineAlreadyReviewedError();
-    }
-
-    await tx.insert(invoiceApprovalDecision).values({
-      invoiceApprovalChainId: chainId,
-      sequenceNumber: LINE_REVIEW_SEQUENCE_NUMBER,
-      stepTypeId: lineReviewStepTypeId,
-      invoiceLineId,
-      outcomeId: input.outcome === 'approved' ? approvedOutcomeId : rejectedOutcomeId,
+    const outcomeId = await getReferenceId(tx, invoiceApprovalOutcomes, decision.outcomeCode);
+    const values = {
+      outcomeId,
+      approvedAmount: decision.approvedAmount ?? null,
+      approvedQuantity: decision.approvedQuantity ?? null,
+      approvedRate: decision.approvedRate ?? null,
+      reasonCodeId: decision.reasonCodeId ?? null,
+      note: input.note || null,
       decidedByUserAccountId: actorUserAccountId,
       decidedAt: new Date(),
-      reason: input.reason,
-      approvedAmount,
-    });
+    };
+    await tx
+      .insert(invoiceLineWorkingDecision)
+      .values({ invoiceApprovalChainId: chainId, invoiceLineId, ...values })
+      .onConflictDoUpdate({
+        target: [invoiceLineWorkingDecision.invoiceApprovalChainId, invoiceLineWorkingDecision.invoiceLineId],
+        set: values,
+      });
+    await markUnderReview(tx, invoiceId, locked.statusCode, actorUserAccountId, chainId);
+    return { invoiceId, invoiceLineId };
+  });
+}
 
-    const [lines, decisions] = await Promise.all([
-      tx.select({ invoiceLineId: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)),
-      tx
-        .select({ invoiceLineId: invoiceApprovalDecision.invoiceLineId, outcomeId: invoiceApprovalDecision.outcomeId })
-        .from(invoiceApprovalDecision)
-        .where(
-          and(
-            eq(invoiceApprovalDecision.invoiceApprovalChainId, chainId),
-            eq(invoiceApprovalDecision.sequenceNumber, LINE_REVIEW_SEQUENCE_NUMBER),
-          ),
+// Undo: the line is undecided again. Nothing is recorded.
+export async function undoLineDecision(db: Database, actorUserAccountId: string, invoiceId: string, invoiceLineId: string) {
+  await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
+  return db.transaction(async (tx) => {
+    const { chainId } = await beginLineChange(tx, actorUserAccountId, invoiceId);
+    await tx
+      .delete(invoiceLineWorkingDecision)
+      .where(
+        and(
+          eq(invoiceLineWorkingDecision.invoiceApprovalChainId, chainId),
+          eq(invoiceLineWorkingDecision.invoiceLineId, invoiceLineId),
         ),
-    ]);
-    const decidedLineIds = new Set(decisions.map((decision) => decision.invoiceLineId));
-    if (!lines.every((l) => decidedLineIds.has(l.invoiceLineId))) {
-      return { invoiceId, invoiceLineId, statusId: submittedStatusId };
-    }
+      );
+    return { invoiceId, invoiceLineId };
+  });
+}
 
-    const statusId = decisions.some((decision) => decision.outcomeId === rejectedOutcomeId)
-      ? rejectedStatusId
-      : approvedStatusId;
-    await tx.update(invoice).set({ statusId }).where(eq(invoice.invoiceId, invoiceId));
-    await recordInvoiceEvent(tx, {
-      invoiceId,
-      eventTypeCode: statusId === rejectedStatusId ? 'rejected' : 'approved',
-      statusId,
-      actorUserAccountId,
-      chainId,
-    });
-    return { invoiceId, invoiceLineId, statusId };
+// Approves in part, at the configured rate, every undecided time line
+// billed above it.
+export async function repriceLines(db: Database, actorUserAccountId: string, invoiceId: string) {
+  await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
+  return db.transaction(async (tx) => {
+    const { locked, chainId } = await beginLineChange(tx, actorUserAccountId, invoiceId);
+    const lines = await tx
+      .select({
+        invoiceLineId: invoiceLine.invoiceLineId,
+        amount: invoiceLine.amount,
+        quantity: invoiceLine.quantity,
+        billedRate: invoiceLine.billedRate,
+        configuredRate: invoiceLine.configuredRate,
+        decided: invoiceLineWorkingDecision.invoiceLineWorkingDecisionId,
+      })
+      .from(invoiceLine)
+      .innerJoin(invoiceLineTypes, and(eq(invoiceLine.lineTypeId, invoiceLineTypes.id), eq(invoiceLineTypes.code, 'time')))
+      .leftJoin(
+        invoiceLineWorkingDecision,
+        and(
+          eq(invoiceLineWorkingDecision.invoiceLineId, invoiceLine.invoiceLineId),
+          eq(invoiceLineWorkingDecision.invoiceApprovalChainId, chainId),
+        ),
+      )
+      .where(eq(invoiceLine.invoiceId, invoiceId));
+    const flagged = lines.filter(
+      (line) =>
+        !line.decided &&
+        line.configuredRate !== null &&
+        line.billedRate !== null &&
+        line.quantity !== null &&
+        Number(line.billedRate) > Number(line.configuredRate),
+    );
+    if (flagged.length === 0) {
+      return { invoiceId, repriced: 0 };
+    }
+    const [outcomeId, reasonCodeId] = await Promise.all([
+      getReferenceId(tx, invoiceApprovalOutcomes, 'approved'),
+      activeReasonId(tx, RATE_REASON_CODE),
+    ]);
+    const decidedAt = new Date();
+    await tx.insert(invoiceLineWorkingDecision).values(
+      flagged.map((line) => ({
+        invoiceApprovalChainId: chainId,
+        invoiceLineId: line.invoiceLineId,
+        outcomeId,
+        approvedAmount: money(Math.round(Number(line.quantity) * Number(line.configuredRate) * 100)),
+        approvedQuantity: line.quantity,
+        approvedRate: line.configuredRate,
+        reasonCodeId,
+        decidedByUserAccountId: actorUserAccountId,
+        decidedAt,
+      })),
+    );
+    await markUnderReview(tx, invoiceId, locked.statusCode, actorUserAccountId, chainId);
+    return { invoiceId, repriced: flagged.length };
   });
 }

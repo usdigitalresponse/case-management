@@ -212,13 +212,22 @@ async function loadReadableOrThrow(req: Request) {
   return detail;
 }
 
-// Reviewer identities stay internal; external users see outcomes and reasons.
+// Reviewer identities stay internal; external users see outcomes, reasons
+// and notes of finished rounds (the detail was loaded for a submitter, so
+// it has no working decisions or internal comments).
 function withoutReviewer(detail: InvoiceDetail) {
+  const anonymous = <T extends { decidedByDisplayName: string | null }>(decision: T) => ({ ...decision, decidedByDisplayName: null });
   return {
     invoice: detail.invoice,
+    caseNumber: detail.caseNumber,
     submissionAttempt: detail.submissionAttempt,
     ruleFindings: detail.ruleFindings,
-    lines: detail.lines.map(({ decidedByDisplayName: _reviewer, ...line }) => line),
+    approvedTotal: detail.approvedTotal,
+    lines: detail.lines.map(({ decidedByDisplayName: _reviewer, decision, history, ...line }) => ({
+      ...line,
+      decision: decision ? anonymous(decision) : null,
+      history: history.map(anonymous),
+    })),
   };
 }
 

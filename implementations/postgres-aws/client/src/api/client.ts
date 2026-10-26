@@ -31,8 +31,16 @@ export interface AuthenticatedUser {
   displayName: string;
   authType: 'sso' | 'magic-link';
   ssoProvider?: string;
-  // From /auth/me only; just shows or hides Settings.
+  // From /auth/me only; just show or hide Settings and review actions.
   isAdmin?: boolean;
+  reviewPermissions?: ReviewPermissions | null;
+}
+
+export interface ReviewPermissions {
+  reviewLines: boolean;
+  signOff: boolean;
+  reassign: boolean;
+  changeSettings: boolean;
 }
 
 export function getCurrentUser(): Promise<AuthenticatedUser> {
@@ -870,8 +878,7 @@ export function createInvoice(input: CreateInvoiceInput): Promise<{ invoiceId: s
   });
 }
 
-// The staff-facing billing review queue (../pages/BillingQueue.tsx) — a
-// cross-case listing, unlike getCaseInvoices above (one case).
+// One invoice's header, as the staff queue and the portal both show it.
 export interface QueuedInvoice {
   invoiceId: string;
   caseId: string;
@@ -879,6 +886,7 @@ export interface QueuedInvoice {
   caseExternalReference: string | null;
   professionalId: string;
   professionalDisplayName: string | null;
+  professionalKindDisplayName: string | null;
   submittedByUserAccountId: string;
   // Differs from the professional when an office delegate submitted.
   submittedByDisplayName: string | null;
@@ -891,12 +899,70 @@ export interface QueuedInvoice {
   periodEnd: string | null;
 }
 
-export function listInvoices(status?: string): Promise<{ invoices: QueuedInvoice[] }> {
-  const query = status ? `?status=${encodeURIComponent(status)}` : '';
-  return request<{ invoices: QueuedInvoice[] }>(`/api/invoices${query}`);
+export interface AssignedPerson {
+  userAccountId: string;
+  displayName: string;
 }
 
-export type ReviewOutcome = 'approved' | 'rejected';
+export interface QueueFlag {
+  kind: 'rate' | 'arithmetic' | 'rule';
+  message: string;
+}
+
+// The staff review queue (../pages/ReviewQueue.tsx).
+export interface ReviewQueueItem extends QueuedInvoice {
+  caseNumber: string | null;
+  otherCaseNumbers: string[];
+  lineCount: number;
+  decidedCount: number;
+  reviewer: AssignedPerson | null;
+  // Who must act now: the next approver while it waits for sign-off.
+  holder: AssignedPerson | null;
+  workingDaysWaiting: number;
+  flags: QueueFlag[];
+}
+
+export function listReviewQueue(view: 'open' | 'finished'): Promise<{ invoices: ReviewQueueItem[]; waitingAlertWorkingDays: number }> {
+  return request(`/api/invoices?view=${view}`);
+}
+
+export interface ReviewPerson {
+  userAccountId: string;
+  displayName: string;
+  roleName: string;
+  reviewsLines: boolean;
+  signsOff: boolean;
+  waiting: number;
+}
+
+export function listReviewPeople(): Promise<{ people: ReviewPerson[] }> {
+  return request('/api/invoices/reviewers');
+}
+
+export interface DecisionReason {
+  code: string;
+  displayName: string;
+}
+
+export function listDecisionReasons(): Promise<{ reasons: DecisionReason[] }> {
+  return request('/api/invoices/decision-reasons');
+}
+
+// approved_in_part is an approval below the requested amount.
+export type DecisionOutcome = 'approved' | 'approved_in_part' | 'rejected';
+
+export interface LineDecision {
+  outcomeCode: DecisionOutcome;
+  outcomeDisplayName: string;
+  approvedAmount: string | null;
+  approvedQuantity: string | null;
+  approvedRate: string | null;
+  reasonCode: string | null;
+  reasonDisplayName: string | null;
+  note: string | null;
+  decidedByDisplayName: string | null;
+  decidedAt: string;
+}
 
 // Decision fields are null until the line is reviewed.
 export interface InvoiceReviewLine {
@@ -910,11 +976,13 @@ export interface InvoiceReviewLine {
   serviceDateInferred: boolean;
   description: string | null;
   quantity: string | null;
-  // As stated on an imported file; evidence only.
+  // As stated on an imported file; a time line is billed at it.
   unitRate: string | null;
   statedAmount: string | null;
-  // The configured rate a time or mileage line is billed at.
+  // The rate a time or mileage line is billed at.
   billedRate: string | null;
+  // Time lines: the configured rate, for the rate check.
+  configuredRate: string | null;
   // 'mileage' on a mileage line; its quantity is the miles claimed.
   expenseTypeCode: string | null;
   tripOrigin: string | null;
@@ -933,35 +1001,114 @@ export interface InvoiceReviewLine {
   sourceActivityOn: string | null;
   sourceDurationHours: string | null;
   sourceDescription: string | null;
-  decisionOutcomeCode: ReviewOutcome | null;
+  // The latest finished round's decision, flattened.
+  decisionOutcomeCode: DecisionOutcome | null;
   decisionOutcomeDisplayName: string | null;
   decisionApprovedAmount: string | null;
   decisionReason: string | null;
   decidedByDisplayName: string | null;
   decidedAt: string | null;
+  decision: LineDecision | null;
+  // Earlier finished rounds, oldest first.
+  history: Array<LineDecision & { round: number }>;
+  // Staff only: the decision in the round in progress.
+  working: LineDecision | null;
 }
 
-export function getInvoiceForReview(
-  invoiceId: string,
-): Promise<{ invoice: QueuedInvoice; lines: InvoiceReviewLine[]; ruleFindings: RuleFinding[] }> {
+export interface SignOff {
+  displayName: string | null;
+  outcomeCode: string;
+  // Staff only.
+  comment: string | null;
+  decidedAt: string;
+}
+
+export interface InvoiceReview {
+  invoice: QueuedInvoice;
+  caseNumber: string | null;
+  otherCaseNumbers: string[];
+  lines: InvoiceReviewLine[];
+  ruleFindings: RuleFinding[];
+  round: number | null;
+  approvedTotal: string | null;
+  signOffs: SignOff[];
+  assignments: { reviewer: AssignedPerson | null; signOff: Array<AssignedPerson & { position: number }> } | null;
+  // Staff only, while waiting for sign-off: who signs next, and whether
+  // anyone has signed this round (which ends reopening).
+  nextSignOff: AssignedPerson | null;
+  signOffStarted: boolean;
+}
+
+export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {
   return request(`/api/invoices/${invoiceId}`);
 }
 
-export interface ReviewInvoiceLineInput {
-  outcome: ReviewOutcome;
+export interface LineDecisionInput {
+  outcome: DecisionOutcome;
+  approvedQuantity?: number;
+  approvedRate?: number;
   approvedAmount?: number;
-  reason?: string;
+  reasonCode?: string;
+  note?: string;
 }
 
-export function reviewInvoiceLine(
-  invoiceId: string,
-  invoiceLineId: string,
-  input: ReviewInvoiceLineInput,
-): Promise<{ invoiceId: string; invoiceLineId: string; statusId: string }> {
-  return request<{ invoiceId: string; invoiceLineId: string; statusId: string }>(
-    `/api/invoices/${invoiceId}/lines/${invoiceLineId}/review`,
-    { method: 'POST', body: JSON.stringify(input) },
-  );
+export function decideInvoiceLine(invoiceId: string, invoiceLineId: string, input: LineDecisionInput): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/decision`, { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export function undoInvoiceLineDecision(invoiceId: string, invoiceLineId: string): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/decision`, { method: 'DELETE' });
+}
+
+export function repriceInvoice(invoiceId: string): Promise<{ repriced: number }> {
+  return request(`/api/invoices/${invoiceId}/reprice`, { method: 'POST' });
+}
+
+export function finishReview(invoiceId: string): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/finish`, { method: 'POST' });
+}
+
+export function reopenReview(invoiceId: string): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/reopen`, { method: 'POST' });
+}
+
+export function signOffInvoice(invoiceId: string, input: { outcome: 'approved' | 'changes_requested'; comment?: string }): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/sign-off`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function reassignReviewer(invoiceId: string, input: { userAccountId: string; forCase: boolean }): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/reviewer`, { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export function setSignOffApprovers(invoiceId: string, userAccountIds: string[]): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/sign-off-approvers`, { method: 'PUT', body: JSON.stringify({ userAccountIds }) });
+}
+
+export interface ReviewSettings {
+  defaultReviewerUserAccountId: string | null;
+  defaultSignOffUserAccountIds: string[];
+  waitingAlertWorkingDays: number;
+}
+
+export function getReviewSettings(): Promise<ReviewSettings> {
+  return request('/api/settings/review');
+}
+
+export function setReviewSettings(input: Partial<ReviewSettings>): Promise<ReviewSettings> {
+  return request('/api/settings/review', { method: 'PUT', body: JSON.stringify(input) });
+}
+
+export interface StaffRolesResponse {
+  roles: Array<{ roleId: string; displayName: string }>;
+  people: Array<{ userAccountId: string; displayName: string; roleName: string }>;
+}
+
+export function getStaffRoles(): Promise<StaffRolesResponse> {
+  return request('/api/settings/staff-roles');
+}
+
+export function setStaffRole(userAccountId: string, roleId: string): Promise<unknown> {
+  return request(`/api/settings/staff-roles/${userAccountId}`, { method: 'PUT', body: JSON.stringify({ roleId }) });
 }
 
 export function closeCase(

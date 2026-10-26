@@ -22,7 +22,8 @@ const importedLine: PortalInvoiceLine = {
   quantity: '1.50',
   unitRate: '100.00',
   statedAmount: '150.00',
-  billedRate: '120.00',
+  billedRate: '100.00',
+  configuredRate: '120.00',
   timekeeperLabel: 'Synthetic Timekeeper',
   timekeeperProfessionalId: 'professional-1',
   timekeeperDisplayName: 'Synthetic Timekeeper',
@@ -44,6 +45,9 @@ const importedLine: PortalInvoiceLine = {
   decisionApprovedAmount: null,
   decisionReason: null,
   decidedAt: null,
+  decision: null,
+  history: [],
+  working: null,
 };
 
 // Saving a draft replaces all of its lines with what the editor sends, so

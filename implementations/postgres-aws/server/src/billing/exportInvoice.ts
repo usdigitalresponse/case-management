@@ -65,10 +65,18 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
     ['Currency', invoice.currencyCode],
     ['Requested total', invoice.submittedTotal],
     ['Approved total', (approvedCents / 100).toFixed(2)],
+    // Sign-off comments are internal and never exported.
+    ...detail.signOffs
+      .filter((signOff) => signOff.outcomeCode === 'approved')
+      .map((signOff): [string, string] => ['Signed off', `${signOff.displayName ?? ''} ${formatInstant(signOff.decidedAt)}`.trim()]),
     ['Exported', formatInstant(options.exportedAt)],
   ];
 
+  const hasHistory = lines.some((line) => line.history.length > 0);
   const columns = ['Date', 'Type', 'Description', 'Timekeeper', 'Codes', 'Hours / qty', 'Rate', 'Requested', 'Decision', 'Approved', 'Reason'];
+  if (hasHistory) {
+    columns.push('Earlier decisions');
+  }
   if (options.includeReviewer) {
     columns.push('Reviewed by');
   }
@@ -81,13 +89,29 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
       line.timekeeperDisplayName ?? line.timekeeperLabel ?? '',
       lineCodes(line),
       toNumber(line.quantity ?? line.sourceDurationHours),
-      // The configured rate billed; a non-time line's stated rate otherwise.
+      // The rate billed; a non-time line's stated rate otherwise.
       toNumber(line.billedRate ?? line.unitRate),
       toNumber(line.amount),
       line.decisionOutcomeDisplayName ?? 'Not reviewed',
       toNumber(line.decisionApprovedAmount),
       line.decisionReason ?? '',
     ];
+    if (hasHistory) {
+      row.push(
+        line.history
+          .map((past) =>
+            [
+              `Round ${past.round}: ${past.outcomeDisplayName}`,
+              past.approvedAmount && past.outcomeCode !== 'approved' ? past.approvedAmount : null,
+              past.reasonDisplayName,
+              past.note,
+            ]
+              .filter(Boolean)
+              .join(', '),
+          )
+          .join('; '),
+      );
+    }
     if (options.includeReviewer) {
       row.push(line.decidedByDisplayName ?? '');
     }
@@ -167,7 +191,7 @@ export function renderInvoicePdf(detail: InvoiceDetail, options: InvoiceExportOp
   const formatCell = (cell: string | number | null, index: number, amountColumns = content.amountColumns): string =>
     cell === null ? '' : typeof cell === 'number' ? (amountColumns.has(index) ? formatAmount(cell) : String(cell)) : cell;
   // Widths in points across the landscape page; description takes the rest.
-  const widths = [56, 42, '*', 78, 72, 42, 48, 52, 52, 52, 84, 70];
+  const widths = [56, 42, '*', 78, 72, 42, 48, 52, 52, 52, 84, ...(content.columns.includes('Earlier decisions') ? [90] : []), 70];
   const hoursColumn = content.columns.indexOf('Hours / qty');
   doc.fontSize(8).table({
     columnStyles: (column) => ({

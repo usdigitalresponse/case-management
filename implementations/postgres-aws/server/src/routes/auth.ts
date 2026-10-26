@@ -5,6 +5,7 @@ import { db } from '../db/client';
 import { userAccount } from '../db/schema';
 import { getSessionUser, setSessionUser } from '../auth/session';
 import { isAdmin } from '../auth/requireAdmin';
+import { loadReviewPermissions } from '../billing/reviewAccess';
 import type { AuthenticatedUser, OidcProviderConfig } from '../auth/oidcProviders';
 import { passportStrategyName } from '../auth/oidcProviders';
 import { isWhitelistedExternalEmail } from '../auth/externalEmailWhitelist';
@@ -132,8 +133,13 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
         res.status(401).json({ error: 'Not signed in.' });
         return;
       }
-      // Shows or hides Settings; the settings routes check it themselves.
-      res.json({ ...user, isAdmin: user.authType === 'sso' && (await isAdmin(db, user.userAccountId)) });
+      // Shows or hides Settings and review actions; the routes check them themselves.
+      const staff = user.authType === 'sso';
+      res.json({
+        ...user,
+        isAdmin: staff && (await isAdmin(db, user.userAccountId)),
+        reviewPermissions: staff ? await loadReviewPermissions(db, user.userAccountId) : null,
+      });
     }),
   );
 

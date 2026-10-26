@@ -1,7 +1,8 @@
-// Prices an invoice's time lines from professional rates and its mileage
-// lines from mileage rates (model/rules.yaml apply_professional_rates,
-// apply_mileage_rates) and refreshes its total. A linked time entry's date
-// and hours govern; before one exists, the line's own.
+// Prices an invoice's time lines at their stated rate, or the professional's
+// configured rate when none is stated, and its mileage lines from mileage
+// rates (model/rules.yaml apply_professional_rates, apply_mileage_rates),
+// and refreshes its total. A linked time entry's date and hours govern;
+// before one exists, the line's own.
 import { and, eq } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
 import { expenseTypes, invoice, invoiceLine, invoiceLineTypes, timeEntry } from '../db/schema';
@@ -28,6 +29,7 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
       amount: invoiceLine.amount,
       serviceDate: invoiceLine.serviceDate,
       quantity: invoiceLine.quantity,
+      unitRate: invoiceLine.unitRate,
       description: invoiceLine.description,
       timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       entryProfessionalId: timeEntry.professionalId,
@@ -65,7 +67,12 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
       ? `No ${label.kind} rate is set for ${date}, so ${label.name}'s time can't be priced. Ask an administrator to set one.`
       : `${label?.name ?? 'This professional'} has no professional kind, so their time can't be priced. Ask an administrator to set one.`;
   };
-  const setPrice = (invoiceLineId: string, cents: number, rate: string, changes: { serviceDate?: string; quantity?: string } = {}) =>
+  const setPrice = (
+    invoiceLineId: string,
+    cents: number,
+    rate: string,
+    changes: { serviceDate?: string; quantity?: string; configuredRate?: string } = {},
+  ) =>
     tx
       .update(invoiceLine)
       .set({ amount: (cents / 100).toFixed(2), billedRate: rate, ...changes })
@@ -116,10 +123,17 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
       totalCents += Math.round(Number(line.amount) * 100);
       continue;
     }
-    const cents = Math.round(hours * Number(rate) * 100);
+    // A rate stated on the supporting invoice is what was requested; review
+    // flags it when it differs from the configured rate.
+    const billedRate = line.unitRate !== null && Number(line.unitRate) > 0 ? line.unitRate : rate;
+    const cents = Math.round(hours * Number(billedRate) * 100);
     totalCents += cents;
     // eslint-disable-next-line no-await-in-loop
-    await setPrice(line.invoiceLineId, cents, rate, { serviceDate: line.date, quantity: String(hours) });
+    await setPrice(line.invoiceLineId, cents, billedRate, {
+      serviceDate: line.date,
+      quantity: String(hours),
+      configuredRate: rate,
+    });
   }
   const total = (totalCents / 100).toFixed(2);
   await tx.update(invoice).set({ submittedTotal: total }).where(eq(invoice.invoiceId, invoiceId));

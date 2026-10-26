@@ -1,0 +1,133 @@
+// The staff queue: invoices waiting on review or sign-off, or finished, with
+// who has each, how long it has waited and what needs care.
+import { and, inArray, isNull } from 'drizzle-orm';
+import type { Database } from '../db/client';
+import {
+  invoiceApprovalChain,
+  invoiceLine,
+  invoiceLineWorkingDecision,
+  invoiceStatuses,
+} from '../db/schema';
+import { loadCaseNumbers, selectInvoiceHeaders } from './invoiceDetail';
+import { latestRoundNumber, loadRecordedDecisions, signOffProgress } from './reviewRounds';
+import { loadAssignments } from './reviewAssignment';
+import { getReviewSettings } from './reviewSettings';
+import { workingDaysBetween } from './workingDays';
+import type { RuleFinding } from './billingRules';
+import {
+  APPROVED_INVOICE_STATUS_CODE,
+  AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
+  IN_REVIEW_INVOICE_STATUS_CODES,
+  REJECTED_INVOICE_STATUS_CODE,
+} from './invoiceStatusCodes';
+
+export type QueueView = 'open' | 'finished';
+
+export interface QueueFlag {
+  kind: 'rate' | 'arithmetic' | 'rule';
+  message: string;
+}
+
+function money(value: string | number): string {
+  return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export async function listReviewQueue(db: Database, view: QueueView, now = new Date()) {
+  const statusCodes = view === 'open' ? IN_REVIEW_INVOICE_STATUS_CODES : [APPROVED_INVOICE_STATUS_CODE, REJECTED_INVOICE_STATUS_CODE];
+  const headers = await selectInvoiceHeaders(db).where(inArray(invoiceStatuses.code, statusCodes));
+  const invoiceIds = headers.map((header) => header.invoiceId);
+  if (invoiceIds.length === 0) {
+    return { invoices: [], waitingAlertWorkingDays: (await getReviewSettings(db)).waitingAlertWorkingDays };
+  }
+  const [lines, chains, caseNumbers, settings] = await Promise.all([
+    db
+      .select({
+        invoiceId: invoiceLine.invoiceId,
+        invoiceLineId: invoiceLine.invoiceLineId,
+        quantity: invoiceLine.quantity,
+        unitRate: invoiceLine.unitRate,
+        statedAmount: invoiceLine.statedAmount,
+        billedRate: invoiceLine.billedRate,
+        configuredRate: invoiceLine.configuredRate,
+      })
+      .from(invoiceLine)
+      .where(inArray(invoiceLine.invoiceId, invoiceIds)),
+    db
+      .select({
+        invoiceId: invoiceApprovalChain.invoiceId,
+        chainId: invoiceApprovalChain.invoiceApprovalChainId,
+        snapshot: invoiceApprovalChain.submissionSnapshot,
+      })
+      .from(invoiceApprovalChain)
+      .where(and(inArray(invoiceApprovalChain.invoiceId, invoiceIds), isNull(invoiceApprovalChain.supersededAt))),
+    loadCaseNumbers(db, [...new Set(headers.map((header) => header.caseId))]),
+    getReviewSettings(db),
+  ]);
+  const working = await db
+    .select({ chainId: invoiceLineWorkingDecision.invoiceApprovalChainId })
+    .from(invoiceLineWorkingDecision)
+    .where(inArray(invoiceLineWorkingDecision.invoiceApprovalChainId, chains.map((chain) => chain.chainId)));
+
+  const rows = await Promise.all(
+    headers.map(async (header) => {
+      const own = lines.filter((line) => line.invoiceId === header.invoiceId);
+      const chain = chains.find((row) => row.invoiceId === header.invoiceId);
+      const [assignments, recorded] = await Promise.all([
+        loadAssignments(db, header.invoiceId),
+        chain ? loadRecordedDecisions(db, chain.chainId) : Promise.resolve([]),
+      ]);
+      const round = latestRoundNumber(recorded, own.length);
+      const decided =
+        header.statusCode === AWAITING_SIGN_OFF_INVOICE_STATUS_CODE || view === 'finished'
+          ? own.length
+          : working.filter((row) => row.chainId === chain?.chainId).length;
+
+      const flags: QueueFlag[] = [];
+      const overRate = own.find(
+        (line) => line.configuredRate !== null && line.billedRate !== null && Number(line.billedRate) !== Number(line.configuredRate),
+      );
+      if (overRate) {
+        flags.push({
+          kind: 'rate',
+          message: `Rate check: invoice bills ${money(overRate.billedRate as string)} an hour, configured ${money(overRate.configuredRate as string)}`,
+        });
+      }
+      const mismatch = own.find(
+        (line) =>
+          line.quantity !== null &&
+          line.unitRate !== null &&
+          line.statedAmount !== null &&
+          Math.round(Number(line.quantity) * Number(line.unitRate) * 100) !== Math.round(Number(line.statedAmount) * 100),
+      );
+      if (mismatch) {
+        flags.push({
+          kind: 'arithmetic',
+          message: `One line does not add up: ${mismatch.quantity} × ${money(mismatch.unitRate as string)} is not ${money(mismatch.statedAmount as string)}`,
+        });
+      }
+      const findings =
+        (chain?.snapshot as { billing_rules?: { findings?: RuleFinding[] } } | null)?.billing_rules?.findings ?? [];
+      if (findings.length > 0) {
+        flags.push({ kind: 'rule', message: `${findings.length} billing rule ${findings.length === 1 ? 'finding' : 'findings'}` });
+      }
+
+      const nextApprover =
+        header.statusCode === AWAITING_SIGN_OFF_INVOICE_STATUS_CODE ? signOffProgress(recorded, round, assignments.signOff).next : null;
+      const numbers = caseNumbers.get(header.caseId);
+      return {
+        ...header,
+        caseNumber: numbers?.caseNumber ?? null,
+        otherCaseNumbers: numbers?.otherNumbers ?? [],
+        lineCount: own.length,
+        decidedCount: decided,
+        reviewer: assignments.reviewer,
+        // Who must act now: the next approver while awaiting sign-off.
+        holder: nextApprover ?? assignments.reviewer,
+        workingDaysWaiting: header.submittedAt ? workingDaysBetween(header.submittedAt, now) : 0,
+        flags,
+      };
+    }),
+  );
+  rows.sort((a, b) => b.workingDaysWaiting - a.workingDaysWaiting || Number(a.submittedAt) - Number(b.submittedAt));
+  return { invoices: rows, waitingAlertWorkingDays: settings.waitingAlertWorkingDays };
+}
