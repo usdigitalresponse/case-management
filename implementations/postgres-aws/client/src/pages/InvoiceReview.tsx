@@ -175,25 +175,27 @@ export default function InvoiceReview() {
       const openPanel = panel?.lineId === line.invoiceLineId ? panel.mode : null;
       return (
         <div className="decision-buttons">
-          <button type="button" className="btn btn--outline" disabled={saving} onClick={() => void decide(line, { outcome: 'approved' }, 'approved')}>
-            Approve
-          </button>
-          <button
-            type="button"
-            className={`btn ${openPanel === 'approved_in_part' ? 'btn--primary' : 'btn--outline'}`}
-            aria-expanded={openPanel === 'approved_in_part'}
-            onClick={() => setPanel(openPanel === 'approved_in_part' ? null : { lineId: line.invoiceLineId, mode: 'approved_in_part' })}
-          >
-            Approve part
-          </button>
-          <button
-            type="button"
-            className={`btn ${openPanel === 'rejected' ? 'btn--danger-solid' : 'btn--danger'}`}
-            aria-expanded={openPanel === 'rejected'}
-            onClick={() => setPanel(openPanel === 'rejected' ? null : { lineId: line.invoiceLineId, mode: 'rejected' })}
-          >
-            Reject
-          </button>
+          <div className="decision-button-row">
+            <button type="button" className="btn btn--outline" disabled={saving} onClick={() => void decide(line, { outcome: 'approved' }, 'approved')}>
+              Approve
+            </button>
+            <button
+              type="button"
+              className={`btn ${openPanel === 'approved_in_part' ? 'btn--primary' : 'btn--outline'}`}
+              aria-expanded={openPanel === 'approved_in_part'}
+              onClick={() => setPanel(openPanel === 'approved_in_part' ? null : { lineId: line.invoiceLineId, mode: 'approved_in_part' })}
+            >
+              Approve part
+            </button>
+            <button
+              type="button"
+              className={`btn ${openPanel === 'rejected' ? 'btn--danger-solid' : 'btn--danger'}`}
+              aria-expanded={openPanel === 'rejected'}
+              onClick={() => setPanel(openPanel === 'rejected' ? null : { lineId: line.invoiceLineId, mode: 'rejected' })}
+            >
+              Reject
+            </button>
+          </div>
           {openPanel && <span className="cell-note decision-hint">Give a reason below</span>}
           {decision && (
             <button type="button" className="link-button" onClick={() => setChoosing(null)}>Keep {decision.outcomeDisplayName.toLowerCase()}</button>

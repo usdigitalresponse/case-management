@@ -466,9 +466,12 @@ form.compact-form { max-width: none; }
 .review-table tr.is-open, .review-table tr.panel-row { background: #f8faff; }
 .data-card table.review-table tbody tr.panel-row:hover { background: #f8faff; }
 .review-table tr.panel-row td { padding: 0; }
-.decision-cell { min-width: 17rem; }
-.decision-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
-.decision-hint { flex-basis: 100%; color: var(--primary); }
+.decision-cell { min-width: 18.5rem; }
+.decision-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
+/* Approve, Approve part and Reject stay on one line. */
+.decision-button-row { display: flex; flex-wrap: nowrap; gap: .4rem; }
+.decision-button-row .btn { padding: .35rem .7rem; }
+.decision-hint { color: var(--primary); }
 .decision-summary__head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .decision-summary__why { margin: .3rem 0 0; font-size: .88rem; }
 .decision-history { margin-top: .3rem; font-size: .82rem; }
