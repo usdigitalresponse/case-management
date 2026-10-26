@@ -40,7 +40,7 @@
     "read-excel-file": "^9.3.12",
     "tesseract.js": "^7.0.0",
     "write-excel-file": "^4.1.1",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/cookie-session": "^2.0.49",
