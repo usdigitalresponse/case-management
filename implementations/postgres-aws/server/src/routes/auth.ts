@@ -12,6 +12,7 @@ import { passportStrategyName } from '../auth/oidcProviders';
 import { isWhitelistedExternalEmail } from '../auth/externalEmailWhitelist';
 import { normalizeEmail } from '../auth/emailLists';
 import { issueSignInCode, verifySignInCode } from '../auth/signInCode';
+import { RateLimiter, SIGN_IN_LIMITS } from '../auth/rateLimit';
 import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
 import { delegateOfficeIds, isStaffAccount } from '../portal/portalActor';
@@ -34,6 +35,7 @@ export interface AuthRouterOptions {
 
 export function createAuthRouter(options: AuthRouterOptions): Router {
   const router = Router();
+  const limiter = new RateLimiter();
 
   router.get('/providers', (_req, res) => {
     res.json({
@@ -61,6 +63,14 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     '/code/request',
     asyncHandler(async (req, res) => {
       const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : '';
+      // Limited for any address, listed or not, so it reveals nothing.
+      if (
+        !limiter.take(`request:ip:${req.ip}`, SIGN_IN_LIMITS.codesPerAddress) ||
+        (email && !limiter.take(`request:email:${email}`, SIGN_IN_LIMITS.codesPerEmail))
+      ) {
+        res.status(429).json({ error: 'Too many codes asked for. Wait an hour, or use the last code we sent.' });
+        return;
+      }
       // Always respond the same way whether or not the email is
       // whitelisted, so this endpoint can't be used to enumerate which
       // external addresses are allowed in.
@@ -86,6 +96,10 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
   router.post(
     '/code/verify',
     asyncHandler(async (req, res) => {
+      if (!limiter.take(`verify:ip:${req.ip}`, SIGN_IN_LIMITS.triesPerAddress)) {
+        res.status(429).json({ error: 'Too many tries. Wait a few minutes and try again.' });
+        return;
+      }
       const email = typeof req.body?.email === 'string' ? req.body.email : '';
       const code = typeof req.body?.code === 'string' ? req.body.code : '';
       const verified = email && code ? await verifySignInCode(db, email, code) : undefined;

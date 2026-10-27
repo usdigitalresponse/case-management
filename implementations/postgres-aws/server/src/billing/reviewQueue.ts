@@ -11,7 +11,7 @@ import {
 } from '../db/schema';
 import { loadCaseNumbers, selectInvoiceHeaders } from './invoiceDetail';
 import { approvedTotal, latestRoundNumber, loadRecordedDecisions, signOffProgress } from './reviewRounds';
-import { toCents } from './money';
+import { formatMoney, toCents } from './money';
 import { loadAssignments } from './reviewAssignment';
 import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
@@ -32,10 +32,6 @@ export type QueueView = 'open' | 'finished' | 'all';
 export interface QueueFlag {
   kind: 'rate' | 'arithmetic' | 'rule' | 'no_case';
   message: string;
-}
-
-function money(value: string | number): string {
-  return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export async function listReviewQueue(db: Database, view: QueueView, options: { caseId?: string; now?: Date } = {}) {
@@ -118,7 +114,7 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
       if (overRate?.limit) {
         flags.push({
           kind: 'rate',
-          message: `Rate check: bills ${money(overRate.line.billedRate as string)} an hour, ${overRate.limit.source === 'preauthorized' ? 'pre-authorized' : 'configured'} ${money(overRate.limit.rate)}`,
+          message: `Rate check: bills ${formatMoney(overRate.line.billedRate as string)} an hour, ${overRate.limit.source === 'preauthorized' ? 'pre-authorized' : 'configured'} ${formatMoney(overRate.limit.rate)}`,
         });
       }
       const mismatch = own.find(
@@ -131,7 +127,7 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
       if (mismatch) {
         flags.push({
           kind: 'arithmetic',
-          message: `One line does not add up: ${mismatch.quantity} × ${money(mismatch.unitRate as string)} is not ${money(mismatch.statedAmount as string)}`,
+          message: `One line does not add up: ${mismatch.quantity} × ${formatMoney(mismatch.unitRate as string)} is not ${formatMoney(mismatch.statedAmount as string)}`,
         });
       }
       const findings =

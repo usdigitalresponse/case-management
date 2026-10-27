@@ -17,20 +17,21 @@ interface Loaded {
   pdf?: ArrayBuffer;
 }
 
-// The uploader reads it through their import; staff through the request.
-export type FileSourceRef = { importId: string } | { invoiceId: string };
+// The uploader reads it through their import, before it's an invoice;
+// afterwards it's read through the invoice, in the portal or by staff.
+export type FileSourceRef = { importId: string } | { invoiceId: string; portal?: boolean };
 
 async function load(source: FileSourceRef): Promise<Loaded> {
   if ('importId' in source) {
     const preview = await getImportPreview(source.importId);
     return preview.kind === 'pdf' ? { preview, pdf: await getImportFileBytes(source.importId) } : { preview };
   }
-  const preview = await getInvoiceFilePreview(source.invoiceId);
-  return preview.kind === 'pdf' ? { preview, pdf: await fileBytes(invoiceFileUrl(source.invoiceId)) } : { preview };
+  const preview = await getInvoiceFilePreview(source.invoiceId, source.portal);
+  return preview.kind === 'pdf' ? { preview, pdf: await fileBytes(invoiceFileUrl(source.invoiceId, source.portal)) } : { preview };
 }
 
 const downloadUrl = (source: FileSourceRef) =>
-  'importId' in source ? invoiceImportFileUrl(source.importId) : invoiceFileUrl(source.invoiceId);
+  'importId' in source ? invoiceImportFileUrl(source.importId) : invoiceFileUrl(source.invoiceId, source.portal);
 
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 
@@ -54,8 +55,8 @@ export function OriginalDocument({
   fileName: string;
   heading?: string;
   focus?: string;
-} & ({ importId: string } | { invoiceId: string })) {
-  const source: FileSourceRef = 'importId' in rest ? { importId: rest.importId } : { invoiceId: rest.invoiceId };
+} & FileSourceRef) {
+  const source: FileSourceRef = 'importId' in rest ? { importId: rest.importId } : { invoiceId: rest.invoiceId, portal: rest.portal };
   const key = 'importId' in source ? source.importId : source.invoiceId;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const { data, error } = useApiResource(() => load(source), [key]);

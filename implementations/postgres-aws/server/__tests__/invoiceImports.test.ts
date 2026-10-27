@@ -5,6 +5,7 @@ import { asc, eq } from 'drizzle-orm';
 import PDFDocument from 'pdfkit';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import writeXlsxFile from 'write-excel-file/node';
+import { memoryStore } from './memoryStore';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase } from '../src/intake/createCase';
@@ -28,7 +29,6 @@ import { parseLedes1998b } from '../src/imports/parseLedes';
 import { parseTemplateCsv, parseTemplateXlsx } from '../src/imports/parseSpreadsheet';
 import { detectInvoiceFile, UnsupportedInvoiceFileError } from '../src/imports/detectFormat';
 import { UnreadableInvoiceFileError } from '../src/imports/parsedInvoice';
-import type { DocumentStore } from '../src/imports/documentStore';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { listInvoiceIntake } from '../src/billing/invoiceIntake';
 import { ValidationError } from '../src/errors';
@@ -70,26 +70,6 @@ function blankPdf(): Promise<Buffer> {
   return done;
 }
 
-function memoryStore(): DocumentStore & { files: Map<string, Buffer> } {
-  const files = new Map<string, Buffer>();
-  return {
-    files,
-    async put(bytes) {
-      const reference = `memory:${randomUUID()}`;
-      files.set(reference, bytes);
-      return reference;
-    },
-    async get(reference) {
-      return files.get(reference);
-    },
-    async delete(reference) {
-      files.delete(reference);
-    },
-    async list() {
-      return [...files.keys()];
-    },
-  };
-}
 
 const LEDES_HEADER =
   'INVOICE_DATE|INVOICE_NUMBER|CLIENT_ID|LAW_FIRM_MATTER_ID|INVOICE_TOTAL|BILLING_START_DATE|BILLING_END_DATE|INVOICE_DESCRIPTION|LINE_ITEM_NUMBER|EXP/FEE/INV_ADJ_TYPE|LINE_ITEM_NUMBER_OF_UNITS|LINE_ITEM_ADJUSTMENT_AMOUNT|LINE_ITEM_TOTAL|LINE_ITEM_DATE|LINE_ITEM_TASK_CODE|LINE_ITEM_EXPENSE_CODE|LINE_ITEM_ACTIVITY_CODE|TIMEKEEPER_ID|LINE_ITEM_DESCRIPTION|LAW_FIRM_ID|LINE_ITEM_UNIT_COST|TIMEKEEPER_NAME|TIMEKEEPER_CLASSIFICATION|CLIENT_MATTER_ID';

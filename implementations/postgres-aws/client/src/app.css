@@ -632,6 +632,8 @@ form.compact-form { max-width: none; }
 .data-card table.queue-table th[scope="row"] { font-weight: 700; color: var(--ink); background: transparent; }
 .case-number-cell { white-space: nowrap; }
 .queue-table .late { color: var(--danger); font-weight: 700; }
+/* Wide enough for "Choose a reviewer" rather than squeezed by the column. */
+.queue-table .settings-role { width: auto; min-width: 12rem; }
 .row-action { font-weight: 600; text-decoration: none; white-space: nowrap; }
 
 /* Facts strip and progress */

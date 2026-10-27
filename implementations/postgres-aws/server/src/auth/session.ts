@@ -5,7 +5,9 @@ import type { Request, Response, NextFunction } from 'express';
 import type { AuthenticatedUser } from './oidcProviders';
 
 export function getSessionUser(req: Request): AuthenticatedUser | undefined {
-  return req.session?.user as AuthenticatedUser | undefined;
+  const user = req.session?.user as (Omit<AuthenticatedUser, 'authType'> & { authType: string }) | undefined;
+  // Sessions from before sign-in moved to emailed codes still say 'magic-link'.
+  return user?.authType === 'magic-link' ? { ...user, authType: 'email-code' } : (user as AuthenticatedUser | undefined);
 }
 
 export function setSessionUser(req: Request, user: AuthenticatedUser): void {

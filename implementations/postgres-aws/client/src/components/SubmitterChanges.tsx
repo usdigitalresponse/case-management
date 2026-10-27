@@ -1,7 +1,7 @@
 // On the review page: what the submitter changed from their file, and the
 // lines they removed, which need no decision.
 import type { FileLine, FileSource, InvoiceLineType, InvoiceReviewLine } from '../api/client';
-import { changedFields, formatQuantity, readLineType, type LineValues } from '../fileChanges';
+import { changedFields, formatQuantity, readLineType, tracksSource, type LineValues } from '../fileChanges';
 import { formatDate } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
 import { isMileage } from '../invoiceLineDisplay';
@@ -21,7 +21,8 @@ function valuesOf(line: InvoiceReviewLine): LineValues {
   };
 }
 
-export function fileChangesFor(source: FileSource | null, lines: InvoiceReviewLine[]) {
+export function fileChangesFor(fileSource: FileSource | null, lines: InvoiceReviewLine[]) {
+  const source = fileSource && tracksSource(lines.map((line) => line.sourceLocation)) ? fileSource : null;
   const reads = new Map((source?.lines ?? []).map((read) => [read.location, read]));
   const readOf = (line: InvoiceReviewLine): FileLine | undefined => (line.sourceLocation ? reads.get(line.sourceLocation) : undefined);
   const fieldsOf = (line: InvoiceReviewLine) => {
@@ -30,7 +31,7 @@ export function fileChangesFor(source: FileSource | null, lines: InvoiceReviewLi
   };
   const removed = (source?.lines ?? []).filter((read) => !lines.some((line) => line.sourceLocation === read.location));
   const added = source ? lines.filter((line) => !readOf(line)) : [];
-  return { readOf, fieldsOf, removed, added };
+  return { tracking: source !== null, readOf, fieldsOf, removed, added };
 }
 
 // The marker under a changed or added line's description.

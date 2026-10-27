@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './memoryStore';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase } from '../src/intake/createCase';
@@ -172,7 +173,7 @@ describe('billing from time', () => {
       createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ sourceTimeEntryId: timeEntryId }] }),
     ).rejects.toThrow(expect.objectContaining({ fieldErrors: { lines: expect.stringMatching(/already on another invoice/) } }));
 
-    await withdrawInvoice(testDb, actor, first);
+    await withdrawInvoice(testDb, memoryStore(), actor, first);
     expect(await billingOf(timeEntryId)).toBeNull();
     await createInvoice(testDb, actor, { attested: true, caseId, lines: [{ sourceTimeEntryId: timeEntryId }] });
   });

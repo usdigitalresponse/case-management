@@ -520,24 +520,23 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
   if (!parsed) {
     throw new ValidationError({ file: read.failure ?? 'The file is still being read.' });
   }
-  if (input.caseId === null) {
-    if (!(await isStaffAccount(db, actor.userAccountId))) {
-      throw new ValidationError({ caseId: 'Choose the case this invoice is for.' });
-    }
-    // Checked on creating the draft: any active professional.
-  } else {
-    const allowed = (await uploadCases(db, actor)).some(
-      (row) => row.caseId === input.caseId && row.professionalId === input.professionalId,
-    );
-    if (!allowed) {
-      throw new NotAssignedToCaseError();
-    }
-  }
-
-  // Claimed for this request, so a second click can't make the draft twice;
-  // put back if it couldn't be made, to try again.
+  // Claimed before anything is awaited, so a second click can't make the
+  // draft twice; put back if it couldn't be made, to try again.
   splitReads.delete(input.uploadReadId);
   try {
+    if (input.caseId === null) {
+      if (!(await isStaffAccount(db, actor.userAccountId))) {
+        throw new ValidationError({ caseId: 'Choose the case this invoice is for.' });
+      }
+      // Checked on creating the draft: any active professional.
+    } else {
+      const allowed = (await uploadCases(db, actor)).some(
+        (row) => row.caseId === input.caseId && row.professionalId === input.professionalId,
+      );
+      if (!allowed) {
+        throw new NotAssignedToCaseError();
+      }
+    }
     return await db.transaction(async (tx) => {
       const now = new Date();
       const documentId = await insertDocument(

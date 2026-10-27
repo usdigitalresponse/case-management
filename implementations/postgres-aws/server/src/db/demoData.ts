@@ -41,6 +41,7 @@ import { addBillingCode, setBillingRule } from '../billing/billingRules';
 import { pairKey } from '../billing/routeCheck';
 import { getAdminAccountRoleId, getBillingReviewerRoleId, getSignOffApproverRoleId } from '../auth/staffAccountRole';
 import { firstRow } from './rowHelpers';
+import { seedDemoUploads } from './demoUploads';
 
 // Dev/demo data only — deliberately not part of resetAndSeedBaselineFixtures,
 // which __tests__/ also calls and relies on staying minimal (several tests
@@ -568,5 +569,10 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
   await seedClosedCase(fixtures, caseIds);
   await seedStaffAssignment(fixtures, caseIds, staffUserAccountIds);
   await seedDemoReview(fixtures, caseIds, assignments, staffUserAccountIds);
+  const [partner, colleague] = professionals;
+  if (!partner || !colleague) {
+    throw new Error('Expected two demo vendors for the uploads.');
+  }
+  await seedDemoUploads({ partner, colleague, staffUserAccountId: fixtures.staffUserAccountId });
   return { caseCount: DEMO_CASE_COUNT, assignmentCount: assignments.length, staffCount: staffUserAccountIds.length };
 }

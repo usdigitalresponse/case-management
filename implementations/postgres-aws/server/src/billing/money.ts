@@ -7,3 +7,8 @@ export function toCents(value: string | number | null | undefined): number {
 export function fromCents(cents: number): string {
   return (cents / 100).toFixed(2);
 }
+
+// "$1,234.50", for messages and emails.
+export function formatMoney(value: string | number): string {
+  return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}

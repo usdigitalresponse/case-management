@@ -1,6 +1,6 @@
 // One invoice in the portal: its file beside its lines. A draft's lines save
 // as they change; once sent they lock, and it can be withdrawn until review starts.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router';
 import {
   apiErrorMessage,
@@ -23,7 +23,7 @@ import { OriginalDocument } from '../components/OriginalDocument';
 import { RecordedDecision } from '../components/LineReview';
 import { StatusPill, type Tone } from '../components/StatusPill';
 import { Toast, useToast } from '../components/Toast';
-import { changedFields, duplicateOf, rowsInFileOrder } from '../fileChanges';
+import { changedFields, duplicateOf, rowsInFileOrder, tracksSource } from '../fileChanges';
 import { formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { CheckLinesTable } from './CheckLinesTable';
@@ -85,7 +85,7 @@ function Lines({
     mileageRates,
   };
 
-  const fileLines = fileSource?.lines ?? [];
+  const fileLines = fileSource && tracksSource(lines.map((line) => line.carried.sourceLocation)) ? fileSource.lines : [];
   const rows = useMemo(() => rowsInFileOrder(fileLines, lines, (line) => line.carried.sourceLocation), [fileLines, lines]);
   const totals = rows.map((row) => (row.kind === 'line' ? priceOf(row.line, context).total : 0));
   const askingFor = totals.some((total) => total === null) ? null : totals.reduce<number>((sum, total) => sum + Math.round((total ?? 0) * 100), 0) / 100;
@@ -109,30 +109,32 @@ function Lines({
   });
   const fileSays = fileSource ? (fileSource.statedTotal ?? fileLines.reduce((sum, line) => sum + (line.amount ?? 0), 0)) : null;
 
-  // Saves the whole set of lines, with Undo back to the set before.
-  async function persist(next: LineDraft[], message: string) {
-    const previous = lines;
+  // Saves go one at a time, each the whole set of lines; on a failure the
+  // page goes back to the last set the server holds.
+  const saving = useRef<Promise<unknown>>(Promise.resolve());
+  const saved = useRef(lines);
+  function save(next: LineDraft[]): Promise<void> {
     setLines(next);
-    setError(null);
-    try {
+    const done = saving.current.then(async () => {
       await updateDraftInvoice(invoice.invoiceId, {
         periodStart: invoice.periodStart ?? undefined,
         periodEnd: invoice.periodEnd ?? undefined,
         lines: linesFromDrafts(next),
       });
-      setToast({
-        message,
-        undo: async () => {
-          setLines(previous);
-          await updateDraftInvoice(invoice.invoiceId, {
-            periodStart: invoice.periodStart ?? undefined,
-            periodEnd: invoice.periodEnd ?? undefined,
-            lines: linesFromDrafts(previous),
-          });
-        },
-      });
+      saved.current = next;
+    });
+    saving.current = done.catch(() => setLines(saved.current));
+    return done;
+  }
+
+  // With Undo back to the set before.
+  async function persist(next: LineDraft[], message: string) {
+    const previous = lines;
+    setError(null);
+    try {
+      await save(next);
+      setToast({ message, undo: () => save(previous) });
     } catch (err) {
-      setLines(previous);
       setError(apiErrorMessage(err, 'That change could not be saved. Try again.'));
     }
   }
@@ -235,7 +237,7 @@ function Lines({
       <div className={fileSource ? 'submission__layout' : undefined}>
         {fileSource &&
           (fileSource.fileAvailable ? (
-            <OriginalDocument importId={fileSource.invoiceImportId} fileName={fileSource.fileName} heading="Your file" focus={focus} />
+            <OriginalDocument invoiceId={invoice.invoiceId} portal fileName={fileSource.fileName} heading="Your file" focus={focus} />
           ) : (
             <section className="original-document original-document--gone">
               <p>The uploaded file {fileSource.fileName} is no longer kept.</p>

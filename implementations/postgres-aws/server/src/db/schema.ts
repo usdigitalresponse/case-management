@@ -869,6 +869,7 @@ export const signInCode = pgTable(
     signInCodeId: uuid('sign_in_code_id').primaryKey().defaultRandom(),
     email: text('email').notNull(),
     codeHash: text('code_hash').notNull(),
+    // Every try counts, so the right code on the last try still works.
     failedAttempts: integer('failed_attempts').notNull().default(0),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     usedAt: timestamp('used_at', { withTimezone: true }),

@@ -299,7 +299,7 @@ export default function InvoiceReview() {
       <InvoiceLinesTable
         lines={lines}
         note={
-          fileSource
+          fileSource && fileChanges.tracking
             ? (line) => (
                 <ChangeNote
                   line={line}

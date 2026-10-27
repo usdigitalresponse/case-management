@@ -74,7 +74,11 @@ review" for everyone's. The seed leaves invoices signed off, waiting for
 sign-off, part-reviewed, assigned and unassigned, one waiting past the
 callout and one billed above the configured rate. Settings has the demo
 reviewers' and approver's roles, the sign-off default and the callout
-threshold. The case overview board is hidden from the sidebar but still at
+threshold. The demo partner also has invoices uploaded as synthetic PDFs
+(`src/db/demoUploads.ts`): one not yet checked, one with a changed and a
+removed line, one misread, one sent with changes for review beside its file,
+one entered by hand, and staff have an upload waiting on Intake for a case.
+The case overview board is hidden from the sidebar but still at
 `/overview`. Links to an external case management system are disabled
 placeholders. See `MAPPING.md` "Invoice review".
 

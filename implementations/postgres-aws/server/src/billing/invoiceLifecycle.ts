@@ -26,6 +26,8 @@ import {
 } from '../db/schema';
 import { authorizeBilling, isStaffAccount, type PortalActor } from '../portal/portalActor';
 import { importDocumentIds, releaseDocumentIfUnneeded } from '../imports/documentRetention';
+import type { DocumentStore } from '../imports/documentStore';
+import { formatMoney } from './money';
 import { sendEmail } from '../email/sendEmail';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { recordInvoiceEvent } from './invoiceEvents';
@@ -540,9 +542,6 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
   return { invoiceId };
 }
 
-const money = (value: string) =>
-  `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
 async function emailReceipt(db: Database, actor: PortalActor, invoiceId: string): Promise<void> {
   const [row] = await db
     .select({
@@ -567,7 +566,7 @@ async function emailReceipt(db: Database, actor: PortalActor, invoiceId: string)
     '',
     `Case: ${[row.caseReference, row.clientName].filter(Boolean).join(', ') || 'not given'}`,
     `Billing period: ${row.periodStart && row.periodEnd ? `${row.periodStart} to ${row.periodEnd}` : 'not given'}`,
-    `Amount: ${money(row.submittedTotal)}`,
+    `Amount: ${formatMoney(row.submittedTotal)}`,
     `Sent: ${row.submittedAt?.toISOString() ?? ''}`,
     '',
     'You can withdraw it until review starts. Reviewers see your original file and every change you made.',
@@ -615,8 +614,8 @@ export async function recallInvoice(db: Database, actor: PortalActor, invoiceId:
   });
 }
 
-export async function withdrawInvoice(db: Database, actor: PortalActor, invoiceId: string) {
-  return db.transaction(async (tx) => {
+export async function withdrawInvoice(db: Database, store: DocumentStore, actor: PortalActor, invoiceId: string) {
+  const files = await db.transaction(async (tx) => {
     const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
     if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
       throw new InvoiceStateError('Only a draft can be withdrawn; recall a submitted invoice first.');
@@ -626,15 +625,22 @@ export async function withdrawInvoice(db: Database, actor: PortalActor, invoiceI
       throw new InvoiceStateError('Discard the import instead; that also deletes the uploaded file.');
     }
     await withdrawDraftInTx(tx, invoiceId, { actorUserAccountId: actor.userAccountId });
-    // The hourly sweep deletes a released file (../imports/invoiceImports.ts expireInvoiceImports).
+    const released: string[] = [];
     for (const documentId of await importDocumentIds(tx, invoiceId)) {
       // eslint-disable-next-line no-await-in-loop
       await tx.select({ documentId: document.documentId }).from(document).where(eq(document.documentId, documentId)).for('update');
       // eslint-disable-next-line no-await-in-loop
-      await releaseDocumentIfUnneeded(tx, documentId);
+      const storageReference = await releaseDocumentIfUnneeded(tx, documentId);
+      if (storageReference) released.push(storageReference);
     }
-    return { invoiceId };
+    return released;
   });
+  // After commit; the hourly sweep retries any that fail.
+  for (const storageReference of files) {
+    // eslint-disable-next-line no-await-in-loop
+    await store.delete(storageReference);
+  }
+  return { invoiceId };
 }
 
 // Caller holds the row lock and has checked it's a draft. A system action

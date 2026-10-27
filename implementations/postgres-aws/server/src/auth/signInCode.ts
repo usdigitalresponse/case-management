@@ -3,13 +3,13 @@
 // the route; this module only issues and checks codes for an email a caller
 // has already decided may have one.
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
-import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { signInCode } from '../db/schema';
 import { normalizeEmail } from './emailLists';
 
 export const SIGN_IN_CODE_TTL_MS = 10 * 60 * 1000;
-// After this many wrong codes the code stops working and a new one is needed.
+// Tries per code, the right one included; then a new code is needed.
 export const SIGN_IN_CODE_MAX_ATTEMPTS = 5;
 
 // Keyed, so a leaked row can't be matched against all million codes offline.
@@ -40,34 +40,43 @@ export async function issueSignInCode(db: Database, email: string): Promise<stri
 // email. A wrong, expired, used or exhausted code all fail the same way.
 export async function verifySignInCode(db: Database, email: string, code: string): Promise<string | undefined> {
   const normalizedEmail = normalizeEmail(email);
-  const [row] = await db
-    .select()
+  const live = db
+    .select({ id: signInCode.signInCodeId })
     .from(signInCode)
     .where(and(eq(signInCode.email, normalizedEmail), isNull(signInCode.usedAt), gt(signInCode.expiresAt, new Date())))
     .orderBy(desc(signInCode.createdAt))
     .limit(1);
-  if (!row) {
+  // Each try is counted before the code is compared, in one statement, so
+  // guesses sent at once can't get past the limit.
+  const [attempt] = await db
+    .update(signInCode)
+    .set({ failedAttempts: sql`${signInCode.failedAttempts} + 1` })
+    .where(
+      and(
+        inArray(signInCode.signInCodeId, live),
+        isNull(signInCode.usedAt),
+        lt(signInCode.failedAttempts, SIGN_IN_CODE_MAX_ATTEMPTS),
+      ),
+    )
+    .returning();
+  if (!attempt) {
     return undefined;
   }
 
-  const expected = Buffer.from(row.codeHash, 'hex');
+  const expected = Buffer.from(attempt.codeHash, 'hex');
   const given = Buffer.from(hashCode(normalizedEmail, code.trim()), 'hex');
-  if (!/^\d{6}$/.test(code.trim()) || !timingSafeEqual(expected, given)) {
-    await db
-      .update(signInCode)
-      .set({
-        failedAttempts: sql`${signInCode.failedAttempts} + 1`,
-        usedAt: sql`case when ${signInCode.failedAttempts} + 1 >= ${SIGN_IN_CODE_MAX_ATTEMPTS} then now() else null end`,
-      })
-      .where(and(eq(signInCode.signInCodeId, row.signInCodeId), isNull(signInCode.usedAt)));
+  const matches = /^\d{6}$/.test(code.trim()) && timingSafeEqual(expected, given);
+  if (!matches) {
+    if (attempt.failedAttempts >= SIGN_IN_CODE_MAX_ATTEMPTS) {
+      await db.update(signInCode).set({ usedAt: new Date() }).where(eq(signInCode.signInCodeId, attempt.signInCodeId));
+    }
     return undefined;
   }
-
-  // Lost a race with a concurrent verify of the same code: only one wins.
-  const [updated] = await db
+  // Only one of two verifies of the same code wins.
+  const [used] = await db
     .update(signInCode)
     .set({ usedAt: new Date() })
-    .where(and(eq(signInCode.signInCodeId, row.signInCodeId), isNull(signInCode.usedAt)))
+    .where(and(eq(signInCode.signInCodeId, attempt.signInCodeId), isNull(signInCode.usedAt)))
     .returning();
-  return updated ? normalizedEmail : undefined;
+  return used ? normalizedEmail : undefined;
 }

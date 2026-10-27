@@ -227,7 +227,7 @@ export interface InvoiceDetail {
   // The file it was read from, with each line as first read; null if typed in.
   fileSource: FileSource | null;
   // What the submitter changed since the file was read.
-  submitterChanges: ReturnType<typeof submitterChanges> | null;
+  submitterChanges: ReturnType<typeof submitterChanges>;
 }
 
 async function displayNames(db: DatabaseOrTransaction, ids: string[]): Promise<Map<string, string>> {

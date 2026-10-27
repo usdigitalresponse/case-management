@@ -1,7 +1,7 @@
 // The portal's invoice list, with deletability, the last submission time
 // (recall clears submittedAt) and what the submitter needs at a glance:
-// the case number, an unchecked import, the reviewer while in review, and
-// the outcome once decided.
+// the case number, a draft's import and changes, the reviewer while in
+// review, and the outcome once decided. Each is loaded for all rows at once.
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {
@@ -9,8 +9,6 @@ import {
   expenseTypes,
   invoice,
   invoiceApprovalChain,
-  invoiceImport,
-  invoiceImportStatuses,
   invoiceLine,
   invoiceLineTypes,
   invoiceStatuses,
@@ -21,10 +19,10 @@ import { portalReadableInvoiceCondition } from '../billing/invoiceAccess';
 import type { PortalActor } from './portalActor';
 import { deletableBy } from '../billing/deleteInvoice';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
-import { loadAssignments } from '../billing/reviewAssignment';
-import { approvedTotal, latestRoundNumber, loadRecordedDecisions } from '../billing/reviewRounds';
+import { loadLineReviewerNames } from '../billing/reviewAssignment';
+import { approvedTotal, latestRoundNumber, loadRecordedDecisionsByChain, type RecordedDecision } from '../billing/reviewRounds';
 import { toCents } from '../billing/money';
-import { loadFileSource, submitterChanges } from '../imports/invoiceFile';
+import { loadFileSources, submitterChanges } from '../imports/invoiceFile';
 import {
   APPROVED_INVOICE_STATUS_CODE,
   DRAFT_INVOICE_STATUS_CODE,
@@ -66,79 +64,68 @@ export async function listPortalInvoices(db: Database, reader: PortalActor, case
     .where(and(...conditions))
     .orderBy(desc(invoice.submittedAt));
 
-  const draftIds = rows.filter((row) => row.statusCode === DRAFT_INVOICE_STATUS_CODE).map((row) => row.invoiceId);
-  const [caseNumbers, imports] = await Promise.all([
+  const ids = (codes: readonly string[]) => rows.filter((row) => codes.includes(row.statusCode)).map((row) => row.invoiceId);
+  const draftIds = ids([DRAFT_INVOICE_STATUS_CODE]);
+  const decidedIds = ids(DECIDED_STATUS_CODES);
+  const [caseNumbers, sources, reviewers, chains] = await Promise.all([
     loadCaseNumbers(db, [...new Set(rows.map((row) => row.caseId))]),
-    draftIds.length === 0
-      ? Promise.resolve([])
+    loadFileSources(db, draftIds),
+    // Shown to the submitter while their invoice is in review.
+    loadLineReviewerNames(db, ids(IN_REVIEW_INVOICE_STATUS_CODES)),
+    decidedIds.length === 0
+      ? []
       : db
-          .select({ invoiceId: invoiceImport.invoiceId, invoiceImportId: invoiceImport.invoiceImportId, statusCode: invoiceImportStatuses.code })
-          .from(invoiceImport)
-          .innerJoin(invoiceImportStatuses, eq(invoiceImport.statusId, invoiceImportStatuses.id))
-          .where(inArray(invoiceImport.invoiceId, draftIds)),
+          .select({ invoiceId: invoiceApprovalChain.invoiceId, chainId: invoiceApprovalChain.invoiceApprovalChainId })
+          .from(invoiceApprovalChain)
+          .where(and(inArray(invoiceApprovalChain.invoiceId, decidedIds), isNull(invoiceApprovalChain.supersededAt))),
   ]);
-  const importFor = new Map(imports.map(({ invoiceId, ...rest }) => [invoiceId, rest]));
+  const lineIds = [...sources.keys(), ...decidedIds];
+  const [lines, decisions] = await Promise.all([
+    lineIds.length === 0
+      ? []
+      : db
+          .select({
+            invoiceId: invoiceLine.invoiceId,
+            invoiceLineId: invoiceLine.invoiceLineId,
+            sourceLocation: invoiceLine.sourceLocation,
+            lineTypeCode: invoiceLineTypes.code,
+            expenseTypeCode: expenseTypes.code,
+            serviceDate: invoiceLine.serviceDate,
+            description: invoiceLine.description,
+            quantity: invoiceLine.quantity,
+            unitRate: invoiceLine.unitRate,
+            amount: invoiceLine.amount,
+          })
+          .from(invoiceLine)
+          .innerJoin(invoiceLineTypes, eq(invoiceLine.lineTypeId, invoiceLineTypes.id))
+          .leftJoin(expenseTypes, eq(invoiceLine.expenseTypeId, expenseTypes.id))
+          .where(inArray(invoiceLine.invoiceId, lineIds)),
+    loadRecordedDecisionsByChain(db, chains.map((chain) => chain.chainId)),
+  ]);
+  const linesOf = (invoiceId: string) => lines.filter((line) => line.invoiceId === invoiceId);
+  const chainOf = new Map(chains.map((chain) => [chain.invoiceId, chain.chainId]));
 
-  return Promise.all(
-    rows.map(async (row) => {
-      const inReview = IN_REVIEW_INVOICE_STATUS_CODES.includes(row.statusCode);
-      const decided = DECIDED_STATUS_CODES.includes(row.statusCode);
-      // Shown to the submitter while their invoice is in review.
-      const reviewer = inReview ? (await loadAssignments(db, row.invoiceId)).reviewer : null;
-      const outcome = decided ? await decidedOutcome(db, row.invoiceId) : null;
-      const imported = importFor.get(row.invoiceId) ?? null;
-      return {
-        ...row,
-        caseNumber: caseNumbers.get(row.caseId)?.caseNumber ?? null,
-        // The import a draft was read from, if any.
-        import: imported,
-        // A draft's changes from its file so far.
-        changes: imported ? await draftChanges(db, row.invoiceId) : null,
-        reviewerDisplayName: reviewer?.displayName ?? null,
-        approvedTotal: outcome?.approvedTotal ?? null,
-        cutLineCount: outcome?.cutLineCount ?? null,
-      };
-    }),
-  );
-}
-
-async function draftChanges(db: Database, invoiceId: string) {
-  const source = await loadFileSource(db, invoiceId);
-  if (!source) {
-    return null;
-  }
-  const lines = await db
-    .select({
-      sourceLocation: invoiceLine.sourceLocation,
-      lineTypeCode: invoiceLineTypes.code,
-      expenseTypeCode: expenseTypes.code,
-      serviceDate: invoiceLine.serviceDate,
-      description: invoiceLine.description,
-      quantity: invoiceLine.quantity,
-      unitRate: invoiceLine.unitRate,
-      amount: invoiceLine.amount,
-    })
-    .from(invoiceLine)
-    .innerJoin(invoiceLineTypes, eq(invoiceLine.lineTypeId, invoiceLineTypes.id))
-    .leftJoin(expenseTypes, eq(invoiceLine.expenseTypeId, expenseTypes.id))
-    .where(eq(invoiceLine.invoiceId, invoiceId));
-  return submitterChanges(source, lines);
+  return rows.map((row) => {
+    const source = sources.get(row.invoiceId);
+    const chainId = chainOf.get(row.invoiceId);
+    const outcome = chainId ? decidedOutcome(decisions.get(chainId) ?? [], linesOf(row.invoiceId)) : null;
+    return {
+      ...row,
+      caseNumber: caseNumbers.get(row.caseId)?.caseNumber ?? null,
+      // The import a draft was read from, if any.
+      import: source ? { invoiceImportId: source.invoiceImportId, statusCode: source.importStatusCode } : null,
+      // A draft's changes from its file so far.
+      changes: source ? submitterChanges(source, linesOf(row.invoiceId)) : null,
+      reviewerDisplayName: reviewers.get(row.invoiceId) ?? null,
+      approvedTotal: outcome?.approvedTotal ?? null,
+      cutLineCount: outcome?.cutLineCount ?? null,
+    };
+  });
 }
 
 // What the latest finished round approved, and how many lines it cut in
 // part or in full.
-async function decidedOutcome(db: Database, invoiceId: string) {
-  const [chain] = await db
-    .select({ chainId: invoiceApprovalChain.invoiceApprovalChainId })
-    .from(invoiceApprovalChain)
-    .where(and(eq(invoiceApprovalChain.invoiceId, invoiceId), isNull(invoiceApprovalChain.supersededAt)));
-  if (!chain) {
-    return null;
-  }
-  const [recorded, lines] = await Promise.all([
-    loadRecordedDecisions(db, chain.chainId),
-    db.select({ invoiceLineId: invoiceLine.invoiceLineId, amount: invoiceLine.amount }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)),
-  ]);
+function decidedOutcome(recorded: RecordedDecision[], lines: Array<{ invoiceLineId: string; amount: string }>) {
   const round = latestRoundNumber(recorded, lines.length);
   const requested = new Map(lines.map((line) => [line.invoiceLineId, toCents(line.amount)]));
   const cutLineCount = recorded.filter(

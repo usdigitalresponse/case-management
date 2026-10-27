@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
-import { requireAuth, requireFullUser } from '../src/auth/session';
+import { getSessionUser, requireAuth, requireFullUser } from '../src/auth/session';
 import type { AuthenticatedUser } from '../src/auth/oidcProviders';
 
 function mockRes() {
@@ -26,6 +26,13 @@ const magicLinkUser: AuthenticatedUser = {
   displayName: 'vendor@example.com',
   authType: 'email-code',
 };
+
+describe('getSessionUser', () => {
+  it('reads a session from before emailed codes as an external user', () => {
+    const legacy = { ...magicLinkUser, authType: 'magic-link' } as unknown as AuthenticatedUser;
+    expect(getSessionUser(mockReq(legacy))?.authType).toBe('email-code');
+  });
+});
 
 describe('requireAuth', () => {
   it('calls next for any authenticated session', () => {

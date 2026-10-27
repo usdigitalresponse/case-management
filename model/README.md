@@ -278,7 +278,8 @@ storage is a working area, not a
 record store: it accepts only configured
 formats within configured limits, scans files before parsing, and keeps them out
 of versioning and backups. From then on the draft request, and later its submission snapshot, is
-the record of the supporting invoice; reviewers never see the original file.
+the record of the supporting invoice. The file stays beside it for the
+submitter and authorized reviewers until the request is withdrawn or deleted.
 The draft stays editable until submitted through the ordinary
 `payment_request` workflow, and a submission may be recalled to draft only
 before any review decision. Starting over withdraws the draft and needs a new upload.

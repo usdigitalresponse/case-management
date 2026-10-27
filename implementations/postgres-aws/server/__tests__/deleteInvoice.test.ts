@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './memoryStore';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase } from '../src/intake/createCase';
@@ -14,7 +15,6 @@ import { getReferenceId } from '../src/db/referenceLookups';
 import { giveRate } from './rateHelpers';
 import { listPortalInvoices } from '../src/portal/listPortalInvoices';
 import { confirmInvoiceImport, uploadInvoiceFile } from '../src/imports/invoiceImports';
-import type { DocumentStore } from '../src/imports/documentStore';
 import {
   caseAssignment,
   document,
@@ -40,22 +40,6 @@ afterAll(async () => {
   await testPool.end();
 });
 
-function memoryStore(): DocumentStore & { files: Map<string, Buffer> } {
-  const files = new Map<string, Buffer>();
-  return {
-    files,
-    put: async (bytes) => {
-      const reference = `memory:${randomUUID()}`;
-      files.set(reference, bytes);
-      return reference;
-    },
-    get: async (reference) => files.get(reference),
-    delete: async (reference) => {
-      files.delete(reference);
-    },
-    list: async () => [...files.keys()],
-  };
-}
 
 async function setup(): Promise<{ actor: PortalActor; caseId: string }> {
   const email = `${randomUUID()}@example.com`;
@@ -93,7 +77,7 @@ describe('deleting invoices that were never submitted', () => {
     expect(await testDb.select().from(invoiceEvent).where(eq(invoiceEvent.invoiceId, draft.invoiceId))).toHaveLength(0);
 
     const withdrawn = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ amount: 10 }] });
-    await withdrawInvoice(testDb, actor, withdrawn.invoiceId);
+    await withdrawInvoice(testDb, memoryStore(), actor, withdrawn.invoiceId);
     await deleteUnsubmittedInvoice(testDb, store, actor, withdrawn.invoiceId);
     expect(await exists(withdrawn.invoiceId)).toBe(false);
   });
@@ -106,7 +90,7 @@ describe('deleting invoices that were never submitted', () => {
     expect(await isInvoiceDeletableBy(testDb, actor.userAccountId, invoiceId)).toBe(false);
 
     await recallInvoice(testDb, actor, invoiceId);
-    await withdrawInvoice(testDb, actor, invoiceId);
+    await withdrawInvoice(testDb, memoryStore(), actor, invoiceId);
     expect(await isInvoiceDeletableBy(testDb, actor.userAccountId, invoiceId)).toBe(true);
     await deleteUnsubmittedInvoice(testDb, store, actor, invoiceId);
     expect(await exists(invoiceId)).toBe(false);

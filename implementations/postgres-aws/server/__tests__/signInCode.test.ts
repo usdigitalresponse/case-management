@@ -62,6 +62,15 @@ describe('sign-in codes', () => {
     expect(await verifySignInCode(testDb, 'vendor@example.com', code)).toBeUndefined();
   });
 
+  it('holds to the limit when many guesses arrive at once', async () => {
+    const code = await issueSignInCode(testDb, 'vendor@example.com');
+    const guesses = Array.from({ length: 20 }, (_, n) => ((Number(code) + n + 1) % 1_000_000).toString().padStart(6, '0'));
+    await Promise.all(guesses.map((guess) => verifySignInCode(testDb, 'vendor@example.com', guess)));
+    const [row] = await testDb.select().from(signInCode);
+    expect(row?.failedAttempts).toBe(SIGN_IN_CODE_MAX_ATTEMPTS);
+    expect(await verifySignInCode(testDb, 'vendor@example.com', code)).toBeUndefined();
+  });
+
   it('counts anything that is not 6 digits as a wrong try', async () => {
     const code = await issueSignInCode(testDb, 'vendor@example.com');
     expect(await verifySignInCode(testDb, 'vendor@example.com', 'abc')).toBeUndefined();

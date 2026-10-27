@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './memoryStore';
 import { testDb, testPool } from './testDb';
 import { giveRate } from './rateHelpers';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
@@ -18,7 +19,6 @@ import {
 } from '../src/imports/splitByCase';
 import { extractionsSettled } from '../src/imports/extractionJobs';
 import { deleteUnsubmittedInvoice } from '../src/billing/deleteInvoice';
-import type { DocumentStore } from '../src/imports/documentStore';
 import { ValidationError } from '../src/errors';
 import { caseAssignment, caseTable, invoice, invoiceAttestation, invoiceImport, supportingInvoice, userAccount } from '../src/db/schema';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
@@ -36,26 +36,6 @@ afterAll(async () => {
   await testPool.end();
 });
 
-function memoryStore(): DocumentStore & { files: Map<string, Buffer> } {
-  const files = new Map<string, Buffer>();
-  return {
-    files,
-    async put(bytes) {
-      const reference = `memory:${randomUUID()}`;
-      files.set(reference, bytes);
-      return reference;
-    },
-    async get(reference) {
-      return files.get(reference);
-    },
-    async delete(reference) {
-      files.delete(reference);
-    },
-    async list() {
-      return [...files.keys()];
-    },
-  };
-}
 
 async function createProfessional(name: string) {
   const [account] = await testDb.insert(userAccount).values({ displayName: name, email: `${randomUUID()}@example.com`, active: true }).returning();
@@ -154,6 +134,19 @@ describe('uploading an invoice before choosing its case', () => {
     // Deleting the draft takes its supporting invoice with it.
     await deleteUnsubmittedInvoice(testDb, store, actor, created.invoiceId);
     expect(await testDb.select().from(supportingInvoice)).toEqual([]);
+  });
+
+  it('makes one draft when asked twice at once', async () => {
+    const { actor, professionalId } = await createProfessional('Synthetic Attorney');
+    const caseId = await caseFor(professionalId, 'CR-0001');
+    const { uploadReadId } = await upload(actor, 'invoice.csv');
+
+    const results = await Promise.allSettled([
+      createDraftFromUpload(testDb, actor, { uploadReadId, caseId, professionalId }),
+      createDraftFromUpload(testDb, actor, { uploadReadId, caseId, professionalId }),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(await testDb.select().from(invoiceImport)).toHaveLength(1);
   });
 
   it('refuses a case the uploader is not on, and a half-entered period', async () => {

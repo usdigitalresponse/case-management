@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { asc, eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './memoryStore';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase } from '../src/intake/createCase';
@@ -141,10 +142,10 @@ describe('invoice lifecycle', () => {
   it('withdraws only drafts', async () => {
     const { actor, caseId } = await createSubmitter('lifecycle4@example.com');
     const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, lines: [{ amount: 100 }] });
-    await expect(withdrawInvoice(testDb, actor, invoiceId)).rejects.toThrow(InvoiceStateError);
+    await expect(withdrawInvoice(testDb, memoryStore(), actor, invoiceId)).rejects.toThrow(InvoiceStateError);
 
     await recallInvoice(testDb, actor, invoiceId);
-    await withdrawInvoice(testDb, actor, invoiceId);
+    await withdrawInvoice(testDb, memoryStore(), actor, invoiceId);
     expect(await statusCode(invoiceId)).toBe('withdrawn');
     await expect(submitInvoice(testDb, actor, invoiceId, { attested: true })).rejects.toThrow(InvoiceStateError);
     expect((await eventCodes(invoiceId)).every((e) => e.actor === actor.userAccountId)).toBe(true);
@@ -156,7 +157,7 @@ describe('invoice lifecycle', () => {
     const { invoiceId } = await createInvoice(testDb, owner.actor, { attested: true, caseId: owner.caseId, submit: false, lines: [{ amount: 5 }] });
 
     await expect(submitInvoice(testDb, other.actor, invoiceId, { attested: true })).rejects.toThrow(InvoiceNotFoundError);
-    await expect(withdrawInvoice(testDb, other.actor, invoiceId)).rejects.toThrow(InvoiceNotFoundError);
+    await expect(withdrawInvoice(testDb, memoryStore(), other.actor, invoiceId)).rejects.toThrow(InvoiceNotFoundError);
   });
 
   it('records review, finishing and sign-off as events, routed by the configured defaults', async () => {

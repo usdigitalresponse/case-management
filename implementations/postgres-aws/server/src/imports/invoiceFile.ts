@@ -2,7 +2,7 @@
 // from the file, and what the submitter changed since. Changes are worked out
 // from the immutable extraction result, so removed lines stay visible and
 // need no decision (model/schema.yaml invoice_line.source_location).
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';
 import { document, invoiceImport, invoiceImportFormats, invoiceImportStatuses } from '../db/schema';
 import { NotFoundError } from '../errors';
@@ -69,9 +69,10 @@ function fileLine(line: StoredLine): FileLine {
   };
 }
 
-async function loadImportRow(db: DatabaseOrTransaction, invoiceId: string) {
-  const [row] = await db
+function importRows(db: DatabaseOrTransaction, invoiceIds: string[]) {
+  return db
     .select({
+      invoiceId: invoiceImport.invoiceId,
       invoiceImportId: invoiceImport.invoiceImportId,
       importStatusCode: invoiceImportStatuses.code,
       extractionResult: invoiceImport.extractionResult,
@@ -85,17 +86,15 @@ async function loadImportRow(db: DatabaseOrTransaction, invoiceId: string) {
     .innerJoin(invoiceImportStatuses, eq(invoiceImport.statusId, invoiceImportStatuses.id))
     .innerJoin(invoiceImportFormats, eq(invoiceImport.sourceFormatId, invoiceImportFormats.id))
     .innerJoin(document, eq(invoiceImport.documentId, document.documentId))
-    .where(eq(invoiceImport.invoiceId, invoiceId));
+    .where(inArray(invoiceImport.invoiceId, invoiceIds));
+}
+
+async function loadImportRow(db: DatabaseOrTransaction, invoiceId: string) {
+  const [row] = await importRows(db, [invoiceId]);
   return row;
 }
 
-// Null for a request typed in rather than read from a file. Callers check
-// the reader may see the request.
-export async function loadFileSource(db: DatabaseOrTransaction, invoiceId: string): Promise<FileSource | null> {
-  const row = await loadImportRow(db, invoiceId);
-  if (!row) {
-    return null;
-  }
+function fileSourceOf(row: Awaited<ReturnType<typeof importRows>>[number]): FileSource {
   const result = (row.extractionResult ?? {}) as StoredResult;
   return {
     invoiceImportId: row.invoiceImportId,
@@ -108,6 +107,19 @@ export async function loadFileSource(db: DatabaseOrTransaction, invoiceId: strin
     lines: (result.lines ?? []).map(fileLine),
     warnings: result.warnings ?? [],
   };
+}
+
+// Null for a request typed in rather than read from a file. Callers check
+// the reader may see the request.
+export async function loadFileSource(db: DatabaseOrTransaction, invoiceId: string): Promise<FileSource | null> {
+  const row = await loadImportRow(db, invoiceId);
+  return row ? fileSourceOf(row) : null;
+}
+
+// The same for several requests, by invoice; those typed in are left out.
+export async function loadFileSources(db: DatabaseOrTransaction, invoiceIds: string[]): Promise<Map<string, FileSource>> {
+  const rows = invoiceIds.length === 0 ? [] : await importRows(db, invoiceIds);
+  return new Map(rows.flatMap((row) => (row.invoiceId ? [[row.invoiceId, fileSourceOf(row)] as const] : [])));
 }
 
 // The stored file, for staff viewing a request beside its lines.
@@ -148,7 +160,11 @@ export function lineChanged(read: FileLine, line: CurrentLine): boolean {
   );
 }
 
+// Null for a request imported before lines kept their source location.
 export function submitterChanges(source: FileSource, lines: CurrentLine[]) {
+  if (lines.length > 0 && lines.every((line) => !line.sourceLocation)) {
+    return null;
+  }
   const byLocation = new Map(lines.flatMap((line) => (line.sourceLocation ? [[line.sourceLocation, line] as const] : [])));
   const removed = source.lines.filter((read) => !byLocation.has(read.location));
   const changed = source.lines.filter((read) => {

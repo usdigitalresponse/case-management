@@ -4,6 +4,12 @@
 // decision.
 import type { FileLine, InvoiceLineType } from './api/client';
 
+// False for a request imported before lines kept their source location, whose
+// changes can't be told.
+export function tracksSource(locations: Array<string | null | undefined>): boolean {
+  return locations.length === 0 || locations.some(Boolean);
+}
+
 export type ChangedField = 'date' | 'description' | 'quantity' | 'rate' | 'amount';
 
 // The values of a current line that can differ from the file.

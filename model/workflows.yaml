@@ -116,18 +116,19 @@ workflows:
       - action: confirm
         from: extracted
         to: confirmed
-        requires: [draft_request_created, resolving_actor, effective_timestamp, document_content_deleted]
+        requires: [draft_request_created, resolving_actor, effective_timestamp]
       - action: discard
         from: [received, extracted, failed]
         to: discarded
         requires: [authorized_submitter, resolving_actor, effective_timestamp, document_content_deleted]
       - action: expire
-        from: [received, extracted, failed]
+        from: failed
         to: discarded
-        requires: [three_days_since_upload, effective_timestamp, document_content_deleted, unconfirmed_draft_withdrawn]
+        requires: [three_days_since_upload, effective_timestamp, document_content_deleted]
     requirements:
       - State names are semantic categories, not seeded reference IDs.
       - Extraction failure keeps the document until the submitter discards it or it expires; the submitter may instead enter a request manually.
       - Expiry is a system action with no resolving user; after it the submitter must upload again.
       - Confirmed and discarded imports are final. Confirmation accepts the extracted values into the draft; the draft stays editable until submitted.
+      - A read file's draft never expires. The file stays with its request, for the submitter and authorized reviewers, until the request is withdrawn or deleted (rules.yaml validate_invoice_import); a confirmed import keeps its file.
       - Re-processing requires a new upload and creates a new import.

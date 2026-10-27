@@ -1327,12 +1327,14 @@ export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {
 }
 
 // The file a request was read from, for staff viewing it beside the lines.
-export function getInvoiceFilePreview(invoiceId: string): Promise<ImportPreview> {
-  return request<ImportPreview>(`/api/invoices/${invoiceId}/file/preview`);
+// Staff read it through /api/invoices; anyone who may read the invoice in
+// the portal through /api/portal/invoices.
+export function getInvoiceFilePreview(invoiceId: string, portal = false): Promise<ImportPreview> {
+  return request<ImportPreview>(`${invoiceFileUrl(invoiceId, portal)}/preview`);
 }
 
-export function invoiceFileUrl(invoiceId: string): string {
-  return `/api/invoices/${invoiceId}/file`;
+export function invoiceFileUrl(invoiceId: string, portal = false): string {
+  return `/api/${portal ? 'portal/' : ''}invoices/${invoiceId}/file`;
 }
 
 export interface LineDecisionInput {

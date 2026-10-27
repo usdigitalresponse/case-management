@@ -320,7 +320,11 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   (`src/auth/externalEmailWhitelist.ts`) — it responds identically either
   way, so the endpoint can't be used to enumerate whitelisted addresses.
   The code works once, for 10 minutes; a new request stops earlier codes
-  working, and after 5 wrong codes it stops working too. Only a keyed hash
+  working, and it allows 5 tries, each counted before the code is compared
+  so tries sent at once can't exceed it. Both routes are rate-limited in
+  the server process (`src/auth/rateLimit.ts`): codes per email and per
+  address an hour, and tries per address; enough for the single server
+  instance, but several would need a shared store. Only a keyed hash
   (HMAC with `SESSION_SECRET`) is stored, in `sign_in_code`. `POST
   /auth/code/verify` (body: `{ email, code }`) rechecks the whitelist,
   consumes the code, creates/reuses the `user_account`, bootstraps a
@@ -663,14 +667,17 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `.../confirm` requires every line matched (a file designated to one
     professional fills lines with no one named as theirs); `.../discard`
     deletes the file and withdraws the draft. Imports are visible only to
-    their uploader.
+    their uploader. Once the import becomes a request, anyone who may read
+    the request sees its file: staff through `GET /api/invoices/:id/file`
+    (and `/file/preview`), portal readers, delegates included, through
+    `GET /api/portal/invoices/:id/file`.
   - File retention (`src/imports/documentRetention.ts`; `model/rules.yaml`
     `validate_invoice_import`): a file is kept while any import of it is
     unresolved or its confirmed request is live, so the submitter and
     reviewers see it beside the lines. Discarding or expiring its imports,
     or withdrawing or deleting its request, marks the content deleted
-    (`document.content_deleted_at`); the hourly sweep removes a released
-    file's bytes. Gap: payment completion isn't recorded yet, so a live
+    (`document.content_deleted_at`) and removes the file's bytes after
+    commit; the hourly sweep retries any removal that failed. Gap: payment completion isn't recorded yet, so a live
     request's file stays until it is withdrawn or deleted.
   - Bulk import (`client/src/portal/PortalBulkImport.tsx`, `bulkImport.ts`;
     "Import invoices" on the portal case list) takes several files, each

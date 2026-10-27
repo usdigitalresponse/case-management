@@ -24,7 +24,7 @@ import {
   uploadCases,
   uploadInvoiceFileByCase,
 } from '../imports/splitByCase';
-import { previewFile } from '../imports/preview';
+import { readFileForInvoice } from '../imports/invoiceFile';
 import { findImportForInvoice } from '../imports/importedTimeEntries';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../billing/deleteInvoice';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
@@ -53,6 +53,7 @@ import { recallInvoice, submitInvoice, updateDraftInvoice, withdrawInvoice } fro
 import { listReceiptChannels } from '../billing/invoiceReceipt';
 import { InvoiceNotFoundError } from '../billing/reviewInvoiceLine';
 import { asyncHandler } from './asyncHandler';
+import { sendFileDownload, sendFilePreview } from './sendUploadedFile';
 import { parseExportFormat, sendInvoiceExport } from './sendInvoiceExport';
 
 const router = Router();
@@ -199,7 +200,14 @@ router.delete(
   }),
 );
 
-const transitions = { submit: submitInvoice, recall: recallInvoice, withdraw: withdrawInvoice };
+router.post(
+  '/invoices/:id/withdraw',
+  asyncHandler(async (req, res) => {
+    res.json(await withdrawInvoice(db, documentStore, await sessionActor(req), req.params.id as string));
+  }),
+);
+
+const transitions = { submit: submitInvoice, recall: recallInvoice };
 for (const [action, transition] of Object.entries(transitions)) {
   router.post(
     `/invoices/:id/${action}`,
@@ -276,6 +284,23 @@ router.get(
       throw new InvoiceNotFoundError();
     }
     await sendInvoiceExport(res, detail, format, false);
+  }),
+);
+
+// The file an invoice was read from, for anyone who may read the invoice.
+router.get(
+  '/invoices/:id/file/preview',
+  asyncHandler(async (req, res) => {
+    const detail = await loadReadableOrThrow(req);
+    await sendFilePreview(res, await readFileForInvoice(db, documentStore, detail.invoice.invoiceId));
+  }),
+);
+
+router.get(
+  '/invoices/:id/file',
+  asyncHandler(async (req, res) => {
+    const detail = await loadReadableOrThrow(req);
+    sendFileDownload(res, await readFileForInvoice(db, documentStore, detail.invoice.invoiceId));
   }),
 );
 
@@ -416,21 +441,14 @@ router.get(
 router.get(
   '/invoice-imports/:id/preview',
   asyncHandler(async (req, res) => {
-    const file = await readImportFile(db, documentStore, await sessionActor(req), req.params.id as string);
-    res.set('Cache-Control', 'no-store').json(await previewFile(file.mediaType, file.bytes));
+    await sendFilePreview(res, await readImportFile(db, documentStore, await sessionActor(req), req.params.id as string));
   }),
 );
 
-// Always a download, so uploaded content never renders in the app's origin.
 router.get(
   '/invoice-imports/:id/file',
   asyncHandler(async (req, res) => {
-    const file = await readImportFile(db, documentStore, await sessionActor(req), req.params.id as string);
-    res
-      .type(file.mediaType)
-      .attachment(file.fileName)
-      .set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
-      .send(file.bytes);
+    sendFileDownload(res, await readImportFile(db, documentStore, await sessionActor(req), req.params.id as string));
   }),
 );
 
