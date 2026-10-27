@@ -172,6 +172,8 @@ export interface CheckLinesTableProps {
   // Read-only extras, such as a decision, by line index.
   extra?: (index: number) => ReactNode;
   footer: ReactNode;
+  // An invoice entered by hand has no file to have missed lines from.
+  addLabel?: string;
 }
 
 export function CheckLinesTable({
@@ -188,9 +190,11 @@ export function CheckLinesTable({
   onUndoChange,
   extra,
   footer,
+  addLabel = 'Add a line we missed',
 }: CheckLinesTableProps) {
-  // The row number being edited, or 'new' for an added line.
-  const [editing, setEditing] = useState<number | 'new' | null>(null);
+  // The row number being edited, or 'new' for an added line; an empty
+  // invoice opens on adding its first line.
+  const [editing, setEditing] = useState<number | 'new' | null>(() => (editable && rows.length === 0 ? 'new' : null));
   const columns = 7;
 
   return (
@@ -208,6 +212,11 @@ export function CheckLinesTable({
           </tr>
         </thead>
         <tbody>
+          {rows.length === 0 && editing !== 'new' && (
+            <tr>
+              <td colSpan={columns} className="check-lines__empty">No lines yet.</td>
+            </tr>
+          )}
           {rows.map((row) => {
             if (row.kind === 'removed') {
               const { read } = row;
@@ -268,7 +277,7 @@ export function CheckLinesTable({
                       </>
                     )}
                     {read && fields.length > 0 && <span className="cell-note check-lines__changed">{changeSentence(read, values, fields)}</span>}
-                    {!read && <span className="cell-note check-lines__changed">You added this line.</span>}
+                    {!read && addLabel !== 'Add a line' && <span className="cell-note check-lines__changed">You added this line.</span>}
                     {duplicate && <span className="cell-note">Same date, text and amount as line {duplicate}. Is it a duplicate?</span>}
                   </td>
                   <td className="amount">
@@ -350,7 +359,7 @@ export function CheckLinesTable({
       <div className="check-lines__footer">
         {editable && editing !== 'new' ? (
           <button type="button" className="link-button check-lines__add" onClick={() => setEditing('new')}>
-            <span aria-hidden="true">+ </span>Add a line we missed
+            <span aria-hidden="true">+ </span>{addLabel}
           </button>
         ) : (
           <span />

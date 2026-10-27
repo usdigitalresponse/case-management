@@ -283,6 +283,7 @@ function Lines({
               )
             }
             extra={sent ? decisionFor : undefined}
+            addLabel={fileSource ? 'Add a line we missed' : 'Add a line'}
             footer={
               <div className="check-lines__totals">
                 {fileSays !== null && (
@@ -300,7 +301,9 @@ function Lines({
           />
           <p className="compact-hint">
             {isDraft
-              ? `Click a line to see where it is on your file. Changes save as you go.`
+              ? fileSource
+                ? 'Click a line to see where it is on your file. Changes save as you go.'
+                : 'Add each line of the invoice. Changes save as you go.'
               : invoice.statusCode === 'submitted'
                 ? 'This invoice is with the billing office, so the lines are locked. Withdraw it if you need to change something.'
                 : 'The lines are locked while the billing office reviews them.'}

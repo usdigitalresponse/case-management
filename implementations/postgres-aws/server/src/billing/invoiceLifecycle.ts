@@ -96,10 +96,12 @@ export const invoiceLineInputSchema = z
     path: ['amount'],
   });
 
+// A draft may start with no lines, as an invoice entered by hand does;
+// submitting needs at least one.
 export const draftContentSchema = z.object({
   periodStart: z.iso.date().optional(),
   periodEnd: z.iso.date().optional(),
-  lines: z.array(invoiceLineInputSchema).min(1),
+  lines: z.array(invoiceLineInputSchema),
 });
 
 export type DraftContent = z.infer<typeof draftContentSchema>;
@@ -245,7 +247,7 @@ async function replaceLines(
   // Safe: draft lines have no decisions, and submitted values live on in
   // their attempt's snapshot.
   await tx.delete(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
-  await tx.insert(invoiceLine).values(
+  if (lines.length > 0) await tx.insert(invoiceLine).values(
     lines.map((line) => ({
       invoiceId,
       caseId,

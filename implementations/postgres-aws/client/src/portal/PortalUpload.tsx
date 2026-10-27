@@ -2,30 +2,40 @@
 // submitter checks what was read (case, billing period, invoice number) one
 // file at a time; each checked file becomes a draft. One file goes straight
 // on to checking its lines; several go back to the list as drafts. Cancel
-// keeps none of them.
+// keeps none of them. With no file, "Enter an invoice by hand" asks the same
+// case and period, then goes straight on to adding its lines. Staff use it
+// from Intake for invoices received elsewhere, and may leave the case, and
+// whom it's from, for matching later.
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import {
   ApiError,
   apiErrorMessage,
+  createInvoice,
   createUploadDraft,
   deleteInvoice,
   discardUpload,
   getUpload,
   invoiceTemplateUrl,
+  listBillableProfessionals,
+  listUploadCases,
   startUpload,
   type UploadCase,
   type UploadRead,
 } from '../api/client';
+import { useApiResource } from '../hooks/useApiResource';
 import { ImportProgressNote } from '../components/ImportProgressNote';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
+import { professionalLabel } from '../components/InvoiceLinesEditor';
 import type { UploadedState } from './PortalInvoiceList';
-import { PORTAL_HOME_PATH } from './useShell';
+import { LATER, useShell } from './useShell';
 
 interface Details {
-  // `${caseId}|${professionalId}`, or '' until chosen.
+  // `${caseId}|${professionalId}`, LATER (staff: no case yet), or '' until chosen.
   caseOption: string;
+  // With no case yet: whom it's from, or '' to choose when it's matched.
+  fromProfessionalId: string;
   periodStart: string;
   periodEnd: string;
   invoiceNumber: string;
@@ -47,6 +57,7 @@ const optionValue = (row: Pick<UploadCase, 'caseId' | 'professionalId'>) => `${r
 function detailsFrom(read: Extract<UploadRead, { status: 'ready' }>): Details {
   return {
     caseOption: read.suggested ? optionValue(read.suggested) : '',
+    fromProfessionalId: '',
     periodStart: read.read.periodStart ?? '',
     periodEnd: read.read.periodEnd ?? '',
     invoiceNumber: read.read.invoiceNumber ?? '',
@@ -178,20 +189,30 @@ function FileCard({
   );
 }
 
+// The case, billing period and (for a file) invoice number, for an upload
+// or an invoice entered by hand.
 function DetailsForm({
-  entry,
-  read,
+  details,
+  cases,
+  withInvoiceNumber,
   errors,
   onChange,
 }: {
-  entry: Entry;
-  read: Extract<UploadRead, { status: 'ready' }>;
+  details: Details;
+  cases: UploadCase[];
+  withInvoiceNumber: boolean;
   errors: Record<string, string>;
   onChange: (details: Details) => void;
 }) {
-  const details = entry.details ?? detailsFrom(read);
+  const { staff } = useShell();
   const set = (patch: Partial<Details>) => onChange({ ...details, ...patch });
-  const showWho = new Set(read.cases.map((row) => row.professionalId)).size > 1;
+  const showWho = new Set(cases.map((row) => row.professionalId)).size > 1;
+  const later = details.caseOption === LATER;
+  // Any active provider, for an invoice staff hold with no case yet.
+  const { data: providers } = useApiResource(
+    () => (staff && later ? listBillableProfessionals(null).then((result) => result.professionals) : Promise.resolve([])),
+    [staff, later],
+  );
   return (
     <div className="upload-details">
       <div className="upload-details__field">
@@ -205,15 +226,41 @@ function DetailsForm({
           onChange={(event) => set({ caseOption: event.target.value })}
         >
           <option value="">- Choose the case -</option>
-          {read.cases.map((row) => (
+          {staff && <option value={LATER}>No case yet: match it later on Intake</option>}
+          {cases.map((row) => (
             <option key={optionValue(row)} value={optionValue(row)}>
               {caseLabel(row, showWho)}
             </option>
           ))}
         </select>
         {errors.caseId && <p className="field-error">{errors.caseId}</p>}
-        <p id="upload-case-hint" className="field-hint">Only cases where you are the assigned attorney appear here.</p>
+        <p id="upload-case-hint" className="field-hint">
+          {staff
+            ? 'Cases with an assigned provider appear here, with whom each invoice bills.'
+            : 'Only cases where you are the assigned attorney appear here.'}
+        </p>
       </div>
+      {later && (
+        <div className="upload-details__field">
+          <label className="usa-label" htmlFor="upload-from">From</label>
+          <select
+            id="upload-from"
+            className="usa-select"
+            value={details.fromProfessionalId}
+            aria-describedby="upload-from-hint"
+            onChange={(event) => set({ fromProfessionalId: event.target.value })}
+          >
+            <option value="">Not known yet: choose when matching</option>
+            {providers?.map((provider) => (
+              <option key={provider.professionalId} value={provider.professionalId}>
+                {professionalLabel(provider)}
+              </option>
+            ))}
+          </select>
+          {errors.professionalId && <p className="field-error">{errors.professionalId}</p>}
+          <p id="upload-from-hint" className="field-hint">It waits under "Waiting for a case" on Intake until it's matched.</p>
+        </div>
+      )}
       <div className="upload-details__field">
         <span className="usa-label" id="upload-period-label">Billing period</span>
         <div className="upload-period" role="group" aria-labelledby="upload-period-label">
@@ -235,19 +282,98 @@ function DetailsForm({
           />
         </div>
         {(errors.periodStart || errors.periodEnd) && <p className="field-error">{errors.periodStart ?? errors.periodEnd}</p>}
-        <p className="field-hint">From the dates on your invoice.</p>
+        <p className="field-hint">{withInvoiceNumber ? 'From the dates on your invoice.' : 'Optional. The dates the work covers.'}</p>
       </div>
-      <div className="upload-details__field">
-        <label className="usa-label" htmlFor="upload-invoice-number">Invoice number on your file</label>
-        <input
-          id="upload-invoice-number"
-          className="usa-input"
-          value={details.invoiceNumber}
-          aria-describedby="upload-invoice-number-hint"
-          onChange={(event) => set({ invoiceNumber: event.target.value })}
-        />
-        {errors.invoiceNumber && <p className="field-error">{errors.invoiceNumber}</p>}
-        <p id="upload-invoice-number-hint" className="field-hint">Optional. It helps the billing office match your records.</p>
+      {withInvoiceNumber && (
+        <div className="upload-details__field">
+          <label className="usa-label" htmlFor="upload-invoice-number">Invoice number on your file</label>
+          <input
+            id="upload-invoice-number"
+            className="usa-input"
+            value={details.invoiceNumber}
+            aria-describedby="upload-invoice-number-hint"
+            onChange={(event) => set({ invoiceNumber: event.target.value })}
+          />
+          {errors.invoiceNumber && <p className="field-error">{errors.invoiceNumber}</p>}
+          <p id="upload-invoice-number-hint" className="field-hint">
+            {staff ? "Optional. It helps match the provider's records." : 'Optional. It helps the billing office match your records.'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const NO_DETAILS: Details = { caseOption: '', fromProfessionalId: '', periodStart: '', periodEnd: '', invoiceNumber: '' };
+
+// "Enter an invoice by hand": the same case and period as an upload, then
+// straight on to adding its lines on the check-the-lines page.
+function ManualEntry({ onCancel }: { onCancel: () => void }) {
+  const navigate = useNavigate();
+  const { staff } = useShell();
+  const { data, error: loadError } = useApiResource(() => listUploadCases().then((result) => result.cases), []);
+  const [details, setDetails] = useState<Details>(NO_DETAILS);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  // The only case is chosen for you.
+  const cases = data ?? [];
+  const chosen = details.caseOption || (cases.length === 1 && !staff ? optionValue(cases[0]!) : '');
+
+  async function start() {
+    const later = staff && chosen === LATER;
+    const [caseId, professionalId] = later ? [null, details.fromProfessionalId || null] : chosen.split('|');
+    if (!later && (!caseId || !professionalId)) {
+      setErrors({ caseId: 'Choose the case this invoice is for.' });
+      return;
+    }
+    setBusy(true);
+    setErrors({});
+    setMessage(null);
+    try {
+      const created = await createInvoice({
+        caseId: caseId ?? null,
+        professionalId: professionalId ?? null,
+        submit: false,
+        periodStart: details.periodStart || undefined,
+        periodEnd: details.periodEnd || undefined,
+        lines: [],
+      });
+      navigate(`/portal/invoices/${created.invoiceId}`);
+    } catch (err) {
+      const fieldErrors = fieldErrorsOf(err);
+      setErrors(fieldErrors);
+      if (Object.keys(fieldErrors).length === 0) {
+        setMessage(apiErrorMessage(err, 'The invoice could not be started. Try again.'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="upload-card manual-entry">
+      <h2 className="upload-card__heading">Enter an invoice by hand</h2>
+      <p className="field-hint">Choose the case, then add each line of the invoice on the next step.</p>
+      {Boolean(loadError) && <Notice tone="danger">Your cases could not be loaded.</Notice>}
+      {data && cases.length === 0 && !staff && (
+        <Notice tone="warning">You have no open cases to bill. Ask the billing office to check your case assignments.</Notice>
+      )}
+      <DetailsForm
+        details={{ ...details, caseOption: chosen }}
+        cases={cases}
+        withInvoiceNumber={false}
+        errors={errors}
+        onChange={setDetails}
+      />
+      {message && <Notice tone="danger">{message}</Notice>}
+      <div className="upload-card__actions">
+        <button type="button" className="btn btn--primary" disabled={busy || !data} onClick={() => void start()}>
+          {busy ? 'Starting…' : 'Add the lines'}
+        </button>
+        <button type="button" className="link-button" disabled={busy} onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </div>
   );
@@ -260,7 +386,11 @@ function fieldErrorsOf(err: unknown): Record<string, string> {
 
 export default function PortalUpload() {
   const navigate = useNavigate();
+  // Staff come from and go back to Intake; submitters to their invoices.
+  const { staff, invoicesPath, invoicesLabel } = useShell();
   const [entries, setEntries] = useState<Entry[]>([]);
+  // Entering an invoice by hand instead of uploading a file.
+  const [manual, setManual] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -328,8 +458,9 @@ export default function PortalUpload() {
   async function next() {
     if (!current || !currentRead || !current.uploadReadId) return;
     const details = current.details ?? detailsFrom(currentRead);
-    const [caseId, professionalId] = details.caseOption.split('|');
-    if (!caseId || !professionalId) {
+    const later = staff && details.caseOption === LATER;
+    const [caseId, professionalId] = later ? [null, details.fromProfessionalId || null] : details.caseOption.split('|');
+    if (!later && (!caseId || !professionalId)) {
       setErrors({ caseId: 'Choose the case this invoice is for.' });
       return;
     }
@@ -338,8 +469,8 @@ export default function PortalUpload() {
     setMessage(null);
     try {
       const created = await createUploadDraft(current.uploadReadId, {
-        caseId,
-        professionalId,
+        caseId: caseId ?? null,
+        professionalId: professionalId ?? null,
         periodStart: details.periodStart || undefined,
         periodEnd: details.periodEnd || undefined,
         invoiceNumber: details.invoiceNumber.trim() || undefined,
@@ -348,9 +479,10 @@ export default function PortalUpload() {
       const remaining = usable.filter((entry) => !entry.created && entry.key !== current.key);
       if (remaining.length === 0) {
         if (createdCount === 0 && usable.length === 1) {
-          navigate(`/portal/invoices/${created.invoiceId}`);
+          // Staff check the lines on the import review page, in their shell.
+          navigate(staff ? `/portal/imports/${created.invoiceImportId}` : `/portal/invoices/${created.invoiceId}`);
         } else {
-          navigate(PORTAL_HOME_PATH, { state: { uploadedCount: createdCount + 1 } satisfies UploadedState });
+          navigate(invoicesPath, { state: { uploadedCount: createdCount + 1 } satisfies UploadedState });
         }
       }
     } catch (err) {
@@ -376,7 +508,7 @@ export default function PortalUpload() {
             : undefined,
       ),
     );
-    navigate(PORTAL_HOME_PATH);
+    navigate(invoicesPath);
   }
 
   const position = (entry: Entry) => usable.indexOf(entry) + 1;
@@ -384,12 +516,23 @@ export default function PortalUpload() {
   return (
     <div className="portal-narrow">
       <PageHeader
-        crumbs={[{ label: 'Your invoices', to: PORTAL_HOME_PATH }, { label: many ? 'New invoices' : 'New invoice' }]}
-        title={many ? 'Upload invoices' : 'Upload an invoice'}
+        crumbs={[{ label: invoicesLabel, to: invoicesPath }, { label: many ? 'New invoices' : 'New invoice' }]}
+        title={manual ? 'Enter an invoice' : many ? 'Upload invoices' : 'Upload an invoice'}
       />
       <Steps />
+      {manual ? (
+        <ManualEntry onCancel={() => setManual(false)} />
+      ) : (
       <div className="upload-card">
         <DropZone hasFiles={entries.length > 0} onFiles={addFiles} />
+        {entries.length === 0 && (
+          <p className="manual-entry__offer">
+            No file?{' '}
+            <button type="button" className="link-button" onClick={() => setManual(true)}>
+              Enter an invoice by hand
+            </button>
+          </p>
+        )}
         {many && (
           <p className="upload-card__intro">
             {entries.length} files uploaded. Check what we read from each one, then go to the next.
@@ -421,8 +564,14 @@ export default function PortalUpload() {
               {many ? `Invoice ${position(current)} of ${usable.length}: what we read from ${current.file.name}. ` : 'What we read from your file. '}
               Check it is right.
             </h2>
-            <DetailsForm entry={current} read={currentRead} errors={errors} onChange={(details) => update(current.key, { details })} />
-            {currentRead.cases.length === 0 && (
+            <DetailsForm
+              details={current.details ?? detailsFrom(currentRead)}
+              cases={currentRead.cases}
+              withInvoiceNumber
+              errors={errors}
+              onChange={(details) => update(current.key, { details })}
+            />
+            {currentRead.cases.length === 0 && !staff && (
               <Notice tone="warning">You have no open cases to bill. Ask the billing office to check your case assignments.</Notice>
             )}
           </>
@@ -441,17 +590,17 @@ export default function PortalUpload() {
         )}
         {many && (
           <p className="field-hint">
-            After the last file, Next takes you back to your invoices. Each file is saved there as a draft for you to check and send.
+            {staff
+              ? 'After the last file, Next takes you back to Intake. Each file is saved there as a draft, or waits for a case.'
+              : 'After the last file, Next takes you back to your invoices. Each file is saved there as a draft for you to check and send.'}
           </p>
         )}
       </div>
-      <p className="upload-footnote">
-        Using a spreadsheet? Start from the template so every column is read correctly.{' '}
-        <a href={invoiceTemplateUrl('xlsx')}>Download the template</a>
-      </p>
-      {entries.length === 0 && (
+      )}
+      {!manual && (
         <p className="upload-footnote">
-          <RouterLink to={PORTAL_HOME_PATH}>Back to your invoices</RouterLink>
+          Using a spreadsheet? Start from the template so every column is read correctly.{' '}
+          <a href={invoiceTemplateUrl('xlsx')}>Download the template</a>
         </p>
       )}
     </div>

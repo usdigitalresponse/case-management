@@ -15,7 +15,7 @@ import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
-import { representedProfessionalIds, type PortalActor } from '../portal/portalActor';
+import { isStaffAccount, representedProfessionalIds, type PortalActor } from '../portal/portalActor';
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile } from './detectFormat';
 import { extractIntoDraft, insertDocument, insertImport, sha256 } from './invoiceImports';
@@ -456,7 +456,8 @@ export async function startUploadRead(
   actor: PortalActor,
   input: { fileName?: string; bytes: Buffer },
 ): Promise<{ uploadReadId: string }> {
-  if ((await uploadCases(db, actor)).length === 0) {
+  // Staff may hold an invoice with no case yet, on Intake.
+  if (!(await isStaffAccount(db, actor.userAccountId)) && (await uploadCases(db, actor)).length === 0) {
     throw new NotAssignedToCaseError();
   }
   return { uploadReadId: await beginRead(store, actor, 'upload', null, input) };
@@ -495,8 +496,10 @@ export function discardUploadRead(store: DocumentStore, actor: PortalActor, uplo
 const uploadDraftSchema = z
   .object({
     uploadReadId: z.uuid(),
-    caseId: z.uuid('Choose the case this invoice is for.'),
-    professionalId: z.uuid('Choose the case this invoice is for.'),
+    // Null (staff only): no case yet; it waits on Intake to be matched, and
+    // whom it bills may be left for then too.
+    caseId: z.uuid('Choose the case this invoice is for.').nullable(),
+    professionalId: z.uuid('Choose who this invoice is from.').nullable(),
     periodStart: z.iso.date('Enter the first day of the billing period.').optional(),
     periodEnd: z.iso.date('Enter the last day of the billing period.').optional(),
     invoiceNumber: z.string().trim().max(100, 'Keep the invoice number under 100 characters.').optional(),
@@ -522,11 +525,18 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
   if (!parsed) {
     throw new ValidationError({ file: read.failure ?? 'The file is still being read.' });
   }
-  const allowed = (await uploadCases(db, actor)).some(
-    (row) => row.caseId === input.caseId && row.professionalId === input.professionalId,
-  );
-  if (!allowed) {
-    throw new NotAssignedToCaseError();
+  if (input.caseId === null) {
+    if (!(await isStaffAccount(db, actor.userAccountId))) {
+      throw new ValidationError({ caseId: 'Choose the case this invoice is for.' });
+    }
+    // Checked on creating the draft: any active professional.
+  } else {
+    const allowed = (await uploadCases(db, actor)).some(
+      (row) => row.caseId === input.caseId && row.professionalId === input.professionalId,
+    );
+    if (!allowed) {
+      throw new NotAssignedToCaseError();
+    }
   }
 
   // Claimed for this request, so a second click can't make the draft twice;
@@ -551,7 +561,8 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
         extractionMethod: read.extractionMethod,
         extractedAt: now,
         parsed,
-        everyLineBilled: true,
+        // With no one chosen yet, timekeepers named in the file are suggested.
+        everyLineBilled: input.professionalId !== null,
         checkedPeriod: { start: input.periodStart, end: input.periodEnd },
       });
       if (input.invoiceNumber) {

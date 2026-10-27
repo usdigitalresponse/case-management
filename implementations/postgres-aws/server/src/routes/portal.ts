@@ -21,6 +21,7 @@ import {
   getUploadRead,
   startCaseSplitRead,
   startUploadRead,
+  uploadCases,
   uploadInvoiceFileByCase,
 } from '../imports/splitByCase';
 import { previewFile } from '../imports/preview';
@@ -364,6 +365,16 @@ router.post(
         bytes,
       }),
     );
+  }),
+);
+
+// The cases an invoice may be for, as the upload offers them; also used to
+// start an invoice by hand.
+router.get(
+  '/uploads/cases',
+  asyncHandler(async (req, res) => {
+    const cases = await uploadCases(db, await sessionActor(req));
+    res.json({ cases: cases.map(({ keys: _keys, ...row }) => row) });
   }),
 );
 

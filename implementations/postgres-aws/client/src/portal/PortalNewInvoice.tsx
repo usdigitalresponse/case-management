@@ -4,7 +4,7 @@ import { listBillableProfessionals, listMyCases, listMyTimeEntries } from '../ap
 import { useApiResource } from '../hooks/useApiResource';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { NewInvoiceForm } from './NewInvoiceForm';
-import { LATER, useShell } from './useShell';
+import { LATER, UPLOAD_PATH, useShell } from './useShell';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 
@@ -20,10 +20,10 @@ export default function PortalNewInvoice() {
   );
 }
 
-// Two ways in: enter an invoice by hand for a chosen case, or import files
-// through the bulk import flow (which can cover several cases). Staff may
-// leave the case for later in either. providersVersion reloads who can be
-// billed after a provider is added.
+// Two ways in: enter an invoice by hand for a chosen case, or upload files
+// through the same upload as external submitters (./PortalUpload.tsx).
+// Staff may leave the case for later in either. providersVersion reloads
+// who can be billed after a provider is added.
 export function NewInvoiceStart({ onSaved, providersVersion = 0 }: { onSaved?: () => void; providersVersion?: number }) {
   const [params, setParams] = useSearchParams();
   const caseId = params.get('case') ?? '';
@@ -59,9 +59,12 @@ export function NewInvoiceStart({ onSaved, providersVersion = 0 }: { onSaved?: (
         </section>
 
         <section className="compact-card start-option">
-          <h2>Import invoice</h2>
-          <p className="compact-hint">Upload PDFs, spreadsheets or billing files, then check what was imported before submitting.</p>
-          <RouterLink className="btn btn--primary" to="/portal/imports">Import files</RouterLink>
+          <h2>Upload invoices</h2>
+          <p className="compact-hint">
+            Upload one or several PDFs, spreadsheets or billing files. Check what was read from each, then its lines, before
+            sending it for review.
+          </p>
+          <RouterLink className="btn btn--primary" to={UPLOAD_PATH}>Upload Invoices</RouterLink>
         </section>
       </div>
 

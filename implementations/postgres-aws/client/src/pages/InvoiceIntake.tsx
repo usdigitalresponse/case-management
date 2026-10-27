@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router';
+import { Link as RouterLink, useLocation, useSearchParams } from 'react-router';
 import {
   apiErrorMessage,
   listBillableProfessionals,
@@ -23,6 +23,7 @@ import { professionalLabel } from '../components/InvoiceLinesEditor';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { NewInvoiceStart } from '../portal/PortalNewInvoice';
 import { MyInvoicesTable } from '../portal/MyInvoicesTable';
+import type { UploadedState } from '../portal/PortalInvoiceList';
 
 const STAGES: Record<IntakeItem['stage'], { label: string; tone: Tone }> = {
   reading: { label: 'Reading the file', tone: 'neutral' },
@@ -227,6 +228,7 @@ export default function InvoiceIntake() {
   const [providersVersion, setProvidersVersion] = useState(0);
   const [toast, setToast] = useToast();
   const justMatched = params.get('matched');
+  const uploadedCount = (useLocation().state as UploadedState | null)?.uploadedCount ?? 0;
 
   return (
     <div>
@@ -238,6 +240,12 @@ export default function InvoiceIntake() {
         }
       />
       {justMatched && <Notice tone="success">The new case was added and the invoice matched to it.</Notice>}
+      {uploadedCount > 1 && (
+        <Notice tone="info" heading={`${uploadedCount} invoices uploaded and saved as drafts.`}>
+          Those with a case are under "Drafts to finish"; the rest wait for a case. Check each one's lines before sending it
+          for review.
+        </Notice>
+      )}
       {addingProvider && (
         <AddProvider
           onCancel={() => setAddingProvider(false)}

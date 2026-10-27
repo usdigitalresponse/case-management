@@ -1015,6 +1015,11 @@ export async function startUpload(file: File): Promise<{ uploadReadId: string }>
   return body as { uploadReadId: string };
 }
 
+// The cases an invoice may be for, as the upload offers them.
+export function listUploadCases(): Promise<{ cases: UploadCase[] }> {
+  return request('/api/portal/uploads/cases');
+}
+
 export function getUpload(uploadReadId: string): Promise<UploadRead> {
   return request<UploadRead>(`/api/portal/uploads/${uploadReadId}`);
 }
@@ -1025,7 +1030,8 @@ export function discardUpload(uploadReadId: string): Promise<{ splitReadId: stri
 
 export function createUploadDraft(
   uploadReadId: string,
-  details: { caseId: string; professionalId: string; periodStart?: string; periodEnd?: string; invoiceNumber?: string },
+  // Null case and professional (staff only): it waits on Intake to be matched.
+  details: { caseId: string | null; professionalId: string | null; periodStart?: string; periodEnd?: string; invoiceNumber?: string },
 ): Promise<{ invoiceImportId: string; invoiceId: string }> {
   return request(`/api/portal/uploads/${uploadReadId}/draft`, { method: 'POST', body: JSON.stringify(details) });
 }

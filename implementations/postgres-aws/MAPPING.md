@@ -44,20 +44,24 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     access depends on case assignment.
   - Links to the external case management system ("Open the case in…",
     the sidebar link) are disabled placeholders; nothing is integrated.
-  - Staff "Intake" (`/intake`, top of the sidebar;
+  - Staff "Intake" (`/intake`, first under Invoices in the sidebar, with
+    how many are waiting for a case; the sidebar's main button, "+ Upload
+    Invoices", opens the upload directly;
     `client/src/pages/InvoiceIntake.tsx`) is one page for invoices a
     professional sent by email or from another tool (`model/rules.yaml`
     `authorize_staff_invoice_entry`). It offers two ways in (the portal's
     `NewInvoiceStart`): "Enter invoice manually" (choose a case, or "No
-    case yet", then type it) and "Import invoice" (the bulk import flow).
-    In bulk import, staff may choose a provider under "No case yet", or
-    leave the choice blank for no case and no provider
-    (`client/src/portal/bulkImport.ts`); the file uploads with no case, is
-    reviewed and confirmed as usual, and its draft then waits on Intake
-    rather than in the submit step. "Waiting for a case" and "Drafts to
-    finish" follow below. The old staff `/new-invoice` redirects
-    here. It reuses the portal's pages at the same paths
-    (`/portal/imports`, `/portal/imports/:id`, `/portal/invoices/:id`);
+    case yet", then type it) and "Upload invoices" (the same upload as
+    external submitters, `client/src/portal/PortalUpload.tsx` at
+    `/portal/upload`, where the case list offers every open case with an
+    assigned provider, plus "No case yet" with an optional "From"
+    provider; a file held with no case waits under "Waiting for a case").
+    One file goes on to the import review page to check its lines; several
+    return to Intake with a banner. The older bulk import page
+    (`/portal/imports`) is no longer linked but still works. "Waiting for a
+    case" and "Drafts to finish" follow below. The old staff
+    `/new-invoice` redirects here. It reuses the portal's pages at the same
+    paths (`/portal/upload`, `/portal/imports/:id`, `/portal/invoices/:id`);
     `portal/useShell.ts` switches the few links that differ, such as the
     case page and where "back" goes, using `isStaff` from `/auth/me` (the
     server's `isStaffAccount` role check, not the sign-in method). Staff-only
@@ -731,8 +735,12 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `supporting_invoice`. Several files are checked one at a time, then
     land in Your invoices as drafts marked "Lines not checked yet"; one file
     goes straight on to checking its lines. Cancel discards unread files and
-    deletes drafts already made. Gap: reading doesn't yet pick a case
-    number out of a PDF's text.
+    deletes drafts already made. With no file, "Enter an invoice by hand"
+    asks the same case (`GET /api/portal/uploads/cases`) and billing period,
+    creates an empty draft (a draft may have no lines; submitting still
+    needs one) and opens it on adding its first line, then it is sent the
+    same way. Staff land on their draft editor instead. Gap: reading
+    doesn't yet pick a case number out of a PDF's text.
   - Checking the lines (`client/src/portal/InvoiceSubmission.tsx`, the
     portal's `/portal/invoices/:id`): the file on the left as uploaded, the
     lines on the right in file order. Each line carries the place it was

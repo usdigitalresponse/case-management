@@ -233,6 +233,9 @@ button, input, select, textarea { font: inherit; }
 .check-lines__edit-row td { padding: 0; background: var(--row-open); box-shadow: inset 3px 0 0 var(--primary); }
 .check-lines__footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; padding: .9rem 1rem; }
 .check-lines__add { font-weight: 600; }
+.check-lines__empty { color: var(--ink-faint); text-align: center; }
+.manual-entry__offer { margin: 0; text-align: center; color: var(--ink-muted); font-size: .9rem; }
+.manual-entry__offer .link-button { font-weight: 600; }
 .check-lines__totals { display: flex; gap: 1.6rem; text-align: right; }
 .check-lines__totals > div { display: flex; flex-direction: column; gap: .15rem; }
 .check-lines__totals > div > span:first-child { color: var(--ink-muted); font-size: .68rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }

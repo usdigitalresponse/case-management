@@ -24,6 +24,7 @@ import { caseAssignment, caseTable, invoice, invoiceAttestation, invoiceImport, 
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { ATTESTATION_STATEMENT, submitInvoice, updateDraftInvoice } from '../src/billing/invoiceLifecycle';
 import { confirmInvoiceImport } from '../src/imports/invoiceImports';
+import { createInvoice } from '../src/portal/createInvoice';
 
 let fixtures: BaselineFixtureIds;
 
@@ -198,6 +199,30 @@ describe('uploading an invoice before choosing its case', () => {
     expect(attestation).toMatchObject({ recordedByUserAccountId: actor.userAccountId, statement: ATTESTATION_STATEMENT });
     // The file stays with the sent request.
     expect(store.files.size).toBe(1);
+  });
+
+  it('lets staff hold an upload with no case or provider yet, for Intake; a submitter must choose a case', async () => {
+    const { actor, professionalId } = await createProfessional('Synthetic Attorney');
+    await caseFor(professionalId, 'CR-0001');
+    const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const { uploadReadId } = await upload(staff, 'emailed-invoice.csv');
+    const { invoiceId } = await createDraftFromUpload(testDb, staff, { uploadReadId, caseId: null, professionalId: null });
+    const [draft] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(draft).toMatchObject({ caseId: null, professionalId: null });
+
+    const read = await upload(actor, 'invoice.csv');
+    await expect(
+      createDraftFromUpload(testDb, actor, { uploadReadId: read.uploadReadId, caseId: null, professionalId }),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('starts an invoice entered by hand with no lines, which cannot be sent until it has one', async () => {
+    const { actor, professionalId } = await createProfessional('Synthetic Attorney');
+    const caseId = await caseFor(professionalId, 'CR-0001');
+    const { invoiceId } = await createInvoice(testDb, actor, { caseId, submit: false, lines: [] });
+    await expect(submitInvoice(testDb, actor, invoiceId, { attested: true })).rejects.toBeInstanceOf(ValidationError);
+    await updateDraftInvoice(testDb, actor, invoiceId, { lines: [{ lineType: 'expense', amount: 25, description: 'Filing fee' }] });
+    await submitInvoice(testDb, actor, invoiceId, { attested: true });
   });
 
   it('keeps uploads apart from case-split reads and from other users', async () => {
