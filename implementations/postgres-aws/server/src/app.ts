@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import cookieSession from 'cookie-session';
 import passport from 'passport';
 import { configureOidcProviders } from './auth/oidcProviders';
+import { demoLoginEnabled, externalDemoLoginEnabled } from './auth/demoSettings';
 import { createAuthRouter } from './routes/auth';
 import casesRouter from './routes/cases';
 import peopleRouter from './routes/people';
@@ -25,16 +26,6 @@ const isProduction = process.env.NODE_ENV === 'production';
 if (isProduction && !process.env.SESSION_SECRET) {
   throw new Error('SESSION_SECRET must be set when NODE_ENV=production.');
 }
-
-// Demo sign-ins are on by default for local development; a production
-// deployment exposes each only when explicitly opted in (the hosted
-// synthetic-data demo does).
-function demoSetting(name: string): boolean {
-  const value = process.env[name];
-  return value ? value === 'true' : !isProduction;
-}
-const demoLoginEnabled = demoSetting('DEMO_LOGIN_ENABLED');
-const externalDemoLoginEnabled = demoSetting('EXTERNAL_DEMO_LOGIN_ENABLED');
 
 export function createApp() {
   const app = express();

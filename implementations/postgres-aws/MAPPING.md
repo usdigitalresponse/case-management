@@ -227,6 +227,16 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   office must belong to that organization.
 - **Demo seeding**: `npm run seed` explicitly resets all application data; normal
   Docker Compose startup only migrates and starts the server, preserving records.
+- **Demo tools** (Settings, "Demo"): only while the staff demo sign-in is on
+  (`src/auth/demoSettings.ts`; otherwise the routes are 404s, and `/auth/me`
+  reports `demoMode`). Every staff member then sees Settings, and
+  `GET`/`PUT /api/settings/demo/role` lets them switch their own role, an
+  administrator included, which the regular role setting forbids; the change
+  is audited like any role change. `POST /api/settings/demo/reset` ("Reset
+  demo data", administrators) runs the seed's reset (`src/db/demoData.ts`),
+  removes stored import files no longer referenced, refuses a second
+  concurrent reset, and ends the caller's session, since accounts are
+  recreated. Other users' requests during the reset may fail.
 - **Reference/active checks run via the pool, not inside the transaction**:
   `createCase` validates that every referenced id exists and (where the
   table has an `active` flag) is active, via `Promise.all` over the
@@ -328,11 +338,12 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     "Assigned Staff" role (`src/cases/staffAssignmentRole.ts`). Staff has
     no professional profile until their first assignment (unlike a
     vendor's, bootstrapped at magic-link login), so one is lazily created
-    here. "Staff" means a user_account whose `system_role_id` is the
-    "Intake Staff" role (`src/auth/staffAccountRole.ts`), set by the SSO
-    verify callback (`src/auth/oidcProviders.ts`) on any account that has
-    no role yet — including one first created by magic link — and never
-    replaced once set. Magic-link login never sets it, which is how the
+    here. "Staff" means a user_account whose `system_role_id` is a staff
+    role (`src/auth/staffAccountRole.ts`), set by the SSO verify callback
+    (`src/auth/oidcProviders.ts`) on any account that has no role yet —
+    including one first created by magic link — and never replaced once
+    set. For now that first role is "Administrator", so testers can try
+    every view; "Intake Staff" is the intended default. Magic-link login never sets it, which is how the
     two populations stay distinguishable in the same `user_account`
     table. Emails are lowercased (`normalizeEmail` in
     `src/auth/emailLists.ts`) before being stored or matched.

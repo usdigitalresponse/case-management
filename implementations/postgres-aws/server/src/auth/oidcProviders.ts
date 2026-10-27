@@ -6,7 +6,7 @@ import { Strategy as OidcStrategy, type Profile } from 'passport-openidconnect';
 import { db } from '../db/client';
 import { parseCommaSeparatedList } from './emailLists';
 import { ensureUserAccountForEmail } from './userAccounts';
-import { getStaffAccountRoleId } from './staffAccountRole';
+import { getAdminAccountRoleId } from './staffAccountRole';
 
 export interface AuthenticatedUser {
   userAccountId: string;
@@ -191,8 +191,9 @@ export function configureOidcProviders(): OidcProviderConfig[] {
                 return;
               }
 
-              const staffAccountRoleId = await getStaffAccountRoleId(db);
-              const account = await ensureUserAccountForEmail(db, email, profile.displayName || email, staffAccountRoleId);
+              // For now new accounts are administrators, so testers can try
+              // every view; existing accounts keep their role.
+              const account = await ensureUserAccountForEmail(db, email, profile.displayName || email, await getAdminAccountRoleId(db));
               // An administrator deactivated it (Settings).
               if (!account.active) {
                 done(null, false, { message: 'This account has been deactivated.' });

@@ -17,6 +17,8 @@ interface AuthContextValue {
   externalDemoLogin: (userAccountId?: string) => Promise<void>;
   verifyMagicLink: (token: string) => Promise<void>;
   logout: () => Promise<void>;
+  // Reloads roles and permissions after they change.
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -65,6 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     navigate('/', { replace: true });
   }, [navigate]);
 
+  const refreshUser = useCallback(async () => {
+    setUser(await getCurrentUser());
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -74,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         externalDemoLogin: handleExternalDemoLogin,
         verifyMagicLink: handleVerifyMagicLink,
         logout: handleLogout,
+        refreshUser,
       }}
     >
       {children}

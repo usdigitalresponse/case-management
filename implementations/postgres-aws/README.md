@@ -58,6 +58,9 @@ docker compose exec server npm run seed
 **`npm run seed` is a destructive demo reset:** it deletes all application
 data and creates synthetic reference data plus 10 demo cases. Run it only
 for initial setup or when intentionally resetting the demo database.
+Wherever the staff demo sign-in is on, Settings has a Demo section: any staff
+member can switch their own role there, and administrators can do the same
+reset ("Reset demo data", after a confirmation), which signs them out.
 
 Without a `.env` file (copy
 `.env.example`), Google sign-in is disabled and only the "Demo sign-in"
@@ -229,6 +232,8 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec server node 
 Restarts and rebuilds keep all data. The seed command is the same
 destructive demo reset as `npm run seed`: it deletes everything,
 including records users entered, and recreates the synthetic demo data.
+With `DEMO_LOGIN_ENABLED=true`, any administrator can run it from Settings
+too.
 `docker compose -f docker-compose.prod.yml --env-file .env.prod down -v`
 removes the stack and all its data.
 

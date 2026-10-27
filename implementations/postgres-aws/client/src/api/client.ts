@@ -36,6 +36,8 @@ export interface AuthenticatedUser {
   isAdmin?: boolean;
   isStaff?: boolean;
   reviewPermissions?: ReviewPermissions | null;
+  // The staff demo sign-in is on, so Settings has demo tools.
+  demoMode?: boolean;
 }
 
 export interface ReviewPermissions {
@@ -1272,6 +1274,19 @@ export function addStaffAccount(input: { displayName: string; email: string; rol
 
 export function setStaffActive(userAccountId: string, active: boolean): Promise<unknown> {
   return request(`/api/settings/staff/${userAccountId}/active`, { method: 'PUT', body: JSON.stringify({ active }) });
+}
+
+// Deletes all data and recreates the demo data; ends the session.
+export function resetDemoData(): Promise<unknown> {
+  return request('/api/settings/demo/reset', { method: 'POST' });
+}
+
+export function getOwnDemoRole(): Promise<{ roles: StaffRolesResponse['roles']; roleId: string }> {
+  return request('/api/settings/demo/role');
+}
+
+export function setOwnDemoRole(roleId: string): Promise<unknown> {
+  return request('/api/settings/demo/role', { method: 'PUT', body: JSON.stringify({ roleId }) });
 }
 
 export function closeCase(
