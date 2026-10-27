@@ -1,7 +1,7 @@
 // Internal-staff case assignment — the counterpart to
 // ./assignExternalSubmitterToCase.ts. Staff has no professional profile
 // until their first assignment (unlike a vendor's, bootstrapped at
-// magic-link login; see ../professionals/ensureProfessional.ts), so one is
+// email-code login; see ../professionals/ensureProfessional.ts), so one is
 // created lazily here.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';

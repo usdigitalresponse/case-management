@@ -24,6 +24,7 @@ import { useApiResource } from '../hooks/useApiResource';
 import { usePoll } from '../hooks/usePoll';
 import { ImportProgressNote } from '../components/ImportProgressNote';
 import { RecordTable } from '../components/RecordTable';
+import { AttestationCheckbox } from '../components/AttestationCheckbox';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatMoney, formatRate } from '../formatMoney';
@@ -481,8 +482,8 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
     <section className="bulk-step-section" id="review">
       <h2>2. Review each file</h2>
       <p className="compact-hint">
-        Check what was read from each file against the original, then confirm it. Files are kept until you confirm or
-        discard them, for up to 3 days.
+        Check what was read from each file against the original, then confirm it. Each file stays with its draft until
+        you send, discard or delete it.
       </p>
       {next && (
         <div className="invoice-actions">
@@ -577,7 +578,9 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
 function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onChanged: () => void }) {
   const ready = readyToSubmit(imports);
   const waiting = imports.filter((row) => sectionOf(row) === 'ready').length - ready.length;
-  const { newInvoicePath, newInvoiceLabel } = useShell();
+  const { newInvoicePath, newInvoiceLabel, staff } = useShell();
+  // A submitter confirms once for the batch; staff don't attest.
+  const [attested, setAttested] = useState(false);
   // Everything ready is included unless unticked.
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
@@ -607,7 +610,7 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
     for (const row of chosen) {
       try {
         // eslint-disable-next-line no-await-in-loop
-        await transitionInvoice(row.invoiceId as string, 'submit', receipt.payload);
+        await transitionInvoice(row.invoiceId as string, 'submit', { ...receipt.payload, attested: staff ? undefined : attested });
         submitted.push(row);
       } catch (err) {
         errors.push(`${row.fileName}: ${apiErrorMessage(err, 'could not be submitted.')}`);
@@ -676,11 +679,12 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
             ]}
           />
           {receipt.fields}
+          {!staff && <AttestationCheckbox id="bulk-attested" checked={attested} onChange={setAttested} />}
           <div className="invoice-actions">
             <button
               type="button"
               className="btn btn--primary"
-              disabled={submitting || chosen.length === 0 || receipt.missing}
+              disabled={submitting || chosen.length === 0 || receipt.missing || (!staff && !attested)}
               onClick={() => void submitChosen()}
             >
               {submitting

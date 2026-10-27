@@ -2,7 +2,7 @@
 // assign_invoice_review). Reassigning ends the current row and starts
 // another, so who held the invoice stays in history.
 import { z } from 'zod';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { getReferenceId } from '../db/referenceLookups';
 import {
@@ -53,6 +53,26 @@ export async function loadAssignments(db: DatabaseOrTransaction, invoiceId: stri
       .filter((row) => row.stepCode === SIGN_OFF_STEP_TYPE_CODE)
       .map(({ position, userAccountId, displayName }) => ({ position, userAccountId, displayName })),
   };
+}
+
+// The active line reviewer's name for each of several invoices.
+export async function loadLineReviewerNames(db: DatabaseOrTransaction, invoiceIds: string[]): Promise<Map<string, string>> {
+  if (invoiceIds.length === 0) {
+    return new Map();
+  }
+  const rows = await db
+    .select({ invoiceId: invoiceReviewAssignment.invoiceId, displayName: userAccount.displayName })
+    .from(invoiceReviewAssignment)
+    .innerJoin(invoiceApprovalStepTypes, eq(invoiceReviewAssignment.stepTypeId, invoiceApprovalStepTypes.id))
+    .innerJoin(userAccount, eq(invoiceReviewAssignment.assignedUserAccountId, userAccount.userAccountId))
+    .where(
+      and(
+        inArray(invoiceReviewAssignment.invoiceId, invoiceIds),
+        isNull(invoiceReviewAssignment.endedAt),
+        eq(invoiceApprovalStepTypes.code, LINE_REVIEW_STEP_TYPE_CODE),
+      ),
+    );
+  return new Map(rows.map((row) => [row.invoiceId, row.displayName]));
 }
 
 async function stepTypeId(db: DatabaseOrTransaction, code: string): Promise<string> {

@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { AuthProvider, useAuth } from './AuthContext';
 import LoginPage from './pages/LoginPage';
-import MagicLinkConfirm from './pages/MagicLinkConfirm';
+import PortalSignIn from './portal/PortalSignIn';
 import CaseList from './pages/CaseList';
 import CaseDetail from './pages/CaseDetail';
 import NewCaseIntake from './pages/NewCaseIntake';
@@ -20,7 +20,8 @@ import ExternalPortalApp from './portal/ExternalPortalApp';
 import PortalInvoiceDetail from './portal/PortalInvoiceDetail';
 import PortalBulkImport from './portal/PortalBulkImport';
 import PortalImportReview from './portal/PortalImportReview';
-import { INTAKE_PATH, NEW_INVOICE_PATH } from './portal/useShell';
+import PortalUpload from './portal/PortalUpload';
+import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
 import { listInvoiceIntake, listReviewQueue } from './api/client';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 
@@ -105,8 +106,14 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
     <aside className="app-sidebar">
       <nav aria-label="Main navigation">
         <div className="nav-group">
-          <NavLink to={INTAKE_PATH} end className="nav-primary" title="Enter invoices and match them to cases">
-            <span><span aria-hidden="true">+ </span>Intake</span>
+          <NavLink to={UPLOAD_PATH} end className="nav-primary" title="Upload invoices received by email or from other tools">
+            <span><span aria-hidden="true">+ </span>Upload Invoices</span>
+          </NavLink>
+        </div>
+        <div className="nav-group">
+          <h2>Invoices</h2>
+          <NavLink to={INTAKE_PATH} end title="Enter invoices and match them to cases">
+            Intake
             {counts && counts.waiting > 0 && (
               <span className="nav-count" title="Waiting for a case">
                 {counts.waiting}
@@ -114,9 +121,6 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
               </span>
             )}
           </NavLink>
-        </div>
-        <div className="nav-group">
-          <h2>Invoices</h2>
           <Link to="/?show=everyone" className={allActive ? 'active' : undefined}>
             To review{counts && <span className="nav-count">{counts.all}</span>}
           </Link>
@@ -153,7 +157,7 @@ function NewInvoiceRedirect() {
 }
 
 // Order matters: loading (render nothing, don't flash the login screen),
-// signed out (LoginPage, or the emailed link's confirm page), magic-link
+// signed out (LoginPage, or the portal sign-in), email-code
 // (narrow portal shell), else staff layout.
 function AppContent() {
   const { user, loading, logout } = useAuth();
@@ -163,12 +167,12 @@ function AppContent() {
   if (!user) {
     return (
       <Routes>
-        <Route path="/sign-in/verify" element={<MagicLinkConfirm />} />
+        <Route path="/submit" element={<PortalSignIn />} />
         <Route path="*" element={<LoginPage />} />
       </Routes>
     );
   }
-  if (user.authType === 'magic-link') {
+  if (user.authType === 'email-code') {
     return <ExternalPortalApp />;
   }
   return (
@@ -186,6 +190,7 @@ function AppContent() {
             {/* Intake and the portal invoice and import pages it links to, in the staff shell. */}
             <Route element={<div className="portal-main"><Outlet /></div>}>
               <Route path={INTAKE_PATH} element={<InvoiceIntake />} />
+              <Route path={UPLOAD_PATH} element={<PortalUpload />} />
               <Route path="/portal/invoices/:invoiceId" element={<PortalInvoiceDetail />} />
               <Route path="/portal/imports" element={<PortalBulkImport />} />
               <Route path="/portal/imports/:importId" element={<PortalImportReview />} />

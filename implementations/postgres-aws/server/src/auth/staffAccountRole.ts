@@ -1,6 +1,6 @@
 // The user_account-context roles marking a full (SSO) user as staff,
 // distinguishing them from an external vendor's user_account (created by
-// the magic-link flow, ../routes/auth.ts, which never sets one). Needed
+// the email-code flow, ../routes/auth.ts, which never sets one). Needed
 // so ../routes/staff.ts can search "who is staff" without inferring it
 // from the presence/absence of a professional row. reviewPermissions maps
 // each role to review actions (model/rules.yaml authorize_invoice_review).

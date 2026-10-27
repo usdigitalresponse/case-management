@@ -191,8 +191,8 @@ function ExtractedReview({
           ? `Check each item against the original. Every item is ${designated ? professionalLabel(designated) : 'the chosen professional'}'s work, as chosen for this file.`
           : 'Check each item against the original and choose who did the work.'}{' '}
         Time is billed at the configured hourly rate for that kind of professional, not the file's rate; items where
-        they differ are noted. Confirming deletes the file once every invoice from it is confirmed or discarded; the
-        draft stays editable until you submit it.
+        they differ are noted. The file stays with the invoice for reviewers to see; the draft stays editable until
+        you submit it.
       </p>
       <div className={importDetail.fileAvailable ? 'import-review-layout' : undefined}>
         {importDetail.fileAvailable && (
@@ -335,7 +335,7 @@ export default function PortalImportReview() {
             <strong>{importDetail.extractionResult.invoice.invoice_number.value}</strong>
           </Fact>
         )}
-        {importDetail.expiresAt && <Fact label="Deleted if not confirmed by">{formatDateTime(importDetail.expiresAt)}</Fact>}
+        {importDetail.expiresAt && <Fact label="Deleted if not discarded by">{formatDateTime(importDetail.expiresAt)}</Fact>}
       </FactsStrip>
 
       {importDetail.statusCode === 'extracted' && (

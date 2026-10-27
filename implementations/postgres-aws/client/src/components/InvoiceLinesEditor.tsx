@@ -34,7 +34,14 @@ export interface LineDraft {
   // Values the editor doesn't show, saved back so edits never drop them.
   carried: Pick<
     CreateInvoiceLineInput,
-    'unitRate' | 'statedAmount' | 'serviceDateInferred' | 'timekeeperLabel' | 'taskCode' | 'activityCode' | 'expenseCode'
+    | 'unitRate'
+    | 'statedAmount'
+    | 'serviceDateInferred'
+    | 'timekeeperLabel'
+    | 'taskCode'
+    | 'activityCode'
+    | 'expenseCode'
+    | 'sourceLocation'
   >;
 }
 
@@ -75,6 +82,7 @@ export function lineDraftsFrom(lines: PortalInvoiceLine[]): LineDraft[] {
       taskCode: line.taskCode ?? undefined,
       activityCode: line.activityCode ?? undefined,
       expenseCode: line.expenseCode ?? undefined,
+      sourceLocation: line.sourceLocation ?? undefined,
     },
   }));
 }

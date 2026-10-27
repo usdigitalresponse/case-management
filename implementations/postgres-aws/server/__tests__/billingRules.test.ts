@@ -87,16 +87,16 @@ describe('applying billing rules', () => {
     const { billingCodeId } = await addBillingCode(testDb, { code: 'l110', displayName: 'Fact investigation' });
     await set('billing_codes', 'require');
 
-    const draft = await createInvoice(testDb, actor, { caseId, submit: false, lines: [time(1)] });
-    await expect(submitInvoice(testDb, actor, draft.invoiceId)).rejects.toThrow(
+    const draft = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [time(1)] });
+    await expect(submitInvoice(testDb, actor, draft.invoiceId, { attested: true })).rejects.toThrow(
       expect.objectContaining({ fieldErrors: { lines: `"Work 1" needs a task code from the agency's list.` } }),
     );
     // Codes match whatever case they were written in, and are kept in upper case.
-    const { invoiceId } = await createInvoice(testDb, actor, { caseId, lines: [time(1, { taskCode: 'l110' })] });
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, lines: [time(1, { taskCode: 'l110' })] });
     expect((await loadInvoiceDetail(testDb, invoiceId))!.lines[0]?.taskCode).toBe('L110');
 
     await setBillingCodeActive(testDb, billingCodeId, { active: false });
-    await expect(createInvoice(testDb, actor, { caseId, lines: [time(1, { taskCode: 'L110' })] })).rejects.toThrow(
+    await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [time(1, { taskCode: 'L110' })] })).rejects.toThrow(
       refused(/L110, which isn't on the agency's list/),
     );
   });
@@ -107,7 +107,7 @@ describe('applying billing rules', () => {
     await set('long_entry', 'warn', { hours: 6 });
     await set('billing_period', 'warn', { withinMonth: true });
 
-    const { invoiceId } = await createInvoice(testDb, actor, {
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true,
       caseId,
       submit: false,
       periodStart: '2026-01-15',
@@ -120,7 +120,7 @@ describe('applying billing rules', () => {
       `"Work 1.33": 1.33 h isn't a whole multiple of 0.1 h.`,
     );
 
-    await submitInvoice(testDb, actor, invoiceId);
+    await submitInvoice(testDb, actor, invoiceId, { attested: true });
     const [chain] = await testDb.select().from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
     const snapshot = chain!.submissionSnapshot as { billing_rules: { settings: Array<{ code: string }>; findings: unknown[] } };
     expect(snapshot.billing_rules.settings.map((rule) => rule.code).sort()).toEqual(['billing_period', 'long_entry', 'time_increment']);
@@ -134,21 +134,21 @@ describe('applying billing rules', () => {
   it("caps one person's hours on a day across submitted invoices, not other drafts", async () => {
     const { actor, caseId } = await setup();
     await set('daily_hour_cap', 'require', { hours: 8 });
-    await createInvoice(testDb, actor, { caseId, submit: false, lines: [time(6)] });
-    await createInvoice(testDb, actor, { caseId, lines: [time(5)] });
-    await expect(createInvoice(testDb, actor, { caseId, lines: [time(4)] })).rejects.toThrow(
+    await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [time(6)] });
+    await createInvoice(testDb, actor, { attested: true, caseId, lines: [time(5)] });
+    await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [time(4)] })).rejects.toThrow(
       refused(/Synthetic Attorney has 9 h billed on 2026-02-02, counting submitted invoices; the daily cap is 8 h/),
     );
-    await createInvoice(testDb, actor, { caseId, lines: [time(3)] });
+    await createInvoice(testDb, actor, { attested: true, caseId, lines: [time(3)] });
   });
 
   it('requires a billing period within one month', async () => {
     const { actor, caseId } = await setup();
     await set('billing_period', 'require', { withinMonth: true });
-    await expect(createInvoice(testDb, actor, { caseId, lines: [time(1)] })).rejects.toThrow(refused(/needs a billing period/));
+    await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [time(1)] })).rejects.toThrow(refused(/needs a billing period/));
     await expect(
-      createInvoice(testDb, actor, { caseId, periodStart: '2026-01-20', periodEnd: '2026-02-10', lines: [time(1)] }),
+      createInvoice(testDb, actor, { attested: true, caseId, periodStart: '2026-01-20', periodEnd: '2026-02-10', lines: [time(1)] }),
     ).rejects.toThrow(refused(/within one calendar month/));
-    await createInvoice(testDb, actor, { caseId, periodStart: '2026-02-01', periodEnd: '2026-02-28', lines: [time(1)] });
+    await createInvoice(testDb, actor, { attested: true, caseId, periodStart: '2026-02-01', periodEnd: '2026-02-28', lines: [time(1)] });
   });
 });

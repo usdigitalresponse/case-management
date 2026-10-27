@@ -2,7 +2,7 @@
 // signs off in turn or sends it back (model/rules.yaml decide_invoice_lines,
 // enforce_invoice_approval_sequence; model/workflows.yaml payment_request).
 import { z } from 'zod';
-import { and, asc, eq, isNull, max } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, max } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { getReferenceId } from '../db/referenceLookups';
 import { ConflictError, ValidationError } from '../errors';
@@ -52,9 +52,10 @@ export interface RecordedDecision {
   decidedAt: Date;
 }
 
-export async function loadRecordedDecisions(db: DatabaseOrTransaction, chainId: string): Promise<RecordedDecision[]> {
+function recordedDecisions(db: DatabaseOrTransaction, chainIds: string[]) {
   return db
     .select({
+      chainId: invoiceApprovalDecision.invoiceApprovalChainId,
       sequenceNumber: invoiceApprovalDecision.sequenceNumber,
       stepCode: invoiceApprovalStepTypes.code,
       invoiceLineId: invoiceApprovalDecision.invoiceLineId,
@@ -73,8 +74,21 @@ export async function loadRecordedDecisions(db: DatabaseOrTransaction, chainId: 
     .innerJoin(invoiceApprovalStepTypes, eq(invoiceApprovalDecision.stepTypeId, invoiceApprovalStepTypes.id))
     .innerJoin(invoiceApprovalOutcomes, eq(invoiceApprovalDecision.outcomeId, invoiceApprovalOutcomes.id))
     .leftJoin(invoiceDecisionReasons, eq(invoiceApprovalDecision.reasonCodeId, invoiceDecisionReasons.id))
-    .where(eq(invoiceApprovalDecision.invoiceApprovalChainId, chainId))
+    .where(inArray(invoiceApprovalDecision.invoiceApprovalChainId, chainIds))
     .orderBy(asc(invoiceApprovalDecision.sequenceNumber), asc(invoiceApprovalDecision.decidedAt));
+}
+
+export async function loadRecordedDecisions(db: DatabaseOrTransaction, chainId: string): Promise<RecordedDecision[]> {
+  return (await recordedDecisions(db, [chainId])).map(({ chainId: _chain, ...decision }) => decision);
+}
+
+// The same for several chains, by chain.
+export async function loadRecordedDecisionsByChain(db: DatabaseOrTransaction, chainIds: string[]): Promise<Map<string, RecordedDecision[]>> {
+  const byChain = new Map<string, RecordedDecision[]>();
+  for (const { chainId, ...decision } of chainIds.length === 0 ? [] : await recordedDecisions(db, chainIds)) {
+    byChain.set(chainId, [...(byChain.get(chainId) ?? []), decision]);
+  }
+  return byChain;
 }
 
 // The latest sequence number at which every line was decided. An

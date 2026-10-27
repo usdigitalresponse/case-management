@@ -2,7 +2,7 @@
 // (../routes/cases.ts POST /:id/staff-assignments) — the staff-side
 // counterpart to ../routes/professionals.ts's vendor search. "Staff" means
 // a user_account created through SSO login, marked by one of
-// ../auth/staffAccountRole.ts's roles; a vendor's magic-link account
+// ../auth/staffAccountRole.ts's roles; a vendor's email-code account
 // never gets one, so it's excluded here even
 // though both live in the same user_account table.
 import { Router } from 'express';

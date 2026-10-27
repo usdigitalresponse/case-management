@@ -19,6 +19,9 @@ import { listReviewPeople } from '../billing/reviewAccess';
 import { listReviewQueue } from '../billing/reviewQueue';
 import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
+import { readFileForInvoice } from '../imports/invoiceFile';
+import { documentStore } from '../imports/documentStore';
+import { sendFileDownload, sendFilePreview } from './sendUploadedFile';
 import { asyncHandler } from './asyncHandler';
 import { parseExportFormat, sendInvoiceExport } from './sendInvoiceExport';
 
@@ -137,6 +140,23 @@ router.get(
       throw new InvoiceNotFoundError();
     }
     await sendInvoiceExport(res, detail, format, true);
+  }),
+);
+
+// The file the request was read from, beside its lines.
+router.get(
+  '/:id/file/preview',
+  asyncHandler(async (req, res) => {
+    const detail = await loadOrThrow(req.params.id as string);
+    await sendFilePreview(res, await readFileForInvoice(db, documentStore, detail.invoice.invoiceId));
+  }),
+);
+
+router.get(
+  '/:id/file',
+  asyncHandler(async (req, res) => {
+    const detail = await loadOrThrow(req.params.id as string);
+    sendFileDownload(res, await readFileForInvoice(db, documentStore, detail.invoice.invoiceId));
   }),
 );
 

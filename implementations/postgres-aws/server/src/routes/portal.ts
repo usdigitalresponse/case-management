@@ -13,8 +13,18 @@ import {
   uploadInvoiceFile,
 } from '../imports/invoiceImports';
 import { templateCsv, templateXlsx } from '../imports/template';
-import { discardCaseSplitRead, getCaseSplitRead, startCaseSplitRead, uploadInvoiceFileByCase } from '../imports/splitByCase';
-import { previewFile } from '../imports/preview';
+import {
+  createDraftFromUpload,
+  discardCaseSplitRead,
+  discardUploadRead,
+  getCaseSplitRead,
+  getUploadRead,
+  startCaseSplitRead,
+  startUploadRead,
+  uploadCases,
+  uploadInvoiceFileByCase,
+} from '../imports/splitByCase';
+import { readFileForInvoice } from '../imports/invoiceFile';
 import { findImportForInvoice } from '../imports/importedTimeEntries';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../billing/deleteInvoice';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
@@ -43,6 +53,7 @@ import { recallInvoice, submitInvoice, updateDraftInvoice, withdrawInvoice } fro
 import { listReceiptChannels } from '../billing/invoiceReceipt';
 import { InvoiceNotFoundError } from '../billing/reviewInvoiceLine';
 import { asyncHandler } from './asyncHandler';
+import { sendFileDownload, sendFilePreview } from './sendUploadedFile';
 import { parseExportFormat, sendInvoiceExport } from './sendInvoiceExport';
 
 const router = Router();
@@ -189,7 +200,14 @@ router.delete(
   }),
 );
 
-const transitions = { submit: submitInvoice, recall: recallInvoice, withdraw: withdrawInvoice };
+router.post(
+  '/invoices/:id/withdraw',
+  asyncHandler(async (req, res) => {
+    res.json(await withdrawInvoice(db, documentStore, await sessionActor(req), req.params.id as string));
+  }),
+);
+
+const transitions = { submit: submitInvoice, recall: recallInvoice };
 for (const [action, transition] of Object.entries(transitions)) {
   router.post(
     `/invoices/:id/${action}`,
@@ -232,9 +250,12 @@ function withoutReviewer(detail: InvoiceDetail) {
   return {
     invoice: detail.invoice,
     caseNumber: detail.caseNumber,
+    otherCaseNumbers: detail.otherCaseNumbers,
     submissionAttempt: detail.submissionAttempt,
     ruleFindings: detail.ruleFindings,
     approvedTotal: detail.approvedTotal,
+    fileSource: detail.fileSource,
+    submitterChanges: detail.submitterChanges,
     lines: detail.lines.map(({ decidedByDisplayName: _reviewer, decision, history, ...line }) => ({
       ...line,
       decision: decision ? anonymous(decision) : null,
@@ -263,6 +284,23 @@ router.get(
       throw new InvoiceNotFoundError();
     }
     await sendInvoiceExport(res, detail, format, false);
+  }),
+);
+
+// The file an invoice was read from, for anyone who may read the invoice.
+router.get(
+  '/invoices/:id/file/preview',
+  asyncHandler(async (req, res) => {
+    const detail = await loadReadableOrThrow(req);
+    await sendFilePreview(res, await readFileForInvoice(db, documentStore, detail.invoice.invoiceId));
+  }),
+);
+
+router.get(
+  '/invoices/:id/file',
+  asyncHandler(async (req, res) => {
+    const detail = await loadReadableOrThrow(req);
+    sendFileDownload(res, await readFileForInvoice(db, documentStore, detail.invoice.invoiceId));
   }),
 );
 
@@ -337,6 +375,55 @@ router.post(
   }),
 );
 
+// The portal upload (../imports/splitByCase.ts): each file is read before
+// its case is chosen, then the submitter confirms the case, period and
+// invoice number and it becomes a draft. The raw body is the file.
+router.post(
+  '/uploads',
+  express.raw({ type: () => true, limit: MAX_UPLOAD_BYTES }),
+  asyncHandler(async (req, res) => {
+    const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    const fileName = req.get('X-File-Name');
+    res.status(201).json(
+      await startUploadRead(db, documentStore, await sessionActor(req), {
+        fileName: fileName ? decodeURIComponent(fileName) : undefined,
+        bytes,
+      }),
+    );
+  }),
+);
+
+// The cases an invoice may be for, as the upload offers them; also used to
+// start an invoice by hand.
+router.get(
+  '/uploads/cases',
+  asyncHandler(async (req, res) => {
+    const cases = await uploadCases(db, await sessionActor(req));
+    res.json({ cases: cases.map(({ keys: _keys, ...row }) => row) });
+  }),
+);
+
+router.get(
+  '/uploads/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await getUploadRead(db, await sessionActor(req), req.params.id as string));
+  }),
+);
+
+router.delete(
+  '/uploads/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await discardUploadRead(documentStore, await sessionActor(req), req.params.id as string));
+  }),
+);
+
+router.post(
+  '/uploads/:id/draft',
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await createDraftFromUpload(db, await sessionActor(req), { ...req.body, uploadReadId: req.params.id }));
+  }),
+);
+
 router.get(
   '/invoice-imports',
   asyncHandler(async (req, res) => {
@@ -354,21 +441,14 @@ router.get(
 router.get(
   '/invoice-imports/:id/preview',
   asyncHandler(async (req, res) => {
-    const file = await readImportFile(db, documentStore, await sessionActor(req), req.params.id as string);
-    res.set('Cache-Control', 'no-store').json(await previewFile(file.mediaType, file.bytes));
+    await sendFilePreview(res, await readImportFile(db, documentStore, await sessionActor(req), req.params.id as string));
   }),
 );
 
-// Always a download, so uploaded content never renders in the app's origin.
 router.get(
   '/invoice-imports/:id/file',
   asyncHandler(async (req, res) => {
-    const file = await readImportFile(db, documentStore, await sessionActor(req), req.params.id as string);
-    res
-      .type(file.mediaType)
-      .attachment(file.fileName)
-      .set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
-      .send(file.bytes);
+    sendFileDownload(res, await readImportFile(db, documentStore, await sessionActor(req), req.params.id as string));
   }),
 );
 

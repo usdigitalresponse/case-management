@@ -9,16 +9,26 @@ import { getReferenceId } from '../db/referenceLookups';
 import { ConflictError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import {
+  caseTable,
+  document,
   expenseTypes,
   invoice,
   invoiceApprovalChain,
   invoiceApprovalDecision,
+  invoiceAttestation,
   invoiceLine,
   invoiceLineTypes,
   invoiceStatuses,
+  person,
+  professional,
   timeEntry,
+  userAccount,
 } from '../db/schema';
-import { authorizeBilling, type PortalActor } from '../portal/portalActor';
+import { authorizeBilling, isStaffAccount, type PortalActor } from '../portal/portalActor';
+import { importDocumentIds, releaseDocumentIfUnneeded } from '../imports/documentRetention';
+import type { DocumentStore } from '../imports/documentStore';
+import { formatMoney } from './money';
+import { sendEmail } from '../email/sendEmail';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { recordInvoiceEvent } from './invoiceEvents';
 import {
@@ -76,6 +86,8 @@ export const invoiceLineInputSchema = z
     tripOrigin: address.optional(),
     tripDestination: address.optional(),
     roundTrip: z.boolean().optional(),
+    // The imported file's line or row it was read from; carried back on save.
+    sourceLocation: z.string().trim().min(1).max(200).optional(),
   })
   .transform((line) => ({
     ...line,
@@ -86,10 +98,12 @@ export const invoiceLineInputSchema = z
     path: ['amount'],
   });
 
+// A draft may start with no lines, as an invoice entered by hand does;
+// submitting needs at least one.
 export const draftContentSchema = z.object({
   periodStart: z.iso.date().optional(),
   periodEnd: z.iso.date().optional(),
-  lines: z.array(invoiceLineInputSchema).min(1),
+  lines: z.array(invoiceLineInputSchema),
 });
 
 export type DraftContent = z.infer<typeof draftContentSchema>;
@@ -235,7 +249,7 @@ async function replaceLines(
   // Safe: draft lines have no decisions, and submitted values live on in
   // their attempt's snapshot.
   await tx.delete(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
-  await tx.insert(invoiceLine).values(
+  if (lines.length > 0) await tx.insert(invoiceLine).values(
     lines.map((line) => ({
       invoiceId,
       caseId,
@@ -255,6 +269,7 @@ async function replaceLines(
       activityCode: line.activityCode,
       expenseCode: line.expenseCode,
       timekeeperProfessionalId: line.timekeeperProfessionalId,
+      sourceLocation: line.sourceLocation,
       ...(line.lineType === 'mileage' && {
         expenseTypeId: mileageTypeId,
         tripOrigin: line.tripOrigin,
@@ -333,23 +348,61 @@ async function buildSubmissionSnapshot(
 ) {
   const invoiceRow = await tx.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
   const lines = await tx.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
+  const attestations = await tx.select().from(invoiceAttestation).where(eq(invoiceAttestation.invoiceApprovalChainId, chainId));
   return {
     spec_version: SUBMISSION_SNAPSHOT_SPEC_VERSION,
     captured_at: capturedAt.toISOString(),
     invoice_id: invoiceId,
     invoice_approval_chain_id: chainId,
-    records: { invoice: invoiceRow, invoice_line: lines },
+    records: { invoice: invoiceRow, invoice_line: lines, invoice_attestation: attestations },
     billing_rules: billingRules,
   };
+}
+
+// What a submitter confirms when sending their own request (model/workflows.yaml
+// payment_request configured_attestation). Staff entering a request received
+// elsewhere don't attest for its payee.
+export const ATTESTATION_STATEMENT = 'I confirm this invoice is true and correct, and the work was done for this case.';
+
+// The attestor is the submitter as a person: their account's person, or
+// their professional profile's.
+async function attestorPersonId(tx: Transaction, actor: PortalActor): Promise<string | null> {
+  const [account] = await tx
+    .select({ personId: userAccount.personId })
+    .from(userAccount)
+    .where(eq(userAccount.userAccountId, actor.userAccountId));
+  if (account?.personId) {
+    return account.personId;
+  }
+  if (!actor.professionalId) {
+    return null;
+  }
+  const [own] = await tx
+    .select({ personId: professional.personId })
+    .from(professional)
+    .where(eq(professional.professionalId, actor.professionalId));
+  return own?.personId ?? null;
 }
 
 export async function submitInTx(
   tx: Transaction,
   actor: PortalActor,
   invoiceId: string,
-  // Staff chose to review an invoice with no case (match_invoice_to_case).
-  options: { withoutCase?: boolean } = {},
+  options: {
+    // Staff chose to review it with no case (match_invoice_to_case).
+    withoutCase?: boolean;
+    // The submitter ticked ATTESTATION_STATEMENT.
+    attested?: boolean;
+  } = {},
 ): Promise<void> {
+  const staff = await isStaffAccount(tx, actor.userAccountId);
+  if (!staff && !options.attested) {
+    throw new ValidationError({ attested: 'Tick the box to confirm this invoice is true and correct.' });
+  }
+  const attestor = staff ? null : await attestorPersonId(tx, actor);
+  if (!staff && !attestor) {
+    throw new ValidationError({ attested: 'Your account has no person record to attest with. Ask the billing office.' });
+  }
   const { locked, billable } = await lockOwnInvoice(tx, actor, invoiceId);
   if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
     throw new InvoiceStateError('Only a draft can be submitted.');
@@ -412,6 +465,15 @@ export async function submitInTx(
       .values({ invoiceId, createdByUserAccountId: actor.userAccountId, createdAt: submittedAt })
       .returning({ invoiceApprovalChainId: invoiceApprovalChain.invoiceApprovalChainId }),
   );
+  if (attestor) {
+    await tx.insert(invoiceAttestation).values({
+      invoiceApprovalChainId,
+      attestorPersonId: attestor,
+      recordedByUserAccountId: actor.userAccountId,
+      attestedAt: submittedAt,
+      statement: ATTESTATION_STATEMENT,
+    });
+  }
   await tx
     .update(invoiceApprovalChain)
     .set({
@@ -447,9 +509,12 @@ export async function updateDraftInvoice(db: Database, actor: PortalActor, invoi
 }
 
 // Staff entering a request received elsewhere pass how and when it came in,
-// and whether to review it without a case.
+// and whether to review it without a case; a submitter sending their own
+// passes `attested`, and is emailed a receipt.
 export async function submitInvoice(db: Database, actor: PortalActor, invoiceId: string, rawReceipt: unknown = {}) {
-  const receipt = receiptInputSchema.extend({ withoutCase: z.boolean().optional() }).safeParse(rawReceipt ?? {});
+  const receipt = receiptInputSchema
+    .extend({ withoutCase: z.boolean().optional(), attested: z.boolean().optional() })
+    .safeParse(rawReceipt ?? {});
   if (!receipt.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(receipt.error.issues));
   }
@@ -465,9 +530,48 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
     // The receipt is recorded only on an invoice this actor may submit; submitInTx locks it again.
     await lockOwnInvoice(tx, actor, invoiceId);
     await recordReceipt(tx, invoiceId, receipt.data);
-    await submitInTx(tx, actor, invoiceId, { withoutCase: receipt.data.withoutCase });
+    await submitInTx(tx, actor, invoiceId, { withoutCase: receipt.data.withoutCase, attested: receipt.data.attested });
   });
+  if (!(await isStaffAccount(db, actor.userAccountId))) {
+    // Not awaited: sending is a courtesy; a failure is logged, never shown.
+    emailReceipt(db, actor, invoiceId).catch((error: unknown) => {
+      // eslint-disable-next-line no-console
+      console.error('Failed to email an invoice receipt:', error);
+    });
+  }
   return { invoiceId };
+}
+
+async function emailReceipt(db: Database, actor: PortalActor, invoiceId: string): Promise<void> {
+  const [row] = await db
+    .select({
+      email: userAccount.email,
+      submittedAt: invoice.submittedAt,
+      submittedTotal: invoice.submittedTotal,
+      periodStart: invoice.periodStart,
+      periodEnd: invoice.periodEnd,
+      caseReference: caseTable.externalReference,
+      clientName: person.displayName,
+    })
+    .from(invoice)
+    .innerJoin(userAccount, eq(userAccount.userAccountId, actor.userAccountId))
+    .leftJoin(caseTable, eq(invoice.caseId, caseTable.caseId))
+    .leftJoin(person, eq(caseTable.clientId, person.personId))
+    .where(eq(invoice.invoiceId, invoiceId));
+  if (!row?.email) {
+    return;
+  }
+  const lines = [
+    'We received your invoice and sent it for review.',
+    '',
+    `Case: ${[row.caseReference, row.clientName].filter(Boolean).join(', ') || 'not given'}`,
+    `Billing period: ${row.periodStart && row.periodEnd ? `${row.periodStart} to ${row.periodEnd}` : 'not given'}`,
+    `Amount: ${formatMoney(row.submittedTotal)}`,
+    `Sent: ${row.submittedAt?.toISOString() ?? ''}`,
+    '',
+    'You can withdraw it until review starts. Reviewers see your original file and every change you made.',
+  ];
+  await sendEmail(row.email, 'Invoice sent for review', lines.join('\n'));
 }
 
 // Only before any decision. The recalled chain is superseded, keeping its
@@ -510,8 +614,8 @@ export async function recallInvoice(db: Database, actor: PortalActor, invoiceId:
   });
 }
 
-export async function withdrawInvoice(db: Database, actor: PortalActor, invoiceId: string) {
-  return db.transaction(async (tx) => {
+export async function withdrawInvoice(db: Database, store: DocumentStore, actor: PortalActor, invoiceId: string) {
+  const files = await db.transaction(async (tx) => {
     const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
     if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
       throw new InvoiceStateError('Only a draft can be withdrawn; recall a submitted invoice first.');
@@ -521,8 +625,22 @@ export async function withdrawInvoice(db: Database, actor: PortalActor, invoiceI
       throw new InvoiceStateError('Discard the import instead; that also deletes the uploaded file.');
     }
     await withdrawDraftInTx(tx, invoiceId, { actorUserAccountId: actor.userAccountId });
-    return { invoiceId };
+    const released: string[] = [];
+    for (const documentId of await importDocumentIds(tx, invoiceId)) {
+      // eslint-disable-next-line no-await-in-loop
+      await tx.select({ documentId: document.documentId }).from(document).where(eq(document.documentId, documentId)).for('update');
+      // eslint-disable-next-line no-await-in-loop
+      const storageReference = await releaseDocumentIfUnneeded(tx, documentId);
+      if (storageReference) released.push(storageReference);
+    }
+    return released;
   });
+  // After commit; the hourly sweep retries any that fail.
+  for (const storageReference of files) {
+    // eslint-disable-next-line no-await-in-loop
+    await store.delete(storageReference);
+  }
+  return { invoiceId };
 }
 
 // Caller holds the row lock and has checked it's a draft. A system action

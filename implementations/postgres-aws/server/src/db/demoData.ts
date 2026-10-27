@@ -41,6 +41,7 @@ import { addBillingCode, setBillingRule } from '../billing/billingRules';
 import { pairKey } from '../billing/routeCheck';
 import { getAdminAccountRoleId, getBillingReviewerRoleId, getSignOffApproverRoleId } from '../auth/staffAccountRole';
 import { firstRow } from './rowHelpers';
+import { seedDemoUploads } from './demoUploads';
 
 // Dev/demo data only — deliberately not part of resetAndSeedBaselineFixtures,
 // which __tests__/ also calls and relies on staying minimal (several tests
@@ -97,7 +98,7 @@ interface DemoProfessional {
   userAccountId: string;
 }
 
-// Demo vendors, bootstrapped the same way a real magic-link first login does
+// Demo vendors, bootstrapped the same way a real email-code first login does
 // (../auth/userAccounts.ts, ../professionals/ensureProfessional.ts).
 async function seedDemoProfessionals(): Promise<DemoProfessional[]> {
   const professionals: DemoProfessional[] = [];
@@ -134,7 +135,7 @@ async function seedDemoDelegate(
     })),
   );
 
-  // Delegation is read through the account's person, which magic-link
+  // Delegation is read through the account's person, which email-code
   // sign-up doesn't link.
   const [delegate] = professionals;
   if (!delegate) {
@@ -282,6 +283,7 @@ async function seedDemoTimeEntriesAndInvoices(
     await createInvoice(db, { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId }, {
       caseId: assignment.caseId,
       submit: index !== assignments.length - 2,
+      attested: true,
       // Priced from the demo rates (seedDemoRates).
       lines: timeEntryIds.map((sourceTimeEntryId) => ({ sourceTimeEntryId })),
     });
@@ -342,6 +344,7 @@ async function seedDemoMileage(
   });
   await createInvoice(db, actor, {
     caseId: first.caseId,
+    attested: true,
     periodStart: '2026-02-01',
     periodEnd: '2026-02-28',
     lines: [
@@ -473,6 +476,7 @@ async function seedDemoReview(
   }
   await createInvoice(db, { userAccountId: investigator.userAccountId, professionalId: investigator.professionalId }, {
     caseId: investigator.caseId,
+    attested: true,
     periodStart: '2026-02-01',
     periodEnd: '2026-02-28',
     lines: [
@@ -565,5 +569,10 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
   await seedClosedCase(fixtures, caseIds);
   await seedStaffAssignment(fixtures, caseIds, staffUserAccountIds);
   await seedDemoReview(fixtures, caseIds, assignments, staffUserAccountIds);
+  const [partner, colleague] = professionals;
+  if (!partner || !colleague) {
+    throw new Error('Expected two demo vendors for the uploads.');
+  }
+  await seedDemoUploads({ partner, colleague, staffUserAccountId: fixtures.staffUserAccountId });
   return { caseCount: DEMO_CASE_COUNT, assignmentCount: assignments.length, staffCount: staffUserAccountIds.length };
 }

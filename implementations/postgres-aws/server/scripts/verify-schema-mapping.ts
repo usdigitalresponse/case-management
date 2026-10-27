@@ -45,6 +45,8 @@ const IN_SCOPE_ENTITIES = [
   'document',
   'invoice_import',
   'invoice_event',
+  'supporting_invoice',
+  'invoice_attestation',
 ];
 
 // Fields on in-scope entities that are deliberately not mapped, with the

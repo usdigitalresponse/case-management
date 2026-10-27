@@ -25,6 +25,8 @@ import { DecisionCell, DecisionPanel, decisionInput, type PanelMode } from '../c
 import { ReviewerPicker, SignOffApprovers } from '../components/ReviewRouting';
 import { RateCheckNotice, SignOffHistory, SignOffPanel, TotalsBar } from '../components/ReviewPanels';
 import { InvoiceLinesTable, lineRowClass } from '../components/InvoiceLinesTable';
+import { OriginalDocument } from '../components/OriginalDocument';
+import { ChangeNote, fileChangesFor, RemovedLines, WasNote, wasAmount, wasQuantity } from '../components/SubmitterChanges';
 import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip, Progress } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
@@ -51,12 +53,17 @@ export default function InvoiceReview() {
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useToast();
+  // Null until chosen: shown when the submitter changed anything.
+  const [showFile, setShowFile] = useState<boolean | null>(null);
+  const [fileFocus, setFileFocus] = useState<string | undefined>();
 
   useEffect(() => {
     latestRequest.current += 1;
     setRefreshed(null);
     setPanel(null);
     setToast(null);
+    setShowFile(null);
+    setFileFocus(undefined);
   }, [invoiceId, setToast]);
 
   function refresh() {
@@ -126,6 +133,24 @@ export default function InvoiceReview() {
 
   const openPanel = (line: InvoiceReviewLine) => (panel?.lineId === line.invoiceLineId ? panel.mode : null);
 
+  // The submitter's file and what they changed from it before sending.
+  const { fileSource, submitterChanges } = data;
+  const fileChanges = fileChangesFor(fileSource, lines);
+  const changedCount = submitterChanges ? submitterChanges.changedCount + submitterChanges.removedCount + submitterChanges.addedCount : 0;
+  const fileShown = Boolean(fileSource?.fileAvailable) && (showFile ?? changedCount > 0);
+  const who = invoice.submittedByDisplayName ?? invoice.professionalDisplayName ?? 'the submitter';
+  const whoKind = (invoice.professionalKindDisplayName ?? 'submitter').toLowerCase();
+  const fileSaid = fileSource ? (fileSource.statedTotal ?? fileSource.lines.reduce((sum, read) => sum + (read.amount ?? 0), 0)) : null;
+  const changesSummary = submitterChanges
+    ? [
+        submitterChanges.changedCount ? `${submitterChanges.changedCount} ${submitterChanges.changedCount === 1 ? 'line' : 'lines'}` : null,
+        submitterChanges.removedCount ? `removed ${submitterChanges.removedCount}` : null,
+        submitterChanges.addedCount ? `added ${submitterChanges.addedCount}` : null,
+      ]
+        .filter(Boolean)
+        .join(', ')
+    : '';
+
   return (
     <div className="invoice-review">
       <PageHeader
@@ -167,6 +192,11 @@ export default function InvoiceReview() {
               canChange={inReview && Boolean(permissions?.reassign)}
               onChanged={onRoutingChanged}
             />
+            {fileSource?.fileAvailable && (
+              <button type="button" className="btn btn--outline" aria-pressed={fileShown} onClick={() => setShowFile(!fileShown)}>
+                {fileShown ? 'Hide the file' : 'Show the file'}
+              </button>
+            )}
             <InvoiceExportLinks scope="staff" invoiceId={invoice.invoiceId} />
           </>
         }
@@ -180,9 +210,15 @@ export default function InvoiceReview() {
           <strong>{invoice.submittedAt ? formatDateTime(invoice.submittedAt) : '—'}</strong>
         </Fact>
         <Fact label="Billing period">{formatPeriod(invoice.periodStart, invoice.periodEnd)}</Fact>
-        <Fact label="Requested">
+        {fileSaid !== null && <Fact label="File said">{formatMoney(fileSaid)}</Fact>}
+        <Fact label="Requested" note={changedCount > 0 ? `After the ${whoKind}'s changes` : undefined}>
           <strong>{formatMoney(invoice.submittedTotal)}</strong>
         </Fact>
+        {changedCount > 0 && (
+          <Fact label={`${invoice.professionalKindDisplayName ?? 'Submitter'} changed`} note="Before sending">
+            {changesSummary}
+          </Fact>
+        )}
         <Fact label="Approved so far" note={totals.cut > 0 ? `${formatMoney(totals.cut / 100)} cut` : undefined}>
           {formatMoney(totals.approved / 100)}
         </Fact>
@@ -244,9 +280,46 @@ export default function InvoiceReview() {
         </Notice>
       )}
       {actionError && <Notice tone="danger">{actionError}</Notice>}
+      {changedCount > 0 && (
+        <Notice tone="info">
+          {who} changed {changesSummary} before sending. Changed lines are marked{fileSource?.fileAvailable ? '; open one on the file to compare' : ''}.
+        </Notice>
+      )}
 
+      <div className={fileShown ? 'review-file-layout' : undefined}>
+        {fileShown && fileSource && (
+          <OriginalDocument
+            invoiceId={invoice.invoiceId}
+            fileName={fileSource.fileName}
+            heading={`${who}'s file, as uploaded`}
+            focus={fileFocus}
+          />
+        )}
+        <div className="review-file-layout__lines">
       <InvoiceLinesTable
         lines={lines}
+        note={
+          fileSource && fileChanges.tracking
+            ? (line) => (
+                <ChangeNote
+                  line={line}
+                  read={fileChanges.readOf(line)}
+                  changed={fileChanges.fieldsOf(line).length > 0}
+                  who={`the ${whoKind}`}
+                  onShow={
+                    fileSource.fileAvailable && line.sourceLocation
+                      ? () => {
+                          setShowFile(true);
+                          setFileFocus(line.sourceLocation ?? undefined);
+                        }
+                      : undefined
+                  }
+                />
+              )
+            : undefined
+        }
+        hoursNote={(line) => <WasNote value={wasQuantity(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
+        amountNote={(line) => <WasNote value={wasAmount(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
         decisionHeader={inReview ? 'Your decision' : 'Decision'}
         rowClassName={(line) => lineRowClass(current(line)?.outcomeCode, Boolean(openPanel(line)))}
         decision={(line) => (
@@ -292,6 +365,10 @@ export default function InvoiceReview() {
           );
         }}
       />
+      <RemovedLines removed={fileChanges.removed} who={`the ${whoKind}`} />
+      {fileShown && <p className="compact-hint">The file is read-only. It is exactly what was uploaded.</p>}
+        </div>
+      </div>
 
       {(inReview || status === 'awaiting_sign_off' || status === 'approved') && totals.decided > 0 && (
         <TotalsBar

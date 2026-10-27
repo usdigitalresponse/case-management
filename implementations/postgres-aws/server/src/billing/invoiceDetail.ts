@@ -28,6 +28,7 @@ import { loadRateLimits, rateLimitFor, type RateLimit } from './preauthorization
 import { approvedTotal, latestRoundNumber, loadRecordedDecisions, signOffProgress, type RecordedDecision } from './reviewRounds';
 import { AWAITING_SIGN_OFF_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
 import { loadAssignments, SIGN_OFF_STEP_TYPE_CODE, type InvoiceAssignments } from './reviewAssignment';
+import { loadFileSource, submitterChanges, type FileSource } from '../imports/invoiceFile';
 
 export type Audience = 'staff' | 'submitter';
 
@@ -124,6 +125,7 @@ async function selectLines(db: DatabaseOrTransaction, invoiceId: string) {
       routeDistance: invoiceLine.routeDistance,
       routeCheckedAt: invoiceLine.routeCheckedAt,
       sourceTimeEntryId: invoiceLine.sourceTimeEntryId,
+      sourceLocation: invoiceLine.sourceLocation,
       sourceActivityOn: timeEntry.activityOn,
       sourceDurationHours: timeEntry.durationHours,
       sourceDescription: timeEntry.description,
@@ -222,6 +224,10 @@ export interface InvoiceDetail {
   // round has started (which ends reopening it).
   nextSignOff: { userAccountId: string; displayName: string } | null;
   signOffStarted: boolean;
+  // The file it was read from, with each line as first read; null if typed in.
+  fileSource: FileSource | null;
+  // What the submitter changed since the file was read.
+  submitterChanges: ReturnType<typeof submitterChanges>;
 }
 
 async function displayNames(db: DatabaseOrTransaction, ids: string[]): Promise<Map<string, string>> {
@@ -244,7 +250,7 @@ export async function loadInvoiceDetail(
   if (!header) {
     return undefined;
   }
-  const [lineRows, [attempt], caseNumbers, rateLimits, assignments] = await Promise.all([
+  const [lineRows, [attempt], caseNumbers, rateLimits, assignments, fileSource] = await Promise.all([
     selectLines(db, invoiceId),
     db
       .select({
@@ -257,6 +263,7 @@ export async function loadInvoiceDetail(
     loadCaseNumbers(db, [header.caseId]),
     loadRateLimits(db, header.caseId),
     audience === 'staff' ? loadAssignments(db, invoiceId) : null,
+    loadFileSource(db, invoiceId),
   ]);
   const [recorded, working, ruleFindings] = await Promise.all([
     attempt ? loadRecordedDecisions(db, attempt.invoiceApprovalChainId) : ([] as RecordedDecision[]),
@@ -373,5 +380,7 @@ export async function loadInvoiceDetail(
     assignments,
     nextSignOff: awaitingSignOff && progress.next ? { userAccountId: progress.next.userAccountId, displayName: progress.next.displayName } : null,
     signOffStarted: awaitingSignOff && progress.started,
+    fileSource,
+    submitterChanges: fileSource ? submitterChanges(fileSource, lineRows) : null,
   };
 }

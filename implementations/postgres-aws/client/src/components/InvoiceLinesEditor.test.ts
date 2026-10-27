@@ -39,6 +39,7 @@ const importedLine: PortalInvoiceLine = {
   routeDistance: null,
   routeCheckedAt: null,
   sourceTimeEntryId: 'time-1',
+  sourceLocation: 'line 2',
   sourceActivityOn: '2026-01-10',
   sourceDurationHours: '1.50',
   sourceDescription: 'Synthetic research',
@@ -73,6 +74,7 @@ describe('invoice line editor round trip', () => {
         activityCode: 'SAMPLE-ACT',
         expenseCode: undefined,
         sourceTimeEntryId: 'time-1',
+        sourceLocation: 'line 2',
       },
     ]);
   });

@@ -98,7 +98,7 @@ describe('mileage items', () => {
     const { actor, caseId } = await setup();
     await rate(0.655, '2025-01-01');
     await rate(0.7, '2026-02-01');
-    const { invoiceId, submittedTotal } = await createInvoice(testDb, actor, {
+    const { invoiceId, submittedTotal } = await createInvoice(testDb, actor, { attested: true,
       caseId,
       submit: false,
       lines: [trip(42.5, { amount: 999 }), { lineType: 'expense', amount: 12, description: 'Parking' }],
@@ -117,11 +117,11 @@ describe('mileage items', () => {
 
   it('need a rate and miles before they can be submitted', async () => {
     const { actor, caseId } = await setup();
-    await expect(createInvoice(testDb, actor, { caseId, lines: [trip(10)] })).rejects.toMatchObject({
+    await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(10)] })).rejects.toMatchObject({
       fieldErrors: { lines: expect.stringMatching(/No mileage rate is set for 2026-02-02/) },
     });
     await rate(0.7);
-    await expect(createInvoice(testDb, actor, { caseId, lines: [trip(10, { quantity: undefined })] })).rejects.toMatchObject({
+    await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(10, { quantity: undefined })] })).rejects.toMatchObject({
       fieldErrors: { lines: expect.stringMatching(/needs miles/) },
     });
   });
@@ -144,12 +144,12 @@ describe('mileage distance rule', () => {
     await distanceRule('warn', 10);
     const lookups = fakeProvider({ '1 Court Plaza, Springfield': 20 });
 
-    const within = await createInvoice(testDb, actor, { caseId, lines: [trip(42, { roundTrip: true })] });
+    const within = await createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(42, { roundTrip: true })] });
     expect((await mileageLine(within.invoiceId)).findings).toEqual([]);
     expect((await mileageLine(within.invoiceId)).line).toMatchObject({ routeDistance: '20.0' });
 
     // Same trip spelled differently and reversed: no second lookup.
-    const over = await createInvoice(testDb, actor, {
+    const over = await createInvoice(testDb, actor, { attested: true,
       caseId,
       lines: [trip(30, { tripOrigin: '1 court plaza springfield', tripDestination: '100 Main St., Springfield, USA' })],
     });
@@ -169,11 +169,11 @@ describe('mileage distance rule', () => {
     await rate(0.7);
     await distanceRule('require', 10);
     fakeProvider({ '1 Court Plaza, Springfield': 20 });
-    await expect(createInvoice(testDb, actor, { caseId, lines: [trip(30)] })).rejects.toMatchObject({
+    await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(30)] })).rejects.toMatchObject({
       fieldErrors: { lines: expect.stringMatching(/more than 10% over/) },
     });
     await expect(
-      createInvoice(testDb, actor, { caseId, lines: [trip(10, { tripOrigin: undefined, tripDestination: undefined })] }),
+      createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(10, { tripOrigin: undefined, tripDestination: undefined })] }),
     ).rejects.toMatchObject({ fieldErrors: { lines: expect.stringMatching(/needs From and To/) } });
   });
 
@@ -182,13 +182,13 @@ describe('mileage distance rule', () => {
     await rate(0.7);
     await distanceRule('require');
     fakeProvider({}, true);
-    const draft = await createInvoice(testDb, actor, { caseId, submit: false, lines: [trip(500)] });
-    await submitInvoice(testDb, actor, draft.invoiceId);
+    const draft = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [trip(500)] });
+    await submitInvoice(testDb, actor, draft.invoiceId, { attested: true });
     expect((await mileageLine(draft.invoiceId)).line.routeDistance).toBeNull();
 
     const lookups = fakeProvider({});
-    await createInvoice(testDb, actor, { caseId, lines: [trip(500)] });
-    await createInvoice(testDb, actor, { caseId, lines: [trip(500)] });
+    await createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(500)] });
+    await createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(500)] });
     // Retried after the error; an address that can't be placed isn't retried.
     expect(lookups).toHaveLength(1);
   });
@@ -197,7 +197,7 @@ describe('mileage distance rule', () => {
     const { actor, caseId } = await setup();
     await rate(0.7);
     const lookups = fakeProvider({ '1 Court Plaza, Springfield': 20, 'Elsewhere': 5 });
-    await createInvoice(testDb, actor, { caseId, lines: [trip(30)] });
+    await createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(30)] });
     expect(lookups).toHaveLength(0);
 
     await distanceRule('warn');
@@ -209,14 +209,14 @@ describe('mileage distance rule', () => {
       checkedAt: new Date(),
     });
     // No limit by default, however many calls this month.
-    await createInvoice(testDb, actor, { caseId, lines: [trip(30)] });
+    await createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(30)] });
     expect(lookups).toHaveLength(1);
 
     vi.stubEnv('ROUTE_CHECK_MONTHLY_CALL_LIMIT', '5004');
-    await createInvoice(testDb, actor, { caseId, lines: [trip(5, { tripDestination: 'Elsewhere' })] });
+    await createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(5, { tripDestination: 'Elsewhere' })] });
     expect(lookups).toHaveLength(1);
     await testDb.delete(routeCheck).where(eq(routeCheck.pairKey, 'earlier | lookups'));
-    await createInvoice(testDb, actor, { caseId, lines: [trip(5, { tripDestination: 'Elsewhere' })] });
+    await createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(5, { tripDestination: 'Elsewhere' })] });
     expect(lookups).toHaveLength(2);
   });
 

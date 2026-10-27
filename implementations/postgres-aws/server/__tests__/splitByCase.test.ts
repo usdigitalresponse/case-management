@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './memoryStore';
 import { testDb, testPool } from './testDb';
 import { giveRate } from './rateHelpers';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
@@ -20,9 +21,9 @@ import {
   uploadInvoiceFileByCase,
 } from '../src/imports/splitByCase';
 import { confirmInvoiceImport, listInvoiceImports } from '../src/imports/invoiceImports';
+import { withdrawInvoice } from '../src/billing/invoiceLifecycle';
 import { extractionsSettled } from '../src/imports/extractionJobs';
 import { UnsupportedInvoiceFileError } from '../src/imports/detectFormat';
-import type { DocumentStore } from '../src/imports/documentStore';
 import { ValidationError } from '../src/errors';
 import { addMileageRate } from '../src/billing/mileageRates';
 import { caseAssignment, caseTable, document, invoiceImport, invoiceLine, userAccount } from '../src/db/schema';
@@ -37,26 +38,6 @@ afterAll(async () => {
   await testPool.end();
 });
 
-function memoryStore(): DocumentStore & { files: Map<string, Buffer> } {
-  const files = new Map<string, Buffer>();
-  return {
-    files,
-    async put(bytes) {
-      const reference = `memory:${randomUUID()}`;
-      files.set(reference, bytes);
-      return reference;
-    },
-    async get(reference) {
-      return files.get(reference);
-    },
-    async delete(reference) {
-      files.delete(reference);
-    },
-    async list() {
-      return [...files.keys()];
-    },
-  };
-}
 
 async function createProfessional(name: string) {
   const [account] = await testDb.insert(userAccount).values({ displayName: name, email: `${randomUUID()}@example.com`, active: true }).returning();
@@ -167,12 +148,18 @@ describe('splitting a file for one professional by case', () => {
     // Neither part warns that the other is a duplicate.
     expect((await listInvoiceImports(testDb, actor)).every((row) => row.warningCount === 0)).toBe(true);
 
-    // The file stays until the last part is resolved.
+    // The file stays with the confirmed requests; withdrawing one keeps it
+    // for the other, and withdrawing both releases it.
     await confirmInvoiceImport(testDb, store, actor, imports[0]!.invoiceImportId);
+    await confirmInvoiceImport(testDb, store, actor, imports[1]!.invoiceImportId);
     expect(store.files.size).toBe(1);
+    await withdrawInvoice(testDb, store, actor, imports[0]!.invoiceId);
     const [kept] = await testDb.select().from(document);
     expect(kept?.contentDeletedAt).toBeNull();
-    await confirmInvoiceImport(testDb, store, actor, imports[1]!.invoiceImportId);
+    expect(store.files.size).toBe(1);
+    await withdrawInvoice(testDb, store, actor, imports[1]!.invoiceId);
+    const [released] = await testDb.select().from(document);
+    expect(released?.contentDeletedAt).not.toBeNull();
     expect(store.files.size).toBe(0);
   });
 

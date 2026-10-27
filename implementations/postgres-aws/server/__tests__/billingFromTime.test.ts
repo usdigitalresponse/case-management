@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { memoryStore } from './memoryStore';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase } from '../src/intake/createCase';
@@ -96,7 +97,7 @@ describe('billing from time', () => {
     const { actor, caseId } = await setup(120);
     const { timeEntryId } = await createTimeEntry(testDb, actor, { caseId, ...entry });
 
-    const { invoiceId } = await createInvoice(testDb, actor, {
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true,
       caseId,
       lines: [{ sourceTimeEntryId: timeEntryId, amount: 1 }, { lineType: 'expense', amount: 12.5, description: 'Copies' }],
     });
@@ -118,14 +119,14 @@ describe('billing from time', () => {
     const { actor, professionalId, caseId } = await setup();
     const typed = { lineType: 'time' as const, serviceDate: '2026-02-03', quantity: 2, description: 'Client meeting' };
 
-    await expect(createInvoice(testDb, actor, { caseId, lines: [typed] })).rejects.toThrow(
+    await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [typed] })).rejects.toThrow(
       expect.objectContaining({
         fieldErrors: {
           lines: "Synthetic Professional has no professional kind, so their time can't be priced. Ask an administrator to set one.",
         },
       }),
     );
-    await expect(createInvoice(testDb, actor, { caseId, lines: [{ lineType: 'time', amount: 50 }] })).rejects.toThrow(
+    await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [{ lineType: 'time', amount: 50 }] })).rejects.toThrow(
       ValidationError,
     );
 
@@ -133,7 +134,7 @@ describe('billing from time', () => {
     const { professionalKindId } = await createKind(testDb, { displayName: 'Investigator' });
     await addKindRate(testDb, fixtures.staffUserAccountId, professionalKindId, { hourlyRate: 90, effectiveFrom: '2026-03-01' });
     await setProfessionalKind(testDb, professionalId, { professionalKindId });
-    await expect(createInvoice(testDb, actor, { caseId, lines: [typed] })).rejects.toThrow(
+    await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [typed] })).rejects.toThrow(
       expect.objectContaining({
         fieldErrors: {
           lines:
@@ -143,7 +144,7 @@ describe('billing from time', () => {
     );
 
     await addKindRate(testDb, fixtures.staffUserAccountId, professionalKindId, { hourlyRate: 90, effectiveFrom: '2026-01-01' });
-    const { invoiceId } = await createInvoice(testDb, actor, { caseId, lines: [typed] });
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, lines: [typed] });
     const [line] = await linesOf(invoiceId);
     expect(line).toMatchObject({ amount: '180.00', billedRate: '90.000' });
     const [created] = await testDb.select().from(timeEntry).where(eq(timeEntry.timeEntryId, line!.sourceTimeEntryId as string));
@@ -153,12 +154,12 @@ describe('billing from time', () => {
 
   it("saves a draft whose time can't be priced yet, but refuses to submit it", async () => {
     const { actor, caseId } = await setup(100);
-    const { invoiceId } = await createInvoice(testDb, actor, {
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true,
       caseId,
       submit: false,
       lines: [{ lineType: 'time', quantity: 2, description: 'Undated work' }],
     });
-    await expect(submitInvoice(testDb, actor, invoiceId)).rejects.toThrow(
+    await expect(submitInvoice(testDb, actor, invoiceId, { attested: true })).rejects.toThrow(
       expect.objectContaining({ fieldErrors: { lines: 'The time item "Undated work" needs a date.' } }),
     );
   });
@@ -166,21 +167,21 @@ describe('billing from time', () => {
   it('keeps a time entry on one live invoice, freeing it when that one is withdrawn', async () => {
     const { actor, caseId } = await setup(100);
     const { timeEntryId } = await createTimeEntry(testDb, actor, { caseId, ...entry });
-    const { invoiceId: first } = await createInvoice(testDb, actor, { caseId, submit: false, lines: [{ sourceTimeEntryId: timeEntryId }] });
+    const { invoiceId: first } = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ sourceTimeEntryId: timeEntryId }] });
 
     await expect(
-      createInvoice(testDb, actor, { caseId, submit: false, lines: [{ sourceTimeEntryId: timeEntryId }] }),
+      createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ sourceTimeEntryId: timeEntryId }] }),
     ).rejects.toThrow(expect.objectContaining({ fieldErrors: { lines: expect.stringMatching(/already on another invoice/) } }));
 
-    await withdrawInvoice(testDb, actor, first);
+    await withdrawInvoice(testDb, memoryStore(), actor, first);
     expect(await billingOf(timeEntryId)).toBeNull();
-    await createInvoice(testDb, actor, { caseId, lines: [{ sourceTimeEntryId: timeEntryId }] });
+    await createInvoice(testDb, actor, { attested: true, caseId, lines: [{ sourceTimeEntryId: timeEntryId }] });
   });
 
   it('edits the time entry through its draft line, and frees it when the line is removed', async () => {
     const { actor, caseId } = await setup(100);
     const { timeEntryId } = await createTimeEntry(testDb, actor, { caseId, ...entry });
-    const { invoiceId } = await createInvoice(testDb, actor, { caseId, submit: false, lines: [{ sourceTimeEntryId: timeEntryId }] });
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ sourceTimeEntryId: timeEntryId }] });
 
     await updateDraftInvoice(testDb, actor, invoiceId, {
       lines: [{ sourceTimeEntryId: timeEntryId, serviceDate: '2026-02-02', quantity: 2, description: 'Hearing preparation and filing' }],
@@ -199,8 +200,8 @@ describe('billing from time', () => {
   it('never reprices a submitted invoice when a rate changes later', async () => {
     const { actor, caseId, kindId } = await setup(100);
     const { timeEntryId } = await createTimeEntry(testDb, actor, { caseId, ...entry });
-    const { invoiceId } = await createInvoice(testDb, actor, { caseId, submit: false, lines: [{ sourceTimeEntryId: timeEntryId }] });
-    await submitInvoice(testDb, actor, invoiceId);
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ sourceTimeEntryId: timeEntryId }] });
+    await submitInvoice(testDb, actor, invoiceId, { attested: true });
 
     await addKindRate(testDb, fixtures.staffUserAccountId, kindId!, { hourlyRate: 300, effectiveFrom: '2026-01-01' });
     const [line] = await linesOf(invoiceId);

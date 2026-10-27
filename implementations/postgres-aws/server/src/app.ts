@@ -29,6 +29,9 @@ if (isProduction && !process.env.SESSION_SECRET) {
 
 export function createApp() {
   const app = express();
+  // One proxy in front (Caddy in production, Vite in development), so
+  // req.ip is the visitor's address for the sign-in rate limits.
+  app.set('trust proxy', 1);
 
   app.use(express.json());
   app.use(

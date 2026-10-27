@@ -60,7 +60,7 @@ describe('portal invoice access', () => {
     const colleague = await createProfessional('colleague@example.com');
     const outsider = await createProfessional('outsider@example.com');
     const caseId = await createAssignedCase([submitter.professionalId, colleague.professionalId]);
-    const { invoiceId } = await createInvoice(testDb, submitter, { caseId, lines: [{ amount: 100 }, { amount: 50 }] });
+    const { invoiceId } = await createInvoice(testDb, submitter, { attested: true, caseId, lines: [{ amount: 100 }, { amount: 50 }] });
     const [, colleagueLine] = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
     await testDb
       .update(invoiceLine)
@@ -81,7 +81,7 @@ describe('portal invoice access', () => {
   it('lets a submitter without a professional profile read what they submitted', async () => {
     const professionalUser = await createProfessional('represented@example.com');
     const caseId = await createAssignedCase([professionalUser.professionalId]);
-    const { invoiceId } = await createInvoice(testDb, professionalUser, { caseId, lines: [{ amount: 10 }] });
+    const { invoiceId } = await createInvoice(testDb, professionalUser, { attested: true, caseId, lines: [{ amount: 10 }] });
     const [delegate] = await testDb
       .insert(userAccount)
       .values({ displayName: 'Delegate', email: 'delegate@example.com', active: true })
@@ -97,7 +97,7 @@ describe('portal invoice access', () => {
   it('does not export drafts', async () => {
     const submitter = await createProfessional('drafter@example.com');
     const caseId = await createAssignedCase([submitter.professionalId]);
-    const { invoiceId } = await createInvoice(testDb, submitter, { caseId, lines: [{ amount: 10 }] });
+    const { invoiceId } = await createInvoice(testDb, submitter, { attested: true, caseId, lines: [{ amount: 10 }] });
     const exportable = async () => isExportableStatus((await loadInvoiceDetail(testDb, invoiceId))!.invoice.statusCode);
     expect(await exportable()).toBe(true);
 
@@ -111,7 +111,7 @@ describe('invoice export', () => {
   async function exportFixture() {
     const submitter = await createProfessional('exporter@example.com');
     const caseId = await createAssignedCase([submitter.professionalId]);
-    const { invoiceId } = await createInvoice(testDb, submitter, {
+    const { invoiceId } = await createInvoice(testDb, submitter, { attested: true,
       caseId,
       periodStart: '2026-02-01',
       periodEnd: '2026-02-28',
@@ -166,7 +166,7 @@ describe('invoice export', () => {
     const submitter = await createProfessional('traveller@example.com');
     const caseId = await createAssignedCase([submitter.professionalId]);
     await addMileageRate(testDb, fixtures.staffUserAccountId, { ratePerMile: 0.655, effectiveFrom: '2025-01-01' });
-    const { invoiceId } = await createInvoice(testDb, submitter, {
+    const { invoiceId } = await createInvoice(testDb, submitter, { attested: true,
       caseId,
       lines: [
         {

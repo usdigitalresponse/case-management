@@ -1,7 +1,7 @@
 // Bootstraps a professional profile for a user_account on first use, the
 // same way oidcProviders.ts bootstraps the user_account itself — so
 // there's something case_assignment can point at without a separate
-// "create professional" form. Called both at magic-link login (every
+// "create professional" form. Called both at email-code login (every
 // external vendor gets one immediately, ../routes/auth.ts) and lazily,
 // the first time a staff user is assigned to a case
 // (../routes/cases.ts POST /:id/staff-assignments) — staff otherwise has
@@ -14,7 +14,7 @@ import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
 // Read-only lookup, used wherever a route needs "the current session's
 // professional, if any" without creating one (../routes/myCases.ts,
 // ../routes/portal.ts) — unlike ensureProfessionalForUserAccount below,
-// which only the magic-link verify route should call.
+// which only the email-code verify route should call.
 export async function getProfessionalIdForUserAccount(
   db: DatabaseOrTransaction,
   userAccountId: string,
@@ -65,7 +65,7 @@ export async function ensureProfessionalForUserAccount(
     return professionalRow.professionalId;
   } catch (error) {
     // Lost the race to a concurrent first-login bootstrap for the same
-    // account (e.g. two magic-link emails verified within the same
+    // account (e.g. two emailed codes verified within the same
     // second) — the unique index on professional.user_account_id caught
     // it; recover the winner instead of leaving two professional rows.
     if (uniqueViolationConstraint(error) === PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT) {

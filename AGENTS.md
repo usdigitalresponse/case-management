@@ -235,9 +235,14 @@ Settings' Demo section (anyone switching their own role; administrators'
 demo sign-in is enabled.
 Run server/client `npm run typecheck`, client `npm run build` and `npm test`, and
 server `npm test` against a separate migrated test database (see its README). The server
-build entry point is `dist/src/app.js`. Uploaded invoice files are transient
-working copies in a private local directory (`DOCUMENT_STORE_DIR`), deleted on
-confirm, discard or three-day expiry; never commit or back them up.
+build entry point is `dist/src/app.js`. Uploaded invoice files are working
+copies in a private local directory (`DOCUMENT_STORE_DIR`), kept with a live
+request or draft (shown to its submitter and reviewers) and deleted on
+discard, three-day expiry of a file that couldn't be read, or when the request
+is withdrawn or deleted (`src/imports/documentRetention.ts`); drafts never
+expire. Never commit or back them up.
+External submitters sign in with an emailed 6-digit code and must tick the
+true-and-correct statement to send (recorded as `invoice_attestation`).
 Real invoice files for local extraction testing go in the gitignored
 `implementations/postgres-aws/local-samples/`, with hand-written expected
 figures in its `expected.json`; score them with `npm run extraction-accuracy

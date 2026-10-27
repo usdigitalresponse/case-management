@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
-import { requireAuth, requireFullUser } from '../src/auth/session';
+import { getSessionUser, requireAuth, requireFullUser } from '../src/auth/session';
 import type { AuthenticatedUser } from '../src/auth/oidcProviders';
 
 function mockRes() {
@@ -24,8 +24,15 @@ const magicLinkUser: AuthenticatedUser = {
   userAccountId: 'vendor-1',
   email: 'vendor@example.com',
   displayName: 'vendor@example.com',
-  authType: 'magic-link',
+  authType: 'email-code',
 };
+
+describe('getSessionUser', () => {
+  it('reads a session from before emailed codes as an external user', () => {
+    const legacy = { ...magicLinkUser, authType: 'magic-link' } as unknown as AuthenticatedUser;
+    expect(getSessionUser(mockReq(legacy))?.authType).toBe('email-code');
+  });
+});
 
 describe('requireAuth', () => {
   it('calls next for any authenticated session', () => {
@@ -50,7 +57,7 @@ describe('requireFullUser', () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it('rejects a magic-link session with 403, not 401 (they are signed in, just not allowed)', () => {
+  it('rejects an email-code session with 403, not 401 (they are signed in, just not allowed)', () => {
     const res = mockRes();
     const next = vi.fn();
     requireFullUser(mockReq(magicLinkUser), res, next as NextFunction);

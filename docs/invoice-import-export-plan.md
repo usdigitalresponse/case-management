@@ -59,7 +59,8 @@ processing boundary, which includes the organization's own cloud account.
   those requests.
 - Exports are not audited.
 - Recall is allowed only before the first review decision.
-- Unresolved imports expire three days after upload.
+- Files that couldn't be read expire three days after upload; drafts read
+  from a file don't expire (changed from expiring every unresolved import).
 - Build in `implementations/postgres-aws/`; document the Dataverse mapping and
   gaps only.
 
@@ -157,7 +158,11 @@ are starting defaults for implementations to configure, not policy values:
   embedded content.
 - Private storage, encrypted at rest, with no public or long-lived links,
   excluded from versioning and backups so that deletion is final.
-- Content deleted on confirm or discard, or three days after upload at most.
+- Content deleted on discard, or three days after upload if it couldn't be
+  read; a draft read from a file doesn't expire, and a confirmed file is kept
+  with its request until the request is withdrawn, deleted or recorded as
+  paid (changed for the submission design, so the submitter and reviewers see
+  the file beside the lines).
 
 ## Test material
 

@@ -5,7 +5,9 @@ import type { Request, Response, NextFunction } from 'express';
 import type { AuthenticatedUser } from './oidcProviders';
 
 export function getSessionUser(req: Request): AuthenticatedUser | undefined {
-  return req.session?.user as AuthenticatedUser | undefined;
+  const user = req.session?.user as (Omit<AuthenticatedUser, 'authType'> & { authType: string }) | undefined;
+  // Sessions from before sign-in moved to emailed codes still say 'magic-link'.
+  return user?.authType === 'magic-link' ? { ...user, authType: 'email-code' } : (user as AuthenticatedUser | undefined);
 }
 
 export function setSessionUser(req: Request, user: AuthenticatedUser): void {
@@ -24,7 +26,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
 // Gates actions only a full (SSO-authenticated — Google, Microsoft Entra
 // ID, or any other configured provider) agency user may take — e.g.
-// assigning an external user to a case. An external magic-link user
+// assigning an external user to a case. An external email-code user
 // hitting one of these gets the same 403 an unassigned case would, rather
 // than a route that reveals it exists only to find out they can't use it.
 export function requireFullUser(req: Request, res: Response, next: NextFunction): void {

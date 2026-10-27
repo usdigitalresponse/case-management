@@ -20,6 +20,8 @@ export const createInvoiceInputSchema = draftContentSchema.extend({
   submit: z.boolean().default(true),
   // Staff chose to review it with no case (match_invoice_to_case).
   withoutCase: z.boolean().optional(),
+  // A submitter sending their own confirms it is true and correct.
+  attested: z.boolean().optional(),
 }).extend(receiptInputSchema.shape);
 
 export type CreateInvoiceInput = z.input<typeof createInvoiceInputSchema>;
@@ -55,7 +57,7 @@ export async function createInvoice(
     const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content);
     await recordReceipt(tx, invoiceId, { receivedVia: parsed.data.receivedVia, receivedOn: parsed.data.receivedOn });
     if (submit) {
-      await submitInTx(tx, actor, invoiceId, { withoutCase: parsed.data.withoutCase });
+      await submitInTx(tx, actor, invoiceId, { withoutCase: parsed.data.withoutCase, attested: parsed.data.attested });
     }
     const [created] = await tx.select({ submittedTotal: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, submittedTotal: created?.submittedTotal ?? '0.00' };

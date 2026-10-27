@@ -11,7 +11,8 @@ import type { AuthenticatedUser, OidcProviderConfig } from '../auth/oidcProvider
 import { passportStrategyName } from '../auth/oidcProviders';
 import { isWhitelistedExternalEmail } from '../auth/externalEmailWhitelist';
 import { normalizeEmail } from '../auth/emailLists';
-import { issueMagicLinkToken, consumeMagicLinkToken } from '../auth/magicLink';
+import { issueSignInCode, verifySignInCode } from '../auth/signInCode';
+import { RateLimiter, SIGN_IN_LIMITS } from '../auth/rateLimit';
 import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
 import { delegateOfficeIds, isStaffAccount } from '../portal/portalActor';
@@ -34,6 +35,7 @@ export interface AuthRouterOptions {
 
 export function createAuthRouter(options: AuthRouterOptions): Router {
   const router = Router();
+  const limiter = new RateLimiter();
 
   router.get('/providers', (_req, res) => {
     res.json({
@@ -58,49 +60,56 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
   }
 
   router.post(
-    '/magic-link/request',
+    '/code/request',
     asyncHandler(async (req, res) => {
       const email = typeof req.body?.email === 'string' ? normalizeEmail(req.body.email) : '';
+      // Limited for any address, listed or not, so it reveals nothing.
+      if (
+        !limiter.take(`request:ip:${req.ip}`, SIGN_IN_LIMITS.codesPerAddress) ||
+        (email && !limiter.take(`request:email:${email}`, SIGN_IN_LIMITS.codesPerEmail))
+      ) {
+        res.status(429).json({ error: 'Too many codes asked for. Wait an hour, or use the last code we sent.' });
+        return;
+      }
       // Always respond the same way whether or not the email is
       // whitelisted, so this endpoint can't be used to enumerate which
       // external addresses are allowed in.
       if (email && isWhitelistedExternalEmail(email)) {
-        const token = await issueMagicLinkToken(db, email);
-        // Points at the client's confirm page, not at the verify endpoint:
-        // email link scanners (Safe Links, Gmail) GET every link before the
-        // user clicks, so the token must only be consumed by the page's
-        // POST to /magic-link/verify below.
-        const baseUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
-        const link = `${baseUrl}/sign-in/verify?token=${encodeURIComponent(token)}`;
+        const code = await issueSignInCode(db, email);
         // Not awaited: the response below is identical either way, so
         // there's no reason to hold the request open for an SES round
-        // trip. Send failures are swallowed for the same reason they're
-        // not awaited for — logged for ops visibility, never surfaced to
-        // the caller.
+        // trip. Send failures are logged, never surfaced to the caller.
         sendEmail(
           email,
-          'Sign in to Invoice Review Prototype',
-          `Use this link to sign in (it expires in 15 minutes): ${link}`,
+          `Your sign-in code: ${code}`,
+          `Your code to sign in and send invoices is ${code}. It works once, for the next 10 minutes.\n\n` +
+            'If you did not ask for it, you can ignore this email.',
         ).catch((error: unknown) => {
           // eslint-disable-next-line no-console
-          console.error('Failed to send magic-link email:', error);
+          console.error('Failed to send sign-in code email:', error);
         });
       }
-      res.status(202).json({ message: 'If that email is recognized, a sign-in link has been sent.' });
+      res.status(202).json({ message: 'If that email is on file, a sign-in code has been sent.' });
     }),
   );
 
   router.post(
-    '/magic-link/verify',
+    '/code/verify',
     asyncHandler(async (req, res) => {
-      const token = typeof req.body?.token === 'string' ? req.body.token : '';
-      const email = token ? await consumeMagicLinkToken(db, token) : undefined;
-      if (!email) {
-        res.status(401).json({ error: 'This sign-in link is invalid, expired, or already used.' });
+      if (!limiter.take(`verify:ip:${req.ip}`, SIGN_IN_LIMITS.triesPerAddress)) {
+        res.status(429).json({ error: 'Too many tries. Wait a few minutes and try again.' });
+        return;
+      }
+      const email = typeof req.body?.email === 'string' ? req.body.email : '';
+      const code = typeof req.body?.code === 'string' ? req.body.code : '';
+      const verified = email && code ? await verifySignInCode(db, email, code) : undefined;
+      // Rechecked: the address may have been taken off the list since.
+      if (!verified || !isWhitelistedExternalEmail(verified)) {
+        res.status(401).json({ error: 'That code is wrong or has expired. After 5 wrong codes you need a new one.' });
         return;
       }
 
-      const account = await ensureUserAccountForEmail(db, email);
+      const account = await ensureUserAccountForEmail(db, verified);
       // A delegate acts for others and needs no professional profile of
       // their own (model/rules.yaml authorize_delegated_submission).
       if ((await delegateOfficeIds(db, account.userAccountId)).length === 0) {
@@ -111,7 +120,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
         userAccountId: account.userAccountId,
         email: account.email,
         displayName: account.displayName,
-        authType: 'magic-link',
+        authType: 'email-code',
       };
       setSessionUser(req, user);
       res.json(user);
@@ -214,7 +223,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     demoLogin('/demo-login', listDemoStaff, STAFF_DEMO_EMAIL, 'sso', 'staff');
   }
   if (options.externalDemoLoginEnabled) {
-    demoLogin('/demo-login/external', listDemoPartners, EXTERNAL_DEMO_EMAIL, 'magic-link', 'partner');
+    demoLogin('/demo-login/external', listDemoPartners, EXTERNAL_DEMO_EMAIL, 'email-code', 'partner');
   }
 
   return router;

@@ -29,7 +29,7 @@ export interface AuthenticatedUser {
   userAccountId: string;
   email: string;
   displayName: string;
-  authType: 'sso' | 'magic-link';
+  authType: 'sso' | 'email-code';
   ssoProvider?: string;
   // From /auth/me only. They show or hide parts of the UI; the server
   // enforces each. isStaff: a staff role, so may enter invoices for others.
@@ -100,13 +100,13 @@ export function listAuthProviders(): Promise<AuthProvidersResponse> {
 // recognized, to avoid revealing which external addresses are allowed in)
 // — there is no success/failure branch to handle here beyond a network/5xx
 // error.
-export function requestMagicLink(email: string): Promise<void> {
-  return request<void>('/auth/magic-link/request', { method: 'POST', body: JSON.stringify({ email }) });
+export function requestSignInCode(email: string): Promise<void> {
+  return request<void>('/auth/code/request', { method: 'POST', body: JSON.stringify({ email }) });
 }
 
-// Consumes the single-use token; 401 if it is invalid, expired, or used.
-export function verifyMagicLink(token: string): Promise<AuthenticatedUser> {
-  return request<AuthenticatedUser>('/auth/magic-link/verify', { method: 'POST', body: JSON.stringify({ token }) });
+// 401 if the code is wrong, expired, used or out of tries.
+export function verifySignInCode(email: string, code: string): Promise<AuthenticatedUser> {
+  return request<AuthenticatedUser>('/auth/code/verify', { method: 'POST', body: JSON.stringify({ email, code }) });
 }
 
 // Mirrors server/src/cases/caseStage.ts's CASE_STAGES; null once a case
@@ -590,6 +590,17 @@ export interface InvoiceRecord {
   caseClientDisplayName: string | null;
   caseExternalReference: string | null;
   professionalDisplayName: string | null;
+  submittedByUserAccountId: string | null;
+  caseNumber: string | null;
+  // A draft read from a file; its lines are unchecked until it is confirmed.
+  import: { invoiceImportId: string; statusCode: string } | null;
+  // The assigned line reviewer, while in review.
+  reviewerDisplayName: string | null;
+  // Once decided: what the latest round approved, and lines cut in part or full.
+  approvedTotal: string | null;
+  cutLineCount: number | null;
+  // A draft read from a file: what the submitter changed so far.
+  changes: SubmitterChanges | null;
 }
 
 export type InvoiceLineType = 'time' | 'expense' | 'mileage' | 'other';
@@ -617,6 +628,8 @@ export interface CreateInvoiceLineInput {
   tripOrigin?: string;
   tripDestination?: string;
   roundTrip?: boolean;
+  // The imported file's line or row it was read from; carried back on save.
+  sourceLocation?: string;
 }
 
 // Who the signed-in user may bill for on a case: themselves, and anyone
@@ -668,6 +681,41 @@ export interface InvoiceReceipt {
   receivedVia?: string;
   receivedOn?: string;
   withoutCase?: boolean;
+  // A submitter sending their own confirms it is true and correct.
+  attested?: boolean;
+}
+
+// What a submitter confirms when sending (server/src/billing/invoiceLifecycle.ts).
+export const ATTESTATION_STATEMENT = 'I confirm this invoice is true and correct, and the work was done for this case.';
+
+// A request's file as read (server/src/imports/invoiceFile.ts): each line as
+// first drafted from it, which the submitter's changes are shown against.
+export interface FileLine {
+  location: string;
+  lineType: string | null;
+  serviceDate: string | null;
+  description: string | null;
+  quantity: number | null;
+  unitRate: number | null;
+  amount: number | null;
+}
+
+export interface FileSource {
+  invoiceImportId: string;
+  importStatusCode: string;
+  fileName: string;
+  formatCode: 'ledes_1998b' | 'spreadsheet' | 'document';
+  fileAvailable: boolean;
+  invoiceNumber: string | null;
+  statedTotal: number | null;
+  lines: FileLine[];
+  warnings: ImportWarning[];
+}
+
+export interface SubmitterChanges {
+  changedCount: number;
+  removedCount: number;
+  addedCount: number;
 }
 
 export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt {
@@ -752,6 +800,8 @@ export type PortalInvoiceLine = Omit<InvoiceReviewLine, 'decidedByDisplayName'>;
 export interface PortalInvoice {
   invoice: QueuedInvoice;
   caseNumber: string | null;
+  otherCaseNumbers: string[];
+  submissionAttempt: { invoiceApprovalChainId: string; submittedAt: string } | null;
   // From the latest finished round of review; null until there is one.
   approvedTotal: string | null;
   lines: PortalInvoiceLine[];
@@ -761,6 +811,8 @@ export interface PortalInvoice {
   deletable: boolean;
   // Billing rule findings: live for a draft, as submitted otherwise.
   ruleFindings: RuleFinding[];
+  fileSource: FileSource | null;
+  submitterChanges: SubmitterChanges | null;
 }
 
 export function deleteInvoice(invoiceId: string): Promise<{ invoiceId: string }> {
@@ -916,6 +968,73 @@ export type CaseSplitRead =
   | { status: 'failed'; failureMessage: string }
   | { status: 'ready'; preview: CaseSplitPreview };
 
+// The portal upload (server/src/imports/splitByCase.ts): read first, then
+// the submitter confirms its case, period and invoice number.
+export interface UploadCase {
+  caseId: string;
+  professionalId: string;
+  caseNumber: string | null;
+  clientDisplayName: string | null;
+  professionalDisplayName: string | null;
+}
+
+export interface UploadFile {
+  fileName: string;
+  sizeBytes: number;
+  format: 'ledes_1998b' | 'spreadsheet' | 'document';
+}
+
+export type UploadRead =
+  | { status: 'reading'; file: UploadFile; progress: ImportProgress | null }
+  | { status: 'failed'; file: UploadFile; failureMessage: string }
+  | {
+      status: 'ready';
+      file: UploadFile;
+      read: {
+        lineCount: number;
+        invoiceNumber: string | null;
+        periodStart: string | null;
+        periodEnd: string | null;
+        statedTotal: number | null;
+      };
+      cases: UploadCase[];
+      suggested: { caseId: string; professionalId: string } | null;
+    };
+
+export async function startUpload(file: File): Promise<{ uploadReadId: string }> {
+  const response = await fetch('/api/portal/uploads', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+    body: file,
+  });
+  const body = await response.json().catch(() => undefined);
+  if (!response.ok) {
+    throw new ApiError(response.status, body);
+  }
+  return body as { uploadReadId: string };
+}
+
+export function listUploadCases(): Promise<{ cases: UploadCase[] }> {
+  return request('/api/portal/uploads/cases');
+}
+
+export function getUpload(uploadReadId: string): Promise<UploadRead> {
+  return request<UploadRead>(`/api/portal/uploads/${uploadReadId}`);
+}
+
+export function discardUpload(uploadReadId: string): Promise<{ splitReadId: string }> {
+  return request(`/api/portal/uploads/${uploadReadId}`, { method: 'DELETE' });
+}
+
+export function createUploadDraft(
+  uploadReadId: string,
+  // Null case and professional (staff only): it waits on Intake to be matched.
+  details: { caseId: string | null; professionalId: string | null; periodStart?: string; periodEnd?: string; invoiceNumber?: string },
+): Promise<{ invoiceImportId: string; invoiceId: string }> {
+  return request(`/api/portal/uploads/${uploadReadId}/draft`, { method: 'POST', body: JSON.stringify(details) });
+}
+
 export function getCaseSplitRead(splitReadId: string): Promise<CaseSplitRead> {
   return request<CaseSplitRead>(`/api/portal/invoice-imports/case-split/reads/${splitReadId}`);
 }
@@ -951,7 +1070,11 @@ export function getImportPreview(importId: string): Promise<ImportPreview> {
 }
 
 export async function getImportFileBytes(importId: string): Promise<ArrayBuffer> {
-  const response = await fetch(invoiceImportFileUrl(importId), { credentials: 'include' });
+  return fileBytes(invoiceImportFileUrl(importId));
+}
+
+export async function fileBytes(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url, { credentials: 'include' });
   if (!response.ok) {
     throw new ApiError(response.status, undefined);
   }
@@ -1152,6 +1275,8 @@ export interface InvoiceReviewLine {
   activityCode: string | null;
   expenseCode: string | null;
   sourceTimeEntryId: string | null;
+  // The imported file's line or row it was read from; null if added.
+  sourceLocation: string | null;
   sourceActivityOn: string | null;
   sourceDurationHours: string | null;
   sourceDescription: string | null;
@@ -1193,10 +1318,23 @@ export interface InvoiceReview {
   // anyone has signed this round (which ends reopening).
   nextSignOff: AssignedPerson | null;
   signOffStarted: boolean;
+  fileSource: FileSource | null;
+  submitterChanges: SubmitterChanges | null;
 }
 
 export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {
   return request(`/api/invoices/${invoiceId}`);
+}
+
+// The file a request was read from, for staff viewing it beside the lines.
+// Staff read it through /api/invoices; anyone who may read the invoice in
+// the portal through /api/portal/invoices.
+export function getInvoiceFilePreview(invoiceId: string, portal = false): Promise<ImportPreview> {
+  return request<ImportPreview>(`${invoiceFileUrl(invoiceId, portal)}/preview`);
+}
+
+export function invoiceFileUrl(invoiceId: string, portal = false): string {
+  return `/api/${portal ? 'portal/' : ''}invoices/${invoiceId}/file`;
 }
 
 export interface LineDecisionInput {

@@ -6,7 +6,7 @@ import {
   externalDemoLogin,
   getCurrentUser,
   logout as apiLogout,
-  verifyMagicLink,
+  verifySignInCode,
   type AuthenticatedUser,
 } from './api/client';
 
@@ -15,7 +15,7 @@ interface AuthContextValue {
   loading: boolean;
   demoLogin: (userAccountId?: string) => Promise<void>;
   externalDemoLogin: (userAccountId?: string) => Promise<void>;
-  verifyMagicLink: (token: string) => Promise<void>;
+  signInWithCode: (email: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
   // Reloads roles and permissions after they change.
   refreshUser: () => Promise<void>;
@@ -56,10 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     navigate('/', { replace: true });
   }, [navigate]);
 
-  const handleVerifyMagicLink = useCallback(async (token: string) => {
-    const nextUser = await verifyMagicLink(token);
+  const handleSignInWithCode = useCallback(async (email: string, code: string) => {
+    const nextUser = await verifySignInCode(email, code);
     setUser(nextUser);
-  }, []);
+    navigate('/', { replace: true });
+  }, [navigate]);
 
   const handleLogout = useCallback(async () => {
     await apiLogout();
@@ -78,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         demoLogin: handleDemoLogin,
         externalDemoLogin: handleExternalDemoLogin,
-        verifyMagicLink: handleVerifyMagicLink,
+        signInWithCode: handleSignInWithCode,
         logout: handleLogout,
         refreshUser,
       }}

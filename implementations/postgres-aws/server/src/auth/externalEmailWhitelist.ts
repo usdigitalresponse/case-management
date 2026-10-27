@@ -1,6 +1,6 @@
-// Individual email addresses allowed to use the external (magic-link)
+// Individual email addresses allowed to use the external (email-code)
 // submission flow, configured locally via EXTERNAL_EMAIL_WHITELIST in .env
-// (gitignored) — see .env.example. Checked by POST /auth/magic-link/request
+// (gitignored) — see .env.example. Checked by POST /auth/code/request
 // (../routes/auth.ts) before a token is ever issued.
 import { normalizeEmail, parseCommaSeparatedList } from './emailLists';
 

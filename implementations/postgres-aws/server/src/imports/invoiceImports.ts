@@ -1,6 +1,6 @@
 // Supporting invoice import (model/workflows.yaml invoice_import): a file
-// becomes a draft to correct and confirm. The file is deleted on confirm,
-// discard or expiry; parsed values stay unchanged in extraction_result.
+// becomes a draft to correct and confirm. Parsed values stay unchanged in
+// extraction_result; for how long the file is kept, see ./documentRetention.ts.
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm';
@@ -45,6 +45,7 @@ import {
   type ParsedInvoice,
 } from './parsedInvoice';
 import { CONFIRMED_IMPORT_STATUS_CODE, UNRESOLVED_IMPORT_STATUS_CODES } from './importedTimeEntries';
+import { releaseDocumentIfUnneeded } from './documentRetention';
 import { priceLines } from '../billing/priceLines';
 import { enforceBillingRules } from '../billing/billingRules';
 import { matchTimekeeperName } from './matchTimekeeper';
@@ -186,6 +187,9 @@ function extractionResult(
   warnings: ImportWarning[],
   // A file designated to one professional: every line is their work.
   designatedProfessionalId?: string,
+  // Each line as first drafted from the file (mileage suggested, dates
+  // inferred), which the submitter's changes are shown against.
+  drafted: DraftContent['lines'] = [],
 ) {
   const field = <T>(value: T | undefined) => (value === undefined ? undefined : { value });
   return {
@@ -198,8 +202,16 @@ function extractionResult(
       period_end: field(parsed.periodEnd),
       stated_total: field(parsed.statedTotal),
     },
-    lines: parsed.lines.map((line) => ({
+    lines: parsed.lines.map((line, index) => ({
       location: line.location,
+      drafted: drafted[index] && {
+        line_type: drafted[index].lineType,
+        service_date: drafted[index].serviceDate ?? null,
+        description: drafted[index].description ?? null,
+        quantity: drafted[index].quantity ?? null,
+        unit_rate: drafted[index].unitRate ?? null,
+        amount: drafted[index].amount ?? null,
+      },
       line_type: field(line.lineType),
       service_date: field(line.serviceDate),
       description: field(line.description),
@@ -530,6 +542,9 @@ export async function extractIntoDraft(
     extractedAt: Date;
     parsed: ParsedInvoice;
     everyLineBilled: boolean;
+    // The billing period the uploader checked, in place of the one read;
+    // the extraction record keeps what was read.
+    checkedPeriod?: { start?: string; end?: string };
   },
 ): Promise<string> {
   const { importId, billedProfessionalId, caseId } = args;
@@ -537,7 +552,9 @@ export async function extractIntoDraft(
   const parsed = { ...args.parsed, lines: args.parsed.lines.map(suggestMileage) };
   // Checks the file's own figures, not miles taken from a description.
   const warnings = reconciliationWarnings(args.parsed);
-  let { periodStart, periodEnd } = parsed;
+  let { periodStart, periodEnd } = args.checkedPeriod
+    ? { periodStart: args.checkedPeriod.start, periodEnd: args.checkedPeriod.end }
+    : parsed;
   if (periodStart && periodEnd && periodEnd < periodStart) {
     warnings.push({ code: 'inverted_period', message: 'The billing period ends before it starts, so it was left blank.' });
     periodStart = undefined;
@@ -579,6 +596,7 @@ export async function extractIntoDraft(
         args.everyLineBilled || !line.timekeeperLabel
           ? (billedProfessionalId ?? undefined)
           : suggestions.get(line.timekeeperLabel.toLowerCase()),
+      sourceLocation: line.location,
     })),
   };
   // Undated lines take the billing period's end where that's safe.
@@ -611,6 +629,7 @@ export async function extractIntoDraft(
         args.parsed,
         warnings,
         args.everyLineBilled ? (billedProfessionalId ?? undefined) : undefined,
+        content.lines,
       ),
       invoiceId,
     })
@@ -643,37 +662,23 @@ async function lockOwnImport(tx: Transaction, actor: PortalActor, importId: stri
   return row;
 }
 
-// True when this was the document's last unresolved import, so its file
-// is now deleted; a file split by case stays until all its imports resolve.
+// Returns the file's storage reference when nothing needs it any more
+// (./documentRetention.ts), for the caller to delete after commit. A
+// confirmed import keeps its file with the request.
 async function resolveImport(
   tx: Transaction,
   importId: string,
   documentId: string,
   statusCode: string,
   resolvedBy: string | null,
-): Promise<boolean> {
-  const now = new Date();
+): Promise<string | undefined> {
   // Serializes sibling imports resolving at once.
   await tx.select({ documentId: document.documentId }).from(document).where(eq(document.documentId, documentId)).for('update');
   await tx
     .update(invoiceImport)
-    .set({ statusId: await importStatusId(tx, statusCode), resolvedByUserAccountId: resolvedBy, resolvedAt: now })
+    .set({ statusId: await importStatusId(tx, statusCode), resolvedByUserAccountId: resolvedBy, resolvedAt: new Date() })
     .where(eq(invoiceImport.invoiceImportId, importId));
-  const unresolvedStatusIds: string[] = [];
-  for (const code of UNRESOLVED_STATUS_CODES) {
-    // eslint-disable-next-line no-await-in-loop
-    unresolvedStatusIds.push(await importStatusId(tx, code));
-  }
-  const [open] = await tx
-    .select({ invoiceImportId: invoiceImport.invoiceImportId })
-    .from(invoiceImport)
-    .where(and(eq(invoiceImport.documentId, documentId), inArray(invoiceImport.statusId, unresolvedStatusIds)))
-    .limit(1);
-  if (open) {
-    return false;
-  }
-  await tx.update(document).set({ contentDeletedAt: now }).where(eq(document.documentId, documentId));
-  return true;
+  return releaseDocumentIfUnneeded(tx, documentId);
 }
 
 async function lockDraft(tx: Transaction, invoiceId: string) {
@@ -706,16 +711,23 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
       throw new NotAssignedToCaseError();
     }
     await authorizeBilling(tx, actor, draft.caseId, draft.professionalId);
-    const lines = await tx
-      .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
-      .from(invoiceLine)
-      .where(eq(invoiceLine.invoiceId, row.invoiceId));
-    // A file designated to one professional is all their work.
+    // A file designated to one professional is all their work, lines the
+    // submitter added included.
     const [designation] = await tx
       .select({ professionalId: sql<string | null>`${invoiceImport.extractionResult} ->> 'designated_professional_id'` })
       .from(invoiceImport)
       .where(eq(invoiceImport.invoiceImportId, importId));
     const designated = designation?.professionalId;
+    if (designated) {
+      await tx
+        .update(invoiceLine)
+        .set({ timekeeperProfessionalId: designated })
+        .where(and(eq(invoiceLine.invoiceId, row.invoiceId), isNull(invoiceLine.timekeeperProfessionalId)));
+    }
+    const lines = await tx
+      .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
+      .from(invoiceLine)
+      .where(eq(invoiceLine.invoiceId, row.invoiceId));
     if (designated && lines.some((line) => line.timekeeperProfessionalId !== designated)) {
       throw new ValidationError({ lines: 'Every item in this file is the work of the professional it was imported for.' });
     }
@@ -736,8 +748,7 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
       strict: true,
     });
     await enforceBillingRules(tx, row.invoiceId);
-    const released = await resolveImport(tx, importId, row.documentId, CONFIRMED_IMPORT_STATUS_CODE, actor.userAccountId);
-    return released ? row.storageReference : undefined;
+    return resolveImport(tx, importId, row.documentId, CONFIRMED_IMPORT_STATUS_CODE, actor.userAccountId);
   });
   if (storageReference) {
     await store.delete(storageReference);
@@ -753,8 +764,7 @@ export async function discardInvoiceImport(db: Database, store: DocumentStore, a
       throw new InvoiceStateError('This import is already confirmed or discarded.');
     }
     await withdrawImportDraft(tx, row.invoiceId, { actorUserAccountId: actor.userAccountId });
-    const released = await resolveImport(tx, importId, row.documentId, 'discarded', actor.userAccountId);
-    return released ? row.storageReference : undefined;
+    return resolveImport(tx, importId, row.documentId, 'discarded', actor.userAccountId);
   });
   // A file still being read stops being read.
   cancelExtraction(importId);
@@ -764,15 +774,21 @@ export async function discardInvoiceImport(db: Database, store: DocumentStore, a
   return { invoiceImportId: importId };
 }
 
-// Discards unresolved imports three days after upload, as a system action,
-// and retries recent file deletions that may not have completed.
+// When a file that couldn't be read is discarded; null for any other import.
+const expiryOf = (row: { statusCode: string; uploadedAt: Date }) =>
+  row.statusCode === 'failed' ? new Date(row.uploadedAt.getTime() + IMPORT_EXPIRY_MS) : null;
+
+// Discards files that couldn't be read three days after upload, as a system
+// action, and retries recent file deletions that may not have completed. A
+// file that was read is a draft, kept until its submitter sends, discards
+// or deletes it.
 export async function expireInvoiceImports(db: Database, store: DocumentStore, now: Date = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - IMPORT_EXPIRY_MS);
-  const unresolvedStatusIds = await Promise.all(UNRESOLVED_STATUS_CODES.map((code) => importStatusId(db, code)));
+  const failedStatusId = await importStatusId(db, 'failed');
   const stale = await db
     .select({ invoiceImportId: invoiceImport.invoiceImportId })
     .from(invoiceImport)
-    .where(and(inArray(invoiceImport.statusId, unresolvedStatusIds), lt(invoiceImport.uploadedAt, cutoff)));
+    .where(and(eq(invoiceImport.statusId, failedStatusId), lt(invoiceImport.uploadedAt, cutoff)));
 
   let expired = 0;
   for (const { invoiceImportId } of stale) {
@@ -790,15 +806,10 @@ export async function expireInvoiceImports(db: Database, store: DocumentStore, n
         .where(eq(invoiceImport.invoiceImportId, invoiceImportId))
         .for('update', { of: invoiceImport });
       // Resolved by its uploader since the scan.
-      if (!row || !unresolvedStatusIds.includes(row.statusId)) {
+      if (!row || row.statusId !== failedStatusId) {
         return undefined;
       }
-      await withdrawImportDraft(tx, row.invoiceId, {
-        actorUserAccountId: null,
-        reason: 'The import expired three days after upload without being confirmed.',
-      });
-      const released = await resolveImport(tx, invoiceImportId, row.documentId, 'discarded', null);
-      return { storageReference: released ? row.storageReference : undefined };
+      return { storageReference: await resolveImport(tx, invoiceImportId, row.documentId, 'discarded', null) };
     });
     if (result) {
       expired += 1;
@@ -910,7 +921,7 @@ export async function listInvoiceImports(db: Database, actor: PortalActor) {
       otherWarningCount: warnings.filter((warning) => !['date_from_period', 'date_not_inferred'].includes(warning.code)).length,
       // Why it couldn't be read, for a failed import.
       failureMessage: row.statusCode === 'failed' ? (warnings[0]?.message ?? null) : null,
-      expiresAt: UNRESOLVED_STATUS_CODES.includes(row.statusCode) ? new Date(row.uploadedAt.getTime() + IMPORT_EXPIRY_MS) : null,
+      expiresAt: expiryOf(row),
       // Where reading has got to, while the file is still being read.
       progress: row.statusCode === 'received' ? (extractionProgress(row.invoiceImportId) ?? null) : null,
     };
@@ -952,9 +963,7 @@ export async function getInvoiceImport(db: Database, actor: PortalActor, importI
   return {
     ...row,
     fileAvailable: row.contentDeletedAt === null,
-    expiresAt: UNRESOLVED_STATUS_CODES.includes(row.statusCode)
-      ? new Date(row.uploadedAt.getTime() + IMPORT_EXPIRY_MS)
-      : null,
+    expiresAt: expiryOf(row),
     progress: row.statusCode === 'received' ? (extractionProgress(importId) ?? null) : null,
     possibleDuplicateTime,
   };

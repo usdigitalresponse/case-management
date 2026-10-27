@@ -65,8 +65,12 @@ implementation has passed these scenarios yet.
 9. **Failure, discard and expiry:** An unreadable file moves the import to
    failed and keeps the file until the submitter discards it. Discarding records
    actor and time, deletes the file content and keeps metadata and any result.
-   An import left unconfirmed for three days expires with no resolving user: its
-   file is deleted and its unconfirmed draft withdrawn. Files of an unaccepted
+   A file that could not be read and is left for three days expires with no
+   resolving user: its content is deleted. A draft read from a file does not
+   expire; it stays until the submitter sends, discards or deletes it. A confirmed import keeps
+   its file with the request: the submitter and reviewers see it beside the
+   lines until the request is withdrawn, deleted or recorded as paid, when its
+   content is deleted. Files of an unaccepted
    type, over the configured size or page limit, encrypted, macro-enabled or
    flagged by the malware scan are rejected before parsing.
 10. **Processing boundary:** In a production configuration, extraction cannot

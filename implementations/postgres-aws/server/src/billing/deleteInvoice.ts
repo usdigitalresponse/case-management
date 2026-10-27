@@ -9,16 +9,17 @@ import {
   invoice,
   invoiceApprovalChain,
   invoiceApprovalDecision,
+  invoiceAttestation,
   invoiceEvent,
   invoiceImport,
-  invoiceImportStatuses,
   invoiceLine,
   invoiceReviewAssignment,
   invoiceStatuses,
+  supportingInvoice,
   timeEntry,
 } from '../db/schema';
 import type { DocumentStore } from '../imports/documentStore';
-import { UNRESOLVED_IMPORT_STATUS_CODES } from '../imports/importedTimeEntries';
+import { releaseDocumentIfUnneeded } from '../imports/documentRetention';
 import type { PortalActor } from '../portal/portalActor';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { InvoiceStateError } from './invoiceLifecycle';
@@ -94,8 +95,17 @@ export async function deleteUnsubmittedInvoice(
     await tx.delete(invoiceEvent).where(eq(invoiceEvent.invoiceId, invoiceId));
     // Who it was routed to while submitted, before it was recalled.
     await tx.delete(invoiceReviewAssignment).where(eq(invoiceReviewAssignment.invoiceId, invoiceId));
+    await tx
+      .delete(invoiceAttestation)
+      .where(
+        inArray(
+          invoiceAttestation.invoiceApprovalChainId,
+          tx.select({ id: invoiceApprovalChain.invoiceApprovalChainId }).from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId)),
+        ),
+      );
     await tx.delete(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
     await tx.delete(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
+    await tx.delete(supportingInvoice).where(eq(supportingInvoice.invoiceId, invoiceId));
     if (importIds.length > 0) {
       // Time the import created goes too, unless another invoice uses it.
       const usedElsewhere = tx
@@ -129,24 +139,16 @@ export async function deleteUnsubmittedInvoice(
     if (unused.length > 0) {
       await tx.delete(document).where(inArray(document.documentId, unused.map((row) => row.documentId)));
     }
-    // A shared file goes once none of its imports is still open.
-    const shared = imports.filter((row) => stillUsed.has(row.documentId) && row.contentDeletedAt === null);
-    const released: typeof shared = [];
-    for (const row of shared) {
+    // A shared file goes once nothing else needs it (../imports/documentRetention.ts).
+    const released: string[] = [];
+    for (const row of imports.filter((candidate) => stillUsed.has(candidate.documentId) && candidate.contentDeletedAt === null)) {
       // eslint-disable-next-line no-await-in-loop
-      const [open] = await tx
-        .select({ id: invoiceImport.invoiceImportId })
-        .from(invoiceImport)
-        .innerJoin(invoiceImportStatuses, eq(invoiceImport.statusId, invoiceImportStatuses.id))
-        .where(and(eq(invoiceImport.documentId, row.documentId), inArray(invoiceImportStatuses.code, UNRESOLVED_IMPORT_STATUS_CODES)))
-        .limit(1);
-      if (!open) {
-        // eslint-disable-next-line no-await-in-loop
-        await tx.update(document).set({ contentDeletedAt: new Date() }).where(eq(document.documentId, row.documentId));
-        released.push(row);
+      const storageReference = await releaseDocumentIfUnneeded(tx, row.documentId);
+      if (storageReference) {
+        released.push(storageReference);
       }
     }
-    return [...unused.filter((row) => row.contentDeletedAt === null), ...released].map((row) => row.storageReference);
+    return [...unused.filter((row) => row.contentDeletedAt === null).map((row) => row.storageReference), ...released];
   });
   // After commit, so a failed transaction never loses a file still in use.
   for (const storageReference of files) {

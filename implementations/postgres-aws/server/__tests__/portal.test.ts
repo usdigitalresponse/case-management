@@ -110,7 +110,7 @@ describe('createInvoice', () => {
     const { userAccountId, professionalId } = await createVendorProfessional('vendor4@example.com');
     const caseId = await createCaseAssignedTo(professionalId);
 
-    const result = await createInvoice(testDb, { userAccountId, professionalId }, {
+    const result = await createInvoice(testDb, { userAccountId, professionalId }, { attested: true,
       caseId,
       lines: [{ amount: 100 }, { amount: 50.5 }],
       // A client-sent total, if present, must be ignored — not part of
@@ -128,6 +128,7 @@ describe('createInvoice', () => {
 
     const result = await createInvoice(testDb, { userAccountId, professionalId }, {
       caseId,
+      attested: true,
       lines: [
         {
           amount: 120,
@@ -169,6 +170,7 @@ describe('createInvoice', () => {
 
     const result = await createInvoice(testDb, { userAccountId, professionalId }, {
       caseId,
+      attested: true,
       lines: [{ amount: 200, sourceTimeEntryId: timeEntryId }],
     });
 
@@ -218,6 +220,7 @@ describe('createInvoice', () => {
 
     const result = await createInvoice(testDb, { userAccountId, professionalId }, {
       caseId,
+      attested: true,
       lines: [{ amount: 10.005 }, { amount: 10.005 }],
     });
 
@@ -277,8 +280,8 @@ describe('changing time entries', () => {
     const caseId = await createCaseAssignedTo(vendor.professionalId);
     const drafted = await createTimeEntry(testDb, vendor, { caseId, ...entry });
     const submitted = await createTimeEntry(testDb, vendor, { caseId, ...entry });
-    await createInvoice(testDb, vendor, { caseId, submit: false, lines: [{ amount: 10, sourceTimeEntryId: drafted.timeEntryId }] });
-    await createInvoice(testDb, vendor, { caseId, lines: [{ amount: 10, sourceTimeEntryId: submitted.timeEntryId }] });
+    await createInvoice(testDb, vendor, { attested: true, caseId, submit: false, lines: [{ amount: 10, sourceTimeEntryId: drafted.timeEntryId }] });
+    await createInvoice(testDb, vendor, { attested: true, caseId, lines: [{ amount: 10, sourceTimeEntryId: submitted.timeEntryId }] });
 
     await expect(updateTimeEntry(testDb, vendor, drafted.timeEntryId, entry)).rejects.toThrow(
       'This time is on a draft invoice. Change it on that draft, or remove it from the draft to edit or delete it here.',

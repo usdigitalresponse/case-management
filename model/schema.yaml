@@ -577,6 +577,10 @@ entities:
         type: datetime
         required: false
         description: When route_distance was looked up.
+      source_location:
+        type: string
+        required: false
+        description: Where in the request's imported file the line was read from, such as "row 4" or "page 1, row 2"; empty for a line the submitter added. A line read from the file with no current line is one the submitter removed; it stays visible from the import's extraction result and needs no decision.
 
   invoice_import:
     display_name: Invoice Import
