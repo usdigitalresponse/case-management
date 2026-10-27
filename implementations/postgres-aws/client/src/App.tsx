@@ -92,7 +92,7 @@ function useQueueCounts(userAccountId: string) {
   return counts;
 }
 
-function Sidebar({ isAdmin, userAccountId }: { isAdmin: boolean; userAccountId: string }) {
+function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userAccountId: string }) {
   const location = useLocation();
   const counts = useQueueCounts(userAccountId);
   const onQueue = location.pathname === '/';
@@ -131,7 +131,7 @@ function Sidebar({ isAdmin, userAccountId }: { isAdmin: boolean; userAccountId: 
           <NavLink to="/vendors" end>{DIRECTORY_TITLE}</NavLink>
           <NavLink to="/exports" end>Exports</NavLink>
         </div>
-        {isAdmin && (
+        {showSettings && (
           <div className="nav-group">
             <h2>Administration</h2>
             <NavLink to="/settings" end>Settings</NavLink>
@@ -175,7 +175,8 @@ function AppContent() {
     <>
       <TopBar displayName={user.displayName} onLogout={() => void logout()} />
       <div className="app-layout">
-        <Sidebar isAdmin={Boolean(user.isAdmin)} userAccountId={user.userAccountId} />
+        {/* Everyone has Settings on demo servers, to change their own role there. */}
+        <Sidebar showSettings={Boolean(user.isAdmin || user.demoMode)} userAccountId={user.userAccountId} />
         <main id="main-content" className="app-main" tabIndex={-1}>
           <Routes>
             <Route path="/" element={<ReviewQueue view="open" />} />

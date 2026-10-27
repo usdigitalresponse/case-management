@@ -230,6 +230,9 @@ Docker Compose startup must preserve application data. `docker compose exec
 server npm run seed` is an explicit destructive demo reset, never a startup
 step. `docker-compose.prod.yml` (with an untracked `.env.prod`) is the
 single-host production-mode stack; its seed command is equally destructive.
+Settings' Demo section (anyone switching their own role; administrators'
+"Reset demo data", the same reset) must stay unavailable unless the staff
+demo sign-in is enabled.
 Run server/client `npm run typecheck`, client `npm run build` and `npm test`, and
 server `npm test` against a separate migrated test database (see its README). The server
 build entry point is `dist/src/app.js`. Uploaded invoice files are transient

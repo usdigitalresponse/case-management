@@ -151,7 +151,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
             isStaffAccount(db, user.userAccountId),
           ])
         : [false, null, false];
-      res.json({ ...user, isAdmin: admin, isStaff: staffRole, reviewPermissions });
+      res.json({ ...user, isAdmin: admin, isStaff: staffRole, reviewPermissions, demoMode: options.demoLoginEnabled });
     }),
   );
 

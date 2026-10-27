@@ -46,7 +46,8 @@ export function reviewPermissionsForRole(roleDisplayName: string | null | undefi
   return (roleDisplayName && PERMISSIONS_BY_ROLE[roleDisplayName]) || NO_PERMISSIONS;
 }
 
-// The role new SSO accounts get.
+// General staff; the intended role for new SSO accounts, which for now are
+// administrators (./oidcProviders.ts).
 export function getStaffAccountRoleId(db: DatabaseOrTransaction): Promise<string> {
   return getSeededRoleId(db, STAFF_ACCOUNT_ROLE_DISPLAY_NAME, 'user_account');
 }
@@ -74,7 +75,23 @@ export async function getStaffAccountRoleIds(db: DatabaseOrTransaction): Promise
 
 // An administrator changes a staff account's role; external accounts never
 // become staff this way, and no one removes their own administrator role.
-export async function setStaffRole(db: Database, adminUserAccountId: string, userAccountId: string, rawInput: unknown) {
+export function setStaffRole(db: Database, adminUserAccountId: string, userAccountId: string, rawInput: unknown) {
+  return changeStaffRole(db, adminUserAccountId, userAccountId, rawInput, false);
+}
+
+// Demo servers only (../routes/settings.ts): any staff member switches their
+// own role, administrator included, to try each view.
+export function setOwnDemoRole(db: Database, userAccountId: string, rawInput: unknown) {
+  return changeStaffRole(db, userAccountId, userAccountId, rawInput, true);
+}
+
+async function changeStaffRole(
+  db: Database,
+  actorUserAccountId: string,
+  userAccountId: string,
+  rawInput: unknown,
+  ownRole: boolean,
+) {
   const parsed = z.object({ roleId: z.uuid() }).safeParse(rawInput);
   if (!parsed.success || !z.uuid().safeParse(userAccountId).success) {
     throw new ValidationError({ roleId: 'Choose a role.' });
@@ -92,7 +109,7 @@ export async function setStaffRole(db: Database, adminUserAccountId: string, use
     if (!account?.systemRoleId || !staffRoleIds.includes(account.systemRoleId)) {
       throw new NotFoundError('Staff account not found.');
     }
-    if (userAccountId === adminUserAccountId && parsed.data.roleId !== (await getAdminAccountRoleId(tx))) {
+    if (!ownRole && userAccountId === actorUserAccountId && parsed.data.roleId !== (await getAdminAccountRoleId(tx))) {
       throw new ValidationError({ roleId: 'Ask another administrator to change your own role.' });
     }
     if (account.systemRoleId === parsed.data.roleId) {
@@ -103,7 +120,7 @@ export async function setStaffRole(db: Database, adminUserAccountId: string, use
       entityType: 'user_account',
       entityId: userAccountId,
       eventType: 'system_role_changed',
-      actorUserAccountId: adminUserAccountId,
+      actorUserAccountId,
       occurredAt: new Date(),
       priorValues: { system_role_id: account.systemRoleId },
     });

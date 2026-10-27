@@ -1,7 +1,8 @@
 // Administrator settings: professional kinds and their rates, mileage rates,
-// billing rules with their codes, review routing and staff roles. Staff can
-// read most of them; only administrators change them.
-import { Router } from 'express';
+// billing rules with their codes, review routing, staff roles and, on demo
+// servers, demo tools. Staff can read most of them; only administrators
+// change them, except their own role in the demo tools.
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { db } from '../db/client';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { requireAdmin } from '../auth/requireAdmin';
@@ -16,7 +17,19 @@ import {
 } from '../billing/billingRules';
 import { getReviewSettings, setReviewSettings } from '../billing/reviewSettings';
 import { addDecisionReason, listDecisionReasons, updateDecisionReason } from '../billing/decisionReasons';
-import { addStaffAccount, listStaffAccounts, listStaffRoles, setStaffActive, setStaffRole } from '../auth/staffAccountRole';
+import {
+  addStaffAccount,
+  listStaffAccounts,
+  listStaffRoles,
+  setOwnDemoRole,
+  setStaffActive,
+  setStaffRole,
+} from '../auth/staffAccountRole';
+import { demoLoginEnabled } from '../auth/demoSettings';
+import { resetToDemoData } from '../db/demoData';
+import { documentStore } from '../imports/documentStore';
+import { removeUnreferencedFiles } from '../imports/invoiceImports';
+import { ConflictError, NotFoundError } from '../errors';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -174,6 +187,58 @@ router.put(
   requireAdmin,
   asyncHandler(async (req, res) => {
     res.json(await setBillingCodeActive(db, req.params.id as string, req.body));
+  }),
+);
+
+// Demo tools, only where the staff demo sign-in is on.
+function requireDemo(_req: Request, _res: Response, next: NextFunction): void {
+  next(demoLoginEnabled ? undefined : new NotFoundError('Demo tools are off on this server.'));
+}
+
+// Any staff member, not only administrators, switches their own role.
+router.get(
+  '/demo/role',
+  requireDemo,
+  asyncHandler(async (req, res) => {
+    const user = getSessionUser(req)!;
+    const [roles, people] = await Promise.all([listStaffRoles(db), listStaffAccounts(db)]);
+    const me = people.find((person) => person.userAccountId === user.userAccountId);
+    if (!me) {
+      throw new NotFoundError('Only staff accounts have a role to change.');
+    }
+    res.json({ roles, roleId: me.roleId });
+  }),
+);
+
+router.put(
+  '/demo/role',
+  requireDemo,
+  asyncHandler(async (req, res) => {
+    const user = getSessionUser(req)!;
+    res.json(await setOwnDemoRole(db, user.userAccountId, req.body));
+  }),
+);
+
+// Deletes everything, as `npm run seed` does, and recreates the synthetic
+// demo data. Accounts are recreated, so the caller signs in again.
+let resetting = false;
+router.post(
+  '/demo/reset',
+  requireDemo,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    if (resetting) {
+      throw new ConflictError('reset_in_progress', 'A reset is already running.');
+    }
+    resetting = true;
+    try {
+      const summary = await resetToDemoData();
+      await removeUnreferencedFiles(db, documentStore);
+      req.session = null;
+      res.json(summary);
+    } finally {
+      resetting = false;
+    }
   }),
 );
 
