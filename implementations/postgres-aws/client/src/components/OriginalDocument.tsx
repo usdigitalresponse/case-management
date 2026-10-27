@@ -32,6 +32,8 @@ async function load(source: FileSourceRef): Promise<Loaded> {
 const downloadUrl = (source: FileSourceRef) =>
   'importId' in source ? invoiceImportFileUrl(source.importId) : invoiceFileUrl(source.invoiceId);
 
+const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+
 // Where a line was read: "page 2, …" or "row 4".
 function parseLocation(location: string | undefined): { page?: number; row?: number } {
   if (!location) return {};
@@ -59,7 +61,21 @@ export function OriginalDocument({
   const { data, error } = useApiResource(() => load(source), [key]);
   const frame = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [pageCount, setPageCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
   const { page, row } = parseLocation(focus);
+  const zoomIndex = ZOOM_STEPS.indexOf(zoom);
+
+  // The page nearest the top of the frame, for "Page 1 of 2".
+  function trackPage() {
+    const element = frame.current;
+    if (!element) return;
+    const pages = [...element.querySelectorAll<HTMLElement>('.original-page')];
+    const line = element.scrollTop + element.clientHeight / 3;
+    const showing = pages.filter((canvas) => canvas.offsetTop <= line).at(-1);
+    setCurrentPage(Number(showing?.dataset.page ?? 1));
+  }
 
   useEffect(() => {
     const element = frame.current;
@@ -87,21 +103,63 @@ export function OriginalDocument({
           <h2>{heading}</h2>
           <span>{fileName}</span>
         </div>
-        <a href={downloadUrl(source)} download>
-          Download
-        </a>
+        <div className="original-document__tools">
+          {pageCount > 1 && (
+            <span className="original-document__page" aria-live="polite">
+              Page {currentPage} of {pageCount}
+            </span>
+          )}
+          {data && (
+            <span className="zoom-controls" role="group" aria-label="Zoom">
+              <button
+                type="button"
+                className="zoom-controls__step"
+                aria-label="Zoom out"
+                disabled={zoomIndex <= 0}
+                onClick={() => setZoom(ZOOM_STEPS[zoomIndex - 1] ?? zoom)}
+              >
+                −
+              </button>
+              <button
+                type="button"
+                className="zoom-controls__level"
+                title="Fit to width"
+                aria-label={`Zoom ${Math.round(zoom * 100)}%. Fit to width`}
+                onClick={() => setZoom(1)}
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button
+                type="button"
+                className="zoom-controls__step"
+                aria-label="Zoom in"
+                disabled={zoomIndex >= ZOOM_STEPS.length - 1}
+                onClick={() => setZoom(ZOOM_STEPS[zoomIndex + 1] ?? zoom)}
+              >
+                +
+              </button>
+            </span>
+          )}
+          <a href={downloadUrl(source)} download>
+            Download
+          </a>
+        </div>
       </div>
-      <div ref={frame} className="original-document__frame" tabIndex={0}>
+      <div ref={frame} className="original-document__frame" tabIndex={0} onScroll={trackPage}>
         {Boolean(error) && <p className="usa-error-message">The file couldn't be shown; download it instead.</p>}
         {!data && !error && <p role="status">Loading the file…</p>}
         {data?.preview.kind === 'pdf' && data.pdf && width > 0 && (
           <Suspense fallback={<p role="status">Loading the file…</p>}>
-            <PdfPages data={data.pdf} width={width} />
+            <PdfPages data={data.pdf} width={Math.round(width * zoom)} onPageCount={setPageCount} />
           </Suspense>
         )}
-        {data?.preview.kind === 'text' && <pre className="original-text">{data.preview.text}</pre>}
+        {data?.preview.kind === 'text' && (
+          <pre className="original-text" style={{ fontSize: `${0.78 * zoom}rem` }}>
+            {data.preview.text}
+          </pre>
+        )}
         {data?.preview.kind === 'rows' && (
-          <table className="original-rows">
+          <table className="original-rows" style={{ fontSize: `${0.8 * zoom}rem` }}>
             <tbody>
               {data.preview.rows.map((cells, rowIndex) => (
                 <tr key={rowIndex} data-row={rowIndex + 1} className={row === rowIndex + 1 ? 'original-rows__focus' : undefined}>

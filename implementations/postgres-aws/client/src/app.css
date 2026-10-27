@@ -450,6 +450,17 @@ form.compact-form { max-width: none; }
 .original-document__name span { font-size: .88rem; font-weight: 600; overflow-wrap: anywhere; }
 .original-document__bar a { flex: none; font-size: .85rem; font-weight: 600; text-align: right; }
 .original-rows__focus td, .original-rows__focus th { background: var(--warning-tint); }
+/* Page and zoom controls (components/OriginalDocument.tsx). */
+.original-document__frame { position: relative; }
+.original-document__bar { flex-wrap: wrap; align-items: center; }
+.original-document__tools { display: flex; flex: none; align-items: center; gap: .9rem; font-size: .85rem; color: var(--ink-muted); }
+.original-document__page { white-space: nowrap; }
+.zoom-controls { display: inline-flex; align-items: center; gap: .1rem; }
+.zoom-controls button { border: 0; background: none; color: var(--ink-muted); font: inherit; cursor: pointer; border-radius: 4px; }
+.zoom-controls button:hover:not(:disabled) { background: var(--neutral-tint); color: var(--ink); }
+.zoom-controls button:disabled { color: var(--line-strong); cursor: not-allowed; }
+.zoom-controls__step { width: 1.6rem; height: 1.6rem; font-size: 1rem; line-height: 1; }
+.zoom-controls__level { min-width: 3rem; padding: .15rem .25rem; font-variant-numeric: tabular-nums; }
 .original-document__frame { max-height: calc(100vh - 6rem); overflow: auto; padding: .6rem; background: var(--neutral-tint); }
 .original-document__frame:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
 .original-pages { display: flex; flex-direction: column; gap: .6rem; }

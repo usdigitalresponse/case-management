@@ -750,6 +750,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     file's total with the lines': a misread file says by how much and where
     to look; a difference the submitter made says which lines. Clicking a
     line scrolls the file to its page, or highlights its spreadsheet row.
+    The file viewer shows "Page N of M" and zooms from 50% to 300% (the
+    percentage resets to fit); PDF pages are redrawn by PDF.js at each
+    zoom, not scaled, so they stay sharp, and the document is read once.
     Gaps: the design's column matching for spreadsheets not on the template
     (F8) isn't built; a PDF line scrolls to its page rather than
     highlighting the line.
