@@ -1015,7 +1015,6 @@ export async function startUpload(file: File): Promise<{ uploadReadId: string }>
   return body as { uploadReadId: string };
 }
 
-// The cases an invoice may be for, as the upload offers them.
 export function listUploadCases(): Promise<{ cases: UploadCase[] }> {
   return request('/api/portal/uploads/cases');
 }

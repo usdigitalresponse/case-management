@@ -1,11 +1,6 @@
-// Upload invoices: drop one file or several. Each is read first, then the
-// submitter checks what was read (case, billing period, invoice number) one
-// file at a time; each checked file becomes a draft. One file goes straight
-// on to checking its lines; several go back to the list as drafts. Cancel
-// keeps none of them. With no file, "Enter an invoice by hand" asks the same
-// case and period, then goes straight on to adding its lines. Staff use it
-// from Intake for invoices received elsewhere, and may leave the case, and
-// whom it's from, for matching later.
+// Upload invoices, or enter one by hand: each file is read, then its case
+// and period are checked one at a time and it becomes a draft. Staff may
+// leave the case for matching later. See MAPPING.md "Structured invoice import".
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -306,8 +301,7 @@ function DetailsForm({
 
 const NO_DETAILS: Details = { caseOption: '', fromProfessionalId: '', periodStart: '', periodEnd: '', invoiceNumber: '' };
 
-// "Enter an invoice by hand": the same case and period as an upload, then
-// straight on to adding its lines on the check-the-lines page.
+// Starts an empty draft, then adds its lines on the check-the-lines page.
 function ManualEntry({ onCancel }: { onCancel: () => void }) {
   const navigate = useNavigate();
   const { staff } = useShell();
@@ -316,7 +310,6 @@ function ManualEntry({ onCancel }: { onCancel: () => void }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // The only case is chosen for you.
   const cases = data ?? [];
   const chosen = details.caseOption || (cases.length === 1 && !staff ? optionValue(cases[0]!) : '');
 
@@ -389,7 +382,6 @@ export default function PortalUpload() {
   // Staff come from and go back to Intake; submitters to their invoices.
   const { staff, invoicesPath, invoicesLabel } = useShell();
   const [entries, setEntries] = useState<Entry[]>([]);
-  // Entering an invoice by hand instead of uploading a file.
   const [manual, setManual] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -428,7 +420,6 @@ export default function PortalUpload() {
     }
   }
 
-  // Polls files still being read.
   const reading = entries.filter((entry) => entry.uploadReadId && !entry.error && (!entry.read || entry.read.status === 'reading'));
   const readingKey = reading.map((entry) => entry.key).join(',');
   useEffect(() => {

@@ -1,6 +1,6 @@
 // Shell for external (email-code) users: one top bar, no sidebar, opening
-// on their invoices. Pages outside the submission design (cases, typing an
-// invoice by hand, bulk import) stay reachable by address but out of view.
+// on their invoices. Pages outside the submission design (cases, the older
+// manual-entry form, bulk import) stay reachable by address but out of view.
 // See ../AuthContext.tsx and ../../MAPPING.md "Case assignment, scoped to
 // external submitters".
 import { Routes, Route, Link, Navigate } from 'react-router';

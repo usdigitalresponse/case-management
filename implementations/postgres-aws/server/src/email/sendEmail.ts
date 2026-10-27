@@ -1,5 +1,5 @@
-// Thin send-an-email abstraction, used today only by the email-code flow
-// (../routes/auth.ts). Sends via AWS SES when SES_SENDER_EMAIL is
+// Thin send-an-email abstraction, for sign-in codes (../routes/auth.ts) and
+// invoice receipts (../billing/invoiceLifecycle.ts). Sends via AWS SES when SES_SENDER_EMAIL is
 // configured; otherwise falls back to logging the message, the same
 // "optional, falls back" shape as ../auth/oidcProviders.ts's
 // configureOidcProviders, so local dev needs no AWS setup. The SES client

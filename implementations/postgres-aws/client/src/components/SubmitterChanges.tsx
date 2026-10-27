@@ -1,6 +1,5 @@
-// What a submitter changed from their file before sending (E9), for the
-// review page: a marker and the value read on changed lines, and the lines
-// they removed, in view but needing no decision.
+// On the review page: what the submitter changed from their file, and the
+// lines they removed, which need no decision.
 import type { FileLine, FileSource, InvoiceLineType, InvoiceReviewLine } from '../api/client';
 import { changedFields, formatQuantity, readLineType, type LineValues } from '../fileChanges';
 import { formatDate } from '../formatDateTime';

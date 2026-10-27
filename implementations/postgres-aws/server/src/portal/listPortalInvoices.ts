@@ -90,7 +90,7 @@ export async function listPortalInvoices(db: Database, reader: PortalActor, case
       return {
         ...row,
         caseNumber: caseNumbers.get(row.caseId)?.caseNumber ?? null,
-        // A draft still read from a file: its lines haven't been checked.
+        // The import a draft was read from, if any.
         import: imported,
         // A draft's changes from its file so far.
         changes: imported ? await draftChanges(db, row.invoiceId) : null,

@@ -25,7 +25,7 @@ import {
   userAccount,
 } from '../db/schema';
 import { authorizeBilling, isStaffAccount, type PortalActor } from '../portal/portalActor';
-import { confirmedDocumentIds, releaseDocumentIfUnneeded } from '../imports/documentRetention';
+import { importDocumentIds, releaseDocumentIfUnneeded } from '../imports/documentRetention';
 import { sendEmail } from '../email/sendEmail';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { recordInvoiceEvent } from './invoiceEvents';
@@ -386,9 +386,12 @@ export async function submitInTx(
   tx: Transaction,
   actor: PortalActor,
   invoiceId: string,
-  // withoutCase: staff chose to review an invoice with no case
-  // (match_invoice_to_case). attested: the submitter ticked the statement.
-  options: { withoutCase?: boolean; attested?: boolean } = {},
+  options: {
+    // Staff chose to review it with no case (match_invoice_to_case).
+    withoutCase?: boolean;
+    // The submitter ticked ATTESTATION_STATEMENT.
+    attested?: boolean;
+  } = {},
 ): Promise<void> {
   const staff = await isStaffAccount(tx, actor.userAccountId);
   if (!staff && !options.attested) {
@@ -624,7 +627,7 @@ export async function withdrawInvoice(db: Database, actor: PortalActor, invoiceI
     }
     await withdrawDraftInTx(tx, invoiceId, { actorUserAccountId: actor.userAccountId });
     // The hourly sweep deletes a released file (../imports/invoiceImports.ts expireInvoiceImports).
-    for (const documentId of await confirmedDocumentIds(tx, invoiceId)) {
+    for (const documentId of await importDocumentIds(tx, invoiceId)) {
       // eslint-disable-next-line no-await-in-loop
       await tx.select({ documentId: document.documentId }).from(document).where(eq(document.documentId, documentId)).for('update');
       // eslint-disable-next-line no-await-in-loop

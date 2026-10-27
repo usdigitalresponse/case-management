@@ -3,8 +3,7 @@ import { ATTESTATION_STATEMENT } from '../api/client';
 import { Dialog } from '../components/Dialog';
 import { formatMoney } from '../formatMoney';
 
-// Sending for review (F9): one confirmation with what is being sent and the
-// true-and-correct tick, without which Send does nothing.
+// Confirms what is being sent; Send stays off until the true-and-correct tick.
 export function SendDialog({
   caseLabel,
   period,

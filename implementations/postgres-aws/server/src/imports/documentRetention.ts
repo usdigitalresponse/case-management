@@ -1,8 +1,5 @@
-// How long an uploaded file is kept: while any import of it is still being
-// checked, or its confirmed request is still live (not withdrawn), so the
-// submitter and reviewers can see it beside the lines. A request's file goes
-// when the request is withdrawn or deleted. Payment completion isn't recorded
-// yet, so a live request's file stays until then (see ../../MAPPING.md).
+// An uploaded file is kept while any import of it is unresolved or its
+// request is live, and goes when the request is withdrawn or deleted.
 import { and, eq, inArray, ne, or, sql } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
 import { document, invoice, invoiceImport, invoiceImportStatuses, invoiceStatuses } from '../db/schema';
@@ -44,8 +41,8 @@ export async function releaseDocumentIfUnneeded(tx: Transaction, documentId: str
   return released?.storageReference;
 }
 
-// The file behind a request's confirmed import, for withdrawing it.
-export async function confirmedDocumentIds(tx: Transaction, invoiceId: string): Promise<string[]> {
+// The files behind a request's imports, for releasing them when it's withdrawn.
+export async function importDocumentIds(tx: Transaction, invoiceId: string): Promise<string[]> {
   const rows = await tx
     .select({ documentId: invoiceImport.documentId })
     .from(invoiceImport)

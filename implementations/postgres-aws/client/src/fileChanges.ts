@@ -86,7 +86,8 @@ export function changeSentence(read: FileLine, line: LineValues, fields: Changed
   return `You changed ${joined}.`;
 }
 
-// Index of an earlier line with the same date, words and amount.
+// Each line with the same date, words and amount as an earlier one, by row
+// number, mapped to that earlier line's number.
 export function duplicateOf<L>(rows: Array<Row<L>>, valuesOf: (line: L) => LineValues & { total: number | null }): Map<number, number> {
   const seen = new Map<string, number>();
   const duplicates = new Map<number, number>();

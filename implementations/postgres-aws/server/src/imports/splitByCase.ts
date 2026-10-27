@@ -1,11 +1,6 @@
 // Files read before their case is known (model/rules.yaml
-// validate_invoice_import). A file designated to one professional, whose
-// lines name their cases, is previewed with a suggested case per line, then,
-// once the uploader has assigned every line, split into one import and
-// draft per case sharing one document. A portal upload is one invoice: read
-// first, then the submitter confirms its case, period and invoice number
-// (with the case suggested where the file makes it clear) and it becomes
-// one import and draft.
+// validate_invoice_import): split by case for one professional, or a portal
+// upload whose case is confirmed after reading. See MAPPING.md.
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';

@@ -1,6 +1,5 @@
-// The lines beside the file (F5–F7, F10): each line in file order, with what
-// the submitter changed, removed lines struck through, and on a draft, an
-// Edit panel like Approve part on the review side.
+// An invoice's lines in file order, with what the submitter changed and
+// removed lines struck through; on a draft, an Edit panel under a line.
 import { Fragment, useState, type ReactNode } from 'react';
 import type { FileLine, ImportWarning, InvoiceLineType } from '../api/client';
 import { emptyLine, type LineDraft } from '../components/InvoiceLinesEditor';
@@ -160,9 +159,7 @@ export interface CheckLinesTableProps {
   context: PricingContext;
   warnings: ImportWarning[];
   duplicates: Map<number, number>;
-  // Off once sent: the lines are locked.
   editable: boolean;
-  // The row whose place in the file is shown.
   focus: string | undefined;
   onFocus: (location: string | undefined) => void;
   onSaveLine: (index: number | null, draft: LineDraft, number: number) => void;

@@ -1,8 +1,6 @@
 // Supporting invoice import (model/workflows.yaml invoice_import): a file
-// becomes a draft to correct and confirm. The file is deleted on discard or
-// expiry, and kept with a confirmed request until it is withdrawn or
-// deleted (./documentRetention.ts); parsed values stay unchanged in
-// extraction_result.
+// becomes a draft to correct and confirm. Parsed values stay unchanged in
+// extraction_result; for how long the file is kept, see ./documentRetention.ts.
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm';

@@ -1,7 +1,5 @@
-// One invoice in the portal (F5–F11): the file on the left as uploaded, the
-// lines on the right. A draft's lines can be changed, removed, put back and
-// added, saving as they go; then it is sent with the true-and-correct tick.
-// Once sent the lines lock, and it can be withdrawn until review starts.
+// One invoice in the portal: its file beside its lines. A draft's lines save
+// as they change; once sent they lock, and it can be withdrawn until review starts.
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useParams } from 'react-router';
 import {
