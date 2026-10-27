@@ -1,4 +1,4 @@
-// Thin send-an-email abstraction, used today only by the magic-link flow
+// Thin send-an-email abstraction, used today only by the email-code flow
 // (../routes/auth.ts). Sends via AWS SES when SES_SENDER_EMAIL is
 // configured; otherwise falls back to logging the message, the same
 // "optional, falls back" shape as ../auth/oidcProviders.ts's

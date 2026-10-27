@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { BrowserRouter, Routes, Route, Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { AuthProvider, useAuth } from './AuthContext';
 import LoginPage from './pages/LoginPage';
-import MagicLinkConfirm from './pages/MagicLinkConfirm';
+import PortalSignIn from './portal/PortalSignIn';
 import CaseList from './pages/CaseList';
 import CaseDetail from './pages/CaseDetail';
 import NewCaseIntake from './pages/NewCaseIntake';
@@ -153,7 +153,7 @@ function NewInvoiceRedirect() {
 }
 
 // Order matters: loading (render nothing, don't flash the login screen),
-// signed out (LoginPage, or the emailed link's confirm page), magic-link
+// signed out (LoginPage, or the portal sign-in), email-code
 // (narrow portal shell), else staff layout.
 function AppContent() {
   const { user, loading, logout } = useAuth();
@@ -163,12 +163,12 @@ function AppContent() {
   if (!user) {
     return (
       <Routes>
-        <Route path="/sign-in/verify" element={<MagicLinkConfirm />} />
+        <Route path="/submit" element={<PortalSignIn />} />
         <Route path="*" element={<LoginPage />} />
       </Routes>
     );
   }
-  if (user.authType === 'magic-link') {
+  if (user.authType === 'email-code') {
     return <ExternalPortalApp />;
   }
   return (

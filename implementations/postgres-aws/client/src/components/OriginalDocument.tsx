@@ -1,5 +1,13 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { getImportFileBytes, getImportPreview, invoiceImportFileUrl, type ImportPreview } from '../api/client';
+import {
+  fileBytes,
+  getImportFileBytes,
+  getImportPreview,
+  getInvoiceFilePreview,
+  invoiceFileUrl,
+  invoiceImportFileUrl,
+  type ImportPreview,
+} from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 
 const PdfPages = lazy(() => import('./PdfPages'));
@@ -9,16 +17,49 @@ interface Loaded {
   pdf?: ArrayBuffer;
 }
 
-async function load(importId: string): Promise<Loaded> {
-  const preview = await getImportPreview(importId);
-  return preview.kind === 'pdf' ? { preview, pdf: await getImportFileBytes(importId) } : { preview };
+// The uploader reads it through their import; staff through the request.
+export type FileSourceRef = { importId: string } | { invoiceId: string };
+
+async function load(source: FileSourceRef): Promise<Loaded> {
+  if ('importId' in source) {
+    const preview = await getImportPreview(source.importId);
+    return preview.kind === 'pdf' ? { preview, pdf: await getImportFileBytes(source.importId) } : { preview };
+  }
+  const preview = await getInvoiceFilePreview(source.invoiceId);
+  return preview.kind === 'pdf' ? { preview, pdf: await fileBytes(invoiceFileUrl(source.invoiceId)) } : { preview };
 }
 
-// The uploaded file beside import review: PDF pages, text or a table.
-export function OriginalDocument({ importId, fileName }: { importId: string; fileName: string }) {
-  const { data, error } = useApiResource(() => load(importId), [importId]);
+const downloadUrl = (source: FileSourceRef) =>
+  'importId' in source ? invoiceImportFileUrl(source.importId) : invoiceFileUrl(source.invoiceId);
+
+// Where a line was read: "page 2, …" or "row 4".
+function parseLocation(location: string | undefined): { page?: number; row?: number } {
+  if (!location) return {};
+  const page = /^page (\d+)/.exec(location)?.[1];
+  const row = /row (\d+)/.exec(location)?.[1];
+  return { page: page ? Number(page) : undefined, row: row && !page ? Number(row) : undefined };
+}
+
+// The uploaded file beside its lines: PDF pages, text or a table. `focus`
+// is the location of the line in view; its page scrolls into view, or its
+// spreadsheet row is highlighted.
+export function OriginalDocument({
+  fileName,
+  heading = 'Original file',
+  focus,
+  ...rest
+}: {
+  fileName: string;
+  heading?: string;
+  focus?: string;
+} & ({ importId: string } | { invoiceId: string })) {
+  const source: FileSourceRef = 'importId' in rest ? { importId: rest.importId } : { invoiceId: rest.invoiceId };
+  const key = 'importId' in source ? source.importId : source.invoiceId;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const { data, error } = useApiResource(() => load(source), [key]);
   const frame = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
+  const { page, row } = parseLocation(focus);
 
   useEffect(() => {
     const element = frame.current;
@@ -30,19 +71,31 @@ export function OriginalDocument({ importId, fileName }: { importId: string; fil
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const target = page
+      ? document.getElementById(`original-page-${page}`)
+      : row
+        ? frame.current?.querySelector(`[data-row="${row}"]`)
+        : null;
+    target?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [page, row, data]);
+
   return (
-    <section className="original-document" aria-label={`Original file: ${fileName}`}>
+    <section className="original-document" aria-label={`${heading}: ${fileName}`}>
       <div className="original-document__bar">
-        <h2>Original file</h2>
-        <a href={invoiceImportFileUrl(importId)} download>
-          Download {fileName}
+        <div className="original-document__name">
+          <h2>{heading}</h2>
+          <span>{fileName}</span>
+        </div>
+        <a href={downloadUrl(source)} download>
+          Download
         </a>
       </div>
       <div ref={frame} className="original-document__frame" tabIndex={0}>
-        {Boolean(error) && <p className="usa-error-message">The original file couldn't be shown; download it instead.</p>}
-        {!data && !error && <p role="status">Loading the original…</p>}
+        {Boolean(error) && <p className="usa-error-message">The file couldn't be shown; download it instead.</p>}
+        {!data && !error && <p role="status">Loading the file…</p>}
         {data?.preview.kind === 'pdf' && data.pdf && width > 0 && (
-          <Suspense fallback={<p role="status">Loading the original…</p>}>
+          <Suspense fallback={<p role="status">Loading the file…</p>}>
             <PdfPages data={data.pdf} width={width} />
           </Suspense>
         )}
@@ -50,10 +103,10 @@ export function OriginalDocument({ importId, fileName }: { importId: string; fil
         {data?.preview.kind === 'rows' && (
           <table className="original-rows">
             <tbody>
-              {data.preview.rows.map((row, rowIndex) => (
-                <tr key={rowIndex}>
+              {data.preview.rows.map((cells, rowIndex) => (
+                <tr key={rowIndex} data-row={rowIndex + 1} className={row === rowIndex + 1 ? 'original-rows__focus' : undefined}>
                   <th scope="row">{rowIndex + 1}</th>
-                  {row.map((cell, cellIndex) => (
+                  {cells.map((cell, cellIndex) => (
                     <td key={cellIndex}>{cell}</td>
                   ))}
                 </tr>

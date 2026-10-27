@@ -67,19 +67,19 @@ describe('staff entering an invoice received outside the system', () => {
     expect(await billableProfessionalIds(testDb, staff, caseId)).toEqual([assigned.professionalId]);
 
     await expect(
-      createInvoice(testDb, staff, { caseId, professionalId: assigned.professionalId, ...expense }),
+      createInvoice(testDb, staff, { attested: true, caseId, professionalId: assigned.professionalId, ...expense }),
     ).rejects.toThrow(ValidationError);
     await expect(
-      createInvoice(testDb, staff, { caseId, professionalId: assigned.professionalId, receivedVia: 'email', receivedOn: '2999-01-01', ...expense }),
+      createInvoice(testDb, staff, { attested: true, caseId, professionalId: assigned.professionalId, receivedVia: 'email', receivedOn: '2999-01-01', ...expense }),
     ).rejects.toThrow(ValidationError);
 
-    const { invoiceId: draftId } = await createInvoice(testDb, staff, {
+    const { invoiceId: draftId } = await createInvoice(testDb, staff, { attested: true,
       caseId,
       professionalId: assigned.professionalId,
       submit: false,
       ...expense,
     });
-    await submitInvoice(testDb, staff, draftId, { receivedVia: 'email', receivedOn: '2026-02-02' });
+    await submitInvoice(testDb, staff, draftId, { attested: true, receivedVia: 'email', receivedOn: '2026-02-02' });
     const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, draftId));
     expect(row?.submittedByUserAccountId).toBe(fixtures.staffUserAccountId);
     expect(row?.receivedOn).toBe('2026-02-02');
@@ -95,7 +95,7 @@ describe('staff entering an invoice received outside the system', () => {
     const assigned = await createProfessional('assigned@example.com');
     const caseId = await createCaseAssignedTo([assigned.professionalId]);
     const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
-    const { invoiceId } = await createInvoice(testDb, staff, {
+    const { invoiceId } = await createInvoice(testDb, staff, { attested: true,
       caseId,
       professionalId: assigned.professionalId,
       receivedVia: 'other_tool',
@@ -112,7 +112,7 @@ describe('staff entering an invoice received outside the system', () => {
     const own = await createProfessional('own@example.com');
     const caseId = await createCaseAssignedTo([own.professionalId]);
     const actor = await resolvePortalActor(testDb, own.userAccountId);
-    const { invoiceId } = await createInvoice(testDb, actor, { caseId, ...expense });
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, ...expense });
     const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
     expect(row?.receivedViaId).toBeNull();
   });

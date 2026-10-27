@@ -26,7 +26,7 @@ The fixture contains:
 - A supporting invoice reference, synthetic attestation, and frozen submission
   snapshot. No electronic signature assurance is claimed.
 - A confirmed import of that supporting invoice: synthetic document metadata
-  whose content was deleted on confirmation, an extraction result with
+  whose content was deleted once it was no longer needed, an extraction result with
   confidences, and supplier-stated line detail. The draft was created from the
   import and then submitted.
 - External completion confirmation with a source and recording actor/time. Actual

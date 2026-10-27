@@ -86,13 +86,13 @@ describe('deleting invoices that were never submitted', () => {
   it('deletes a draft with its lines and events, and a withdrawn one too', async () => {
     const { actor, caseId } = await setup();
     const store = memoryStore();
-    const draft = await createInvoice(testDb, actor, { caseId, submit: false, lines: [{ amount: 10 }] });
+    const draft = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ amount: 10 }] });
     await deleteUnsubmittedInvoice(testDb, store, actor, draft.invoiceId);
     expect(await exists(draft.invoiceId)).toBe(false);
     expect(await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, draft.invoiceId))).toHaveLength(0);
     expect(await testDb.select().from(invoiceEvent).where(eq(invoiceEvent.invoiceId, draft.invoiceId))).toHaveLength(0);
 
-    const withdrawn = await createInvoice(testDb, actor, { caseId, submit: false, lines: [{ amount: 10 }] });
+    const withdrawn = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ amount: 10 }] });
     await withdrawInvoice(testDb, actor, withdrawn.invoiceId);
     await deleteUnsubmittedInvoice(testDb, store, actor, withdrawn.invoiceId);
     expect(await exists(withdrawn.invoiceId)).toBe(false);
@@ -101,7 +101,7 @@ describe('deleting invoices that were never submitted', () => {
   it('refuses a submitted invoice, but deletes one recalled before review with its submission history', async () => {
     const { actor, caseId } = await setup();
     const store = memoryStore();
-    const { invoiceId } = await createInvoice(testDb, actor, { caseId, lines: [{ amount: 10 }] });
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, lines: [{ amount: 10 }] });
     await expect(deleteUnsubmittedInvoice(testDb, store, actor, invoiceId)).rejects.toThrow(InvoiceStateError);
     expect(await isInvoiceDeletableBy(testDb, actor.userAccountId, invoiceId)).toBe(false);
 
@@ -115,7 +115,7 @@ describe('deleting invoices that were never submitted', () => {
 
   it('keeps an invoice once a review decision is recorded', async () => {
     const { actor, caseId } = await setup();
-    const { invoiceId } = await createInvoice(testDb, actor, { caseId, submit: false, lines: [{ amount: 10 }] });
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ amount: 10 }] });
     // A decision on an earlier attempt; the workflow itself only allows
     // recall before review, so this guards the data, not a reachable flow.
     const [chain] = await testDb
@@ -140,7 +140,7 @@ describe('deleting invoices that were never submitted', () => {
   it("treats another user's invoice as not found", async () => {
     const owner = await setup();
     const other = await setup();
-    const { invoiceId } = await createInvoice(testDb, owner.actor, { caseId: owner.caseId, submit: false, lines: [{ amount: 10 }] });
+    const { invoiceId } = await createInvoice(testDb, owner.actor, { attested: true, caseId: owner.caseId, submit: false, lines: [{ amount: 10 }] });
     await expect(deleteUnsubmittedInvoice(testDb, memoryStore(), other.actor, invoiceId)).rejects.toThrow(InvoiceNotFoundError);
   });
 
@@ -165,7 +165,7 @@ describe('deleting invoices that were never submitted', () => {
       lines: [{ amount: 150, lineType: 'time', serviceDate: '2026-01-10', quantity: 1.5, timekeeperProfessionalId: actor.professionalId! }],
     });
     await confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId);
-    await submitInvoice(testDb, actor, invoiceId);
+    await submitInvoice(testDb, actor, invoiceId, { attested: true });
     expect(await testDb.select().from(timeEntry).where(eq(timeEntry.sourceInvoiceImportId, uploaded.invoiceImportId))).toHaveLength(1);
 
     await recallInvoice(testDb, actor, invoiceId);
@@ -178,8 +178,8 @@ describe('deleting invoices that were never submitted', () => {
 describe('the portal invoice list', () => {
   it('says whether each can be deleted, and when a recalled one was submitted', async () => {
     const { actor, caseId } = await setup();
-    const draft = await createInvoice(testDb, actor, { caseId, submit: false, lines: [{ amount: 10 }] });
-    const recalled = await createInvoice(testDb, actor, { caseId, lines: [{ amount: 10 }] });
+    const draft = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ amount: 10 }] });
+    const recalled = await createInvoice(testDb, actor, { attested: true, caseId, lines: [{ amount: 10 }] });
     await recallInvoice(testDb, actor, recalled.invoiceId);
 
     const rows = await listPortalInvoices(testDb, actor, caseId);

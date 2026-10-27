@@ -14,6 +14,7 @@ import {
 import { InvoiceImportForm } from '../components/InvoiceImportForm';
 import { PeriodFields } from '../components/PeriodFields';
 import { Notice } from '../components/Notice';
+import { AttestationCheckbox } from '../components/AttestationCheckbox';
 import { useReceipt } from './ReceivedFields';
 import { LATER, useShell } from './useShell';
 
@@ -78,6 +79,7 @@ export function NewInvoiceForm({
   const [saved, setSaved] = useState<'draft' | 'submitted' | null>(null);
   const [mode, setMode] = useState<'enter' | 'import'>('enter');
   const receipt = useReceipt('new-invoice');
+  const [attested, setAttested] = useState(false);
 
   // Staff holding an invoice with no case may also leave who it's from to matching.
   const professionalLater = billedProfessionalId === LATER;
@@ -97,8 +99,10 @@ export function NewInvoiceForm({
         periodEnd: period.end || undefined,
         lines: linesFromDrafts(lines),
         ...receipt.payload,
+        attested: submit && !staff ? attested : undefined,
       });
       setPeriod({ start: '', end: '' });
+      setAttested(false);
       receipt.reset();
       setSaved(submit ? 'submitted' : 'draft');
       // Refilled from what's still unbilled once the time reloads.
@@ -195,7 +199,8 @@ export function NewInvoiceForm({
             </div>
           ) : (
             <div className="invoice-actions">
-              <button type="submit" className="btn btn--primary" disabled={submitting || !canSave || receipt.missing}>
+              {!staff && <AttestationCheckbox id="new-invoice-attested" checked={attested} onChange={setAttested} />}
+              <button type="submit" className="btn btn--primary" disabled={submitting || !canSave || receipt.missing || (!staff && !attested)}>
                 {submitting ? 'Saving…' : 'Submit invoice'}
               </button>
               <button type="button" className="btn btn--outline" disabled={submitting || !canSave} onClick={() => void save(false)}>

@@ -5,19 +5,27 @@ import { formatMoney } from '../formatMoney';
 import { isMileage, lineDate, lineDescription, lineHours, lineRate, lineTimekeeper, lineType } from '../invoiceLineDisplay';
 
 // An invoice's lines as reviewers and submitters both see them, with an
-// optional decision column and a panel under a line.
+// optional decision column and a panel under a line. The notes add what the
+// submitter changed from the file: under the description, the hours and
+// the amount.
 export function InvoiceLinesTable<L extends PortalInvoiceLine>({
   lines,
   decisionHeader,
   decision,
   rowClassName,
   rowDetail,
+  note,
+  hoursNote,
+  amountNote,
 }: {
   lines: L[];
   decisionHeader?: string;
   decision?: (line: L) => ReactNode;
   rowClassName?: (line: L) => string | undefined;
   rowDetail?: (line: L) => ReactNode;
+  note?: (line: L) => ReactNode;
+  hoursNote?: (line: L) => ReactNode;
+  amountNote?: (line: L) => ReactNode;
 }) {
   return (
     <RecordTable
@@ -38,12 +46,31 @@ export function InvoiceLinesTable<L extends PortalInvoiceLine>({
                 {lineType(line)} · {lineTimekeeper(line)}
                 {isMileage(line) && line.tripOrigin && line.tripDestination ? ` · ${line.tripOrigin} → ${line.tripDestination}` : ''}
               </span>
+              {note?.(line)}
             </>
           ),
         },
-        { header: lines.some(isMileage) ? 'Hours / miles' : 'Hours', align: 'right', render: (line) => lineHours(line) },
+        {
+          header: lines.some(isMileage) ? 'Hours / miles' : 'Hours',
+          align: 'right',
+          render: (line) => (
+            <>
+              {lineHours(line)}
+              {hoursNote?.(line)}
+            </>
+          ),
+        },
         { header: 'Rate', align: 'right', render: (line) => lineRate(line) },
-        { header: 'Requested', align: 'right', render: (line) => <strong>{formatMoney(line.amount)}</strong> },
+        {
+          header: 'Requested',
+          align: 'right',
+          render: (line) => (
+            <>
+              <strong>{formatMoney(line.amount)}</strong>
+              {amountNote?.(line)}
+            </>
+          ),
+        },
         ...(decision ? [{ header: decisionHeader ?? 'Decision', className: 'decision-cell', render: decision }] : []),
       ]}
     />

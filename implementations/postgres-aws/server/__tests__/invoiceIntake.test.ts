@@ -54,7 +54,7 @@ describe('invoice intake', () => {
   it('holds an invoice with no case until staff match it, adding the provider to the case', async () => {
     const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
     const provider = await addProvider();
-    const { invoiceId } = await createInvoice(testDb, staff, {
+    const { invoiceId } = await createInvoice(testDb, staff, { attested: true,
       caseId: null,
       professionalId: provider.professionalId,
       submit: false,
@@ -88,7 +88,7 @@ describe('invoice intake', () => {
   it('holds an invoice with no professional either, chosen and priced when it is matched', async () => {
     const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
     const provider = await addProvider();
-    const { invoiceId } = await createInvoice(testDb, staff, {
+    const { invoiceId } = await createInvoice(testDb, staff, { attested: true,
       caseId: null,
       professionalId: null,
       submit: false,
@@ -97,9 +97,9 @@ describe('invoice intake', () => {
     });
     // Only as a held draft: not with a case, and not submitted.
     await expect(
-      createInvoice(testDb, staff, { caseId: await openCase(), professionalId: null, submit: false, ...items }),
+      createInvoice(testDb, staff, { attested: true, caseId: await openCase(), professionalId: null, submit: false, ...items }),
     ).rejects.toThrow();
-    await expect(submitInvoice(testDb, staff, invoiceId, { ...receipt, withoutCase: true })).rejects.toThrow(ValidationError);
+    await expect(submitInvoice(testDb, staff, invoiceId, { attested: true, ...receipt, withoutCase: true })).rejects.toThrow(ValidationError);
 
     const caseId = await openCase();
     await expect(matchInvoiceToCase(testDb, fixtures.staffUserAccountId, invoiceId, { caseId, addMissing: true })).rejects.toThrow(
@@ -118,7 +118,7 @@ describe('invoice intake', () => {
   it('lets staff review an invoice without a case, flagged everywhere', async () => {
     const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
     const provider = await addProvider();
-    const { invoiceId } = await createInvoice(testDb, staff, {
+    const { invoiceId } = await createInvoice(testDb, staff, { attested: true,
       caseId: null,
       professionalId: provider.professionalId,
       withoutCase: true,
@@ -137,7 +137,7 @@ describe('invoice intake', () => {
     const [account] = await testDb.insert(userAccount).values({ displayName: 'Vendor', email: 'vendor@example.com', active: true }).returning();
     const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, 'Vendor');
     const vendor = await resolvePortalActor(testDb, account!.userAccountId);
-    await expect(createInvoice(testDb, vendor, { caseId: null, professionalId, ...items })).rejects.toThrow(NotAssignedToCaseError);
+    await expect(createInvoice(testDb, vendor, { attested: true, caseId: null, professionalId, ...items })).rejects.toThrow(NotAssignedToCaseError);
     await expect(listInvoiceIntake(testDb, account!.userAccountId)).rejects.toThrow();
   });
 

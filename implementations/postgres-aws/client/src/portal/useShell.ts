@@ -4,6 +4,9 @@ import { useAuth } from '../AuthContext';
 // staff entering invoices received outside the system (model/rules.yaml
 // authorize_staff_invoice_entry). Only these links differ between them.
 export const NEW_INVOICE_PATH = '/new-invoice';
+// External submitters start on their invoices and add new ones by upload.
+export const PORTAL_HOME_PATH = '/portal/invoices';
+export const UPLOAD_PATH = '/portal/upload';
 // Staff enter invoices, finish drafts and match invoices to cases here.
 export const INTAKE_PATH = '/intake';
 // The case (or professional) choice meaning "not known yet; match it later".
@@ -16,9 +19,9 @@ export function useShell() {
   return {
     staff,
     casePath: (caseId: string) => (staff ? `/cases/${caseId}` : `/portal/cases/${caseId}`),
-    newInvoicePath: staff ? INTAKE_PATH : NEW_INVOICE_PATH,
+    newInvoicePath: staff ? INTAKE_PATH : UPLOAD_PATH,
     newInvoiceLabel: staff ? 'Intake' : 'New invoice',
-    invoicesPath: staff ? INTAKE_PATH : '/portal/invoices',
+    invoicesPath: staff ? INTAKE_PATH : PORTAL_HOME_PATH,
     invoicesLabel: staff ? 'Intake' : 'Your invoices',
   };
 }

@@ -118,8 +118,9 @@ to the case; unmatched timekeepers block confirmation. A configured delegate
 role on an office affiliation lets support staff submit for professionals in
 that office; office membership alone grants nothing. Represented professionals
 do not approve or attest but may view and export those requests. Imported
-expense lines create expenses. Exports are not audited. Unresolved uploads
-expire after three days, and recall is allowed only before review begins.
+expense lines create expenses. Exports are not audited. Uploads that couldn't
+be read expire after three days (drafts read from a file no longer expire), and
+recall is allowed only before review begins.
 Draft or withdrawn requests may be deleted outright by their submitter until
 a review decision is recorded, including attempts recalled before review;
 after that a request is retained and can only be withdrawn.

@@ -21,7 +21,7 @@ import { asyncHandler } from './asyncHandler';
 
 const router = Router();
 // Full staff access only — this backs the intake form, which external
-// (magic-link) users never see.
+// (email-code) users never see.
 router.use(requireFullUser);
 
 router.get(

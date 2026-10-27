@@ -1,12 +1,17 @@
-// A file designated to one professional, whose lines name their cases
-// (model/rules.yaml validate_invoice_import): previewed with a suggested
-// case per line, then, once the uploader has assigned every line, split
-// into one import and draft per case sharing one document.
+// Files read before their case is known (model/rules.yaml
+// validate_invoice_import). A file designated to one professional, whose
+// lines name their cases, is previewed with a suggested case per line, then,
+// once the uploader has assigned every line, split into one import and
+// draft per case sharing one document. A portal upload is one invoice: read
+// first, then the submitter confirms its case, period and invoice number
+// (with the case suggested where the file makes it clear) and it becomes
+// one import and draft.
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client';
-import { caseAssignment, caseIdentifier, caseTable, person } from '../db/schema';
+import { caseAssignment, caseIdentifier, caseTable, person, professional, supportingInvoice } from '../db/schema';
+import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
@@ -89,9 +94,13 @@ export function suggestCaseForLabel(label: string | undefined, cases: SplitCase[
 // dropped with its file after an hour, and a restart forgets them all
 // (removeUnreferencedFiles clears their files at startup).
 interface SplitRead {
+  // Each kind is only reachable through its own routes.
+  kind: 'split' | 'upload';
   userAccountId: string;
-  professionalId: string;
+  // A split's professional; an upload's is chosen with its case.
+  professionalId: string | null;
   fileName?: string;
+  sizeBytes: number;
   storageReference: string;
   contentHash: string;
   mediaType: string;
@@ -142,12 +151,24 @@ export async function startCaseSplitRead(
   }
   const { professionalId } = params.data;
   await splitCases(db, actor, professionalId);
+  return { splitReadId: await beginRead(store, actor, 'split', professionalId, input) };
+}
+
+async function beginRead(
+  store: DocumentStore,
+  actor: PortalActor,
+  kind: SplitRead['kind'],
+  professionalId: string | null,
+  input: { fileName?: string; bytes: Buffer },
+): Promise<string> {
   const detected = detectInvoiceFile(input.bytes);
   const splitReadId = randomUUID();
   const read: SplitRead = {
+    kind,
     userAccountId: actor.userAccountId,
     professionalId,
     fileName: input.fileName,
+    sizeBytes: input.bytes.length,
     storageReference: await store.put(input.bytes),
     contentHash: sha256(input.bytes),
     mediaType: detected.mediaType,
@@ -162,7 +183,7 @@ export async function startCaseSplitRead(
   } else {
     queueSplitRead(store, splitReadId, read);
   }
-  return { splitReadId };
+  return splitReadId;
 }
 
 // Out here so the waiting job holds only the stored file's reference.
@@ -183,9 +204,9 @@ function queueSplitRead(store: DocumentStore, splitReadId: string, read: SplitRe
 }
 
 // Anyone but the uploader gets a 404.
-function ownRead(actor: PortalActor, splitReadId: string): SplitRead {
+function ownRead(actor: PortalActor, splitReadId: string, kind: SplitRead['kind'] = 'split'): SplitRead {
   const read = splitReads.get(splitReadId);
-  if (!read || read.userAccountId !== actor.userAccountId) {
+  if (!read || read.userAccountId !== actor.userAccountId || read.kind !== kind) {
     throw new CaseSplitReadNotFoundError();
   }
   return read;
@@ -199,11 +220,16 @@ export async function getCaseSplitRead(db: Database, actor: PortalActor, splitRe
   if (!read.parsed) {
     return { status: 'reading' as const, progress: extractionProgress(splitReadId) ?? null };
   }
-  return { status: 'ready' as const, preview: await splitPreview(db, actor, read.professionalId, read.parsed) };
+  return { status: 'ready' as const, preview: await splitPreview(db, actor, read.professionalId!, read.parsed) };
 }
 
-export async function discardCaseSplitRead(store: DocumentStore, actor: PortalActor, splitReadId: string) {
-  const read = ownRead(actor, splitReadId);
+export async function discardCaseSplitRead(
+  store: DocumentStore,
+  actor: PortalActor,
+  splitReadId: string,
+  kind: SplitRead['kind'] = 'split',
+) {
+  const read = ownRead(actor, splitReadId, kind);
   splitReads.delete(splitReadId);
   cancelExtraction(splitReadId);
   await store.delete(read.storageReference);
@@ -276,7 +302,8 @@ export async function uploadInvoiceFileByCase(db: Database, actor: PortalActor, 
   if (!parsed) {
     throw new ValidationError({ file: read.failure ?? 'The file is still being read.' });
   }
-  const cases = await splitCases(db, actor, read.professionalId);
+  const professionalId = read.professionalId!;
+  const cases = await splitCases(db, actor, professionalId);
   const allowed = new Set(cases.map((row) => row.caseId));
   if (input.caseIds.length !== parsed.lines.length) {
     throw new ValidationError({ caseIds: 'Assign a case to every line in the file.' });
@@ -313,7 +340,7 @@ export async function uploadInvoiceFileByCase(db: Database, actor: PortalActor, 
           documentId,
           contentHash: read.contentHash,
           caseId,
-          billedProfessionalId: read.professionalId,
+          billedProfessionalId: professionalId,
           extractionMethod: read.extractionMethod,
           extractedAt: now,
           // The file's stated total covers every case, so it isn't compared per case.
@@ -326,6 +353,220 @@ export async function uploadInvoiceFileByCase(db: Database, actor: PortalActor, 
     });
   } catch (error) {
     splitReads.set(input.splitReadId, read);
+    throw error;
+  }
+}
+
+// --- Portal upload: one file, one invoice, its case chosen after reading ---
+
+export interface UploadCase {
+  caseId: string;
+  // Whom an invoice on this case bills: the submitter, or a professional
+  // they act for (one option per pair).
+  professionalId: string;
+  caseNumber: string | null;
+  clientDisplayName: string | null;
+  professionalDisplayName: string | null;
+  keys: string[];
+}
+
+// Open cases where the user, or a professional they act for, is the
+// active assigned professional: the only cases an upload may go to.
+export async function uploadCases(db: Database, actor: PortalActor): Promise<UploadCase[]> {
+  const professionalIds = [
+    ...new Set([...(actor.professionalId ? [actor.professionalId] : []), ...(await representedProfessionalIds(db, actor.userAccountId))]),
+  ];
+  if (professionalIds.length === 0) {
+    return [];
+  }
+  const rows = await db
+    .selectDistinct({
+      caseId: caseTable.caseId,
+      professionalId: caseAssignment.professionalId,
+      externalReference: caseTable.externalReference,
+      clientDisplayName: person.displayName,
+      professionalDisplayName: professional.displayName,
+    })
+    .from(caseAssignment)
+    .innerJoin(caseTable, eq(caseAssignment.caseId, caseTable.caseId))
+    .innerJoin(professional, eq(caseAssignment.professionalId, professional.professionalId))
+    .leftJoin(person, eq(caseTable.clientId, person.personId))
+    .where(
+      and(inArray(caseAssignment.professionalId, professionalIds), isNull(caseAssignment.endedAt), isNull(caseTable.closedOn)),
+    )
+    .orderBy(asc(person.displayName));
+  const caseIds = [...new Set(rows.map((row) => row.caseId))];
+  const [numbers, identifiers] = await Promise.all([
+    loadCaseNumbers(db, caseIds),
+    caseIds.length === 0
+      ? Promise.resolve([])
+      : db.select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value }).from(caseIdentifier).where(inArray(caseIdentifier.caseId, caseIds)),
+  ]);
+  return rows.flatMap((row) =>
+    row.professionalId
+      ? [
+          {
+            caseId: row.caseId,
+            professionalId: row.professionalId,
+            caseNumber: numbers.get(row.caseId)?.caseNumber ?? row.externalReference,
+            clientDisplayName: row.clientDisplayName,
+            professionalDisplayName: row.professionalDisplayName,
+            keys: [row.externalReference, row.clientDisplayName, ...identifiers.filter((id) => id.caseId === row.caseId).map((id) => id.value)]
+              .flatMap((text) => (text ? [key(text)] : []))
+              .filter(Boolean),
+          },
+        ]
+      : [],
+  );
+}
+
+// A case only when the file makes it clear: the user has one case, the
+// file's lines name one case, or its name holds one case's number or
+// client's name (as in "Firm_Client_Sep.pdf"). Several matches suggest none.
+export function suggestUploadCase(
+  cases: UploadCase[],
+  parsed: ParsedInvoice,
+  fileName: string | undefined,
+): Pick<UploadCase, 'caseId' | 'professionalId'> | null {
+  const only = (matches: UploadCase[]) => (matches.length === 1 ? { caseId: matches[0]!.caseId, professionalId: matches[0]!.professionalId } : null);
+  if (cases.length === 1) {
+    return only(cases);
+  }
+  const labels = [...new Set(parsed.lines.flatMap((line) => (line.caseLabel ? [key(line.caseLabel)] : [])))];
+  if (labels.length === 1) {
+    const fromLines = only(cases.filter((row) => row.keys.includes(labels[0]!)));
+    if (fromLines) {
+      return fromLines;
+    }
+  }
+  const name = ` ${key((fileName ?? '').replace(/\.[a-z0-9]+$/i, ''))} `;
+  return only(
+    cases.filter((row) =>
+      row.keys.some((caseKey) => {
+        const surname = caseKey.split(' ').at(-1) ?? '';
+        return (caseKey.length >= 4 && name.includes(` ${caseKey} `)) || (surname.length >= 3 && name.includes(` ${surname} `));
+      }),
+    ),
+  );
+}
+
+export async function startUploadRead(
+  db: Database,
+  store: DocumentStore,
+  actor: PortalActor,
+  input: { fileName?: string; bytes: Buffer },
+): Promise<{ uploadReadId: string }> {
+  if ((await uploadCases(db, actor)).length === 0) {
+    throw new NotAssignedToCaseError();
+  }
+  return { uploadReadId: await beginRead(store, actor, 'upload', null, input) };
+}
+
+export async function getUploadRead(db: Database, actor: PortalActor, uploadReadId: string) {
+  const read = ownRead(actor, uploadReadId, 'upload');
+  const file = { fileName: read.fileName ?? 'uploaded-invoice', sizeBytes: read.sizeBytes, format: read.format };
+  if (read.failure) {
+    return { status: 'failed' as const, file, failureMessage: read.failure };
+  }
+  if (!read.parsed) {
+    return { status: 'reading' as const, file, progress: extractionProgress(uploadReadId) ?? null };
+  }
+  const cases = await uploadCases(db, actor);
+  const { parsed } = read;
+  return {
+    status: 'ready' as const,
+    file,
+    read: {
+      lineCount: parsed.lines.length,
+      invoiceNumber: parsed.invoiceNumber ?? null,
+      periodStart: parsed.periodStart ?? null,
+      periodEnd: parsed.periodEnd ?? null,
+      statedTotal: parsed.statedTotal ?? null,
+    },
+    cases: cases.map(({ keys: _keys, ...row }) => row),
+    suggested: suggestUploadCase(cases, parsed, read.fileName),
+  };
+}
+
+export function discardUploadRead(store: DocumentStore, actor: PortalActor, uploadReadId: string) {
+  return discardCaseSplitRead(store, actor, uploadReadId, 'upload');
+}
+
+const uploadDraftSchema = z
+  .object({
+    uploadReadId: z.uuid(),
+    caseId: z.uuid('Choose the case this invoice is for.'),
+    professionalId: z.uuid('Choose the case this invoice is for.'),
+    periodStart: z.iso.date('Enter the first day of the billing period.').optional(),
+    periodEnd: z.iso.date('Enter the last day of the billing period.').optional(),
+    invoiceNumber: z.string().trim().max(100, 'Keep the invoice number under 100 characters.').optional(),
+  })
+  .refine((input) => Boolean(input.periodStart) === Boolean(input.periodEnd), {
+    message: 'Enter both days of the billing period, or neither.',
+    path: ['periodEnd'],
+  })
+  .refine((input) => !input.periodStart || !input.periodEnd || input.periodEnd >= input.periodStart, {
+    message: 'The billing period must end on or after its first day.',
+    path: ['periodEnd'],
+  });
+
+// The checked file becomes one import and draft; its lines are checked next.
+export async function createDraftFromUpload(db: Database, actor: PortalActor, rawInput: unknown) {
+  const parsedInput = uploadDraftSchema.safeParse(rawInput);
+  if (!parsedInput.success) {
+    throw new ValidationError(fieldErrorsFromZodIssues(parsedInput.error.issues));
+  }
+  const input = parsedInput.data;
+  const read = ownRead(actor, input.uploadReadId, 'upload');
+  const { parsed } = read;
+  if (!parsed) {
+    throw new ValidationError({ file: read.failure ?? 'The file is still being read.' });
+  }
+  const allowed = (await uploadCases(db, actor)).some(
+    (row) => row.caseId === input.caseId && row.professionalId === input.professionalId,
+  );
+  if (!allowed) {
+    throw new NotAssignedToCaseError();
+  }
+
+  // Claimed for this request, so a second click can't make the draft twice;
+  // put back if it couldn't be made, to try again.
+  splitReads.delete(input.uploadReadId);
+  try {
+    return await db.transaction(async (tx) => {
+      const now = new Date();
+      const documentId = await insertDocument(
+        tx,
+        actor,
+        { storageReference: read.storageReference, fileName: read.fileName, mediaType: read.mediaType, contentHash: read.contentHash },
+        now,
+      );
+      const importId = await insertImport(tx, actor, { documentId, caseId: input.caseId, format: read.format, uploadedAt: now });
+      const invoiceId = await extractIntoDraft(tx, actor, {
+        importId,
+        documentId,
+        contentHash: read.contentHash,
+        caseId: input.caseId,
+        billedProfessionalId: input.professionalId,
+        extractionMethod: read.extractionMethod,
+        extractedAt: now,
+        parsed,
+        everyLineBilled: true,
+        checkedPeriod: { start: input.periodStart, end: input.periodEnd },
+      });
+      if (input.invoiceNumber) {
+        await tx.insert(supportingInvoice).values({
+          invoiceId,
+          invoiceNumber: input.invoiceNumber,
+          periodStart: input.periodStart ?? null,
+          periodEnd: input.periodEnd ?? null,
+          documentId,
+        });
+      }
+      return { invoiceImportId: importId, invoiceId };
+    });
+  } catch (error) {
+    splitReads.set(input.uploadReadId, read);
     throw error;
   }
 }

@@ -13,7 +13,16 @@ import {
   uploadInvoiceFile,
 } from '../imports/invoiceImports';
 import { templateCsv, templateXlsx } from '../imports/template';
-import { discardCaseSplitRead, getCaseSplitRead, startCaseSplitRead, uploadInvoiceFileByCase } from '../imports/splitByCase';
+import {
+  createDraftFromUpload,
+  discardCaseSplitRead,
+  discardUploadRead,
+  getCaseSplitRead,
+  getUploadRead,
+  startCaseSplitRead,
+  startUploadRead,
+  uploadInvoiceFileByCase,
+} from '../imports/splitByCase';
 import { previewFile } from '../imports/preview';
 import { findImportForInvoice } from '../imports/importedTimeEntries';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../billing/deleteInvoice';
@@ -232,9 +241,12 @@ function withoutReviewer(detail: InvoiceDetail) {
   return {
     invoice: detail.invoice,
     caseNumber: detail.caseNumber,
+    otherCaseNumbers: detail.otherCaseNumbers,
     submissionAttempt: detail.submissionAttempt,
     ruleFindings: detail.ruleFindings,
     approvedTotal: detail.approvedTotal,
+    fileSource: detail.fileSource,
+    submitterChanges: detail.submitterChanges,
     lines: detail.lines.map(({ decidedByDisplayName: _reviewer, decision, history, ...line }) => ({
       ...line,
       decision: decision ? anonymous(decision) : null,
@@ -334,6 +346,45 @@ router.post(
   '/invoice-imports/case-split',
   asyncHandler(async (req, res) => {
     res.status(201).json(await uploadInvoiceFileByCase(db, await sessionActor(req), req.body));
+  }),
+);
+
+// The portal upload (../imports/splitByCase.ts): each file is read before
+// its case is chosen, then the submitter confirms the case, period and
+// invoice number and it becomes a draft. The raw body is the file.
+router.post(
+  '/uploads',
+  express.raw({ type: () => true, limit: MAX_UPLOAD_BYTES }),
+  asyncHandler(async (req, res) => {
+    const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    const fileName = req.get('X-File-Name');
+    res.status(201).json(
+      await startUploadRead(db, documentStore, await sessionActor(req), {
+        fileName: fileName ? decodeURIComponent(fileName) : undefined,
+        bytes,
+      }),
+    );
+  }),
+);
+
+router.get(
+  '/uploads/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await getUploadRead(db, await sessionActor(req), req.params.id as string));
+  }),
+);
+
+router.delete(
+  '/uploads/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await discardUploadRead(documentStore, await sessionActor(req), req.params.id as string));
+  }),
+);
+
+router.post(
+  '/uploads/:id/draft',
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await createDraftFromUpload(db, await sessionActor(req), { ...req.body, uploadReadId: req.params.id }));
   }),
 );
 

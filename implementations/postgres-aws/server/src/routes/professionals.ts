@@ -1,7 +1,7 @@
 // Two uses: finding the professional profile behind an external user's
 // email so a full user can assign it to a case (see ../routes/cases.ts
 // POST /:id/external-assignments — only a professional with
-// userAccountId set is findable this way, i.e. every magic-link user,
+// userAccountId set is findable this way, i.e. every email-code user,
 // bootstrapped by ../professionals/ensureProfessional.ts on first login),
 // and the sidebar's "Vendors" directory, which lists everyone rather
 // than requiring a query first (professional is a small enough table for

@@ -1,5 +1,5 @@
 // Shared find-or-create for user_account, used by every login path
-// (magic-link verify in ../routes/auth.ts, the SSO verify callback in
+// (email-code verify in ../routes/auth.ts, the SSO verify callback in
 // ./oidcProviders.ts) — real accounts are created on first login,
 // matched by email, never seeded with real addresses (../../MAPPING.md).
 import { sql } from 'drizzle-orm';

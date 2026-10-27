@@ -19,6 +19,9 @@ import { listReviewPeople } from '../billing/reviewAccess';
 import { listReviewQueue } from '../billing/reviewQueue';
 import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
+import { readFileForInvoice } from '../imports/invoiceFile';
+import { documentStore } from '../imports/documentStore';
+import { previewFile } from '../imports/preview';
 import { asyncHandler } from './asyncHandler';
 import { parseExportFormat, sendInvoiceExport } from './sendInvoiceExport';
 
@@ -137,6 +140,30 @@ router.get(
       throw new InvoiceNotFoundError();
     }
     await sendInvoiceExport(res, detail, format, true);
+  }),
+);
+
+// The file the request was read from, beside its lines: a preview, or the
+// file itself, always as a download so it never renders in the app's origin.
+router.get(
+  '/:id/file/preview',
+  asyncHandler(async (req, res) => {
+    const detail = await loadOrThrow(req.params.id as string);
+    const file = await readFileForInvoice(db, documentStore, detail.invoice.invoiceId);
+    res.set('Cache-Control', 'no-store').json(await previewFile(file.mediaType, file.bytes));
+  }),
+);
+
+router.get(
+  '/:id/file',
+  asyncHandler(async (req, res) => {
+    const detail = await loadOrThrow(req.params.id as string);
+    const file = await readFileForInvoice(db, documentStore, detail.invoice.invoiceId);
+    res
+      .type(file.mediaType)
+      .attachment(file.fileName)
+      .set({ 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
+      .send(file.bytes);
   }),
 );
 

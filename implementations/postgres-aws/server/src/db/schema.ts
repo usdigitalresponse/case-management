@@ -445,6 +445,8 @@ export const invoiceLine = pgTable(
     // One-way driving distance in miles, from ../billing/routeCheck.ts.
     routeDistance: numeric('route_distance', { precision: 10, scale: 1 }),
     routeCheckedAt: timestamp('route_checked_at', { withTimezone: true }),
+    // The import's line or row it was read from; null if the submitter added it.
+    sourceLocation: text('source_location'),
   },
   (table) => [index('invoice_line_invoice_id_idx').on(table.invoiceId)],
 );
@@ -517,6 +519,42 @@ export const invoiceImport = pgTable(
     // At most one import per draft request.
     uniqueIndex('invoice_import_invoice_id_uidx').on(table.invoiceId),
   ],
+);
+
+// The submitter's confirmation that an attempt is true and correct, bound to
+// that attempt; a resubmission needs a new one.
+export const invoiceAttestation = pgTable(
+  'invoice_attestation',
+  {
+    invoiceAttestationId: uuid('invoice_attestation_id').primaryKey().defaultRandom(),
+    invoiceApprovalChainId: uuid('invoice_approval_chain_id')
+      .notNull()
+      .references(() => invoiceApprovalChain.invoiceApprovalChainId),
+    attestorPersonId: uuid('attestor_person_id').notNull().references(() => person.personId),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    attestedAt: timestamp('attested_at', { withTimezone: true }).notNull(),
+    statement: text('statement').notNull(),
+    signatureDocumentId: uuid('signature_document_id').references(() => document.documentId),
+  },
+  (table) => [index('invoice_attestation_chain_idx').on(table.invoiceApprovalChainId)],
+);
+
+// The supplier's own invoice behind a payment request, such as the number
+// on an uploaded file; no workflow of its own.
+export const supportingInvoice = pgTable(
+  'supporting_invoice',
+  {
+    supportingInvoiceId: uuid('supporting_invoice_id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
+    invoiceNumber: text('invoice_number').notNull(),
+    issuedOn: date('issued_on'),
+    periodStart: date('period_start'),
+    periodEnd: date('period_end'),
+    documentId: uuid('document_id').references(() => document.documentId),
+  },
+  (table) => [index('supporting_invoice_invoice_id_idx').on(table.invoiceId)],
 );
 
 // One chain per submission attempt. Each finished round of line review is a
@@ -822,14 +860,19 @@ export const intakeRequest = pgTable('intake_request', {
 
 // Implementation-specific addition, not in model/schema.yaml (see
 // ../../MAPPING.md "Implementation-specific additions") — backs the
-// external-user magic-link sign-in (../auth/magicLink.ts). Stores only a
-// hash of the token, never the token itself, so a DB read (backup, replica,
-// leaked row) can't be replayed into a session.
-export const magicLinkToken = pgTable('magic_link_token', {
-  magicLinkTokenId: uuid('magic_link_token_id').primaryKey().defaultRandom(),
-  email: text('email').notNull(),
-  tokenHash: text('token_hash').notNull().unique(),
-  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  usedAt: timestamp('used_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+// external-user emailed-code sign-in (../auth/signInCode.ts). Stores only a
+// keyed hash of the code, never the code itself, so a DB read (backup,
+// replica, leaked row) can't be replayed into a session.
+export const signInCode = pgTable(
+  'sign_in_code',
+  {
+    signInCodeId: uuid('sign_in_code_id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    codeHash: text('code_hash').notNull(),
+    failedAttempts: integer('failed_attempts').notNull().default(0),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('sign_in_code_email_idx').on(table.email)],
+);

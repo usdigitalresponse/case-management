@@ -10,7 +10,7 @@ import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db
 import { createCase } from '../src/intake/createCase';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { resolvePortalActor, type PortalActor } from '../src/portal/portalActor';
-import { submitInvoice, updateDraftInvoice, InvoiceStateError } from '../src/billing/invoiceLifecycle';
+import { ATTESTATION_STATEMENT, submitInvoice, updateDraftInvoice, InvoiceStateError } from '../src/billing/invoiceLifecycle';
 import {
   confirmInvoiceImport,
   discardInvoiceImport,
@@ -38,6 +38,7 @@ import {
   caseAssignment,
   document,
   invoice,
+  invoiceAttestation,
   invoiceEvent,
   invoiceImport,
   invoiceImportStatuses,
@@ -196,7 +197,7 @@ describe('invoice import workflow', () => {
     return row?.code;
   }
 
-  it('turns a LEDES file into a draft, then confirms, deletes the file and creates time on submission', async () => {
+  it('turns a LEDES file into a draft, then confirms, keeps the file and creates time on submission', async () => {
     const { actor, caseId, professionalId, store } = await setup();
     const uploaded = await uploadInvoiceFile(testDb, store, actor, {
       caseId, fileName: 'synthetic.ledes', bytes: Buffer.from(syntheticLedes('synthetic timekeeper')),
@@ -210,14 +211,17 @@ describe('invoice import workflow', () => {
     const lines = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)).orderBy(asc(invoiceLine.serviceDate));
     expect(lines.map((line) => line.timekeeperProfessionalId)).toEqual([professionalId, professionalId]);
 
-    await expect(submitInvoice(testDb, actor, invoiceId)).rejects.toThrow(InvoiceStateError);
+    await expect(submitInvoice(testDb, actor, invoiceId, { attested: true })).rejects.toThrow(InvoiceStateError);
 
     await confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId);
-    expect(store.files.size).toBe(0);
+    // Kept with the request, for the submitter and reviewers to see.
+    expect(store.files.size).toBe(1);
     const [doc] = await testDb.select().from(document);
-    expect(doc?.contentDeletedAt).not.toBeNull();
+    expect(doc?.contentDeletedAt).toBeNull();
 
-    await submitInvoice(testDb, actor, invoiceId);
+    await submitInvoice(testDb, actor, invoiceId, { attested: true });
+    const [attestation] = await testDb.select().from(invoiceAttestation);
+    expect(attestation?.statement).toBe(ATTESTATION_STATEMENT);
     const entries = await testDb.select().from(timeEntry).where(eq(timeEntry.sourceInvoiceImportId, uploaded.invoiceImportId));
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({ professionalId, activityOn: '2026-01-10', durationHours: '1.50' });
@@ -354,6 +358,7 @@ describe('invoice import workflow', () => {
         activityCode: line.activityCode ?? undefined,
         expenseCode: line.expenseCode ?? undefined,
         sourceTimeEntryId: line.sourceTimeEntryId ?? undefined,
+        sourceLocation: line.sourceLocation ?? undefined,
       })),
     });
 
@@ -394,7 +399,8 @@ describe('invoice import workflow', () => {
       statedTotal: '190.00',
       submittedTotal: '190.00',
     });
-    expect(listed[0]?.expiresAt).not.toBeNull();
+    // A draft read from a file doesn't expire.
+    expect(listed[0]?.expiresAt).toBeNull();
 
     await confirmInvoiceImport(testDb, store, actor, submitted.invoiceImportId);
     await discardInvoiceImport(testDb, store, actor, discarded.invoiceImportId);
@@ -403,7 +409,7 @@ describe('invoice import workflow', () => {
       ['c.ledes', 'extracted'],
     ]);
 
-    await submitInvoice(testDb, actor, submitted.invoiceId as string);
+    await submitInvoice(testDb, actor, submitted.invoiceId as string, { attested: true });
     expect((await listInvoiceImports(testDb, actor)).map((row) => row.invoiceImportId)).toEqual([pending.invoiceImportId]);
   });
 
@@ -539,20 +545,23 @@ describe('invoice import workflow', () => {
     await expect(confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId)).rejects.toThrow(InvoiceStateError);
   });
 
-  it('expires unresolved imports after three days as a system action', async () => {
+  it('keeps drafts read from a file, and discards files that could not be read after three days', async () => {
     const { actor, caseId, store } = await setup();
-    const uploaded = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'a', bytes: Buffer.from('amount\n10\n') });
+    const draft = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'a', bytes: Buffer.from('amount\n10\n') });
+    const unreadable = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'b', bytes: Buffer.from('amount\n20\n') });
+    // As a background read that failed leaves it: no draft.
+    await testDb
+      .update(invoiceImport)
+      .set({ statusId: await getReferenceId(testDb, invoiceImportStatuses, 'failed'), invoiceId: null })
+      .where(eq(invoiceImport.invoiceImportId, unreadable.invoiceImportId));
 
     expect(await expireInvoiceImports(testDb, store, new Date(Date.now() + IMPORT_EXPIRY_MS - 60_000))).toBe(0);
     expect(await expireInvoiceImports(testDb, store, new Date(Date.now() + IMPORT_EXPIRY_MS + 60_000))).toBe(1);
 
-    expect(store.files.size).toBe(0);
-    expect(await statusOf(uploaded.invoiceId as string)).toBe('withdrawn');
-    const [row] = await testDb.select().from(invoiceImport).where(eq(invoiceImport.invoiceImportId, uploaded.invoiceImportId));
+    expect(store.files.size).toBe(1);
+    expect(await statusOf(draft.invoiceId as string)).toBe('draft');
+    const [row] = await testDb.select().from(invoiceImport).where(eq(invoiceImport.invoiceImportId, unreadable.invoiceImportId));
     expect(row?.resolvedByUserAccountId).toBeNull();
-    const events = await testDb.select().from(invoiceEvent).where(eq(invoiceEvent.invoiceId, uploaded.invoiceId as string));
-    const withdrawal = events.find((event) => event.actorUserAccountId === null);
-    expect(withdrawal?.reason).toMatch(/expired/);
   });
 
   it("hides another user's import", async () => {

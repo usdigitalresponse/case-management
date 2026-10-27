@@ -27,7 +27,7 @@ import { closeCase } from '../cases/closeCase';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
-// Full staff access only: external (magic-link) users get their own
+// Full staff access only: external (email-code) users get their own
 // narrower endpoints (GET /api/my-cases, POST .../external-assignments
 // only via a full user) rather than this general case list/detail API.
 router.use(requireFullUser);

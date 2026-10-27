@@ -262,15 +262,20 @@ is an implementation choice.
 ## Supporting invoice import and export
 
 A payee may upload a supporting invoice file instead of entering lines. The file
-becomes a transient `document`; an `invoice_import` records its format, the
+becomes a `document` working copy; an `invoice_import` records its format, the
 extraction method and version, and an immutable `extraction_result`. Extraction
 proposes one draft request; the submitter corrects it against the original file
-and confirms the extracted values. Uploaded files are not retained: confirming
-or discarding an import deletes the file content and sets
-`document.content_deleted_at`, keeping only metadata, hash and the extraction
-result. Imports left unresolved expire three days after upload, deleting the
-file and withdrawing any unconfirmed draft. Document storage is a short-lived
-working area for conversion, not a record store: it accepts only configured
+(changing, removing or adding lines, without a reason) and confirms the
+extracted values. Each line keeps its `source_location` in the file, so
+reviewers see the file beside the lines, what the submitter changed and the
+lines they removed. The file is kept while its request is live and its
+content deleted, setting `document.content_deleted_at` and keeping only
+metadata, hash and the extraction result, when its import is discarded or
+expires or its request is withdrawn, deleted or recorded as paid. A file
+that could not be read expires three days after upload; a draft read from a
+file stays until its submitter sends, discards or deletes it. Document
+storage is a working area, not a
+record store: it accepts only configured
 formats within configured limits, scans files before parsing, and keeps them out
 of versioning and backups. From then on the draft request, and later its submission snapshot, is
 the record of the supporting invoice; reviewers never see the original file.

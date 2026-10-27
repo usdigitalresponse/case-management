@@ -98,17 +98,27 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     needs a case for every line; added assignments start on matching,
     which passes because assignment is checked as of now, not on each
     line's service date (as for delegates, below).
-  - The external portal uses the same shell and opens on "New invoice"
-    (`/new-invoice`, which `/` redirects to;
-    `client/src/portal/PortalNewInvoice.tsx`): import files (the bulk
-    import page, which can split a file across cases), or choose a case
-    and use the same new-invoice form as the case page
-    (`portal/NewInvoiceForm.tsx`). "Your invoices"
-    (`/portal/invoices`, `PortalInvoiceList.tsx`) and "Your cases" follow
-    in the sidebar. Its invoice page shows
-    each line's decision, reason and note in the review table's layout,
-    and the import review's line editor takes the same table styling with
-    the original document beside it.
+  - The external portal follows the invoice submission design: one top
+    bar (the brand, the signed-in email and Sign out; `PortalTopBar.tsx`),
+    no sidebar, opening on "Your invoices" (`/portal/invoices`, which `/`
+    redirects to; `PortalInvoiceList.tsx`). Drafts and sent invoices share
+    one list, in the review side's words: "Draft, not sent" (with "Lines
+    not checked yet." while its import is unconfirmed), "Waiting for
+    review", "Being reviewed" with the assigned reviewer's name, and
+    "Decided" with the approved amount and lines cut. Withdraw (the recall
+    transition, behind a confirmation dialog) shows only to the sender
+    while the invoice waits for review. "Upload invoices" opens the portal
+    upload (`/portal/upload`, see "Structured invoice import"). Pages
+    outside the design are out of navigation but still reachable:
+    "New invoice" (`/new-invoice`, `PortalNewInvoice.tsx`: the bulk import
+    page or the case page's new-invoice form, `portal/NewInvoiceForm.tsx`),
+    "Your cases" (`/portal/cases`) and bulk import (`/portal/imports`).
+    An invoice opens on its own page (see "Checking the lines" and
+    "Sending" under "Structured invoice import"); a draft's row says what
+    the submitter changed from the file so far. Gap: the design's "Paid"
+    status waits on external completion records, which aren't built. Staff
+    open portal invoice pages from Intake in their own shell, where the
+    older draft editor (`PortalInvoiceDetail.tsx`) still applies.
 - **Overview home** (hidden; reachable at `/overview`): shows four stage columns (Needs assignment,
   Represented, Billing, Closing); `/cases` retains the full list, now
   with its own Stage column. Every column buckets real cases by their
@@ -198,7 +208,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   data existing. 6 of the 10 also get an external-submitter
   `case_assignment` to one of 3 Faker-generated demo vendor
   professionals (bootstrapped through the same `ensureUserAccountForEmail`/
-  `ensureProfessionalForUserAccount` path a real magic-link login takes,
+  `ensureProfessionalForUserAccount` path a real emailed-code login takes,
   not a seed-only shortcut), with 1-3 `time_entry` rows logged against
   each and an invoice submitted for all but the last two (one left as a
   `draft`-status invoice, one left with no invoice at all) — so both the
@@ -289,7 +299,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   `GET /auth/:providerId` / `:providerId/callback` are generated per
   provider. `AuthenticatedUser.authType` is `'sso'` for any configured
   provider (which one is in `ssoProvider`, display/audit only) or
-  `'magic-link'` for an external user. **Deploy note**: the session cookie
+  `'email-code'` for an external user (`'magic-link'` before sign-in moved
+  to emailed codes; such sessions sign in again). **Deploy note**: the session cookie
   carries this shape directly (`cookie-session`, no server-side store —
   see "Session" above), so a cookie issued before this change (`authType:
   'google'`, or the dev-login/magic-link literals before they were
@@ -299,17 +310,23 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   since no real environment has live sessions (see "Known gaps" below),
   but worth remembering before any future session-shape change ships to
   a deployment with real users.
-- **Magic-link sign-in for external users**: `POST /auth/magic-link/request`
-  (body: `{ email }`) issues a single-use, 15-minute token
-  (`src/auth/magicLink.ts`) if `email` is in `EXTERNAL_EMAIL_WHITELIST`
+- **Emailed-code sign-in for external users**: `POST /auth/code/request`
+  (body: `{ email }`) emails a 6-digit code (`src/auth/signInCode.ts`) if
+  `email` is in `EXTERNAL_EMAIL_WHITELIST`
   (`src/auth/externalEmailWhitelist.ts`) — it responds identically either
   way, so the endpoint can't be used to enumerate whitelisted addresses.
-  The emailed link opens the client's `/sign-in/verify?token=` confirm
-  page (`client/src/pages/MagicLinkConfirm.tsx`), and only its explicit
-  `POST /auth/magic-link/verify` (body: `{ token }`) — never a GET, which
-  email link scanners would trigger — consumes the token, creates/reuses
-  the `user_account`, bootstraps a `professional` profile for it
-  (`src/professionals/ensureProfessional.ts`), and sets the session.
+  The code works once, for 10 minutes; a new request stops earlier codes
+  working, and after 5 wrong codes it stops working too. Only a keyed hash
+  (HMAC with `SESSION_SECRET`) is stored, in `sign_in_code`. `POST
+  /auth/code/verify` (body: `{ email, code }`) rechecks the whitelist,
+  consumes the code, creates/reuses the `user_account`, bootstraps a
+  `professional` profile for it (`src/professionals/ensureProfessional.ts`),
+  and sets the session, which lasts 24 hours. A code typed in, unlike a
+  link, can't be consumed by an email link scanner. The client's code
+  screens are `client/src/portal/CodeSignIn.tsx`, at `/submit` (the
+  portal's own sign-in page) and in the shared login page's external
+  panel. Open question: whether sending an invoice should ask for a fresh
+  code; today the sign-in code is enough.
   `requireFullUser` (`src/auth/session.ts`) checks `authType === 'sso'`
   to gate actions only a full user may take.
   **Email delivery**: `src/email/sendEmail.ts` sends via AWS SES when
@@ -328,7 +345,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `src/cases/assignExternalSubmitterToCase.ts`) assigns an existing
     professional (found via `GET /api/professionals?q=<email>`, which only
     finds professionals with a `user_account_id` — i.e. someone who has
-    logged in via magic link at least once) to a case, with a fixed
+    signed in with an emailed code at least once) to a case, with a fixed
     "External Submitter" role (`src/professionals/externalSubmitterRole.ts`).
     A staff member's professional profile is rejected; staff go through
     the staff endpoint below.
@@ -337,13 +354,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     via `GET /api/staff?q=<email>` (`src/routes/staff.ts`), with a fixed
     "Assigned Staff" role (`src/cases/staffAssignmentRole.ts`). Staff has
     no professional profile until their first assignment (unlike a
-    vendor's, bootstrapped at magic-link login), so one is lazily created
+    vendor's, bootstrapped at emailed-code login), so one is lazily created
     here. "Staff" means a user_account whose `system_role_id` is a staff
     role (`src/auth/staffAccountRole.ts`), set by the SSO verify callback
     (`src/auth/oidcProviders.ts`) on any account that has no role yet —
-    including one first created by magic link — and never replaced once
+    including one first created by an emailed-code sign-in — and never replaced once
     set. For now that first role is "Administrator", so testers can try
-    every view; "Intake Staff" is the intended default. Magic-link login never sets it, which is how the
+    every view; "Intake Staff" is the intended default. Emailed-code login never sets it, which is how the
     two populations stay distinguishable in the same `user_account`
     table. Emails are lowercased (`normalizeEmail` in
     `src/auth/emailLists.ts`) before being stored or matched.
@@ -419,8 +436,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     an existing session can still read staff pages (sessions are signed
     cookies with no per-request account lookup).
   - Visibility: the portal's invoice detail has no working decisions, no
-    reviewer names and no internal comments (`loadInvoiceDetail`
-    `audience`); exports show the case and court numbers, each line's
+    names on decisions and no internal comments (`loadInvoiceDetail`
+    `audience`). The portal's invoice list names the assigned line
+    reviewer while an invoice is in review, so a submitter and reviewer
+    on the phone know who is who; exports show the case and court numbers, each line's
     latest decision only, and sign-offs without comments.
   - Rate check (`src/billing/preauthorizations.ts` `rateLimitFor`): a time
     line's limit is the latest approved `preauthorization_decision`
@@ -637,9 +656,18 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     (`client/src/components/OriginalDocument.tsx`, `PdfPages.tsx`, loaded
     only on that page). The file is never opened as a page in the app's
     origin. Each item's "page N, row M" links to its page.
-    `.../confirm` requires every line matched, then deletes the file;
-    `.../discard` deletes it and withdraws the draft. Imports are visible
-    only to their uploader.
+    `.../confirm` requires every line matched (a file designated to one
+    professional fills lines with no one named as theirs); `.../discard`
+    deletes the file and withdraws the draft. Imports are visible only to
+    their uploader.
+  - File retention (`src/imports/documentRetention.ts`; `model/rules.yaml`
+    `validate_invoice_import`): a file is kept while any import of it is
+    unresolved or its confirmed request is live, so the submitter and
+    reviewers see it beside the lines. Discarding or expiring its imports,
+    or withdrawing or deleting its request, marks the content deleted
+    (`document.content_deleted_at`); the hourly sweep removes a released
+    file's bytes. Gap: payment completion isn't recorded yet, so a live
+    request's file stays until it is withdrawn or deleted.
   - Bulk import (`client/src/portal/PortalBulkImport.tsx`, `bulkImport.ts`;
     "Import invoices" on the portal case list) takes several files, each
     assigned a case and whom it bills (one choice, grouped by person, so a
@@ -681,19 +709,78 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `designated_professional_id`, review shows "work done by" fixed rather
     than suggested (items added there are theirs too), and confirmation
     refuses any other. Each part is reviewed and submitted like any import;
-    review shows the whole original. The file is deleted once the last part is confirmed or
-    discarded (or deleted with its draft), and parts of one file don't warn
+    review shows the whole original. The file stays while any part is
+    unresolved or live (see "File retention"), and parts of one file don't warn
     that each other are duplicates. Only the spreadsheet template has a
     case column; LEDES and PDF files are designated to one case.
+  - The portal upload (`client/src/portal/PortalUpload.tsx`, reached from
+    Upload invoices) reads a file before its case is chosen, with the same
+    read machinery: `POST /api/portal/uploads` stores and reads it, `GET
+    .../uploads/:id` reports progress and then what was read (line count,
+    invoice number, billing period, stated total), the cases it may go to
+    and a suggested one, and `DELETE` discards it. Only open cases where the
+    user, or a professional they act for, is the active assigned
+    professional are offered, one option per case and professional. A case
+    is suggested only when it is clear: the user has one case, the file's
+    lines name one, or the file name holds one case's number or client's
+    name (a heuristic; several matches suggest none). `POST
+    .../uploads/:id/draft` (case, professional, checked billing period,
+    optional invoice number) makes one unconfirmed import and draft with
+    every line billed to that professional; the checked period replaces the
+    one read on the draft only, and the invoice number is kept as a
+    `supporting_invoice`. Several files are checked one at a time, then
+    land in Your invoices as drafts marked "Lines not checked yet"; one file
+    goes straight on to checking its lines. Cancel discards unread files and
+    deletes drafts already made. Gap: reading doesn't yet pick a case
+    number out of a PDF's text.
+  - Checking the lines (`client/src/portal/InvoiceSubmission.tsx`, the
+    portal's `/portal/invoices/:id`): the file on the left as uploaded, the
+    lines on the right in file order. Each line carries the place it was
+    read from (`invoice_line.source_location`, carried back on every save)
+    and the extraction result keeps each line as first drafted (`drafted`),
+    so `src/imports/invoiceFile.ts` and `client/src/fileChanges.ts` work out
+    what changed: a changed line shows what it was, a removed line (a file
+    line with no current line) stays struck through with Put it back, and an
+    added line says so. Editing opens a panel under the line (date, hours or
+    miles, rate for time, words; mileage at the configured rate per mile)
+    with the new amount worked out as typed; Remove, Put it back, Undo change
+    and Add a line we missed each save at once with Undo. Lines a reading
+    warning names are marked "Check this"; same date, words and amount as an
+    earlier line is flagged as a possible duplicate. The notice compares the
+    file's total with the lines': a misread file says by how much and where
+    to look; a difference the submitter made says which lines. Clicking a
+    line scrolls the file to its page, or highlights its spreadsheet row.
+    Gaps: the design's column matching for spreadsheets not on the template
+    (F8) isn't built; a PDF line scrolls to its page rather than
+    highlighting the line.
+  - Sending (F9–F11): Send for review confirms the import (strict pricing
+    and billing rules) and submits with the true-and-correct tick, which
+    the server requires of any submitter who isn't staff and records as an
+    `invoice_attestation` bound to the attempt and in its snapshot (staff
+    entering a request received elsewhere don't attest for its payee; the
+    older manual-entry and bulk-import screens have the tick too). The
+    submitter is emailed a receipt (`sendEmail`; logged without SES), and
+    the page offers Download receipt (the invoice PDF export) and Withdraw
+    (recall, behind a confirmation) until review starts. The lines lock
+    once sent; Undo on the sent message withdraws it.
+  - Reviewing beside the file (E9, `client/src/pages/InvoiceReview.tsx`):
+    staff read the file through `GET /api/invoices/:id/file` and
+    `.../file/preview`. The page has Show/Hide the file, open by default
+    when the submitter changed anything; facts add "File said" and what the
+    submitter changed; changed lines are marked with the values the file
+    said and "was" under the hours and amount; removed lines are listed
+    struck through, "Not on the invoice. Nothing to decide." (in a table
+    under the lines rather than in place, as the design draws them).
   - A draft from an unconfirmed import can't be submitted or withdrawn
     directly. Confirming prices its time lines from configured rates (see
     "Rates and billing from time"); submitting creates a time entry for
     each time line with a date and hours, for its matched professional,
     linked both ways; a resubmission after recall reuses those entries.
-  - An hourly in-process sweep (`src/app.ts`) expires imports unresolved
-    for three days: file deleted, draft withdrawn with a system
-    `invoice_event` (no actor, a reason), and any file whose deletion was
-    recorded but didn't finish is removed.
+  - An hourly in-process sweep (`src/app.ts`) discards files that couldn't
+    be read three days after upload (no resolving user), and removes any
+    file whose deletion was recorded but didn't finish. A draft read from a
+    file never expires; it stays until its submitter sends, discards or
+    deletes it, keeping its file.
   - Gaps: no malware scanning (no in-boundary scanner is configured yet;
     PDF.js's core runs no document scripts and nothing in a file is
     executed); background reads need a single server instance and a
@@ -860,11 +947,11 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - Represented professionals see and export the invoice through the
     existing read rule (invoice professional or line timekeeper); they
     don't attest or approve, as decided.
-  - Magic-link sign-in doesn't create a professional profile for a
+  - Emailed-code sign-in doesn't create a professional profile for a
     delegate, so a delegate logs time only for others.
   - Gaps: no staff screen to grant the delegate role or record office
     membership (only the demo seed does). Delegate authority is read through
-    `user_account.person_id`, which the magic-link bootstrap leaves unset
+    `user_account.person_id`, which the emailed-code bootstrap leaves unset
     even when it creates a professional, so granting the role also means
     linking the account to its person. Assignment is checked as open
     now, not on each line's service date; only the delegate who created a
@@ -911,7 +998,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   with no credentials.
   `POST /auth/demo-login/external` likewise signs in as the demo seed's
   first vendor (`demo-vendor-1@example.invalid`) as an external
-  (`magic-link`) user, so it needs `npm run seed`, not just the baseline
+  (`email-code`) user, so it needs `npm run seed`, not just the baseline
   fixtures. Both take an optional `userAccountId` from
   `GET /auth/demo-accounts` (`src/auth/demoAccounts.ts`), which lists the
   active seeded accounts on `example.invalid`: staff with their role, and
@@ -1055,8 +1142,8 @@ list/detail views are implemented as tables:
 `invoice_approval_decision`, `invoice_line_working_decision`,
 `invoice_review_assignment`, `case_invoice_reviewer`,
 `invoice_review_setting`, `preauthorization`, `preauthorization_decision`,
-`invoice_event`, `document`, `invoice_import`,
-plus lookup tables for the `reference_data`
+`invoice_event`, `document`, `invoice_import`, `supporting_invoice`,
+`invoice_attestation`, plus lookup tables for the `reference_data`
 sets these entities use (`case_categories`, `case_statuses`,
 `jurisdictions`, `languages`, `case_identifier_types`,
 `case_lifecycle_event_types`, `case_lifecycle_reasons`, `activity_types`,
@@ -1087,7 +1174,7 @@ description, quantity, rate, timekeeper label, codes) is accepted by
 routes, shown on both invoice pages and included in exports; the portal
 form collects date, description, hours and amount.
 
-`professional`/`case_assignment` cover both the external magic-link
+`professional`/`case_assignment` cover both the external emailed-code
 submitter workflow and internal staff assignment (see "Case assignment,
 two workflows" above) — not general scheduling/workload support.
 
@@ -1168,6 +1255,8 @@ form relies on this being airtight.
   matched by email, not seeded with real addresses.
 - `route_check`: not in `model/schema.yaml`. Caches driving-distance
   lookups by address pair and counts them per month (see "Mileage" above).
+- `sign_in_code`: not in `model/schema.yaml`. Hashed one-time codes for
+  external sign-in (see "Emailed-code sign-in for external users" above).
 
 ## Known gaps / placeholders
 

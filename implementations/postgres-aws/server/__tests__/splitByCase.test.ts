@@ -20,6 +20,7 @@ import {
   uploadInvoiceFileByCase,
 } from '../src/imports/splitByCase';
 import { confirmInvoiceImport, listInvoiceImports } from '../src/imports/invoiceImports';
+import { withdrawInvoice } from '../src/billing/invoiceLifecycle';
 import { extractionsSettled } from '../src/imports/extractionJobs';
 import { UnsupportedInvoiceFileError } from '../src/imports/detectFormat';
 import type { DocumentStore } from '../src/imports/documentStore';
@@ -167,13 +168,17 @@ describe('splitting a file for one professional by case', () => {
     // Neither part warns that the other is a duplicate.
     expect((await listInvoiceImports(testDb, actor)).every((row) => row.warningCount === 0)).toBe(true);
 
-    // The file stays until the last part is resolved.
+    // The file stays with the confirmed requests; withdrawing one keeps it
+    // for the other, and withdrawing both releases it.
     await confirmInvoiceImport(testDb, store, actor, imports[0]!.invoiceImportId);
+    await confirmInvoiceImport(testDb, store, actor, imports[1]!.invoiceImportId);
     expect(store.files.size).toBe(1);
+    await withdrawInvoice(testDb, actor, imports[0]!.invoiceId);
     const [kept] = await testDb.select().from(document);
     expect(kept?.contentDeletedAt).toBeNull();
-    await confirmInvoiceImport(testDb, store, actor, imports[1]!.invoiceImportId);
-    expect(store.files.size).toBe(0);
+    await withdrawInvoice(testDb, actor, imports[1]!.invoiceId);
+    const [released] = await testDb.select().from(document);
+    expect(released?.contentDeletedAt).not.toBeNull();
   });
 
   it('reads a PDF in the background queue, reporting progress until it is done', async () => {

@@ -121,7 +121,7 @@ describe('delegated submission', () => {
       [first.professionalId, second.professionalId].sort(),
     );
 
-    const { invoiceId } = await createInvoice(testDb, delegate, {
+    const { invoiceId } = await createInvoice(testDb, delegate, { attested: true,
       caseId,
       professionalId: first.professionalId,
       lines: [{ amount: 100 }, { amount: 40, timekeeperProfessionalId: second.professionalId }],
@@ -151,13 +151,13 @@ describe('delegated submission', () => {
     const { actor: delegate } = await createOfficeUser('delegate2@example.com', true);
 
     await expect(
-      createInvoice(testDb, delegate, { caseId, professionalId: outsider.professionalId, lines: [{ amount: 10 }] }),
+      createInvoice(testDb, delegate, { attested: true, caseId, professionalId: outsider.professionalId, lines: [{ amount: 10 }] }),
     ).rejects.toThrow(NotAssignedToCaseError);
     await expect(
-      createInvoice(testDb, delegate, { caseId, professionalId: unassigned.professionalId, lines: [{ amount: 10 }] }),
+      createInvoice(testDb, delegate, { attested: true, caseId, professionalId: unassigned.professionalId, lines: [{ amount: 10 }] }),
     ).rejects.toThrow(NotAssignedToCaseError);
     await expect(
-      createInvoice(testDb, delegate, {
+      createInvoice(testDb, delegate, { attested: true,
         caseId,
         professionalId: member.professionalId,
         lines: [{ amount: 10, timekeeperProfessionalId: outsider.professionalId }],
@@ -173,16 +173,16 @@ describe('delegated submission', () => {
     expect(await delegateOfficeIds(testDb, officeUser.userAccountId)).toEqual([]);
     expect(await representedProfessionalIds(testDb, officeUser.userAccountId)).toEqual([]);
     await expect(
-      createInvoice(testDb, officeUser, { caseId, professionalId: member.professionalId, lines: [{ amount: 10 }] }),
+      createInvoice(testDb, officeUser, { attested: true, caseId, professionalId: member.professionalId, lines: [{ amount: 10 }] }),
     ).rejects.toThrow(NotAssignedToCaseError);
-    await expect(createInvoice(testDb, officeUser, { caseId, lines: [{ amount: 10 }] })).rejects.toThrow(ValidationError);
+    await expect(createInvoice(testDb, officeUser, { attested: true, caseId, lines: [{ amount: 10 }] })).rejects.toThrow(ValidationError);
   });
 
   it('stops further changes once the delegate affiliation ends', async () => {
     const member = await createProfessional('member4@example.com', true);
     const caseId = await createCaseAssignedTo([member.professionalId]);
     const { actor: delegate, affiliationId } = await createOfficeUser('delegate4@example.com', true);
-    const { invoiceId } = await createInvoice(testDb, delegate, { caseId, professionalId: member.professionalId, lines: [{ amount: 10 }] });
+    const { invoiceId } = await createInvoice(testDb, delegate, { attested: true, caseId, professionalId: member.professionalId, lines: [{ amount: 10 }] });
 
     await testDb
       .update(personAffiliation)
@@ -241,18 +241,18 @@ describe('delegated submission', () => {
     );
     expect((await flags()).time?.sort()).toEqual([self.professionalId, colleague.professionalId].sort());
 
-    await createInvoice(testDb, self, {
+    await createInvoice(testDb, self, { attested: true,
       caseId,
       professionalId: colleague.professionalId,
       lines: [{ amount: 10, sourceTimeEntryId: colleagueTime.timeEntryId }],
     });
-    await createInvoice(testDb, self, { caseId, lines: [{ amount: 10, sourceTimeEntryId: billed.timeEntryId }] });
+    await createInvoice(testDb, self, { attested: true, caseId, lines: [{ amount: 10, sourceTimeEntryId: billed.timeEntryId }] });
     expect(await flags()).toEqual({ time: [], invoices: [] });
 
     // Time on a draft still counts as unsubmitted.
     const drafted = await logTime(self.professionalId);
-    await createInvoice(testDb, self, { caseId, submit: false, lines: [{ amount: 10, sourceTimeEntryId: drafted.timeEntryId }] });
-    await createInvoice(testDb, self, { caseId, submit: false, professionalId: colleague.professionalId, lines: [{ amount: 5 }] });
+    await createInvoice(testDb, self, { attested: true, caseId, submit: false, lines: [{ amount: 10, sourceTimeEntryId: drafted.timeEntryId }] });
+    await createInvoice(testDb, self, { attested: true, caseId, submit: false, professionalId: colleague.professionalId, lines: [{ amount: 5 }] });
     const { time, invoices } = await flags();
     expect(time).toEqual([self.professionalId]);
     expect(invoices?.sort()).toEqual([self.professionalId, colleague.professionalId].sort());

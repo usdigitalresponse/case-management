@@ -24,7 +24,7 @@ const magicLinkUser: AuthenticatedUser = {
   userAccountId: 'vendor-1',
   email: 'vendor@example.com',
   displayName: 'vendor@example.com',
-  authType: 'magic-link',
+  authType: 'email-code',
 };
 
 describe('requireAuth', () => {
@@ -50,7 +50,7 @@ describe('requireFullUser', () => {
     expect(next).toHaveBeenCalledOnce();
   });
 
-  it('rejects a magic-link session with 403, not 401 (they are signed in, just not allowed)', () => {
+  it('rejects an email-code session with 403, not 401 (they are signed in, just not allowed)', () => {
     const res = mockRes();
     const next = vi.fn();
     requireFullUser(mockReq(magicLinkUser), res, next as NextFunction);

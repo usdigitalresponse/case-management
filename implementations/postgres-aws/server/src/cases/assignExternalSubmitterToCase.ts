@@ -1,4 +1,4 @@
-// Assigns an external (magic-link) professional to a case with the fixed
+// Assigns an external (email-code) professional to a case with the fixed
 // "External Submitter" role — the counterpart to ./assignStaffToCase.ts.
 // No role choice or qualification/workload checks (see
 // ../professionals/externalSubmitterRole.ts and ../../MAPPING.md).

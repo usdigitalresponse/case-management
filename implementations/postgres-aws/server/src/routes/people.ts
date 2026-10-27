@@ -12,7 +12,7 @@ import { asyncHandler } from './asyncHandler';
 
 const router = Router();
 // Full staff access only — the person directory isn't something an
-// external (magic-link) user should be able to search.
+// external (email-code) user should be able to search.
 router.use(requireFullUser);
 
 router.get(

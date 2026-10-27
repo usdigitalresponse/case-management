@@ -24,7 +24,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
 // Gates actions only a full (SSO-authenticated — Google, Microsoft Entra
 // ID, or any other configured provider) agency user may take — e.g.
-// assigning an external user to a case. An external magic-link user
+// assigning an external user to a case. An external email-code user
 // hitting one of these gets the same 403 an unassigned case would, rather
 // than a route that reveals it exists only to find out they can't use it.
 export function requireFullUser(req: Request, res: Response, next: NextFunction): void {

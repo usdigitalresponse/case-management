@@ -1,5 +1,6 @@
-// Transient storage for uploaded invoices under review, in a private local
-// directory kept out of database backups (MAPPING.md).
+// Storage for uploaded invoices while their requests are live
+// (./documentRetention.ts), in a private local directory kept out of
+// database backups (MAPPING.md).
 import { randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';

@@ -13,10 +13,10 @@ export interface AuthenticatedUser {
   email: string;
   displayName: string;
   // Distinguishes a full agency login (any configured OIDC provider) from
-  // an external user admitted only via a case-scoped magic link
-  // (../routes/magicLink.ts) — routes that external users must not reach
+  // an external user admitted only by an emailed code
+  // (../auth/signInCode.ts) — routes that external users must not reach
   // should check this rather than assume every session is a full user.
-  authType: 'sso' | 'magic-link';
+  authType: 'sso' | 'email-code';
   // Which provider the session actually authenticated through (e.g.
   // 'google', 'microsoft') — display/audit only; authorization logic
   // should use authType, not this.
