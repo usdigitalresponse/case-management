@@ -22,7 +22,7 @@ import PortalBulkImport from './portal/PortalBulkImport';
 import PortalImportReview from './portal/PortalImportReview';
 import PortalUpload from './portal/PortalUpload';
 import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
-import { listInvoiceIntake, listReviewQueue } from './api/client';
+import { DATA_CHANGED_EVENT, listInvoiceIntake, listReviewQueue } from './api/client';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 
 // Only rendered for a signed-in staff user (see AppContent) — the signed-out screen is LoginPage's alone.
@@ -67,10 +67,16 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
   );
 }
 
-// Counts for the sidebar, refreshed as the reviewer moves around.
+// Counts for the sidebar, refreshed as the reviewer moves around or changes something.
 function useQueueCounts(userAccountId: string) {
   const location = useLocation();
   const [counts, setCounts] = useState<{ all: number; mine: number; waiting: number } | null>(null);
+  const [changes, setChanges] = useState(0);
+  useEffect(() => {
+    const onChange = () => setChanges((n) => n + 1);
+    window.addEventListener(DATA_CHANGED_EVENT, onChange);
+    return () => window.removeEventListener(DATA_CHANGED_EVENT, onChange);
+  }, []);
   useEffect(() => {
     let cancelled = false;
     // Intake is for staff roles only; without one there is nothing waiting to count.
@@ -89,7 +95,7 @@ function useQueueCounts(userAccountId: string) {
     return () => {
       cancelled = true;
     };
-  }, [location.pathname, userAccountId]);
+  }, [location.pathname, userAccountId, changes]);
   return counts;
 }
 

@@ -12,6 +12,10 @@ export class ApiError extends Error {
   }
 }
 
+// Dispatched on window after a successful change, so views that summarize
+// other pages' data (the sidebar counts) can reload.
+export const DATA_CHANGED_EVENT = 'api:data-changed';
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     credentials: 'include',
@@ -21,6 +25,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = await response.json().catch(() => undefined);
   if (!response.ok) {
     throw new ApiError(response.status, body);
+  }
+  if (init?.method && init.method !== 'GET') {
+    window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
   }
   return body as T;
 }
