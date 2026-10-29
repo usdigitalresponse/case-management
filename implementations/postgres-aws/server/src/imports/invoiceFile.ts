@@ -7,10 +7,12 @@ import type { DatabaseOrTransaction } from '../db/client';
 import { document, invoiceImport, invoiceImportFormats, invoiceImportStatuses } from '../db/schema';
 import { NotFoundError } from '../errors';
 import type { DocumentStore } from './documentStore';
-import type { ImportWarning } from './parsedInvoice';
+import type { ImportWarning, SourceRegion } from './parsedInvoice';
 
 export interface FileLine {
   location: string;
+  // Where on the PDF it was read, for highlighting; null for other formats.
+  region: SourceRegion | null;
   lineType: string | null;
   serviceDate: string | null;
   description: string | null;
@@ -33,6 +35,7 @@ export interface FileSource {
 
 interface StoredLine {
   location: string;
+  region?: SourceRegion;
   drafted?: {
     line_type?: string;
     service_date?: string | null;
@@ -60,6 +63,7 @@ function fileLine(line: StoredLine): FileLine {
   const drafted = line.drafted;
   return {
     location: line.location,
+    region: line.region ?? null,
     lineType: drafted?.line_type ?? line.line_type?.value ?? null,
     serviceDate: drafted ? (drafted.service_date ?? null) : (line.service_date?.value ?? null),
     description: drafted ? (drafted.description ?? null) : (line.description?.value ?? null),

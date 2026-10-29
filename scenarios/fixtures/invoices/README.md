@@ -33,6 +33,7 @@ activity and expense codes follow the public UTBMS code set.
 | `pdf-fill-in-form.pdf` | A flattened fill-in payment-request form: values typed just above labelled blanks (`Attorney: 3.5 hrs.; $ 150 /hour = $ 525.00`), two rates to a line, travel apart from other time, a mileage rate without its zero, other expenses as `… = $` lines, and a route map attached after the total |
 | `pdf-fill-in-fields.pdf` | The same form saved without flattening, so its values are only in live form fields |
 | `pdf-cover-sheet.pdf` | A services cover sheet stating only the total requested, with the provider's itemized invoice attached behind it |
+| `pdf-embedded-files.pdf` | A cover letter with no items, the itemized invoice embedded in it as a file and a store receipt attached to its page; the invoice's items are read and the receipt's offered as suggestions |
 
 `pdf-sectioned.pdf` and `pdf-stacked.pdf` reproduce layout patterns seen in
 practice-management products' published invoice templates, and the

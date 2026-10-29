@@ -37,6 +37,7 @@ const TEXT_LAYER_BASELINE: Record<string, number> = {
   'pdf-fill-in-form.pdf': 1,
   'pdf-fill-in-fields.pdf': 1,
   'pdf-cover-sheet.pdf': 1,
+  'pdf-embedded-files.pdf': 1,
 };
 
 // Scans are recognized page by page, which takes seconds.

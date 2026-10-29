@@ -6,9 +6,20 @@ import type { LineType } from '../billing/invoiceLifecycle';
 // invoice_import_formats codes; 'document' is a PDF.
 export type ImportFormat = 'ledes_1998b' | 'spreadsheet' | 'document';
 
+// Where on a PDF page a line was read, as fractions of the page as shown
+// (its own rotation applied), measured from the top left.
+export interface SourceRegion {
+  page: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export interface ParsedLine {
   // e.g. "line 3", "row 4", "page 1, row 2".
   location: string;
+  region?: SourceRegion;
   lineType: LineType;
   serviceDate?: string;
   description?: string;

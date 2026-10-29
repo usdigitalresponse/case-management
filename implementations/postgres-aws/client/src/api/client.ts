@@ -695,10 +695,21 @@ export interface InvoiceReceipt {
 // What a submitter confirms when sending (server/src/billing/invoiceLifecycle.ts).
 export const ATTESTATION_STATEMENT = 'I confirm this invoice is true and correct, and the work was done for this case.';
 
+// Where on a PDF page a line was read, as fractions of the page as shown,
+// from the top left (server/src/imports/parsedInvoice.ts).
+export interface SourceRegion {
+  page: number;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 // A request's file as read (server/src/imports/invoiceFile.ts): each line as
 // first drafted from it, which the submitter's changes are shown against.
 export interface FileLine {
   location: string;
+  region: SourceRegion | null;
   lineType: string | null;
   serviceDate: string | null;
   description: string | null;
@@ -840,6 +851,7 @@ export interface ImportWarning {
 
 export interface SuggestedImportLine {
   location: string;
+  region?: SourceRegion;
   line_type?: { value: InvoiceLineType };
   service_date?: { value: string };
   description?: { value: string };
@@ -866,7 +878,7 @@ export interface InvoiceImportDetail {
   extractedAt: string | null;
   extractionResult: {
     invoice?: { invoice_number?: { value: string } };
-    lines?: Array<{ location: string }>;
+    lines?: Array<{ location: string; region?: SourceRegion }>;
     suggested_lines?: SuggestedImportLine[];
     warnings?: ImportWarning[];
     // Set when the file was designated to one professional: all their work.

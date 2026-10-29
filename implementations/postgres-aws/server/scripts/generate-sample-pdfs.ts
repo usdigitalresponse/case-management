@@ -470,6 +470,41 @@ async function coverSheet(sample: Sample): Promise<Buffer> {
   return done;
 }
 
+// A one-page cover letter with the invoice and a store receipt embedded in
+// it as files: the invoice listed for the whole document, the receipt
+// attached to the letter's page.
+async function embeddedFiles(sample: Sample): Promise<Buffer> {
+  const receipt = newDocument('Synthetic store receipt');
+  receipt.doc.font('Helvetica-Bold').fontSize(12).text('SAMPLE MART  ·  Store 023', { align: 'center' });
+  receipt.doc.font('Helvetica').fontSize(9).text('Receipt 880746  ·  01/20/2026 2:24 PM', { align: 'center' }).moveDown();
+  receipt.doc.table({
+    data: [
+      ['Item', 'Qty', 'Price', 'Amount'],
+      ['Folders', '2', '$3.99', '$7.98'],
+      ['Copy paper', '1', '$11.50', '$11.50'],
+    ],
+  });
+  receipt.doc.moveDown().text('Total $19.48', { align: 'right' });
+  receipt.doc.end();
+
+  const { doc, done } = newDocument('Synthetic cover letter with embedded files');
+  doc.font('Times-Roman').fontSize(11);
+  doc.text('Synthetic Legal Services LLP', { align: 'right' }).text('100 Example Street, Sample City', { align: 'right' }).moveDown(2);
+  doc.text('Dear Reviewer,').moveDown();
+  doc.text('Our invoice for this period and a receipt for supplies are attached to this letter as files. Please open them from the attachments.');
+  doc.moveDown().text('Synthetic letter for testing. Not a real bill.');
+  doc.file(await itemized(sample), { name: 'invoice.pdf', creationDate: CREATED, modifiedDate: CREATED });
+  // Missing from pdfkit's types.
+  (doc as unknown as { fileAnnotation: (x: number, y: number, w: number, h: number, file: object) => void }).fileAnnotation(48, 260, 20, 20, {
+    src: await receipt.done,
+    name: 'receipt.pdf',
+    creationDate: CREATED,
+    modifiedDate: CREATED,
+  });
+  doc.end();
+  return done;
+}
+
 // A borderless itemized table a reviewer has marked by hand: ticks beside
 // the amounts, one amount struck through with another written beside it,
 // and a note in the margin. Import must use the printed figures.
@@ -773,6 +808,12 @@ const LAYOUTS: Layout[] = [
     sample: { invoiceNumber: 'SAMPLE-PDF-015', periodStart: '2026-01-01', periodEnd: '2026-01-31', items: BASE_ITEMS },
     render: coverSheet,
     shows: 'A services cover sheet stating only the total requested, with the provider’s itemized invoice attached behind it',
+  },
+  {
+    file: 'pdf-embedded-files.pdf',
+    sample: { invoiceNumber: 'SAMPLE-PDF-016', periodStart: '2026-01-01', periodEnd: '2026-01-31', items: BASE_ITEMS },
+    render: embeddedFiles,
+    shows: 'A cover letter with no items, the itemized invoice embedded in it as a file and a store receipt attached to its page; the invoice’s items are read and the receipt’s offered as suggestions',
   },
 ];
 

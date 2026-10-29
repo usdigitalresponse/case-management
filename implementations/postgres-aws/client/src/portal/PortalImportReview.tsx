@@ -26,6 +26,7 @@ import {
   lineDraftsFrom,
   linesFromDrafts,
   professionalLabel,
+  SourceLocation,
   type LineDraft,
 } from '../components/InvoiceLinesEditor';
 import { formatDateTime } from '../formatDateTime';
@@ -121,10 +122,12 @@ function SuggestedItems({
   suggestions,
   lines,
   onAdd,
+  onShowSource,
 }: {
   suggestions: SuggestedImportLine[];
   lines: LineDraft[];
   onAdd: (line: LineDraft) => void;
+  onShowSource: (location: string) => void;
 }) {
   const present = new Set(lines.map((line) => line.carried.sourceLocation));
   const left = suggestions.filter((suggestion) => !present.has(suggestion.location));
@@ -144,7 +147,10 @@ function SuggestedItems({
             <span>
               {suggestion.description?.value ?? 'No description'}
               {suggestion.service_date && ` · ${suggestion.service_date.value}`}
-              <span className="compact-hint"> ({suggestion.location})</span>
+              <span className="compact-hint">
+                {' '}
+                (<SourceLocation location={suggestion.location} onShow={onShowSource} />)
+              </span>
             </span>
             <span className="amount">{formatMoney(suggestion.amount.value)}</span>
             <button
@@ -190,6 +196,8 @@ function ExtractedReview({
     setLinesState(designatedId ? next.map((line) => ({ ...line, timekeeperProfessionalId: designatedId })) : next);
   const billingRules = usePortalBillingRules();
   const [busy, setBusy] = useState(false);
+  const [focus, setFocus] = useState<{ location: string } | undefined>();
+  const showSource = (location: string) => setFocus({ location });
   const [message, setMessage] = useState<SaveMessage | null>(null);
   const warnings = importDetail.extractionResult?.warnings ?? [];
   const unmatched = lines.filter((line) => !line.timekeeperProfessionalId).length;
@@ -256,7 +264,12 @@ function ExtractedReview({
       </p>
       <div className={importDetail.fileAvailable ? 'import-review-layout' : undefined}>
         {importDetail.fileAvailable && (
-          <OriginalDocument importId={importDetail.invoiceImportId} fileName={importDetail.fileName} />
+          <OriginalDocument
+            importId={importDetail.invoiceImportId}
+            fileName={importDetail.fileName}
+            focus={focus}
+            regions={[...locations, ...(importDetail.extractionResult?.suggested_lines ?? [])]}
+          />
         )}
       <div className="import-review-items">
         <h2>Items read from the file</h2>
@@ -279,12 +292,14 @@ function ExtractedReview({
             // Only while items are still in their extracted order.
             sourceLocations: lines.length === locations.length ? locations.map((line) => line.location) : undefined,
             fixedTimekeeper: Boolean(designatedId),
+            onShowSource: showSource,
           }}
         />
         <SuggestedItems
           suggestions={importDetail.extractionResult?.suggested_lines ?? []}
           lines={lines}
           onAdd={(line) => setLines([...lines, line])}
+          onShowSource={showSource}
         />
         {(!hasItems || unmatched > 0) && (
           <p className="compact-hint actions-hint">

@@ -5,6 +5,7 @@ import { totalsNotice } from './portal/checkLines';
 
 const read = (location: string, patch: Partial<FileLine> = {}): FileLine => ({
   location,
+  region: null,
   lineType: 'time',
   serviceDate: '2026-09-02',
   description: 'Reviewed discovery',

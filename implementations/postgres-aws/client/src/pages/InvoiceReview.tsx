@@ -293,6 +293,7 @@ export default function InvoiceReview() {
             fileName={fileSource.fileName}
             heading={`${who}'s file, as uploaded`}
             focus={fileFocus}
+            regions={fileSource.lines}
           />
         )}
         <div className="review-file-layout__lines">

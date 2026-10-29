@@ -131,10 +131,15 @@ processing boundary, which includes the organization's own cloud account.
    one item to break down, with a warning; a blank form and a
    pre-authorization request are refused with what to do instead. Pages
    after the invoice's total are read as attachments: one whose total
-   (within a dollar) or items match an invoice item is noted as its likely
+   (within 1%, up to a dollar) or items match an invoice item is noted as its likely
    backup, other items are offered on the review screen to add, and other
    amounts written there are pointed out, so nothing is dropped silently
-   and nothing is billed twice.
+   and nothing is billed twice. PDFs embedded in the file are read the same
+   way (text only, up to ten files of 10 MB, one level deep); other embedded
+   files are named in a warning. Each PDF line records the region of the
+   page it was read from, and the side-by-side viewer outlines it. A
+   dynamic (XFA) form whose values can't be read gets a message saying how
+   to make a readable copy.
 6. **Side-by-side review:** show the original document beside the import
    review instead of only as a download. Status: done in the Postgres/AWS
    prototype (PDF pages drawn in the browser, text and spreadsheets shown

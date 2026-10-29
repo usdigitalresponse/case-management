@@ -3,18 +3,20 @@
 // positions, finds the item table by its headings and reads one item per row
 // with an amount, items written as sentences in a letter, or a fill-in
 // form's labelled blanks. Other layouts fail.
+import { createHash } from 'node:crypto';
 import type { LineType } from '../../billing/invoiceLifecycle';
 import {
   cents,
   checkLineCount,
+  type SourceRegion,
   optionalText,
   UnreadableInvoiceFileError,
   type ImportWarning,
   type ParsedInvoice,
   type ParsedLine,
 } from '../parsedInvoice';
-import { recognizePages, type OcrWord } from './ocr';
-import { loadPdfJs, withPdf, type PdfAnnotation, type PdfPage, type PdfTextItem } from './pdfDocument';
+import { recognizePages, type OcrWord, type RecognizedFrame } from './ocr';
+import { loadPdfJs, withPdf, type PdfAnnotation, type PdfDocument, type PdfPage, type PdfTextItem } from './pdfDocument';
 import type { ExtractOptions, InvoiceExtractor } from './types';
 
 // In points.
@@ -29,6 +31,12 @@ interface Cell {
   text: string;
   // Text-layer cells only, in points.
   height?: number;
+  // Its extent up the page in points (y grows upward), for highlighting.
+  bottom?: number;
+  top?: number;
+  // Where it is in its row's text.
+  start?: number;
+  end?: number;
   // Recognized cells only: the least confident word's, and the mean.
   confidence?: number;
   meanConfidence?: number;
@@ -59,6 +67,8 @@ interface Row {
   y: number;
   cells: Cell[];
   text: string;
+  // Rows of a PDF embedded in the document: its name and own page number.
+  embedded?: { file: string; page: number };
 }
 
 type Column = 'date' | 'timekeeper' | 'description' | 'hours' | 'rate' | 'amount' | 'task' | 'activity';
@@ -122,14 +132,16 @@ const LIGATURE = /[ƟƩŌ]/g;
 function finishRows(rows: Row[]): Row[] {
   for (const row of rows) {
     row.cells.sort((a, b) => a.x - b.x);
-    row.text = row.cells
-      .map((cell, index) => {
-        const previous = row.cells[index - 1];
-        const touching = previous !== undefined && cell.x - (previous.x + previous.width) < 1;
-        const joined = touching && /[ƟƩŌ]/.test(cell.text + previous.text);
-        return `${index === 0 || joined ? '' : ' '}${cell.text.replace(LIGATURE, (letter) => LIGATURES[letter]!)}`;
-      })
-      .join('');
+    row.text = '';
+    for (const [index, cell] of row.cells.entries()) {
+      const previous = row.cells[index - 1];
+      const touching = previous !== undefined && cell.x - (previous.x + previous.width) < 1;
+      const joined = touching && /[ƟƩŌ]/.test(cell.text + previous.text);
+      row.text += index === 0 || joined ? '' : ' ';
+      cell.start = row.text.length;
+      row.text += cell.text.replace(LIGATURE, (letter) => LIGATURES[letter]!);
+      cell.end = row.text.length;
+    }
   }
   return rows;
 }
@@ -154,11 +166,22 @@ function recognizedRows(page: number, words: OcrWord[]): Row[] {
       if (cell && word.x - previousEnd < height * 0.6) {
         cell.text = `${cell.text} ${word.text}`;
         cell.width = word.x + word.width - cell.x;
+        cell.bottom = Math.min(cell.bottom!, word.y);
+        cell.top = Math.max(cell.top!, word.y + word.height);
         cell.confidence = Math.min(cell.confidence ?? 100, word.confidence);
         cell.meanConfidence = ((cell.meanConfidence ?? 100) * cell.words! + word.confidence) / (cell.words! + 1);
         cell.words! += 1;
       } else {
-        cells.push({ x: word.x, width: word.width, text: word.text, confidence: word.confidence, meanConfidence: word.confidence, words: 1 });
+        cells.push({
+          x: word.x,
+          width: word.width,
+          bottom: word.y,
+          top: word.y + word.height,
+          text: word.text,
+          confidence: word.confidence,
+          meanConfidence: word.confidence,
+          words: 1,
+        });
       }
       previousEnd = word.x + word.width;
     }
@@ -218,9 +241,12 @@ async function drawsOnlyHiddenText(page: PdfPage, OPS: Record<string, number>): 
 
 interface PlacedText {
   x: number;
+  // The baseline.
   y: number;
   width: number;
   height: number;
+  bottom: number;
+  top: number;
   text: string;
 }
 
@@ -245,7 +271,8 @@ function fieldValues(annotations: PdfAnnotation[], drawn: PlacedText[]): PlacedT
     }
     // A tall box's text starts at its top.
     const height = top - bottom;
-    values.push({ x: left, y: height > 30 ? top - 12 : bottom, width: right - left, height: Math.min(height, 12), text });
+    const y = height > 30 ? top - 12 : bottom;
+    values.push({ x: left, y, width: right - left, height: Math.min(height, 12), bottom: y, top: Math.min(top, y + 14), text });
   }
   return values;
 }
@@ -273,46 +300,167 @@ function median(values: number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? 0;
 }
 
-async function readRows(bytes: Buffer, options: ExtractOptions): Promise<{ rows: Row[]; recognized: boolean }> {
+// A box in a page's row coordinates (points, y upward) as a region of the
+// page as shown.
+type PageFrame = (box: { left: number; right: number; bottom: number; top: number }) => Omit<SourceRegion, 'page'>;
+
+const fraction = (value: number) => Math.round(Math.min(Math.max(value, 0), 1) * 10000) / 10000;
+
+function regionFrom(corners: Array<[number, number]>): Omit<SourceRegion, 'page'> {
+  const xs = corners.map(([x]) => x);
+  const ys = corners.map(([, y]) => y);
+  const [left, top] = [fraction(Math.min(...xs)), fraction(Math.min(...ys))];
+  return { left, top, width: fraction(fraction(Math.max(...xs)) - left), height: fraction(fraction(Math.max(...ys)) - top) };
+}
+
+// Text-layer coordinates are the PDF's own; its viewport applies the page's
+// rotation.
+function textFrame(viewport: ReturnType<PdfPage['getViewport']>): PageFrame {
+  const point = (x: number, y: number): [number, number] => {
+    const [px = 0, py = 0] = viewport.convertToViewportPoint(x, y);
+    return [px / viewport.width, py / viewport.height];
+  };
+  return ({ left, right, bottom, top }) => regionFrom([point(left, bottom), point(right, top)]);
+}
+
+// Recognized words are in the page as it was turned for reading, so a
+// sideways or upside-down scan is turned back.
+function recognizedFrame({ turn, width, height }: RecognizedFrame): PageFrame {
+  const unturn = ([x, y]: [number, number]): [number, number] =>
+    turn === 90 ? [y, 1 - x] : turn === 180 ? [1 - x, 1 - y] : turn === 270 ? [1 - y, x] : [x, y];
+  return ({ left, right, bottom, top }) =>
+    regionFrom([
+      unturn([left / width, 1 - top / height]),
+      unturn([right / width, 1 - bottom / height]),
+    ]);
+}
+
+// Rows from each page's text layer and form fields; pages drawing only
+// hidden text (searchable scans) are listed for recognizing instead.
+async function readTextLayer(document: PdfDocument, OPS: Record<string, number>) {
+  const rows: Row[] = [];
+  const frames = new Map<number, PageFrame>();
+  const hiddenTextPages = new Set<number>();
+  // [id, name] of files attached to pages.
+  const pageFiles: Array<[string, string]> = [];
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await document.getPage(pageNumber);
+    // eslint-disable-next-line no-await-in-loop
+    const content = await page.getTextContent();
+    const pageItems = content.items.filter((item): item is PdfTextItem => 'str' in item && item.str.trim() !== '');
+    // eslint-disable-next-line no-await-in-loop
+    if (pageItems.length > 0 && (await drawsOnlyHiddenText(page, OPS))) {
+      hiddenTextPages.add(pageNumber);
+    }
+    frames.set(pageNumber, textFrame(page.getViewport({ scale: 1 })));
+    // eslint-disable-next-line no-await-in-loop
+    const annotations = await page.getAnnotations();
+    pageFiles.push(
+      ...annotations.flatMap(({ subtype, fileId, file }): Array<[string, string]> =>
+        subtype === 'FileAttachment' && fileId ? [[fileId, file?.filename ?? 'unnamed']] : [],
+      ),
+    );
+    // The drawing operators hold the page's decoded images.
+    page.cleanup();
+    const drawn = pageItems.map((item) => {
+      const y = item.transform[5] ?? 0;
+      // A run's height is its font size; descenders reach below the baseline.
+      return { x: item.transform[4] ?? 0, y, width: item.width, height: item.height, bottom: y - 0.25 * item.height, top: y + item.height, text: item.str.trim() };
+    });
+    const items = [...drawn, ...fieldValues(annotations, drawn)]
+      // PDF y grows upward, so higher y is nearer the top.
+      .sort((a, b) => b.y - a.y || a.x - b.x);
+    for (const item of items) {
+      const row = rows[rows.length - 1];
+      const cell = { x: item.x, width: item.width, height: item.height, bottom: item.bottom, top: item.top, text: item.text };
+      if (row && row.page === pageNumber && Math.abs(row.y - item.y) < ROW_TOLERANCE) {
+        row.cells.push(cell);
+      } else {
+        rows.push({ page: pageNumber, y: item.y, cells: [cell], text: '' });
+      }
+    }
+  }
+  return { rows, frames, hiddenTextPages, pageFiles };
+}
+
+// Embedded files are untrusted like the PDF: a few, not too large, one level
+// deep, PDFs read from their text only. pdf.js gives no size before
+// decoding, so files named as another type aren't decoded.
+const MAX_EMBEDDED_FILES = 10;
+const MAX_EMBEDDED_BYTES = 10_000_000;
+const NOT_PDF_NAME = /\.(?!pdf$)[a-z0-9]{1,5}$/i;
+
+// Embedded PDFs' rows, numbered as pages after the document's own; other
+// files are named as not read. A file listed for the document and on a page
+// has two ids, so duplicates are found by content.
+async function readEmbedded(
+  document: PdfDocument,
+  files: Map<string, string>,
+  OPS: Record<string, number>,
+): Promise<{ rows: Row[]; notRead: string[] }> {
+  const rows: Row[] = [];
+  const notRead: string[] = [];
+  const seen = new Set<string>();
+  const names = new Map<string, number>();
+  let decoded = 0;
+  let nextPage = document.numPages;
+  for (const [id, filename] of files) {
+    if (NOT_PDF_NAME.test(filename) || decoded >= MAX_EMBEDDED_FILES) {
+      notRead.push(filename);
+      continue;
+    }
+    decoded += 1;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const content = await document.getAttachmentContent(id);
+      const digest = content && createHash('sha256').update(content).digest('hex');
+      if (digest && seen.has(digest)) {
+        continue;
+      }
+      if (digest) {
+        seen.add(digest);
+      }
+      if (!content || content.length > MAX_EMBEDDED_BYTES || new TextDecoder().decode(content.slice(0, 5)) !== '%PDF-') {
+        notRead.push(filename);
+        continue;
+      }
+      // eslint-disable-next-line no-await-in-loop
+      const read = await withPdf(Buffer.from(content), async (document) => ({
+        ...(await readTextLayer(document, OPS)),
+        pages: document.numPages,
+      }));
+      const visible = read.rows.filter((row) => !read.hiddenTextPages.has(row.page));
+      if (visible.length === 0 || textLooksGarbled(visible.map((row) => row.cells.map((cell) => cell.text).join(' ')).join('\n'))) {
+        notRead.push(filename);
+        continue;
+      }
+      const count = (names.get(filename) ?? 0) + 1;
+      names.set(filename, count);
+      const file = count === 1 ? filename : `${filename} (${count})`;
+      for (const row of finishRows(joinRaisedText(visible))) {
+        rows.push({ ...row, page: nextPage + row.page, embedded: { file, page: row.page } });
+      }
+      nextPage += read.pages;
+    } catch {
+      notRead.push(filename);
+    }
+  }
+  return { rows, notRead };
+}
+
+async function readRows(
+  bytes: Buffer,
+  options: ExtractOptions,
+): Promise<{ rows: Row[]; recognized: boolean; frames: Map<number, PageFrame>; xfa: boolean; notRead: string[] }> {
   const { OPS } = loadPdfJs();
   options.onProgress?.({ stage: 'reading' });
   return withPdf(bytes, async (document) => {
-    const rows: Row[] = [];
-    const hiddenTextPages = new Set<number>();
-    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-      // eslint-disable-next-line no-await-in-loop
-      const page = await document.getPage(pageNumber);
-      // eslint-disable-next-line no-await-in-loop
-      const content = await page.getTextContent();
-      const pageItems = content.items.filter((item): item is PdfTextItem => 'str' in item && item.str.trim() !== '');
-      // eslint-disable-next-line no-await-in-loop
-      if (pageItems.length > 0 && (await drawsOnlyHiddenText(page, OPS))) {
-        hiddenTextPages.add(pageNumber);
-      }
-      // eslint-disable-next-line no-await-in-loop
-      const annotations = await page.getAnnotations();
-      // The drawing operators hold the page's decoded images.
-      page.cleanup();
-      const drawn = pageItems.map((item) => ({
-        x: item.transform[4] ?? 0,
-        y: item.transform[5] ?? 0,
-        width: item.width,
-        height: item.height,
-        text: item.str.trim(),
-      }));
-      const items = [...drawn, ...fieldValues(annotations, drawn)]
-        // PDF y grows upward, so higher y is nearer the top.
-        .sort((a, b) => b.y - a.y || a.x - b.x);
-      for (const item of items) {
-        const row = rows[rows.length - 1];
-        const cell = { x: item.x, width: item.width, height: item.height, text: item.text };
-        if (row && row.page === pageNumber && Math.abs(row.y - item.y) < ROW_TOLERANCE) {
-          row.cells.push(cell);
-        } else {
-          rows.push({ page: pageNumber, y: item.y, cells: [cell], text: '' });
-        }
-      }
-    }
+    const xfa = Boolean((await document.getMetadata()).info.IsXFAPresent);
+    const { rows, frames, hiddenTextPages, pageFiles } = await readTextLayer(document, OPS);
+    const attachments = await document.getAttachments().catch(() => null);
+    const named = [...(attachments ?? new Map())].map(([id, file]): [string, string] => [id, file.filename]);
+    const embedded = await readEmbedded(document, new Map([...named, ...pageFiles]), OPS);
     // A file with visible, readable text is read from its text layer; mixed
     // files keep that only, so scanned attachments behind a digital invoice
     // aren't read as items. Scans, including searchable ones whose hidden
@@ -320,13 +468,19 @@ async function readRows(bytes: Buffer, options: ExtractOptions): Promise<{ rows:
     // recognized here instead.
     const visibleRows = rows.filter((row) => !hiddenTextPages.has(row.page));
     if (visibleRows.length > 0 && !textLooksGarbled(visibleRows.map((row) => row.cells.map((cell) => cell.text).join(' ')).join('\n'))) {
-      return { rows: finishRows(joinRaisedText(visibleRows)), recognized: false };
+      return { rows: [...finishRows(joinRaisedText(visibleRows)), ...embedded.rows], recognized: false, frames, xfa, notRead: embedded.notRead };
     }
     const pageNumbers = Array.from({ length: document.numPages }, (_, index) => index + 1);
     const recognized = await recognizePages(document, pageNumbers, (page, pages) =>
       options.onProgress?.({ stage: 'recognizing', page, pages }),
     );
-    return { rows: pageNumbers.flatMap((page) => recognizedRows(page, recognized.get(page) ?? [])), recognized: true };
+    return {
+      rows: [...pageNumbers.flatMap((page) => recognizedRows(page, recognized.words.get(page) ?? [])), ...embedded.rows],
+      recognized: true,
+      frames: new Map([...recognized.frames].map(([page, frame]) => [page, recognizedFrame(frame)])),
+      xfa,
+      notRead: embedded.notRead,
+    };
   });
 }
 
@@ -660,21 +814,68 @@ function invoiceFields(rows: Row[]): Pick<ParsedInvoice, 'invoiceNumber' | 'peri
   };
 }
 
+// The region the cells cover, where their page's frame is known.
+function regionOf(frames: Map<number, PageFrame>, page: number, cells: Cell[]): SourceRegion | undefined {
+  const placed = cells.filter((cell) => cell.bottom !== undefined && cell.top !== undefined);
+  const frame = frames.get(page);
+  if (placed.length === 0 || !frame) {
+    return undefined;
+  }
+  return {
+    page,
+    ...frame({
+      left: Math.min(...placed.map((cell) => cell.x)),
+      right: Math.max(...placed.map((cell) => cell.x + cell.width)),
+      bottom: Math.min(...placed.map((cell) => cell.bottom!)),
+      top: Math.max(...placed.map((cell) => cell.top!)),
+    }),
+  };
+}
+
+// An item continued on the next row covers both.
+function joinRegions(first: SourceRegion | undefined, second: SourceRegion | undefined): SourceRegion | undefined {
+  if (!first || !second || first.page !== second.page) {
+    return first ?? second;
+  }
+  const left = Math.min(first.left, second.left);
+  const top = Math.min(first.top, second.top);
+  return {
+    page: first.page,
+    left,
+    top,
+    width: fraction(Math.max(first.left + first.width, second.left + second.width) - left),
+    height: fraction(Math.max(first.top + first.height, second.top + second.height) - top),
+  };
+}
+
+// An XFA form's values may live only in its XFA data, which isn't read.
+const XFA_MESSAGE =
+  'This PDF is a dynamic (XFA) form, whose filled-in values can’t be read here. Open it in Adobe Acrobat Reader, print it to a new PDF, and upload that copy, or enter the items by hand.';
+
 // A request for approval before the work, in the title on page 1.
 const ESTIMATE_TITLE = /\b(request for pre-?authori[sz]ation|pre-?authori[sz]ation request|cost estimate|quotation)\b/i;
 
 // A stated total with no readable items (a cover sheet sent alone) becomes
 // one item to break down, so the submitter isn't stopped.
-function totalOnly(rows: Row[], warnings: ImportWarning[]): ParsedInvoice | undefined {
+function totalOnly(rows: Row[], warnings: ImportWarning[], frames: Map<number, PageFrame>): ParsedInvoice | undefined {
   const fields = invoiceFields(rows);
   // Written as money, so a figure in prose ("1.2 total) 0.6") isn't one.
-  const written = rows.filter((row) => isTotalRow(row) && /\$\s*[\d,]*\d/.test(row.text)).map((row) => parseMoney(row.text));
-  if (fields.statedTotal === undefined || fields.statedTotal <= 0 || !written.includes(fields.statedTotal)) {
+  const written = rows.filter((row) => isTotalRow(row) && /\$\s*[\d,]*\d/.test(row.text) && parseMoney(row.text) === fields.statedTotal);
+  const totalRow = written.at(-1);
+  if (fields.statedTotal === undefined || fields.statedTotal <= 0 || !totalRow) {
     return undefined;
   }
   return {
     ...fields,
-    lines: [{ location: 'stated total', lineType: 'other', description: 'Total requested (not itemized)', amount: fields.statedTotal }],
+    lines: [
+      {
+        location: 'stated total',
+        region: regionOf(frames, totalRow.page, totalRow.cells),
+        lineType: 'other',
+        description: 'Total requested (not itemized)',
+        amount: fields.statedTotal,
+      },
+    ],
     warnings: [
       ...warnings,
       {
@@ -686,21 +887,32 @@ function totalOnly(rows: Row[], warnings: ImportWarning[]): ParsedInvoice | unde
 }
 
 const money = (value: number) => value.toFixed(2);
-const pageOf = (location: string) => Number(/^page (\d+)/.exec(location)?.[1]);
+// How a page is named in messages and warning locations.
+interface PagePlace {
+  text: string;
+  location: string;
+}
 
 // Attachments are usually evidence for the invoice's items, so nothing there
 // is billed by itself. A page whose total, sum or item matches an invoice item
 // is noted as its backup; other items are returned as suggestions and other
 // amounts pointed out.
-function sortAttachments(lines: ParsedLine[], attachedLines: ParsedLine[], attachedAmounts: Map<number, number[]>, warnings: ImportWarning[]): ParsedLine[] {
+function sortAttachments(
+  lines: ParsedLine[],
+  attachedLines: Map<ParsedLine, number>,
+  attachedAmounts: Map<number, number[]>,
+  places: Map<number, PagePlace>,
+  warnings: ImportWarning[],
+): ParsedLine[] {
+  const place = (page: number) => places.get(page) ?? { text: `Page ${page} of the file`, location: `page ${page}` };
   const backedUp = new Set<ParsedLine>();
-  // Exactly, or for a page's total within a dollar: invoices often round a
-  // receipt's total.
+  // Exactly, or for a page's total within 1% up to a dollar: invoices often
+  // round a receipt's total, but a small receipt near a small item isn't it.
   const backs = (amount: number, page: number, isTotal = false) => {
     const open = lines.filter((candidate) => !backedUp.has(candidate));
     const line =
       open.find((candidate) => cents(candidate.amount) === cents(amount)) ??
-      (isTotal ? open.find((candidate) => Math.abs(cents(candidate.amount) - cents(amount)) <= 100) : undefined);
+      (isTotal ? open.find((candidate) => Math.abs(cents(candidate.amount) - cents(amount)) <= Math.min(100, cents(amount) / 100)) : undefined);
     if (line) {
       backedUp.add(line);
       warnings.push({
@@ -708,16 +920,16 @@ function sortAttachments(lines: ParsedLine[], attachedLines: ParsedLine[], attac
         location: line.location,
         message:
           cents(line.amount) === cents(amount)
-            ? `Page ${page} of the file shows the same amount (${money(amount)}), likely its receipt or backup.`
-            : `Page ${page} of the file shows ${money(amount)}, close to this item’s ${money(line.amount)}; likely its receipt or backup. Check the difference.`,
+            ? `${place(page).text} shows the same amount (${money(amount)}), likely its receipt or backup.`
+            : `${place(page).text} shows ${money(amount)}, close to this item’s ${money(line.amount)}; likely its receipt or backup. Check the difference.`,
       });
     }
     return line !== undefined;
   };
   const suggested: ParsedLine[] = [];
-  const pages = [...new Set([...attachedAmounts.keys(), ...attachedLines.map((line) => pageOf(line.location))])].sort((a, b) => a - b);
+  const pages = [...new Set([...attachedAmounts.keys(), ...attachedLines.values()])].sort((a, b) => a - b);
   for (const page of pages) {
-    const items = attachedLines.filter((line) => pageOf(line.location) === page);
+    const items = [...attachedLines].flatMap(([line, onPage]) => (onPage === page ? [line] : []));
     const amounts = attachedAmounts.get(page) ?? [];
     const sum = items.reduce((total, line) => total + cents(line.amount), 0) / 100;
     const candidates = [...new Set([...amounts, ...(items.length > 1 ? [sum] : [])])];
@@ -731,8 +943,8 @@ function sortAttachments(lines: ParsedLine[], attachedLines: ParsedLine[], attac
       const total = left.reduce((sumSoFar, line) => sumSoFar + cents(line.amount), 0) / 100;
       warnings.push({
         code: 'attachment_items',
-        location: `page ${page}`,
-        message: `Page ${page} of the file has ${left.length === 1 ? 'an item' : `${left.length} items`} (${money(total)}) that ${left.length === 1 ? 'isn’t' : 'aren’t'} on the invoice. ${left.length === 1 ? 'It’s' : 'They’re'} listed under “Also found in the file”; add any that should be billed.`,
+        location: place(page).location,
+        message: `${place(page).text} has ${left.length === 1 ? 'an item' : `${left.length} items`} (${money(total)}) that ${left.length === 1 ? 'isn’t' : 'aren’t'} on the invoice. ${left.length === 1 ? 'It’s' : 'They’re'} listed under “Also found in the file”; add any that should be billed.`,
       });
     }
     // Amounts no item explains, such as a fee written on a map page.
@@ -743,8 +955,8 @@ function sortAttachments(lines: ParsedLine[], attachedLines: ParsedLine[], attac
     if (unexplained.length > 0) {
       warnings.push({
         code: 'attachment_amounts',
-        location: `page ${page}`,
-        message: `Page ${page} of the file shows ${unexplained.map((amount) => money(amount / 100)).join(', ')}, which ${unexplained.length === 1 ? 'isn’t' : 'aren’t'} on the invoice. Check whether anything there should be billed.`,
+        location: place(page).location,
+        message: `${place(page).text} shows ${unexplained.map((amount) => money(amount / 100)).join(', ')}, which ${unexplained.length === 1 ? 'isn’t' : 'aren’t'} on the invoice. Check whether anything there should be billed.`,
       });
     }
   }
@@ -752,9 +964,10 @@ function sortAttachments(lines: ParsedLine[], attachedLines: ParsedLine[], attac
 }
 
 export async function extractFromTextLayer(bytes: Buffer, options: ExtractOptions = {}): Promise<ParsedInvoice> {
-  const { rows, recognized } = await readRows(bytes, options);
+  const { rows, recognized, frames, xfa, notRead } = await readRows(bytes, options);
+  const regionIn = (row: Row, cells: Cell[] = row.cells) => regionOf(frames, row.page, cells);
   if (rows.length === 0) {
-    throw new UnreadableInvoiceFileError('No text could be read from this PDF. Enter the items by hand instead.');
+    throw new UnreadableInvoiceFileError(xfa ? XFA_MESSAGE : 'No text could be read from this PDF. Enter the items by hand instead.');
   }
 
   const warnings: ImportWarning[] = [];
@@ -772,9 +985,9 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
         'This looks like a request for pre-authorization or an estimate, not a request for payment. Upload the invoice or payment request, or enter the items by hand.',
       );
     }
-    const total = totalOnly(invoiceRows, warnings);
+    const total = totalOnly(invoiceRows, warnings, frames);
     if (!total) {
-      throw new UnreadableInvoiceFileError(why);
+      throw new UnreadableInvoiceFileError(xfa ? XFA_MESSAGE : why);
     }
     return total;
   };
@@ -822,13 +1035,30 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   // A numbered row without figures, which the next item sentence describes.
   let listText: string | undefined;
   let lastRow = rows.length - 1;
-  const attachedLines: ParsedLine[] = [];
+  // Each attachment item and the page it's on.
+  const attachedLines = new Map<ParsedLine, number>();
+  const places = new Map<number, PagePlace>();
   // Amounts written on attachment pages, by page.
   const attachedAmounts = new Map<number, number[]>();
   let attached = false;
-  const target = () => (attached ? attachedLines : lines);
-  const locate = (page: number) =>
-    attached ? `page ${page}, attachment item ${attachedLines.length + 1}` : `page ${page}, row ${lines.length + 1}`;
+  // The file the invoice's items are in: the document's own ('') or, behind
+  // a cover letter, an embedded one.
+  const fileOf = (row: Row) => row.embedded?.file ?? '';
+  let invoiceFile: string | undefined;
+  const add = (row: Row, line: ParsedLine) => {
+    if (attached) {
+      attachedLines.set(line, row.page);
+    } else {
+      invoiceFile ??= fileOf(row);
+      lines.push(line);
+    }
+  };
+  const placeOf = (row: Row): PagePlace =>
+    row.embedded
+      ? { text: `Page ${row.embedded.page} of the attached file “${row.embedded.file}”`, location: `attached file “${row.embedded.file}”, page ${row.embedded.page}` }
+      : { text: `Page ${row.page} of the file`, location: `page ${row.page}` };
+  const locate = (row: Row) =>
+    attached ? `${placeOf(row).location}, attachment item ${attachedLines.size + 1}` : `${placeOf(row).location}, row ${lines.length + 1}`;
   // Unclear text or marks (handwriting, a correction or a poor scan) never
   // change the printed figures; one warning per item (or page) quotes them.
   const unclearNotes = new Map<string, { warning: ImportWarning; guesses: string[] }>();
@@ -857,11 +1087,13 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   for (const [index, row] of rows.entries()) {
     const headings = headerColumns(row);
     const invoiceEnd = Math.min(dueOnPage ?? Infinity, looseItemsTotalPage ?? Infinity);
-    if (!attached && (row.page > invoiceEnd || (headings && looseItemsTotalPage !== undefined))) {
+    const otherFile = invoiceFile !== undefined && fileOf(row) !== invoiceFile;
+    if (!attached && (otherFile || row.page > invoiceEnd || (headings && looseItemsTotalPage !== undefined))) {
       attached = true;
       lastRow = index - 1;
       previous = undefined;
     }
+    places.set(row.page, placeOf(row));
     if (attached) {
       const written = [...row.text.matchAll(/\$\s?([\d,]+\.\d{2})\b/g)].map((match) => parseMoney(match[1]));
       const total = isTotalRow(row) ? parseMoney(row.text) : undefined;
@@ -888,7 +1120,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       onForm ||= formItems.length > 0;
       const formAmount = !sentence && formItems.length === 0 && onForm && !isTotalRow(row) ? FORM_AMOUNT_ITEM.exec(itemText) : null;
       if (sentence) {
-        const location = locate(row.page);
+        const location = locate(row);
         const { quantity, unitRate, amount } = settle(
           {
             quantity: sentence.quantity === undefined ? undefined : { text: sentence.quantity },
@@ -901,8 +1133,9 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
           const ownText = sentence.description.replace(LIST_MARKER, '');
           const text = LIST_MARKER.test(sentence.description) || !listText ? ownText : `${listText.replace(LIST_MARKER, '')} ${ownText}`.trim();
           const description = text.replace(TRAILING_DATE, '');
-          target().push({
+          add(row, {
             location,
+            region: regionIn(row),
             lineType: lineType(undefined, quantity, description, undefined),
             serviceDate: [...text.matchAll(DATE_PATTERN)].map((match) => parseDate(match[1]!)).find(Boolean),
             description: optionalText(description),
@@ -917,11 +1150,18 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
           listText = undefined;
         }
       } else if (formItems.length > 0 || formAmount) {
-        const blanks: Array<{ label: string; quantity?: string; unit?: string; rate?: string; amount?: string }> = formAmount
-          ? [{ label: formAmount[1]!, amount: formAmount[2]! }]
-          : formItems.map(([, label, quantity, unit, rate, amount]) => ({ label: label!, quantity, unit, rate, amount }));
+        type Blank = { label: string; quantity?: string; unit?: string; rate?: string; amount?: string; cells: Cell[] };
+        // Each blank's own cells, as a line can hold two.
+        const blanks: Blank[] = formAmount
+          ? [{ label: formAmount[1]!, amount: formAmount[2]!, cells: row.cells }]
+          : formItems.map((match) => {
+              const [, label, quantity, unit, rate, amount] = match;
+              const [from, to] = [match.index, match.index + match[0].length];
+              const cells = row.cells.filter((cell) => cell.start !== undefined && cell.start < to && cell.end! > from);
+              return { label: label!, quantity, unit, rate, amount, cells };
+            });
         for (const blank of blanks) {
-          const location = locate(row.page);
+          const location = locate(row);
           const figures = settle(
             {
               quantity: blank.quantity === undefined ? undefined : { text: blank.quantity.replace(/,/g, '') },
@@ -935,8 +1175,9 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
           }
           const description = optionalText(blank.label);
           const byTheHour = blank.unit !== undefined && /^h/i.test(blank.unit);
-          target().push({
+          add(row, {
             location,
+            region: regionIn(row, blank.cells),
             // Miles are an expense; a label such as "Travel" keeps travel
             // time apart from other time.
             lineType: blank.unit === undefined ? lineType(formSection, undefined, description ?? '', undefined) : byTheHour ? 'time' : 'expense',
@@ -992,7 +1233,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       continue;
     }
     const cells = cellsByColumn(row, columns);
-    const location = locate(row.page);
+    const location = locate(row);
     const reading = (column: Column): FigureReading | undefined => {
       const found = cells.get(column);
       return found && { text: textOf(found)!, confidence: Math.min(...found.map((cell) => cell.confidence ?? 100)) };
@@ -1006,6 +1247,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
         const timekeeper = textOf(cells.get('timekeeper'));
         // Stacked cells put the date on its own line under the item.
         const stackedDate = description && !previous.serviceDate ? parseDate(description.replace(/^\W+/, '')) : undefined;
+        previous.region = joinRegions(previous.region, regionIn(row));
         if (stackedDate) {
           previous.serviceDate = stackedDate;
         } else if (description) {
@@ -1032,6 +1274,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
         noteUnclear(row.page, marks);
       } else if (previous) {
         previous.description = `${previous.description ?? ''} ${row.text}`.trim();
+        previous.region = joinRegions(previous.region, regionIn(row));
       }
       continue;
     }
@@ -1050,6 +1293,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     const dateText = textOf(cells.get('date'));
     previous = {
       location,
+      region: regionIn(row),
       lineType: attached && !hoursColumn ? 'expense' : lineType(section, hours, description, expenseCode),
       // Without a date column, a date opening a description cell is the item's.
       serviceDate: dateText
@@ -1076,7 +1320,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
         message: `Figures unclear on the scan${quoted(unsure, 'read as')}. Compare with the file.`,
       });
     }
-    target().push(previous);
+    add(row, previous);
     if (!attached) {
       sinceSubtotal += cents(amount);
     }
@@ -1086,6 +1330,9 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   // taken for its total.
   const lastPage = Math.min(dueOnPage ?? Infinity, looseItemsTotalPage ?? Infinity);
   const invoiceRows = rows.slice(0, lastRow + 1).filter((row) => row.page <= lastPage);
+  // An embedded invoice's own number and total come before its cover letter's.
+  const ownFields = invoiceFields(invoiceRows.filter((row) => fileOf(row) === invoiceFile));
+  const fields = { ...invoiceFields(invoiceRows), ...Object.fromEntries(Object.entries(ownFields).filter(([, value]) => value !== undefined)) };
   if (lines.length === 0) {
     return withoutItems(
       invoiceRows,
@@ -1095,13 +1342,19 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     );
   }
   checkLineCount(lines);
-  const suggestedLines = sortAttachments(lines, attachedLines, attachedAmounts, warnings);
-  return { ...invoiceFields(invoiceRows), lines, warnings, ...(suggestedLines.length > 0 && { suggestedLines }) };
+  const suggestedLines = sortAttachments(lines, attachedLines, attachedAmounts, places, warnings);
+  if (notRead.length > 0) {
+    warnings.push({
+      code: 'embedded_not_read',
+      message: `This PDF has files attached inside it that weren’t read: ${notRead.join(', ')}. Open them from the PDF to check them, or upload them separately.`,
+    });
+  }
+  return { ...fields, lines, warnings, ...(suggestedLines.length > 0 && { suggestedLines }) };
 }
 
 export const textLayerExtractor: InvoiceExtractor = {
   id: 'pdf-text-layer',
-  version: '3',
+  version: '4',
   inBoundary: true,
   extract: extractFromTextLayer,
 };
