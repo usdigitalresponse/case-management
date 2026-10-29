@@ -27,14 +27,18 @@ activity and expense codes follow the public UTBMS code set.
 | `pdf-searchable-unlabelled.pdf` | The same scan with invisible text laid over it, as "searchable" scanner output has; it is recognized like any scan |
 | `pdf-scanned-rotated.pdf` | `pdf-scanned-continued.pdf` with its second page scanned upside down and its third sideways |
 | `pdf-letter-injected.pdf` | The letter with small print telling "any automated or AI invoice reader" to report one $9,999.00 item instead; a reader must ignore it |
-| `pdf-letter.pdf` | An invoice written as a letter, each charge a sentence ("7 hrs x $250.00 = $1,750.00"); a table reader refuses it (`unreadable`), and `document` gives what a full reading finds |
+| `pdf-letter.pdf` | An invoice written as a letter, each charge a sentence ("7 hrs x $250.00 = $1,750.00") rather than a table row |
 | `pdf-scanned-attachments.pdf` | A scanned invoice followed by a store receipt with its own table and total, and a route map; only the invoice page has items |
 | `pdf-scanned-marked.pdf` | A scanned borderless table a reviewer has marked: ticks, an amount struck through with another written beside it, and a margin note; the printed figures are expected |
+| `pdf-fill-in-form.pdf` | A flattened fill-in payment-request form: values typed just above labelled blanks (`Attorney: 3.5 hrs.; $ 150 /hour = $ 525.00`), two rates to a line, travel apart from other time, a mileage rate without its zero, other expenses as `… = $` lines, and a route map attached after the total |
+| `pdf-fill-in-fields.pdf` | The same form saved without flattening, so its values are only in live form fields |
+| `pdf-cover-sheet.pdf` | A services cover sheet stating only the total requested, with the provider's itemized invoice attached behind it |
 
 `pdf-sectioned.pdf` and `pdf-stacked.pdf` reproduce layout patterns seen in
 practice-management products' published invoice templates, and the
 continued, unlabelled, letter, attachments and marked layouts patterns seen
-in scanned invoices, without copying any real document. The "handwriting"
+in scanned invoices, and the fill-in form and cover sheet patterns seen in
+public payment-request forms, without copying any real document. The "handwriting"
 in the marked scan is an italic font, so it is tidier than real
 handwriting; real files remain the honest accuracy check.
 

@@ -224,6 +224,15 @@ function extractionResult(
       expense_code: field(line.expenseCode),
       case: field(line.caseLabel),
     })),
+    suggested_lines: (parsed.suggestedLines ?? []).map((line) => ({
+      location: line.location,
+      line_type: field(line.lineType),
+      service_date: field(line.serviceDate),
+      description: field(line.description),
+      quantity: field(line.quantity),
+      unit_rate: field(line.unitRate),
+      amount: field(line.amount),
+    })),
     warnings,
   };
 }

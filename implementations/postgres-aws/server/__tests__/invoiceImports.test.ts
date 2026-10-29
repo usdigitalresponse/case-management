@@ -445,7 +445,7 @@ describe('invoice import workflow', () => {
       statusCode: 'extracted',
       formatCode: 'document',
       mediaType: 'application/pdf',
-      extractionMethod: 'pdf-text-layer 2',
+      extractionMethod: 'pdf-text-layer 3',
       progress: null,
     });
     const lines = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, detail.invoiceId as string));

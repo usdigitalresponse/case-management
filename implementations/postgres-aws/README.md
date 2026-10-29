@@ -157,6 +157,28 @@ each file's printed figures; the format is at the top of
 PDF uploads are read in the background and the review screens show
 progress.
 
+Improving accuracy with AI: the in-app reader uses layout rules and text
+recognition only, so handwriting, unusual layouts and poor scans still need
+hand entry. Adopters can add an AI reading method, such as a vision
+language model or a cloud document-extraction service, as another entry in
+`EXTRACTORS` (`server/src/imports/extractors/index.ts`), chosen with
+`INVOICE_EXTRACTOR` in place of the in-app reader. Using it only as a second
+pass, for files the in-app reader can't read or whose figures don't add up,
+is cheaper but needs the import pipeline to call it after the first; that
+isn't built yet. Before adopting one:
+
+- Run it within the organization's processing boundary (its own cloud
+  account or hosts), mark it `inBoundary`, and agree its hosting cost and
+  licence first. A small model tried here needed a GPU host
+  (`docs/invoice-import-export-plan.md`, "Future work").
+- Ask for a fixed output schema and treat what comes back as untrusted
+  suggestions: keep the same reconciliation warnings, page locations and
+  side-by-side review, and never let a model confirm or submit anything.
+- Score it against the same files as the in-app reader (`npm run
+  extraction-accuracy`, with and without `--samples ../local-samples`),
+  including `pdf-letter-injected.pdf`, whose small print tries to instruct
+  an AI reader.
+
 ### Running the API server
 
 `docker compose up` already does this. Without Docker Compose, against the

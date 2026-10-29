@@ -12,12 +12,14 @@ import {
   type BillableProfessional,
   type InvoiceImportDetail,
   type PortalInvoice,
+  type SuggestedImportLine,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { usePoll } from '../hooks/usePoll';
 import { ImportProgressNote } from '../components/ImportProgressNote';
 import {
   assignTimekeeper,
+  emptyLine,
   hasInvoiceItems,
   invoiceTotalPreview,
   InvoiceLinesEditor,
@@ -98,6 +100,64 @@ function FileTotalComparison({ lines, timekeepers }: { lines: LineDraft[]; timek
       The file totals {formatMoney(stated.toFixed(2))}; at configured rates this invoice is{' '}
       <strong>{formatMoney(billed.total.toFixed(2))}</strong>.
     </Notice>
+  );
+}
+
+function draftFrom(suggestion: SuggestedImportLine): LineDraft {
+  return {
+    ...emptyLine,
+    lineType: suggestion.line_type?.value ?? 'other',
+    serviceDate: suggestion.service_date?.value ?? '',
+    description: suggestion.description?.value ?? '',
+    quantity: suggestion.quantity === undefined ? '' : String(suggestion.quantity.value),
+    amount: suggestion.amount.value.toFixed(2),
+    carried: { unitRate: suggestion.unit_rate?.value, statedAmount: suggestion.amount.value, sourceLocation: suggestion.location },
+  };
+}
+
+// Attachment items matching none of the invoice's; one already added (same
+// source location) isn't offered again.
+function SuggestedItems({
+  suggestions,
+  lines,
+  onAdd,
+}: {
+  suggestions: SuggestedImportLine[];
+  lines: LineDraft[];
+  onAdd: (line: LineDraft) => void;
+}) {
+  const present = new Set(lines.map((line) => line.carried.sourceLocation));
+  const left = suggestions.filter((suggestion) => !present.has(suggestion.location));
+  if (left.length === 0) {
+    return null;
+  }
+  return (
+    <section className="import-suggestions" aria-labelledby="import-suggestions-heading">
+      <h3 id="import-suggestions-heading">Also found in the file</h3>
+      <p className="compact-hint">
+        These are on pages after the invoice, such as receipts or another invoice, and match none of its items. Add any
+        that should be billed.
+      </p>
+      <ul>
+        {left.map((suggestion) => (
+          <li key={suggestion.location}>
+            <span>
+              {suggestion.description?.value ?? 'No description'}
+              {suggestion.service_date && ` · ${suggestion.service_date.value}`}
+              <span className="compact-hint"> ({suggestion.location})</span>
+            </span>
+            <span className="amount">{formatMoney(suggestion.amount.value)}</span>
+            <button
+              type="button"
+              className="btn btn--outline btn--small"
+              onClick={() => onAdd(draftFrom(suggestion))}
+            >
+              Add
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -220,6 +280,11 @@ function ExtractedReview({
             sourceLocations: lines.length === locations.length ? locations.map((line) => line.location) : undefined,
             fixedTimekeeper: Boolean(designatedId),
           }}
+        />
+        <SuggestedItems
+          suggestions={importDetail.extractionResult?.suggested_lines ?? []}
+          lines={lines}
+          onAdd={(line) => setLines([...lines, line])}
         />
         {(!hasItems || unmatched > 0) && (
           <p className="compact-hint actions-hint">

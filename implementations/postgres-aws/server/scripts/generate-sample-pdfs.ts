@@ -362,6 +362,114 @@ async function withAttachments(sample: Sample): Promise<Buffer> {
   return done;
 }
 
+type Blank = { value: string; width?: number };
+
+// Labels with underlined blanks; values sit a few points above the line (a
+// flattened form) or in live form fields.
+function fillInLines(doc: PDFKit.PDFDocument, lines: Array<Array<string | Blank>>, top: number, fields: boolean) {
+  lines.forEach((parts, index) => {
+    const y = top + index * 24;
+    let x = 48;
+    for (const part of parts) {
+      if (typeof part === 'string') {
+        doc.text(part, x, y, { lineBreak: false });
+        x += doc.widthOfString(part) + 3;
+        continue;
+      }
+      const width = part.width ?? 40;
+      doc.moveTo(x, y + 10).lineTo(x + width, y + 10).stroke();
+      if (fields) {
+        doc.formText(`blank-${y}-${Math.round(x)}`, x, y - 4, width, 14, { value: part.value });
+      } else if (part.value !== '') {
+        doc.text(part.value, x + 2, y - 4, { lineBreak: false });
+      }
+      x += width + 3;
+    }
+  });
+}
+
+// A two-page payment-request form (time and travel at up to two rates,
+// mileage, other expenses, total) followed by an attached route map.
+async function fillInForm(sample: Sample, { fields = false } = {}): Promise<Buffer> {
+  const { doc, done } = newDocument('Synthetic fill-in payment request');
+  if (fields) {
+    doc.initForm();
+  }
+  const blank = (value: number | string | undefined, width?: number): Blank => ({ value: value === undefined ? '' : String(value), width });
+  const amount = (item: Item | undefined) => blank(item ? item.amount.toFixed(2) : '0.00', 50);
+  const rateLine = (label: string, unit: string, per: string, items: Item[], rateText = (rate: number) => String(rate)) =>
+    [0, 1].flatMap((index) => {
+      const item = items[index];
+      return [label, blank(item?.hours), `${unit}; $`, blank(item?.rate === undefined ? undefined : rateText(item.rate)), `/${per} = $`, amount(item)];
+    });
+  const time = (description: string) => sample.items.filter((item) => item.type === 'time' && item.description === description);
+  const mileage = sample.items.filter((item) => item.description === 'Mileage');
+  const others = sample.items.filter((item) => item.type !== 'time' && item.description !== 'Mileage');
+  const totalText = total(sample.items).toFixed(2);
+
+  doc.font('Helvetica-Bold').fontSize(13).text('Request for Payment of Fees and Expenses', { align: 'center' });
+  doc.font('Helvetica').fontSize(9).text('Synthetic form for testing', { align: 'center' });
+  doc.fontSize(10);
+  fillInLines(
+    doc,
+    [
+      ['Invoice No:', blank(sample.invoiceNumber, 120), 'Appointed counsel:', blank(A, 150)],
+      ['Invoice period:', blank(usDate(sample.periodStart), 70), 'to', blank(usDate(sample.periodEnd), 70), 'Total Requested: $', blank(totalText, 70)],
+    ],
+    130,
+    fields,
+  );
+  doc.addPage();
+  fillInLines(
+    doc,
+    [
+      ['TIME (in tenths of an hour)'],
+      rateLine('Attorney:', 'hrs.', 'hour', time('Attorney')),
+      rateLine('Travel:', 'hrs.', 'hour', time('Travel')),
+      ['EXPENSES'],
+      // Mileage rates are often written without their zero (".70").
+      rateLine('Mileage:', 'miles', 'mi.', mileage, (rate) => rate.toFixed(2).replace(/^0/, '')),
+      ...[0, 1, 2, 3].map((index) => [blank(others[index]?.description, 340), '= $', blank(others[index]?.amount.toFixed(2), 70)]),
+      ['Total Request (Time and Expenses): $', blank(totalText, 70)],
+    ],
+    72,
+    fields,
+  );
+  doc.text('I certify that the above claim is correct. (Synthetic signature line)', 48, 380);
+  doc.addPage().rect(72, 120, 468, 360).stroke('#999');
+  doc.moveTo(110, 440).bezierCurveTo(200, 300, 330, 420, 500, 160).lineWidth(4).stroke('#336');
+  doc.lineWidth(1).fillColor('black').fontSize(11).text('Route: Office to Courthouse  ·  84 miles round trip, 2 hr', 72, 500);
+  doc.end();
+  return done;
+}
+
+// A services cover sheet stating only the total requested, with the
+// provider's itemized invoice attached behind it.
+async function coverSheet(sample: Sample): Promise<Buffer> {
+  const { doc, done } = newDocument('Synthetic cover sheet with invoice');
+  doc.font('Helvetica-Bold').fontSize(13).text('Request for Payment of Services', { align: 'center' });
+  doc.font('Helvetica').fontSize(9).text('Synthetic form for testing', { align: 'center' });
+  doc.fontSize(10);
+  fillInLines(
+    doc,
+    [
+      ['Provider’s name:', { value: 'Synthetic Investigations', width: 160 }, 'Invoice No.:', { value: sample.invoiceNumber, width: 110 }],
+      ['Invoice period:', { value: usDate(sample.periodStart), width: 70 }, 'to', { value: usDate(sample.periodEnd), width: 70 }],
+      ['TOTAL REQUESTED: $', { value: total(sample.items).toFixed(2), width: 80 }],
+    ],
+    130,
+    false,
+  );
+  doc.addPage();
+  doc.x = 48;
+  doc.y = 48;
+  header(doc, sample);
+  table(doc, ['Date', 'Timekeeper', 'Description', 'Hours', 'Rate', 'Amount'], sample.items.map(itemRow), [62, 100, '*', 45, 60, 65]);
+  footerTotal(doc, total(sample.items));
+  doc.end();
+  return done;
+}
+
 // A borderless itemized table a reviewer has marked by hand: ticks beside
 // the amounts, one amount struck through with another written beside it,
 // and a note in the margin. Import must use the printed figures.
@@ -492,6 +600,15 @@ const UNLABELLED_ITEMS: Item[] = [
   { date: '2026-05-06', type: 'time', description: 'Report writing | Reporting per hour', hours: 3, rate: 150, amount: 450 },
   { date: '2026-05-07', type: 'time', description: 'Case conference | Consulting per hour', hours: 1.5, rate: 300, amount: 450 },
   { date: '2026-05-11', type: 'time', description: 'Testimony preparation | Consulting per hour', hours: 0.5, rate: 300, amount: 150 },
+];
+
+const FORM_ITEMS: Item[] = [
+  { type: 'time', description: 'Attorney', hours: 3.5, rate: 150, amount: 525 },
+  { type: 'time', description: 'Attorney', hours: 1.2, rate: 175, amount: 210 },
+  { type: 'time', description: 'Travel', hours: 2, rate: 75, amount: 150 },
+  { type: 'expense', description: 'Mileage', hours: 84, rate: 0.7, amount: 58.8 },
+  { type: 'expense', description: 'Lodging, one night', amount: 96 },
+  { type: 'expense', description: 'Copies of discovery, 120 pages', amount: 12 },
 ];
 
 const LONG_ITEMS: Item[] = Array.from({ length: 48 }, (_, index) => {
@@ -638,6 +755,24 @@ const LAYOUTS: Layout[] = [
     sample: { invoiceNumber: 'SAMPLE-PDF-012', periodStart: '2026-01-01', periodEnd: '2026-01-31', items: BASE_ITEMS },
     render: async (sample) => scanned(await marked(sample)),
     shows: 'A scanned borderless table marked by a reviewer: ticks, an amount struck through with another written beside it, and a margin note; the printed figures are expected',
+  },
+  {
+    file: 'pdf-fill-in-form.pdf',
+    sample: { invoiceNumber: 'SAMPLE-FORM-014', periodStart: '2026-06-01', periodEnd: '2026-06-30', items: FORM_ITEMS },
+    render: fillInForm,
+    shows: 'A flattened fill-in payment-request form: values typed just above labelled blanks ("Attorney: 3.5 hrs.; $ 150 /hour = $ 525.00"), two rates to a line, travel apart from other time, a mileage rate without its zero, other expenses as "… = $" lines, and a route map attached after the total',
+  },
+  {
+    file: 'pdf-fill-in-fields.pdf',
+    sample: { invoiceNumber: 'SAMPLE-FORM-014', periodStart: '2026-06-01', periodEnd: '2026-06-30', items: FORM_ITEMS },
+    render: (sample) => fillInForm(sample, { fields: true }),
+    shows: 'The same form saved without flattening, so its values are only in live form fields',
+  },
+  {
+    file: 'pdf-cover-sheet.pdf',
+    sample: { invoiceNumber: 'SAMPLE-PDF-015', periodStart: '2026-01-01', periodEnd: '2026-01-31', items: BASE_ITEMS },
+    render: coverSheet,
+    shows: 'A services cover sheet stating only the total requested, with the provider’s itemized invoice attached behind it',
   },
 ];
 

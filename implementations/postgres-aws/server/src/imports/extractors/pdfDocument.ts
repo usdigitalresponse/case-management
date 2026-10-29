@@ -17,6 +17,17 @@ export interface PdfTextItem {
   str: string;
   transform: number[];
   width: number;
+  height: number;
+}
+
+// A form field; only what reading its value needs.
+export interface PdfAnnotation {
+  subtype: string;
+  fieldType?: string;
+  fieldValue?: unknown;
+  rect: number[];
+  hidden?: boolean;
+  options?: Array<{ exportValue: unknown; displayValue: unknown }>;
 }
 
 export interface PdfPage {
@@ -26,6 +37,7 @@ export interface PdfPage {
   render(options: { canvasContext: unknown; viewport: unknown }): { promise: Promise<void> };
   getTextContent(): Promise<{ items: Array<PdfTextItem | object> }>;
   getOperatorList(): Promise<{ fnArray: number[]; argsArray: unknown[][] }>;
+  getAnnotations(): Promise<PdfAnnotation[]>;
   // Frees what rendering kept, such as decoded images.
   cleanup(): boolean;
 }

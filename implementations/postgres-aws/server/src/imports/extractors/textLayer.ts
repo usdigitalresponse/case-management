@@ -1,7 +1,8 @@
-// Reads a PDF's text in-process: the text layer when it has one, otherwise
-// text recognition (a scan). Rebuilds rows from text positions, finds the item
-// table by its headings and reads one item per row with an amount, or items
-// written as sentences in a letter. Other layouts fail.
+// Reads a PDF's text in-process: the text layer and form-field values when
+// it has one, otherwise text recognition (a scan). Rebuilds rows from text
+// positions, finds the item table by its headings and reads one item per row
+// with an amount, items written as sentences in a letter, or a fill-in
+// form's labelled blanks. Other layouts fail.
 import type { LineType } from '../../billing/invoiceLifecycle';
 import {
   cents,
@@ -13,7 +14,7 @@ import {
   type ParsedLine,
 } from '../parsedInvoice';
 import { recognizePages, type OcrWord } from './ocr';
-import { loadPdfJs, withPdf, type PdfPage, type PdfTextItem } from './pdfDocument';
+import { loadPdfJs, withPdf, type PdfAnnotation, type PdfPage, type PdfTextItem } from './pdfDocument';
 import type { ExtractOptions, InvoiceExtractor } from './types';
 
 // In points.
@@ -26,6 +27,8 @@ interface Cell {
   x: number;
   width: number;
   text: string;
+  // Text-layer cells only, in points.
+  height?: number;
   // Recognized cells only: the least confident word's, and the mean.
   confidence?: number;
   meanConfidence?: number;
@@ -83,7 +86,8 @@ const DATE_PATTERN = /(\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|[A-Za-z]{
 const LEADING_DATE = /^\W*(?:\d{1,3}\.\s+)?(\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|[A-Za-z]{3,9}\.? \d{1,2}, \d{4})(?!\d)/;
 // Amounts, including commas recognized as points ("2.500.00") and
 // three-place rates ($0.725 a mile).
-const MONEY_PATTERN = /\(?-?\$?\s?(?:\d{1,3}(?:\.\d{3})+\.\d{2}|\d[\d,]*(?:\.\d{1,3})?)\)?/g;
+// A rate written without its zero (".70") reads as cents, not seventy.
+const MONEY_PATTERN = /\(?-?\$?\s?(?:\d{1,3}(?:\.\d{3})+\.\d{2}|\d[\d,]*(?:\.\d{1,3})?|\.\d{2,3}(?!\d))\)?/g;
 // A page number line ("Invoice 1209 | Page 2", "Page 2 of 5").
 const PAGE_NUMBER = /\bpage\s*\d+(\s*(of|\/)\s*\d+)?\s*$/i;
 const NUMERIC_CELL = /^\(?-?\$?\s?\d[\d,]*(?:\.\d+)?\)?$/;
@@ -94,14 +98,38 @@ const ITEM_SENTENCE = /(?:^|\s)(\S*?)\s*(?:hrs?|hours?)\.?\s*[x×]\s*(\$?\s?[\d,
 // A numbered item ending in an amount ("6. Lodging, two nights $ 161.00").
 const NUMBERED_ITEM = /^\W*\d{1,3}\.\s+.*\D\s*\$\s?([\d,]+\.\d{2})$/;
 const LIST_MARKER = /^\W*\d{1,3}\.\s+/;
+// A fill-in form's labelled blanks, two to a line, any left empty: "Attorney:
+// 1.5 hrs.; $ 150 /hour = $ 225.00", "Mileage: 42 miles; $ .70 /mi. = $ 29.40".
+const FIGURE = String.raw`(?:\d[\d,]*(?:\.\d+)?|\.\d+)`;
+const UNIT = String.raw`(?:hours?|hrs?|miles?|mi)\.?`;
+const FORM_RATE_ITEM = new RegExp(
+  String.raw`([A-Za-z][A-Za-z ()'/-]*?)\s*:?\s*(${FIGURE})?\s*(${UNIT})\s*[;,]?\s*\$\s*(${FIGURE})?\s*\/\s*${UNIT}\s*=\s*\$\s*(${FIGURE})?`,
+  'gi',
+);
+// The same form's other expenses: "Hotel, two nights = $ 161.00".
+const FORM_AMOUNT_ITEM = /^(.*?)\s*=\s*\$\s*([\d,]*\.\d{2})$/;
+const EXPENSES_HEADING = /^\W*(expenses?|disbursements?|costs?)\b/i;
+const MAX_ITEM_TEXT = 1000;
 // "Site visit, March 9, 2026:" before a sentence's figures.
 const TRAILING_DATE = new RegExp(`[\\s,:;-]*(?:${DATE_PATTERN.source})?[\\s,:;-]*$`);
 
 
+// Some word processors' ligatures arrive as these letters, each drawn on its
+// own between the halves of its word ("Pre-Authoriza Ɵ on").
+const LIGATURES: Record<string, string> = { Ɵ: 'ti', Ʃ: 'tt', Ō: 'ft' };
+const LIGATURE = /[ƟƩŌ]/g;
+
 function finishRows(rows: Row[]): Row[] {
   for (const row of rows) {
     row.cells.sort((a, b) => a.x - b.x);
-    row.text = row.cells.map((cell) => cell.text).join(' ');
+    row.text = row.cells
+      .map((cell, index) => {
+        const previous = row.cells[index - 1];
+        const touching = previous !== undefined && cell.x - (previous.x + previous.width) < 1;
+        const joined = touching && /[ƟƩŌ]/.test(cell.text + previous.text);
+        return `${index === 0 || joined ? '' : ' '}${cell.text.replace(LIGATURE, (letter) => LIGATURES[letter]!)}`;
+      })
+      .join('');
   }
   return rows;
 }
@@ -188,6 +216,58 @@ async function drawsOnlyHiddenText(page: PdfPage, OPS: Record<string, number>): 
   return painted && hidden > 0;
 }
 
+interface PlacedText {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  text: string;
+}
+
+// Longer values are notes, not figures, and slow the item patterns.
+const MAX_FIELD_TEXT = 500;
+
+// An unflattened form keeps its values in fields, not the page text, so each
+// is placed at its field for the printed label to explain (field names are
+// ignored). Hidden fields and values the page already draws are skipped; a
+// choice shows its option's label, not its stored value.
+function fieldValues(annotations: PdfAnnotation[], drawn: PlacedText[]): PlacedText[] {
+  const values: PlacedText[] = [];
+  for (const { subtype, fieldType, fieldValue, rect, hidden, options } of annotations) {
+    const shown = (value: unknown) => options?.find((option) => option.exportValue === value)?.displayValue ?? value;
+    const text = [fieldValue].flat().map(shown).filter((value) => typeof value === 'string').join(' ').trim().slice(0, MAX_FIELD_TEXT);
+    const [left = 0, bottom = 0, right = 0, top = 0] = rect;
+    if (subtype !== 'Widget' || hidden || !['Tx', 'Ch'].includes(fieldType ?? '') || text === '') {
+      continue;
+    }
+    if (drawn.some((item) => item.text === text && item.x >= left - 2 && item.x <= right && item.y >= bottom - 2 && item.y <= top)) {
+      continue;
+    }
+    // A tall box's text starts at its top.
+    const height = top - bottom;
+    values.push({ x: left, y: height > 30 ? top - 12 : bottom, width: right - left, height: Math.min(height, 12), text });
+  }
+  return values;
+}
+
+// Text typed onto a form line sits a little above the label beside it.
+// Lines closer than about half their text height would overlap, so rows that
+// close are one line.
+function joinRaisedText(rows: Row[]): Row[] {
+  const height = (row: Row) => median(row.cells.map((cell) => cell.height ?? 0));
+  const joined: Row[] = [];
+  for (const row of rows) {
+    const above = joined[joined.length - 1];
+    if (above && above.page === row.page && above.y - row.y < 0.6 * Math.min(height(above), height(row))) {
+      above.cells.push(...row.cells);
+      above.y = row.y;
+    } else {
+      joined.push(row);
+    }
+  }
+  return joined;
+}
+
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)] ?? 0;
@@ -209,15 +289,23 @@ async function readRows(bytes: Buffer, options: ExtractOptions): Promise<{ rows:
       if (pageItems.length > 0 && (await drawsOnlyHiddenText(page, OPS))) {
         hiddenTextPages.add(pageNumber);
       }
+      // eslint-disable-next-line no-await-in-loop
+      const annotations = await page.getAnnotations();
       // The drawing operators hold the page's decoded images.
       page.cleanup();
-      const items = pageItems
-        .map((item) => ({ x: item.transform[4] ?? 0, y: item.transform[5] ?? 0, width: item.width, text: item.str.trim() }))
+      const drawn = pageItems.map((item) => ({
+        x: item.transform[4] ?? 0,
+        y: item.transform[5] ?? 0,
+        width: item.width,
+        height: item.height,
+        text: item.str.trim(),
+      }));
+      const items = [...drawn, ...fieldValues(annotations, drawn)]
         // PDF y grows upward, so higher y is nearer the top.
         .sort((a, b) => b.y - a.y || a.x - b.x);
       for (const item of items) {
         const row = rows[rows.length - 1];
-        const cell = { x: item.x, width: item.width, text: item.text };
+        const cell = { x: item.x, width: item.width, height: item.height, text: item.text };
         if (row && row.page === pageNumber && Math.abs(row.y - item.y) < ROW_TOLERANCE) {
           row.cells.push(cell);
         } else {
@@ -232,7 +320,7 @@ async function readRows(bytes: Buffer, options: ExtractOptions): Promise<{ rows:
     // recognized here instead.
     const visibleRows = rows.filter((row) => !hiddenTextPages.has(row.page));
     if (visibleRows.length > 0 && !textLooksGarbled(visibleRows.map((row) => row.cells.map((cell) => cell.text).join(' ')).join('\n'))) {
-      return { rows: finishRows(visibleRows), recognized: false };
+      return { rows: finishRows(joinRaisedText(visibleRows)), recognized: false };
     }
     const pageNumbers = Array.from({ length: document.numPages }, (_, index) => index + 1);
     const recognized = await recognizePages(document, pageNumbers, (page, pages) =>
@@ -298,7 +386,7 @@ export interface FigureReading {
 export type Figures = Partial<Record<Figure, number>>;
 
 const readFigure = (figure: Figure, text: string) =>
-  figure === 'quantity' ? (/^\d+(\.\d+)?$/.test(text.trim()) ? Number(text) : undefined) : parseMoney(text);
+  figure === 'quantity' ? (/^(\d+(\.\d+)?|\.\d+)$/.test(text.trim()) ? Number(text) : undefined) : parseMoney(text);
 
 // What a recognized figure may stand for, with a cost: as read (0), a number
 // among marks, or with a dropped decimal point ("89250" for 892.50) (1 each).
@@ -460,8 +548,9 @@ function splitAtColumns(cell: Cell, boundaries: number[]): Cell[] {
 }
 
 // By overlap, not left edges, because right-aligned values can start left of
-// their heading. Text under no heading goes to the description rather than a
-// neighbouring figure column, and with no quantity heading (or nothing under
+// their heading. Text under no heading goes to the description (even without
+// a description heading, as a receipt's "Item") rather than a neighbouring
+// figure column, and with no quantity heading (or nothing under
 // it) the first of two figures under the rate is the quantity.
 function cellsByColumn(row: Row, columns: Columns): Map<Column, Cell[]> {
   const headings = [...columns.entries()].sort((a, b) => a[1].x - b[1].x);
@@ -486,7 +575,7 @@ function cellsByColumn(row: Row, columns: Columns): Map<Column, Cell[]> {
         bestScore = score;
       }
     }
-    if (best && bestScore < 1000 && NUMERIC_COLUMNS.includes(best) && !NUMERIC_CELL.test(cell.text) && columns.has('description')) {
+    if (best && bestScore < 1000 && NUMERIC_COLUMNS.includes(best) && !NUMERIC_CELL.test(cell.text)) {
       best = 'description';
     }
     if (best) {
@@ -541,7 +630,8 @@ function itemSentence(text: string, afterItems: boolean): { description: string;
 }
 
 // A cell that is only a total label (and amount), so "Total knee…" isn't one.
-const TOTAL_CELL = /^[A-Za-z\s-]*\b(sub-?)?totals?\b[A-Za-z\s-]*:?\s*(\$?\s?[\d,]+\.\d{2})?$/i;
+// The amount may be in its own cell after a "$".
+const TOTAL_CELL = /^[A-Za-z\s()-]*\b(sub-?)?totals?\b[A-Za-z\s()-]*:?\s*(\$?\s?[\d,]+\.\d{2}|\$)?$/i;
 const DUE = /\b(amount|balance|total) due\b/i;
 const isTotalRow = (row: Row) => DUE.test(row.text) || row.cells.some((cell) => TOTAL_CELL.test(cell.text) && /total/i.test(cell.text));
 // Page and section subtotals; the table continues after them.
@@ -570,15 +660,101 @@ function invoiceFields(rows: Row[]): Pick<ParsedInvoice, 'invoiceNumber' | 'peri
   };
 }
 
+// A request for approval before the work, in the title on page 1.
+const ESTIMATE_TITLE = /\b(request for pre-?authori[sz]ation|pre-?authori[sz]ation request|cost estimate|quotation)\b/i;
+
+// A stated total with no readable items (a cover sheet sent alone) becomes
+// one item to break down, so the submitter isn't stopped.
+function totalOnly(rows: Row[], warnings: ImportWarning[]): ParsedInvoice | undefined {
+  const fields = invoiceFields(rows);
+  // Written as money, so a figure in prose ("1.2 total) 0.6") isn't one.
+  const written = rows.filter((row) => isTotalRow(row) && /\$\s*[\d,]*\d/.test(row.text)).map((row) => parseMoney(row.text));
+  if (fields.statedTotal === undefined || fields.statedTotal <= 0 || !written.includes(fields.statedTotal)) {
+    return undefined;
+  }
+  return {
+    ...fields,
+    lines: [{ location: 'stated total', lineType: 'other', description: 'Total requested (not itemized)', amount: fields.statedTotal }],
+    warnings: [
+      ...warnings,
+      {
+        code: 'not_itemized',
+        message: `No items could be read from this PDF, so its stated total of ${fields.statedTotal.toFixed(2)} was imported as one item. Replace it with the itemized charges, or upload the itemized invoice.`,
+      },
+    ],
+  };
+}
+
+const money = (value: number) => value.toFixed(2);
+const pageOf = (location: string) => Number(/^page (\d+)/.exec(location)?.[1]);
+
+// Attachments are usually evidence for the invoice's items, so nothing there
+// is billed by itself. A page whose total, sum or item matches an invoice item
+// is noted as its backup; other items are returned as suggestions and other
+// amounts pointed out.
+function sortAttachments(lines: ParsedLine[], attachedLines: ParsedLine[], attachedAmounts: Map<number, number[]>, warnings: ImportWarning[]): ParsedLine[] {
+  const backedUp = new Set<ParsedLine>();
+  // Exactly, or for a page's total within a dollar: invoices often round a
+  // receipt's total.
+  const backs = (amount: number, page: number, isTotal = false) => {
+    const open = lines.filter((candidate) => !backedUp.has(candidate));
+    const line =
+      open.find((candidate) => cents(candidate.amount) === cents(amount)) ??
+      (isTotal ? open.find((candidate) => Math.abs(cents(candidate.amount) - cents(amount)) <= 100) : undefined);
+    if (line) {
+      backedUp.add(line);
+      warnings.push({
+        code: 'attachment_matches',
+        location: line.location,
+        message:
+          cents(line.amount) === cents(amount)
+            ? `Page ${page} of the file shows the same amount (${money(amount)}), likely its receipt or backup.`
+            : `Page ${page} of the file shows ${money(amount)}, close to this item’s ${money(line.amount)}; likely its receipt or backup. Check the difference.`,
+      });
+    }
+    return line !== undefined;
+  };
+  const suggested: ParsedLine[] = [];
+  const pages = [...new Set([...attachedAmounts.keys(), ...attachedLines.map((line) => pageOf(line.location))])].sort((a, b) => a - b);
+  for (const page of pages) {
+    const items = attachedLines.filter((line) => pageOf(line.location) === page);
+    const amounts = attachedAmounts.get(page) ?? [];
+    const sum = items.reduce((total, line) => total + cents(line.amount), 0) / 100;
+    const candidates = [...new Set([...amounts, ...(items.length > 1 ? [sum] : [])])];
+    const largest = Math.max(...candidates);
+    if (candidates.some((amount) => backs(amount, page, amount === largest))) {
+      continue;
+    }
+    const left = items.filter((line) => !backs(line.amount, page));
+    suggested.push(...left);
+    if (left.length > 0) {
+      const total = left.reduce((sumSoFar, line) => sumSoFar + cents(line.amount), 0) / 100;
+      warnings.push({
+        code: 'attachment_items',
+        location: `page ${page}`,
+        message: `Page ${page} of the file has ${left.length === 1 ? 'an item' : `${left.length} items`} (${money(total)}) that ${left.length === 1 ? 'isn’t' : 'aren’t'} on the invoice. ${left.length === 1 ? 'It’s' : 'They’re'} listed under “Also found in the file”; add any that should be billed.`,
+      });
+    }
+    // Amounts no item explains, such as a fee written on a map page.
+    const explained = new Set(
+      items.flatMap((line) => [line.amount, line.unitRate ?? 0]).map(cents).concat(cents(sum)),
+    );
+    const unexplained = [...new Set(amounts.map(cents))].filter((amount) => !explained.has(amount));
+    if (unexplained.length > 0) {
+      warnings.push({
+        code: 'attachment_amounts',
+        location: `page ${page}`,
+        message: `Page ${page} of the file shows ${unexplained.map((amount) => money(amount / 100)).join(', ')}, which ${unexplained.length === 1 ? 'isn’t' : 'aren’t'} on the invoice. Check whether anything there should be billed.`,
+      });
+    }
+  }
+  return suggested;
+}
 
 export async function extractFromTextLayer(bytes: Buffer, options: ExtractOptions = {}): Promise<ParsedInvoice> {
   const { rows, recognized } = await readRows(bytes, options);
   if (rows.length === 0) {
     throw new UnreadableInvoiceFileError('No text could be read from this PDF. Enter the items by hand instead.');
-  }
-
-  if (!rows.some((row) => headerColumns(row) || ITEM_SENTENCE.test(row.text))) {
-    throw new UnreadableInvoiceFileError('No table of invoice items was found in this PDF. Enter the items by hand instead.');
   }
 
   const warnings: ImportWarning[] = [];
@@ -588,12 +764,30 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       message: 'This PDF is a scan or its text couldn’t be used, so the text was recognized from the page images. Check every value against the file.',
     });
   }
+
+  // Checked only here, so an invoice that mentions a quotation is still read.
+  const withoutItems = (invoiceRows: Row[], why: string): ParsedInvoice => {
+    if (rows.filter((row) => row.page === 1).slice(0, 8).some((row) => ESTIMATE_TITLE.test(row.text))) {
+      throw new UnreadableInvoiceFileError(
+        'This looks like a request for pre-authorization or an estimate, not a request for payment. Upload the invoice or payment request, or enter the items by hand.',
+      );
+    }
+    const total = totalOnly(invoiceRows, warnings);
+    if (!total) {
+      throw new UnreadableInvoiceFileError(why);
+    }
+    return total;
+  };
+  const hasItems = (row: Row) => row.text.length <= MAX_ITEM_TEXT && (ITEM_SENTENCE.test(row.text) || row.text.match(FORM_RATE_ITEM) !== null);
+  if (!rows.some((row) => headerColumns(row) || hasItems(row))) {
+    return withoutItems(rows, 'No table of invoice items was found in this PDF. Enter the items by hand instead.');
+  }
   const lines: ParsedLine[] = [];
   // Only recognized figures are repaired; digital text is taken as written,
   // so its own errors still show as rate mismatches.
   const settle = (read: Partial<Record<Figure, FigureReading>>, location: string): Figures => {
     const { figures, repaired } = recognized ? reconcileFigures(read) : { figures: readFigures(read), repaired: [] };
-    if (repaired.length > 0 && figures.amount !== undefined) {
+    if (repaired.length > 0 && figures.amount !== undefined && !attached) {
       const how = { quantity: 'Quantity worked out from amount ÷ rate', unitRate: 'Rate worked out from amount ÷ quantity', amount: 'Amount worked out from quantity × rate' };
       const names = repaired.map((figure) => (figure === 'unitRate' ? 'rate' : figure));
       warnings.push({
@@ -605,21 +799,36 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     return figures;
   };
   // Headings start a table and a total ends it, across pages. After an
-  // amount due, a table on a later page is an attachment (a receipt), so
-  // reading stops there; one on the same page, such as expenses after a
-  // "total due for services", is still the invoice's. Outside tables, items
-  // written as sentences are read, and a total after the last of them ends
-  // the invoice the same way.
+  // amount due, a table on a later page starts the attachments (receipts, a
+  // second invoice); one on the same page, such as expenses after a "total
+  // due for services", is still the invoice's. Outside tables, items written
+  // as sentences or in a form's blanks are read, and a total after the last
+  // of them ends the invoice the same way. Attachments are read too, but
+  // their items are only suggested (see sortAttachments).
   let columns: Columns | undefined;
   let section: Section;
+  // A quantity column headed in hours; otherwise an attachment's items
+  // (receipt lines) are expenses.
+  let hoursColumn = false;
   let previous: ParsedLine | undefined;
   let sinceSubtotal = 0;
   let dueOnPage: number | undefined;
-  let sentenceItems = 0;
-  let totalAfterSentences = false;
+  let looseItems = 0;
+  // The page of the total after the last of them; later pages are attachments.
+  let looseItemsTotalPage: number | undefined;
+  // Once a form's rate blanks are seen, its "… = $" lines are items too.
+  let onForm = false;
+  let formSection: Section;
   // A numbered row without figures, which the next item sentence describes.
   let listText: string | undefined;
   let lastRow = rows.length - 1;
+  const attachedLines: ParsedLine[] = [];
+  // Amounts written on attachment pages, by page.
+  const attachedAmounts = new Map<number, number[]>();
+  let attached = false;
+  const target = () => (attached ? attachedLines : lines);
+  const locate = (page: number) =>
+    attached ? `page ${page}, attachment item ${attachedLines.length + 1}` : `page ${page}, row ${lines.length + 1}`;
   // Unclear text or marks (handwriting, a correction or a poor scan) never
   // change the printed figures; one warning per item (or page) quotes them.
   const unclearNotes = new Map<string, { warning: ImportWarning; guesses: string[] }>();
@@ -647,24 +856,39 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   };
   for (const [index, row] of rows.entries()) {
     const headings = headerColumns(row);
+    const invoiceEnd = Math.min(dueOnPage ?? Infinity, looseItemsTotalPage ?? Infinity);
+    if (!attached && (row.page > invoiceEnd || (headings && looseItemsTotalPage !== undefined))) {
+      attached = true;
+      lastRow = index - 1;
+      previous = undefined;
+    }
+    if (attached) {
+      const written = [...row.text.matchAll(/\$\s?([\d,]+\.\d{2})\b/g)].map((match) => parseMoney(match[1]));
+      const total = isTotalRow(row) ? parseMoney(row.text) : undefined;
+      const amounts = [...written, total].filter((amount): amount is number => amount !== undefined && amount > 0);
+      attachedAmounts.set(row.page, [...(attachedAmounts.get(row.page) ?? []), ...amounts]);
+    }
     if (headings) {
-      if ((dueOnPage !== undefined && row.page > dueOnPage) || totalAfterSentences) {
-        lastRow = index - 1;
-        break;
-      }
       // Headings repeated on a new page continue the table and its subtotal.
       columns = headings;
       section = sectionOf(rows, index);
+      hoursColumn = /\b(hours|hrs)\b/i.test(row.text);
       previous = undefined;
       continue;
     }
     if (!columns) {
-      if (lines.length > 0 && DUE.test(row.text)) {
+      if (!attached && lines.length > 0 && DUE.test(row.text)) {
         dueOnPage = row.page;
       }
-      const sentence = itemSentence(row.text, sentenceItems > 0);
+      // Very long text (a paragraph, a crafted file) holds no item and slows
+      // the patterns.
+      const itemText = row.text.length <= MAX_ITEM_TEXT ? row.text : '';
+      const sentence = itemSentence(itemText, looseItems > 0);
+      const formItems = sentence ? [] : [...itemText.matchAll(FORM_RATE_ITEM)];
+      onForm ||= formItems.length > 0;
+      const formAmount = !sentence && formItems.length === 0 && onForm && !isTotalRow(row) ? FORM_AMOUNT_ITEM.exec(itemText) : null;
       if (sentence) {
-        const location = `page ${row.page}, row ${lines.length + 1}`;
+        const location = locate(row.page);
         const { quantity, unitRate, amount } = settle(
           {
             quantity: sentence.quantity === undefined ? undefined : { text: sentence.quantity },
@@ -677,7 +901,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
           const ownText = sentence.description.replace(LIST_MARKER, '');
           const text = LIST_MARKER.test(sentence.description) || !listText ? ownText : `${listText.replace(LIST_MARKER, '')} ${ownText}`.trim();
           const description = text.replace(TRAILING_DATE, '');
-          lines.push({
+          target().push({
             location,
             lineType: lineType(undefined, quantity, description, undefined),
             serviceDate: [...text.matchAll(DATE_PATTERN)].map((match) => parseDate(match[1]!)).find(Boolean),
@@ -686,12 +910,50 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
             unitRate,
             amount,
           });
-          sentenceItems += 1;
-          totalAfterSentences = false;
+          if (!attached) {
+            looseItems += 1;
+            looseItemsTotalPage = undefined;
+          }
           listText = undefined;
         }
-      } else if (sentenceItems > 0 && isTotalRow(row) && !isSubtotalRow(row)) {
-        totalAfterSentences = true;
+      } else if (formItems.length > 0 || formAmount) {
+        const blanks: Array<{ label: string; quantity?: string; unit?: string; rate?: string; amount?: string }> = formAmount
+          ? [{ label: formAmount[1]!, amount: formAmount[2]! }]
+          : formItems.map(([, label, quantity, unit, rate, amount]) => ({ label: label!, quantity, unit, rate, amount }));
+        for (const blank of blanks) {
+          const location = locate(row.page);
+          const figures = settle(
+            {
+              quantity: blank.quantity === undefined ? undefined : { text: blank.quantity.replace(/,/g, '') },
+              unitRate: blank.rate === undefined ? undefined : { text: blank.rate },
+              amount: blank.amount === undefined ? undefined : { text: blank.amount },
+            },
+            location,
+          );
+          if (figures.amount === undefined || figures.amount <= 0) {
+            continue;
+          }
+          const description = optionalText(blank.label);
+          const byTheHour = blank.unit !== undefined && /^h/i.test(blank.unit);
+          target().push({
+            location,
+            // Miles are an expense; a label such as "Travel" keeps travel
+            // time apart from other time.
+            lineType: blank.unit === undefined ? lineType(formSection, undefined, description ?? '', undefined) : byTheHour ? 'time' : 'expense',
+            description,
+            quantity: figures.quantity,
+            unitRate: figures.unitRate,
+            amount: figures.amount,
+          });
+          if (!attached) {
+            looseItems += 1;
+            looseItemsTotalPage = undefined;
+          }
+        }
+      } else if (!attached && looseItems > 0 && isTotalRow(row) && !isSubtotalRow(row)) {
+        looseItemsTotalPage ??= row.page;
+      } else if (EXPENSES_HEADING.test(row.text)) {
+        formSection = 'expense';
       } else if (LIST_MARKER.test(row.text)) {
         listText = row.text;
       }
@@ -699,7 +961,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     }
     if (isSubtotalRow(row)) {
       const stated = parseMoney(row.text);
-      if (stated !== undefined && sinceSubtotal > 0 && cents(stated) !== sinceSubtotal) {
+      if (!attached && stated !== undefined && sinceSubtotal > 0 && cents(stated) !== sinceSubtotal) {
         warnings.push({
           code: 'subtotal_mismatch',
           location: `page ${row.page}`,
@@ -713,7 +975,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     if (isTotalRow(row)) {
       columns = undefined;
       sinceSubtotal = 0;
-      if (lines.length > 0 && DUE.test(row.text)) {
+      if (!attached && lines.length > 0 && DUE.test(row.text)) {
         dueOnPage = row.page;
       }
       continue;
@@ -724,11 +986,13 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     // A recognized row read entirely without confidence is unclear text or
     // marks (a note in the margin), not a printed item.
     if (recognized && row.cells.every(unclear)) {
-      noteUnclear(row.page, row.cells);
+      if (!attached) {
+        noteUnclear(row.page, row.cells);
+      }
       continue;
     }
     const cells = cellsByColumn(row, columns);
-    const location = `page ${row.page}, row ${lines.length + 1}`;
+    const location = locate(row.page);
     const reading = (column: Column): FigureReading | undefined => {
       const found = cells.get(column);
       return found && { text: textOf(found)!, confidence: Math.min(...found.map((cell) => cell.confidence ?? 100)) };
@@ -754,6 +1018,10 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       continue;
     }
     if (amount < 0) {
+      // A refund or credit on a receipt is the receipt's business.
+      if (attached) {
+        continue;
+      }
       if (!recognized) {
         throw new UnreadableInvoiceFileError('Credits and adjustments in the PDF can’t be imported; enter them with the reviewer.');
       }
@@ -771,8 +1039,10 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       previous = undefined;
       continue;
     }
-    // Without letter ("a.") or number ("7.") list markers.
-    const description = (textOf(cells.get('description')) ?? '').replace(/^([a-z]|\d{1,3})\.\s+/, '');
+    // Without letter ("a.") or number ("7.") list markers. An attachment
+    // without a description heading ("Item") is described by its words.
+    const described = textOf(cells.get('description')) ?? (attached ? row.cells.filter((cell) => !NUMERIC_CELL.test(cell.text)).map((cell) => cell.text).join(' ') : '');
+    const description = described.replace(/^([a-z]|\d{1,3})\.\s+/, '');
     const taskText = optionalText(textOf(cells.get('task')));
     const expenseCode = taskText && /^E\d{3}$/i.test(taskText) ? taskText.toUpperCase() : undefined;
     // Only code-like values ("A102"); words like "Research" are categories.
@@ -780,7 +1050,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     const dateText = textOf(cells.get('date'));
     previous = {
       location,
-      lineType: lineType(section, hours, description, expenseCode),
+      lineType: attached && !hoursColumn ? 'expense' : lineType(section, hours, description, expenseCode),
       // Without a date column, a date opening a description cell is the item's.
       serviceDate: dateText
         ? parseDate(dateText)
@@ -796,7 +1066,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       activityCode: activityText && /^[A-Z]\d{3}$/i.test(activityText) ? activityText.toUpperCase() : undefined,
       expenseCode,
     };
-    const unsure = recognized
+    const unsure = recognized && !attached
       ? NUMERIC_COLUMNS.flatMap((column) => cells.get(column) ?? []).filter((cell) => (cell.confidence ?? 100) < LOW_CONFIDENCE)
       : [];
     if (unsure.length > 0) {
@@ -806,22 +1076,32 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
         message: `Figures unclear on the scan${quoted(unsure, 'read as')}. Compare with the file.`,
       });
     }
-    lines.push(previous);
-    sinceSubtotal += cents(amount);
+    target().push(previous);
+    if (!attached) {
+      sinceSubtotal += cents(amount);
+    }
   }
-  // Nothing on a page after the amount due is the invoice's, so an attached
-  // receipt's total isn't taken for its total.
-  const invoiceRows = rows.slice(0, lastRow + 1).filter((row) => dueOnPage === undefined || row.page <= dueOnPage);
+  // Nothing on a page after the amount due, or after the total ending items
+  // outside tables, is the invoice's, so an attached receipt's total isn't
+  // taken for its total.
+  const lastPage = Math.min(dueOnPage ?? Infinity, looseItemsTotalPage ?? Infinity);
+  const invoiceRows = rows.slice(0, lastRow + 1).filter((row) => row.page <= lastPage);
   if (lines.length === 0) {
-    throw new UnreadableInvoiceFileError('No invoice items with amounts were found in this PDF. Enter the items by hand instead.');
+    return withoutItems(
+      invoiceRows,
+      onForm
+        ? 'The form’s amounts are empty. Fill them in and upload it again, or enter the items by hand.'
+        : 'No invoice items with amounts were found in this PDF. Enter the items by hand instead.',
+    );
   }
   checkLineCount(lines);
-  return { ...invoiceFields(invoiceRows), lines, warnings };
+  const suggestedLines = sortAttachments(lines, attachedLines, attachedAmounts, warnings);
+  return { ...invoiceFields(invoiceRows), lines, warnings, ...(suggestedLines.length > 0 && { suggestedLines }) };
 }
 
 export const textLayerExtractor: InvoiceExtractor = {
   id: 'pdf-text-layer',
-  version: '2',
+  version: '3',
   inBoundary: true,
   extract: extractFromTextLayer,
 };
