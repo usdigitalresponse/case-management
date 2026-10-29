@@ -411,6 +411,8 @@ rules:
       - Compare stated quantity times rate with each line amount; flag service dates outside the billing period.
       - Compare any page or section subtotal the document states with the lines above it.
       - Read pages after the invoice's total too. Note an attachment whose total or items match a line as that line's likely backup; offer other attachment items as suggestions the submitter may add, and point out other amounts written there. Never add attachment items to the draft by themselves.
+      - Files embedded in a PDF are attachments too, read within the same limits; a document with no items of its own (a cover letter) is read from the embedded invoice. Name embedded files that couldn't be read.
+      - When a PDF's values can't be read because it is a dynamic (XFA) form, say so and how to make a readable copy.
       - Flag lines whose figures text recognition read with low confidence, and lines it could not read, for the submitter to check against the document.
       - Warn when the same document content hash or supporting invoice number for the payee was already imported or submitted from another document; imports split from one document don't warn about each other. Do not merge automatically.
       - Show each warning beside the original document and the extracted value it concerns.

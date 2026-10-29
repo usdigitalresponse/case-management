@@ -204,6 +204,7 @@ function extractionResult(
     },
     lines: parsed.lines.map((line, index) => ({
       location: line.location,
+      region: line.region,
       drafted: drafted[index] && {
         line_type: drafted[index].lineType,
         service_date: drafted[index].serviceDate ?? null,
@@ -226,6 +227,7 @@ function extractionResult(
     })),
     suggested_lines: (parsed.suggestedLines ?? []).map((line) => ({
       location: line.location,
+      region: line.region,
       line_type: field(line.lineType),
       service_date: field(line.serviceDate),
       description: field(line.description),

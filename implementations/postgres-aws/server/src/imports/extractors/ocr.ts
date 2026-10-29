@@ -99,6 +99,7 @@ const MIN_WORDS_TO_JUDGE = 5;
 const OTHER_TURNS = [180, 90, 270];
 
 interface PageReading {
+  frame: RecognizedFrame;
   words: Omit<OcrWord, 'line'>[];
   // Tesseract's line of each word, numbered within this reading.
   lines: number[];
@@ -125,11 +126,19 @@ async function withTimeout<T>(work: Promise<T>, message: string): Promise<T> {
 }
 
 // `onPage` is told before each page is recognized (1-based, of all pages).
+// The frame a page's words are in: turned this many degrees clockwise from
+// the page as shown, and its size in points.
+export interface RecognizedFrame {
+  turn: number;
+  width: number;
+  height: number;
+}
+
 export async function recognizePages(
   document: PdfDocument,
   pageNumbers: number[],
   onPage?: (index: number, count: number) => void,
-): Promise<Map<number, OcrWord[]>> {
+): Promise<{ words: Map<number, OcrWord[]>; frames: Map<number, RecognizedFrame> }> {
   const worker = await createWorker('eng', undefined, {
     langPath: join(dirname(require.resolve('@tesseract.js-data/eng/package.json')), '4.0.0_best_int'),
     gzip: true,
@@ -142,7 +151,7 @@ export async function recognizePages(
   // Coordinates are in the turned page's own frame, which is all the table
   // reader needs.
   async function read(pageNumber: number, turn: number): Promise<PageReading> {
-    const { png, height, scale } = await renderPage(
+    const { png, width, height, scale } = await renderPage(
       document,
       pageNumber,
       RENDER_SCALE,
@@ -153,8 +162,8 @@ export async function recognizePages(
       worker.recognize(png, {}, { blocks: true }),
       `Page ${pageNumber} took too long to read. Enter the items by hand instead.`,
     );
-    const reading: PageReading = { words: [], lines: [] };
     const pageHeight = height / scale;
+    const reading: PageReading = { frame: { turn, width: width / scale, height: pageHeight }, words: [], lines: [] };
     let line = 0;
     for (const block of data.blocks ?? []) {
       for (const paragraph of block.paragraphs) {
@@ -182,6 +191,7 @@ export async function recognizePages(
   }
 
   const pages = new Map<number, OcrWord[]>();
+  const frames = new Map<number, RecognizedFrame>();
   let lineOffset = 0;
   try {
     for (const [index, pageNumber] of pageNumbers.entries()) {
@@ -204,10 +214,11 @@ export async function recognizePages(
         pageNumber,
         best.words.map((word, at) => ({ ...word, line: lineOffset + best.lines[at]! })),
       );
+      frames.set(pageNumber, best.frame);
       lineOffset += Math.max(0, ...best.lines);
     }
   } finally {
     await worker.terminate();
   }
-  return pages;
+  return { words: pages, frames };
 }

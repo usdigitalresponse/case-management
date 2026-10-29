@@ -250,18 +250,13 @@ export function ratesInPlay(
   });
 }
 
-// "page 2, …" links to that page of the original beside the review.
-function SourceLocation({ location }: { location: string }) {
-  const page = /^page (\d+)/.exec(location)?.[1];
-  if (!page) {
+// "page 2, …" shows where it was read in the original beside the review.
+export function SourceLocation({ location, onShow }: { location: string; onShow: (location: string) => void }) {
+  if (!/^page \d+/.test(location)) {
     return <>{location}</>;
   }
   return (
-    <button
-      type="button"
-      className="link-button"
-      onClick={() => document.getElementById(`original-page-${page}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-    >
+    <button type="button" className="link-button" onClick={() => onShow(location)}>
       {location}
     </button>
   );
@@ -304,6 +299,7 @@ export function InvoiceLinesEditor({
   importReview?: {
     duplicateTime: DuplicateTimeSuggestion[];
     sourceLocations?: string[];
+    onShowSource: (location: string) => void;
     // A file designated to one professional: "work done by" is fixed.
     fixedTimekeeper?: boolean;
   };
@@ -612,7 +608,7 @@ export function InvoiceLinesEditor({
                 {linked && <span>Recorded time: changes here update it.</span>}
                 {importReview?.sourceLocations?.[index] && line.invoiceLineId ? (
                   <span>
-                    In the original: <SourceLocation location={importReview.sourceLocations[index]!} />
+                    In the original: <SourceLocation location={importReview.sourceLocations[index]!} onShow={importReview.onShowSource} />
                   </span>
                 ) : null}
                 {line.carried.timekeeperLabel ? <span>On file: {line.carried.timekeeperLabel}</span> : null}

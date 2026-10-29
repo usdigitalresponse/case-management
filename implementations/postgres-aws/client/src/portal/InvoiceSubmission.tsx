@@ -237,7 +237,14 @@ function Lines({
       <div className={fileSource ? 'submission__layout' : undefined}>
         {fileSource &&
           (fileSource.fileAvailable ? (
-            <OriginalDocument invoiceId={invoice.invoiceId} portal fileName={fileSource.fileName} heading="Your file" focus={focus} />
+            <OriginalDocument
+              invoiceId={invoice.invoiceId}
+              portal
+              fileName={fileSource.fileName}
+              heading="Your file"
+              focus={focus}
+              regions={fileSource.lines}
+            />
           ) : (
             <section className="original-document original-document--gone">
               <p>The uploaded file {fileSource.fileName} is no longer kept.</p>

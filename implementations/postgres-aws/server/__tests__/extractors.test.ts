@@ -100,6 +100,17 @@ describe('amount due', () => {
     expect(parsed.warnings?.[0]?.message).toContain('close to this item’s 45.00');
   });
 
+  it('does not take a small receipt near a small item for its backup', async () => {
+    const parsed = await extractFromTextLayer(
+      await tablesPdf([
+        { headings: ['Date', 'Description', 'Amount'], rows: [['01/06/2026', 'Mileage to court', '$18.90']], closing: 'Balance due: $18.90' },
+        { headings: ['Item', 'Qty', 'Price', 'Amount'], rows: [['Folders', '2', '$3.99', '$7.98'], ['Paper', '1', '$11.50', '$11.50']], closing: 'Total $19.48', newPage: true },
+      ]),
+    );
+    expect(parsed.suggestedLines?.map((line) => line.amount)).toEqual([7.98, 11.5]);
+    expect(parsed.warnings?.map((warning) => warning.code)).not.toContain('attachment_matches');
+  });
+
   it('does not take a page number line for an item', async () => {
     const parsed = await extractFromTextLayer(
       await tablesPdf([{ ...time, rows: [...time.rows, ['', 'Invoice 12 | Page', '', '', '1']], closing: 'Balance due: $300.00' }]),
@@ -139,6 +150,100 @@ function letterPdf(pages: Array<Array<string | string[]>>): Promise<Buffer> {
   doc.end();
   return done;
 }
+
+// A PDF built by `draw`, with files embedded in it: listed for the
+// document, attached to its page, or both.
+function withEmbedded(
+  draw: (doc: PDFKit.PDFDocument) => void,
+  files: Array<{ name: string; bytes: Buffer; on?: 'document' | 'page' | 'both' }>,
+): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'LETTER', margin: 48 });
+  const chunks: Buffer[] = [];
+  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+  const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+  doc.fontSize(10);
+  draw(doc);
+  for (const [index, { name, bytes, on = 'document' }] of files.entries()) {
+    if (on !== 'page') {
+      doc.file(bytes, { name });
+    }
+    if (on !== 'document') {
+      // Missing from pdfkit's types.
+      (doc as unknown as { fileAnnotation: (x: number, y: number, w: number, h: number, file: object) => void }).fileAnnotation(400, 72 + index * 30, 20, 20, { src: bytes, name });
+    }
+  }
+  doc.end();
+  return done;
+}
+
+describe('files embedded in a PDF', () => {
+  const invoice = (doc: PDFKit.PDFDocument) =>
+    [['Date', 'Description', 'Amount'], ['01/06/2026', 'Filing fee', '$45.00'], ['Balance due: $45.00']].forEach((cells, row) =>
+      cells.forEach((text, column) => doc.text(text, 48 + column * 110, 72 + row * 18, { lineBreak: false })),
+    );
+  const receipt = (rows: string[][], total: string) =>
+    tablesPdf([{ headings: ['Item', 'Qty', 'Price', 'Amount'], rows, closing: total }]);
+
+  it('suggests an embedded PDF’s items, naming the file', async () => {
+    const parsed = await extractFromTextLayer(await withEmbedded(invoice, [{ name: 'receipt.pdf', bytes: await receipt([['Folders', '2', '$3.99', '$7.98']], 'Total $7.98') }]));
+    expect(parsed.lines.map((line) => line.amount)).toEqual([45]);
+    expect(parsed.suggestedLines).toMatchObject([{ location: 'attached file “receipt.pdf”, page 1, attachment item 1', description: 'Folders', amount: 7.98 }]);
+    expect(parsed.suggestedLines![0]!.region).toBeUndefined();
+    expect(parsed.warnings?.map((warning) => warning.message)).toEqual([
+      expect.stringMatching(/^Page 1 of the attached file “receipt\.pdf” has an item \(7\.98\)/),
+    ]);
+  });
+
+  it('notes an embedded receipt matching an item as its backup', async () => {
+    const parsed = await extractFromTextLayer(await withEmbedded(invoice, [{ name: 'fee.pdf', bytes: await receipt([['Court filing', '1', '$45.00', '$45.00']], 'Total $45.00') }]));
+    expect(parsed.suggestedLines).toBeUndefined();
+    expect(parsed.warnings?.map((warning) => [warning.code, warning.location])).toEqual([['attachment_matches', 'page 1, row 1']]);
+  });
+
+  it('reads an embedded invoice as the invoice when the document has no items of its own', async () => {
+    const parsed = await extractFromTextLayer(
+      await withEmbedded((doc) => doc.text('Please find our invoice attached.', 48, 72), [
+        { name: 'invoice.pdf', bytes: await tablesPdf([{ headings: ['Date', 'Description', 'Amount'], rows: [['01/06/2026', 'Filing fee', '$45.00']], closing: 'Balance due: $45.00' }]) },
+      ]),
+    );
+    expect(parsed.lines).toMatchObject([{ location: 'attached file “invoice.pdf”, page 1, row 1', amount: 45 }]);
+    expect(parsed.statedTotal).toBe(45);
+  });
+
+  it('reads a file listed for the document and on its page once', async () => {
+    const bytes = await receipt([['Folders', '2', '$3.99', '$7.98']], 'Total $7.98');
+    const parsed = await extractFromTextLayer(await withEmbedded(invoice, [{ name: 'receipt.pdf', bytes, on: 'both' }]));
+    expect(parsed.suggestedLines?.map((line) => line.location)).toEqual(['attached file “receipt.pdf”, page 1, attachment item 1']);
+  });
+
+  it('takes an embedded invoice’s own number and total over its cover letter’s', async () => {
+    const parsed = await extractFromTextLayer(
+      await withEmbedded((doc) => ['Re: invoice no. 100', 'Total enclosed: $40.00'].forEach((text, row) => doc.text(text, 48, 72 + row * 18)), [
+        {
+          name: 'invoice.pdf',
+          bytes: await tablesPdf([{ headings: ['Date', 'Description', 'Amount'], rows: [['01/06/2026', 'Filing fee', '$45.00']], closing: 'Invoice no. 200 Balance due: $45.00' }]),
+        },
+      ]),
+    );
+    expect(parsed).toMatchObject({ invoiceNumber: '200', statedTotal: 45 });
+  });
+
+  it('keeps apart two attached files with the same name', async () => {
+    const parsed = await extractFromTextLayer(
+      await withEmbedded((doc) => doc.text('Please find our invoices attached.', 48, 72), [
+        { name: 'invoice.pdf', on: 'page', bytes: await tablesPdf([{ headings: ['Date', 'Description', 'Amount'], rows: [['01/06/2026', 'Filing fee', '$45.00']], closing: 'Balance due: $45.00' }]) },
+        { name: 'invoice.pdf', on: 'page', bytes: await tablesPdf([{ headings: ['Date', 'Description', 'Amount'], rows: [['02/06/2026', 'Copies', '$12.00']], closing: 'Balance due: $12.00' }]) },
+      ]),
+    );
+    expect(parsed.lines.map((line) => line.amount)).toEqual([45]);
+    expect(parsed.suggestedLines).toMatchObject([{ location: 'attached file “invoice.pdf (2)”, page 1, attachment item 1', amount: 12 }]);
+  });
+
+  it('names embedded files it can’t read', async () => {
+    const parsed = await extractFromTextLayer(await withEmbedded(invoice, [{ name: 'photo.png', bytes: Buffer.from('not a pdf') }]));
+    expect(parsed.warnings).toEqual([expect.objectContaining({ code: 'embedded_not_read', message: expect.stringContaining('photo.png') })]);
+  });
+});
 
 describe('items written as sentences', () => {
   it('reads hours × rate sentences and numbered amounts, and stops at the total', async () => {
@@ -264,8 +369,22 @@ describe('fill-in forms', () => {
   });
 
   it('reads the same values left in live form fields', async () => {
+    // A field's box isn't quite its drawn text's, so regions differ slightly.
+    const withoutRegions = (parsed: Awaited<ReturnType<typeof extractFromTextLayer>>) => ({
+      ...parsed,
+      lines: parsed.lines.map(({ region: _region, ...line }) => line),
+    });
     const flattened = await extractFromTextLayer(await fillInFormPdf(filled));
-    expect(await extractFromTextLayer(await fillInFormPdf(filled, { fields: true }))).toEqual(flattened);
+    const live = await extractFromTextLayer(await fillInFormPdf(filled, { fields: true }));
+    expect(withoutRegions(live)).toEqual(withoutRegions(flattened));
+    expect(live.lines.map((line) => line.region?.page)).toEqual([2, 2, 2, 2, 2]);
+  });
+
+  it('marks where each blank was read, two to a line apart', async () => {
+    const [first, second] = (await extractFromTextLayer(await fillInFormPdf(filled))).lines;
+    expect(first!.region).toMatchObject({ page: 2 });
+    expect(second!.region!.top).toBeCloseTo(first!.region!.top, 2);
+    expect(second!.region!.left).toBeGreaterThan(first!.region!.left + first!.region!.width);
   });
 
   it('says when a form’s amounts are empty', async () => {
@@ -286,7 +405,9 @@ describe('files without readable items', () => {
     const parsed = await extractFromTextLayer(
       await letterPdf([['Request for Payment of Services', ['Provider:', 'Synthetic Provider'], ['TOTAL REQUESTED:', '$650.00']]]),
     );
-    expect(parsed.lines).toEqual([{ location: 'stated total', lineType: 'other', description: 'Total requested (not itemized)', amount: 650 }]);
+    expect(parsed.lines).toEqual([
+      { location: 'stated total', region: expect.objectContaining({ page: 1 }), lineType: 'other', description: 'Total requested (not itemized)', amount: 650 },
+    ]);
     expect(parsed.warnings?.map((warning) => warning.code)).toEqual(['not_itemized']);
   });
 
@@ -302,6 +423,21 @@ describe('files without readable items', () => {
         await letterPdf([['Request for Pre-Authorization of Expenses', 'Rate: $150.00 / hour. Units Requested: 10', 'Total Requested: $1,500.00']]),
       ),
     ).rejects.toMatchObject({ fieldErrors: { file: expect.stringContaining('not a request for payment') } });
+  });
+
+  it('says how to make a readable copy of a dynamic (XFA) form', async () => {
+    const doc = new PDFDocument({ size: 'LETTER' });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+    const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+    // What such a form shows a reader that can't run it.
+    doc.font('Helvetica').text('Please wait... If this message is not eventually replaced by the proper contents of the document, your PDF viewer may not be able to display this type of document.');
+    doc.initForm();
+    const xfa = doc.ref({});
+    xfa.end('<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"/></xdp:xdp>');
+    (doc as unknown as { _root: { data: { AcroForm: { data: Record<string, unknown> } } } })._root.data.AcroForm.data.XFA = xfa;
+    doc.end();
+    await expect(extractFromTextLayer(await done)).rejects.toMatchObject({ fieldErrors: { file: expect.stringContaining('dynamic (XFA) form') } });
   });
 
   it('still reads an invoice that mentions a quotation', async () => {

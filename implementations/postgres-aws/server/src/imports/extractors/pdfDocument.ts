@@ -28,12 +28,20 @@ export interface PdfAnnotation {
   rect: number[];
   hidden?: boolean;
   options?: Array<{ exportValue: unknown; displayValue: unknown }>;
+  // FileAttachment annotations only.
+  fileId?: string;
+  file?: { filename: string };
 }
 
 export interface PdfPage {
   // The page's own rotation in degrees.
   rotate: number;
-  getViewport(options: { scale: number; rotation?: number }): { width: number; height: number };
+  getViewport(options: { scale: number; rotation?: number }): {
+    width: number;
+    height: number;
+    // A point in PDF user space to the viewport's, top left origin.
+    convertToViewportPoint(x: number, y: number): number[];
+  };
   render(options: { canvasContext: unknown; viewport: unknown }): { promise: Promise<void> };
   getTextContent(): Promise<{ items: Array<PdfTextItem | object> }>;
   getOperatorList(): Promise<{ fnArray: number[]; argsArray: unknown[][] }>;
@@ -50,6 +58,10 @@ export interface CanvasAndContext {
 export interface PdfDocument {
   numPages: number;
   getPage(n: number): Promise<PdfPage>;
+  getMetadata(): Promise<{ info: { IsXFAPresent?: boolean } }>;
+  // Files embedded in the document itself, by id.
+  getAttachments(): Promise<Map<string, { filename: string }> | null>;
+  getAttachmentContent(id: string): Promise<Uint8Array | null>;
   canvasFactory: {
     create(width: number, height: number): CanvasAndContext;
     destroy(canvasAndContext: CanvasAndContext): void;

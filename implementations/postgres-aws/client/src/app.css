@@ -467,7 +467,9 @@ form.compact-form { max-width: none; }
 .original-document__frame { max-height: calc(100vh - 6rem); overflow: auto; padding: .6rem; background: var(--neutral-tint); }
 .original-document__frame:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
 .original-pages { display: flex; flex-direction: column; gap: .6rem; }
-.original-page { display: block; background: var(--surface); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+.original-page { position: relative; width: max-content; background: var(--surface); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+.original-page canvas { display: block; }
+.original-highlight { position: absolute; margin: -3px; padding: 3px; box-sizing: content-box; border: 2px solid var(--warning); border-radius: 3px; background: color-mix(in srgb, var(--warning-tint) 45%, transparent); pointer-events: none; }
 .original-text { margin: 0; padding: .6rem; background: var(--surface); font-size: .78rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .original-rows { border-collapse: collapse; background: var(--surface); font-size: .8rem; }
 .original-rows th, .original-rows td { border: 1px solid var(--line); padding: .2rem .4rem; white-space: nowrap; }

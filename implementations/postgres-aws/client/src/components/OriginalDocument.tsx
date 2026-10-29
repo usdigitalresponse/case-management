@@ -1,5 +1,6 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  type SourceRegion,
   fileBytes,
   getImportFileBytes,
   getImportPreview,
@@ -44,17 +45,20 @@ function parseLocation(location: string | undefined): { page?: number; row?: num
 }
 
 // The uploaded file beside its lines: PDF pages, text or a table. `focus`
-// is the location of the line in view; its page scrolls into view, or its
-// spreadsheet row is highlighted.
+// is the location of the line in view: outlined where `regions` has it,
+// otherwise its page or spreadsheet row is shown. A new `{ location }`
+// object shows it again, for a link clicked twice.
 export function OriginalDocument({
   fileName,
   heading = 'Original file',
   focus,
+  regions = [],
   ...rest
 }: {
   fileName: string;
   heading?: string;
-  focus?: string;
+  focus?: string | { location: string };
+  regions?: Array<{ location: string; region?: SourceRegion | null }>;
 } & FileSourceRef) {
   const source: FileSourceRef = 'importId' in rest ? { importId: rest.importId } : { invoiceId: rest.invoiceId, portal: rest.portal };
   const key = 'importId' in source ? source.importId : source.invoiceId;
@@ -65,7 +69,11 @@ export function OriginalDocument({
   const [zoom, setZoom] = useState(1);
   const [pageCount, setPageCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const { page, row } = parseLocation(focus);
+  const location = typeof focus === 'string' ? focus : focus?.location;
+  const { page, row } = parseLocation(location);
+  const region = regions.find((line) => line.location === location)?.region;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const highlight = useMemo(() => (region ? { ...region } : undefined), [focus, region]);
   const zoomIndex = ZOOM_STEPS.indexOf(zoom);
 
   // The page nearest the top of the frame, for "Page 1 of 2".
@@ -89,13 +97,16 @@ export function OriginalDocument({
   }, []);
 
   useEffect(() => {
+    if (highlight) {
+      return;
+    }
     const target = page
       ? document.getElementById(`original-page-${page}`)
       : row
         ? frame.current?.querySelector(`[data-row="${row}"]`)
         : null;
     target?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, [page, row, data]);
+  }, [page, row, data, highlight, focus]);
 
   return (
     <section className="original-document" aria-label={`${heading}: ${fileName}`}>
@@ -151,7 +162,7 @@ export function OriginalDocument({
         {!data && !error && <p role="status">Loading the file…</p>}
         {data?.preview.kind === 'pdf' && data.pdf && width > 0 && (
           <Suspense fallback={<p role="status">Loading the file…</p>}>
-            <PdfPages data={data.pdf} width={Math.round(width * zoom)} onPageCount={setPageCount} />
+            <PdfPages data={data.pdf} width={Math.round(width * zoom)} highlight={highlight} onPageCount={setPageCount} />
           </Suspense>
         )}
         {data?.preview.kind === 'text' && (
