@@ -34,6 +34,7 @@ import {
 import { DRAFT_INVOICE_STATUS_CODE } from '../billing/invoiceStatusCodes';
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile } from './detectFormat';
+import { suggestUploadCase, uploadCases } from './caseSuggestions';
 import { documentExtractor } from './extractors';
 import { cancelExtraction, enqueueExtraction, extractionProgress } from './extractionJobs';
 import { ExtractionCancelledError, isolationEnabled, parseIsolated } from './isolatedExtraction';
@@ -293,6 +294,7 @@ export async function uploadInvoiceFile(
       caseId,
       billedProfessionalId,
       extractionMethod: detected.extractionMethod,
+      fileName: input.fileName,
     });
     return { invoiceImportId: created.importId, status: 'received', invoiceId: null };
   }
@@ -317,7 +319,7 @@ export async function uploadInvoiceFile(
       return recordExtraction(
         tx,
         actor,
-        { importId, documentId, contentHash, caseId, billedProfessionalId, extractionMethod: detected.extractionMethod },
+        { importId, documentId, contentHash, caseId, billedProfessionalId, extractionMethod: detected.extractionMethod, fileName: input.fileName },
         outcome,
       );
     });
@@ -352,6 +354,7 @@ interface ExtractionTarget {
   // Null: a staff import whose professional is chosen on matching.
   billedProfessionalId: string | null;
   extractionMethod: string;
+  fileName: string | undefined;
 }
 
 // Marks the import extracted, with its draft, or failed with the reason.
@@ -552,6 +555,7 @@ export async function extractIntoDraft(
     extractionMethod: string | null;
     extractedAt: Date;
     parsed: ParsedInvoice;
+    fileName?: string;
     everyLineBilled: boolean;
     // The billing period the uploader checked, in place of the one read;
     // the extraction record keeps what was read.
@@ -629,9 +633,12 @@ export async function extractIntoDraft(
   }));
   warnings.push(...inferred.warnings);
   const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content, { fillTimekeepers: false });
+  const suggested = caseId === null ? suggestUploadCase(await uploadCases(tx, actor), args.parsed, args.fileName) : null;
   await tx
     .update(invoiceImport)
     .set({
+      suggestedCaseId: suggested?.caseId ?? null,
+      suggestedProfessionalId: suggested?.professionalId ?? null,
       statusId: await importStatusId(tx, 'extracted'),
       extractionMethod: args.extractionMethod,
       extractedAt: args.extractedAt,

@@ -608,6 +608,16 @@ entities:
         required: false
         references: case.case_id
         description: Case chosen by the uploader for the whole file, or the case its lines were assigned to when the file was split by case. Empty for a file staff hold in invoice intake until it is matched (match_invoice_to_case).
+      suggested_case_id:
+        type: uuid
+        required: false
+        references: case.case_id
+        description: For a file held with no case, the case it clearly names, offered first when staff match it (match_invoice_to_case). A suggestion only; never sets the case.
+      suggested_professional_id:
+        type: uuid
+        required: false
+        references: professional.professional_id
+        description: The professional offered with suggested_case_id.
       source_format_id:
         type: reference
         required: true

@@ -1,0 +1,4 @@
+ALTER TABLE "invoice_import" ADD COLUMN "suggested_case_id" uuid;--> statement-breakpoint
+ALTER TABLE "invoice_import" ADD COLUMN "suggested_professional_id" uuid;--> statement-breakpoint
+ALTER TABLE "invoice_import" ADD CONSTRAINT "invoice_import_suggested_case_id_case_case_id_fk" FOREIGN KEY ("suggested_case_id") REFERENCES "public"."case"("case_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "invoice_import" ADD CONSTRAINT "invoice_import_suggested_professional_id_professional_professional_id_fk" FOREIGN KEY ("suggested_professional_id") REFERENCES "public"."professional"("professional_id") ON DELETE no action ON UPDATE no action;

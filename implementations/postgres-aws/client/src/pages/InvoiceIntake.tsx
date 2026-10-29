@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link as RouterLink, useLocation, useSearchParams } from 'react-router';
 import {
   apiErrorMessage,
@@ -42,8 +42,19 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
     () => (needsProfessional ? listBillableProfessionals(null).then((result) => result.professionals) : Promise.resolve([])),
     [needsProfessional],
   );
-  const [caseId, setCaseId] = useState('');
-  const [professionalId, setProfessionalId] = useState('');
+  // The file's suggestion, while it's still an open case and active provider.
+  const [caseId, setCaseId] = useState(item.suggestedCaseId ?? '');
+  const [professionalId, setProfessionalId] = useState(needsProfessional ? (item.suggestedProfessionalId ?? '') : '');
+  useEffect(() => {
+    if (data && !data.some((c) => c.caseId === caseId)) {
+      setCaseId('');
+    }
+  }, [data, caseId]);
+  useEffect(() => {
+    if (providers && needsProfessional && !providers.some((p) => p.professionalId === professionalId)) {
+      setProfessionalId('');
+    }
+  }, [providers, needsProfessional, professionalId]);
   const [addMissing, setAddMissing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -84,6 +95,7 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
               </option>
             ))}
           </select>
+          {caseId && caseId === item.suggestedCaseId && <span className="line-row-suggested">Named in the file: check it</span>}
         </div>
         {needsProfessional && (
           <div className="usa-form-group">

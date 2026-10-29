@@ -89,6 +89,11 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     invoice, its lines and its import, records `matched_to_case`, and with
     `addMissing` assigns missing providers as external submitters. "Add case
     info" opens New case with `?intake=`, which matches after creating it.
+    A held file's draft keeps the case and professional its reading
+    suggested (`invoice_import.suggested_case_id` and
+    `suggested_professional_id`, migration `0017`, by the upload rules
+    below), and Match starts with them selected, marked "Named in the file:
+    check it", while the case is open and the provider active.
     The invoice page's "Review without a case" submits with `withoutCase`;
     then no time entries are created, the default reviewer applies (no
     per-case reviewer), pre-authorization and case-rate limits are skipped,
@@ -707,8 +712,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     it like an upload (PDFs in the background queue with progress, quick
     formats straight away, both in the isolated process); `GET
     .../case-split/reads/:id` reports progress, then suggests a case per
-    line (a single exact match on case reference, identifier or client
-    name among that person's open cases the user may bill), and `DELETE`
+    line (a single match on case reference, identifier or client name
+    among that person's open cases the user may bill: from the line's case
+    column if it has one, else the one case a PDF's own text names, else
+    its description; see `src/imports/caseMatching.ts`), and `DELETE`
     stops and discards it. The page has the user assign every line, and
     `POST .../invoice-imports/case-split` (the read's ID and one case per
     line) makes one import and draft per case from that reading and stored
@@ -723,7 +730,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     review shows the whole original. The file stays while any part is
     unresolved or live (see "File retention"), and parts of one file don't warn
     that each other are duplicates. Only the spreadsheet template has a
-    case column; LEDES and PDF files are designated to one case.
+    case column; other files' lines name no case, so a PDF's own text or
+    each line's description is used.
   - The portal upload (`client/src/portal/PortalUpload.tsx`, reached from
     Upload invoices) reads a file before its case is chosen, with the same
     read machinery: `POST /api/portal/uploads` stores and reads it, `GET
@@ -733,8 +741,15 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     user, or a professional they act for, is the active assigned
     professional are offered, one option per case and professional. A case
     is suggested only when it is clear: the user has one case, the file's
-    lines name one, or the file name holds one case's number or client's
-    name (a heuristic; several matches suggest none). `POST
+    lines name one, a PDF's own text names one, the file name holds one
+    case's number or client's name, or the text names a professional with
+    only one case (a heuristic; several matches suggest none). When the
+    text names professionals, a case none of them is on is not suggested,
+    and a case colleagues share goes to the one named. Matching ignores punctuation, accents,
+    case, name order and suffixes; only when nothing matches exactly does
+    it allow a number without separators, a middle name or given initial,
+    or one slip in a long name. Short or all-digit numbers under six
+    digits are matched only as a whole label, not inside text. `POST
     .../uploads/:id/draft` (case, professional, checked billing period,
     optional invoice number) makes one unconfirmed import and draft with
     every line billed to that professional; the checked period replaces the
@@ -746,8 +761,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     asks the same case (`GET /api/portal/uploads/cases`) and billing period,
     creates an empty draft (a draft may have no lines; submitting still
     needs one) and opens it on adding its first line, then it is sent the
-    same way. Staff land on their draft editor instead. Gap: reading
-    doesn't yet pick a case number out of a PDF's text.
+    same way. Staff land on their draft editor instead. A LEDES file's
+    `CLIENT_MATTER_ID` (else `LAW_FIRM_MATTER_ID`) is each line's case;
+    both IDs and `INVOICE_DESCRIPTION` are searched as its text.
   - Checking the lines (`client/src/portal/InvoiceSubmission.tsx`, the
     portal's `/portal/invoices/:id`): the file on the left as uploaded, the
     lines on the right in file order. Each line carries the place it was

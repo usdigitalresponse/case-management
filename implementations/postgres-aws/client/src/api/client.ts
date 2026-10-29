@@ -762,6 +762,8 @@ export interface IntakeItem {
   submittedTotal: string | null;
   periodStart: string | null;
   periodEnd: string | null;
+  suggestedCaseId: string | null;
+  suggestedProfessionalId: string | null;
 }
 
 export function listInvoiceIntake(): Promise<{ items: IntakeItem[] }> {

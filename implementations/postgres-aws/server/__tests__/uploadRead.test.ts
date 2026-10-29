@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { memoryStore } from './memoryStore';
@@ -25,6 +27,7 @@ import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { ATTESTATION_STATEMENT, submitInvoice, updateDraftInvoice } from '../src/billing/invoiceLifecycle';
 import { confirmInvoiceImport } from '../src/imports/invoiceImports';
 import { createInvoice } from '../src/portal/createInvoice';
+import { listInvoiceIntake } from '../src/billing/invoiceIntake';
 
 let fixtures: BaselineFixtureIds;
 
@@ -67,8 +70,8 @@ const CSV = Buffer.from(
   ['date,type,description,hours,amount', '2026-01-10,time,Research,1.5,150', '2026-01-11,expense,Filing fee,,40', ''].join('\n'),
 );
 
-async function upload(actor: PortalActor, fileName: string, store = memoryStore()) {
-  const { uploadReadId } = await startUploadRead(testDb, store, actor, { fileName, bytes: CSV });
+async function upload(actor: PortalActor, fileName: string, store = memoryStore(), bytes = CSV) {
+  const { uploadReadId } = await startUploadRead(testDb, store, actor, { fileName, bytes });
   await extractionsSettled();
   const read = await getUploadRead(testDb, actor, uploadReadId);
   if (read.status !== 'ready') {
@@ -104,6 +107,71 @@ describe('uploading an invoice before choosing its case', () => {
 
     expect((await upload(actor, 'Firm_CR-0002_Jan.csv')).read.suggested).toEqual({ caseId: second, professionalId });
     expect((await upload(actor, 'Firm_Jan.csv')).read.suggested).toBeNull();
+  });
+
+  it('suggests the one case a PDF names in its own text', async () => {
+    const { actor, professionalId } = await createProfessional('Synthetic Attorney');
+    const named = await caseFor(professionalId, 'Synthetic Matter 1');
+    await caseFor(professionalId, 'CR-0002');
+    const pdf = readFileSync(join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices', 'pdf-itemized.pdf'));
+
+    expect((await upload(actor, 'invoice.pdf', memoryStore(), pdf)).read.suggested).toEqual({ caseId: named, professionalId });
+  });
+
+  it('suggests which colleague on a shared case the PDF names, and none when it names neither', async () => {
+    const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const named = await createProfessional('Synthetic Timekeeper A');
+    const colleague = await createProfessional('Other Attorney');
+    const caseId = await caseFor(named.professionalId, 'Synthetic Matter 1');
+    const share = async (professionalId: string) =>
+      testDb.insert(caseAssignment).values({
+        caseId,
+        professionalId,
+        assignedAt: new Date('2026-01-01T12:00:00Z'),
+        assignmentRoleId: fixtures.externalSubmitterAssignmentRoleId,
+        assignedByUserAccountId: fixtures.staffUserAccountId,
+      });
+    await share(colleague.professionalId);
+    const pdf = readFileSync(join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices', 'pdf-itemized.pdf'));
+    expect((await upload(staff, 'invoice.pdf', memoryStore(), pdf)).read.suggested).toEqual({ caseId, professionalId: named.professionalId });
+
+    await testDb.delete(caseAssignment).where(eq(caseAssignment.professionalId, named.professionalId));
+    await share((await createProfessional('Another Attorney')).professionalId);
+    expect((await upload(staff, 'invoice.pdf', memoryStore(), pdf)).read.suggested).toBeNull();
+  });
+
+  it('suggests the case a LEDES file names by either matter ID', async () => {
+    const { actor, professionalId } = await createProfessional('Synthetic Attorney');
+    const firms = await caseFor(professionalId, 'SAMPLE-MATTER-1');
+    await caseFor(professionalId, 'CR-0002');
+    const ledes = readFileSync(join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices', 'ledes-1998b-basic.txt'));
+    expect((await upload(actor, 'invoice.txt', memoryStore(), ledes)).read.suggested).toEqual({ caseId: firms, professionalId });
+
+    const clients = await caseFor(professionalId, 'SAMPLE-CM-1');
+    expect((await upload(actor, 'invoice.txt', memoryStore(), ledes)).read.suggested).toEqual({ caseId: clients, professionalId });
+  });
+
+  it('suggests the only case of a professional the PDF names', async () => {
+    const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const named = await createProfessional('Synthetic Timekeeper A');
+    const other = await createProfessional('Other Attorney');
+    const caseId = await caseFor(named.professionalId, 'CR-0005');
+    await caseFor(other.professionalId, 'CR-0006');
+    const pdf = readFileSync(join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices', 'pdf-itemized.pdf'));
+    expect((await upload(staff, 'invoice.pdf', memoryStore(), pdf)).read.suggested).toEqual({ caseId, professionalId: named.professionalId });
+
+    await caseFor(named.professionalId, 'CR-0007');
+    expect((await upload(staff, 'invoice.pdf', memoryStore(), pdf)).read.suggested).toBeNull();
+  });
+
+  it('suggests no case the PDF names when the professional it names isn’t on it', async () => {
+    const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const named = await createProfessional('Synthetic Timekeeper A');
+    const other = await createProfessional('Other Attorney');
+    await caseFor(named.professionalId, 'CR-0005');
+    await caseFor(other.professionalId, 'Synthetic Matter 1');
+    const pdf = readFileSync(join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices', 'pdf-itemized.pdf'));
+    expect((await upload(staff, 'invoice.pdf', memoryStore(), pdf)).read.suggested).toBeNull();
   });
 
   it('makes one unconfirmed draft on the chosen case, with the checked period and invoice number', async () => {
@@ -207,6 +275,20 @@ describe('uploading an invoice before choosing its case', () => {
     await expect(
       createDraftFromUpload(testDb, actor, { uploadReadId: read.uploadReadId, caseId: null, professionalId }),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it('keeps the case a held file names, for Intake to offer', async () => {
+    const named = await createProfessional('Synthetic Timekeeper A');
+    const other = await createProfessional('Other Attorney');
+    const caseId = await caseFor(named.professionalId, 'Synthetic Matter 1');
+    await caseFor(other.professionalId, 'CR-0002');
+    const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const pdf = readFileSync(join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices', 'pdf-itemized.pdf'));
+    const { uploadReadId } = await upload(staff, 'emailed-invoice.pdf', memoryStore(), pdf);
+    const { invoiceId } = await createDraftFromUpload(testDb, staff, { uploadReadId, caseId: null, professionalId: null });
+
+    const item = (await listInvoiceIntake(testDb, fixtures.staffUserAccountId)).find((row) => row.invoiceId === invoiceId);
+    expect(item).toMatchObject({ suggestedCaseId: caseId, suggestedProfessionalId: named.professionalId });
   });
 
   it('starts an invoice entered by hand with no lines, which cannot be sent until it has one', async () => {

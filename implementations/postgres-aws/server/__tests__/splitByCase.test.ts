@@ -26,7 +26,7 @@ import { extractionsSettled } from '../src/imports/extractionJobs';
 import { UnsupportedInvoiceFileError } from '../src/imports/detectFormat';
 import { ValidationError } from '../src/errors';
 import { addMileageRate } from '../src/billing/mileageRates';
-import { caseAssignment, caseTable, document, invoiceImport, invoiceLine, userAccount } from '../src/db/schema';
+import { caseAssignment, caseTable, document, invoiceImport, invoiceLine, person, userAccount } from '../src/db/schema';
 
 let fixtures: BaselineFixtureIds;
 
@@ -46,10 +46,10 @@ async function createProfessional(name: string) {
   return { actor: await resolvePortalActor(testDb, account!.userAccountId), professionalId };
 }
 
-async function caseFor(professionalId: string, externalReference: string) {
+async function caseFor(professionalId: string, externalReference: string, personId = fixtures.clientPersonId) {
   const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, {
     requestId: randomUUID(),
-    personId: fixtures.clientPersonId,
+    personId,
     participantRoleId: fixtures.clientParticipantRoleId,
     statusId: fixtures.caseStatusOpenId,
     effectiveAt: new Date('2026-01-01T12:00:00Z'),
@@ -172,6 +172,28 @@ describe('splitting a file for one professional by case', () => {
     expect((await getCaseSplitRead(testDb, actor, splitReadId)).status).toBe('reading');
     await extractionsSettled();
     expect(previewOf(await getCaseSplitRead(testDb, actor, splitReadId)).lines).toHaveLength(6);
+  });
+
+  it('suggests the case a PDF names for lines that name none', async () => {
+    const { actor, professionalId } = await createProfessional('Synthetic Attorney');
+    const named = await caseFor(professionalId, 'Synthetic Matter 1');
+    await caseFor(professionalId, 'CR-0002');
+    const bytes = readFileSync(join(__dirname, '..', '..', '..', '..', 'scenarios', 'fixtures', 'invoices', 'pdf-itemized.pdf'));
+    const preview = previewOf((await readForSplit(actor, professionalId, bytes)).read);
+    expect(new Set(preview.lines.map((line) => line.suggestedCaseId))).toEqual(new Set([named]));
+  });
+
+  it('matches a client named family name first, and leaves a line whose case column names no case', async () => {
+    const { actor, professionalId } = await createProfessional('Synthetic Attorney');
+    const [client] = await testDb
+      .insert(person)
+      .values({ givenName: 'Jane', familyName: 'Sample', displayName: 'Jane Sample' })
+      .returning();
+    const named = await caseFor(professionalId, 'CR-0001', client!.personId);
+    await caseFor(professionalId, 'CR-0002');
+    const bytes = Buffer.from(['case,date,type,description,hours,amount', '"Sample, Jane",2026-01-10,time,Research,1.5,150', 'CR-0099,2026-01-11,time,Call with Jane Sample,1,100', ''].join('\n'));
+    const preview = previewOf((await readForSplit(actor, professionalId, bytes)).read);
+    expect(preview.lines.map((line) => line.suggestedCaseId)).toEqual([named, null]);
   });
 
   it('says why a file couldn’t be read', async () => {

@@ -503,6 +503,9 @@ export const invoiceImport = pgTable(
       .references(() => userAccount.userAccountId),
     uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull(),
     caseId: uuid('case_id').references(() => caseTable.caseId),
+    // For a file held with no case: a hint for Intake, checked on matching.
+    suggestedCaseId: uuid('suggested_case_id').references(() => caseTable.caseId),
+    suggestedProfessionalId: uuid('suggested_professional_id').references(() => professional.professionalId),
     sourceFormatId: uuid('source_format_id').notNull().references(() => invoiceImportFormats.id),
     statusId: uuid('status_id').notNull().references(() => invoiceImportStatuses.id),
     extractionMethod: text('extraction_method'),

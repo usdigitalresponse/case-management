@@ -51,6 +51,9 @@ export interface IntakeItem {
   submittedTotal: string | null;
   periodStart: string | null;
   periodEnd: string | null;
+  // Named by the file; staff confirm it on matching.
+  suggestedCaseId: string | null;
+  suggestedProfessionalId: string | null;
 }
 
 export async function listInvoiceIntake(db: Database, actorUserAccountId: string): Promise<IntakeItem[]> {
@@ -65,6 +68,8 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
             invoiceImportId: invoiceImport.invoiceImportId,
             statusCode: invoiceImportStatuses.code,
             fileName: document.displayName,
+            suggestedCaseId: invoiceImport.suggestedCaseId,
+            suggestedProfessionalId: invoiceImport.suggestedProfessionalId,
           })
           .from(invoiceImport)
           .innerJoin(invoiceImportStatuses, eq(invoiceImport.statusId, invoiceImportStatuses.id))
@@ -114,6 +119,8 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       submittedTotal: row.submittedTotal,
       periodStart: row.periodStart,
       periodEnd: row.periodEnd,
+      suggestedCaseId: imported?.suggestedCaseId ?? null,
+      suggestedProfessionalId: imported?.suggestedProfessionalId ?? null,
     };
   });
   for (const file of reading) {
@@ -132,6 +139,8 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       submittedTotal: null,
       periodStart: null,
       periodEnd: null,
+      suggestedCaseId: null,
+      suggestedProfessionalId: null,
     });
   }
   // Longest held first.

@@ -478,7 +478,7 @@ rules:
     outcome: blocking
     requirements:
       - A staff-entered draft request with no case is listed in invoice intake, with imports still being read or confirmed whose case is not known.
-      - Matching is manual. Any active staff user may match a draft request to an open case, setting the case on the request and all its lines; a submitted request is not rematched.
+      - Matching is manual. Any active staff user may match a draft request to an open case, setting the case on the request and all its lines; a submitted request is not rematched. When an imported file clearly names one case (and, if several professionals share it, one of them), that case and professional may be offered first; staff still choose, and an offered case that has since closed is not offered.
       - A request saved without its provider gets one on matching, chosen from active professionals, and its time with no one named is then priced as theirs; until then it cannot be submitted, even without a case.
       - Every professional the request relies on must be assigned to the case on matching; on request, matching assigns any who are not, as an external submitter. Record a matched_to_case request event with the actor.
       - Staff may instead add the case first and match the request to it in the same step.

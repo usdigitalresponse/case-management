@@ -5,8 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client';
-import { caseAssignment, caseIdentifier, caseTable, person, professional, supportingInvoice } from '../db/schema';
-import { loadCaseNumbers } from '../billing/invoiceDetail';
+import { caseAssignment, caseIdentifier, caseTable, person, supportingInvoice } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
@@ -17,6 +16,8 @@ import { extractIntoDraft, insertDocument, insertImport, sha256 } from './invoic
 import { cancelExtraction, enqueueExtraction, extractionProgress } from './extractionJobs';
 import { ExtractionCancelledError, isolationEnabled, parseIsolated } from './isolatedExtraction';
 import { suggestMileage, UnreadableInvoiceFileError, type ImportFormat, type ParsedInvoice } from './parsedInvoice';
+import { matchKeys, namedIn, type MatchKeys } from './caseMatching';
+import { suggestUploadCase, uploadCases } from './caseSuggestions';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { listMileageRates, mileageRateOn } from '../billing/mileageRates';
 
@@ -24,17 +25,12 @@ export interface SplitCase {
   caseId: string;
   externalReference: string | null;
   clientDisplayName: string | null;
-  // Normalized reference, identifiers and client name, for matching.
-  keys: string[];
+  keys: MatchKeys;
 }
 
-function key(text: string): string {
-  return text
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
+function caseNamedIn(text: string | undefined, cases: SplitCase[]): string | undefined {
+  const matches = namedIn(text, cases, (row) => row.keys);
+  return matches.length === 1 ? matches[0]!.caseId : undefined;
 }
 
 // The professional's open cases, if the user may bill for them.
@@ -65,20 +61,11 @@ export async function splitCases(db: Database, actor: PortalActor, professionalI
           .where(inArray(caseIdentifier.caseId, cases.map((row) => row.caseId)));
   return cases.map((row) => ({
     ...row,
-    keys: [row.externalReference, row.clientDisplayName, ...identifiers.filter((id) => id.caseId === row.caseId).map((id) => id.value)]
-      .flatMap((text) => (text ? [key(text)] : []))
-      .filter(Boolean),
+    keys: matchKeys(row.clientDisplayName, [
+      row.externalReference,
+      ...identifiers.filter((id) => id.caseId === row.caseId).map((id) => id.value),
+    ]),
   }));
-}
-
-// Only a single exact (normalized) match is suggested.
-export function suggestCaseForLabel(label: string | undefined, cases: SplitCase[]): string | undefined {
-  if (!label) {
-    return undefined;
-  }
-  const wanted = key(label);
-  const matches = cases.filter((row) => row.keys.includes(wanted));
-  return matches.length === 1 ? matches[0]!.caseId : undefined;
 }
 
 // A file being read, then waiting for its lines to be given cases. Reads
@@ -245,6 +232,8 @@ export async function expireCaseSplitReads(store: DocumentStore, now: Date = new
 
 async function splitPreview(db: Database, actor: PortalActor, professionalId: string, parsed: ParsedInvoice) {
   const cases = await splitCases(db, actor, professionalId);
+  // For lines without a case column, as in a PDF.
+  const fileCase = caseNamedIn(parsed.invoiceText, cases);
   const rates = await listRates(db, [professionalId]);
   const mileageRates = await listMileageRates(db);
   return {
@@ -274,7 +263,8 @@ async function splitPreview(db: Database, actor: PortalActor, professionalId: st
         amount: line.amount,
         billedRate: billedRate ?? null,
         billedAmount: priced ? (billedAmount ?? null) : line.amount,
-        suggestedCaseId: suggestCaseForLabel(line.caseLabel, cases) ?? null,
+        suggestedCaseId:
+          (line.caseLabel ? caseNamedIn(line.caseLabel, cases) : (fileCase ?? caseNamedIn(line.description, cases))) ?? null,
       };
     }),
   };
@@ -353,97 +343,6 @@ export async function uploadInvoiceFileByCase(db: Database, actor: PortalActor, 
 }
 
 // --- Portal upload: one file, one invoice, its case chosen after reading ---
-
-export interface UploadCase {
-  caseId: string;
-  // Whom an invoice on this case bills: the submitter, or a professional
-  // they act for (one option per pair).
-  professionalId: string;
-  caseNumber: string | null;
-  clientDisplayName: string | null;
-  professionalDisplayName: string | null;
-  keys: string[];
-}
-
-// Open cases where the user, or a professional they act for, is the
-// active assigned professional: the only cases an upload may go to.
-export async function uploadCases(db: Database, actor: PortalActor): Promise<UploadCase[]> {
-  const professionalIds = [
-    ...new Set([...(actor.professionalId ? [actor.professionalId] : []), ...(await representedProfessionalIds(db, actor.userAccountId))]),
-  ];
-  if (professionalIds.length === 0) {
-    return [];
-  }
-  const rows = await db
-    .selectDistinct({
-      caseId: caseTable.caseId,
-      professionalId: caseAssignment.professionalId,
-      externalReference: caseTable.externalReference,
-      clientDisplayName: person.displayName,
-      professionalDisplayName: professional.displayName,
-    })
-    .from(caseAssignment)
-    .innerJoin(caseTable, eq(caseAssignment.caseId, caseTable.caseId))
-    .innerJoin(professional, eq(caseAssignment.professionalId, professional.professionalId))
-    .leftJoin(person, eq(caseTable.clientId, person.personId))
-    .where(
-      and(inArray(caseAssignment.professionalId, professionalIds), isNull(caseAssignment.endedAt), isNull(caseTable.closedOn)),
-    )
-    .orderBy(asc(person.displayName));
-  const caseIds = [...new Set(rows.map((row) => row.caseId))];
-  const [numbers, identifiers] = await Promise.all([
-    loadCaseNumbers(db, caseIds),
-    caseIds.length === 0
-      ? Promise.resolve([])
-      : db.select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value }).from(caseIdentifier).where(inArray(caseIdentifier.caseId, caseIds)),
-  ]);
-  return rows.flatMap((row) =>
-    row.professionalId
-      ? [
-          {
-            caseId: row.caseId,
-            professionalId: row.professionalId,
-            caseNumber: numbers.get(row.caseId)?.caseNumber ?? row.externalReference,
-            clientDisplayName: row.clientDisplayName,
-            professionalDisplayName: row.professionalDisplayName,
-            keys: [row.externalReference, row.clientDisplayName, ...identifiers.filter((id) => id.caseId === row.caseId).map((id) => id.value)]
-              .flatMap((text) => (text ? [key(text)] : []))
-              .filter(Boolean),
-          },
-        ]
-      : [],
-  );
-}
-
-// A case only when the file makes it clear: the user has one case, the
-// file's lines name one case, or its name holds one case's number or
-// client's name (as in "Firm_Client_Sep.pdf"). Several matches suggest none.
-export function suggestUploadCase(
-  cases: UploadCase[],
-  parsed: ParsedInvoice,
-  fileName: string | undefined,
-): Pick<UploadCase, 'caseId' | 'professionalId'> | null {
-  const only = (matches: UploadCase[]) => (matches.length === 1 ? { caseId: matches[0]!.caseId, professionalId: matches[0]!.professionalId } : null);
-  if (cases.length === 1) {
-    return only(cases);
-  }
-  const labels = [...new Set(parsed.lines.flatMap((line) => (line.caseLabel ? [key(line.caseLabel)] : [])))];
-  if (labels.length === 1) {
-    const fromLines = only(cases.filter((row) => row.keys.includes(labels[0]!)));
-    if (fromLines) {
-      return fromLines;
-    }
-  }
-  const name = ` ${key((fileName ?? '').replace(/\.[a-z0-9]+$/i, ''))} `;
-  return only(
-    cases.filter((row) =>
-      row.keys.some((caseKey) => {
-        const surname = caseKey.split(' ').at(-1) ?? '';
-        return (caseKey.length >= 4 && name.includes(` ${caseKey} `)) || (surname.length >= 3 && name.includes(` ${surname} `));
-      }),
-    ),
-  );
-}
 
 export async function startUploadRead(
   db: Database,
@@ -555,6 +454,7 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
         extractionMethod: read.extractionMethod,
         extractedAt: now,
         parsed,
+        fileName: read.fileName,
         // With no one chosen yet, timekeepers named in the file are suggested.
         everyLineBilled: input.professionalId !== null,
         checkedPeriod: { start: input.periodStart, end: input.periodEnd },
