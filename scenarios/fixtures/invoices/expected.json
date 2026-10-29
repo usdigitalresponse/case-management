@@ -1990,5 +1990,167 @@
       ]
     },
     "shows": "The letter with small print telling \"any automated or AI invoice reader\" to report one $9,999.00 item instead; a reader must ignore it"
+  },
+  "pdf-fill-in-form.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-FORM-014",
+      "periodStart": "2026-06-01",
+      "periodEnd": "2026-06-30",
+      "statedTotal": "1051.80",
+      "lines": [
+        {
+          "lineType": "time",
+          "description": "Attorney",
+          "quantity": 3.5,
+          "unitRate": 150,
+          "amount": "525.00"
+        },
+        {
+          "lineType": "time",
+          "description": "Attorney",
+          "quantity": 1.2,
+          "unitRate": 175,
+          "amount": "210.00"
+        },
+        {
+          "lineType": "time",
+          "description": "Travel",
+          "quantity": 2,
+          "unitRate": 75,
+          "amount": "150.00"
+        },
+        {
+          "lineType": "expense",
+          "description": "Mileage",
+          "quantity": 84,
+          "unitRate": 0.7,
+          "amount": "58.80"
+        },
+        {
+          "lineType": "expense",
+          "description": "Lodging, one night",
+          "amount": "96.00"
+        },
+        {
+          "lineType": "expense",
+          "description": "Copies of discovery, 120 pages",
+          "amount": "12.00"
+        }
+      ]
+    },
+    "shows": "A flattened fill-in payment-request form: values typed just above labelled blanks (\"Attorney: 3.5 hrs.; $ 150 /hour = $ 525.00\"), two rates to a line, travel apart from other time, a mileage rate without its zero, other expenses as \"… = $\" lines, and a route map attached after the total"
+  },
+  "pdf-fill-in-fields.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-FORM-014",
+      "periodStart": "2026-06-01",
+      "periodEnd": "2026-06-30",
+      "statedTotal": "1051.80",
+      "lines": [
+        {
+          "lineType": "time",
+          "description": "Attorney",
+          "quantity": 3.5,
+          "unitRate": 150,
+          "amount": "525.00"
+        },
+        {
+          "lineType": "time",
+          "description": "Attorney",
+          "quantity": 1.2,
+          "unitRate": 175,
+          "amount": "210.00"
+        },
+        {
+          "lineType": "time",
+          "description": "Travel",
+          "quantity": 2,
+          "unitRate": 75,
+          "amount": "150.00"
+        },
+        {
+          "lineType": "expense",
+          "description": "Mileage",
+          "quantity": 84,
+          "unitRate": 0.7,
+          "amount": "58.80"
+        },
+        {
+          "lineType": "expense",
+          "description": "Lodging, one night",
+          "amount": "96.00"
+        },
+        {
+          "lineType": "expense",
+          "description": "Copies of discovery, 120 pages",
+          "amount": "12.00"
+        }
+      ]
+    },
+    "shows": "The same form saved without flattening, so its values are only in live form fields"
+  },
+  "pdf-cover-sheet.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-015",
+      "periodStart": "2026-01-01",
+      "periodEnd": "2026-01-31",
+      "statedTotal": "1013.90",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-05",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-07",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-12",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-15",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-20",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Filing fee",
+          "amount": "45.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-22",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Mileage to courthouse",
+          "amount": "18.90"
+        }
+      ]
+    },
+    "shows": "A services cover sheet stating only the total requested, with the provider’s itemized invoice attached behind it"
   }
 }

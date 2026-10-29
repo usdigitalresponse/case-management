@@ -34,6 +34,9 @@ const TEXT_LAYER_BASELINE: Record<string, number> = {
   'pdf-letter-injected.pdf': 1,
   // Its second page is upside down and its third sideways.
   'pdf-scanned-rotated.pdf': 0.99,
+  'pdf-fill-in-form.pdf': 1,
+  'pdf-fill-in-fields.pdf': 1,
+  'pdf-cover-sheet.pdf': 1,
 };
 
 // Scans are recognized page by page, which takes seconds.

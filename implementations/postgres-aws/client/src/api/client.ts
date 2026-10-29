@@ -12,6 +12,10 @@ export class ApiError extends Error {
   }
 }
 
+// Dispatched on window after a successful change, so views that summarize
+// other pages' data (the sidebar counts) can reload.
+export const DATA_CHANGED_EVENT = 'api:data-changed';
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     credentials: 'include',
@@ -21,6 +25,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const body = await response.json().catch(() => undefined);
   if (!response.ok) {
     throw new ApiError(response.status, body);
+  }
+  if (init?.method && init.method !== 'GET') {
+    window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
   }
   return body as T;
 }
@@ -831,6 +838,16 @@ export interface ImportWarning {
   location?: string;
 }
 
+export interface SuggestedImportLine {
+  location: string;
+  line_type?: { value: InvoiceLineType };
+  service_date?: { value: string };
+  description?: { value: string };
+  quantity?: { value: number };
+  unit_rate?: { value: number };
+  amount: { value: number };
+}
+
 // Where a file still being read has got to (server/src/imports/extractionJobs.ts):
 // waiting behind other files, reading, or recognizing a scan's text.
 export type ImportProgress =
@@ -850,6 +867,7 @@ export interface InvoiceImportDetail {
   extractionResult: {
     invoice?: { invoice_number?: { value: string } };
     lines?: Array<{ location: string }>;
+    suggested_lines?: SuggestedImportLine[];
     warnings?: ImportWarning[];
     // Set when the file was designated to one professional: all their work.
     designated_professional_id?: string;

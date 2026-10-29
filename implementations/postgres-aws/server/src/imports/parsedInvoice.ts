@@ -29,6 +29,9 @@ export interface ParsedInvoice {
   periodEnd?: string;
   statedTotal?: number;
   lines: ParsedLine[];
+  // Items found in attachments after the invoice that match none of its
+  // lines: offered to the submitter, never imported by themselves.
+  suggestedLines?: ParsedLine[];
   // The parser's own findings, such as text read by recognition.
   warnings?: ImportWarning[];
 }

@@ -122,6 +122,19 @@ processing boundary, which includes the organization's own cloud account.
    again: read from that hidden text, the same scans gave 76% of items and
    31% of quantities, and three were refused. Three synthetic scans are in
    the corpus, one of them searchable.
+
+   Fill-in payment-request forms are read by their labelled blanks
+   ("Attorney: 1.5 hrs.; $ 150 /hour = $ 225.00", "… = $" expense lines),
+   whether flattened or with values left in live form fields. So submitters
+   aren't stopped, a file whose items can't be read but which states a total
+   as money (a cover sheet sent without its invoice) imports that total as
+   one item to break down, with a warning; a blank form and a
+   pre-authorization request are refused with what to do instead. Pages
+   after the invoice's total are read as attachments: one whose total
+   (within a dollar) or items match an invoice item is noted as its likely
+   backup, other items are offered on the review screen to add, and other
+   amounts written there are pointed out, so nothing is dropped silently
+   and nothing is billed twice.
 6. **Side-by-side review:** show the original document beside the import
    review instead of only as a download. Status: done in the Postgres/AWS
    prototype (PDF pages drawn in the browser, text and spreadsheets shown

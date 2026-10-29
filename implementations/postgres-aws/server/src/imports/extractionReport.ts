@@ -14,6 +14,8 @@ export interface ExtractionReport {
   extractionMethod?: string;
   invoice?: { invoiceNumber?: string; periodStart?: string; periodEnd?: string; statedTotal?: number };
   lines?: ParsedLine[];
+  // Found in attachments and only offered; not in CSV output.
+  suggestedLines?: ParsedLine[];
   warnings?: ImportWarning[];
   // Set instead of the other fields when the file couldn't be read.
   error?: string;
@@ -31,13 +33,14 @@ export async function extractReport(file: string, bytes: Buffer): Promise<Extrac
   try {
     const detected = detectInvoiceFile(bytes);
     const parsed = await detected.parse();
-    const { lines, warnings: _parserWarnings, ...invoice } = parsed;
+    const { lines, suggestedLines, warnings: _parserWarnings, ...invoice } = parsed;
     return {
       file,
       format: detected.format,
       extractionMethod: detected.extractionMethod,
       invoice,
       lines,
+      suggestedLines,
       warnings: reconciliationWarnings(parsed),
     };
   } catch (error) {
@@ -58,12 +61,13 @@ export function formatText(reports: ExtractionReport[]): string {
       `read as ${report.format} by ${report.extractionMethod}`,
       `invoice ${invoice.invoiceNumber ?? '?'}, period ${invoice.periodStart ?? '?'} – ${invoice.periodEnd ?? '?'}, stated total ${invoice.statedTotal ?? '?'}`,
     );
-    for (const line of report.lines ?? []) {
-      out.push(
-        `  ${line.location.padEnd(16)} ${line.lineType.padEnd(7)} ${(line.serviceDate ?? '').padEnd(10)} ` +
-          `${(line.timekeeperLabel ?? '').slice(0, 18).padEnd(18)} ${String(line.quantity ?? '').padStart(5)} ` +
-          `${String(line.unitRate ?? '').padStart(7)} ${line.amount.toFixed(2).padStart(9)}  ${line.description ?? ''}`,
-      );
+    const row = (line: ParsedLine) =>
+      `  ${line.location.padEnd(16)} ${line.lineType.padEnd(7)} ${(line.serviceDate ?? '').padEnd(10)} ` +
+      `${(line.timekeeperLabel ?? '').slice(0, 18).padEnd(18)} ${String(line.quantity ?? '').padStart(5)} ` +
+      `${String(line.unitRate ?? '').padStart(7)} ${line.amount.toFixed(2).padStart(9)}  ${line.description ?? ''}`;
+    out.push(...(report.lines ?? []).map(row));
+    if (report.suggestedLines?.length) {
+      out.push('  suggested from attachments:', ...report.suggestedLines.map(row));
     }
     for (const warning of report.warnings ?? []) {
       out.push(`  warning: ${warning.location ? `${warning.location}: ` : ''}${warning.message}`);

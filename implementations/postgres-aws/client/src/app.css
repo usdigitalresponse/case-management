@@ -473,6 +473,10 @@ form.compact-form { max-width: none; }
 .original-rows th, .original-rows td { border: 1px solid var(--line); padding: .2rem .4rem; white-space: nowrap; }
 .original-rows th { color: var(--ink-faint); font-weight: normal; }
 .import-review-items h2 { font-size: 1.1rem; margin: 0 0 .6rem; }
+.import-suggestions { margin-top: 1rem; }
+.import-suggestions h3 { margin: 0 0 .3rem; font-size: 1rem; }
+.import-suggestions ul { list-style: none; margin: .6rem 0 0; padding: 0; }
+.import-suggestions li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .75rem; align-items: center; padding: .4rem 0; border-top: 1px solid var(--line); }
 @media (max-width: 1280px) {
   .import-review-layout { grid-template-columns: 1fr; }
   .original-document { position: static; }
