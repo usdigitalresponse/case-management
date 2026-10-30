@@ -228,7 +228,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     it now also backs the Providers list, listing everyone when no query is
     given; its Add button uses the same form the pickers add providers with
     (`client/src/components/AddProvider.tsx`, `POST /api/professionals`).
-    Administrators also get "Edit" (`PATCH /api/professionals/:id`,
+    Administrators also get "Edit", in the row itself (`PATCH /api/professionals/:id`,
     `src/professionals/editProfessional.ts`): the name, and the email of
     someone who hasn't signed in (refused if in use,
     `src/people/emails.ts`), so one added without an email can get it later

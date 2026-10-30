@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { Select } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
@@ -14,7 +14,6 @@ import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { SearchDirectory } from '../components/SearchDirectory';
 import { AddProvider } from '../components/AddProvider';
-import { Notice } from '../components/Notice';
 import { Toast, useToast } from '../components/Toast';
 import { formatMoney } from '../formatMoney';
 
@@ -72,65 +71,14 @@ function KindAndRate({ vendor, kinds, editable }: { vendor: VendorRecord; kinds:
   );
 }
 
-// Administrators correct the name, and the email until they sign in with it.
-function EditProvider({ vendor, onSaved, onCancel }: { vendor: VendorRecord; onSaved: (name: string) => void; onCancel: () => void }) {
-  const [displayName, setDisplayName] = useState(vendor.displayName ?? '');
-  const [email, setEmail] = useState(vendor.email ?? '');
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  async function save() {
-    setSaving(true);
-    setError(null);
-    try {
-      const saved = await editProfessional(vendor.professionalId, {
-        displayName: displayName.trim(),
-        email: vendor.signedIn ? (vendor.email ?? undefined) : email.trim(),
-      });
-      onSaved(saved.displayName);
-    } catch (err) {
-      setError(apiErrorMessage(err, 'The changes could not be saved.'));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="compact-card intake-provider">
-      <h2>Edit {vendor.displayName ?? 'provider'}</h2>
-      <div className="inline-fields intake-provider__fields">
-        <div className="usa-form-group">
-          <label className="usa-label" htmlFor="edit-provider-name">Name</label>
-          <input id="edit-provider-name" className="usa-input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-        </div>
-        <div className="usa-form-group">
-          <label className="usa-label" htmlFor="edit-provider-email">Email{vendor.signedIn ? '' : ' (optional)'}</label>
-          <input
-            id="edit-provider-email"
-            type="email"
-            className="usa-input"
-            value={email}
-            disabled={vendor.signedIn}
-            aria-describedby={vendor.signedIn ? 'edit-provider-email-hint' : undefined}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-          {vendor.signedIn && (
-            <p id="edit-provider-email-hint" className="field-hint">They sign in with this email, so it can’t be changed here.</p>
-          )}
-        </div>
-      </div>
-      {!vendor.signedIn && (
-        <p className="compact-hint">When they first sign in with this email, they get this profile.</p>
-      )}
-      {error && <Notice tone="danger">{error}</Notice>}
-      <div className="button-row">
-        <button type="button" className="btn btn--primary" disabled={saving || displayName.trim().length < 2} onClick={() => void save()}>
-          {saving ? 'Saving…' : 'Save'}
-        </button>
-        <button type="button" className="link-button" disabled={saving} onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  );
+// A row being edited in place: administrators correct the name, and the
+// email until they sign in with it.
+interface RowEdit {
+  vendor: VendorRecord;
+  displayName: string;
+  email: string;
+  error?: string;
+  saving?: boolean;
 }
 
 export const DIRECTORY_TITLE = 'Providers';
@@ -143,7 +91,33 @@ export default function VendorsDirectory() {
     [isAdmin],
   );
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState<VendorRecord | null>(null);
+  const [editing, setEditing] = useState<RowEdit | null>(null);
+  const editingRow = (vendor: VendorRecord) => (editing?.vendor.professionalId === vendor.professionalId ? editing : null);
+
+  async function saveRow(edit: RowEdit) {
+    setEditing({ ...edit, saving: true, error: undefined });
+    try {
+      const saved = await editProfessional(edit.vendor.professionalId, {
+        displayName: edit.displayName.trim(),
+        email: edit.vendor.signedIn ? (edit.vendor.email ?? undefined) : edit.email.trim(),
+      });
+      setEditing(null);
+      setVersion((v) => v + 1);
+      setToast({ message: `Saved ${saved.displayName}.` });
+    } catch (err) {
+      setEditing({ ...edit, saving: false, error: apiErrorMessage(err, 'The changes could not be saved.') });
+    }
+  }
+
+  // Enter saves and Escape cancels, from either field.
+  const keys = (edit: RowEdit) => (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void saveRow(edit);
+    } else if (event.key === 'Escape') {
+      setEditing(null);
+    }
+  };
   const [version, setVersion] = useState(0);
   const [toast, setToast] = useToast();
   return (
@@ -170,8 +144,51 @@ export default function VendorsDirectory() {
       fetchFn={(query) => listVendors(query).then((r) => r.professionals)}
       rowKey={(vendor) => vendor.professionalId}
       columns={[
-        { header: 'Name', render: (vendor) => vendor.displayName ?? 'Unknown' },
-        { header: 'Email', render: (vendor) => vendor.email ?? <span className="muted">None yet</span> },
+        {
+          header: 'Name',
+          render: (vendor) => {
+            const edit = editingRow(vendor);
+            return edit ? (
+              <input
+                className="usa-input row-edit__input"
+                size={1}
+                aria-label="Name"
+                autoComplete="off"
+                value={edit.displayName}
+                autoFocus
+                onKeyDown={keys(edit)}
+                onChange={(event) => setEditing({ ...edit, displayName: event.target.value })}
+              />
+            ) : (
+              (vendor.displayName ?? 'Unknown')
+            );
+          },
+        },
+        {
+          header: 'Email',
+          render: (vendor) => {
+            const edit = editingRow(vendor);
+            if (!edit) return vendor.email ?? <span className="muted">None yet</span>;
+            return vendor.signedIn ? (
+              <>
+                {vendor.email}
+                <span className="cell-note">They sign in with it, so it can’t be changed here.</span>
+              </>
+            ) : (
+              <input
+                className="usa-input row-edit__input"
+                size={1}
+                type="email"
+                aria-label="Email (optional)"
+                autoComplete="off"
+                placeholder="Email (optional)"
+                value={edit.email}
+                onKeyDown={keys(edit)}
+                onChange={(event) => setEditing({ ...edit, email: event.target.value })}
+              />
+            );
+          },
+        },
         { header: 'Kind and rate', render: (vendor) => <KindAndRate vendor={vendor} kinds={kinds} editable={isAdmin} /> },
         { header: 'Active', render: (vendor) => (vendor.active ? 'Yes' : 'No') },
         ...(isAdmin
@@ -179,35 +196,44 @@ export default function VendorsDirectory() {
               {
                 header: 'Actions',
                 hiddenHeader: true,
-                render: (vendor: VendorRecord) => (
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => {
-                      setAdding(false);
-                      setEditing(vendor);
-                    }}
-                  >
-                    Edit
-                  </button>
-                ),
+                render: (vendor: VendorRecord) => {
+                  const edit = editingRow(vendor);
+                  return edit ? (
+                    <>
+                    <span className="row-actions row-edit__actions">
+                      <button
+                        type="button"
+                        className="btn btn--primary btn--small"
+                        disabled={edit.saving || edit.displayName.trim().length < 2}
+                        onClick={() => void saveRow(edit)}
+                      >
+                        {edit.saving ? 'Saving…' : 'Save'}
+                      </button>
+                      <button type="button" className="link-button" disabled={edit.saving} onClick={() => setEditing(null)}>
+                        Cancel
+                      </button>
+                    </span>
+                    {edit.error && <span className="line-row-error row-edit__error" role="alert">{edit.error}</span>}
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="link-button"
+                      aria-label={`Edit ${vendor.displayName ?? 'this provider'}`}
+                      onClick={() => {
+                        setAdding(false);
+                        setEditing({ vendor, displayName: vendor.displayName ?? '', email: vendor.email ?? '' });
+                      }}
+                    >
+                      Edit
+                    </button>
+                  );
+                },
               },
             ]
           : []),
       ]}
     >
-      {editing && (
-        <EditProvider
-          key={editing.professionalId}
-          vendor={editing}
-          onCancel={() => setEditing(null)}
-          onSaved={(name) => {
-            setEditing(null);
-            setVersion((v) => v + 1);
-            setToast({ message: `Saved ${name}.` });
-          }}
-        />
-      )}
       {adding && (
         <AddProvider
           onCancel={() => setAdding(false)}
