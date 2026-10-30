@@ -1,0 +1,1 @@
+ALTER TABLE "invoice_line" ADD COLUMN "proposed_timekeeper_email" text;

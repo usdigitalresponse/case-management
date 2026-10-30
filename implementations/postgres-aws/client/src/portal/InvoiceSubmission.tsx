@@ -21,36 +21,21 @@ import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { OriginalDocument } from '../components/OriginalDocument';
 import { RecordedDecision } from '../components/LineReview';
-import { StatusPill, type Tone } from '../components/StatusPill';
+import { StatusPill } from '../components/StatusPill';
 import { Toast, useToast } from '../components/Toast';
 import { changedFields, duplicateOf, rowsInFileOrder, tracksSource } from '../fileChanges';
 import { formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { CheckLinesTable } from './CheckLinesTable';
 import { draftFromRead, priceOf, rowChanges, totalsNotice, valuesOf, type PricingContext } from './checkLines';
-import { formatSpan } from './portalWording';
+import { canWithdraw, formatSpan, submissionStatus } from './portalWording';
+import { SentBackNotice } from '../components/SentBackNotice';
 import { SendDialog } from './SendDialog';
 import { WithdrawDialog } from './WithdrawDialog';
 import { PORTAL_HOME_PATH } from './useShell';
+import { EnteredFlag } from '../components/NewEntryFields';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-function headerStatus(statusCode: string): { label: string; tone: Tone } {
-  switch (statusCode) {
-    case 'draft':
-      return { label: 'Draft, not sent', tone: 'neutral' };
-    case 'submitted':
-      return { label: 'Waiting for review', tone: 'info' };
-    case 'under_review':
-    case 'awaiting_sign_off':
-      return { label: 'Being reviewed', tone: 'warning' };
-    case 'approved':
-    case 'rejected':
-      return { label: 'Decided', tone: 'success' };
-    default:
-      return { label: 'Withdrawn', tone: 'neutral' };
-  }
-}
 
 function Lines({
   data,
@@ -68,7 +53,8 @@ function Lines({
   const isDraft = invoice.statusCode === 'draft';
   const editable = isDraft && isSubmitter;
   const [lines, setLines] = useState<LineDraft[]>(() => lineDraftsFrom(data.lines));
-  const [focus, setFocus] = useState<string | undefined>();
+  // A new object on every click, so clicking the same line scrolls the file back to it.
+  const [focus, setFocus] = useState<{ location: string } | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -145,9 +131,12 @@ function Lines({
       if (fileSource && fileSource.importStatusCode !== 'confirmed') {
         await resolveInvoiceImport(fileSource.invoiceImportId, 'confirm');
       }
-      await transitionInvoice(invoice.invoiceId, 'submit', { attested: true });
+      const { status: sentAs } = await transitionInvoice(invoice.invoiceId, 'submit', { attested: true });
       setSending(false);
-      setToast({ message: 'Invoice sent for review.', undo: () => transitionInvoice(invoice.invoiceId, 'recall').then(onChanged) });
+      setToast({
+        message: sentAs === 'awaiting_match' ? 'Invoice sent. The billing office will match its case, then review it.' : 'Invoice sent for review.',
+        undo: () => transitionInvoice(invoice.invoiceId, 'recall').then(onChanged),
+      });
       onChanged();
     } catch (err) {
       setSendError(apiErrorMessage(err, 'The invoice could not be sent. Check the lines and try again.'));
@@ -166,13 +155,15 @@ function Lines({
     }
   }
 
-  const status = headerStatus(invoice.statusCode);
+  const status = submissionStatus(invoice);
   const period = formatSpan(invoice.periodStart, invoice.periodEnd);
   const month = invoice.periodStart ? `${MONTHS[Number(invoice.periodStart.slice(5, 7)) - 1]} ${invoice.periodStart.slice(0, 4)}` : 'invoice';
-  const client = invoice.caseClientDisplayName ?? 'Invoice';
-  const caseNumber = data.caseNumber ?? invoice.caseExternalReference;
+  const proposed = invoice.caseId ? null : invoice.proposedCase;
+  const client = invoice.caseClientDisplayName ?? proposed?.clientName ?? 'Invoice';
+  const caseNumber = data.caseNumber ?? invoice.caseExternalReference ?? proposed?.caseNumber ?? null;
   const kind = invoice.professionalKindDisplayName ? `${invoice.professionalKindDisplayName} invoice` : 'Invoice';
-  const canWithdraw = isSubmitter && invoice.statusCode === 'submitted';
+  const awaiting = invoice.statusCode === 'awaiting_match';
+  const withdrawable = canWithdraw(invoice, user?.userAccountId);
   const sent = !isDraft && invoice.statusCode !== 'withdrawn';
   const currentCount = lines.length;
   const linesSummary = [
@@ -202,6 +193,8 @@ function Lines({
           </h1>
           <p className="submission__meta">
             {caseNumber && <strong>Case {caseNumber}</strong>}
+            {proposed && <EnteredFlag what="Case" />}
+            {!invoice.caseId && !proposed && <span>Case not chosen: the billing office will match it</span>}
             {data.otherCaseNumbers.map((number) => (
               <span key={number}>{number}</span>
             ))}
@@ -226,7 +219,7 @@ function Lines({
               Download receipt
             </a>
           )}
-          {canWithdraw && (
+          {withdrawable && (
             <button type="button" className="btn btn--danger" onClick={() => setWithdrawing(true)}>
               Withdraw
             </button>
@@ -258,6 +251,13 @@ function Lines({
               can withdraw it until review starts.
             </Notice>
           )}
+          {isDraft && <SentBackNotice reason={invoice.returnedReason} />}
+          {awaiting && (
+            <Notice tone="info">
+              Sent. Some of its details aren’t in our system yet, so the billing office will match them, then send it for review.
+              You can withdraw it until then.
+            </Notice>
+          )}
           {(invoice.statusCode === 'under_review' || invoice.statusCode === 'awaiting_sign_off') && (
             <Notice tone="info">Review has started, so the invoice can no longer be withdrawn. Contact the billing office to change it.</Notice>
           )}
@@ -273,8 +273,8 @@ function Lines({
             warnings={fileSource?.warnings ?? []}
             duplicates={isDraft ? duplicates : new Map()}
             editable={editable}
-            focus={focus}
-            onFocus={setFocus}
+            focus={focus?.location}
+            onFocus={(location) => setFocus(location ? { location } : undefined)}
             onSaveLine={(index, draft, number) => {
               const next = index === null ? [...lines, draft] : lines.map((line, at) => (at === index ? draft : line));
               void persist(next, index === null ? 'Line added.' : `Line ${number} changed.`);
@@ -311,7 +311,7 @@ function Lines({
               ? fileSource
                 ? 'Click a line to see where it is on your file. Changes save as you go.'
                 : 'Add each line of the invoice. Changes save as you go.'
-              : invoice.statusCode === 'submitted'
+              : invoice.statusCode === 'submitted' || awaiting
                 ? 'This invoice is with the billing office, so the lines are locked. Withdraw it if you need to change something.'
                 : 'The lines are locked while the billing office reviews them.'}
           </p>
@@ -320,7 +320,11 @@ function Lines({
 
       {sending && (
         <SendDialog
-          caseLabel={[caseNumber, client].filter(Boolean).join(' · ')}
+          caseLabel={
+            invoice.caseId || proposed
+              ? `${[caseNumber, client].filter(Boolean).join(' · ')}${proposed ? ' (new: the billing office will match it)' : ''}`
+              : 'Not chosen: the billing office will match it'
+          }
           period={period}
           linesSummary={linesSummary}
           askingFor={askingFor}

@@ -120,6 +120,27 @@
       "when": 1793139562782,
       "tag": "0016_line_source_and_attestation",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793311541106,
+      "tag": "0017_intake_case_suggestion",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793312661361,
+      "tag": "0018_proposed_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793320702281,
+      "tag": "0019_proposed_timekeeper_email",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,7 @@
 import { and, eq, exists, or, type SQL } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { invoice, invoiceLine } from '../db/schema';
-import { UNSUBMITTED_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
+import { AWAITING_MATCH_INVOICE_STATUS_CODE, UNSUBMITTED_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
 import type { PortalActor } from '../portal/portalActor';
 
 export function portalReadableInvoiceCondition(db: Database, reader: PortalActor): SQL {
@@ -40,7 +40,8 @@ export async function canPortalReaderReadInvoice(
   return rows.length > 0;
 }
 
-// Exports cover submitted requests only, never drafts or withdrawn drafts.
+// Exports cover requests in or past review, never drafts, withdrawn drafts
+// or those still waiting to be matched.
 export function isExportableStatus(statusCode: string | null): boolean {
-  return statusCode !== null && !UNSUBMITTED_INVOICE_STATUS_CODES.includes(statusCode);
+  return statusCode !== null && statusCode !== AWAITING_MATCH_INVOICE_STATUS_CODE && !UNSUBMITTED_INVOICE_STATUS_CODES.includes(statusCode);
 }

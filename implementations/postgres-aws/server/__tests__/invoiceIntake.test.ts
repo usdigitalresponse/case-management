@@ -9,16 +9,18 @@ import { createCase } from '../src/intake/createCase';
 import { createInvoice } from '../src/portal/createInvoice';
 import { resolvePortalActor } from '../src/portal/portalActor';
 import { NotAssignedToCaseError } from '../src/portal/caseAssignmentAuthorization';
-import { submitInvoice } from '../src/billing/invoiceLifecycle';
-import { listInvoiceIntake, matchInvoiceToCase } from '../src/billing/invoiceIntake';
+import { recallInvoice, submitInvoice } from '../src/billing/invoiceLifecycle';
+import { listInvoiceIntake, matchInvoiceToCase, returnToSubmitter } from '../src/billing/invoiceIntake';
+import { listPortalInvoices } from '../src/portal/listPortalInvoices';
 import { listReviewQueue } from '../src/billing/reviewQueue';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { invoiceExportContent, NO_CASE_WARNING } from '../src/billing/exportInvoice';
 import { addProfessional } from '../src/professionals/addProfessional';
+import { editProfessional } from '../src/professionals/editProfessional';
 import { createKind, addKindRate } from '../src/billing/professionalRates';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { ValidationError } from '../src/errors';
-import { caseAssignment, invoice, invoiceLine, userAccount } from '../src/db/schema';
+import { auditEvent, caseAssignment, invoice, invoiceAttestation, invoiceLine, userAccount } from '../src/db/schema';
 
 let fixtures: BaselineFixtureIds;
 
@@ -63,13 +65,14 @@ describe('invoice intake', () => {
     });
 
     expect((await listInvoiceIntake(testDb, fixtures.staffUserAccountId)).map((item) => item.invoiceId)).toEqual([invoiceId]);
-    // Not submitted by accident: reviewing without a case is a choice.
-    await expect(submitInvoice(testDb, staff, invoiceId, receipt)).rejects.toThrow(ValidationError);
+    // Sent before its case is known, it stays in intake to be matched.
+    expect(await submitInvoice(testDb, staff, invoiceId, receipt)).toMatchObject({ status: 'awaiting_match' });
+    expect(await listInvoiceIntake(testDb, fixtures.staffUserAccountId)).toMatchObject([{ invoiceId, stage: 'sent' }]);
 
     const caseId = await openCase();
     await expect(matchInvoiceToCase(testDb, fixtures.staffUserAccountId, invoiceId, { caseId })).rejects.toThrow(ValidationError);
     const matched = await matchInvoiceToCase(testDb, fixtures.staffUserAccountId, invoiceId, { caseId, addMissing: true });
-    expect(matched.addedProfessionalIds).toEqual([provider.professionalId]);
+    expect(matched).toMatchObject({ addedProfessionalIds: [provider.professionalId], released: true });
 
     const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
     expect(row?.caseId).toBe(caseId);
@@ -81,8 +84,7 @@ describe('invoice intake', () => {
       .where(and(eq(caseAssignment.caseId, caseId), eq(caseAssignment.professionalId, provider.professionalId), isNull(caseAssignment.endedAt)));
     expect(assigned).toHaveLength(1);
     expect(await listInvoiceIntake(testDb, fixtures.staffUserAccountId)).toEqual([]);
-
-    await submitInvoice(testDb, staff, invoiceId, receipt);
+    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))?.invoice.statusCode).toBe('submitted');
   });
 
   it('holds an invoice with no professional either, chosen and priced when it is matched', async () => {
@@ -95,11 +97,8 @@ describe('invoice intake', () => {
       lines: [{ lineType: 'time', quantity: 2, serviceDate: '2026-02-02', description: 'Synthetic interview' }],
       ...receipt,
     });
-    // Only as a held draft: not with a case, and not submitted.
-    await expect(
-      createInvoice(testDb, staff, { attested: true, caseId: await openCase(), professionalId: null, submit: false, ...items }),
-    ).rejects.toThrow();
-    await expect(submitInvoice(testDb, staff, invoiceId, { attested: true, ...receipt, withoutCase: true })).rejects.toThrow(ValidationError);
+    // Even reviewed without a case, it waits for whom it bills.
+    expect(await submitInvoice(testDb, staff, invoiceId, { ...receipt, withoutCase: true })).toMatchObject({ status: 'awaiting_match' });
 
     const caseId = await openCase();
     await expect(matchInvoiceToCase(testDb, fixtures.staffUserAccountId, invoiceId, { caseId, addMissing: true })).rejects.toThrow(
@@ -112,7 +111,6 @@ describe('invoice intake', () => {
     });
     const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
     expect(row).toMatchObject({ professionalId: provider.professionalId, submittedTotal: '200.00' });
-    await submitInvoice(testDb, staff, invoiceId, receipt);
   });
 
   it('lets staff review an invoice without a case, flagged everywhere', async () => {
@@ -133,12 +131,124 @@ describe('invoice intake', () => {
     expect(content.summary).toContainEqual(['Case number', NO_CASE_WARNING]);
   });
 
-  it('is for staff only, and recorded time needs a case', async () => {
+  it('takes a submitter’s invoice naming a case and colleague not yet listed, and sends it on once staff match them', async () => {
     const [account] = await testDb.insert(userAccount).values({ displayName: 'Vendor', email: 'vendor@example.com', active: true }).returning();
     const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, 'Vendor');
     const vendor = await resolvePortalActor(testDb, account!.userAccountId);
-    await expect(createInvoice(testDb, vendor, { attested: true, caseId: null, professionalId, ...items })).rejects.toThrow(NotAssignedToCaseError);
+    const { invoiceId, status } = await createInvoice(testDb, vendor, {
+      attested: true,
+      caseId: null,
+      professionalId,
+      proposedCase: { clientName: 'Synthetic Client', caseNumber: 'NEW-7' },
+      lines: [
+        ...items.lines,
+        {
+          lineType: 'time',
+          quantity: 2,
+          serviceDate: '2026-02-02',
+          description: 'Synthetic interview',
+          proposedTimekeeperName: 'Synthetic Colleague',
+          proposedTimekeeperEmail: 'Colleague@Example.com',
+        },
+      ],
+    });
+    expect(status).toBe('awaiting_match');
     await expect(listInvoiceIntake(testDb, account!.userAccountId)).rejects.toThrow();
+    const [item] = await listInvoiceIntake(testDb, fixtures.staffUserAccountId);
+    expect(item).toMatchObject({
+      invoiceId,
+      stage: 'sent',
+      proposedCase: { clientName: 'Synthetic Client', caseNumber: 'NEW-7' },
+      unlistedTimekeepers: [{ name: 'Synthetic Colleague', email: 'colleague@example.com', description: 'Synthetic interview' }],
+    });
+
+    // Matching the case alone leaves it waiting for the colleague.
+    const caseId = await openCase();
+    expect(await matchInvoiceToCase(testDb, fixtures.staffUserAccountId, invoiceId, { caseId, addMissing: true })).toMatchObject({ released: false });
+    const colleague = await addProvider();
+    const matched = await matchInvoiceToCase(testDb, fixtures.staffUserAccountId, invoiceId, {
+      caseId,
+      addMissing: true,
+      timekeepers: { [item!.unlistedTimekeepers[0]!.invoiceLineId]: colleague.professionalId },
+    });
+    expect(matched).toMatchObject({ released: true, addedProfessionalIds: [colleague.professionalId] });
+
+    const detail = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
+    expect(detail.invoice).toMatchObject({ statusCode: 'submitted', proposedCase: { clientName: 'Synthetic Client', caseNumber: 'NEW-7' } });
+    expect(detail.lines.map((line) => line.proposedTimekeeperName)).toContain('Synthetic Colleague');
+    // The attestation is the one given on sending.
+    expect(await testDb.select().from(invoiceAttestation)).toHaveLength(1);
+  });
+
+  it('keeps a match that can’t go to review yet, saying why', async () => {
+    const [account] = await testDb.insert(userAccount).values({ displayName: 'Vendor', email: 'vendor@example.com', active: true }).returning();
+    const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, 'Vendor');
+    const vendor = await resolvePortalActor(testDb, account!.userAccountId);
+    const { invoiceId } = await createInvoice(testDb, vendor, {
+      attested: true,
+      caseId: null,
+      professionalId,
+      lines: [{ lineType: 'time', description: 'Synthetic interview', proposedTimekeeperName: 'Synthetic Colleague' }],
+    });
+    const [item] = await listInvoiceIntake(testDb, fixtures.staffUserAccountId);
+    const colleague = await addProvider();
+    const caseId = await openCase();
+    const matched = await matchInvoiceToCase(testDb, fixtures.staffUserAccountId, invoiceId, {
+      caseId,
+      addMissing: true,
+      timekeepers: { [item!.unlistedTimekeepers[0]!.invoiceLineId]: colleague.professionalId },
+    });
+    expect(matched).toMatchObject({ released: false, releaseProblem: expect.stringContaining('needs a date and hours') });
+    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))?.invoice).toMatchObject({ caseId, statusCode: 'awaiting_match' });
+  });
+
+  it('lets staff send a waiting invoice back with a reason the submitter sees until they send it again', async () => {
+    const [account] = await testDb.insert(userAccount).values({ displayName: 'Vendor', email: 'vendor@example.com', active: true }).returning();
+    await ensureProfessionalForUserAccount(testDb, account!.userAccountId, 'Vendor');
+    const vendor = await resolvePortalActor(testDb, account!.userAccountId);
+    const { invoiceId } = await createInvoice(testDb, vendor, { attested: true, caseId: null, ...items });
+
+    await expect(returnToSubmitter(testDb, fixtures.staffUserAccountId, invoiceId, { reason: ' ' })).rejects.toThrow(ValidationError);
+    await expect(returnToSubmitter(testDb, account!.userAccountId, invoiceId, { reason: 'Add the case number.' })).rejects.toThrow();
+    await returnToSubmitter(testDb, fixtures.staffUserAccountId, invoiceId, { reason: 'Add the case number.' });
+
+    const [listed] = await listPortalInvoices(testDb, vendor);
+    expect(listed).toMatchObject({ invoiceId, statusCode: 'draft', returnedReason: 'Add the case number.' });
+    // Theirs again, so off Intake, and it can't be sent back twice.
+    expect(await listInvoiceIntake(testDb, fixtures.staffUserAccountId)).toEqual([]);
+    await expect(returnToSubmitter(testDb, fixtures.staffUserAccountId, invoiceId, { reason: 'Again' })).rejects.toThrow(ValidationError);
+
+    expect(await submitInvoice(testDb, vendor, invoiceId, { attested: true })).toMatchObject({ status: 'awaiting_match' });
+    expect((await loadInvoiceDetail(testDb, invoiceId, 'submitter'))?.invoice.returnedReason).toBeNull();
+  });
+
+  it('lets a submitter recall an invoice waiting to be matched', async () => {
+    const [account] = await testDb.insert(userAccount).values({ displayName: 'Vendor', email: 'vendor@example.com', active: true }).returning();
+    await ensureProfessionalForUserAccount(testDb, account!.userAccountId, 'Vendor');
+    const vendor = await resolvePortalActor(testDb, account!.userAccountId);
+    const { invoiceId } = await createInvoice(testDb, vendor, { attested: true, caseId: null, ...items });
+    await recallInvoice(testDb, vendor, invoiceId);
+    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))?.invoice.statusCode).toBe('draft');
+  });
+
+  it('lets an email be added to a provider later, who then gets their profile on first sign-in', async () => {
+    const added = await addProvider();
+    await addProvider('taken@example.com');
+    const actor = fixtures.staffUserAccountId;
+    await expect(editProfessional(testDb, actor, added.professionalId, { displayName: 'Synthetic Investigator', email: 'TAKEN@example.com' })).rejects.toThrow(
+      ValidationError,
+    );
+    await editProfessional(testDb, actor, added.professionalId, { displayName: 'Synthetic Investigator Jr', email: 'Later@Example.com' });
+    const [change] = await testDb.select().from(auditEvent).where(eq(auditEvent.eventType, 'professional_changed'));
+    expect(change).toMatchObject({ entityId: added.professionalId, priorValues: { displayName: 'Synthetic Investigator', email: null } });
+
+    const [account] = await testDb.insert(userAccount).values({ displayName: 'Later', email: 'later@example.com', active: true }).returning();
+    expect(await ensureProfessionalForUserAccount(testDb, account!.userAccountId, 'Later')).toBe(added.professionalId);
+    // Now they sign in with it, so it stays; their name can still be corrected.
+    await expect(editProfessional(testDb, actor, added.professionalId, { displayName: 'Synthetic Investigator', email: 'other@example.com' })).rejects.toThrow(
+      ValidationError,
+    );
+    await editProfessional(testDb, actor, added.professionalId, { displayName: 'Synthetic Investigator', email: 'later@example.com' });
   });
 
   it('gives a provider staff added their profile when they first sign in', async () => {

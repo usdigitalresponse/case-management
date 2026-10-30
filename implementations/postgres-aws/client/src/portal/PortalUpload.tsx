@@ -1,13 +1,14 @@
 // Upload invoices, or enter one by hand: each file is read, then its case
-// and period are checked one at a time and it becomes a draft. Staff may
-// leave the case for matching later. See MAPPING.md "Structured invoice import".
+// and period are checked one at a time and it becomes a draft. A case or
+// provider that isn't known or listed is matched later on Intake. See
+// MAPPING.md "Structured invoice import".
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import {
-  ApiError,
   apiErrorMessage,
   createInvoice,
   createUploadDraft,
+  fieldErrorsOf,
   deleteInvoice,
   discardUpload,
   getUpload,
@@ -15,6 +16,9 @@ import {
   listBillableProfessionals,
   listUploadCases,
   startUpload,
+  type BillableProfessional,
+  type ProposedCase,
+  type ProposedProvider,
   type UploadCase,
   type UploadRead,
 } from '../api/client';
@@ -24,13 +28,32 @@ import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { professionalLabel } from '../components/InvoiceLinesEditor';
 import type { UploadedState } from './PortalInvoiceList';
-import { LATER, useShell } from './useShell';
+import { useShell } from './useShell';
+import { AddProvider } from '../components/AddProvider';
+import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
+import {
+  createCaseFromEntry,
+  matchToAddedCase,
+  newCaseEntry,
+  NO_PROPOSED_CASE,
+  NO_PROPOSED_PERSON,
+  proposedCaseToSend,
+  proposedPersonToSend,
+  ProposedCaseFields,
+  ProposedPersonFields,
+  StaffNewCaseFields,
+  type NewCaseEntry,
+} from '../components/NewEntryFields';
 
 interface Details {
-  // `${caseId}|${professionalId}`, LATER (staff: no case yet), or '' until chosen.
+  // `${caseId}|${professionalId}`, ADD_NEW, or '' (not known: matched on Intake).
   caseOption: string;
-  // With no case yet: whom it's from, or '' to choose when it's matched.
+  // A new case: a submitter's details, or one staff create.
+  proposedCase: ProposedCase;
+  newCase: NewCaseEntry;
+  // With no case chosen: whom it's from, ADD_NEW, or '' (not known yet).
   fromProfessionalId: string;
+  proposedProvider: ProposedProvider;
   periodStart: string;
   periodEnd: string;
   invoiceNumber: string;
@@ -51,8 +74,8 @@ const optionValue = (row: Pick<UploadCase, 'caseId' | 'professionalId'>) => `${r
 
 function detailsFrom(read: Extract<UploadRead, { status: 'ready' }>): Details {
   return {
+    ...noDetails(),
     caseOption: read.suggested ? optionValue(read.suggested) : '',
-    fromProfessionalId: '',
     periodStart: read.read.periodStart ?? '',
     periodEnd: read.read.periodEnd ?? '',
     invoiceNumber: read.read.invoiceNumber ?? '',
@@ -87,7 +110,13 @@ function Steps() {
   );
 }
 
-function DropZone({ hasFiles, onFiles }: { hasFiles: boolean; onFiles: (files: File[]) => void }) {
+// Files dropped elsewhere (Intake), or manual entry, to start with.
+export interface UploadStart {
+  files?: File[];
+  manual?: boolean;
+}
+
+export function DropZone({ hasFiles, onFiles }: { hasFiles: boolean; onFiles: (files: File[]) => void }) {
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const drop = (event: DragEvent) => {
@@ -184,17 +213,31 @@ function FileCard({
   );
 }
 
+// Who the user may bill with no case chosen: staff, any active provider; a
+// submitter, themselves and anyone they act for.
+function useBillable() {
+  return useApiResource(() => listBillableProfessionals(null).then((result) => result.professionals), []);
+}
+
+// Asked only when there's more than one to choose from.
+function asksWho(staff: boolean, billable: BillableProfessional[] | null | undefined) {
+  return staff || (billable?.length ?? 0) > 1;
+}
+
 // The case, billing period and (for a file) invoice number, for an upload
-// or an invoice entered by hand.
+// or an invoice entered by hand. Nothing here has to be chosen: what isn't
+// known is matched on Intake.
 function DetailsForm({
   details,
   cases,
+  billable,
   withInvoiceNumber,
   errors,
   onChange,
 }: {
   details: Details;
   cases: UploadCase[];
+  billable: BillableProfessional[] | null | undefined;
   withInvoiceNumber: boolean;
   errors: Record<string, string>;
   onChange: (details: Details) => void;
@@ -202,58 +245,60 @@ function DetailsForm({
   const { staff } = useShell();
   const set = (patch: Partial<Details>) => onChange({ ...details, ...patch });
   const showWho = new Set(cases.map((row) => row.professionalId)).size > 1;
-  const later = details.caseOption === LATER;
-  // Any active provider, for an invoice staff hold with no case yet.
-  const { data: providers } = useApiResource(
-    () => (staff && later ? listBillableProfessionals(null).then((result) => result.professionals) : Promise.resolve([])),
-    [staff, later],
-  );
+  const noCase = details.caseOption === '' || details.caseOption === ADD_NEW;
+  const [added, setAdded] = useState<Array<{ professionalId: string; displayName: string }>>([]);
+  const from = [...(billable ?? []).map((p) => ({ value: p.professionalId, label: professionalLabel(p) })), ...added.map((p) => ({ value: p.professionalId, label: p.displayName }))];
   return (
     <div className="upload-details">
       <div className="upload-details__field">
-        <label className="usa-label" htmlFor="upload-case">Case</label>
-        <select
+        <PickOrAdd
           id="upload-case"
-          className="usa-select"
+          label="Case"
           value={details.caseOption}
-          aria-describedby="upload-case-hint"
-          aria-invalid={Boolean(errors.caseId) || undefined}
-          onChange={(event) => set({ caseOption: event.target.value })}
+          onChange={(caseOption) => set({ caseOption })}
+          addLabel="+ Add a case that isn’t listed"
+          placeholder="Choose the case"
+          options={cases.map((row) => ({ value: optionValue(row), label: caseLabel(row, showWho) }))}
+          error={errors.caseId}
+          hint={
+            staff
+              ? 'Cases with an assigned provider appear here, with whom each invoice bills. Leave it blank to match it later on Intake.'
+              : 'Only cases where you are the assigned attorney appear here. If yours isn’t, add what you know of it. If you’re not sure, leave it blank and the billing office will match it.'
+          }
         >
-          <option value="">- Choose the case -</option>
-          {staff && <option value={LATER}>No case yet: match it later on Intake</option>}
-          {cases.map((row) => (
-            <option key={optionValue(row)} value={optionValue(row)}>
-              {caseLabel(row, showWho)}
-            </option>
-          ))}
-        </select>
-        {errors.caseId && <p className="field-error">{errors.caseId}</p>}
-        <p id="upload-case-hint" className="field-hint">
-          {staff
-            ? 'Cases with an assigned provider appear here, with whom each invoice bills.'
-            : 'Only cases where you are the assigned attorney appear here.'}
-        </p>
+          {staff ? (
+            <StaffNewCaseFields idPrefix="upload-new-case" value={details.newCase} onChange={(newCase) => set({ newCase })} errors={errors} />
+          ) : (
+            <ProposedCaseFields idPrefix="upload-new-case" value={details.proposedCase} onChange={(proposedCase) => set({ proposedCase })} errors={errors} />
+          )}
+        </PickOrAdd>
       </div>
-      {later && (
+      {noCase && asksWho(staff, billable) && (
         <div className="upload-details__field">
-          <label className="usa-label" htmlFor="upload-from">From</label>
-          <select
+          <PickOrAdd
             id="upload-from"
-            className="usa-select"
+            label="From"
             value={details.fromProfessionalId}
-            aria-describedby="upload-from-hint"
-            onChange={(event) => set({ fromProfessionalId: event.target.value })}
+            onChange={(fromProfessionalId) => set({ fromProfessionalId })}
+            addLabel="+ Add someone who isn’t listed"
+            placeholder="Choose who it’s from"
+            options={from}
+            error={errors.professionalId}
+            hint="Leave it blank if you’re not sure. It waits on Intake until its case is matched."
           >
-            <option value="">Not known yet: choose when matching</option>
-            {providers?.map((provider) => (
-              <option key={provider.professionalId} value={provider.professionalId}>
-                {professionalLabel(provider)}
-              </option>
-            ))}
-          </select>
-          {errors.professionalId && <p className="field-error">{errors.professionalId}</p>}
-          <p id="upload-from-hint" className="field-hint">It waits under "Waiting for a case" on Intake until it's matched.</p>
+            {staff ? (
+              <AddProvider
+                inline
+                idPrefix="upload-from-new"
+                onAdded={(provider) => {
+                  setAdded((current) => [...current, provider]);
+                  set({ fromProfessionalId: provider.professionalId });
+                }}
+              />
+            ) : (
+              <ProposedPersonFields idPrefix="upload-from-new" value={details.proposedProvider} onChange={(proposedProvider) => set({ proposedProvider })} />
+            )}
+          </PickOrAdd>
         </div>
       )}
       <div className="upload-details__field">
@@ -299,39 +344,76 @@ function DetailsForm({
   );
 }
 
-const NO_DETAILS: Details = { caseOption: '', fromProfessionalId: '', periodStart: '', periodEnd: '', invoiceNumber: '' };
+// Each gets its own new-case entry, so one file's new case is never taken for another's.
+const noDetails = (): Details => ({
+  caseOption: '',
+  proposedCase: NO_PROPOSED_CASE,
+  newCase: newCaseEntry(),
+  fromProfessionalId: '',
+  proposedProvider: NO_PROPOSED_PERSON,
+  periodStart: '',
+  periodEnd: '',
+  invoiceNumber: '',
+});
+
+// Where an invoice goes: its chosen case, or Intake with what's known. A case
+// staff add is created first; with whom it's from known, the invoice is then
+// matched to it straight away (`matchTo`).
+async function destination(details: Details, staff: boolean, billable: BillableProfessional[] | null | undefined) {
+  if (details.caseOption && details.caseOption !== ADD_NEW) {
+    const [caseId, professionalId] = details.caseOption.split('|');
+    return { caseId: caseId!, professionalId: professionalId! };
+  }
+  const chosenFrom = details.fromProfessionalId && details.fromProfessionalId !== ADD_NEW ? details.fromProfessionalId : null;
+  const professionalId = asksWho(staff, billable) ? chosenFrom : (billable?.find((p) => p.isSelf)?.professionalId ?? null);
+  const addingCase = details.caseOption === ADD_NEW;
+  const matchTo = staff && addingCase && professionalId ? await createCaseFromEntry(details.newCase) : undefined;
+  return {
+    caseId: null,
+    professionalId,
+    proposedCase: addingCase && !matchTo ? proposedCaseToSend(staff ? details.newCase : details.proposedCase) : undefined,
+    proposedProvider: !staff && details.fromProfessionalId === ADD_NEW ? proposedPersonToSend(details.proposedProvider) : undefined,
+    matchTo,
+  };
+}
+
 
 // Starts an empty draft, then adds its lines on the check-the-lines page.
 function ManualEntry({ onCancel }: { onCancel: () => void }) {
   const navigate = useNavigate();
   const { staff } = useShell();
   const { data, error: loadError } = useApiResource(() => listUploadCases().then((result) => result.cases), []);
-  const [details, setDetails] = useState<Details>(NO_DETAILS);
+  const { data: billable } = useBillable();
+  const [details, setDetails] = useState<Details>(noDetails);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const cases = data ?? [];
-  const chosen = details.caseOption || (cases.length === 1 && !staff ? optionValue(cases[0]!) : '');
+  // A submitter with one case starts on it.
+  useEffect(() => {
+    if (data?.length === 1 && !staff) {
+      setDetails((current) => ({ ...current, caseOption: optionValue(data[0]!) }));
+    }
+  }, [data, staff]);
 
   async function start() {
-    const later = staff && chosen === LATER;
-    const [caseId, professionalId] = later ? [null, details.fromProfessionalId || null] : chosen.split('|');
-    if (!later && (!caseId || !professionalId)) {
-      setErrors({ caseId: 'Choose the case this invoice is for.' });
-      return;
-    }
     setBusy(true);
     setErrors({});
     setMessage(null);
     try {
+      const { matchTo, ...target } = await destination(details, staff, billable);
       const created = await createInvoice({
-        caseId: caseId ?? null,
-        professionalId: professionalId ?? null,
+        ...target,
         submit: false,
         periodStart: details.periodStart || undefined,
         periodEnd: details.periodEnd || undefined,
         lines: [],
       });
+      const matched = matchTo ? await matchToAddedCase(created.invoiceId, matchTo) : undefined;
+      if (matched && 'problem' in matched) {
+        setMessage(matched.problem);
+        return;
+      }
       navigate(`/portal/invoices/${created.invoiceId}`);
     } catch (err) {
       const fieldErrors = fieldErrorsOf(err);
@@ -349,12 +431,10 @@ function ManualEntry({ onCancel }: { onCancel: () => void }) {
       <h2 className="upload-card__heading">Enter an invoice by hand</h2>
       <p className="field-hint">Choose the case, then add each line of the invoice on the next step.</p>
       {Boolean(loadError) && <Notice tone="danger">Your cases could not be loaded.</Notice>}
-      {data && cases.length === 0 && !staff && (
-        <Notice tone="warning">You have no open cases to bill. Ask the billing office to check your case assignments.</Notice>
-      )}
       <DetailsForm
-        details={{ ...details, caseOption: chosen }}
+        details={details}
         cases={cases}
+        billable={billable}
         withInvoiceNumber={false}
         errors={errors}
         onChange={setDetails}
@@ -372,17 +452,15 @@ function ManualEntry({ onCancel }: { onCancel: () => void }) {
   );
 }
 
-function fieldErrorsOf(err: unknown): Record<string, string> {
-  const body = err instanceof ApiError ? (err.body as { fieldErrors?: Record<string, string> } | undefined) : undefined;
-  return body?.fieldErrors ?? {};
-}
-
 export default function PortalUpload() {
   const navigate = useNavigate();
   // Staff come from and go back to Intake; submitters to their invoices.
   const { staff, invoicesPath, invoicesLabel } = useShell();
   const [entries, setEntries] = useState<Entry[]>([]);
+  const { data: billable } = useBillable();
   const [manual, setManual] = useState(false);
+  const location = useLocation();
+  const started = useRef(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -419,6 +497,18 @@ export default function PortalUpload() {
       );
     }
   }
+  // Once, even in development's double render; the state is cleared so a
+  // reload doesn't upload the files again.
+  useEffect(() => {
+    const start = location.state as UploadStart | null;
+    if (started.current || !start) return;
+    started.current = true;
+    navigate(location.pathname, { replace: true, state: null });
+    if (start.manual) setManual(true);
+    if (start.files?.length) addFiles(start.files);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const reading = entries.filter((entry) => entry.uploadReadId && !entry.error && (!entry.read || entry.read.status === 'reading'));
   const readingKey = reading.map((entry) => entry.key).join(',');
@@ -449,26 +539,24 @@ export default function PortalUpload() {
   async function next() {
     if (!current || !currentRead || !current.uploadReadId) return;
     const details = current.details ?? detailsFrom(currentRead);
-    const later = staff && details.caseOption === LATER;
-    const [caseId, professionalId] = later ? [null, details.fromProfessionalId || null] : details.caseOption.split('|');
-    if (!later && (!caseId || !professionalId)) {
-      setErrors({ caseId: 'Choose the case this invoice is for.' });
-      return;
-    }
     setBusy(true);
     setErrors({});
     setMessage(null);
     try {
+      const { matchTo, ...target } = await destination(details, staff, billable);
       const created = await createUploadDraft(current.uploadReadId, {
-        caseId: caseId ?? null,
-        professionalId: professionalId ?? null,
+        ...target,
         periodStart: details.periodStart || undefined,
         periodEnd: details.periodEnd || undefined,
         invoiceNumber: details.invoiceNumber.trim() || undefined,
       });
+      const matched = matchTo ? await matchToAddedCase(created.invoiceId, matchTo) : undefined;
       update(current.key, { created });
       const remaining = usable.filter((entry) => !entry.created && entry.key !== current.key);
-      if (remaining.length === 0) {
+      // Stays here to say so; the next file, if any, is checked as usual.
+      if (matched && 'problem' in matched) {
+        setMessage(matched.problem);
+      } else if (remaining.length === 0) {
         if (createdCount === 0 && usable.length === 1) {
           // Staff check the lines on the import review page, in their shell.
           navigate(staff ? `/portal/imports/${created.invoiceImportId}` : `/portal/invoices/${created.invoiceId}`);
@@ -558,6 +646,7 @@ export default function PortalUpload() {
             <DetailsForm
               details={current.details ?? detailsFrom(currentRead)}
               cases={currentRead.cases}
+              billable={billable}
               withInvoiceNumber
               errors={errors}
               onChange={(details) => update(current.key, { details })}

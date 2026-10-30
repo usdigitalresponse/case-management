@@ -49,13 +49,12 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     Invoices", opens the upload directly;
     `client/src/pages/InvoiceIntake.tsx`) is one page for invoices a
     professional sent by email or from another tool (`model/rules.yaml`
-    `authorize_staff_invoice_entry`). It offers two ways in (the portal's
-    `NewInvoiceStart`): "Enter invoice manually" (choose a case, or "No
-    case yet", then type it) and "Upload invoices" (the same upload as
-    external submitters, `client/src/portal/PortalUpload.tsx` at
-    `/portal/upload`, where the case list offers every open case with an
-    assigned provider, plus "No case yet" with an optional "From"
-    provider; a file held with no case waits under "Waiting for a case").
+    `authorize_staff_invoice_entry`). It starts the same way as external submitters: dropping or
+    choosing files opens the upload (`client/src/portal/PortalUpload.tsx` at
+    `/portal/upload`) with them, and "Enter an invoice by hand" opens its
+    manual entry. There the case list offers every open case with an
+    assigned provider, a new case, or none yet with an optional "From"
+    provider; one held with no case waits under "Waiting for a case".
     One file goes on to the import review page to check its lines; several
     return to Intake with a banner. The older bulk import page
     (`/portal/imports`) is no longer linked but still works. "Waiting for a
@@ -79,26 +78,81 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     lists staff drafts with no case (migration `0012` makes
     `invoice.case_id` and `invoice_line.case_id` nullable) and caseless
     imports still being read (`model/rules.yaml` `match_invoice_to_case`).
-    With no case, "Billing for" also offers "No professional yet: match it
-    later" (migration `0013` makes `invoice.professional_id` nullable for
-    these drafts only); Match then asks "From" and reprices the time, and
-    such a draft has no submit button.
-    Staff choose "No case yet" as the case; with no case, any active
-    professional can be chosen and there is no unbilled-time picker. "Match
-    to a case" (`POST /api/invoices/intake/:id/case`) sets the case on the
-    invoice, its lines and its import, records `matched_to_case`, and with
-    `addMissing` assigns missing providers as external submitters. "Add case
-    info" opens New case with `?intake=`, which matches after creating it.
+    "Billing for" may be left blank (migration `0013` makes
+    `invoice.professional_id` nullable); Match then asks "From" and
+    reprices the time. With no case, any active professional can be chosen
+    and there is no unbilled-time picker. "Match to a case" (`POST
+    /api/invoices/intake/:id/case`) sets the case on the invoice, its lines
+    and its import, and who did the work on lines naming someone not listed
+    (`timekeepers`, by line), records `matched_to_case`, and with
+    `addMissing` assigns missing providers as external submitters. Its
+    case, "From" and per-line pickers can add a case or provider on the
+    spot (below); "Add the case with all its details instead" opens New
+    case with `?intake=`, which matches after creating it.
+    A held file's draft keeps the case and professional its reading
+    suggested (`invoice_import.suggested_case_id` and
+    `suggested_professional_id`, migration `0017`, by the upload rules
+    below), and Match starts with them selected, marked "Named in the file:
+    check it", while the case is open and the provider active.
     The invoice page's "Review without a case" submits with `withoutCase`;
     then no time entries are created, the default reviewer applies (no
     per-case reviewer), pre-authorization and case-rate limits are skipped,
     and the queue (`no_case` flag), review page, exports and billing record
-    warn. "Add a provider" (`POST /api/professionals`,
+    warn. Adding a provider (`POST /api/professionals`,
     `server/src/professionals/addProfessional.ts`) creates a person and
     professional with no account (`add_professional_without_login`);
     `ensureProfessional.ts` links it on first sign-in by email.
-    Gaps: only the staff member who entered a draft can submit it; matching
-    is refused once submitted; a one-person file split across cases
+  - Adding what isn't listed (`model/rules.yaml` `match_invoice_to_case`):
+    every case and person picker is `client/src/components/PickOrAdd.tsx`,
+    whose first option adds one, showing its fields
+    (`components/NewEntryFields.tsx`; the type-ahead searches on New case
+    and a case's "Add person" offer it first too). Nothing has to be
+    chosen to continue: what isn't known waits on Intake. A submitter's
+    entry is only details on the invoice (`invoice.proposed_case`,
+    `proposed_provider`, `invoice_line.proposed_timekeeper_name`, migration
+    `0018`, and `proposed_timekeeper_email`, `0019`; `server/src/billing/proposedDetails.ts`), kept after matching
+    and flagged "entered by the submitter" on Intake, their own page, the
+    review page and line tables. Staff create the record instead: a
+    provider through `AddProvider` inline (on an invoice with a case, also
+    assigned to it: `useAddedProviders`, used by "Billing for", the line
+    pickers and "Set work done by for several items"), a case through `POST /api/cases`
+    with `newClient` and `caseNumber` (kept as `external_reference`),
+    refusing an email or name already in the system unless confirmed as
+    someone else, and an existing case number. On the upload and manual
+    entry, a staff member's new case is created on continuing once whom it
+    bills is known, and the invoice matched to it; otherwise its details go
+    with the invoice to Intake. Naming someone not listed on one line
+    offers to use them for every other item. Sending an invoice whose
+    case, provider or any line's worker is still unknown
+    (`invoiceLifecycle.ts` `submitInTx`) attests as usual but sets status
+    `awaiting_match` ("Waiting for its case") with a `sent_for_matching`
+    event, pricing strictly first when its provider is known; import
+    confirmation no longer needs every line matched, keeping a named but
+    unchosen timekeeper as `proposed_timekeeper_name`, and prices strictly
+    only once nothing is left to match. Intake lists these as "Sent by the
+    submitter"; matching the last of them releases it to review
+    (`releaseToReviewInTx`, `released_to_review` event): time entries,
+    strict pricing, rules, snapshot and routing run as on submission, and
+    the attestation is recorded with the sending time. The submitter may
+    recall it to draft until then; exports skip it. Staff may instead send
+    any of these back (`POST /api/invoices/intake/:id/return`, a reason
+    required; `returnToSubmitter`): it returns to draft with a
+    `returned_to_submitter` event holding the reason, and the latest such
+    event's reason (`invoiceEvents.ts` `returnedReason`) is shown on the
+    invoice, as a red "Needs changes" status, and under "Needs your
+    changes" at the top of Your invoices, until it's sent again. Intake's
+    held drafts are only those staff entered, so a returned or unsent
+    submitter's draft stays theirs. With no case, a
+    submitter may bill themselves or those they act for
+    (`billableProfessionalIds`), and anyone who may bill on a case may leave
+    its provider unknown.
+    Gaps: only the staff member who entered a draft can submit it; a
+    request whose lines fail strict pricing at release (e.g. a time line
+    with no hours for someone new) is matched but stays waiting, with the
+    reason shown, until staff send it back; the inline new case takes only the
+    client's name and email, the case number, role and status (the rest is
+    added on the case page; an existing client is chosen on New case); a
+    one-person file split across cases
     needs a case for every line; added assignments start on matching,
     which passes because assignment is checked as of now, not on each
     line's service date (as for delegates, below).
@@ -109,7 +163,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     one list, in the review side's words: "Draft, not sent" (with "Lines
     not checked yet." while its import is unconfirmed), "Waiting for
     review", "Being reviewed" with the assigned reviewer's name, and
-    "Decided" with the approved amount and lines cut. Withdraw (the recall
+    "Decided" with the approved amount and lines cut. Search (case
+    number, client, provider), a status filter with counts and a sort
+    (`portal/invoiceListView.ts`) run in the browser over the whole list
+    and are kept in the address (`q`, `show`, `sort`). Withdraw (the recall
     transition, behind a confirmation dialog) shows only to the sender
     while the invoice waits for review. "Upload invoices" opens the portal
     upload (`/portal/upload`, see "Structured invoice import"). Pages
@@ -169,8 +226,14 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - `GET /api/professionals` (`src/routes/professionals.ts`) used to
     return `[]` without a query and was otherwise unused by the client;
     it now also backs the Providers list, listing everyone when no query is
-    given; its Add button uses the same form as Intake's "Add a provider"
-    (`client/src/components/AddProvider.tsx`, `POST /api/professionals`). It excludes professionals created for internal staff
+    given; its Add button uses the same form the pickers add providers with
+    (`client/src/components/AddProvider.tsx`, `POST /api/professionals`).
+    Administrators also get "Edit", in the row itself (`PATCH /api/professionals/:id`,
+    `src/professionals/editProfessional.ts`): the name, and the email of
+    someone who hasn't signed in (refused if in use,
+    `src/people/emails.ts`), so one added without an email can get it later
+    and be linked on first sign-in. The replaced values are kept as a
+    `professional_changed` `audit_event`. It excludes professionals created for internal staff
     (`src/cases/assignStaffToCase.ts` lazily creates one on first staff
     assignment) via the same staff-account system role
     `src/routes/staff.ts` filters on — otherwise a staff member assigned
@@ -629,7 +692,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `npm run extraction-accuracy -- --samples ../local-samples` scores their
     figures against a hand-written `local-samples/expected.json`.
   - The file goes to `DOCUMENT_STORE_DIR` (`documentStore.ts`), a private
-    local directory outside the database. A readable file becomes a draft
+    local directory outside the database: in both Compose files the
+    `documents` volume, so files survive the container being recreated
+    (unset, it falls back to the OS temp directory, which doesn't). A readable file becomes a draft
     (import `extracted`); an unreadable one is kept as `failed` until
     discarded. Parsed values with their file locations and reconciliation
     warnings (stated total, hours × rate, dates outside the period, same
@@ -707,8 +772,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     it like an upload (PDFs in the background queue with progress, quick
     formats straight away, both in the isolated process); `GET
     .../case-split/reads/:id` reports progress, then suggests a case per
-    line (a single exact match on case reference, identifier or client
-    name among that person's open cases the user may bill), and `DELETE`
+    line (a single match on case reference, identifier or client name
+    among that person's open cases the user may bill: from the line's case
+    column if it has one, else the one case a PDF's own text names, else
+    its description; see `src/imports/caseMatching.ts`), and `DELETE`
     stops and discards it. The page has the user assign every line, and
     `POST .../invoice-imports/case-split` (the read's ID and one case per
     line) makes one import and draft per case from that reading and stored
@@ -723,7 +790,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     review shows the whole original. The file stays while any part is
     unresolved or live (see "File retention"), and parts of one file don't warn
     that each other are duplicates. Only the spreadsheet template has a
-    case column; LEDES and PDF files are designated to one case.
+    case column; other files' lines name no case, so a PDF's own text or
+    each line's description is used.
   - The portal upload (`client/src/portal/PortalUpload.tsx`, reached from
     Upload invoices) reads a file before its case is chosen, with the same
     read machinery: `POST /api/portal/uploads` stores and reads it, `GET
@@ -733,8 +801,15 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     user, or a professional they act for, is the active assigned
     professional are offered, one option per case and professional. A case
     is suggested only when it is clear: the user has one case, the file's
-    lines name one, or the file name holds one case's number or client's
-    name (a heuristic; several matches suggest none). `POST
+    lines name one, a PDF's own text names one, the file name holds one
+    case's number or client's name, or the text names a professional with
+    only one case (a heuristic; several matches suggest none). When the
+    text names professionals, a case none of them is on is not suggested,
+    and a case colleagues share goes to the one named. Matching ignores punctuation, accents,
+    case, name order and suffixes; only when nothing matches exactly does
+    it allow a number without separators, a middle name or given initial,
+    or one slip in a long name. Short or all-digit numbers under six
+    digits are matched only as a whole label, not inside text. `POST
     .../uploads/:id/draft` (case, professional, checked billing period,
     optional invoice number) makes one unconfirmed import and draft with
     every line billed to that professional; the checked period replaces the
@@ -746,8 +821,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     asks the same case (`GET /api/portal/uploads/cases`) and billing period,
     creates an empty draft (a draft may have no lines; submitting still
     needs one) and opens it on adding its first line, then it is sent the
-    same way. Staff land on their draft editor instead. Gap: reading
-    doesn't yet pick a case number out of a PDF's text.
+    same way. Staff land on their draft editor instead. A LEDES file's
+    `CLIENT_MATTER_ID` (else `LAW_FIRM_MATTER_ID`) is each line's case;
+    both IDs and `INVOICE_DESCRIPTION` are searched as its text.
   - Checking the lines (`client/src/portal/InvoiceSubmission.tsx`, the
     portal's `/portal/invoices/:id`): the file on the left as uploaded, the
     lines on the right in file order. Each line carries the place it was

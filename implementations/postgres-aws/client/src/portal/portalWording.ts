@@ -49,9 +49,14 @@ export interface SubmissionStatus {
 
 const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
 
+// A list row has everything; an invoice page's header only the basics, so
+// its notes may be missing.
+type StatusSource = Pick<InvoiceRecord, 'statusCode' | 'statusDisplayName' | 'returnedReason'> &
+  Partial<Pick<InvoiceRecord, 'changes' | 'import' | 'reviewerDisplayName' | 'approvedTotal' | 'cutLineCount'>>;
+
 // "You changed 1 line and removed 1.", or that the lines read from the file
 // haven't been looked at yet.
-function draftNote(invoice: InvoiceRecord): string | null {
+function draftNote(invoice: StatusSource): string | null {
   const changes = invoice.changes;
   if (changes && changes.changedCount + changes.removedCount + changes.addedCount > 0) {
     const parts = [
@@ -64,10 +69,14 @@ function draftNote(invoice: InvoiceRecord): string | null {
   return invoice.import && invoice.import.statusCode !== 'confirmed' ? 'Lines not checked yet.' : null;
 }
 
-export function submissionStatus(invoice: InvoiceRecord): SubmissionStatus {
+export function submissionStatus(invoice: StatusSource): SubmissionStatus {
   switch (invoice.statusCode) {
     case 'draft':
-      return { label: 'Draft, not sent', tone: 'neutral', note: draftNote(invoice) };
+      return invoice.returnedReason
+        ? { label: 'Needs changes', tone: 'danger', note: invoice.returnedReason }
+        : { label: 'Draft, not sent', tone: 'neutral', note: draftNote(invoice) };
+    case 'awaiting_match':
+      return { label: 'Sent: waiting for its case', tone: 'warning', note: 'The billing office will match it, then review it.' };
     case 'submitted':
       return { label: 'Waiting for review', tone: 'info', note: null };
     case 'under_review':
@@ -84,7 +93,7 @@ export function submissionStatus(invoice: InvoiceRecord): SubmissionStatus {
         label: 'Decided',
         tone: 'success',
         note:
-          invoice.approvedTotal === null
+          invoice.approvedTotal == null
             ? null
             : `${formatMoney(invoice.approvedTotal)} approved.${cut > 0 ? ` ${cut} ${cut === 1 ? 'line' : 'lines'} cut.` : ''}`,
       };
@@ -92,4 +101,9 @@ export function submissionStatus(invoice: InvoiceRecord): SubmissionStatus {
     default:
       return { label: invoice.statusDisplayName, tone: 'neutral', note: null };
   }
+}
+
+// Withdrawing is recall: only by whoever sent it, and only before review starts.
+export function canWithdraw(invoice: Pick<InvoiceRecord, 'statusCode' | 'submittedByUserAccountId'>, userAccountId: string | undefined): boolean {
+  return (invoice.statusCode === 'submitted' || invoice.statusCode === 'awaiting_match') && invoice.submittedByUserAccountId === userAccountId;
 }

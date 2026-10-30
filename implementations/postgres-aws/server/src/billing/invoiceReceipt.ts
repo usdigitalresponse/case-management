@@ -50,7 +50,7 @@ export async function recordReceipt(tx: Transaction, invoiceId: string, input: R
 export async function requireReceiptForStaffEntry(
   tx: Transaction,
   actor: PortalActor,
-  row: { professionalId: string; receivedViaId: string | null; receivedOn: string | null },
+  row: { professionalId: string | null; receivedViaId: string | null; receivedOn: string | null },
 ): Promise<void> {
   if (row.professionalId === actor.professionalId || !(await isStaffAccount(tx, actor.userAccountId))) {
     return;

@@ -33,7 +33,7 @@ export async function extractReport(file: string, bytes: Buffer): Promise<Extrac
   try {
     const detected = detectInvoiceFile(bytes);
     const parsed = await detected.parse();
-    const { lines, suggestedLines, warnings: _parserWarnings, ...invoice } = parsed;
+    const { lines, suggestedLines, warnings: _parserWarnings, invoiceText: _invoiceText, ...invoice } = parsed;
     return {
       file,
       format: detected.format,

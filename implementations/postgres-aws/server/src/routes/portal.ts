@@ -21,9 +21,9 @@ import {
   getUploadRead,
   startCaseSplitRead,
   startUploadRead,
-  uploadCases,
   uploadInvoiceFileByCase,
 } from '../imports/splitByCase';
+import { uploadCases } from '../imports/caseSuggestions';
 import { readFileForInvoice } from '../imports/invoiceFile';
 import { findImportForInvoice } from '../imports/importedTimeEntries';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../billing/deleteInvoice';

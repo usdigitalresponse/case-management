@@ -3,6 +3,7 @@ import type { PortalInvoiceLine } from '../api/client';
 import { RecordTable } from './RecordTable';
 import { formatMoney } from '../formatMoney';
 import { isMileage, lineDate, lineDescription, lineHours, lineRate, lineTimekeeper, lineType } from '../invoiceLineDisplay';
+import { EnteredFlag } from './NewEntryFields';
 
 // An invoice's lines as reviewers and submitters both see them, with an
 // optional decision column and a panel under a line. The notes add what the
@@ -46,6 +47,9 @@ export function InvoiceLinesTable<L extends PortalInvoiceLine>({
                 {lineType(line)} · {lineTimekeeper(line)}
                 {isMileage(line) && line.tripOrigin && line.tripDestination ? ` · ${line.tripOrigin} → ${line.tripDestination}` : ''}
               </span>
+              {line.proposedTimekeeperName && (
+                <EnteredFlag what={`Person (“${line.proposedTimekeeperName}”)`} matched={Boolean(line.timekeeperProfessionalId)} compact />
+              )}
               {note?.(line)}
             </>
           ),

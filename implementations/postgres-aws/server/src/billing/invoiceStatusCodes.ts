@@ -5,6 +5,8 @@ export const UNDER_REVIEW_INVOICE_STATUS_CODE = 'under_review';
 export const AWAITING_SIGN_OFF_INVOICE_STATUS_CODE = 'awaiting_sign_off';
 export const APPROVED_INVOICE_STATUS_CODE = 'approved';
 export const DRAFT_INVOICE_STATUS_CODE = 'draft';
+// Sent, but waiting in intake for its case, provider or timekeepers.
+export const AWAITING_MATCH_INVOICE_STATUS_CODE = 'awaiting_match';
 export const REJECTED_INVOICE_STATUS_CODE = 'rejected';
 export const WITHDRAWN_INVOICE_STATUS_CODE = 'withdrawn';
 // The submitter's work in progress; hidden from staff and exports.

@@ -175,7 +175,7 @@ describe('delegated submission', () => {
     await expect(
       createInvoice(testDb, officeUser, { attested: true, caseId, professionalId: member.professionalId, lines: [{ amount: 10 }] }),
     ).rejects.toThrow(NotAssignedToCaseError);
-    await expect(createInvoice(testDb, officeUser, { attested: true, caseId, lines: [{ amount: 10 }] })).rejects.toThrow(ValidationError);
+    await expect(createInvoice(testDb, officeUser, { attested: true, caseId, lines: [{ amount: 10 }] })).rejects.toThrow(NotAssignedToCaseError);
   });
 
   it('stops further changes once the delegate affiliation ends', async () => {

@@ -15,6 +15,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 # migrate.js resolves ./migrations relative to the working directory.
 COPY migrations ./migrations
+# Owned by node, so the documents volume mounted here is writable.
+RUN mkdir -p /var/lib/case-management/documents && chown node:node /var/lib/case-management/documents
 USER node
 EXPOSE 3000
 # Migrations are idempotent, so every start applies any new ones; seeding

@@ -34,15 +34,21 @@ import { useReceipt } from './ReceivedFields';
 import { INTAKE_PATH, useShell } from './useShell';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
+import { useAddedProviders } from '../components/AddProvider';
+import { SentBackNotice } from '../components/SentBackNotice';
+import { canWithdraw } from './portalWording';
 
 function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onChanged: () => void; onDeleted: () => void }) {
   const { invoice } = data;
   const [lines, setLines] = useState<LineDraft[]>(() => lineDraftsFrom(data.lines));
   const [period, setPeriod] = useState({ start: invoice.periodStart ?? '', end: invoice.periodEnd ?? '' });
-  const { data: timekeepers } = useApiResource(
+  const { data: loaded } = useApiResource(
     () => listBillableProfessionals(invoice.caseId).then((result) => result.professionals),
     [invoice.caseId],
   );
+  const { staff } = useShell();
+  const providers = useAddedProviders(invoice.caseId);
+  const timekeepers = loaded && [...loaded, ...providers.added];
   // Unbilled time can be ticked on; time already on this draft shows ticked.
   // Recorded time belongs to a case, so an invoice in intake has none.
   const { data: caseTime } = useApiResource(
@@ -124,6 +130,7 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
         lines={lines}
         onChange={setLines}
         timekeepers={timekeepers ?? []}
+        onProviderAdded={staff ? providers.onProviderAdded : undefined}
         billedProfessionalId={invoice.professionalId ?? undefined}
         recordedTime={pickable}
         billingCodes={billingRules.codes}
@@ -201,7 +208,7 @@ export default function PortalInvoiceDetail() {
   const editing = isDraft && isSubmitter && !importUnconfirmed;
   // While editing, the editor offers Delete itself.
   const { deletable } = data;
-  const recallable = isSubmitter && invoice.statusCode === 'submitted' && lines.every((line) => !line.decisionOutcomeCode);
+  const recallable = canWithdraw(invoice, user?.userAccountId) && lines.every((line) => !line.decisionOutcomeCode);
   const decidedCount = lines.filter((line) => line.decision).length;
   const toInvoices = () => navigate(shell.invoicesPath);
 
@@ -275,6 +282,7 @@ export default function PortalInvoiceDetail() {
         <Notice tone="info">No one has reviewed this invoice yet, so you can recall it, change it and submit it again.</Notice>
       )}
       {recallError && <Notice tone="danger">{recallError}</Notice>}
+      {isDraft && <SentBackNotice reason={invoice.returnedReason} />}
 
       {isDraft && isSubmitter && importUnconfirmed && (
         <Notice tone="info">

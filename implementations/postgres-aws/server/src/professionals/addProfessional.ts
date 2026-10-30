@@ -2,18 +2,19 @@
 // (model/rules.yaml add_professional_without_login). The profile has no
 // account; if the person later signs in with the same email, they get this
 // profile (./ensureProfessional.ts). Probable duplicates are refused, never
-// merged.
+// merged (../people/emails.ts).
 import { z } from 'zod';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
-import { auditEvent, person, professional, professionalKinds, userAccount } from '../db/schema';
+import { auditEvent, person, professional, professionalKinds } from '../db/schema';
 import { ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
+import { emailInUse, optionalEmail } from '../people/emails';
 
 const inputSchema = z.object({
   displayName: z.string().trim().min(2, 'Enter their name.').max(200),
-  email: z.email('Enter a valid email, or leave it blank.').trim().toLowerCase().optional().or(z.literal('').transform(() => undefined)),
+  email: optionalEmail,
   professionalKindId: z.uuid('Choose what kind of provider they are.'),
 });
 
@@ -27,16 +28,8 @@ export async function addProfessional(db: Database, actorUserAccountId: string, 
   if (!kind) {
     throw new ValidationError({ professionalKindId: 'Choose what kind of provider they are.' });
   }
-  if (email) {
-    const [account] = await db.select({ id: userAccount.userAccountId }).from(userAccount).where(sql`lower(${userAccount.email}) = ${email}`);
-    const [added] = await db
-      .select({ id: professional.professionalId })
-      .from(professional)
-      .innerJoin(person, eq(professional.personId, person.personId))
-      .where(sql`lower(${person.email}) = ${email}`);
-    if (account || added) {
-      throw new ValidationError({ email: 'Someone with this email is already in the system. Find them in the list instead.' });
-    }
+  if (email && (await emailInUse(db, email, 'professionals'))) {
+    throw new ValidationError({ email: 'Someone with this email is already in the system. Find them in the list instead.' });
   }
   return db.transaction(async (tx) => {
     const personRow = firstRow(await tx.insert(person).values({ displayName, email }).returning());

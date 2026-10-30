@@ -135,7 +135,7 @@ function SplitAssignment({
       <h3>Assign each line of {staged.file.name} to a case</h3>
       <p className="compact-hint">
         Every line is recorded as {whose} work. Each case becomes its own draft invoice. Cases are suggested where
-        the file's case column matches a case reference or client name; check them.
+        the file's case column, or a PDF's own text, names a case number or client; check them.
       </p>
       {error && <Notice tone="danger">{error}</Notice>}
       {split.cases.length === 0 && <Notice tone="warning">This person has no open cases you can bill for.</Notice>}

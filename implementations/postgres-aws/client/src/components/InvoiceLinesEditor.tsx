@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Checkbox, Label, Select, TextInput } from '@trussworks/react-uswds';
 import {
   mileageRateOn,
@@ -7,10 +8,14 @@ import {
   type InvoiceLineType,
   type MileageRate,
   type PortalInvoiceLine,
+  type ProposedProvider,
   type TimeEntryRecord,
 } from '../api/client';
+import { AddProvider, type AddedProvider } from './AddProvider';
+import { NO_PROPOSED_PERSON, ProposedPersonFields } from './NewEntryFields';
 import { formatMoney, formatRate } from '../formatMoney';
 import { formatDate } from '../formatDateTime';
+import { ADD_NEW, PickOrAdd } from './PickOrAdd';
 
 // Raw input strings until saved.
 export interface LineDraft {
@@ -21,7 +26,10 @@ export interface LineDraft {
   // Entered for expense and other items; a time item is priced from rates.
   amount: string;
   // Empty: the billed professional, or on import review, not chosen yet.
+  // ADD_NEW: someone not listed, named in proposedTimekeeperName.
   timekeeperProfessionalId: string;
+  proposedTimekeeperName: string;
+  proposedTimekeeperEmail: string;
   // Recorded time this item bills; editing the item edits that time.
   sourceTimeEntryId: string;
   // Mileage only; quantity holds the miles.
@@ -52,6 +60,8 @@ export const emptyLine: LineDraft = {
   quantity: '',
   amount: '',
   timekeeperProfessionalId: '',
+  proposedTimekeeperName: '',
+  proposedTimekeeperEmail: '',
   sourceTimeEntryId: '',
   tripOrigin: '',
   tripDestination: '',
@@ -71,7 +81,9 @@ export function lineDraftsFrom(lines: PortalInvoiceLine[]): LineDraft[] {
     description: line.description ?? '',
     quantity: line.quantity ?? '',
     amount: line.amount,
-    timekeeperProfessionalId: line.timekeeperProfessionalId ?? '',
+    timekeeperProfessionalId: line.timekeeperProfessionalId ?? (line.proposedTimekeeperName ? ADD_NEW : ''),
+    proposedTimekeeperName: line.proposedTimekeeperName ?? '',
+    proposedTimekeeperEmail: line.proposedTimekeeperEmail ?? '',
     sourceTimeEntryId: line.sourceTimeEntryId ?? '',
     invoiceLineId: line.invoiceLineId,
     carried: {
@@ -92,12 +104,50 @@ export function professionalLabel(professional: BillableProfessional): string {
   return professional.isSelf ? `${name} (you)` : name;
 }
 
-export function assignTimekeeper(lines: LineDraft[], professionalId: string, only: 'all' | 'unassigned'): LineDraft[] {
+// professionalId ADD_NEW names someone not listed instead.
+export function assignTimekeeper(
+  lines: LineDraft[],
+  professionalId: string,
+  only: 'all' | 'unassigned',
+  proposed: ProposedProvider = NO_PROPOSED_PERSON,
+): LineDraft[] {
   return lines.map((line) =>
     only === 'unassigned' && line.timekeeperProfessionalId
       ? line
-      : { ...line, timekeeperProfessionalId: professionalId, suggestedTimekeeper: false },
+      : {
+          ...line,
+          timekeeperProfessionalId: professionalId,
+          proposedTimekeeperName: professionalId === ADD_NEW ? proposed.displayName : '',
+          proposedTimekeeperEmail: professionalId === ADD_NEW ? (proposed.email ?? '') : '',
+          suggestedTimekeeper: false,
+        },
   );
+}
+
+// Offered once someone not listed is named: every other item is theirs too,
+// except recorded time, which stays whose it is.
+function sameTimekeeperForAll(lines: LineDraft[], from: LineDraft, fixed: boolean): LineDraft[] {
+  return fixed
+    ? lines
+    : lines.map((line) =>
+        line.sourceTimeEntryId
+          ? line
+          : {
+              ...line,
+              timekeeperProfessionalId: from.timekeeperProfessionalId,
+              proposedTimekeeperName: from.proposedTimekeeperName,
+              proposedTimekeeperEmail: from.proposedTimekeeperEmail,
+              suggestedTimekeeper: false,
+            },
+      );
+}
+
+// Someone not listed: the name entered, else the file's; unnamed, the line
+// still waits to be matched.
+function proposedName(draft: LineDraft): string | undefined {
+  return draft.timekeeperProfessionalId === ADD_NEW
+    ? draft.proposedTimekeeperName.trim() || draft.carried.timekeeperLabel || 'Not named'
+    : undefined;
 }
 
 // A time item needs hours (or recorded time), mileage miles, anything else an amount.
@@ -123,7 +173,9 @@ export function linesFromDrafts(drafts: LineDraft[]): CreateInvoiceLineInput[] {
     serviceDate: draft.serviceDate || undefined,
     description: draft.description.trim() || undefined,
     quantity: Number(draft.quantity) > 0 ? Number(draft.quantity) : undefined,
-    timekeeperProfessionalId: draft.timekeeperProfessionalId || undefined,
+    timekeeperProfessionalId: draft.timekeeperProfessionalId && draft.timekeeperProfessionalId !== ADD_NEW ? draft.timekeeperProfessionalId : undefined,
+    proposedTimekeeperName: proposedName(draft),
+    proposedTimekeeperEmail: (draft.timekeeperProfessionalId === ADD_NEW && draft.proposedTimekeeperEmail.trim()) || undefined,
     sourceTimeEntryId: draft.sourceTimeEntryId || undefined,
     ...(draft.lineType === 'mileage' && {
       tripOrigin: draft.tripOrigin.trim() || undefined,
@@ -283,6 +335,7 @@ export function InvoiceLinesEditor({
   billingCodes = [],
   mileageRates = [],
   importReview,
+  onProviderAdded,
 }: {
   idPrefix: string;
   lines: LineDraft[];
@@ -303,7 +356,13 @@ export function InvoiceLinesEditor({
     // A file designated to one professional: "work done by" is fixed.
     fixedTimekeeper?: boolean;
   };
+  // Staff only: "add" creates the provider, and this readies them to be
+  // billed (on a case, assigns them to it). Others name someone instead.
+  // Expected to add them to `timekeepers` (useAddedProviders).
+  onProviderAdded?: (provider: AddedProvider) => Promise<void>;
 }) {
+  // Added here, to offer using them for the other items.
+  const [addedIds, setAddedIds] = useState<string[]>([]);
   const showTimekeeper = timekeepers.length > 1 || Boolean(importReview);
   // Staff review's columns (client/src/pages/InvoiceReview.tsx), led by the
   // kind of item, which decides whether it takes hours, miles or an amount.
@@ -321,6 +380,13 @@ export function InvoiceLinesEditor({
 
   function update(index: number, changes: Partial<LineDraft>) {
     onChange(lines.map((line, i) => (i === index ? { ...line, ...changes } : line)));
+  }
+
+  async function addProvider(index: number, provider: AddedProvider) {
+    // If putting them on the case fails, saving says so.
+    await onProviderAdded?.(provider).catch(() => undefined);
+    setAddedIds((current) => [...current, provider.professionalId]);
+    update(index, { timekeeperProfessionalId: provider.professionalId, proposedTimekeeperName: '', proposedTimekeeperEmail: '' });
   }
 
   const pricingFor = importReview ? undefined : billedProfessionalId;
@@ -434,23 +500,48 @@ export function InvoiceLinesEditor({
                 {showTimekeeper && (
                   <>
                     <Label htmlFor={id('timekeeper')} className="line-label">{`${item} work done by`}</Label>
-                    <Select
+                    <PickOrAdd
                       id={id('timekeeper')}
-                      name={id('timekeeper')}
                       value={line.timekeeperProfessionalId}
                       // Recorded time stays whose it is.
                       disabled={linked || Boolean(importReview?.fixedTimekeeper)}
-                      validationStatus={unmatched ? 'error' : undefined}
-                      aria-describedby={unmatched ? id('timekeeper-error') : undefined}
-                      onChange={(event) => update(index, { timekeeperProfessionalId: event.target.value, suggestedTimekeeper: false })}
+                      onChange={(value) =>
+                        update(index, {
+                          timekeeperProfessionalId: value,
+                          proposedTimekeeperName: value === ADD_NEW ? line.proposedTimekeeperName || (line.carried.timekeeperLabel ?? '') : '',
+                          proposedTimekeeperEmail: value === ADD_NEW ? line.proposedTimekeeperEmail : '',
+                          suggestedTimekeeper: false,
+                        })
+                      }
+                      addLabel={onProviderAdded ? '+ Add a new provider' : '+ Someone not listed'}
+                      placeholder={importReview ? '- Who did the work? -' : 'Billed professional'}
+                      options={timekeepers.map((professional) => ({ value: professional.professionalId, label: professionalLabel(professional) }))}
                     >
-                      <option value="">{importReview ? '- Who did the work? -' : 'Billed professional'}</option>
-                      {timekeepers.map((professional) => (
-                        <option key={professional.professionalId} value={professional.professionalId}>
-                          {professionalLabel(professional)}
-                        </option>
-                      ))}
-                    </Select>
+                      {onProviderAdded ? (
+                        <AddProvider
+                          inline
+                          idPrefix={id('timekeeper-new')}
+                          initial={{ displayName: line.proposedTimekeeperName, email: line.proposedTimekeeperEmail || undefined }}
+                          onAdded={(provider) => void addProvider(index, provider)}
+                        />
+                      ) : (
+                        <ProposedPersonFields
+                          idPrefix={id('timekeeper-new')}
+                          value={{ displayName: line.proposedTimekeeperName, email: line.proposedTimekeeperEmail }}
+                          onChange={(person) => update(index, { proposedTimekeeperName: person.displayName, proposedTimekeeperEmail: person.email ?? '' })}
+                        />
+                      )}
+                    </PickOrAdd>
+                    {lines.length > 1 &&
+                      (line.timekeeperProfessionalId === ADD_NEW ? line.proposedTimekeeperName.trim() : addedIds.includes(line.timekeeperProfessionalId)) && (
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => onChange(sameTimekeeperForAll(lines, line, Boolean(importReview?.fixedTimekeeper)))}
+                        >
+                          {`Use ${line.timekeeperProfessionalId === ADD_NEW ? line.proposedTimekeeperName.trim() : timekeepers.find((p) => p.professionalId === line.timekeeperProfessionalId)?.displayName} for every other item`}
+                        </button>
+                      )}
                   </>
                 )}
                 {billingCodes.length > 0 && line.lineType === 'time' && (
@@ -623,9 +714,9 @@ export function InvoiceLinesEditor({
                   </span>
                 ) : null}
                 {unmatched ? (
-                  <span className="line-row-error" id={id('timekeeper-error')}>
-                    Choose who did this work
-                  </span>
+                  <span className="line-row-suggested">Who did this work will be matched on Intake</span>
+                ) : line.timekeeperProfessionalId === ADD_NEW ? (
+                  <span className="line-row-suggested">Not in the system yet: matched on Intake</span>
                 ) : line.suggestedTimekeeper ? (
                   <span className="line-row-suggested">Suggested match: check it</span>
                 ) : null}

@@ -865,3 +865,33 @@ form.compact-form { max-width: none; }
   .decision-cell { min-width: 12rem; }
   .popover { left: 0; right: auto; }
 }
+
+/* "Add new" pickers (components/PickOrAdd.tsx) and what a submitter entered
+   rather than chose (components/NewEntryFields.tsx). */
+.pick-or-add .new-entry, .new-entry { margin-top: .5rem; padding: .6rem .75rem; border-left: 3px solid var(--warning-line); background: var(--warning-tint); border-radius: 0 var(--radius) var(--radius) 0; }
+.new-entry .usa-form-group { margin-top: .4rem; }
+.new-entry__fields { flex-wrap: wrap; }
+.entered-flag { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .5rem; margin: .15rem .25rem 0 0; border-radius: 999px; border: 1px solid var(--warning-line); background: var(--warning-tint); color: var(--warning); font-size: .72rem; font-weight: 700; white-space: normal; }
+.entered-flag::before { content: "⚑"; }
+.entered-details { margin: .4rem 0 .6rem; padding-left: 1.1rem; }
+.entered-details p { margin: .2rem 0; }
+.type-ahead__option--add { font-weight: 600; color: var(--primary); border-bottom: 1px solid var(--line); }
+.entered-flag--compact { padding: 0 .45rem; font-size: .7rem; white-space: nowrap; vertical-align: middle; cursor: help; }
+.queue-table th[scope="row"] .muted { font-weight: 400; }
+.queue-table .row-actions a, .queue-table .row-actions .link-button { white-space: nowrap; }
+.nowrap { white-space: nowrap; }
+.intake-add { gap: .75rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+.send-back { margin-top: .9rem; padding-top: .75rem; border-top: 1px solid var(--line); }
+.send-back__open { margin-top: .75rem; color: var(--danger); }
+.portal-needs-changes { margin-bottom: 1.5rem; }
+.portal-needs-changes h2 { color: var(--danger); }
+.invoice-list-controls { flex-wrap: wrap; }
+.invoice-list-controls__search { flex: 1 1 16rem; max-width: 24rem; }
+.invoice-list-controls .usa-input { margin: 0; height: 2.25rem; }
+.invoice-list-controls .link-button { margin-bottom: .5rem; }
+/* Inline row editing keeps the table's layout: fields fill the columns as
+   the text left them (size="1" stops an input asking for its own width),
+   no taller than the row's select, with the actions on one line. */
+.row-edit__input { margin: 0; width: 100%; min-width: 0; height: 2.25rem; padding: .25rem .5rem; }
+.row-edit__actions { flex-wrap: nowrap; white-space: nowrap; }
+.row-edit__error { display: block; margin-top: .25rem; }

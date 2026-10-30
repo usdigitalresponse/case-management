@@ -34,6 +34,8 @@ import {
 import { DRAFT_INVOICE_STATUS_CODE } from '../billing/invoiceStatusCodes';
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile } from './detectFormat';
+import { suggestUploadCase, uploadCases } from './caseSuggestions';
+import { hasUnmatchedTimekeepers, type ProposedCase, type ProposedProvider } from '../billing/proposedDetails';
 import { documentExtractor } from './extractors';
 import { cancelExtraction, enqueueExtraction, extractionProgress } from './extractionJobs';
 import { ExtractionCancelledError, isolationEnabled, parseIsolated } from './isolatedExtraction';
@@ -293,6 +295,7 @@ export async function uploadInvoiceFile(
       caseId,
       billedProfessionalId,
       extractionMethod: detected.extractionMethod,
+      fileName: input.fileName,
     });
     return { invoiceImportId: created.importId, status: 'received', invoiceId: null };
   }
@@ -317,7 +320,7 @@ export async function uploadInvoiceFile(
       return recordExtraction(
         tx,
         actor,
-        { importId, documentId, contentHash, caseId, billedProfessionalId, extractionMethod: detected.extractionMethod },
+        { importId, documentId, contentHash, caseId, billedProfessionalId, extractionMethod: detected.extractionMethod, fileName: input.fileName },
         outcome,
       );
     });
@@ -352,6 +355,7 @@ interface ExtractionTarget {
   // Null: a staff import whose professional is chosen on matching.
   billedProfessionalId: string | null;
   extractionMethod: string;
+  fileName: string | undefined;
 }
 
 // Marks the import extracted, with its draft, or failed with the reason.
@@ -552,10 +556,13 @@ export async function extractIntoDraft(
     extractionMethod: string | null;
     extractedAt: Date;
     parsed: ParsedInvoice;
+    fileName?: string;
     everyLineBilled: boolean;
     // The billing period the uploader checked, in place of the one read;
     // the extraction record keeps what was read.
     checkedPeriod?: { start?: string; end?: string };
+    proposedCase?: ProposedCase;
+    proposedProvider?: ProposedProvider;
   },
 ): Promise<string> {
   const { importId, billedProfessionalId, caseId } = args;
@@ -628,10 +635,17 @@ export async function extractIntoDraft(
     serviceDateInferred: inferred.inferred[index],
   }));
   warnings.push(...inferred.warnings);
-  const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content, { fillTimekeepers: false });
+  const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content, {
+    fillTimekeepers: false,
+    proposedCase: args.proposedCase,
+    proposedProvider: args.proposedProvider,
+  });
+  const suggested = caseId === null ? suggestUploadCase(await uploadCases(tx, actor), args.parsed, args.fileName) : null;
   await tx
     .update(invoiceImport)
     .set({
+      suggestedCaseId: suggested?.caseId ?? null,
+      suggestedProfessionalId: suggested?.professionalId ?? null,
       statusId: await importStatusId(tx, 'extracted'),
       extractionMethod: args.extractionMethod,
       extractedAt: args.extractedAt,
@@ -735,6 +749,19 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
         .set({ timekeeperProfessionalId: designated })
         .where(and(eq(invoiceLine.invoiceId, row.invoiceId), isNull(invoiceLine.timekeeperProfessionalId)));
     }
+    // Someone the file names but no one chose is left for staff to match,
+    // as if the submitter had named them as new.
+    await tx
+      .update(invoiceLine)
+      .set({ proposedTimekeeperName: invoiceLine.timekeeperLabel })
+      .where(
+        and(
+          eq(invoiceLine.invoiceId, row.invoiceId),
+          isNull(invoiceLine.timekeeperProfessionalId),
+          isNull(invoiceLine.proposedTimekeeperName),
+          isNotNull(invoiceLine.timekeeperLabel),
+        ),
+      );
     const lines = await tx
       .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
       .from(invoiceLine)
@@ -742,23 +769,21 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
     if (designated && lines.some((line) => line.timekeeperProfessionalId !== designated)) {
       throw new ValidationError({ lines: 'Every item in this file is the work of the professional it was imported for.' });
     }
-    const unmatched = lines.filter((line) => !line.timekeeperProfessionalId).length;
-    if (lines.length === 0 || unmatched > 0) {
-      throw new ValidationError({
-        lines:
-          lines.length === 0
-            ? 'Add at least one invoice item before confirming.'
-            : `Choose who did the work for ${unmatched} ${unmatched === 1 ? 'item' : 'items'} before confirming.`,
-      });
+    if (lines.length === 0) {
+      throw new ValidationError({ lines: 'Add at least one invoice item before confirming.' });
     }
     await checkInferredDates(tx, row.invoiceId);
-    // From here the configured rates price each time line, not the file.
+    // From here the configured rates price each time line, not the file. With
+    // someone still to be matched, that waits until it's released to review.
+    const matched = draft.professionalId !== null && !(await hasUnmatchedTimekeepers(tx, row.invoiceId));
     await priceLines(tx, row.invoiceId, {
       billedProfessionalId: draft.professionalId,
       unmatchedMeansBilled: true,
-      strict: true,
+      strict: matched,
     });
-    await enforceBillingRules(tx, row.invoiceId);
+    if (matched) {
+      await enforceBillingRules(tx, row.invoiceId);
+    }
     return resolveImport(tx, importId, row.documentId, CONFIRMED_IMPORT_STATUS_CODE, actor.userAccountId);
   });
   if (storageReference) {

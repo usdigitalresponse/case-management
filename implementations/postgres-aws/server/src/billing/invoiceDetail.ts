@@ -29,6 +29,7 @@ import { approvedTotal, latestRoundNumber, loadRecordedDecisions, signOffProgres
 import { AWAITING_SIGN_OFF_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
 import { loadAssignments, SIGN_OFF_STEP_TYPE_CODE, type InvoiceAssignments } from './reviewAssignment';
 import { loadFileSource, submitterChanges, type FileSource } from '../imports/invoiceFile';
+import { returnedReason } from './invoiceEvents';
 
 export type Audience = 'staff' | 'submitter';
 
@@ -55,6 +56,11 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
       // Set when staff entered an invoice received outside the system.
       receivedViaDisplayName: invoiceReceiptChannels.displayName,
       receivedOn: invoice.receivedOn,
+      // Entered by the submitter rather than chosen; shown flagged.
+      proposedCase: invoice.proposedCase,
+      proposedProvider: invoice.proposedProvider,
+      // Shown to the submitter until they send it again.
+      returnedReason,
     })
     .from(invoice)
     .leftJoin(caseTable, eq(invoice.caseId, caseTable.caseId))
@@ -113,6 +119,8 @@ async function selectLines(db: DatabaseOrTransaction, invoiceId: string) {
       billedRate: invoiceLine.billedRate,
       configuredRate: invoiceLine.configuredRate,
       timekeeperLabel: invoiceLine.timekeeperLabel,
+      proposedTimekeeperName: invoiceLine.proposedTimekeeperName,
+      proposedTimekeeperEmail: invoiceLine.proposedTimekeeperEmail,
       timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       timekeeperDisplayName: professional.displayName,
       taskCode: invoiceLine.taskCode,

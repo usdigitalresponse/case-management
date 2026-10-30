@@ -466,6 +466,14 @@ entities:
         type: date
         required: false
         description: When a staff-entered request was received; review waiting time counts from it.
+      proposed_case:
+        type: object
+        required: false
+        description: Case details a submitter entered because its case wasn't listed (client name, and optionally case number and other details). Unverified; staff match the request to an existing case or create one from them (match_invoice_to_case). Kept after matching so review shows the submitter entered them.
+      proposed_provider:
+        type: object
+        required: false
+        description: Provider details a submitter entered because the provider wasn't listed (name, and optionally email and kind). Unverified, handled and kept like proposed_case.
 
   invoice_line:
     display_name: Invoice Line
@@ -540,6 +548,14 @@ entities:
         required: false
         references: professional.professional_id
         description: The existing professional the submitter matched to the timekeeper; imported time is attributed to this professional.
+      proposed_timekeeper_name:
+        type: string
+        required: false
+        description: Who did the work, named by a submitter because they weren't listed. Unverified; staff choose or add the professional before review (match_invoice_to_case). Kept after matching.
+      proposed_timekeeper_email:
+        type: string
+        required: false
+        description: Their email, if the submitter gave it; handled like proposed_timekeeper_name.
       task_code:
         type: string
         required: false
@@ -608,6 +624,16 @@ entities:
         required: false
         references: case.case_id
         description: Case chosen by the uploader for the whole file, or the case its lines were assigned to when the file was split by case. Empty for a file staff hold in invoice intake until it is matched (match_invoice_to_case).
+      suggested_case_id:
+        type: uuid
+        required: false
+        references: case.case_id
+        description: For a file held with no case, the case it clearly names, offered first when staff match it (match_invoice_to_case). A suggestion only; never sets the case.
+      suggested_professional_id:
+        type: uuid
+        required: false
+        references: professional.professional_id
+        description: The professional offered with suggested_case_id.
       source_format_id:
         type: reference
         required: true

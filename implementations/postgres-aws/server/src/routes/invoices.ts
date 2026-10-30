@@ -7,7 +7,7 @@ import { db } from '../db/client';
 import { invoiceApprovalStepTypes, invoiceReviewAssignment, invoice, invoiceStatuses } from '../db/schema';
 import { listDecisionReasons } from '../billing/decisionReasons';
 import { billingRecordCsv, billingRecordXlsx, loadBillingRecord } from '../billing/billingRecord';
-import { listInvoiceIntake, matchInvoiceToCase } from '../billing/invoiceIntake';
+import { listInvoiceIntake, matchInvoiceToCase, returnToSubmitter } from '../billing/invoiceIntake';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { loadInvoiceDetail } from '../billing/invoiceDetail';
 import { isExportableStatus } from '../billing/invoiceAccess';
@@ -50,6 +50,13 @@ router.post(
   '/intake/:id/case',
   asyncHandler(async (req, res) => {
     res.json(await matchInvoiceToCase(db, actorId(req), req.params.id as string, req.body));
+  }),
+);
+
+router.post(
+  '/intake/:id/return',
+  asyncHandler(async (req, res) => {
+    res.json(await returnToSubmitter(db, actorId(req), req.params.id as string, req.body));
   }),
 );
 

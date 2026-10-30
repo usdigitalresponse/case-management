@@ -86,6 +86,7 @@ export function parseLedes1998b(text: string): ParsedInvoice {
       taskCode: get('LINE_ITEM_TASK_CODE'),
       activityCode: get('LINE_ITEM_ACTIVITY_CODE'),
       expenseCode: get('LINE_ITEM_EXPENSE_CODE'),
+      caseLabel: get('CLIENT_MATTER_ID') ?? get('LAW_FIRM_MATTER_ID'),
     };
   });
 
@@ -96,5 +97,10 @@ export function parseLedes1998b(text: string): ParsedInvoice {
     periodEnd: ledesDate(first?.get('BILLING_END_DATE'), 'line 3', 'BILLING_END_DATE'),
     statedTotal: parseAmount(first?.get('INVOICE_TOTAL'), 'line 3', 'INVOICE_TOTAL'),
     lines,
+    invoiceText: [
+      ...new Set(values.flatMap(({ get }) => [get('CLIENT_MATTER_ID'), get('LAW_FIRM_MATTER_ID'), get('INVOICE_DESCRIPTION')])),
+    ]
+      .filter(Boolean)
+      .join('\n'),
   };
 }

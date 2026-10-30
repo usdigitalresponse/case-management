@@ -855,6 +855,10 @@ const XFA_MESSAGE =
 // A request for approval before the work, in the title on page 1.
 const ESTIMATE_TITLE = /\b(request for pre-?authori[sz]ation|pre-?authori[sz]ation request|cost estimate|quotation)\b/i;
 
+function textOfRows(rows: Row[]): string {
+  return rows.map((row) => row.text).join('\n');
+}
+
 // A stated total with no readable items (a cover sheet sent alone) becomes
 // one item to break down, so the submitter isn't stopped.
 function totalOnly(rows: Row[], warnings: ImportWarning[], frames: Map<number, PageFrame>): ParsedInvoice | undefined {
@@ -989,7 +993,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     if (!total) {
       throw new UnreadableInvoiceFileError(xfa ? XFA_MESSAGE : why);
     }
-    return total;
+    return { ...total, invoiceText: textOfRows(invoiceRows.filter((row) => !row.embedded)) };
   };
   const hasItems = (row: Row) => row.text.length <= MAX_ITEM_TEXT && (ITEM_SENTENCE.test(row.text) || row.text.match(FORM_RATE_ITEM) !== null);
   if (!rows.some((row) => headerColumns(row) || hasItems(row))) {
@@ -1349,7 +1353,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       message: `This PDF has files attached inside it that weren’t read: ${notRead.join(', ')}. Open them from the PDF to check them, or upload them separately.`,
     });
   }
-  return { ...fields, lines, warnings, ...(suggestedLines.length > 0 && { suggestedLines }) };
+  return { ...fields, lines, warnings, invoiceText: textOfRows(invoiceRows), ...(suggestedLines.length > 0 && { suggestedLines }) };
 }
 
 export const textLayerExtractor: InvoiceExtractor = {

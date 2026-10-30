@@ -250,11 +250,13 @@ describe('invoice import workflow', () => {
     const [waiting] = await listInvoiceIntake(testDb, fixtures.staffUserAccountId);
     expect(waiting).toMatchObject({ invoiceId: uploaded.invoiceId, professionalId: null, stage: 'ready' });
 
-    // A submitter must still name a case.
+    // So may a submitter, for staff to match.
     const { actor } = await setup('Synthetic Submitter');
-    await expect(
-      uploadInvoiceFile(testDb, store, actor, { caseId: undefined, fileName: 'synthetic.ledes', bytes: Buffer.from(syntheticLedes('x')) }),
-    ).rejects.toThrow();
+    const theirs = await uploadInvoiceFile(testDb, store, actor, {
+      caseId: undefined, fileName: 'synthetic.ledes', bytes: Buffer.from(syntheticLedes('x')),
+    });
+    const [held] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, theirs.invoiceId as string));
+    expect(held?.caseId).toBeNull();
   });
 
   it('suggests "Last, First" names and, for unnamed lines, the billed professional', async () => {
@@ -271,7 +273,7 @@ describe('invoice import workflow', () => {
     }
   });
 
-  it('blocks confirmation until every line is matched, and records warnings', async () => {
+  it('needs a priced line for everyone matched before confirming, and records warnings', async () => {
     const { actor, caseId, professionalId, store } = await setup();
     const uploaded = await uploadInvoiceFile(testDb, store, actor, {
       caseId, fileName: 'x.ledes', bytes: Buffer.from(syntheticLedes('Unknown Person', { total: '999.00' })),
@@ -280,10 +282,6 @@ describe('invoice import workflow', () => {
     const warnings = (detail.extractionResult as { warnings: Array<{ code: string }> }).warnings.map((w) => w.code);
     expect(warnings).toContain('stated_total_mismatch');
 
-    await expect(confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId)).rejects.toThrow(ValidationError);
-    // Editing an unconfirmed import's draft doesn't fill matches in silently.
-    await updateDraftInvoice(testDb, actor, uploaded.invoiceId as string, { lines: [{ amount: 150, lineType: 'time' }] });
-    await expect(confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId)).rejects.toThrow(ValidationError);
 
     await updateDraftInvoice(testDb, actor, uploaded.invoiceId as string, {
       lines: [{ amount: 150, lineType: 'time', timekeeperProfessionalId: professionalId }],
@@ -303,6 +301,19 @@ describe('invoice import workflow', () => {
       lines: [{ amount: 150, lineType: 'time', timekeeperProfessionalId: professionalId, serviceDate: '2026-01-10', quantity: 1.5 }],
     });
     await confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId);
+  });
+
+  it('leaves someone the file names but no one chose for staff to match', async () => {
+    const { actor, caseId, store } = await setup();
+    const uploaded = await uploadInvoiceFile(testDb, store, actor, {
+      caseId, fileName: 'x.ledes', bytes: Buffer.from(syntheticLedes('Unknown Person')),
+    });
+    await confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId);
+    const lines = await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, uploaded.invoiceId as string));
+    expect(lines.map((line) => [line.proposedTimekeeperName, line.timekeeperProfessionalId])).toEqual(
+      lines.map(() => ['Unknown Person', null]),
+    );
+    expect(await submitInvoice(testDb, actor, uploaded.invoiceId as string, { attested: true })).toMatchObject({ status: 'awaiting_match' });
   });
 
   // Saving a draft replaces its lines, so a field the save path doesn't copy

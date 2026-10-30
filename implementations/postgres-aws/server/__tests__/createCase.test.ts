@@ -14,6 +14,7 @@ import {
   role,
   caseStatuses,
   organization,
+  userAccount,
 } from '../src/db/schema';
 
 let fixtures: BaselineFixtureIds;
@@ -343,5 +344,42 @@ describe('concurrent request replay', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe('a new client and case number', () => {
+  const actor = () => ({ userAccountId: fixtures.staffUserAccountId });
+
+  it('creates the client with the case, keeping the case number as its reference', async () => {
+    const result = await createCase(
+      testDb,
+      actor(),
+      baseInput({ personId: undefined, newClient: { displayName: 'Synthetic Newcomer', confirmedNew: false }, caseNumber: 'NEW-1' }),
+    );
+    const [saved] = await testDb.select().from(caseTable).where(eq(caseTable.caseId, result.caseId));
+    const [client] = await testDb.select().from(person).where(eq(person.personId, saved!.clientId!));
+    expect(saved?.externalReference).toBe('NEW-1');
+    expect(client?.displayName).toBe('Synthetic Newcomer');
+  });
+
+  it('refuses probable duplicates rather than creating them', async () => {
+    const [existing] = await testDb.select().from(person).where(eq(person.personId, fixtures.clientPersonId));
+    const sameName = baseInput({ personId: undefined, newClient: { displayName: existing!.displayName, confirmedNew: false } });
+    await expect(createCase(testDb, actor(), sameName)).rejects.toThrow(
+      expect.objectContaining({ fieldErrors: { newClient: expect.stringContaining('already in the system') } }),
+    );
+    // Someone else with the same name, once confirmed.
+    await createCase(testDb, actor(), { ...sameName, requestId: randomUUID(), newClient: { displayName: existing!.displayName, confirmedNew: true } });
+
+    await createCase(testDb, actor(), baseInput({ caseNumber: 'DUP-1' }));
+    await expect(createCase(testDb, actor(), baseInput({ caseNumber: 'dup-1' }))).rejects.toThrow(
+      expect.objectContaining({ fieldErrors: { caseNumber: 'Case dup-1 is already in the system. Choose it instead.' } }),
+    );
+    await expect(createCase(testDb, actor(), baseInput({ personId: undefined }))).rejects.toThrow(ValidationError);
+    // An email someone signs in with is taken too.
+    const [account] = await testDb.select().from(userAccount).where(eq(userAccount.userAccountId, fixtures.staffUserAccountId));
+    await expect(
+      createCase(testDb, actor(), baseInput({ personId: undefined, newClient: { displayName: 'Synthetic Other', email: account!.email!.toUpperCase(), confirmedNew: false } })),
+    ).rejects.toThrow(expect.objectContaining({ fieldErrors: { newClient: expect.stringContaining('this email') } }));
   });
 });

@@ -18,6 +18,7 @@ import { db } from '../db/client';
 import { person, professional, professionalKinds, userAccount } from '../db/schema';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { addProfessional } from '../professionals/addProfessional';
+import { editProfessional } from '../professionals/editProfessional';
 import { requireAdmin } from '../auth/requireAdmin';
 import { listRates, setProfessionalKind } from '../billing/professionalRates';
 import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
@@ -76,6 +77,15 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     res.status(201).json(await addProfessional(db, getSessionUser(req)!.userAccountId, req.body));
+  }),
+);
+
+// Administrators correct a provider's name, or their email until they sign in.
+router.patch(
+  '/:id',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.json(await editProfessional(db, getSessionUser(req)!.userAccountId, req.params.id as string, req.body));
   }),
 );
 

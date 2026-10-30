@@ -2,10 +2,9 @@ import { useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Checkbox, ErrorMessage, Fieldset, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
 import {
-  ApiError,
   createCase,
   getReferenceData,
-  isValidationErrorBody,
+  fieldErrorsOf,
   matchInvoiceToCase,
   searchPeople,
   type PersonRecord,
@@ -16,6 +15,7 @@ import { PageHeader } from '../components/PageHeader';
 import { TypeAheadPicker } from '../components/TypeAheadPicker';
 import { Notice } from '../components/Notice';
 import { INTAKE_PATH } from '../portal/useShell';
+import { ProposedPersonFields, SameNameConfirm } from '../components/NewEntryFields';
 
 function generateRequestId(): string {
   return crypto.randomUUID();
@@ -30,6 +30,8 @@ export default function NewCaseIntake() {
   const { data: referenceData, error: loadError } = useApiResource(getReferenceData, []);
 
   const [selectedPerson, setSelectedPerson] = useState<PersonRecord | null>(null);
+  // A client not in the system yet, created with the case.
+  const [newClient, setNewClient] = useState<{ displayName: string; email?: string; confirmedNew?: boolean } | null>(null);
 
   const [participantRoleId, setParticipantRoleId] = useState('');
   const [statusId, setStatusId] = useState('');
@@ -56,8 +58,8 @@ export default function NewCaseIntake() {
     setSubmitError(null);
     setFieldErrors({});
 
-    if (!selectedPerson) {
-      setFieldErrors({ personId: 'Select an existing person.' });
+    if (!selectedPerson && !newClient) {
+      setFieldErrors({ personId: 'Choose the client, or add them.' });
       return;
     }
 
@@ -66,7 +68,8 @@ export default function NewCaseIntake() {
     setSubmitting(true);
     try {
       const input = {
-        personId: selectedPerson.personId,
+        personId: newClient ? undefined : selectedPerson?.personId,
+        newClient: newClient ? { ...newClient, displayName: newClient.displayName.trim(), email: newClient.email?.trim() || undefined } : undefined,
         participantRoleId,
         statusId,
         effectiveAt: effectiveAt ? new Date(effectiveAt).toISOString() : '',
@@ -106,8 +109,8 @@ export default function NewCaseIntake() {
       }
       navigate(`/cases/${result.caseId}`);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 400 && isValidationErrorBody(error.body)) {
-        setFieldErrors(error.body.fieldErrors);
+      if (Object.keys(fieldErrorsOf(error)).length > 0) {
+        setFieldErrors(fieldErrorsOf(error));
       } else {
         setSubmitError('Failed to create case.');
       }
@@ -158,22 +161,40 @@ export default function NewCaseIntake() {
       <div className="form-card">
       <Fieldset legend="Client" legendStyle="large">
         <FormGroup error={Boolean(fieldErrors.personId)}>
-          <Label htmlFor="personQuery" id="personQuery-label">Search for an existing person</Label>
+          <Label htmlFor="personQuery" id="personQuery-label">{newClient ? 'Client' : 'Search for an existing person, or add one'}</Label>
           {fieldErrors.personId && <ErrorMessage>{fieldErrors.personId}</ErrorMessage>}
-          <TypeAheadPicker
-            id="personQuery"
-            placeholder="Search by name or email"
-            noResults="No people found."
-            search={(query) =>
-              searchPeople(query).then((result) =>
-                result.people.map((person) => ({
-                  value: person.personId,
-                  label: person.email ? `${person.displayName} (${person.email})` : person.displayName,
-                  item: person,
-                })))
-            }
-            onSelect={(person) => setSelectedPerson(person ?? null)}
-          />
+          {newClient ? (
+            <div className="new-entry">
+              <ProposedPersonFields
+                idPrefix="newClient"
+                nameLabel="New client’s name"
+                value={newClient}
+                onChange={(person) => setNewClient({ ...newClient, ...person })}
+              />
+              <SameNameConfirm
+                error={fieldErrors.newClient}
+                confirmed={Boolean(newClient.confirmedNew)}
+                onChange={(confirmedNew) => setNewClient({ ...newClient, confirmedNew })}
+              />
+              <button type="button" className="link-button" onClick={() => setNewClient(null)}>Search for an existing person instead</button>
+            </div>
+          ) : (
+            <TypeAheadPicker
+              id="personQuery"
+              placeholder="Search by name or email"
+              noResults="No people found."
+              search={(query) =>
+                searchPeople(query).then((result) =>
+                  result.people.map((person) => ({
+                    value: person.personId,
+                    label: person.email ? `${person.displayName} (${person.email})` : person.displayName,
+                    item: person,
+                  })))
+              }
+              onSelect={(person) => setSelectedPerson(person ?? null)}
+              addOption={{ label: '+ Add a new person', onAdd: (query) => setNewClient({ displayName: query }) }}
+            />
+          )}
         </FormGroup>
       </Fieldset>
       </div>

@@ -30,7 +30,7 @@ export interface ParsedLine {
   taskCode?: string;
   activityCode?: string;
   expenseCode?: string;
-  // Which case, as the file names it; used only when splitting by case.
+  // Which case, as the file names it.
   caseLabel?: string;
 }
 
@@ -45,6 +45,9 @@ export interface ParsedInvoice {
   suggestedLines?: ParsedLine[];
   // The parser's own findings, such as text read by recognition.
   warnings?: ImportWarning[];
+  // Text naming the case (a PDF's own text, a LEDES file's matter IDs and
+  // description), searched for it; never stored.
+  invoiceText?: string;
 }
 
 // Larger files are almost certainly bulk exports of many invoices.
