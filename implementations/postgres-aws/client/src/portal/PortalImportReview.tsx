@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router';
-import { Label, Select } from '@trussworks/react-uswds';
+import { Label } from '@trussworks/react-uswds';
+import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
+import { AddProvider, useAddedProviders, type AddedProvider } from '../components/AddProvider';
+import { NO_PROPOSED_PERSON, ProposedPersonFields, proposedPersonToSend } from '../components/NewEntryFields';
 import {
   apiErrorMessage,
   getInvoiceImport,
@@ -10,6 +13,7 @@ import {
   resolveInvoiceImport,
   updateDraftInvoice,
   type BillableProfessional,
+  type ProposedProvider,
   type InvoiceImportDetail,
   type PortalInvoice,
   type SuggestedImportLine,
@@ -61,27 +65,43 @@ function AssignAllTimekeepers({
   timekeepers,
   unmatched,
   onAssign,
+  onProviderAdded,
 }: {
   timekeepers: BillableProfessional[];
   unmatched: number;
-  onAssign: (professionalId: string, only: 'all' | 'unassigned') => void;
+  onAssign: (professionalId: string, only: 'all' | 'unassigned', proposed: ProposedProvider) => void;
+  // Staff add the provider; others name someone instead.
+  onProviderAdded?: (provider: AddedProvider) => Promise<void>;
 }) {
   const [professionalId, setProfessionalId] = useState('');
+  const [proposed, setProposed] = useState(NO_PROPOSED_PERSON);
+  const chosen = professionalId === ADD_NEW ? proposed.displayName.trim() !== '' : professionalId !== '';
+  const send = proposedPersonToSend(proposed) ?? NO_PROPOSED_PERSON;
   return (
     <div className="assign-all">
       <Label htmlFor="import-assign-all">Set work done by for several items</Label>
-      <Select id="import-assign-all" name="import-assign-all" value={professionalId} onChange={(event) => setProfessionalId(event.target.value)}>
-        <option value="">- Choose -</option>
-        {timekeepers.map((professional) => (
-          <option key={professional.professionalId} value={professional.professionalId}>
-            {professionalLabel(professional)}
-          </option>
-        ))}
-      </Select>
-      <button type="button" className="btn btn--outline" disabled={!professionalId || unmatched === 0} onClick={() => onAssign(professionalId, 'unassigned')}>
+      <PickOrAdd
+        id="import-assign-all"
+        value={professionalId}
+        onChange={setProfessionalId}
+        addLabel={onProviderAdded ? '+ Add a new provider' : '+ Someone not listed'}
+        placeholder="- Choose -"
+        options={timekeepers.map((professional) => ({ value: professional.professionalId, label: professionalLabel(professional) }))}
+      >
+        {onProviderAdded ? (
+          <AddProvider
+            inline
+            idPrefix="import-assign-all-new"
+            onAdded={(provider) => void onProviderAdded(provider).catch(() => undefined).then(() => setProfessionalId(provider.professionalId))}
+          />
+        ) : (
+          <ProposedPersonFields idPrefix="import-assign-all-new" value={proposed} onChange={setProposed} />
+        )}
+      </PickOrAdd>
+      <button type="button" className="btn btn--outline" disabled={!chosen || unmatched === 0} onClick={() => onAssign(professionalId, 'unassigned', send)}>
         Apply to {unmatched} unassigned
       </button>
-      <button type="button" className="link-button" disabled={!professionalId} onClick={() => onAssign(professionalId, 'all')}>
+      <button type="button" className="link-button" disabled={!chosen} onClick={() => onAssign(professionalId, 'all', send)}>
         Apply to all items
       </button>
     </div>
@@ -180,7 +200,10 @@ function ExtractedReview({
   onChanged: () => void;
 }) {
   const navigate = useNavigate();
-  const { importDetail, invoice, timekeepers } = data;
+  const { staff } = useShell();
+  const providers = useAddedProviders(data.importDetail.caseId);
+  const { importDetail, invoice } = data;
+  const timekeepers = [...data.timekeepers, ...providers.added];
   // A file designated to one professional is all their work, not a suggestion.
   const designatedId = importDetail.extractionResult?.designated_professional_id;
   const designated = timekeepers.find((professional) => professional.professionalId === designatedId);
@@ -278,13 +301,19 @@ function ExtractedReview({
         <RulesInForce rules={billingRules.rules} />
         <RuleFindings findings={invoice?.ruleFindings ?? []} />
         {!designatedId && timekeepers.length > 0 && lines.length > 1 && (
-          <AssignAllTimekeepers timekeepers={timekeepers} unmatched={unmatched} onAssign={(id, only) => setLines(assignTimekeeper(lines, id, only))} />
+          <AssignAllTimekeepers
+            timekeepers={timekeepers}
+            unmatched={unmatched}
+            onAssign={(id, only, proposed) => setLines(assignTimekeeper(lines, id, only, proposed))}
+            onProviderAdded={staff ? providers.onProviderAdded : undefined}
+          />
         )}
         <InvoiceLinesEditor
           idPrefix="import"
           lines={lines}
           onChange={setLines}
           timekeepers={timekeepers}
+          onProviderAdded={staff ? providers.onProviderAdded : undefined}
           billingCodes={billingRules.codes}
           mileageRates={billingRules.mileageRates}
           importReview={{
@@ -305,11 +334,11 @@ function ExtractedReview({
           <p className="compact-hint actions-hint">
             {!hasItems
               ? 'Add an item with an amount to continue.'
-              : `Choose who did the work for ${unmatched} more ${unmatched === 1 ? 'item' : 'items'} to confirm.`}
+              : `Who did the work for ${unmatched} ${unmatched === 1 ? 'item isn’t' : 'items isn’t'} chosen; the billing office will match ${unmatched === 1 ? 'it' : 'them'} on Intake.`}
           </p>
         )}
         <div className="invoice-actions">
-          <button type="button" className="btn btn--primary" disabled={busy || !hasItems || unmatched > 0} onClick={() => void run('confirm')}>
+          <button type="button" className="btn btn--primary" disabled={busy || !hasItems} onClick={() => void run('confirm')}>
             {!afterResolve ? 'Confirm import' : hasNext ? 'Confirm and review next' : 'Confirm and go to submit'}
           </button>
           <button type="button" className="btn btn--outline" disabled={busy || !hasItems} onClick={() => void run('save')}>

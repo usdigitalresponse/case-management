@@ -247,7 +247,7 @@ rules:
     trigger: before_submit
     outcome: blocking
     requirements:
-      - Require one case, one provider/payee, at least one line and a currency for each request; all lines belong to that case. A staff-entered request may instead have no case (match_invoice_to_case); then none of its lines has one. A staff draft with no case may also leave its provider to be chosen on matching.
+      - Require one case, one provider/payee, at least one line and a currency for each request; all lines belong to that case. A staff-entered request may instead have no case (match_invoice_to_case); then none of its lines has one. A staff draft with no case may also leave its provider to be chosen on matching. A request sent for matching may have no case or provider, with or without the submitter's entered details for them (match_invoice_to_case).
       - Require both billing period bounds or neither and reject inverted periods, including supporting invoices.
       - Requested line and allocation amounts must be positive; submitted_total equals the sum of request lines.
       - An invoice line sets at most one of source_time_entry_id or source_expense_id, and the referenced time_entry or expense must be on the same case; a manual line sets neither.
@@ -482,6 +482,8 @@ rules:
       - A request saved without its provider gets one on matching, chosen from active professionals, and its time with no one named is then priced as theirs; until then it cannot be submitted, even without a case.
       - Every professional the request relies on must be assigned to the case on matching; on request, matching assigns any who are not, as an external submitter. Record a matched_to_case request event with the actor.
       - Staff may instead add the case first and match the request to it in the same step.
+      - A submitter who can't find the case, provider or a line's timekeeper may enter what they know instead (proposed_case, proposed_provider, proposed_timekeeper_name), or leave it unchosen; this never creates a case, person or professional. They may then send the request for matching (send_for_matching) with the attestation, and it waits in invoice intake. Staff match each entry to an existing record or create one prefilled from it, refusing a probable duplicate rather than creating it; then the request is released to review (release_to_review) and handled as if just submitted. Until then the submitter may recall it to draft, and any active staff user may send it back to their drafts (return_to_submitter) with a reason. Unlike sign-off comments, that reason is for the submitter: it is shown with the request, which is marked as needing changes and listed first among theirs, until they send it again. Anything staff already matched stays matched.
+      - Entered details are kept after matching, and wherever the request is shown for intake or review it is clearly marked which case, provider or timekeeper the submitter entered rather than chose.
       - The submitter may submit a request with no case only by choosing to review it without one. It is then reviewed and signed off like any other, with no assignment, pre-authorization or case-based rate checks, and warnings that this system did not check its case, its professional's assignment or any pre-authorization.
       - Exports and the billing record of a request with no case carry the same warning in place of the case number.
 
@@ -495,6 +497,7 @@ rules:
       - Refuse an email already used by a user account or another professional rather than creating a probable duplicate.
       - When someone later signs in with that email, they receive the existing profile instead of a new one.
       - Adding a professional assigns them to no case and grants no access.
+      - An administrator may correct the professional's name, and add or change the email of one who hasn't signed in, refusing an email already used in the same way; once they sign in, their account's email stays. Record the actor and the values replaced.
 
   authorize_payment_request_export:
     description: Export submitted requests only to users who may read them.

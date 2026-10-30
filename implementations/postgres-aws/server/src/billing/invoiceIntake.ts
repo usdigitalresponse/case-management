@@ -1,10 +1,11 @@
 // Invoice intake: invoices staff entered or imported before their case was
-// known (model/rules.yaml match_invoice_to_case). Any staff member may
-// match one to a case, choosing whom it bills if that wasn't known and
-// adding its providers to the case if they aren't on it; or its submitter
-// may send it to review without a case.
+// known, and those submitters sent for matching (model/rules.yaml
+// match_invoice_to_case). Any staff member may match one to a case, choosing
+// whom it bills and who did the work where that wasn't known, and adding its
+// providers to the case if they aren't on it; or a staff submitter may send
+// theirs to review without a case.
 import { z } from 'zod';
-import { and, eq, inArray, isNull, min } from 'drizzle-orm';
+import { and, eq, inArray, isNull, min, or } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {
   caseAssignment,
@@ -23,11 +24,15 @@ import { ForbiddenError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { isStaffAccount } from '../portal/portalActor';
 import { assignExternalSubmitterToCase } from '../cases/assignExternalSubmitterToCase';
-import { selectInvoiceHeaders } from './invoiceDetail';
-import { recordInvoiceEvent } from './invoiceEvents';
+import { selectInvoiceHeaders, type InvoiceHeader } from './invoiceDetail';
+import { recordInvoiceEvent, RETURNED_TO_SUBMITTER_EVENT_CODE } from './invoiceEvents';
+import { getReferenceId } from '../db/referenceLookups';
+import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
 import { priceLines } from './priceLines';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
-import { DRAFT_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
+import { AWAITING_MATCH_INVOICE_STATUS_CODE, DRAFT_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
+import { releaseToReviewInTx } from './invoiceLifecycle';
+import { unmatchedTimekeeper } from './proposedDetails';
 
 async function requireStaff(db: Database, userAccountId: string) {
   if (!(await isStaffAccount(db, userAccountId))) {
@@ -39,8 +44,14 @@ export interface IntakeItem {
   invoiceId: string | null;
   invoiceImportId: string | null;
   fileName: string | null;
-  // 'reading', 'unreadable', 'to_confirm' (an import to check) or 'ready'.
-  stage: 'reading' | 'unreadable' | 'to_confirm' | 'ready';
+  // 'reading', 'unreadable', 'to_confirm' (an import to check), 'ready', or
+  // 'sent' (sent for matching by its submitter).
+  stage: 'reading' | 'unreadable' | 'to_confirm' | 'ready' | 'sent';
+  caseId: string | null;
+  // What the submitter entered for what wasn't listed.
+  proposedCase: InvoiceHeader['proposedCase'];
+  proposedProvider: InvoiceHeader['proposedProvider'];
+  unlistedTimekeepers: Array<{ invoiceLineId: string; name: string; email: string | null; description: string | null }>;
   professionalId: string | null;
   professionalDisplayName: string | null;
   enteredByUserAccountId: string;
@@ -58,9 +69,16 @@ export interface IntakeItem {
 
 export async function listInvoiceIntake(db: Database, actorUserAccountId: string): Promise<IntakeItem[]> {
   await requireStaff(db, actorUserAccountId);
-  const drafts = await selectInvoiceHeaders(db).where(and(isNull(invoice.caseId), eq(invoiceStatuses.code, DRAFT_INVOICE_STATUS_CODE)));
+  const staffRoleIds = await getStaffAccountRoleIds(db);
+  const drafts = await selectInvoiceHeaders(db).where(
+    or(
+      // A submitter's own drafts stay theirs until they send them.
+      and(isNull(invoice.caseId), eq(invoiceStatuses.code, DRAFT_INVOICE_STATUS_CODE), inArray(userAccount.systemRoleId, staffRoleIds)),
+      eq(invoiceStatuses.code, AWAITING_MATCH_INVOICE_STATUS_CODE),
+    ),
+  );
   const draftIds = drafts.map((row) => row.invoiceId);
-  const [imports, created, reading] = await Promise.all([
+  const [imports, created, reading, unlisted] = await Promise.all([
     draftIds.length
       ? db
           .select({
@@ -98,17 +116,43 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       .innerJoin(document, eq(invoiceImport.documentId, document.documentId))
       .innerJoin(userAccount, eq(invoiceImport.uploadedByUserAccountId, userAccount.userAccountId))
       .where(and(isNull(invoiceImport.caseId), isNull(invoiceImport.invoiceId), inArray(invoiceImportStatuses.code, ['received', 'failed']))),
+    draftIds.length
+      ? db
+          .select({
+            invoiceId: invoiceLine.invoiceId,
+            invoiceLineId: invoiceLine.invoiceLineId,
+            name: invoiceLine.proposedTimekeeperName,
+            email: invoiceLine.proposedTimekeeperEmail,
+            description: invoiceLine.description,
+          })
+          .from(invoiceLine)
+          .where(and(inArray(invoiceLine.invoiceId, draftIds), unmatchedTimekeeper))
+      : Promise.resolve([]),
   ]);
 
   const importFor = new Map(imports.map((entry) => [entry.invoiceId, entry]));
   const createdAt = new Map(created.map((event) => [event.invoiceId, event.occurredAt]));
+  const unlistedFor = new Map<string, typeof unlisted>();
+  for (const line of unlisted) {
+    unlistedFor.set(line.invoiceId, [...(unlistedFor.get(line.invoiceId) ?? []), line]);
+  }
   const items: IntakeItem[] = drafts.map((row) => {
     const imported = importFor.get(row.invoiceId);
     return {
       invoiceId: row.invoiceId,
       invoiceImportId: imported?.invoiceImportId ?? null,
       fileName: imported?.fileName ?? null,
-      stage: imported && imported.statusCode !== 'confirmed' ? 'to_confirm' : 'ready',
+      stage:
+        row.statusCode === AWAITING_MATCH_INVOICE_STATUS_CODE ? 'sent' : imported && imported.statusCode !== 'confirmed' ? 'to_confirm' : 'ready',
+      caseId: row.caseId,
+      proposedCase: row.proposedCase,
+      proposedProvider: row.proposedProvider,
+      unlistedTimekeepers: (unlistedFor.get(row.invoiceId) ?? []).map((line) => ({
+        invoiceLineId: line.invoiceLineId,
+        name: line.name ?? '',
+        email: line.email,
+        description: line.description,
+      })),
       professionalId: row.professionalId,
       professionalDisplayName: row.professionalDisplayName,
       enteredByUserAccountId: row.submittedByUserAccountId,
@@ -129,6 +173,10 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       invoiceImportId: file.invoiceImportId,
       fileName: file.fileName,
       stage: file.statusCode === 'failed' ? 'unreadable' : 'reading',
+      caseId: null,
+      proposedCase: null,
+      proposedProvider: null,
+      unlistedTimekeepers: [],
       professionalId: null,
       professionalDisplayName: null,
       enteredByUserAccountId: file.uploadedBy,
@@ -153,6 +201,8 @@ const matchInputSchema = z.object({
   addMissing: z.boolean().default(false),
   // Whom it bills, for an invoice saved before that was known.
   professionalId: z.uuid().optional(),
+  // Who did the work, for each line naming someone who wasn't listed.
+  timekeepers: z.record(z.uuid(), z.uuid()).default({}),
 });
 
 // Who the invoice bills: its professional and every line's.
@@ -164,6 +214,50 @@ async function billedProfessionals(db: Database, invoiceId: string, billedProfes
   return [...new Set([billedProfessionalId, ...lines.flatMap((line) => (line.professionalId ? [line.professionalId] : []))])];
 }
 
+const returnInputSchema = z.object({
+  reason: z.string().trim().min(1, 'Say what the submitter should change.').max(2000, 'Keep the reason under 2,000 characters.'),
+});
+
+// Sends a request waiting to be matched back to its submitter's drafts
+// (return_to_submitter), with the reason they're shown until they send it again.
+export async function returnToSubmitter(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
+  await requireStaff(db, actorUserAccountId);
+  if (!z.uuid().safeParse(invoiceId).success) {
+    throw new InvoiceNotFoundError();
+  }
+  const parsed = returnInputSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
+  }
+  return db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ statusCode: invoiceStatuses.code })
+      .from(invoice)
+      .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+      .where(eq(invoice.invoiceId, invoiceId))
+      .for('update', { of: invoice });
+    if (!locked) {
+      throw new InvoiceNotFoundError();
+    }
+    if (locked.statusCode !== AWAITING_MATCH_INVOICE_STATUS_CODE) {
+      throw new ValidationError({ reason: 'Only an invoice waiting to be matched can be sent back.' });
+    }
+    const draftStatusId = await getReferenceId(tx, invoiceStatuses, DRAFT_INVOICE_STATUS_CODE);
+    await tx.update(invoice).set({ statusId: draftStatusId }).where(eq(invoice.invoiceId, invoiceId));
+    await recordInvoiceEvent(tx, {
+      invoiceId,
+      eventTypeCode: RETURNED_TO_SUBMITTER_EVENT_CODE,
+      statusId: draftStatusId,
+      actorUserAccountId,
+      reason: parsed.data.reason,
+    });
+    return { invoiceId };
+  });
+}
+
+// Matches a request held in intake or sent for matching to its case,
+// provider and timekeepers; one sent for matching then goes to review
+// (release_to_review). Returns whether it did.
 export async function matchInvoiceToCase(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   await requireStaff(db, actorUserAccountId);
   if (!z.uuid().safeParse(invoiceId).success) {
@@ -173,7 +267,7 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
-  const { caseId, addMissing } = parsed.data;
+  const { caseId, addMissing, timekeepers } = parsed.data;
   const [row] = await db
     .select({ caseId: invoice.caseId, professionalId: invoice.professionalId, statusCode: invoiceStatuses.code })
     .from(invoice)
@@ -182,8 +276,12 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
   if (!row) {
     throw new InvoiceNotFoundError();
   }
-  if (row.caseId !== null || row.statusCode !== DRAFT_INVOICE_STATUS_CODE) {
+  const awaiting = row.statusCode === AWAITING_MATCH_INVOICE_STATUS_CODE;
+  if (!(awaiting || (row.statusCode === DRAFT_INVOICE_STATUS_CODE && row.caseId === null))) {
     throw new ValidationError({ caseId: 'Only an invoice still in intake can be matched to a case.' });
+  }
+  if (row.caseId !== null && row.caseId !== caseId) {
+    throw new ValidationError({ caseId: 'This invoice already has its case.' });
   }
   const [target] = await db.select({ closedOn: caseTable.closedOn }).from(caseTable).where(eq(caseTable.caseId, caseId));
   if (!target) {
@@ -197,16 +295,21 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
   if (!billedProfessionalId) {
     throw new ValidationError({ professionalId: 'Choose who this invoice is from.' });
   }
-  if (row.professionalId === null) {
-    const [chosen] = await db
-      .select({ active: professional.active })
-      .from(professional)
-      .where(eq(professional.professionalId, billedProfessionalId));
-    if (!chosen?.active) {
-      throw new ValidationError({ professionalId: 'Choose who this invoice is from.' });
-    }
+  const unlisted = await db
+    .select({ invoiceLineId: invoiceLine.invoiceLineId })
+    .from(invoiceLine)
+    .where(and(eq(invoiceLine.invoiceId, invoiceId), unmatchedTimekeeper));
+  if (Object.keys(timekeepers).some((lineId) => !unlisted.some((line) => line.invoiceLineId === lineId))) {
+    throw new ValidationError({ timekeepers: 'Only items naming someone not listed can be matched here.' });
   }
-  const billed = await billedProfessionals(db, invoiceId, billedProfessionalId);
+  const chosen = [...new Set([...(row.professionalId === null ? [billedProfessionalId] : []), ...Object.values(timekeepers)])];
+  const active = chosen.length
+    ? await db.select({ professionalId: professional.professionalId }).from(professional).where(and(inArray(professional.professionalId, chosen), eq(professional.active, true)))
+    : [];
+  if (active.length !== chosen.length) {
+    throw new ValidationError({ professionalId: 'Choose providers who are active.' });
+  }
+  const billed = [...new Set([...(await billedProfessionals(db, invoiceId, billedProfessionalId)), ...Object.values(timekeepers)])];
   const onCase = await db
     .select({ professionalId: caseAssignment.professionalId })
     .from(caseAssignment)
@@ -229,23 +332,40 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
   }
 
   return db.transaction(async (tx) => {
-    const [locked] = await tx.select({ caseId: invoice.caseId, statusId: invoice.statusId }).from(invoice).where(eq(invoice.invoiceId, invoiceId)).for('update');
-    if (!locked || locked.caseId !== null) {
+    const [locked] = await tx
+      .select({ caseId: invoice.caseId, statusId: invoice.statusId })
+      .from(invoice)
+      .where(eq(invoice.invoiceId, invoiceId))
+      .for('update');
+    if (!locked || locked.caseId !== row.caseId) {
       throw new ValidationError({ caseId: 'Someone else matched this invoice first.' });
     }
     await tx.update(invoice).set({ caseId, professionalId: billedProfessionalId }).where(eq(invoice.invoiceId, invoiceId));
     await tx.update(invoiceLine).set({ caseId }).where(eq(invoiceLine.invoiceId, invoiceId));
     await tx.update(invoiceImport).set({ caseId }).where(eq(invoiceImport.invoiceId, invoiceId));
-    if (row.professionalId === null) {
-      // Time with no one named is now the chosen professional's, at their rate.
-      await priceLines(tx, invoiceId, { billedProfessionalId, unmatchedMeansBilled: true, strict: false });
+    for (const [invoiceLineId, professionalId] of Object.entries(timekeepers)) {
+      // eslint-disable-next-line no-await-in-loop
+      await tx.update(invoiceLine).set({ timekeeperProfessionalId: professionalId }).where(eq(invoiceLine.invoiceLineId, invoiceLineId));
     }
+    // Time with no one named is now the chosen professional's, at their rate.
+    await priceLines(tx, invoiceId, { billedProfessionalId, unmatchedMeansBilled: true, strict: false });
     await recordInvoiceEvent(tx, {
       invoiceId,
       eventTypeCode: 'matched_to_case',
       statusId: locked.statusId,
       actorUserAccountId,
     });
-    return { invoiceId, caseId, addedProfessionalIds: missing };
+    // The match stands even if the invoice can't go to review yet.
+    let released = false;
+    let releaseProblem: string | undefined;
+    if (awaiting) {
+      try {
+        released = await tx.transaction((inner) => releaseToReviewInTx(inner, actorUserAccountId, invoiceId));
+      } catch (error) {
+        if (!(error instanceof ValidationError)) throw error;
+        releaseProblem = Object.values(error.fieldErrors)[0] ?? 'It could not go to review yet.';
+      }
+    }
+    return { invoiceId, caseId, addedProfessionalIds: missing, released, releaseProblem };
   });
 }

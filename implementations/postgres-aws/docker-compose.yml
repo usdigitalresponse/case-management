@@ -20,8 +20,11 @@ services:
     volumes:
       - ./server:/app
       - server-node-modules:/app/node_modules
+      # Uploaded invoice files, kept when the container is recreated.
+      - documents:/var/lib/case-management/documents
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/case_management_postgres_aws
+      DOCUMENT_STORE_DIR: /var/lib/case-management/documents
       NODE_ENV: development
       PORT: 3000
       # Optional: set in a .env file next to this docker-compose.yml (never
@@ -78,3 +81,4 @@ volumes:
   postgres-data:
   server-node-modules:
   client-node-modules:
+  documents:

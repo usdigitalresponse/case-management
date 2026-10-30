@@ -10,13 +10,17 @@ import { createDraftInTx, draftContentSchema, parseDraftContent, submitInTx } fr
 import { measureTrips } from '../billing/routeCheck';
 import { authorizeBilling, type PortalActor } from './portalActor';
 import { receiptInputSchema, recordReceipt } from '../billing/invoiceReceipt';
+import { proposedCaseSchema, proposedProviderSchema } from '../billing/proposedDetails';
 
 export const createInvoiceInputSchema = draftContentSchema.extend({
-  // Null: staff will add the case later, from invoice intake.
+  // Null: matched later, in invoice intake.
   caseId: z.string().uuid().nullable(),
   // Defaults to the caller's own profile; a delegate names whom they bill for.
-  // Null: staff will choose when they match it to a case (no case only).
+  // Null: chosen when it's matched.
   professionalId: z.string().uuid().nullable().optional(),
+  // What the submitter knows of a case or provider that isn't listed.
+  proposedCase: proposedCaseSchema.optional(),
+  proposedProvider: proposedProviderSchema.optional(),
   submit: z.boolean().default(true),
   // Staff chose to review it with no case (match_invoice_to_case).
   withoutCase: z.boolean().optional(),
@@ -29,6 +33,7 @@ export type CreateInvoiceInput = z.input<typeof createInvoiceInputSchema>;
 export interface CreateInvoiceResult {
   invoiceId: string;
   submittedTotal: string;
+  status: 'draft' | 'submitted' | 'awaiting_match';
 }
 
 export async function createInvoice(
@@ -42,24 +47,22 @@ export async function createInvoice(
   }
   const { caseId, submit } = parsed.data;
   const content = parseDraftContent(parsed.data);
-  // Only a held draft may leave its professional to be chosen on matching.
-  const heldForMatching = parsed.data.professionalId === null && caseId === null && !submit;
   const billedProfessionalId = parsed.data.professionalId === null ? null : (parsed.data.professionalId ?? actor.professionalId ?? null);
-  if (!billedProfessionalId && !heldForMatching) {
-    throw new ValidationError({ professionalId: 'Choose the professional this invoice bills for.' });
-  }
   // Checked before measuring trips, which are billed lookups.
   await authorizeBilling(db, actor, caseId, billedProfessionalId);
   if (submit) {
     await measureTrips(db, content.lines.filter((line) => line.lineType === 'mileage'));
   }
   return db.transaction(async (tx) => {
-    const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content);
+    const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content, {
+      proposedCase: parsed.data.proposedCase,
+      proposedProvider: parsed.data.proposedProvider,
+    });
     await recordReceipt(tx, invoiceId, { receivedVia: parsed.data.receivedVia, receivedOn: parsed.data.receivedOn });
-    if (submit) {
-      await submitInTx(tx, actor, invoiceId, { withoutCase: parsed.data.withoutCase, attested: parsed.data.attested });
-    }
+    const status = submit
+      ? await submitInTx(tx, actor, invoiceId, { withoutCase: parsed.data.withoutCase, attested: parsed.data.attested })
+      : 'draft';
     const [created] = await tx.select({ submittedTotal: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
-    return { invoiceId, submittedTotal: created?.submittedTotal ?? '0.00' };
+    return { invoiceId, submittedTotal: created?.submittedTotal ?? '0.00', status };
   });
 }

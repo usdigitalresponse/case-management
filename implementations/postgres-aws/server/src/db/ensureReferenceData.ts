@@ -43,6 +43,7 @@ export async function ensureReferenceData(db: Database): Promise<void> {
       .insert(invoiceStatuses)
       .values([
         { code: 'draft', displayName: 'Draft' },
+        { code: 'awaiting_match', displayName: 'Waiting for its case' },
         { code: 'submitted', displayName: 'Waiting for review' },
         { code: 'under_review', displayName: 'Being reviewed' },
         { code: 'awaiting_sign_off', displayName: 'Waiting for sign-off' },
@@ -94,6 +95,9 @@ export async function ensureReferenceData(db: Database): Promise<void> {
         { code: 'signed_off', displayName: 'Signed off' },
         { code: 'sent_back', displayName: 'Sent back to the reviewer' },
         { code: 'matched_to_case', displayName: 'Matched to a case' },
+        { code: 'sent_for_matching', displayName: 'Sent for matching' },
+        { code: 'released_to_review', displayName: 'Released to review' },
+        { code: 'returned_to_submitter', displayName: 'Sent back for changes' },
       ])
       .onConflictDoNothing({ target: invoiceEventTypes.code }),
     db

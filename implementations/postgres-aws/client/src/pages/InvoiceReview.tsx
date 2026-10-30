@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { Link as RouterLink, useParams } from 'react-router';
 import {
   apiErrorMessage,
   decideInvoiceLine,
@@ -31,6 +31,7 @@ import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip, Progress } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
+import { EnteredFlag, proposedCaseLabel } from '../components/NewEntryFields';
 import { Toast, useToast, type ToastMessage } from '../components/Toast';
 import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
@@ -55,7 +56,8 @@ export default function InvoiceReview() {
   const [toast, setToast] = useToast();
   // Null until chosen: shown when the submitter changed anything.
   const [showFile, setShowFile] = useState<boolean | null>(null);
-  const [fileFocus, setFileFocus] = useState<string | undefined>();
+  // A new object on every click, so the same line scrolls the file back to it.
+  const [fileFocus, setFileFocus] = useState<{ location: string } | undefined>();
 
   useEffect(() => {
     latestRequest.current += 1;
@@ -236,7 +238,38 @@ export default function InvoiceReview() {
         </Fact>
       </FactsStrip>
 
-      {invoice.caseId === null && (
+      {(invoice.proposedCase || invoice.proposedProvider || lines.some((line) => line.proposedTimekeeperName)) && (
+        <Notice tone="warning" heading="Some details were entered by the submitter.">
+          They weren't listed when it was sent, so staff matched them on Intake. Check them.
+          <ul className="entered-details">
+            {invoice.proposedCase && (
+              <li>
+                <EnteredFlag what="Case" matched={Boolean(invoice.caseId)} /> {proposedCaseLabel(invoice.proposedCase)}
+                {invoice.proposedCase.details ? ` (${invoice.proposedCase.details})` : ''}
+              </li>
+            )}
+            {invoice.proposedProvider && (
+              <li>
+                <EnteredFlag what="Provider" matched={Boolean(invoice.professionalId)} /> {invoice.proposedProvider.displayName}
+              </li>
+            )}
+            {lines.some((line) => line.proposedTimekeeperName) && (
+              <li>
+                <EnteredFlag what="Person" matched /> {[...new Set(lines.flatMap((line) => (line.proposedTimekeeperName ? [line.proposedTimekeeperName] : [])))].join(', ')}
+              </li>
+            )}
+          </ul>
+        </Notice>
+      )}
+
+      {status === 'awaiting_match' && (
+        <Notice tone="info" heading="Waiting on Intake to be matched.">
+          It goes to review once its case and anyone not listed are matched. Match it or send it back for changes on{' '}
+          <RouterLink to="/intake">Intake</RouterLink>.
+        </Notice>
+      )}
+
+      {invoice.caseId === null && status !== 'awaiting_match' && (
         <Notice tone="warning" heading="Not linked to a case.">
           Staff chose to review this invoice without one. This system didn't check the case, whether{' '}
           {invoice.professionalDisplayName ?? 'the provider'} is assigned to it, or any pre-authorization. Exports and the billing
@@ -311,7 +344,7 @@ export default function InvoiceReview() {
                     fileSource.fileAvailable && line.sourceLocation
                       ? () => {
                           setShowFile(true);
-                          setFileFocus(line.sourceLocation ?? undefined);
+                          setFileFocus(line.sourceLocation ? { location: line.sourceLocation } : undefined);
                         }
                       : undefined
                   }

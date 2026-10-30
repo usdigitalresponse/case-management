@@ -33,6 +33,14 @@ workflows:
         from: draft
         to: submitted
         requires: [authorized_submitter, validated_lines, frozen_review_attempt, configured_attestation]
+      - action: send_for_matching
+        from: draft
+        to: awaiting_match
+        requires: [authorized_submitter, configured_attestation]
+      - action: release_to_review
+        from: awaiting_match
+        to: submitted
+        requires: [active_staff_user, case_and_provider_and_timekeepers_matched, validated_lines, frozen_review_attempt]
       - action: review
         from: [submitted, under_review]
         to: under_review
@@ -69,6 +77,14 @@ workflows:
         from: submitted
         to: draft
         requires: [authorized_submitter, no_review_decision_recorded, supersede_attempt, preserve_snapshot]
+      - action: recall
+        from: awaiting_match
+        to: draft
+        requires: [authorized_submitter]
+      - action: return_to_submitter
+        from: awaiting_match
+        to: draft
+        requires: [active_staff_user, reason_for_submitter]
       - action: withdraw
         from: draft
         to: withdrawn
@@ -88,6 +104,7 @@ workflows:
       - An authorized submitter may be a configured delegate acting for professionals in their office (authorize_delegated_submission); represented professionals do not attest or approve.
       - Recall is not permitted once a review decision exists. Correction after external completion needs a product decision before implementation.
       - An invoice_import creates a draft through validate_invoice_import; time entries and expenses from its lines are created when that draft is submitted.
+      - A submitter whose case, provider or a line's timekeeper isn't listed sends it for matching with the details they know (match_invoice_to_case); it waits in invoice intake and is released to review once staff have matched it. Its attestation is the one given on sending.
   external_payment_completion:
     entity: invoice
     history_entity: payment

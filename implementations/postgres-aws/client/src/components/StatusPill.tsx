@@ -1,6 +1,7 @@
 export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
 const STATUS_TONE: Record<string, Tone> = {
+  awaiting_match: 'warning',
   submitted: 'info',
   under_review: 'info',
   awaiting_sign_off: 'info',

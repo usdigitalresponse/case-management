@@ -1,9 +1,19 @@
 // Appends to an invoice's immutable history (model/schema.yaml invoice_event).
 // Callers hold the invoice row lock so sequence numbers can't collide.
-import { eq, max } from 'drizzle-orm';
+import { eq, max, sql } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
 import { getReferenceId } from '../db/referenceLookups';
-import { invoiceEvent, invoiceEventTypes } from '../db/schema';
+import { invoice, invoiceEvent, invoiceEventTypes } from '../db/schema';
+
+export const RETURNED_TO_SUBMITTER_EVENT_CODE = 'returned_to_submitter';
+
+// Why staff sent a draft back, while that's the latest thing to happen to it.
+export const returnedReason = sql<string | null>`(
+  select case when ${invoiceEventTypes.code} = ${RETURNED_TO_SUBMITTER_EVENT_CODE} then ${invoiceEvent.reason} end
+  from ${invoiceEvent} join ${invoiceEventTypes} on ${invoiceEventTypes.id} = ${invoiceEvent.eventTypeId}
+  where ${invoiceEvent.invoiceId} = ${invoice.invoiceId}
+  order by ${invoiceEvent.sequenceNumber} desc limit 1
+)`;
 
 export async function recordInvoiceEvent(
   tx: Transaction,

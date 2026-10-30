@@ -11,6 +11,7 @@ import {
   ratesInPlay,
   timeItemPreview,
 } from './InvoiceLinesEditor';
+import { ADD_NEW } from './PickOrAdd';
 
 const importedLine: PortalInvoiceLine = {
   invoiceLineId: 'line-1',
@@ -27,6 +28,8 @@ const importedLine: PortalInvoiceLine = {
   rateLimit: '120.00',
   rateLimitSource: 'configured',
   timekeeperLabel: 'Synthetic Timekeeper',
+  proposedTimekeeperName: null,
+  proposedTimekeeperEmail: null,
   timekeeperProfessionalId: 'professional-1',
   timekeeperDisplayName: 'Synthetic Timekeeper',
   taskCode: 'SAMPLE-TASK',
@@ -106,6 +109,24 @@ describe('assigning who did the work to many items', () => {
     const result = assignTimekeeper(lines, 'professional-2', 'all');
     expect(result.map((line) => line.timekeeperProfessionalId)).toEqual(['professional-2', 'professional-2']);
     expect(result.every((line) => !line.suggestedTimekeeper)).toBe(true);
+  });
+  it('names someone not listed on items, sent as a name for staff to match', () => {
+    const result = assignTimekeeper(lines, ADD_NEW, 'unassigned', { displayName: 'Synthetic Colleague', email: 'colleague@example.com' });
+    const sent = linesFromDrafts(result.map((line) => ({ ...line, quantity: '1', serviceDate: '2026-02-02' })));
+    expect(sent.map((line) => [line.timekeeperProfessionalId, line.proposedTimekeeperName, line.proposedTimekeeperEmail])).toEqual([
+      ['professional-1', undefined, undefined],
+      [undefined, 'Synthetic Colleague', 'colleague@example.com'],
+    ]);
+    // Reloaded, the item still shows them as someone not listed.
+    const [reloaded] = lineDraftsFrom([{ ...importedLine, timekeeperProfessionalId: null, timekeeperDisplayName: null, proposedTimekeeperName: 'Synthetic Colleague' }]);
+    expect(reloaded).toMatchObject({ timekeeperProfessionalId: ADD_NEW, proposedTimekeeperName: 'Synthetic Colleague' });
+  });
+
+  it('falls back to the name the file gives when none is typed', () => {
+    const [line] = linesFromDrafts([
+      { ...emptyLine, quantity: '1', timekeeperProfessionalId: ADD_NEW, carried: { timekeeperLabel: 'File Name' } },
+    ]);
+    expect(line?.proposedTimekeeperName).toBe('File Name');
   });
 });
 

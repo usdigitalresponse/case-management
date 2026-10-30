@@ -1,5 +1,5 @@
 // Intake for model/forms.yaml:new_case; all writes share one transaction.
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import type { PgTable, AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Database } from '../db/client';
 import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
@@ -31,11 +31,43 @@ import {
   fieldErrorsFromZodIssues,
   type CreateCaseInput,
 } from './validation';
+import { emailInUse } from '../people/emails';
 
 export type { CreateCaseInput, CreateCaseIdentifierInput } from './validation';
 
 // Server-selected synthetic opening event type; see MAPPING.md.
 const OPENING_EVENT_TYPE_CODE = 'sample_open';
+
+// A new client sharing an email with someone, or a name unless confirmed
+// as someone else, is a probable duplicate: refused, never merged.
+async function probableDuplicatePerson(
+  db: Database,
+  client: { displayName: string; email?: string; confirmedNew: boolean },
+): Promise<string | null> {
+  if (client.email && (await emailInUse(db, client.email, 'any'))) {
+    return 'Someone with this email is already in the system. Choose them instead.';
+  }
+  if (!client.confirmedNew) {
+    const [sameName] = await db
+      .select({ id: person.personId })
+      .from(person)
+      .where(sql`lower(trim(${person.displayName})) = ${client.displayName.toLowerCase()}`)
+      .limit(1);
+    if (sameName) {
+      return `Someone named ${client.displayName} is already in the system. Choose them instead, or confirm this is someone else.`;
+    }
+  }
+  return null;
+}
+
+async function existingCaseNumber(db: Database, caseNumber: string): Promise<string | null> {
+  const wanted = caseNumber.toLowerCase();
+  const [byReference] = await db.select({ id: caseTable.caseId }).from(caseTable).where(sql`lower(${caseTable.externalReference}) = ${wanted}`).limit(1);
+  const [byIdentifier] = byReference
+    ? [byReference]
+    : await db.select({ id: caseIdentifier.caseId }).from(caseIdentifier).where(sql`lower(${caseIdentifier.value}) = ${wanted}`).limit(1);
+  return byIdentifier ? `Case ${caseNumber} is already in the system. Choose it instead.` : null;
+}
 
 export interface CreateCaseActor {
   userAccountId: string;
@@ -118,7 +150,9 @@ export async function createCase(
   // Validate concurrently via the pool before opening the transaction.
   // Foreign keys enforce existence at write time; pre-checks give field errors.
   const checks: Array<[string, Promise<string | null>]> = [
-    ['personId', checkReferenceExists(db, person, person.personId, input.personId)],
+    ...(input.personId ? [['personId', checkReferenceExists(db, person, person.personId, input.personId)] as [string, Promise<string | null>]] : []),
+    ...(input.newClient ? [['newClient', probableDuplicatePerson(db, input.newClient)] as [string, Promise<string | null>]] : []),
+    ...(input.caseNumber ? [['caseNumber', existingCaseNumber(db, input.caseNumber)] as [string, Promise<string | null>]] : []),
     [
       'participantRoleId',
       checkReferenceExists(db, role, role.roleId, input.participantRoleId, {
@@ -217,13 +251,21 @@ export async function createCase(
   try {
     return await db.transaction(async (tx) => {
       const recordedAt = new Date();
+      const personId =
+        input.personId ??
+        firstRow(
+          await tx
+            .insert(person)
+            .values({ displayName: input.newClient!.displayName, email: input.newClient!.email })
+            .returning({ personId: person.personId }),
+        ).personId;
 
       const insertedCase = firstRow(
         await tx
           .insert(caseTable)
           .values({
             // Compatibility field; case_participant remains authoritative.
-            clientId: input.personId,
+            clientId: personId,
             countyId: input.countyId,
             caseCategoryId: input.caseCategoryId,
             statusId: input.statusId,
@@ -233,7 +275,7 @@ export async function createCase(
             jurisdictionId: input.jurisdictionId,
             preferredLanguageId: input.preferredLanguageId,
             // Intake snapshot; later identifier edits do not update this field automatically.
-            externalReference: input.identifier?.isPrimary ? input.identifier.value : undefined,
+            externalReference: input.identifier?.isPrimary ? input.identifier.value : input.caseNumber,
           })
           .returning(),
       );
@@ -243,7 +285,7 @@ export async function createCase(
           .insert(caseParticipant)
           .values({
             caseId: insertedCase.caseId,
-            personId: input.personId,
+            personId,
             participantRoleId: input.participantRoleId,
             startedAt: input.effectiveAt,
           })

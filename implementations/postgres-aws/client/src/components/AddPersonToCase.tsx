@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { apiErrorMessage, createExternalAssignment, listVendors, type VendorRecord } from '../api/client';
+import { AddProvider } from './AddProvider';
 import { AssignStaffForm } from './AssignStaffForm';
 import { TypeAheadPicker } from './TypeAheadPicker';
 import { Notice } from './Notice';
@@ -13,6 +14,8 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
   const [selected, setSelected] = useState<VendorRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
+  // A provider not in the system yet: added, then put on the case.
+  const [adding, setAdding] = useState<string | null>(null);
 
   if (!open) {
     return (
@@ -22,11 +25,11 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
     );
   }
 
-  async function addExternal() {
-    if (!selected) return;
+  async function addExternal(professionalId = selected?.professionalId) {
+    if (!professionalId) return;
     setError(null);
     try {
-      await createExternalAssignment(caseId, selected.professionalId);
+      await createExternalAssignment(caseId, professionalId);
       setSelected(null);
       setResetKey((key) => key + 1);
       onAdded();
@@ -43,13 +46,27 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
       </div>
       {kind === 'external' ? (
         <>
-          <label className="settings-field" htmlFor="vendor-query">Find a provider (attorney, expert or vendor)</label>
+          <label className="settings-field" htmlFor="vendor-query">Find a provider (attorney, expert or vendor), or add one</label>
+          {adding !== null ? (
+            <AddProvider
+              inline
+              idPrefix="case-new-provider"
+              initial={{ displayName: adding }}
+              onAdded={(provider) => {
+                // Back to the search, so a retry finds them rather than adding them twice.
+                setAdding(null);
+                void addExternal(provider.professionalId);
+              }}
+              onCancel={() => setAdding(null)}
+            />
+          ) : (
           <div className="assign-staff-row">
             <TypeAheadPicker
               key={resetKey}
               id="vendor-query"
               placeholder="Search by name or email"
-              noResults="No one found. They appear here after their first sign-in."
+              noResults="No one found."
+              addOption={{ label: '+ Add a new provider', onAdd: (query) => setAdding(query) }}
               search={(query) =>
                 listVendors(query).then((result) =>
                   result.professionals.map((vendor) => ({
@@ -65,6 +82,7 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
               Add to case
             </button>
           </div>
+          )}
           {error && <Notice tone="danger">{error}</Notice>}
         </>
       ) : (

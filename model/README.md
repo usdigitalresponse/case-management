@@ -304,9 +304,11 @@ Imported lines keep supplier-stated detail on `invoice_line`: service date,
 description, quantity, rate, timekeeper label and optional task, activity and
 expense codes. These are evidence, not inputs to the amount. Codes stay free
 text until a configured code set is adopted. Before confirming, the submitter
-matches every timekeeper to an existing professional assigned to the case
-(`invoice_line.timekeeper_professional_id`); unmatched lines block confirmation
-and no people are created from labels. On submission, lines with a date and
+matches each timekeeper to an existing professional assigned to the case
+(`invoice_line.timekeeper_professional_id`), or names someone who isn't listed
+(`proposed_timekeeper_name`); a timekeeper the file names but nobody chose is
+kept the same way. No people are created from labels or names: staff match or
+add them before review (`match_invoice_to_case`). On submission, lines with a date and
 hours create time entries for their matched professional, and lines the
 submitter classifies as expenses create `expense` records, linked through
 `source_time_entry_id` or `source_expense_id`, unless the submitter links an

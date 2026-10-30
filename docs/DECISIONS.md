@@ -89,6 +89,19 @@ The external submitter portal keeps its sign-in and is restyled to match.
   adding them is trusted. Duplicate emails are refused. Signing in later
   with that email uses the same profile.
 
+**Adding what isn't listed** (decided 2026-10-29)
+- Every case and person picker's first option adds one that isn't listed.
+  Nothing has to be chosen to move on; what isn't known waits on Intake.
+- A submitter's new case, provider or person is only details on the
+  invoice, never a record. They send it with the usual true-and-correct
+  statement; it waits on Intake until staff match each detail to an
+  existing record or create one from it, then goes to review on its own.
+  The details stay flagged as the submitter's through review.
+- Staff adding a case or provider create it on the spot.
+- Staff may send any invoice waiting on Intake back to its submitter with a
+  reason. The submitter sees it on the invoice, marked "Needs changes" and
+  listed first, until they send it again. No email is sent.
+
 **Later step**
 - Submitters replying to line decisions.
 - Importing a case from a PDF or spreadsheet from another system (a disabled

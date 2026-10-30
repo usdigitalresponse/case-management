@@ -29,6 +29,7 @@ import {
   IN_REVIEW_INVOICE_STATUS_CODES,
   REJECTED_INVOICE_STATUS_CODE,
 } from '../billing/invoiceStatusCodes';
+import { returnedReason } from '../billing/invoiceEvents';
 
 const DECIDED_STATUS_CODES = [APPROVED_INVOICE_STATUS_CODE, REJECTED_INVOICE_STATUS_CODE];
 
@@ -55,6 +56,8 @@ export async function listPortalInvoices(db: Database, reader: PortalActor, case
       caseClientDisplayName: person.displayName,
       caseExternalReference: caseTable.externalReference,
       professionalDisplayName: professional.displayName,
+      proposedCase: invoice.proposedCase,
+      returnedReason,
     })
     .from(invoice)
     .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))

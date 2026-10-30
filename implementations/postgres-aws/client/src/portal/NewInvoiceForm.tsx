@@ -1,6 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Form, FormGroup, Label, Select } from '@trussworks/react-uswds';
-import { apiErrorMessage, createInvoice, type BillableProfessional, type TimeEntryRecord } from '../api/client';
+import { Form, FormGroup } from '@trussworks/react-uswds';
+import {
+  apiErrorMessage,
+  createInvoice,
+  type BillableProfessional,
+  type ProposedCase,
+  type SendStatus,
+  type TimeEntryRecord,
+} from '../api/client';
+import { AddProvider, useAddedProviders } from '../components/AddProvider';
+import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
+import { matchToAddedCase, NO_PROPOSED_PERSON, ProposedPersonFields, proposedPersonToSend } from '../components/NewEntryFields';
 import { lineFromTimeEntry, UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 import {
@@ -16,7 +26,7 @@ import { PeriodFields } from '../components/PeriodFields';
 import { Notice } from '../components/Notice';
 import { AttestationCheckbox } from '../components/AttestationCheckbox';
 import { useReceipt } from './ReceivedFields';
-import { LATER, useShell } from './useShell';
+import { useShell } from './useShell';
 
 function draftSavedMessage(caseId: string | null, staff: boolean): string {
   if (caseId === null) return 'Saved. Match it to a case under "Waiting for a case".';
@@ -26,13 +36,15 @@ function draftSavedMessage(caseId: string | null, staff: boolean): string {
 
 // A new invoice on one case: typed items (starting from unbilled time) or an
 // imported file. Shared by the case page, the portal's New invoice page and
-// staff Intake. With no case (staff only), it waits on Intake for its case.
+// staff Intake. With no case, or no one chosen as its provider, it waits on
+// Intake to be matched.
 export function NewInvoiceForm({
   caseId,
   billable,
   entries,
   onSaved,
   allowImport = true,
+  newCase,
 }: {
   caseId: string | null;
   billable: BillableProfessional[];
@@ -41,6 +53,10 @@ export function NewInvoiceForm({
   allowImport?: boolean;
   // Billing changes what time is unbilled.
   onSaved: () => void;
+  // With no case: one being added. Staff create it once they know who the
+  // invoice is from (`create`, returning its id) and match the invoice to it;
+  // otherwise its details go with the invoice.
+  newCase?: { proposed?: ProposedCase; create?: () => Promise<string> };
 }) {
   const billingRules = usePortalBillingRules();
   const { staff } = useShell();
@@ -49,6 +65,9 @@ export function NewInvoiceForm({
   const [billedProfessionalId, setBilledProfessionalId] = useState(
     () => (billable.find((p) => p.isSelf) ?? (staff ? undefined : billable[0]))?.professionalId ?? '',
   );
+  const providers = useAddedProviders(caseId);
+  const people = [...billable, ...providers.added];
+  const [proposedProvider, setProposedProvider] = useState(NO_PROPOSED_PERSON);
   const billableIds = new Set(billable.map((p) => p.professionalId));
   const unbilled = (entries ?? []).filter((entry) => !entry.billing && billableIds.has(entry.professionalId));
   // A new invoice starts as the billed professional's unbilled time.
@@ -76,35 +95,51 @@ export function NewInvoiceForm({
   const [period, setPeriod] = useState({ start: '', end: '' });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<'draft' | 'submitted' | null>(null);
+  const [saved, setSaved] = useState<SendStatus | null>(null);
+  const [savedCaseId, setSavedCaseId] = useState(caseId);
   const [mode, setMode] = useState<'enter' | 'import'>('enter');
   const receipt = useReceipt('new-invoice');
   const [attested, setAttested] = useState(false);
 
-  // Staff holding an invoice with no case may also leave who it's from to matching.
-  const professionalLater = billedProfessionalId === LATER;
-  const billedId = professionalLater ? '' : billedProfessionalId;
-  const canSave = hasInvoiceItems(lines) && Boolean(billedProfessionalId);
+  // Not chosen or not listed: who it's from is matched on Intake.
+  const unknownProvider = !billedProfessionalId || billedProfessionalId === ADD_NEW;
+  const billedId = unknownProvider ? '' : billedProfessionalId;
+  const canSave = hasInvoiceItems(lines);
 
   async function save(submit: boolean) {
     setSubmitError(null);
     setSaved(null);
     setSubmitting(true);
     try {
-      await createInvoice({
+      const matchTo = !unknownProvider && newCase?.create ? await newCase.create() : undefined;
+      const created = await createInvoice({
         caseId,
         submit,
-        professionalId: professionalLater ? null : billedProfessionalId || undefined,
+        professionalId: unknownProvider ? null : billedProfessionalId,
+        proposedCase: matchTo ? undefined : newCase?.proposed,
+        proposedProvider: unknownProvider && !staff && billedProfessionalId === ADD_NEW ? proposedPersonToSend(proposedProvider) : undefined,
         periodStart: period.start || undefined,
         periodEnd: period.end || undefined,
         lines: linesFromDrafts(lines),
         ...receipt.payload,
         attested: submit && !staff ? attested : undefined,
       });
+      let savedAs = created.status;
+      let savedOn = caseId;
+      if (matchTo) {
+        const matched = await matchToAddedCase(created.invoiceId, matchTo);
+        if ('problem' in matched) {
+          setSubmitError(matched.problem);
+        } else {
+          savedOn = matchTo;
+          if (matched.released) savedAs = 'submitted';
+        }
+      }
       setPeriod({ start: '', end: '' });
       setAttested(false);
       receipt.reset();
-      setSaved(submit ? 'submitted' : 'draft');
+      setSavedCaseId(savedOn);
+      setSaved(savedAs);
       // Refilled from what's still unbilled once the time reloads.
       setTouched(false);
       onSaved();
@@ -124,24 +159,34 @@ export function NewInvoiceForm({
       {(billable.length > 1 || staff) && (
         <div className="inline-fields billed-for-field">
           <FormGroup>
-            <Label htmlFor="billed-professional">Billing for</Label>
-            <Select
+            <PickOrAdd
               id="billed-professional"
-              name="billedProfessional"
+              label="Billing for"
               value={billedProfessionalId}
-              onChange={(event) => {
-                setBilledProfessionalId(event.target.value);
-                startAgain(event.target.value);
+              onChange={(value) => {
+                setBilledProfessionalId(value);
+                startAgain(value);
               }}
+              addLabel="+ Add a provider who isn’t listed"
+              placeholder="Choose who it’s from"
+              hint="Leave it blank if it isn’t known yet; it’s matched on Intake."
+              options={people.map((professional) => ({ value: professional.professionalId, label: professionalLabel(professional) }))}
             >
-              {!billedProfessionalId && <option value="">Choose who it's from</option>}
-              {staff && caseId === null && <option value={LATER}>No professional yet: match it later</option>}
-              {billable.map((professional) => (
-                <option key={professional.professionalId} value={professional.professionalId}>
-                  {professionalLabel(professional)}
-                </option>
-              ))}
-            </Select>
+              {staff ? (
+                <AddProvider
+                  inline
+                  idPrefix="billed-professional-new"
+                  onAdded={(provider) => {
+                    setBilledProfessionalId(provider.professionalId);
+                    providers
+                      .onProviderAdded(provider)
+                      .catch((err: unknown) => setSubmitError(apiErrorMessage(err, 'They were added, but not to this case. Add them from the case page.')));
+                  }}
+                />
+              ) : (
+                <ProposedPersonFields idPrefix="billed-professional-new" value={proposedProvider} onChange={setProposedProvider} />
+              )}
+            </PickOrAdd>
           </FormGroup>
         </div>
       )}
@@ -170,7 +215,10 @@ export function NewInvoiceForm({
           {saved === 'submitted' && (
             <Notice tone="success">{staff ? 'Invoice submitted. It is in the review queue.' : "Invoice submitted. It's under Your invoices."}</Notice>
           )}
-          {saved === 'draft' && <Notice tone="success">{draftSavedMessage(caseId, staff)}</Notice>}
+          {saved === 'draft' && <Notice tone="success">{draftSavedMessage(savedCaseId, staff)}</Notice>}
+          {saved === 'awaiting_match' && (
+            <Notice tone="success">Sent. It waits on Intake until its case and provider are matched, then goes to review.</Notice>
+          )}
           {receipt.fields}
           <PeriodFields idPrefix="new-invoice" start={period.start} end={period.end} onChange={setPeriod} />
           <RulesInForce rules={billingRules.rules} />
@@ -181,7 +229,8 @@ export function NewInvoiceForm({
             idPrefix="new-invoice"
             lines={lines}
             onChange={setLines}
-            timekeepers={billable}
+            timekeepers={people}
+            onProviderAdded={staff ? providers.onProviderAdded : undefined}
             billedProfessionalId={billedId}
             recordedTime={unbilled}
             billingCodes={billingRules.codes}

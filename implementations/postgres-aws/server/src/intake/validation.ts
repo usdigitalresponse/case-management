@@ -4,6 +4,7 @@
 // (e.g. a non-UUID personId) is rejected here, before any DB query — the
 // query layer never sees a value that could produce a raw driver error.
 import { z } from 'zod';
+import { optionalEmail } from '../people/emails';
 
 const createCaseIdentifierInputSchema = z.object({
   identifierTypeId: z.string().uuid(),
@@ -14,7 +15,18 @@ const createCaseIdentifierInputSchema = z.object({
 
 export const createCaseInputSchema = z.object({
   requestId: z.string().uuid(),
-  personId: z.string().uuid(),
+  // An existing person, or a new one created with the case.
+  personId: z.string().uuid().optional(),
+  newClient: z
+    .object({
+      displayName: z.string().trim().min(2, 'Enter the client’s name.').max(200),
+      email: optionalEmail,
+      // Someone else with the same name as a person already in the system.
+      confirmedNew: z.boolean().default(false),
+    })
+    .optional(),
+  // Kept as the case's external reference when no primary identifier is given.
+  caseNumber: z.string().trim().min(1).max(100).optional(),
   participantRoleId: z.string().uuid(),
   statusId: z.string().uuid(),
   // HTTP callers send an explicit instant; internal callers may pass a Date.
@@ -26,6 +38,9 @@ export const createCaseInputSchema = z.object({
   jurisdictionId: z.string().uuid().optional(),
   preferredLanguageId: z.string().uuid().optional(),
   identifier: createCaseIdentifierInputSchema.optional(),
+}).refine((input) => Boolean(input.personId) !== Boolean(input.newClient), {
+  message: 'Choose the client, or add them.',
+  path: ['personId'],
 });
 
 export type CreateCaseIdentifierInput = z.infer<typeof createCaseIdentifierInputSchema>;

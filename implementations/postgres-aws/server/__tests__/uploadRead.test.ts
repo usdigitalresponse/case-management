@@ -81,11 +81,14 @@ async function upload(actor: PortalActor, fileName: string, store = memoryStore(
 }
 
 describe('uploading an invoice before choosing its case', () => {
-  it('needs an open case to bill', async () => {
-    const { actor } = await createProfessional('Synthetic Attorney');
-    await expect(startUploadRead(testDb, memoryStore(), actor, { fileName: 'a.csv', bytes: CSV })).rejects.toBeInstanceOf(
+  it('needs someone the uploader may bill for, though not a case', async () => {
+    const [account] = await testDb.insert(userAccount).values({ displayName: 'No One', email: `${randomUUID()}@example.com`, active: true }).returning();
+    const nobody = await resolvePortalActor(testDb, account!.userAccountId);
+    await expect(startUploadRead(testDb, memoryStore(), nobody, { fileName: 'a.csv', bytes: CSV })).rejects.toBeInstanceOf(
       NotAssignedToCaseError,
     );
+    const { actor } = await createProfessional('Synthetic Attorney');
+    await expect(startUploadRead(testDb, memoryStore(), actor, { fileName: 'a.csv', bytes: CSV })).resolves.toBeDefined();
   });
 
   it('reads the file, lists only the uploader’s cases and suggests the only one', async () => {
@@ -262,7 +265,7 @@ describe('uploading an invoice before choosing its case', () => {
     expect(store.files.size).toBe(1);
   });
 
-  it('lets staff hold an upload with no case or provider yet, for Intake; a submitter must choose a case', async () => {
+  it('lets staff hold an upload with no case or provider yet, and a submitter one with what they know of its case', async () => {
     const { actor, professionalId } = await createProfessional('Synthetic Attorney');
     await caseFor(professionalId, 'CR-0001');
     const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
@@ -272,9 +275,14 @@ describe('uploading an invoice before choosing its case', () => {
     expect(draft).toMatchObject({ caseId: null, professionalId: null });
 
     const read = await upload(actor, 'invoice.csv');
-    await expect(
-      createDraftFromUpload(testDb, actor, { uploadReadId: read.uploadReadId, caseId: null, professionalId }),
-    ).rejects.toBeInstanceOf(ValidationError);
+    const theirs = await createDraftFromUpload(testDb, actor, {
+      uploadReadId: read.uploadReadId,
+      caseId: null,
+      professionalId,
+      proposedCase: { clientName: 'Synthetic Client', caseNumber: 'NEW-1' },
+    });
+    const [held] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, theirs.invoiceId));
+    expect(held).toMatchObject({ caseId: null, professionalId, proposedCase: { clientName: 'Synthetic Client', caseNumber: 'NEW-1' } });
   });
 
   it('keeps the case a held file names, for Intake to offer', async () => {

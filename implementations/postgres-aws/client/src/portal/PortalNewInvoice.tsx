@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
-import { listBillableProfessionals, listMyCases, listMyTimeEntries } from '../api/client';
+import { fieldErrorsOf, listBillableProfessionals, listMyCases, listMyTimeEntries, type ProposedCase } from '../api/client';
+import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
+import {
+  createCaseFromEntry,
+  newCaseEntry,
+  NO_PROPOSED_CASE,
+  ProposedCaseFields,
+  proposedCaseToSend,
+  StaffNewCaseFields,
+} from '../components/NewEntryFields';
 import { useApiResource } from '../hooks/useApiResource';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { NewInvoiceForm } from './NewInvoiceForm';
-import { LATER, UPLOAD_PATH, useShell } from './useShell';
+import { UPLOAD_PATH, useShell } from './useShell';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 
@@ -20,15 +29,30 @@ export default function PortalNewInvoice() {
   );
 }
 
-// Two ways in: enter an invoice by hand for a chosen case, or upload files
-// through the same upload as external submitters (./PortalUpload.tsx).
-// Staff may leave the case for later in either. providersVersion reloads
-// who can be billed after a provider is added.
-export function NewInvoiceStart({ onSaved, providersVersion = 0 }: { onSaved?: () => void; providersVersion?: number }) {
+// Two ways in: enter an invoice by hand, or upload files through the same
+// upload as external submitters (./PortalUpload.tsx). A case that isn't
+// chosen or listed is matched later on Intake.
+export function NewInvoiceStart({ onSaved }: { onSaved?: () => void }) {
   const [params, setParams] = useSearchParams();
   const caseId = params.get('case') ?? '';
   const { staff } = useShell();
   const { data: cases, error } = useApiResource(() => listMyCases().then((result) => result.cases), []);
+  const [proposedCase, setProposedCase] = useState<ProposedCase>(NO_PROPOSED_CASE);
+  const [staffCase, setStaffCase] = useState(newCaseEntry);
+  const [caseErrors, setCaseErrors] = useState<Record<string, string>>({});
+  const adding = caseId === ADD_NEW;
+  const newCase = adding
+    ? staff
+      ? {
+          proposed: proposedCaseToSend(staffCase),
+          create: () =>
+            createCaseFromEntry(staffCase).catch((err: unknown) => {
+              setCaseErrors(fieldErrorsOf(err));
+              throw err;
+            }),
+        }
+      : { proposed: proposedCaseToSend(proposedCase) }
+    : undefined;
 
   return (
     <>
@@ -38,24 +62,25 @@ export function NewInvoiceStart({ onSaved, providersVersion = 0 }: { onSaved?: (
         <section className="compact-card start-option">
           <h2>Enter invoice manually</h2>
           <p className="compact-hint">Choose the case, then type in the items.</p>
-          <label className="settings-field" htmlFor="new-invoice-case">Case</label>
-          <select
+          <PickOrAdd
             id="new-invoice-case"
-            className="usa-select"
+            label="Case"
             value={caseId}
-            onChange={(event) => setParams(event.target.value ? { case: event.target.value } : {})}
+            onChange={(value) => setParams(value ? { case: value } : {})}
+            addLabel="+ Add a case that isn’t listed"
+            placeholder="Choose a case"
+            hint="Leave it blank if it isn’t known yet; it’s matched on Intake."
+            options={(cases ?? []).map((myCase) => ({
+              value: myCase.caseId,
+              label: caseDisplayLabel([myCase.externalReference, myCase.clientDisplayName], undefined),
+            }))}
           >
-            <option value="">Choose a case</option>
-            {staff && <option value={LATER}>No case yet: match it later</option>}
-            {cases?.map((myCase) => (
-              <option key={myCase.caseId} value={myCase.caseId}>
-                {caseDisplayLabel([myCase.externalReference, myCase.clientDisplayName], undefined)}
-              </option>
-            ))}
-          </select>
-          {cases && cases.length === 0 && (
-            <p className="compact-hint">{staff ? 'No case has a professional assigned yet.' : "You aren't assigned to any cases yet."}</p>
-          )}
+            {staff ? (
+              <StaffNewCaseFields idPrefix="new-invoice-case-new" value={staffCase} onChange={setStaffCase} errors={caseErrors} />
+            ) : (
+              <ProposedCaseFields idPrefix="new-invoice-case-new" value={proposedCase} onChange={setProposedCase} />
+            )}
+          </PickOrAdd>
         </section>
 
         <section className="compact-card start-option">
@@ -68,28 +93,37 @@ export function NewInvoiceStart({ onSaved, providersVersion = 0 }: { onSaved?: (
         </section>
       </div>
 
-      {caseId && (
-        <CaseInvoice key={caseId} caseId={caseId === LATER ? null : caseId} providersVersion={providersVersion} onSaved={onSaved} />
-      )}
+      <CaseInvoice
+        key={adding ? '' : caseId}
+        caseId={caseId && !adding ? caseId : null}
+        newCase={newCase}
+        onSaved={() => {
+          // A fresh entry, so the next new case isn't taken for this one.
+          setStaffCase(newCaseEntry());
+          setProposedCase(NO_PROPOSED_CASE);
+          setCaseErrors({});
+          onSaved?.();
+        }}
+      />
     </>
   );
 }
 
-// caseId null: "No case yet"; it waits on Intake.
+// caseId null: no case yet; it waits on Intake.
 function CaseInvoice({
   caseId,
-  providersVersion,
+  newCase,
   onSaved,
 }: {
   caseId: string | null;
-  providersVersion: number;
+  newCase: Parameters<typeof NewInvoiceForm>[0]['newCase'];
   onSaved?: () => void;
 }) {
   const { casePath } = useShell();
   const [timeVersion, setTimeVersion] = useState(0);
   const { data: loaded, error } = useApiResource(
     () => listBillableProfessionals(caseId).then((result) => result.professionals),
-    [caseId, providersVersion],
+    [caseId],
   );
   // Keep the form, and what was typed, while the list reloads.
   const [lastLoaded, setLastLoaded] = useState(loaded);
@@ -117,12 +151,13 @@ function CaseInvoice({
         </p>
       ) : (
         <Notice tone="info">
-          It will wait under "Waiting for a case" until it's matched. Provider not listed? Use "Add a provider" above.
+          It will wait under "Waiting for a case" until it's matched.
         </Notice>
       )}
       {/* Files go through "Import invoice" instead. */}
       <NewInvoiceForm
         caseId={caseId}
+        newCase={newCase}
         billable={billable}
         entries={entries}
         allowImport={false}

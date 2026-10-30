@@ -401,6 +401,10 @@ export const invoice = pgTable(
     // waiting time counts from receivedOn.
     receivedViaId: uuid('received_via_id').references(() => invoiceReceiptChannels.id),
     receivedOn: date('received_on'),
+    // Entered by a submitter whose case or provider wasn't listed; kept
+    // after matching (model/rules.yaml match_invoice_to_case).
+    proposedCase: jsonb('proposed_case').$type<{ clientName: string; caseNumber?: string; details?: string }>(),
+    proposedProvider: jsonb('proposed_provider').$type<{ displayName: string; email?: string; professionalKindId?: string }>(),
   },
   (table) => [index('invoice_professional_id_idx').on(table.professionalId), index('invoice_case_id_idx').on(table.caseId)],
 );
@@ -434,6 +438,9 @@ export const invoiceLine = pgTable(
     timekeeperProfessionalId: uuid('timekeeper_professional_id').references(
       () => professional.professionalId,
     ),
+    // Named by a submitter because they weren't listed; kept after matching.
+    proposedTimekeeperName: text('proposed_timekeeper_name'),
+    proposedTimekeeperEmail: text('proposed_timekeeper_email'),
     taskCode: text('task_code'),
     activityCode: text('activity_code'),
     expenseCode: text('expense_code'),

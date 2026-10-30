@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Select } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
+  editProfessional,
   listProfessionalKinds,
   listVendors,
   rateOn,
@@ -13,6 +14,7 @@ import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { SearchDirectory } from '../components/SearchDirectory';
 import { AddProvider } from '../components/AddProvider';
+import { Notice } from '../components/Notice';
 import { Toast, useToast } from '../components/Toast';
 import { formatMoney } from '../formatMoney';
 
@@ -70,6 +72,67 @@ function KindAndRate({ vendor, kinds, editable }: { vendor: VendorRecord; kinds:
   );
 }
 
+// Administrators correct the name, and the email until they sign in with it.
+function EditProvider({ vendor, onSaved, onCancel }: { vendor: VendorRecord; onSaved: (name: string) => void; onCancel: () => void }) {
+  const [displayName, setDisplayName] = useState(vendor.displayName ?? '');
+  const [email, setEmail] = useState(vendor.email ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await editProfessional(vendor.professionalId, {
+        displayName: displayName.trim(),
+        email: vendor.signedIn ? (vendor.email ?? undefined) : email.trim(),
+      });
+      onSaved(saved.displayName);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'The changes could not be saved.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="compact-card intake-provider">
+      <h2>Edit {vendor.displayName ?? 'provider'}</h2>
+      <div className="inline-fields intake-provider__fields">
+        <div className="usa-form-group">
+          <label className="usa-label" htmlFor="edit-provider-name">Name</label>
+          <input id="edit-provider-name" className="usa-input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+        </div>
+        <div className="usa-form-group">
+          <label className="usa-label" htmlFor="edit-provider-email">Email{vendor.signedIn ? '' : ' (optional)'}</label>
+          <input
+            id="edit-provider-email"
+            type="email"
+            className="usa-input"
+            value={email}
+            disabled={vendor.signedIn}
+            aria-describedby={vendor.signedIn ? 'edit-provider-email-hint' : undefined}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+          {vendor.signedIn && (
+            <p id="edit-provider-email-hint" className="field-hint">They sign in with this email, so it can’t be changed here.</p>
+          )}
+        </div>
+      </div>
+      {!vendor.signedIn && (
+        <p className="compact-hint">When they first sign in with this email, they get this profile.</p>
+      )}
+      {error && <Notice tone="danger">{error}</Notice>}
+      <div className="button-row">
+        <button type="button" className="btn btn--primary" disabled={saving || displayName.trim().length < 2} onClick={() => void save()}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button type="button" className="link-button" disabled={saving} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 export const DIRECTORY_TITLE = 'Providers';
 
 export default function VendorsDirectory() {
@@ -80,6 +143,7 @@ export default function VendorsDirectory() {
     [isAdmin],
   );
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<VendorRecord | null>(null);
   const [version, setVersion] = useState(0);
   const [toast, setToast] = useToast();
   return (
@@ -92,7 +156,14 @@ export default function VendorsDirectory() {
       loadInitially
       reloadKey={version}
       actions={
-        <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
+        <button
+          type="button"
+          className="btn btn--primary"
+          onClick={() => {
+            setEditing(null);
+            setAdding(true);
+          }}
+        >
           Add
         </button>
       }
@@ -100,18 +171,50 @@ export default function VendorsDirectory() {
       rowKey={(vendor) => vendor.professionalId}
       columns={[
         { header: 'Name', render: (vendor) => vendor.displayName ?? 'Unknown' },
-        { header: 'Email', render: (vendor) => vendor.email },
+        { header: 'Email', render: (vendor) => vendor.email ?? <span className="muted">None yet</span> },
         { header: 'Kind and rate', render: (vendor) => <KindAndRate vendor={vendor} kinds={kinds} editable={isAdmin} /> },
         { header: 'Active', render: (vendor) => (vendor.active ? 'Yes' : 'No') },
+        ...(isAdmin
+          ? [
+              {
+                header: 'Actions',
+                hiddenHeader: true,
+                render: (vendor: VendorRecord) => (
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => {
+                      setAdding(false);
+                      setEditing(vendor);
+                    }}
+                  >
+                    Edit
+                  </button>
+                ),
+              },
+            ]
+          : []),
       ]}
     >
+      {editing && (
+        <EditProvider
+          key={editing.professionalId}
+          vendor={editing}
+          onCancel={() => setEditing(null)}
+          onSaved={(name) => {
+            setEditing(null);
+            setVersion((v) => v + 1);
+            setToast({ message: `Saved ${name}.` });
+          }}
+        />
+      )}
       {adding && (
         <AddProvider
           onCancel={() => setAdding(false)}
-          onAdded={(name) => {
+          onAdded={({ displayName }) => {
             setAdding(false);
             setVersion((v) => v + 1);
-            setToast({ message: `Added ${name}.` });
+            setToast({ message: `Added ${displayName}.` });
           }}
         />
       )}

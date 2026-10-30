@@ -132,14 +132,18 @@ async function allActiveProfessionalIds(db: DatabaseOrTransaction): Promise<stri
   return rows.map((row) => row.professionalId);
 }
 
-// With no case, only staff may bill, for any active professional.
+// With no case, staff may bill for any active professional, and a submitter
+// for themselves or those they act for, until it's matched.
 export async function billableProfessionalIds(
   db: DatabaseOrTransaction,
   actor: PortalActor,
   caseId: string | null,
 ): Promise<string[]> {
   if (caseId === null) {
-    return (await isStaffAccount(db, actor.userAccountId)) ? allActiveProfessionalIds(db) : [];
+    if (await isStaffAccount(db, actor.userAccountId)) {
+      return allActiveProfessionalIds(db);
+    }
+    return [...new Set([...(actor.professionalId ? [actor.professionalId] : []), ...(await representedProfessionalIds(db, actor.userAccountId))])];
   }
   const ids = new Set(await representedProfessionalIds(db, actor.userAccountId, caseId));
   if (actor.professionalId) {
@@ -161,9 +165,9 @@ export async function billableProfessionalIds(
 }
 
 // The one check for billing (caseId, professionalId): the professional must
-// be billable on the case. Only staff may leave the professional unknown, and
-// only with no case (match_invoice_to_case). Returns whom the actor may bill,
-// for checking each line.
+// be billable on the case. Anyone who may bill on it may leave the
+// professional unknown, for matching (match_invoice_to_case). Returns whom
+// the actor may bill, for checking each line.
 export async function authorizeBilling(
   db: DatabaseOrTransaction,
   actor: PortalActor,
@@ -171,7 +175,7 @@ export async function authorizeBilling(
   professionalId: string | null,
 ): Promise<Set<string>> {
   const billable = new Set(await billableProfessionalIds(db, actor, caseId));
-  const allowed = professionalId === null ? caseId === null && billable.size > 0 : billable.has(professionalId);
+  const allowed = professionalId === null ? billable.size > 0 : billable.has(professionalId);
   if (!allowed) {
     throw new NotAssignedToCaseError();
   }

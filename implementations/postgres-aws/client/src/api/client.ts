@@ -281,11 +281,21 @@ export interface VendorRecord {
   professionalId: string;
   displayName: string | null;
   active: boolean;
-  email: string;
+  // Null for one added without it; fixed once they sign in with it.
+  email: string | null;
+  signedIn: boolean;
   professionalKindId: string | null;
   professionalKindDisplayName: string | null;
   // Their kind's rates, oldest first.
   rates: ProfessionalRate[];
+}
+
+// Administrators only.
+export function editProfessional(professionalId: string, input: { displayName: string; email?: string }) {
+  return request<{ professionalId: string; displayName: string; email: string | null }>(`/api/professionals/${professionalId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
 }
 
 export function listVendors(query: string): Promise<{ professionals: VendorRecord[] }> {
@@ -461,7 +471,10 @@ export interface CreateCaseIdentifierInput {
 
 export interface CreateCaseInput {
   requestId: string;
-  personId: string;
+  // An existing person, or a new one created with the case.
+  personId?: string;
+  newClient?: { displayName: string; email?: string; confirmedNew?: boolean };
+  caseNumber?: string;
   participantRoleId: string;
   statusId: string;
   effectiveAt: string;
@@ -492,6 +505,16 @@ export function isValidationErrorBody(body: unknown): body is ValidationErrorBod
     body !== null &&
     (body as { error?: unknown }).error === 'validation_error'
   );
+}
+
+// The field errors a request was refused with (or that an error carries
+// already, as NewCaseError does); empty if none.
+export function fieldErrorsOf(err: unknown): Record<string, string> {
+  if (err instanceof ApiError) {
+    return isValidationErrorBody(err.body) ? err.body.fieldErrors : {};
+  }
+  const carried = (err as { fieldErrors?: unknown } | null)?.fieldErrors;
+  return carried && typeof carried === 'object' ? (carried as Record<string, string>) : {};
 }
 
 export function createCase(input: CreateCaseInput): Promise<CreateCaseResult> {
@@ -581,6 +604,9 @@ export function deleteTimeEntry(timeEntryId: string): Promise<{ timeEntryId: str
 
 export interface InvoiceRecord {
   invoiceId: string;
+  // Why staff sent it back, until it's sent again.
+  returnedReason: string | null;
+  proposedCase: ProposedCase | null;
   // Null while a staff-entered invoice waits on Intake for its case.
   caseId: string | null;
   statusId: string;
@@ -631,6 +657,9 @@ export interface CreateInvoiceLineInput {
   expenseCode?: string;
   // Whose work the line bills; a delegated invoice defaults it server-side.
   timekeeperProfessionalId?: string;
+  // Someone not listed, named instead; staff match them on Intake.
+  proposedTimekeeperName?: string;
+  proposedTimekeeperEmail?: string;
   // Mileage only; quantity is the miles for the whole trip.
   tripOrigin?: string;
   tripDestination?: string;
@@ -740,18 +769,42 @@ export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt 
   // Null: it waits on Intake for its case.
   caseId: string | null;
   // Whose work the invoice bills; defaults to the caller's own profile. Null:
-  // staff choose when they match it to a case (no case, draft only).
+  // chosen when it's matched on Intake.
   professionalId?: string | null;
+  // What the submitter knows of a case or provider that isn't listed.
+  proposedCase?: ProposedCase;
+  proposedProvider?: ProposedProvider;
   // False keeps it as an editable draft; the server defaults to submitting.
   submit?: boolean;
 }
+
+// Entered because they weren't listed (model/rules.yaml match_invoice_to_case).
+export interface ProposedCase {
+  clientName: string;
+  caseNumber?: string;
+  details?: string;
+}
+
+export interface ProposedProvider {
+  displayName: string;
+  email?: string;
+  professionalKindId?: string;
+}
+
+// 'awaiting_match': sent, but waiting on Intake for what wasn't listed.
+export type SendStatus = 'draft' | 'submitted' | 'awaiting_match';
 
 // Intake: invoices held until they are matched to a case.
 export interface IntakeItem {
   invoiceId: string | null;
   invoiceImportId: string | null;
   fileName: string | null;
-  stage: 'reading' | 'unreadable' | 'to_confirm' | 'ready';
+  // 'sent': sent for matching by its submitter.
+  stage: 'reading' | 'unreadable' | 'to_confirm' | 'ready' | 'sent';
+  caseId: string | null;
+  proposedCase: ProposedCase | null;
+  proposedProvider: ProposedProvider | null;
+  unlistedTimekeepers: Array<{ invoiceLineId: string; name: string; email: string | null; description: string | null }>;
   professionalId: string | null;
   professionalDisplayName: string | null;
   enteredByUserAccountId: string;
@@ -772,8 +825,18 @@ export function listInvoiceIntake(): Promise<{ items: IntakeItem[] }> {
 
 // addMissing adds the invoice's providers to the case when they aren't on it.
 // professionalId: whom it bills, when it was saved without one.
-export function matchInvoiceToCase(invoiceId: string, input: { caseId: string; addMissing?: boolean; professionalId?: string }) {
-  return request<{ invoiceId: string; caseId: string; addedProfessionalIds: string[] }>(`/api/invoices/intake/${invoiceId}/case`, {
+// Back to its submitter's drafts, with what to change (staff only).
+export function returnToSubmitter(invoiceId: string, reason: string) {
+  return request<{ invoiceId: string }>(`/api/invoices/intake/${invoiceId}/return`, { method: 'POST', body: JSON.stringify({ reason }) });
+}
+
+// timekeepers: who did the work, by line, for lines naming someone unlisted.
+// released: it went on to review.
+export function matchInvoiceToCase(
+  invoiceId: string,
+  input: { caseId: string; addMissing?: boolean; professionalId?: string; timekeepers?: Record<string, string> },
+) {
+  return request<{ invoiceId: string; caseId: string; addedProfessionalIds: string[]; released: boolean; releaseProblem?: string }>(`/api/invoices/intake/${invoiceId}/case`, {
     method: 'POST',
     body: JSON.stringify(input),
   });
@@ -807,8 +870,8 @@ export function transitionInvoice(
   invoiceId: string,
   transition: InvoiceTransition,
   receipt?: InvoiceReceipt,
-): Promise<{ invoiceId: string }> {
-  return request<{ invoiceId: string }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
+): Promise<{ invoiceId: string; status?: SendStatus }> {
+  return request<{ invoiceId: string; status?: SendStatus }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
     method: 'POST',
     body: receipt ? JSON.stringify(receipt) : undefined,
   });
@@ -1061,8 +1124,16 @@ export function discardUpload(uploadReadId: string): Promise<{ splitReadId: stri
 
 export function createUploadDraft(
   uploadReadId: string,
-  // Null case and professional (staff only): it waits on Intake to be matched.
-  details: { caseId: string | null; professionalId: string | null; periodStart?: string; periodEnd?: string; invoiceNumber?: string },
+  // Null case or professional: it waits on Intake to be matched.
+  details: {
+    caseId: string | null;
+    professionalId: string | null;
+    proposedCase?: ProposedCase;
+    proposedProvider?: ProposedProvider;
+    periodStart?: string;
+    periodEnd?: string;
+    invoiceNumber?: string;
+  },
 ): Promise<{ invoiceImportId: string; invoiceId: string }> {
   return request(`/api/portal/uploads/${uploadReadId}/draft`, { method: 'POST', body: JSON.stringify(details) });
 }
@@ -1140,8 +1211,8 @@ export function invoiceExportUrl(scope: 'staff' | 'portal', invoiceId: string, f
   return `${base}/${invoiceId}/export?format=${format}`;
 }
 
-export function createInvoice(input: CreateInvoiceInput): Promise<{ invoiceId: string; submittedTotal: string }> {
-  return request<{ invoiceId: string; submittedTotal: string }>('/api/portal/invoices', {
+export function createInvoice(input: CreateInvoiceInput): Promise<{ invoiceId: string; submittedTotal: string; status: SendStatus }> {
+  return request<{ invoiceId: string; submittedTotal: string; status: SendStatus }>('/api/portal/invoices', {
     method: 'POST',
     body: JSON.stringify(input),
   });
@@ -1171,6 +1242,9 @@ export interface QueuedInvoice {
   // Set when staff entered an invoice received outside the system.
   receivedViaDisplayName: string | null;
   receivedOn: string | null;
+  proposedCase: ProposedCase | null;
+  proposedProvider: ProposedProvider | null;
+  returnedReason: string | null;
 }
 
 export interface AssignedPerson {
@@ -1301,6 +1375,8 @@ export interface InvoiceReviewLine {
   routeDistance: string | null;
   routeCheckedAt: string | null;
   timekeeperLabel: string | null;
+  proposedTimekeeperName: string | null;
+  proposedTimekeeperEmail: string | null;
   timekeeperProfessionalId: string | null;
   timekeeperDisplayName: string | null;
   taskCode: string | null;

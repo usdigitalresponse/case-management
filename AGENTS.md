@@ -97,6 +97,9 @@ generic requirement in the repository.
   platform auditing.
 - Read `docs/model-review.md` for the 0.2 migration, open decisions and current
   implementation gaps; `model/workflows.yaml` is authoritative for transitions.
+- A submitter's "new" case, provider or timekeeper is proposed details on the
+  request, never a record; staff match or create records on Intake, and the
+  details stay flagged through review.
 - Invoice line decisions are working decisions until the reviewer finishes a
   round; only finished rounds are recorded and never changed. Sign-off
   comments are internal-only and never reach submitters or exports.
@@ -221,7 +224,9 @@ Its offline tests must not authenticate or mutate a live environment.
 The separate Postgres/AWS prototype lives in `implementations/postgres-aws/`.
 Its staff UI is an invoice review tool designed to sit beside an external
 case management system; links to that system stay inert placeholders, and
-features hidden for it are hidden from navigation, not deleted. Staff and
+features hidden for it are hidden from navigation, not deleted. Every case and
+person picker is `client/src/components/PickOrAdd.tsx` (first option adds
+one); never block the next step on an unchosen case or provider. Staff and
 external submitters share the new-invoice form (staff use it on Intake) and
 the import pages; links that differ
 between the two apps go through `client/src/portal/useShell.ts`. Design
@@ -236,7 +241,8 @@ demo sign-in is enabled.
 Run server/client `npm run typecheck`, client `npm run build` and `npm test`, and
 server `npm test` against a separate migrated test database (see its README). The server
 build entry point is `dist/src/app.js`. Uploaded invoice files are working
-copies in a private local directory (`DOCUMENT_STORE_DIR`), kept with a live
+copies in a private local directory (`DOCUMENT_STORE_DIR`, a named
+`documents` volume in both Compose files), kept with a live
 request or draft (shown to its submitter and reviewers) and deleted on
 discard, three-day expiry of a file that couldn't be read, or when the request
 is withdrawn or deleted (`src/imports/documentRetention.ts`); drafts never

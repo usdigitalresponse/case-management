@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { InvoiceRecord } from '../api/client';
-import { formatSpan, submissionStatus } from './portalWording';
+import { canWithdraw, formatSpan, submissionStatus } from './portalWording';
 
 const invoice = (patch: Partial<InvoiceRecord>): InvoiceRecord => ({
   invoiceId: 'i',
+  returnedReason: null,
+  proposedCase: null,
   caseId: 'c',
   statusId: 's',
   statusCode: 'draft',
@@ -59,5 +61,22 @@ describe('submissionStatus', () => {
       label: 'Decided',
       note: '$1,980.00 approved. 1 line cut.',
     });
+  });
+
+  it('marks a draft the billing office sent back, with their reason', () => {
+    expect(submissionStatus(invoice({ returnedReason: 'Add the case number.' }))).toEqual({
+      label: 'Needs changes',
+      tone: 'danger',
+      note: 'Add the case number.',
+    });
+  });
+});
+
+describe('canWithdraw', () => {
+  it('lets only the sender withdraw, before review starts', () => {
+    const sent = invoice({ statusCode: 'awaiting_match', submittedByUserAccountId: 'me' });
+    expect(canWithdraw(sent, 'me')).toBe(true);
+    expect(canWithdraw(sent, 'someone else')).toBe(false);
+    expect(canWithdraw({ ...sent, statusCode: 'under_review' }, 'me')).toBe(false);
   });
 });

@@ -2,7 +2,7 @@
 // payment_request). Each locks the invoice row, as review does, so a recall
 // can't race a decision.
 import { z } from 'zod';
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import type { Database, Transaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { getReferenceId } from '../db/referenceLookups';
@@ -16,6 +16,8 @@ import {
   invoiceApprovalChain,
   invoiceApprovalDecision,
   invoiceAttestation,
+  invoiceEvent,
+  invoiceEventTypes,
   invoiceLine,
   invoiceLineTypes,
   invoiceStatuses,
@@ -24,7 +26,8 @@ import {
   timeEntry,
   userAccount,
 } from '../db/schema';
-import { authorizeBilling, isStaffAccount, type PortalActor } from '../portal/portalActor';
+import { authorizeBilling, isStaffAccount, resolvePortalActor, type PortalActor } from '../portal/portalActor';
+import { hasUnmatchedTimekeepers, needsMatching, type ProposedCase, type ProposedProvider } from './proposedDetails';
 import { importDocumentIds, releaseDocumentIfUnneeded } from '../imports/documentRetention';
 import type { DocumentStore } from '../imports/documentStore';
 import { formatMoney } from './money';
@@ -44,10 +47,12 @@ import { enforceBillingRules } from './billingRules';
 import { assignOnSubmit, endAllAssignments } from './reviewAssignment';
 import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry } from './invoiceReceipt';
 import {
+  AWAITING_MATCH_INVOICE_STATUS_CODE,
   DRAFT_INVOICE_STATUS_CODE,
   SUBMITTED_INVOICE_STATUS_CODE,
   WITHDRAWN_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
+import { optionalEmail } from '../people/emails';
 
 // Snapshot layout version (model/README.md).
 export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.5.0';
@@ -82,6 +87,9 @@ export const invoiceLineInputSchema = z
     expenseCode: z.string().trim().min(1).optional(),
     // Defaults to the billed professional on a delegated invoice.
     timekeeperProfessionalId: z.string().uuid().optional(),
+    // Someone not listed, named by the submitter (./proposedDetails.ts).
+    proposedTimekeeperName: z.string().trim().min(1).max(200).optional(),
+    proposedTimekeeperEmail: optionalEmail,
     // Mileage only; quantity is the miles claimed for the whole trip.
     tripOrigin: address.optional(),
     tripDestination: address.optional(),
@@ -146,7 +154,8 @@ async function replaceLines(
     ...line,
     amount: line.amount === undefined ? undefined : Math.round(line.amount * 100) / 100,
     timekeeperProfessionalId:
-      line.timekeeperProfessionalId ?? (delegated && fillTimekeepers ? (billedProfessionalId ?? undefined) : undefined),
+      line.timekeeperProfessionalId ??
+      (delegated && fillTimekeepers && !line.proposedTimekeeperName ? (billedProfessionalId ?? undefined) : undefined),
   }));
   if (lines.some((line) => line.timekeeperProfessionalId && !billable.has(line.timekeeperProfessionalId))) {
     throw new ValidationError({
@@ -269,6 +278,8 @@ async function replaceLines(
       activityCode: line.activityCode,
       expenseCode: line.expenseCode,
       timekeeperProfessionalId: line.timekeeperProfessionalId,
+      proposedTimekeeperName: line.proposedTimekeeperName,
+      proposedTimekeeperEmail: line.proposedTimekeeperName ? line.proposedTimekeeperEmail : undefined,
       sourceLocation: line.sourceLocation,
       ...(line.lineType === 'mileage' && {
         expenseTypeId: mileageTypeId,
@@ -297,7 +308,7 @@ export async function createDraftInTx(
   caseId: string | null,
   billedProfessionalId: string | null,
   content: DraftContent,
-  options: { fillTimekeepers: boolean } = { fillTimekeepers: true },
+  options: { fillTimekeepers?: boolean; proposedCase?: ProposedCase; proposedProvider?: ProposedProvider } = {},
 ): Promise<string> {
   const draftStatusId = await statusId(tx, DRAFT_INVOICE_STATUS_CODE);
   const { invoiceId } = firstRow(
@@ -311,10 +322,12 @@ export async function createDraftInTx(
         caseId,
         periodStart: content.periodStart,
         periodEnd: content.periodEnd,
+        proposedCase: caseId === null ? options.proposedCase : undefined,
+        proposedProvider: billedProfessionalId === null ? options.proposedProvider : undefined,
       })
       .returning({ invoiceId: invoice.invoiceId }),
   );
-  const total = await replaceLines(tx, actor, invoiceId, caseId, billedProfessionalId, content, options.fillTimekeepers);
+  const total = await replaceLines(tx, actor, invoiceId, caseId, billedProfessionalId, content, options.fillTimekeepers ?? true);
   await tx.update(invoice).set({ submittedTotal: total }).where(eq(invoice.invoiceId, invoiceId));
   await recordInvoiceEvent(tx, {
     invoiceId,
@@ -384,6 +397,8 @@ async function attestorPersonId(tx: Transaction, actor: PortalActor): Promise<st
   return own?.personId ?? null;
 }
 
+// Sends a draft: to review, or, while its case, provider or a line's
+// timekeeper is still unknown, to intake for matching (send_for_matching).
 export async function submitInTx(
   tx: Transaction,
   actor: PortalActor,
@@ -394,7 +409,7 @@ export async function submitInTx(
     // The submitter ticked ATTESTATION_STATEMENT.
     attested?: boolean;
   } = {},
-): Promise<void> {
+): Promise<'submitted' | 'awaiting_match'> {
   const staff = await isStaffAccount(tx, actor.userAccountId);
   if (!staff && !options.attested) {
     throw new ValidationError({ attested: 'Tick the box to confirm this invoice is true and correct.' });
@@ -407,14 +422,7 @@ export async function submitInTx(
   if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
     throw new InvoiceStateError('Only a draft can be submitted.');
   }
-  if (locked.professionalId === null) {
-    throw new ValidationError({ professionalId: 'Choose who this invoice is from when you match it to a case.' });
-  }
-  if (locked.caseId === null && !options.withoutCase) {
-    throw new ValidationError({ caseId: 'Match this invoice to a case, or choose to review it without one.' });
-  }
-  const billedProfessionalId = locked.professionalId;
-  await requireReceiptForStaffEntry(tx, actor, { ...locked, professionalId: billedProfessionalId });
+  await requireReceiptForStaffEntry(tx, actor, locked);
   const lines = await tx
     .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
     .from(invoiceLine)
@@ -433,17 +441,87 @@ export async function submitInTx(
     throw new InvoiceStateError('Confirm the imported values before submitting this invoice.');
   }
   await checkInferredDates(tx, invoiceId);
+  // Only staff may send one to review without a case (match_invoice_to_case).
+  if (await needsMatching(tx, locked, { withoutCase: staff && options.withoutCase })) {
+    // What can be checked before matching is checked now, for the submitter.
+    if (locked.professionalId !== null && !(await hasUnmatchedTimekeepers(tx, invoiceId))) {
+      await priceLines(tx, invoiceId, { billedProfessionalId: locked.professionalId, unmatchedMeansBilled: true, strict: true });
+    }
+    const awaitingStatusId = await statusId(tx, AWAITING_MATCH_INVOICE_STATUS_CODE);
+    await tx.update(invoice).set({ statusId: awaitingStatusId }).where(eq(invoice.invoiceId, invoiceId));
+    await recordInvoiceEvent(tx, {
+      invoiceId,
+      eventTypeCode: 'sent_for_matching',
+      statusId: awaitingStatusId,
+      actorUserAccountId: actor.userAccountId,
+    });
+    return 'awaiting_match';
+  }
+  await finishSubmission(tx, invoiceId, {
+    caseId: locked.caseId,
+    billedProfessionalId: locked.professionalId!,
+    invoiceImportId: imported?.invoiceImportId,
+    attestor,
+    attestedAt: new Date(),
+    actorUserAccountId: actor.userAccountId,
+    eventTypeCode: 'submitted',
+  });
+  return 'submitted';
+}
+
+// Staff have matched everything a request sent for matching was missing
+// (release_to_review): it goes on as if just submitted, with the attestation
+// given on sending. Returns false while something is still unmatched.
+export async function releaseToReviewInTx(tx: Transaction, staffUserAccountId: string, invoiceId: string): Promise<boolean> {
+  const [locked] = await tx.select().from(invoice).where(eq(invoice.invoiceId, invoiceId)).for('update');
+  if (!locked || locked.statusId !== (await statusId(tx, AWAITING_MATCH_INVOICE_STATUS_CODE))) {
+    throw new InvoiceStateError('Only an invoice waiting for its case can be released to review.');
+  }
+  if (await needsMatching(tx, locked)) {
+    return false;
+  }
+  const [sent] = await tx
+    .select({ occurredAt: invoiceEvent.occurredAt })
+    .from(invoiceEvent)
+    .innerJoin(invoiceEventTypes, eq(invoiceEvent.eventTypeId, invoiceEventTypes.id))
+    .where(and(eq(invoiceEvent.invoiceId, invoiceId), eq(invoiceEventTypes.code, 'sent_for_matching')))
+    .orderBy(desc(invoiceEvent.occurredAt))
+    .limit(1);
+  const submitter = await resolvePortalActor(tx, locked.submittedByUserAccountId);
+  const attestor = (await isStaffAccount(tx, submitter.userAccountId)) ? null : await attestorPersonId(tx, submitter);
+  const imported = await findImportForInvoice(tx, invoiceId);
+  await finishSubmission(tx, invoiceId, {
+    caseId: locked.caseId,
+    billedProfessionalId: locked.professionalId!,
+    invoiceImportId: imported?.invoiceImportId,
+    attestor,
+    attestedAt: sent?.occurredAt ?? new Date(),
+    actorUserAccountId: staffUserAccountId,
+    eventTypeCode: 'released_to_review',
+  });
+  return true;
+}
+
+async function finishSubmission(
+  tx: Transaction,
+  invoiceId: string,
+  args: {
+    caseId: string | null;
+    billedProfessionalId: string;
+    invoiceImportId: string | undefined;
+    attestor: string | null;
+    attestedAt: Date;
+    actorUserAccountId: string;
+    eventTypeCode: 'submitted' | 'released_to_review';
+  },
+): Promise<void> {
+  const { caseId, billedProfessionalId } = args;
   // Time is recorded against a case; with none, time lines stand alone.
-  if (locked.caseId !== null) {
+  if (caseId !== null) {
     await createTimeEntriesForTimeLines(
       tx,
-      {
-        invoiceId,
-        caseId: locked.caseId,
-        billedProfessionalId,
-        invoiceImportId: imported?.invoiceImportId,
-      },
-      actor.userAccountId,
+      { invoiceId, caseId, billedProfessionalId, invoiceImportId: args.invoiceImportId },
+      args.actorUserAccountId,
     );
   }
   // Priced again so the snapshot below freezes the rates in force.
@@ -462,15 +540,15 @@ export async function submitInTx(
   const { invoiceApprovalChainId } = firstRow(
     await tx
       .insert(invoiceApprovalChain)
-      .values({ invoiceId, createdByUserAccountId: actor.userAccountId, createdAt: submittedAt })
+      .values({ invoiceId, createdByUserAccountId: args.actorUserAccountId, createdAt: submittedAt })
       .returning({ invoiceApprovalChainId: invoiceApprovalChain.invoiceApprovalChainId }),
   );
-  if (attestor) {
+  if (args.attestor) {
     await tx.insert(invoiceAttestation).values({
       invoiceApprovalChainId,
-      attestorPersonId: attestor,
-      recordedByUserAccountId: actor.userAccountId,
-      attestedAt: submittedAt,
+      attestorPersonId: args.attestor,
+      recordedByUserAccountId: args.actorUserAccountId,
+      attestedAt: args.attestedAt,
       statement: ATTESTATION_STATEMENT,
     });
   }
@@ -482,12 +560,12 @@ export async function submitInTx(
     .where(eq(invoiceApprovalChain.invoiceApprovalChainId, invoiceApprovalChainId));
   await recordInvoiceEvent(tx, {
     invoiceId,
-    eventTypeCode: 'submitted',
+    eventTypeCode: args.eventTypeCode,
     statusId: submittedStatusId,
-    actorUserAccountId: actor.userAccountId,
+    actorUserAccountId: args.actorUserAccountId,
     chainId: invoiceApprovalChainId,
   });
-  await assignOnSubmit(tx, invoiceId, locked.caseId);
+  await assignOnSubmit(tx, invoiceId, caseId);
 }
 
 export async function updateDraftInvoice(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
@@ -526,23 +604,28 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
       .where(and(eq(invoiceLine.invoiceId, invoiceId), eq(invoice.submittedByUserAccountId, actor.userAccountId)));
     await measureTrips(db, trips);
   }
-  await db.transaction(async (tx) => {
+  const status = await db.transaction(async (tx) => {
     // The receipt is recorded only on an invoice this actor may submit; submitInTx locks it again.
     await lockOwnInvoice(tx, actor, invoiceId);
     await recordReceipt(tx, invoiceId, receipt.data);
-    await submitInTx(tx, actor, invoiceId, { withoutCase: receipt.data.withoutCase, attested: receipt.data.attested });
+    return submitInTx(tx, actor, invoiceId, { withoutCase: receipt.data.withoutCase, attested: receipt.data.attested });
   });
   if (!(await isStaffAccount(db, actor.userAccountId))) {
     // Not awaited: sending is a courtesy; a failure is logged, never shown.
-    emailReceipt(db, actor, invoiceId).catch((error: unknown) => {
+    emailReceipt(db, actor, invoiceId, status).catch((error: unknown) => {
       // eslint-disable-next-line no-console
       console.error('Failed to email an invoice receipt:', error);
     });
   }
-  return { invoiceId };
+  return { invoiceId, status };
 }
 
-async function emailReceipt(db: Database, actor: PortalActor, invoiceId: string): Promise<void> {
+async function emailReceipt(
+  db: Database,
+  actor: PortalActor,
+  invoiceId: string,
+  status: 'submitted' | 'awaiting_match',
+): Promise<void> {
   const [row] = await db
     .select({
       email: userAccount.email,
@@ -562,24 +645,27 @@ async function emailReceipt(db: Database, actor: PortalActor, invoiceId: string)
     return;
   }
   const lines = [
-    'We received your invoice and sent it for review.',
+    status === 'awaiting_match'
+      ? 'We received your invoice. Some of its details aren’t in our system yet, so the billing office will match them, then send it for review.'
+      : 'We received your invoice and sent it for review.',
     '',
     `Case: ${[row.caseReference, row.clientName].filter(Boolean).join(', ') || 'not given'}`,
     `Billing period: ${row.periodStart && row.periodEnd ? `${row.periodStart} to ${row.periodEnd}` : 'not given'}`,
     `Amount: ${formatMoney(row.submittedTotal)}`,
-    `Sent: ${row.submittedAt?.toISOString() ?? ''}`,
+    `Sent: ${(row.submittedAt ?? new Date()).toISOString()}`,
     '',
     'You can withdraw it until review starts. Reviewers see your original file and every change you made.',
   ];
-  await sendEmail(row.email, 'Invoice sent for review', lines.join('\n'));
+  await sendEmail(row.email, status === 'awaiting_match' ? 'Invoice received' : 'Invoice sent for review', lines.join('\n'));
 }
 
 // Only before any decision. The recalled chain is superseded, keeping its
-// snapshot.
+// snapshot. One waiting to be matched has no chain yet.
 export async function recallInvoice(db: Database, actor: PortalActor, invoiceId: string) {
   return db.transaction(async (tx) => {
     const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
-    if (locked.statusId !== (await statusId(tx, SUBMITTED_INVOICE_STATUS_CODE))) {
+    const recallable = [await statusId(tx, SUBMITTED_INVOICE_STATUS_CODE), await statusId(tx, AWAITING_MATCH_INVOICE_STATUS_CODE)];
+    if (!recallable.includes(locked.statusId)) {
       throw new InvoiceStateError('Only a submitted invoice can be recalled.');
     }
     const [chain] = await tx

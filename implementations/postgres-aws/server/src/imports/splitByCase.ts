@@ -9,7 +9,7 @@ import { caseAssignment, caseIdentifier, caseTable, person, supportingInvoice } 
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
-import { isStaffAccount, representedProfessionalIds, type PortalActor } from '../portal/portalActor';
+import { billableProfessionalIds, representedProfessionalIds, type PortalActor } from '../portal/portalActor';
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile } from './detectFormat';
 import { extractIntoDraft, insertDocument, insertImport, sha256 } from './invoiceImports';
@@ -17,6 +17,7 @@ import { cancelExtraction, enqueueExtraction, extractionProgress } from './extra
 import { ExtractionCancelledError, isolationEnabled, parseIsolated } from './isolatedExtraction';
 import { suggestMileage, UnreadableInvoiceFileError, type ImportFormat, type ParsedInvoice } from './parsedInvoice';
 import { matchKeys, namedIn, type MatchKeys } from './caseMatching';
+import { proposedCaseSchema, proposedProviderSchema } from '../billing/proposedDetails';
 import { suggestUploadCase, uploadCases } from './caseSuggestions';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { listMileageRates, mileageRateOn } from '../billing/mileageRates';
@@ -350,8 +351,8 @@ export async function startUploadRead(
   actor: PortalActor,
   input: { fileName?: string; bytes: Buffer },
 ): Promise<{ uploadReadId: string }> {
-  // Staff may hold an invoice with no case yet, on Intake.
-  if (!(await isStaffAccount(db, actor.userAccountId)) && (await uploadCases(db, actor)).length === 0) {
+  // Its case may be new, but the uploader must be able to bill someone.
+  if ((await billableProfessionalIds(db, actor, null)).length === 0) {
     throw new NotAssignedToCaseError();
   }
   return { uploadReadId: await beginRead(store, actor, 'upload', null, input) };
@@ -390,10 +391,11 @@ export function discardUploadRead(store: DocumentStore, actor: PortalActor, uplo
 const uploadDraftSchema = z
   .object({
     uploadReadId: z.uuid(),
-    // Null (staff only): no case yet; it waits on Intake to be matched, and
-    // whom it bills may be left for then too.
+    // Null: matched later, in Intake, from what the uploader entered.
     caseId: z.uuid('Choose the case this invoice is for.').nullable(),
     professionalId: z.uuid('Choose who this invoice is from.').nullable(),
+    proposedCase: proposedCaseSchema.optional(),
+    proposedProvider: proposedProviderSchema.optional(),
     periodStart: z.iso.date('Enter the first day of the billing period.').optional(),
     periodEnd: z.iso.date('Enter the last day of the billing period.').optional(),
     invoiceNumber: z.string().trim().max(100, 'Keep the invoice number under 100 characters.').optional(),
@@ -423,14 +425,10 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
   // draft twice; put back if it couldn't be made, to try again.
   splitReads.delete(input.uploadReadId);
   try {
-    if (input.caseId === null) {
-      if (!(await isStaffAccount(db, actor.userAccountId))) {
-        throw new ValidationError({ caseId: 'Choose the case this invoice is for.' });
-      }
-      // Checked on creating the draft: any active professional.
-    } else {
+    // With no case, whom it bills is checked on creating the draft.
+    if (input.caseId !== null) {
       const allowed = (await uploadCases(db, actor)).some(
-        (row) => row.caseId === input.caseId && row.professionalId === input.professionalId,
+        (row) => row.caseId === input.caseId && (input.professionalId === null || row.professionalId === input.professionalId),
       );
       if (!allowed) {
         throw new NotAssignedToCaseError();
@@ -458,6 +456,8 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
         // With no one chosen yet, timekeepers named in the file are suggested.
         everyLineBilled: input.professionalId !== null,
         checkedPeriod: { start: input.periodStart, end: input.periodEnd },
+        proposedCase: input.proposedCase,
+        proposedProvider: input.proposedProvider,
       });
       if (input.invoiceNumber) {
         await tx.insert(supportingInvoice).values({
