@@ -11,7 +11,7 @@ import PortalCaseDetail from './PortalCaseDetail';
 import InvoiceSubmission from './InvoiceSubmission';
 import PortalImportReview from './PortalImportReview';
 import PortalBulkImport from './PortalBulkImport';
-import PortalUpload from './PortalUpload';
+import UploadInvoices from '../pages/UploadInvoices';
 import { PortalTopBar } from './PortalTopBar';
 import { NEW_INVOICE_PATH, PORTAL_HOME_PATH, UPLOAD_PATH } from './useShell';
 
@@ -23,7 +23,7 @@ export default function ExternalPortalApp() {
         <Routes>
           <Route path="/" element={<Navigate to={PORTAL_HOME_PATH} replace />} />
           <Route path={PORTAL_HOME_PATH} element={<PortalInvoiceList />} />
-          <Route path={UPLOAD_PATH} element={<PortalUpload />} />
+          <Route path={UPLOAD_PATH} element={<UploadInvoices />} />
           <Route path="/portal/invoices/:invoiceId" element={<InvoiceSubmission />} />
           <Route path="/portal/imports/:importId" element={<PortalImportReview />} />
           {/* Out of view; reachable by address. */}

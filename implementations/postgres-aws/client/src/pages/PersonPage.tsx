@@ -1,0 +1,147 @@
+// A person's page (design G23): the main record when invoices are filed by
+// person. Their contact details, who is paid, their approved rates, this
+// year's totals and every invoice they sent.
+import { useState } from 'react';
+import { useParams } from 'react-router';
+import { getPerson, listReviewQueue } from '../api/client';
+import { useAuth } from '../AuthContext';
+import { useApiResource } from '../hooks/useApiResource';
+import { PageHeader } from '../components/PageHeader';
+import { LoadState } from '../components/LoadState';
+import { Fact, FactsStrip } from '../components/FactsStrip';
+import { PersonDialog } from '../components/PersonDialog';
+import { IN_REVIEW, SentInvoicesTable } from '../components/SentInvoicesTable';
+import { Toast, useToast } from '../components/Toast';
+import { closeKey, shownCaseNumber } from '../caseNumbers';
+import { downloadCsv } from '../downloadCsv';
+import { formatMoney } from '../formatMoney';
+
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'waiting', label: 'Waiting' },
+  { id: 'decided', label: 'Decided' },
+] as const;
+type FilterId = (typeof FILTERS)[number]['id'];
+
+const cents = (value: string | null) => Math.round(Number(value ?? 0) * 100);
+
+export default function PersonPage() {
+  const { professionalId } = useParams<{ professionalId: string }>();
+  const { user } = useAuth();
+  const [version, setVersion] = useState(0);
+  const { data: person, error } = useApiResource(() => getPerson(professionalId as string), [professionalId, version]);
+  const { data: queue, error: queueError } = useApiResource(() => listReviewQueue('all', professionalId), [professionalId]);
+  const [filter, setFilter] = useState<FilterId>('all');
+  const [caseNumber, setCaseNumber] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [toast, setToast] = useToast();
+
+  if (error || queueError || !person || !queue) {
+    return <LoadState error={error ?? queueError} what="this person" />;
+  }
+  const invoices = [...queue.invoices].sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''));
+  const year = String(new Date().getFullYear());
+  const thisYear = invoices.filter((invoice) => invoice.submittedAt?.startsWith(year));
+  const waiting = invoices.filter((invoice) => IN_REVIEW.includes(invoice.statusCode));
+  const sum = (rows: typeof invoices, value: (row: (typeof invoices)[number]) => string | null) =>
+    rows.reduce((total, row) => total + cents(value(row)), 0) / 100;
+  const isShown = (invoice: (typeof invoices)[number], id: FilterId) =>
+    id === 'all' || (id === 'waiting' ? IN_REVIEW.includes(invoice.statusCode) : !IN_REVIEW.includes(invoice.statusCode));
+  const key = closeKey(caseNumber);
+  const shown = invoices.filter((invoice) => {
+    const number = shownCaseNumber(invoice);
+    return isShown(invoice, filter) && (!key || Boolean(number && closeKey(number).includes(key)));
+  });
+  const name = person.displayName ?? 'This person';
+
+  return (
+    <div>
+      <PageHeader
+        crumbs={[{ label: 'People', to: '/people' }, { label: name }]}
+        title={name}
+        status={person.role && <span className="chip chip--neutral">{person.role}</span>}
+        meta={
+          <>
+            {person.email && <span>{person.email}</span>}
+            {person.phone && <span>{person.phone}</span>}
+            {person.paidThrough && <span>Paid to {person.paidThrough}</span>}
+          </>
+        }
+        actions={
+          <>
+            {user?.isAdmin && (
+              <button type="button" className="btn btn--outline" onClick={() => setEditing(true)}>
+                Edit details
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn--outline"
+              disabled={invoices.length === 0}
+              onClick={() =>
+                downloadCsv(
+                  `${name.replace(/[^A-Za-z0-9]+/g, '_')}_invoices.csv`,
+                  invoices.map((invoice) => ({
+                    'Case number': shownCaseNumber(invoice),
+                    'Case number as typed': invoice.caseNumberAsTyped,
+                    'Billing period start': invoice.periodStart,
+                    'Billing period end': invoice.periodEnd,
+                    Submitted: invoice.submittedAt?.slice(0, 10),
+                    Requested: invoice.submittedTotal,
+                    Approved: invoice.approvedTotal,
+                    Status: invoice.statusDisplayName,
+                  })),
+                )
+              }
+            >
+              Export spreadsheet
+            </button>
+          </>
+        }
+      />
+      <FactsStrip>
+        <Fact label="Approved rate">
+          <strong>{person.hourlyRate ? `${formatMoney(person.hourlyRate)} an hour` : 'None set'}</strong>
+        </Fact>
+        <Fact label="Mileage rate">{person.ratePerMile ? `${formatMoney(person.ratePerMile)} a mile` : 'None set'}</Fact>
+        <Fact label="Invoices this year">{thisYear.length}</Fact>
+        <Fact label="Requested this year">{formatMoney(sum(thisYear, (row) => row.submittedTotal))}</Fact>
+        <Fact label="Approved this year">{formatMoney(sum(thisYear, (row) => row.approvedTotal))}</Fact>
+        <Fact label="Waiting now" note={waiting.length > 0 ? `${formatMoney(sum(waiting, (row) => row.submittedTotal))} requested` : undefined}>
+          {waiting.length} {waiting.length === 1 ? 'invoice' : 'invoices'}
+        </Fact>
+        {person.reviewer && <Fact label="New invoices go to">{person.reviewer.displayName}</Fact>}
+      </FactsStrip>
+      <div className="list-controls">
+        <div className="chip-filters" role="group" aria-label="Show">
+          {FILTERS.map(({ id, label }) => (
+            <button key={id} type="button" className="chip chip--filter" aria-pressed={filter === id} onClick={() => setFilter(id)}>
+              {label} <span className="chip-count">{invoices.filter((invoice) => isShown(invoice, id)).length}</span>
+            </button>
+          ))}
+        </div>
+        <label className="list-controls__search">
+          <span className="usa-sr-only">Filter by case number</span>
+          <input className="usa-input" type="search" placeholder="Filter by case number" value={caseNumber} onChange={(event) => setCaseNumber(event.target.value)} />
+        </label>
+      </div>
+      <SentInvoicesTable invoices={shown} showFrom={false} emptyMessage={invoices.length === 0 ? 'No invoices sent yet.' : 'No invoices match.'} />
+      <p className="compact-hint">
+        Showing {shown.length} of {invoices.length}. Every invoice is filed under {name}. Case numbers are as they were typed, and the
+        tool does not check them against a list of cases.
+      </p>
+      {editing && (
+        <PersonDialog
+          person={person}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            setToast({ message: 'Details saved.' });
+            setVersion((v) => v + 1);
+          }}
+        />
+      )}
+      <Toast toast={toast} />
+    </div>
+  );
+}

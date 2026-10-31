@@ -290,12 +290,51 @@ export interface VendorRecord {
   rates: ProfessionalRate[];
 }
 
-// Administrators only.
-export function editProfessional(professionalId: string, input: { displayName: string; email?: string }) {
+// Phone, who is paid and their own approved rates (design G22, G23).
+export interface PersonDetailsInput {
+  phone?: string;
+  paidThrough?: string;
+  hourlyRate?: number;
+  ratePerMile?: number;
+}
+
+// Administrators only. A changed rate applies from today.
+export function editProfessional(
+  professionalId: string,
+  input: { displayName: string; email?: string; professionalKindId?: string } & PersonDetailsInput,
+) {
   return request<{ professionalId: string; displayName: string; email: string | null }>(`/api/professionals/${professionalId}`, {
     method: 'PATCH',
     body: JSON.stringify(input),
   });
+}
+
+// Everyone who can send invoices (design G21).
+export interface BillingPerson {
+  professionalId: string;
+  displayName: string | null;
+  active: boolean;
+  email: string | null;
+  signedIn: boolean;
+  phone: string | null;
+  paidThrough: string | null;
+  professionalKindId: string | null;
+  role: string | null;
+  // Today's, their own or else their role's and the general mileage rate.
+  hourlyRate: string | null;
+  ratePerMile: string | null;
+  waiting: { count: number; total: string };
+  lastInvoiceAt: string | null;
+}
+
+export function listPeople(): Promise<{ people: BillingPerson[] }> {
+  return request('/api/professionals/people');
+}
+
+export type BillingPersonDetail = Omit<BillingPerson, 'waiting' | 'lastInvoiceAt'> & { reviewer: AssignedPerson | null };
+
+export function getPerson(professionalId: string): Promise<BillingPersonDetail> {
+  return request(`/api/professionals/people/${professionalId}`);
 }
 
 export function listVendors(query: string): Promise<{ professionals: VendorRecord[] }> {
@@ -625,6 +664,8 @@ export interface InvoiceRecord {
   professionalDisplayName: string | null;
   submittedByUserAccountId: string | null;
   caseNumber: string | null;
+  caseNumberAsTyped: string | null;
+  caseNumberCorrected: string | null;
   // A draft read from a file; its lines are unchecked until it is confirmed.
   import: { invoiceImportId: string; statusCode: string } | null;
   // The assigned line reviewer, while in review.
@@ -676,8 +717,12 @@ export interface BillableProfessional {
   isSelf: boolean;
   // Whose rates price their time, e.g. "Attorney"; null if none is set.
   kindDisplayName: string | null;
-  // Their kind's rates, oldest first; set by administrators.
+  // Their hourly rates, oldest first: their kind's, then their own from
+  // when one is set.
   rates: ProfessionalRate[];
+  // With rates of their own, their mileage rates in place of the general
+  // ones; empty otherwise.
+  mileageRates?: MileageRate[];
 }
 
 export interface ProfessionalRate {
@@ -719,10 +764,19 @@ export interface InvoiceReceipt {
   withoutCase?: boolean;
   // A submitter sending their own confirms it is true and correct.
   attested?: boolean;
+  // Filed under whom it is from: needs a typed case number, and goes to
+  // review without a case.
+  filedByPerson?: boolean;
 }
 
 // What a submitter confirms when sending (server/src/billing/invoiceLifecycle.ts).
 export const ATTESTATION_STATEMENT = 'I confirm this invoice is true and correct, and the work was done for this case.';
+
+export function attestationStatement(caseNumberAsTyped: string | null): string {
+  return caseNumberAsTyped
+    ? `I confirm this invoice is true and correct, and the work was done for case ${caseNumberAsTyped}.`
+    : ATTESTATION_STATEMENT;
+}
 
 // Where on a PDF page a line was read, as fractions of the page as shown,
 // from the top left (server/src/imports/parsedInvoice.ts).
@@ -755,6 +809,8 @@ export interface FileSource {
   fileAvailable: boolean;
   invoiceNumber: string | null;
   statedTotal: number | null;
+  // As the file labels it, and where on a PDF.
+  caseNumber: { value: string; region: SourceRegion | null } | null;
   lines: FileLine[];
   warnings: ImportWarning[];
 }
@@ -843,7 +899,7 @@ export function matchInvoiceToCase(
 }
 
 // A provider who hasn't signed in; they get this profile if they do later.
-export function addProfessional(input: { displayName: string; email?: string; professionalKindId: string }) {
+export function addProfessional(input: { displayName: string; email?: string; professionalKindId: string } & PersonDetailsInput) {
   return request<{ professionalId: string; displayName: string }>('/api/professionals', { method: 'POST', body: JSON.stringify(input) });
 }
 
@@ -862,6 +918,11 @@ export function updateDraftInvoice(invoiceId: string, content: DraftInvoiceConte
     method: 'PUT',
     body: JSON.stringify(content),
   });
+}
+
+// The case number as typed, on a draft; empty clears it.
+export function setDraftCaseNumber(invoiceId: string, caseNumber: string): Promise<{ invoiceId: string; caseNumber: string | null }> {
+  return request(`/api/portal/invoices/${invoiceId}/case-number`, { method: 'PUT', body: JSON.stringify({ caseNumber }) });
 }
 
 export type InvoiceTransition = 'submit' | 'recall' | 'withdraw';
@@ -1088,6 +1149,7 @@ export type UploadRead =
       read: {
         lineCount: number;
         invoiceNumber: string | null;
+        caseNumber: string | null;
         periodStart: string | null;
         periodEnd: string | null;
         statedTotal: number | null;
@@ -1133,6 +1195,7 @@ export function createUploadDraft(
     periodStart?: string;
     periodEnd?: string;
     invoiceNumber?: string;
+    caseNumber?: string;
   },
 ): Promise<{ invoiceImportId: string; invoiceId: string }> {
   return request(`/api/portal/uploads/${uploadReadId}/draft`, { method: 'POST', body: JSON.stringify(details) });
@@ -1244,6 +1307,10 @@ export interface QueuedInvoice {
   receivedOn: string | null;
   proposedCase: ProposedCase | null;
   proposedProvider: ProposedProvider | null;
+  // As the sender typed it; never checked against a list of cases.
+  caseNumberAsTyped: string | null;
+  // A reviewer's correction, shown in its place (design G15).
+  caseNumberCorrected: string | null;
   returnedReason: string | null;
 }
 
@@ -1265,15 +1332,30 @@ export interface ReviewQueueItem extends QueuedInvoice {
   decidedCount: number;
   // From the latest finished round; null until one is finished.
   approvedTotal: string | null;
+  finishedAt: string | null;
   reviewer: AssignedPerson | null;
   // Who must act now: the next approver while it waits for sign-off.
   holder: AssignedPerson | null;
   workingDaysWaiting: number;
   flags: QueueFlag[];
+  // Other sent invoices with the same case number, and with a close one.
+  caseNumberMatches: { same: number; close: number };
 }
 
-export function listReviewQueue(view: 'open' | 'finished'): Promise<{ invoices: ReviewQueueItem[]; waitingAlertWorkingDays: number }> {
-  return request(`/api/invoices?view=${view}`);
+// 'all': every sent invoice, for search; professionalId: one person's.
+export function listReviewQueue(
+  view: 'open' | 'finished' | 'all',
+  professionalId?: string,
+): Promise<{ invoices: ReviewQueueItem[]; waitingAlertWorkingDays: number }> {
+  return request(`/api/invoices?view=${view}${professionalId ? `&professionalId=${encodeURIComponent(professionalId)}` : ''}`);
+}
+
+// A reviewer's correction; the sender's typed number is kept (design G15).
+export function correctCaseNumber(
+  invoiceId: string,
+  caseNumber: string,
+): Promise<{ invoiceId: string; caseNumberAsTyped: string | null; caseNumberCorrected: string | null }> {
+  return request(`/api/invoices/${invoiceId}/case-number`, { method: 'PUT', body: JSON.stringify({ caseNumber }) });
 }
 
 export interface ReviewPerson {
@@ -1428,6 +1510,10 @@ export interface InvoiceReview {
   signOffStarted: boolean;
   fileSource: FileSource | null;
   submitterChanges: SubmitterChanges | null;
+  // The sender's approved hourly rate today, and other sent invoices with
+  // the same or a close case number (design G15).
+  approvedRate: string | null;
+  caseNumberMatches: { same: number; close: number };
 }
 
 export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {
@@ -1478,7 +1564,11 @@ export function signOffInvoice(invoiceId: string, input: { outcome: 'approved' |
   return request(`/api/invoices/${invoiceId}/sign-off`, { method: 'POST', body: JSON.stringify(input) });
 }
 
-export function reassignReviewer(invoiceId: string, input: { userAccountId: string; forCase: boolean }): Promise<unknown> {
+// forCase, forPerson: also send that case's, or that sender's, new invoices to them.
+export function reassignReviewer(
+  invoiceId: string,
+  input: { userAccountId: string; forCase?: boolean; forPerson?: boolean },
+): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/reviewer`, { method: 'PUT', body: JSON.stringify(input) });
 }
 

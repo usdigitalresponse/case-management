@@ -52,6 +52,8 @@ import { priceLines } from '../billing/priceLines';
 import { enforceBillingRules } from '../billing/billingRules';
 import { matchTimekeeperName } from './matchTimekeeper';
 import { checkInferredDates, inferServiceDates } from './inferServiceDates';
+import { fallbackTimekeeper } from '../billing/timekeeperFallback';
+import { readCaseNumber } from '../billing/caseNumbers';
 
 export const IMPORT_EXPIRY_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -203,6 +205,7 @@ function extractionResult(
       period_start: field(parsed.periodStart),
       period_end: field(parsed.periodEnd),
       stated_total: field(parsed.statedTotal),
+      case_number: readCaseNumber(parsed) ?? undefined,
     },
     lines: parsed.lines.map((line, index) => ({
       location: line.location,
@@ -558,6 +561,9 @@ export async function extractIntoDraft(
     parsed: ParsedInvoice;
     fileName?: string;
     everyLineBilled: boolean;
+    // Filed by person: a line naming no one matched falls back to the
+    // invoice's most common match, else the billed professional.
+    timekeeperFallback?: boolean;
     // The billing period the uploader checked, in place of the one read;
     // the extraction record keeps what was read.
     checkedPeriod?: { start?: string; end?: string };
@@ -617,6 +623,13 @@ export async function extractIntoDraft(
       sourceLocation: line.location,
     })),
   };
+  if (args.timekeeperFallback) {
+    const fallback = fallbackTimekeeper(
+      content.lines.map((line) => line.timekeeperProfessionalId),
+      billedProfessionalId,
+    );
+    content.lines = content.lines.map((line) => ({ ...line, timekeeperProfessionalId: line.timekeeperProfessionalId ?? fallback ?? undefined }));
+  }
   // Undated lines take the billing period's end where that's safe.
   const inferred = await inferServiceDates(tx, {
     caseId,

@@ -35,7 +35,7 @@ import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase } from '../cases/closeCase';
-import { addKindRate, createKind, listRates, setProfessionalKind } from '../billing/professionalRates';
+import { addKindRate, addOwnRates, createKind, listRates, setProfessionalKind } from '../billing/professionalRates';
 import { addMileageRate } from '../billing/mileageRates';
 import { addBillingCode, setBillingRule } from '../billing/billingRules';
 import { pairKey } from '../billing/routeCheck';
@@ -202,8 +202,28 @@ async function seedDemoRates(
     const kind = DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!;
     // eslint-disable-next-line no-await-in-loop
     await setProfessionalKind(db, professionalId, { professionalKindId: kindIds.get(kind) });
+    // People's own details (design G21): 555-01xx numbers are reserved for fiction.
+    // eslint-disable-next-line no-await-in-loop
+    await db
+      .update(professional)
+      .set({ paidThrough: DEMO_PAID_THROUGH[index], phone: `(555) 555-01${String(index + 10)}` })
+      .where(eq(professional.professionalId, professionalId));
+    const own = DEMO_OWN_RATES[index];
+    if (own) {
+      // eslint-disable-next-line no-await-in-loop
+      await addOwnRates(db, fixtures.staffUserAccountId, professionalId, { ...own, effectiveFrom: '2025-01-01' });
+    }
   }
 }
+
+// Synthetic firms; the investigator and expert have approved rates of their own.
+const DEMO_PAID_THROUGH = ['Synthetic Law Office', 'Example Defense LLP', 'Sample Investigations LLC', 'Demo Forensic Consulting'];
+const DEMO_OWN_RATES: Array<{ hourlyRate: number; ratePerMile?: number } | undefined> = [
+  undefined,
+  undefined,
+  { hourlyRate: 95, ratePerMile: 0.7 },
+  { hourlyRate: 150 },
+];
 
 // Other full (SSO) users to search for and assign in the "Assign staff"
 // form (client/src/components/AssignStaffForm.tsx) — distinct from
@@ -252,25 +272,29 @@ async function seedDemoAssignments(
   return assignments;
 }
 
-// Logs time against every assignment and submits an invoice for most of them
-// (one left un-invoiced, one left as a draft), so the invoice views aren't
-// all empty on a fresh seed.
+// Case numbers as each sender typed them (design G: invoices are filed by
+// person, not case). Several invoices share a number, one is typed without
+// dashes and the review invoice below is a close match, so the queue's
+// "Also on…" and close-match notes show. Synthetic, like every value here.
+const TYPED_CASE_NUMBERS = ['26-CR-00211', '26-CR-00214', '26CR230', '26-CR-00211', '26-CR-00245'];
+
+// Logs time on every assignment's case, and sends an invoice filed by person
+// for most of them (one left un-invoiced, one left as a draft), so the
+// invoice views aren't all empty on a fresh seed.
 async function seedDemoTimeEntriesAndInvoices(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   assignments: DemoAssignment[],
 ): Promise<void> {
   for (const [index, assignment] of assignments.entries()) {
-    const entryCount = faker.number.int({ min: 1, max: 3 });
-    const timeEntryIds: string[] = [];
-    for (let i = 0; i < entryCount; i += 1) {
+    const actor = { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId };
+    const entries = Array.from({ length: faker.number.int({ min: 1, max: 3 }) }, () => ({
+      activityOn: faker.date.recent({ days: 60 }).toISOString().slice(0, 10),
+      durationHours: faker.number.float({ min: 0.5, max: 6, fractionDigits: 2 }),
+      description: faker.lorem.sentence(),
+    }));
+    for (const entry of entries) {
       // eslint-disable-next-line no-await-in-loop
-      const result = await createTimeEntry(db, { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId }, {
-        caseId: assignment.caseId,
-        activityOn: faker.date.recent({ days: 60 }).toISOString().slice(0, 10),
-        durationHours: faker.number.float({ min: 0.5, max: 6, fractionDigits: 2 }),
-        description: faker.lorem.sentence(),
-      });
-      timeEntryIds.push(result.timeEntryId);
+      await createTimeEntry(db, actor, { caseId: assignment.caseId, ...entry });
     }
 
     // Leave the last un-invoiced and keep the second-to-last as a draft, so
@@ -280,12 +304,18 @@ async function seedDemoTimeEntriesAndInvoices(
     }
 
     // eslint-disable-next-line no-await-in-loop
-    await createInvoice(db, { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId }, {
-      caseId: assignment.caseId,
+    await createInvoice(db, actor, {
+      caseId: null,
+      caseNumber: TYPED_CASE_NUMBERS[index],
       submit: index !== assignments.length - 2,
       attested: true,
       // Priced from the demo rates (seedDemoRates).
-      lines: timeEntryIds.map((sourceTimeEntryId) => ({ sourceTimeEntryId })),
+      lines: entries.map((entry) => ({
+        lineType: 'time' as const,
+        serviceDate: entry.activityOn,
+        quantity: entry.durationHours,
+        description: entry.description,
+      })),
     });
   }
 }
@@ -343,7 +373,8 @@ async function seedDemoMileage(
     roundTrip,
   });
   await createInvoice(db, actor, {
-    caseId: first.caseId,
+    caseId: null,
+    caseNumber: '26-CR-00211',
     attested: true,
     periodStart: '2026-02-01',
     periodEnd: '2026-02-28',
@@ -356,7 +387,8 @@ async function seedDemoMileage(
     ],
   });
   await createInvoice(db, actor, {
-    caseId: second.caseId,
+    caseId: null,
+    caseNumber: '26-CR-00252',
     submit: false,
     lines: [trip('2026-02-24', 'Records pickup near Nationals Park', NATIONALS_PARK, 2.5, true)],
   });
@@ -410,9 +442,11 @@ async function seedDemoReviewers(
   await setReviewSettings(db, fixtures.staffUserAccountId, { defaultSignOffUserAccountIds: [approver] });
 }
 
-// Review demo data: case and court numbers, pre-authorizations, an invoice
-// billed above the configured rate, and invoices at each review state, one
-// waiting long enough to be called out. Every value is synthetic.
+// Review demo data: case and court numbers and pre-authorizations on the
+// cases (used only by the case pages; invoices filed by person are checked
+// against configured rates), an invoice billed above the configured rate,
+// and invoices at each review state, one waiting long enough to be called
+// out. Every value is synthetic.
 async function seedDemoReview(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   caseIds: string[],
@@ -437,8 +471,7 @@ async function seedDemoReview(
   const preauthorized = assignments.slice(0, 4);
   const rates = await listRates(db, preauthorized.map((assignment) => assignment.professionalId));
   for (const [index, assignment] of preauthorized.entries()) {
-    // Pre-authorized at their configured rate; the investigator's demo
-    // invoice below states more, for the rate check.
+    // Pre-authorized at their configured rate.
     const configured = rates.filter((rate) => rate.professionalId === assignment.professionalId).at(-1)?.hourlyRate ?? '125.00';
     const approvedHourlyRate = index === 2 ? '125.00' : configured;
     // eslint-disable-next-line no-await-in-loop
@@ -475,7 +508,9 @@ async function seedDemoReview(
     throw new Error('Expected a demo investigator assignment.');
   }
   await createInvoice(db, { userAccountId: investigator.userAccountId, professionalId: investigator.professionalId }, {
-    caseId: investigator.caseId,
+    caseId: null,
+    // A close match for 26-CR-00211, as a sender might type it.
+    caseNumber: '26-CR-0211',
     attested: true,
     periodStart: '2026-02-01',
     periodEnd: '2026-02-28',
@@ -536,9 +571,9 @@ async function seedDemoReview(
       });
     }
   }
-  // Given to a reviewer but not started.
+  // Given to a reviewer but not started, who also gets the sender's new invoices (G18).
   if (mileage) {
-    await reassignReviewer(db, firstReviewer, mileage, { userAccountId: firstReviewer });
+    await reassignReviewer(db, firstReviewer, mileage, { userAccountId: firstReviewer, forPerson: true });
   }
 }
 

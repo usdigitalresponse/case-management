@@ -1,19 +1,28 @@
-// Administrators correct a provider's name, or add or fix the email of one
-// added without it (model/rules.yaml add_professional_without_login). Someone
-// who has signed in uses their account's email, so theirs isn't changed here.
-// The values replaced are kept in the audit history.
+// Administrators correct a provider's name, role, phone and who is paid, or
+// add or fix the email of one added without it (model/rules.yaml
+// add_professional_without_login), and change their approved rates from
+// today (design G23). Someone who has signed in uses their account's email,
+// so theirs isn't changed here. The values replaced are kept in the audit
+// history; earlier rates stay for earlier work.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
-import { auditEvent, person, professional } from '../db/schema';
+import { auditEvent, person, professional, professionalKinds } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { emailInUse, optionalEmail } from '../people/emails';
+import { addOwnRates, listOwnMileageRates, listRates, rateOn } from '../billing/professionalRates';
+import { mileageRateOn } from '../billing/mileageRates';
+import { personDetailsSchema } from './addProfessional';
 
-const inputSchema = z.object({
-  displayName: z.string().trim().min(2, 'Enter their name.').max(200),
-  email: optionalEmail,
-});
+const inputSchema = z
+  .object({
+    displayName: z.string().trim().min(2, 'Enter their name.').max(200),
+    email: optionalEmail,
+    // Unset keeps their role.
+    professionalKindId: z.uuid('Choose their role.').optional(),
+  })
+  .extend(personDetailsSchema.shape);
 
 export async function editProfessional(db: Database, actorUserAccountId: string, professionalId: string, rawInput: unknown) {
   if (!z.uuid().safeParse(professionalId).success) {
@@ -23,12 +32,15 @@ export async function editProfessional(db: Database, actorUserAccountId: string,
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
-  const { displayName, email } = parsed.data;
+  const { displayName, email, professionalKindId, phone, paidThrough, hourlyRate, ratePerMile } = parsed.data;
   return db.transaction(async (tx) => {
     const [row] = await tx
       .select({
         displayName: professional.displayName,
         userAccountId: professional.userAccountId,
+        professionalKindId: professional.professionalKindId,
+        phone: professional.phone,
+        paidThrough: professional.paidThrough,
         personId: person.personId,
         email: person.email,
       })
@@ -46,18 +58,51 @@ export async function editProfessional(db: Database, actorUserAccountId: string,
     if (emailChanged && email && (await emailInUse(tx, email, 'professionals', row.personId))) {
       throw new ValidationError({ email: 'Someone with this email is already in the system.' });
     }
-    await tx.update(professional).set({ displayName }).where(eq(professional.professionalId, professionalId));
+    if (professionalKindId) {
+      const [kind] = await tx.select({ id: professionalKinds.id }).from(professionalKinds).where(eq(professionalKinds.id, professionalKindId));
+      if (!kind) {
+        throw new ValidationError({ professionalKindId: 'Choose their role.' });
+      }
+    }
+    await tx
+      .update(professional)
+      .set({
+        displayName,
+        phone: phone ?? null,
+        paidThrough: paidThrough ?? null,
+        ...(professionalKindId && { professionalKindId }),
+      })
+      .where(eq(professional.professionalId, professionalId));
     await tx
       .update(person)
       .set({ displayName, ...(emailChanged && { email: email ?? null }) })
       .where(eq(person.personId, row.personId));
+
+    // Only a rate that differs from today's starts a new one.
+    const today = new Date().toISOString().slice(0, 10);
+    const currentHourly = rateOn(await listRates(tx, [professionalId]), professionalId, today);
+    const currentMileage = mileageRateOn(await listOwnMileageRates(tx, professionalId), today);
+    const newHourly = hourlyRate !== undefined && Number(currentHourly) !== hourlyRate ? hourlyRate : undefined;
+    const newMileage = ratePerMile !== undefined && Number(currentMileage) !== ratePerMile ? ratePerMile : undefined;
+    if (newHourly !== undefined || newMileage !== undefined) {
+      await addOwnRates(tx, actorUserAccountId, professionalId, { hourlyRate: newHourly, ratePerMile: newMileage, effectiveFrom: today });
+    }
+
     await tx.insert(auditEvent).values({
       entityType: 'professional',
       entityId: professionalId,
       eventType: 'professional_changed',
       actorUserAccountId,
       occurredAt: new Date(),
-      priorValues: { displayName: row.displayName, email: row.email },
+      priorValues: {
+        displayName: row.displayName,
+        email: row.email,
+        professionalKindId: row.professionalKindId,
+        phone: row.phone,
+        paidThrough: row.paidThrough,
+        hourlyRate: newHourly !== undefined ? (currentHourly ?? null) : undefined,
+        ratePerMile: newMileage !== undefined ? (currentMileage ?? null) : undefined,
+      },
     });
     return { professionalId, displayName, email: emailChanged ? (email ?? null) : row.email };
   });

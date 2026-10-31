@@ -18,6 +18,7 @@ import {
 import { recognizePages, type OcrWord, type RecognizedFrame } from './ocr';
 import { loadPdfJs, withPdf, type PdfAnnotation, type PdfDocument, type PdfPage, type PdfTextItem } from './pdfDocument';
 import type { ExtractOptions, InvoiceExtractor } from './types';
+import { labelledCaseNumbers } from '../../billing/caseNumbers';
 
 // In points.
 const ROW_TOLERANCE = 2;
@@ -859,6 +860,14 @@ function textOfRows(rows: Row[]): string {
   return rows.map((row) => row.text).join('\n');
 }
 
+// The row labelling the court's case number, else the first labelling any,
+// highlighted whole ("Re: …, Case No. …").
+function caseNumberIn(rows: Row[], frames: Map<number, PageFrame>): ParsedInvoice['caseNumber'] {
+  const found = rows.flatMap((row) => labelledCaseNumbers(row.text).map((match) => ({ ...match, row })));
+  const chosen = found.find((match) => match.court) ?? found[0];
+  return chosen && { value: chosen.value, region: regionOf(frames, chosen.row.page, chosen.row.cells) };
+}
+
 // A stated total with no readable items (a cover sheet sent alone) becomes
 // one item to break down, so the submitter isn't stopped.
 function totalOnly(rows: Row[], warnings: ImportWarning[], frames: Map<number, PageFrame>): ParsedInvoice | undefined {
@@ -993,7 +1002,8 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     if (!total) {
       throw new UnreadableInvoiceFileError(xfa ? XFA_MESSAGE : why);
     }
-    return { ...total, invoiceText: textOfRows(invoiceRows.filter((row) => !row.embedded)) };
+    const ownRows = invoiceRows.filter((row) => !row.embedded);
+    return { ...total, invoiceText: textOfRows(ownRows), caseNumber: caseNumberIn(ownRows, frames) };
   };
   const hasItems = (row: Row) => row.text.length <= MAX_ITEM_TEXT && (ITEM_SENTENCE.test(row.text) || row.text.match(FORM_RATE_ITEM) !== null);
   if (!rows.some((row) => headerColumns(row) || hasItems(row))) {
@@ -1353,7 +1363,14 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       message: `This PDF has files attached inside it that weren’t read: ${notRead.join(', ')}. Open them from the PDF to check them, or upload them separately.`,
     });
   }
-  return { ...fields, lines, warnings, invoiceText: textOfRows(invoiceRows), ...(suggestedLines.length > 0 && { suggestedLines }) };
+  return {
+    ...fields,
+    lines,
+    warnings,
+    invoiceText: textOfRows(invoiceRows),
+    caseNumber: caseNumberIn(invoiceRows, frames),
+    ...(suggestedLines.length > 0 && { suggestedLines }),
+  };
 }
 
 export const textLayerExtractor: InvoiceExtractor = {

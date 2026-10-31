@@ -16,7 +16,9 @@ import { InvoiceNotFoundError, repriceLines, reviewInvoiceLine, undoLineDecision
 import { finishReview, reopenReview, signOffInvoice } from '../billing/reviewRounds';
 import { reassignReviewer, setSignOffApprovers, LINE_REVIEW_STEP_TYPE_CODE } from '../billing/reviewAssignment';
 import { listReviewPeople } from '../billing/reviewAccess';
-import { listReviewQueue } from '../billing/reviewQueue';
+import { listReviewQueue, sentCaseNumberMatches } from '../billing/reviewQueue';
+import { listRates, rateOn } from '../billing/professionalRates';
+import { correctCaseNumber } from '../billing/correctCaseNumber';
 import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { readFileForInvoice } from '../imports/invoiceFile';
@@ -31,10 +33,16 @@ router.use(requireFullUser);
 // requireFullUser guarantees a session user.
 const actorId = (req: Request) => getSessionUser(req)!.userAccountId;
 
+// view: open (default), finished, or all sent (search); professionalId:
+// one person's (their page).
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    res.json(await listReviewQueue(db, req.query.view === 'finished' ? 'finished' : 'open'));
+    const view = req.query.view === 'finished' || req.query.view === 'all' ? req.query.view : 'open';
+    const professionalId = typeof req.query.professionalId === 'string' && z.uuid().safeParse(req.query.professionalId).success
+      ? req.query.professionalId
+      : undefined;
+    res.json(await listReviewQueue(db, view, { professionalId }));
   }),
 );
 
@@ -134,7 +142,13 @@ router.get(
           (summary) => summary.professionalId === null || summary.professionalId === detail.invoice.professionalId,
         ) ?? null)
       : null;
-    res.json({ ...detail, preauthorization });
+    // Filed by person (design G15): the sender's approved rate today, and
+    // how many other sent invoices share the case number.
+    const professionalId = detail.invoice.professionalId;
+    const today = new Date().toISOString().slice(0, 10);
+    const approvedRate = professionalId ? (rateOn(await listRates(db, [professionalId]), professionalId, today) ?? null) : null;
+    const caseNumberMatches = (await sentCaseNumberMatches(db)).get(detail.invoice.invoiceId) ?? { same: 0, close: 0 };
+    res.json({ ...detail, preauthorization, approvedRate, caseNumberMatches });
   }),
 );
 
@@ -213,6 +227,13 @@ router.put(
   '/:id/reviewer',
   asyncHandler(async (req, res) => {
     res.json(await reassignReviewer(db, actorId(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/:id/case-number',
+  asyncHandler(async (req, res) => {
+    res.json(await correctCaseNumber(db, actorId(req), req.params.id as string, req.body));
   }),
 );
 

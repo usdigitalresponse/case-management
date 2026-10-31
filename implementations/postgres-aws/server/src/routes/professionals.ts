@@ -22,6 +22,7 @@ import { editProfessional } from '../professionals/editProfessional';
 import { requireAdmin } from '../auth/requireAdmin';
 import { listRates, setProfessionalKind } from '../billing/professionalRates';
 import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
+import { getPerson, listPeople } from '../professionals/peopleDirectory';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -72,7 +73,22 @@ router.get(
   }),
 );
 
-// Any staff member adds a provider who hasn't signed in, from invoice intake.
+// People (design G21, G23): everyone who can send invoices, and one person.
+router.get(
+  '/people',
+  asyncHandler(async (_req, res) => {
+    res.json({ people: await listPeople(db) });
+  }),
+);
+
+router.get(
+  '/people/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await getPerson(db, req.params.id as string));
+  }),
+);
+
+// Any staff member adds someone who hasn't signed in, from People or intake.
 router.post(
   '/',
   asyncHandler(async (req, res) => {
@@ -80,7 +96,7 @@ router.post(
   }),
 );
 
-// Administrators correct a provider's name, or their email until they sign in.
+// Administrators correct a provider's details and rates, and their email until they sign in.
 router.patch(
   '/:id',
   requireAdmin,

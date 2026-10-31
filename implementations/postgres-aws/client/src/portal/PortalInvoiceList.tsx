@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link as RouterLink, useLocation, useSearchParams } from 'react-router';
+import { Link as RouterLink, useLocation } from 'react-router';
 import { apiErrorMessage, listMyInvoices, transitionInvoice, type InvoiceRecord } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { useAuth } from '../AuthContext';
@@ -13,16 +13,7 @@ import { formatMoney } from '../formatMoney';
 import { WithdrawDialog } from './WithdrawDialog';
 import { canWithdraw, formatDayShort, formatSpan, submissionStatus } from './portalWording';
 import { UPLOAD_PATH } from './useShell';
-import { SearchInput } from '../components/SearchInput';
-import {
-  INVOICE_FILTERS,
-  INVOICE_SORTS,
-  choiceFrom,
-  invoiceView,
-  matchesFilter,
-  type InvoiceFilter,
-  type InvoiceSort,
-} from './invoiceListView';
+import { inListOrder, listCaseNumber } from './invoiceListView';
 
 // Set by the upload page after several files go up as drafts.
 export interface UploadedState {
@@ -62,37 +53,34 @@ function RowActions({
   );
 }
 
-// The submitter's drafts and sent invoices in one list, drafts first.
+// A draft with no case number says so, so it's fixed before sending.
+function StatusCell({ invoice }: { invoice: InvoiceRecord }) {
+  const status = submissionStatus(invoice);
+  const missing = invoice.statusCode === 'draft' && !listCaseNumber(invoice);
+  const note = [status.note, missing ? 'No case number yet.' : null].filter(Boolean).join(' ');
+  return (
+    <>
+      <StatusPill tone={status.tone} label={status.label} />
+      {note && <span className={`cell-note${missing ? ' cell-note--warning' : ''}`}>{note}</span>}
+    </>
+  );
+}
+
+// The submitter's drafts and sent invoices in one list, drafts first, each
+// with its case number. No search or filters: the list is one person's.
 export default function PortalInvoiceList() {
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => listMyInvoices().then((result) => result.invoices), [version]);
   const { user } = useAuth();
   const uploadedCount = (useLocation().state as UploadedState | null)?.uploadedCount ?? 0;
   const [withdrawing, setWithdrawing] = useState<InvoiceRecord | null>(null);
-  // In the address, so going back keeps them.
-  const [params, setParams] = useSearchParams();
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [toast, setToast] = useToast();
 
   if (error || !data) {
     return <LoadState error={error} what="your invoices" />;
   }
-  const rows = data.filter((invoice) => invoice.statusCode !== 'withdrawn');
-  const query = params.get('q') ?? '';
-  const filter = choiceFrom(params.get('show'), INVOICE_FILTERS, 'all');
-  const sort = choiceFrom(params.get('sort'), INVOICE_SORTS, 'recent');
-  const narrowed = Boolean(query.trim()) || filter !== 'all';
-  const setParam = (key: string, value: string, unset: string) =>
-    setParams(
-      (current) => {
-        const next = new URLSearchParams(current);
-        if (value && value !== unset) next.set(key, value);
-        else next.delete(key);
-        return next;
-      },
-      { replace: true },
-    );
-  const shown = invoiceView(rows, { query, filter, sort });
+  const shown = inListOrder(data.filter((invoice) => invoice.statusCode !== 'withdrawn'));
   // Sent back by the billing office: first, until they're sent again.
   const needsChanges = shown.filter((invoice) => invoice.returnedReason);
   const others = shown.filter((invoice) => !invoice.returnedReason);
@@ -114,19 +102,18 @@ export default function PortalInvoiceList() {
           {
             header: 'Case number',
             rowHeader: true,
-            render: (invoice) => <strong>{invoice.caseNumber ?? invoice.caseExternalReference ?? invoice.proposedCase?.caseNumber ?? '—'}</strong>,
-          },
-          {
-            header: 'Client',
-            render: (invoice) =>
-              invoice.caseClientDisplayName ??
-              (invoice.proposedCase ? (
+            render: (invoice) => {
+              const number = listCaseNumber(invoice);
+              if (!number) {
+                return <span className="text-warning">{invoice.statusCode === 'draft' ? 'Not added yet' : '—'}</span>;
+              }
+              return (
                 <>
-                  {invoice.proposedCase.clientName} <EnteredFlag what="Case" compact />
+                  <strong>{number}</strong>
+                  {!invoice.caseId && !invoice.caseNumberAsTyped && invoice.proposedCase && <EnteredFlag what="Case" compact />}
                 </>
-              ) : (
-                '—'
-              )),
+              );
+            },
           },
           { header: 'Billing period', render: (invoice) => formatSpan(invoice.periodStart, invoice.periodEnd) },
           {
@@ -138,15 +125,7 @@ export default function PortalInvoiceList() {
           {
             header: 'Status',
             className: 'portal-invoices__status',
-            render: (invoice) => {
-              const status = submissionStatus(invoice);
-              return (
-                <>
-                  <StatusPill tone={status.tone} label={status.label} />
-                  {status.note && <span className="cell-note">{status.note}</span>}
-                </>
-              );
-            },
+            render: (invoice) => <StatusCell invoice={invoice} />,
           },
           {
             header: 'Actions',
@@ -164,7 +143,9 @@ export default function PortalInvoiceList() {
       <div className="portal-title-row">
         <div>
           <h1>Your invoices</h1>
-          <p className="page-description">Invoices you have sent for review, and drafts you have not sent yet.</p>
+          <p className="page-description">
+            Every invoice you have sent for review, and drafts you have not sent yet. Each one shows its case number.
+          </p>
         </div>
         <RouterLink className="btn btn--primary" to={UPLOAD_PATH}>Upload invoices</RouterLink>
       </div>
@@ -172,37 +153,6 @@ export default function PortalInvoiceList() {
         <Notice tone="info" heading={`${uploadedCount} invoices uploaded and saved as drafts.`}>
           Choose one to check its lines. Nothing is sent for review until you send each one.
         </Notice>
-      )}
-      {rows.length > 0 && (
-        <div className="queue-filter invoice-list-controls">
-          <div className="invoice-list-controls__search">
-            <label className="usa-label" htmlFor="invoice-search">Search</label>
-            <SearchInput id="invoice-search" placeholder="Case number, client or provider" value={query} onChange={(value) => setParam('q', value, '')} />
-          </div>
-          <div>
-            <label className="usa-label" htmlFor="invoice-show">Show</label>
-            <select id="invoice-show" className="usa-select" value={filter} onChange={(event) => setParam('show', event.target.value, 'all')}>
-              {(Object.entries(INVOICE_FILTERS) as Array<[InvoiceFilter, string]>).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label} ({rows.filter((invoice) => matchesFilter(invoice, key)).length})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="usa-label" htmlFor="invoice-sort">Sort by</label>
-            <select id="invoice-sort" className="usa-select" value={sort} onChange={(event) => setParam('sort', event.target.value, 'recent')}>
-              {(Object.entries(INVOICE_SORTS) as Array<[InvoiceSort, string]>).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-          </div>
-          {narrowed && (
-            <button type="button" className="link-button" onClick={() => setParams({}, { replace: true })}>
-              Show all
-            </button>
-          )}
-        </div>
       )}
       {needsChanges.length > 0 && (
         <section className="portal-needs-changes">
@@ -216,18 +166,13 @@ export default function PortalInvoiceList() {
         className="portal-invoices"
         rows={others}
         rowKey={(invoice) => invoice.invoiceId}
-        emptyMessage={
-          narrowed
-            ? needsChanges.length > 0
-              ? 'No other invoices match.'
-              : 'No invoices match.'
-            : needsChanges.length > 0
-              ? 'Nothing else yet.'
-              : 'No invoices yet. Upload one to get started.'
-        }
+        emptyMessage={needsChanges.length > 0 ? 'Nothing else yet.' : 'No invoices yet. Upload one to get started.'}
         columns={columns}
       />
-      <p className="compact-hint">You can withdraw an invoice until review starts. It then comes back here as a draft.</p>
+      <p className="compact-hint">
+        Your invoices are filed under your name. You do not need to set up cases or clients here. You can withdraw an
+        invoice until review starts; it then comes back here as a draft.
+      </p>
       {withdrawing && (
         <WithdrawDialog
           error={withdrawError}

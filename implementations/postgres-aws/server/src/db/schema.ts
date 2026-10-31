@@ -169,8 +169,12 @@ export const professional = pgTable(
     displayName: text('display_name'),
     active: boolean('active').notNull().default(true),
     officeId: uuid('office_id').references(() => office.officeId),
-    // Whose rates price this professional's time.
+    // Whose rates price this professional's time, unless they have their own
+    // (professional_rate).
     professionalKindId: uuid('professional_kind_id').references(() => professionalKinds.id),
+    // The business or firm that is paid for their invoices.
+    paidThrough: text('paid_through'),
+    phone: text('phone'),
   },
   (table) => [
     // Postgres unique indexes treat NULL as distinct from every other
@@ -317,6 +321,27 @@ export const professionalKindRate = pgTable(
   (table) => [index('professional_kind_rate_kind_idx').on(table.professionalKindId, table.effectiveFrom)],
 );
 
+// One person's own approved rates, in place of their kind's hourly rate and
+// the mileage rate (../billing/professionalRates.ts). Insert-only; either
+// rate may be left to the general one.
+export const professionalRate = pgTable(
+  'professional_rate',
+  {
+    professionalRateId: uuid('professional_rate_id').primaryKey().defaultRandom(),
+    professionalId: uuid('professional_id')
+      .notNull()
+      .references(() => professional.professionalId),
+    hourlyRate: numeric('hourly_rate', { precision: 12, scale: 2 }),
+    ratePerMile: numeric('rate_per_mile', { precision: 8, scale: 3 }),
+    effectiveFrom: date('effective_from').notNull(),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('professional_rate_professional_idx').on(table.professionalId, table.effectiveFrom)],
+);
+
 // Insert-only, like professional_kind_rate (model/rules.yaml
 // apply_mileage_rates; ../billing/mileageRates.ts).
 export const mileageRate = pgTable(
@@ -405,6 +430,10 @@ export const invoice = pgTable(
     // after matching (model/rules.yaml match_invoice_to_case).
     proposedCase: jsonb('proposed_case').$type<{ clientName: string; caseNumber?: string; details?: string }>(),
     proposedProvider: jsonb('proposed_provider').$type<{ displayName: string; email?: string; professionalKindId?: string }>(),
+    // Free text, never checked against a case list (../billing/caseNumbers.ts).
+    caseNumberAsTyped: text('case_number_as_typed'),
+    // A reviewer's correction; the typed one is kept, and the change audited.
+    caseNumberCorrected: text('case_number_corrected'),
   },
   (table) => [index('invoice_professional_id_idx').on(table.professionalId), index('invoice_case_id_idx').on(table.caseId)],
 );
@@ -698,6 +727,27 @@ export const caseInvoiceReviewer = pgTable(
     endedAt: timestamp('ended_at', { withTimezone: true }),
   },
   (table) => [uniqueIndex('case_invoice_reviewer_open_uidx').on(table.caseId).where(sql`ended_at IS NULL`)],
+);
+
+// Who reviews new invoices from one person, after the case's reviewer
+// (../billing/reviewAssignment.ts assignOnSubmit). Ended, never overwritten.
+export const professionalInvoiceReviewer = pgTable(
+  'professional_invoice_reviewer',
+  {
+    professionalInvoiceReviewerId: uuid('professional_invoice_reviewer_id').primaryKey().defaultRandom(),
+    professionalId: uuid('professional_id')
+      .notNull()
+      .references(() => professional.professionalId),
+    reviewerUserAccountId: uuid('reviewer_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    setAt: timestamp('set_at', { withTimezone: true }).notNull(),
+    setByUserAccountId: uuid('set_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+  },
+  (table) => [uniqueIndex('professional_invoice_reviewer_open_uidx').on(table.professionalId).where(sql`ended_at IS NULL`)],
 );
 
 // An external-service ceiling for one case, here for one professional, as

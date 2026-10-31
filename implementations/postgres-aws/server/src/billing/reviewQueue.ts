@@ -1,6 +1,6 @@
 // The staff queue: invoices waiting on review or sign-off, or finished, with
 // who has each, how long it has waited and what needs care.
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import {
   invoice,
@@ -12,17 +12,20 @@ import {
 import { loadCaseNumbers, selectInvoiceHeaders } from './invoiceDetail';
 import { approvedTotal, latestRoundNumber, loadRecordedDecisions, signOffProgress } from './reviewRounds';
 import { formatMoney, toCents } from './money';
-import { loadAssignments } from './reviewAssignment';
+import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments } from './reviewAssignment';
 import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
 import { loadRateLimits, rateLimitFor } from './preauthorizations';
 import type { RuleFinding } from './billingRules';
+import { currentCaseNumber, matchCaseNumbers } from './caseNumbers';
 import {
   APPROVED_INVOICE_STATUS_CODE,
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
+  DRAFT_INVOICE_STATUS_CODE,
   IN_REVIEW_INVOICE_STATUS_CODES,
   LINE_REVIEW_STATUS_CODES,
   REJECTED_INVOICE_STATUS_CODE,
+  WITHDRAWN_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
 
 // open: waiting on review or sign-off; finished: approved or rejected;
@@ -34,13 +37,21 @@ export interface QueueFlag {
   message: string;
 }
 
-export async function listReviewQueue(db: Database, view: QueueView, options: { caseId?: string; now?: Date } = {}) {
+export async function listReviewQueue(
+  db: Database,
+  view: QueueView,
+  options: { caseId?: string; professionalId?: string; now?: Date } = {},
+) {
   const now = options.now ?? new Date();
   const finished = [APPROVED_INVOICE_STATUS_CODE, REJECTED_INVOICE_STATUS_CODE];
   const statusCodes =
     view === 'open' ? IN_REVIEW_INVOICE_STATUS_CODES : view === 'finished' ? finished : [...IN_REVIEW_INVOICE_STATUS_CODES, ...finished];
   const headers = await selectInvoiceHeaders(db).where(
-    and(inArray(invoiceStatuses.code, statusCodes), ...(options.caseId ? [eq(invoice.caseId, options.caseId)] : [])),
+    and(
+      inArray(invoiceStatuses.code, statusCodes),
+      ...(options.caseId ? [eq(invoice.caseId, options.caseId)] : []),
+      ...(options.professionalId ? [eq(invoice.professionalId, options.professionalId)] : []),
+    ),
   );
   const invoiceIds = headers.map((header) => header.invoiceId);
   if (invoiceIds.length === 0) {
@@ -102,7 +113,7 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
       const decided = inLineReview ? (chain ? (workingCount.get(chain.chainId) ?? 0) : 0) : round === null ? 0 : own.length;
 
       const flags: QueueFlag[] = [];
-      if (header.caseId === null) {
+      if (header.caseId === null && !header.caseNumberAsTyped) {
         flags.push({ kind: 'no_case', message: 'No case: the provider and case are not tracked in this system' });
       }
       // Time lines (the ones with a configured rate) billed above their limit.
@@ -114,7 +125,7 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
       if (overRate?.limit) {
         flags.push({
           kind: 'rate',
-          message: `Rate check: bills ${formatMoney(overRate.line.billedRate as string)} an hour, ${overRate.limit.source === 'preauthorized' ? 'pre-authorized' : 'configured'} ${formatMoney(overRate.limit.rate)}`,
+          message: `Rate check: bills ${formatMoney(overRate.line.billedRate as string)} an hour, ${overRate.limit.source === 'preauthorized' ? 'pre-authorized' : 'approved rate'} ${formatMoney(overRate.limit.rate)}`,
         });
       }
       const mismatch = own.find(
@@ -146,6 +157,13 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
         lineCount: own.length,
         decidedCount: decided,
         approvedTotal: approvedTotal(recorded, round),
+        // When the latest round's review was finished; null until one is.
+        finishedAt:
+          round === null
+            ? null
+            : recorded
+                .filter((decision) => decision.sequenceNumber === round && decision.stepCode === LINE_REVIEW_STEP_TYPE_CODE)
+                .reduce<Date | null>((latest, decision) => (latest && latest > decision.decidedAt ? latest : decision.decidedAt), null),
         reviewer: assignments.reviewer,
         // Who must act now: the next approver while awaiting sign-off.
         holder: nextApprover ?? assignments.reviewer,
@@ -160,5 +178,27 @@ export async function listReviewQueue(db: Database, view: QueueView, options: { 
     }),
   );
   rows.sort((a, b) => b.workingDaysWaiting - a.workingDaysWaiting || Number(a.submittedAt) - Number(b.submittedAt));
-  return { invoices: rows, waitingAlertWorkingDays: settings.waitingAlertWorkingDays };
+  const matches = await sentCaseNumberMatches(db);
+  return {
+    invoices: rows.map((row) => ({ ...row, caseNumberMatches: matches.get(row.invoiceId) ?? { same: 0, close: 0 } })),
+    waitingAlertWorkingDays: settings.waitingAlertWorkingDays,
+  };
+}
+
+// Across every sent invoice: its case number as typed or corrected, else its case's.
+export async function sentCaseNumberMatches(db: Database) {
+  const sent = await db
+    .select({
+      invoiceId: invoice.invoiceId,
+      caseId: invoice.caseId,
+      caseNumberAsTyped: invoice.caseNumberAsTyped,
+      caseNumberCorrected: invoice.caseNumberCorrected,
+    })
+    .from(invoice)
+    .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+    .where(notInArray(invoiceStatuses.code, [DRAFT_INVOICE_STATUS_CODE, WITHDRAWN_INVOICE_STATUS_CODE]));
+  const numbers = await loadCaseNumbers(db, [...new Set(sent.map((row) => row.caseId))]);
+  return matchCaseNumbers(
+    sent.map((row) => ({ invoiceId: row.invoiceId, caseNumber: currentCaseNumber(row) ?? numbers.get(row.caseId)?.caseNumber ?? null })),
+  );
 }

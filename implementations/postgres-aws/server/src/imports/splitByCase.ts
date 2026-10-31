@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client';
-import { caseAssignment, caseIdentifier, caseTable, person, supportingInvoice } from '../db/schema';
+import { caseAssignment, caseIdentifier, caseTable, invoice, person, supportingInvoice } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
@@ -20,7 +20,8 @@ import { matchKeys, namedIn, type MatchKeys } from './caseMatching';
 import { proposedCaseSchema, proposedProviderSchema } from '../billing/proposedDetails';
 import { suggestUploadCase, uploadCases } from './caseSuggestions';
 import { listRates, rateOn } from '../billing/professionalRates';
-import { listMileageRates, mileageRateOn } from '../billing/mileageRates';
+import { mileageRateOn, mileageRatesFor } from '../billing/mileageRates';
+import { cleanCaseNumber, readCaseNumber } from '../billing/caseNumbers';
 
 export interface SplitCase {
   caseId: string;
@@ -236,7 +237,7 @@ async function splitPreview(db: Database, actor: PortalActor, professionalId: st
   // For lines without a case column, as in a PDF.
   const fileCase = caseNamedIn(parsed.invoiceText, cases);
   const rates = await listRates(db, [professionalId]);
-  const mileageRates = await listMileageRates(db);
+  const mileageRates = await mileageRatesFor(db, professionalId);
   return {
     cases: cases.map(({ keys: _keys, ...row }) => row),
     lines: parsed.lines.map(suggestMileage).map((line, index) => {
@@ -375,6 +376,7 @@ export async function getUploadRead(db: Database, actor: PortalActor, uploadRead
     read: {
       lineCount: parsed.lines.length,
       invoiceNumber: parsed.invoiceNumber ?? null,
+      caseNumber: readCaseNumber(parsed)?.value ?? null,
       periodStart: parsed.periodStart ?? null,
       periodEnd: parsed.periodEnd ?? null,
       statedTotal: parsed.statedTotal ?? null,
@@ -399,6 +401,7 @@ const uploadDraftSchema = z
     periodStart: z.iso.date('Enter the first day of the billing period.').optional(),
     periodEnd: z.iso.date('Enter the last day of the billing period.').optional(),
     invoiceNumber: z.string().trim().max(100, 'Keep the invoice number under 100 characters.').optional(),
+    caseNumber: z.string().max(100, 'Keep the case number under 100 characters.').optional(),
   })
   .refine((input) => Boolean(input.periodStart) === Boolean(input.periodEnd), {
     message: 'Enter both days of the billing period, or neither.',
@@ -453,12 +456,20 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
         extractedAt: now,
         parsed,
         fileName: read.fileName,
-        // With no one chosen yet, timekeepers named in the file are suggested.
-        everyLineBilled: input.professionalId !== null,
+        // Filed under a case with whom it bills, every line is theirs. Filed
+        // by person, timekeepers named in the file are matched, the rest
+        // falling back (../billing/timekeeperFallback.ts). Otherwise they
+        // are only suggested.
+        everyLineBilled: input.professionalId !== null && input.caseId !== null,
+        timekeeperFallback: input.caseId === null && input.professionalId !== null,
         checkedPeriod: { start: input.periodStart, end: input.periodEnd },
         proposedCase: input.proposedCase,
         proposedProvider: input.proposedProvider,
       });
+      const caseNumber = cleanCaseNumber(input.caseNumber);
+      if (caseNumber) {
+        await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
+      }
       if (input.invoiceNumber) {
         await tx.insert(supportingInvoice).values({
           invoiceId,

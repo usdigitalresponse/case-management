@@ -8,6 +8,7 @@ import { firstRow } from '../db/rowHelpers';
 import { mileageRate } from '../db/schema';
 import { ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
+import { listOwnMileageRates, ownFirst } from './professionalRates';
 
 export interface MileageRateRow {
   ratePerMile: string;
@@ -20,6 +21,12 @@ export async function listMileageRates(db: DatabaseOrTransaction): Promise<Milea
     .select({ ratePerMile: mileageRate.ratePerMile, effectiveFrom: mileageRate.effectiveFrom })
     .from(mileageRate)
     .orderBy(asc(mileageRate.effectiveFrom), asc(mileageRate.recordedAt));
+}
+
+// The general mileage rates until the person's own first takes effect, then theirs.
+export async function mileageRatesFor(db: DatabaseOrTransaction, professionalId: string | null): Promise<MileageRateRow[]> {
+  const [general, own] = await Promise.all([listMileageRates(db), professionalId ? listOwnMileageRates(db, professionalId) : []]);
+  return ownFirst(general, own, () => '');
 }
 
 export function mileageRateOn(rates: MileageRateRow[], date: string): string | undefined {

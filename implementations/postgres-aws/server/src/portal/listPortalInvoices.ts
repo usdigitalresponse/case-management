@@ -57,6 +57,8 @@ export async function listPortalInvoices(db: Database, reader: PortalActor, case
       caseExternalReference: caseTable.externalReference,
       professionalDisplayName: professional.displayName,
       proposedCase: invoice.proposedCase,
+      caseNumberAsTyped: invoice.caseNumberAsTyped,
+      caseNumberCorrected: invoice.caseNumberCorrected,
       returnedReason,
     })
     .from(invoice)

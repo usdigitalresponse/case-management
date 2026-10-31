@@ -11,19 +11,37 @@ import { auditEvent, person, professional, professionalKinds } from '../db/schem
 import { ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { emailInUse, optionalEmail } from '../people/emails';
+import { addOwnRates } from '../billing/professionalRates';
 
-const inputSchema = z.object({
-  displayName: z.string().trim().min(2, 'Enter their name.').max(200),
-  email: optionalEmail,
-  professionalKindId: z.uuid('Choose what kind of provider they are.'),
+const optionalText = z
+  .string()
+  .trim()
+  .max(200)
+  .optional()
+  .transform((value) => value || undefined);
+
+// Phone, who is paid and their own rates come from People (design G22).
+export const personDetailsSchema = z.object({
+  phone: optionalText,
+  paidThrough: optionalText,
+  hourlyRate: z.coerce.number().positive('Enter an hourly rate above zero.').max(100000).optional(),
+  ratePerMile: z.coerce.number().positive('Enter a mileage rate above zero.').max(100).optional(),
 });
+
+const inputSchema = z
+  .object({
+    displayName: z.string().trim().min(2, 'Enter their name.').max(200),
+    email: optionalEmail,
+    professionalKindId: z.uuid('Choose what kind of provider they are.'),
+  })
+  .extend(personDetailsSchema.shape);
 
 export async function addProfessional(db: Database, actorUserAccountId: string, rawInput: unknown) {
   const parsed = inputSchema.safeParse(rawInput);
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
-  const { displayName, email, professionalKindId } = parsed.data;
+  const { displayName, email, professionalKindId, phone, paidThrough, hourlyRate, ratePerMile } = parsed.data;
   const [kind] = await db.select({ id: professionalKinds.id }).from(professionalKinds).where(eq(professionalKinds.id, professionalKindId));
   if (!kind) {
     throw new ValidationError({ professionalKindId: 'Choose what kind of provider they are.' });
@@ -36,9 +54,13 @@ export async function addProfessional(db: Database, actorUserAccountId: string, 
     const row = firstRow(
       await tx
         .insert(professional)
-        .values({ personId: personRow.personId, displayName, professionalKindId, active: true })
+        .values({ personId: personRow.personId, displayName, professionalKindId, active: true, phone, paidThrough })
         .returning(),
     );
+    // A new person's first rates cover all their work, however far back.
+    if (hourlyRate !== undefined || ratePerMile !== undefined) {
+      await addOwnRates(tx, actorUserAccountId, row.professionalId, { hourlyRate, ratePerMile, effectiveFrom: '2000-01-01' });
+    }
     // A new record has no prior values; who added it is the point.
     await tx.insert(auditEvent).values({
       entityType: 'professional',

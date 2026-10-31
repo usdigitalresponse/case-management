@@ -8,12 +8,20 @@ import CaseDetail from './pages/CaseDetail';
 import NewCaseIntake from './pages/NewCaseIntake';
 import Overview from './pages/Overview';
 import ReviewQueue from './pages/ReviewQueue';
+import InvoicesToReview from './pages/InvoicesToReview';
+import FinishedInvoices from './pages/FinishedInvoices';
+import People from './pages/People';
+import PersonPage from './pages/PersonPage';
+import SearchResults from './pages/SearchResults';
+import { searchPath } from './caseNumbers';
+import UploadInvoices from './pages/UploadInvoices';
+import InvoiceSubmission from './portal/InvoiceSubmission';
 import InvoiceReview from './pages/InvoiceReview';
 import Exports from './pages/Exports';
 import InvoiceIntake from './pages/InvoiceIntake';
 import PeopleDirectory from './pages/PeopleDirectory';
 import ClientsDirectory from './pages/ClientsDirectory';
-import VendorsDirectory, { DIRECTORY_TITLE } from './pages/VendorsDirectory';
+import VendorsDirectory from './pages/VendorsDirectory';
 import OrganizationsDirectory from './pages/OrganizationsDirectory';
 import Settings from './pages/Settings';
 import ExternalPortalApp from './portal/ExternalPortalApp';
@@ -22,22 +30,26 @@ import PortalBulkImport from './portal/PortalBulkImport';
 import PortalImportReview from './portal/PortalImportReview';
 import PortalUpload from './portal/PortalUpload';
 import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
-import { DATA_CHANGED_EVENT, listInvoiceIntake, listReviewQueue } from './api/client';
+import { DATA_CHANGED_EVENT, listReviewQueue } from './api/client';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
+
+// The landing page files invoices by who sent them; the earlier queue, led
+// by case and client, stays here.
+const ALTERNATE_HOME_PATH = '/home-alternate';
+const STAFF_UPLOAD_PATH = '/upload';
 
 // Only rendered for a signed-in staff user (see AppContent) — the signed-out screen is LoginPage's alone.
 function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () => void }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
 
+  // Every sent invoice, by name or case number (design G24).
   function search(event: FormEvent) {
     event.preventDefault();
-    const params = new URLSearchParams({ show: 'everyone' });
     const q = query.trim();
     if (q) {
-      params.set('q', q);
+      navigate(searchPath(q));
     }
-    navigate(`/?${params.toString()}`);
   }
 
   return (
@@ -53,7 +65,7 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
           <input
             id="header-search-input"
             type="search"
-            placeholder="Search by case number, client, or attorney"
+            placeholder="Search by name or case number"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -70,7 +82,7 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
 // Counts for the sidebar, refreshed as the reviewer moves around or changes something.
 function useQueueCounts(userAccountId: string) {
   const location = useLocation();
-  const [counts, setCounts] = useState<{ all: number; mine: number; waiting: number } | null>(null);
+  const [counts, setCounts] = useState<{ all: number; mine: number } | null>(null);
   const [changes, setChanges] = useState(0);
   useEffect(() => {
     const onChange = () => setChanges((n) => n + 1);
@@ -79,14 +91,12 @@ function useQueueCounts(userAccountId: string) {
   }, []);
   useEffect(() => {
     let cancelled = false;
-    // Intake is for staff roles only; without one there is nothing waiting to count.
-    Promise.all([listReviewQueue('open'), listInvoiceIntake().catch(() => ({ items: [] }))]).then(
-      ([{ invoices }, { items }]) => {
+    listReviewQueue('open').then(
+      ({ invoices }) => {
         if (!cancelled) {
           setCounts({
             all: invoices.length,
             mine: invoices.filter((invoice) => invoice.holder?.userAccountId === userAccountId).length,
-            waiting: items.length,
           });
         }
       },
@@ -104,42 +114,37 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
   const counts = useQueueCounts(userAccountId);
   const onQueue = location.pathname === '/';
   const show = new URLSearchParams(location.search).get('show');
-  // "/" with no filter is the reviewer's own work.
-  const mineActive = onQueue && (!show || show === 'mine');
+  const mineActive = onQueue && show === 'mine';
   const allActive = onQueue && !mineActive;
 
   return (
     <aside className="app-sidebar">
       <nav aria-label="Main navigation">
         <div className="nav-group">
-          <NavLink to={UPLOAD_PATH} end className="nav-primary" title="Upload invoices received by email or from other tools">
+          <NavLink to={STAFF_UPLOAD_PATH} end className="nav-primary" title="Upload invoices received by email or from other tools">
             <span><span aria-hidden="true">+ </span>Upload Invoices</span>
           </NavLink>
         </div>
+        {/* As design G. Intake, Cases, Providers and the case-led queue
+            (/home-alternate) are out of view but still work by address. */}
         <div className="nav-group">
           <h2>Invoices</h2>
-          <NavLink to={INTAKE_PATH} end title="Enter invoices and match them to cases">
-            Intake
-            {counts && counts.waiting > 0 && (
-              <span className="nav-count" title="Waiting for a case">
-                {counts.waiting}
-                <span className="usa-sr-only"> waiting for a case</span>
-              </span>
-            )}
-          </NavLink>
-          <Link to="/?show=everyone" className={allActive ? 'active' : undefined}>
+          <Link to="/" className={allActive ? 'active' : undefined}>
             To review{counts && <span className="nav-count">{counts.all}</span>}
           </Link>
-          <Link to="/" className={mineActive ? 'active' : undefined}>
+          <Link to="/?show=mine" className={mineActive ? 'active' : undefined}>
             Assigned to you{counts && <span className="nav-count">{counts.mine}</span>}
           </Link>
           <NavLink to="/finished" end>Finished</NavLink>
         </div>
         <div className="nav-group">
           <h2>Look something up</h2>
-          <NavLink to="/cases">Cases</NavLink>
-          <NavLink to="/vendors" end>{DIRECTORY_TITLE}</NavLink>
+          <NavLink to="/people">People</NavLink>
           <NavLink to="/exports" end>Exports</NavLink>
+        </div>
+        <div className="nav-group">
+          <h2>In your {EXTERNAL_SYSTEM_NAME}</h2>
+          <button type="button" disabled title="Not connected yet">Open it <span aria-hidden="true">↗</span></button>
         </div>
         {showSettings && (
           <div className="nav-group">
@@ -147,10 +152,6 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
             <NavLink to="/settings" end>Settings</NavLink>
           </div>
         )}
-        <div className="nav-group">
-          <h2>In your {EXTERNAL_SYSTEM_NAME}</h2>
-          <button type="button" disabled title="Not connected yet">Open it <span aria-hidden="true">↗</span></button>
-        </div>
       </nav>
     </aside>
   );
@@ -189,14 +190,21 @@ function AppContent() {
         <Sidebar showSettings={Boolean(user.isAdmin || user.demoMode)} userAccountId={user.userAccountId} />
         <main id="main-content" className="app-main" tabIndex={-1}>
           <Routes>
-            <Route path="/" element={<ReviewQueue view="open" />} />
-            <Route path="/finished" element={<ReviewQueue view="finished" />} />
+            <Route path="/" element={<InvoicesToReview />} />
+            <Route path={ALTERNATE_HOME_PATH} element={<ReviewQueue view="open" />} />
+            <Route path={`${ALTERNATE_HOME_PATH}/finished`} element={<ReviewQueue view="finished" />} />
+            <Route path="/finished" element={<FinishedInvoices />} />
+            <Route path="/search" element={<SearchResults />} />
+            <Route path="/people" element={<People />} />
+            <Route path="/people/:professionalId" element={<PersonPage />} />
             <Route path="/billing/:invoiceId" element={<InvoiceReview />} />
             <Route path="/exports" element={<Exports />} />
             {/* Intake and the portal invoice and import pages it links to, in the staff shell. */}
             <Route element={<div className="portal-main"><Outlet /></div>}>
               <Route path={INTAKE_PATH} element={<InvoiceIntake />} />
               <Route path={UPLOAD_PATH} element={<PortalUpload />} />
+              <Route path={STAFF_UPLOAD_PATH} element={<UploadInvoices />} />
+              <Route path="/invoices/:invoiceId/check" element={<InvoiceSubmission byPerson />} />
               <Route path="/portal/invoices/:invoiceId" element={<PortalInvoiceDetail />} />
               <Route path="/portal/imports" element={<PortalBulkImport />} />
               <Route path="/portal/imports/:importId" element={<PortalImportReview />} />
@@ -209,7 +217,7 @@ function AppContent() {
             <Route path="/settings" element={<Settings isAdmin={Boolean(user.isAdmin)} />} />
             {/* Hidden from the sidebar while cases are managed elsewhere; still reachable. */}
             <Route path="/overview" element={<Overview />} />
-            <Route path="/people" element={<PeopleDirectory />} />
+            <Route path="/person-records" element={<PeopleDirectory />} />
             <Route path="/clients" element={<ClientsDirectory />} />
             <Route path="/organizations" element={<OrganizationsDirectory />} />
             <Route path="*" element={<><h1>Page not found</h1><Link to="/">Back to your invoices</Link></>} />

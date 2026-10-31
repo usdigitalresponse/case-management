@@ -15,7 +15,7 @@ export const OTHER_REASON_CODE = 'other';
 export type ReasonAppliesTo = 'approved_in_part' | 'rejected' | 'both';
 
 export const INVOICE_DECISION_REASONS: Array<{ code: string; displayName: string; appliesTo: ReasonAppliesTo }> = [
-  { code: RATE_REASON_CODE, displayName: 'Rate is higher than the pre-authorized rate', appliesTo: 'approved_in_part' },
+  { code: RATE_REASON_CODE, displayName: 'Rate is higher than the approved rate', appliesTo: 'approved_in_part' },
   { code: 'not_billable', displayName: 'Part of the work is not billable', appliesTo: 'approved_in_part' },
   { code: 'excessive_time', displayName: 'More time than the task needs', appliesTo: 'approved_in_part' },
   { code: 'block_billing', displayName: 'Block billing. List the tasks separately.', appliesTo: 'rejected' },

@@ -31,12 +31,91 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 - **Invoice review beside an external case management system**
   (`docs/DECISIONS.md`; design tokens and layout from the invoice review
   design): the staff app opens on the review queue, not the overview.
-  - `/` is the queue (`client/src/pages/ReviewQueue.tsx`), showing the
-    signed-in person's invoices by default (`?show=everyone`,
-    `unassigned`, `flagged` for the rest); `/finished` lists approved and
+  - `/` is the queue filed by person (design G,
+    `client/src/pages/InvoicesToReview.tsx`): everyone's invoices by
+    default (`?show=mine`, `unassigned`, `flagged` for the rest), each led
+    by who sent it, with its case number as typed and how many other sent
+    invoices share it exactly or closely. The header search filters it by
+    name or case number, however the number was typed. The earlier queue,
+    led by case and client and showing the signed-in person's invoices by
+    default (`client/src/pages/ReviewQueue.tsx`), is at `/home-alternate`
+    ("Queue by case" in the sidebar). `/finished` lists approved and
     rejected invoices; `/exports` lists signed-off invoices to export.
-    The header search filters the queue by case number, client or
-    professional.
+  - Filed by person (design G, G4–G10): the staff sidebar's "+ Upload
+    Invoices" (`/upload`) and the portal's Upload invoices
+    (`/portal/upload`) both open `client/src/pages/UploadInvoices.tsx`,
+    which reads each file, then asks its case number (read from the file
+    when labelled, by `server/src/billing/caseNumbers.ts`
+    `readCaseNumber`), billing period and invoice number, one file at a
+    time, and who it is from when there's a choice (staff, or a submitter
+    who acts for others; otherwise it is the submitter's own). Each becomes
+    a draft with no case, checked next (`portal/InvoiceSubmission.tsx`:
+    staff at `/invoices/:id/check`, submitters at `/portal/invoices/:id`,
+    where any invoice not filed under a case is shown this way). The case
+    number sits in a box above the file and lines (`PUT
+    /api/portal/invoices/:id/case-number`). When the file labels one ("Case
+    No. …"), the PDF reader records that row's position
+    (`extraction_result.invoice.case_number`, `textLayer.ts`
+    `caseNumberIn`), and while the box holds that number the file opens
+    highlighted there, as when a line is clicked (G8). Sending without one is refused
+    (`filedByPerson` on submit). An invoice with a typed case number goes to
+    review without a case, for submitters too (`needsMatching` in
+    `server/src/billing/proposedDetails.ts`). Who it is from is required to
+    go on (staff choose or add someone; a submitter acting for others
+    chooses among them) and to send. Who did the work is still matched from
+    the file's timekeeper names; a line matching no one falls back to the
+    person most of the invoice's other lines matched, else the sender, when
+    the draft is made and again on sending (`billing/timekeeperFallback.ts`).
+    So every invoice filed by person goes to review, and none waits on
+    Intake. A submitter's true-and-correct statement names the
+    case number (`attestationStatement`), and the receipt email shows it.
+    Staff check several files one after another; a submitter's land in
+    Your invoices. The typed number is `invoice.case_number_as_typed`
+    (migration `0020`), never checked against cases; close matches ignore
+    case, spaces, dashes and leading zeros. Intake's own drop zone and
+    manual entry still open the case-based upload
+    (`client/src/portal/PortalUpload.tsx`).
+  - The rest of design G (G13, G15–G24):
+    - **Sidebar**, as G: To review, Assigned to you, Finished; People, Exports; the external
+      system link. It keeps "+ Upload Invoices" and, for administrators, Settings. Intake,
+      Cases, Providers and the case-led queue are off it but work by address. A staff
+      member's unsent drafts lead To review (from `GET /api/invoices/intake`), with a notice
+      linking to Intake if anything is ever held there.
+    - **People** (`/people`, `client/src/pages/People.tsx`) replaces Cases and Providers in the
+      sidebar. It lists everyone who can send invoices, with their role, who they are paid
+      through, today's approved rate, what is waiting and their last invoice
+      (`GET /api/professionals/people`, `server/src/professionals/peopleDirectory.ts`).
+    - **Add a person** (`components/PersonDialog.tsx`) takes a name, role, email, phone, paid
+      through, an approved hourly rate and a mileage rate. They can sign in with that email
+      straight away.
+    - **A person's page** (`/people/:id`, `pages/PersonPage.tsx`) has their details, this year's
+      totals, every invoice they sent and an export to CSV. Administrators edit details there;
+      a changed rate starts today.
+    - **Per-person rates** (`professional_rate`, migration `0021`) replace the role's hourly rate
+      and the general mileage rate from their effective date. Earlier work keeps the earlier
+      rates (`professionalRates.ts` `ownFirst`). Rate checks and the decision reason say
+      "approved rate" (G16).
+    - **Default reviewer per person** (`professional_invoice_reviewer`): "Send new invoices from
+      [person] to [reviewer] too" in the reviewer menu (G18). On submit, the case's reviewer
+      comes first, then the person's, then the general default.
+    - **Review page** (G15): an invoice with no case is led by the person who sent it. A
+      reviewer can correct its case number; the sender's stays as typed
+      (`invoice.case_number_corrected`, audited as `case_number_corrected`;
+      `billing/correctCaseNumber.ts`). Matching, the attorney's view and exports use the
+      correction. Beside it are an inert "Search your [external system]" link, the match
+      counts and "See all invoices with this case number". The facts show the person's
+      approved rate.
+    - **Search** (`/search`, `pages/SearchResults.tsx`, G24): the header search covers every
+      sent invoice by name or case number, with exact and close matches listed and totalled
+      apart, and an export to CSV. The queue no longer filters in place.
+    - **Finished** (`/finished`, `pages/FinishedInvoices.tsx`, G20) leads with the person, with
+      chips for This month, Waiting for sign-off and Decided. The case-led version is at
+      `/home-alternate/finished`.
+    - **The attorney's decided invoice** (G13) shows asked for, approved and cut, the line
+      counts, and "Download the decisions".
+    - Gaps: reviewer names stay hidden from external users, against G13, until that rule
+      changes. "Paid" waits on payment records. The old person search moved to
+      `/person-records`.
   - Hidden, not removed: Overview (`/overview`), Clients, Organizations,
     People and the case page's lifecycle history and Close case action are
     out of the sidebar but their routes and code remain. The case page
@@ -44,9 +123,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     access depends on case assignment.
   - Links to the external case management system ("Open the case in…",
     the sidebar link) are disabled placeholders; nothing is integrated.
-  - Staff "Intake" (`/intake`, first under Invoices in the sidebar, with
-    how many are waiting for a case; the sidebar's main button, "+ Upload
-    Invoices", opens the upload directly;
+  - Staff "Intake" (`/intake`, off the sidebar since design G;
     `client/src/pages/InvoiceIntake.tsx`) is one page for invoices a
     professional sent by email or from another tool (`model/rules.yaml`
     `authorize_staff_invoice_entry`). It starts the same way as external submitters: dropping or
@@ -163,10 +240,12 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     one list, in the review side's words: "Draft, not sent" (with "Lines
     not checked yet." while its import is unconfirmed), "Waiting for
     review", "Being reviewed" with the assigned reviewer's name, and
-    "Decided" with the approved amount and lines cut. Search (case
-    number, client, provider), a status filter with counts and a sort
-    (`portal/invoiceListView.ts`) run in the browser over the whole list
-    and are kept in the address (`q`, `show`, `sort`). Withdraw (the recall
+    "Decided" with the approved amount and lines cut. As in design G (G3,
+    G6) the list has no search, filter or sort: drafts come first, then
+    the most recently sent (`portal/invoiceListView.ts`). Each row leads
+    with its case number (as typed, else its case's or one entered for a
+    new case), with no client column; a draft with none says "Not added
+    yet" and "No case number yet." in amber. Withdraw (the recall
     transition, behind a confirmation dialog) shows only to the sender
     while the invoice waits for review. "Upload invoices" opens the portal
     upload (`/portal/upload`, see "Structured invoice import"). Pages
@@ -792,8 +871,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     that each other are duplicates. Only the spreadsheet template has a
     case column; other files' lines name no case, so a PDF's own text or
     each line's description is used.
-  - The portal upload (`client/src/portal/PortalUpload.tsx`, reached from
-    Upload invoices) reads a file before its case is chosen, with the same
+  - The case-based upload (`client/src/portal/PortalUpload.tsx`, now
+    reached only from staff Intake; submitters use the upload filed by
+    person, above) reads a file before its case is chosen, with the same
     read machinery: `POST /api/portal/uploads` stores and reads it, `GET
     .../uploads/:id` reports progress and then what was read (line count,
     invoice number, billing period, stated total), the cases it may go to
@@ -847,7 +927,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     Gaps: the design's column matching for spreadsheets not on the template
     (F8) isn't built; a PDF line scrolls to its page rather than
     highlighting the line.
-  - Sending (F9–F11): Send for review confirms the import (strict pricing
+  - Sending (F9–F11, G9–G10 when filed by person): Send for review confirms the import (strict pricing
     and billing rules) and submits with the true-and-correct tick, which
     the server requires of any submitter who isn't staff and records as an
     `invoice_attestation` bound to the attempt and in its snapshot (staff
@@ -1317,6 +1397,17 @@ form relies on this being airtight.
   and invoices are left signed off, awaiting sign-off, part-decided,
   assigned but not started and unassigned, one backdated past the
   10-working-day callout. All amounts and identifiers are synthetic.
+- **Invoices filed by person** (`src/db/demoData.ts`, `demoUploads.ts`):
+  every demo invoice has no case and a synthetic typed case number
+  (`26-CR-00211` and similar). Several share one, one is typed without
+  dashes and one is a close match, for the queue's notes. The uploaded
+  PDFs print "Re: State v. [client], Case No. …", read back by the upload
+  and highlighted on the check page; one names none, so its draft shows
+  "Not added yet". The cases, their numbers and pre-authorizations stay for
+  the hidden case pages and Intake's fallback. Each demo person has a
+  synthetic firm they're paid through and a 555-01xx phone number; the
+  investigator and expert have approved rates of their own, and the demo
+  partner's new invoices go to the first demo reviewer.
 
 - **Mileage demo trips** (`src/db/seed.ts` `seedDemoMileage`): street
   addresses of public landmarks in Washington, D.C. (the Library of Congress
@@ -1351,6 +1442,12 @@ form relies on this being airtight.
   lookups by address pair and counts them per month (see "Mileage" above).
 - `sign_in_code`: not in `model/schema.yaml`. Hashed one-time codes for
   external sign-in (see "Emailed-code sign-in for external users" above).
+- `invoice.case_number_as_typed`, `invoice.case_number_corrected`,
+  `professional.paid_through`, `professional.phone`, `professional_rate` and
+  `professional_invoice_reviewer`: not in `model/schema.yaml`. They support
+  filing invoices by person (design G, above). Whether the canonical model
+  files invoices by person rather than case is an open decision; until it
+  is, these are prototype fields only.
 
 ## Known gaps / placeholders
 

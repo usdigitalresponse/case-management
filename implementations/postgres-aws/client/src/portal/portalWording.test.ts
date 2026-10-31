@@ -21,6 +21,8 @@ const invoice = (patch: Partial<InvoiceRecord>): InvoiceRecord => ({
   professionalDisplayName: null,
   submittedByUserAccountId: 'u',
   caseNumber: null,
+  caseNumberAsTyped: null,
+  caseNumberCorrected: null,
   import: null,
   reviewerDisplayName: null,
   approvedTotal: null,

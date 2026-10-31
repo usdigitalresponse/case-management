@@ -8,7 +8,7 @@ import type { Transaction } from '../db/client';
 import { expenseTypes, invoice, invoiceLine, invoiceLineTypes, timeEntry } from '../db/schema';
 import { ValidationError } from '../errors';
 import { listRates, professionalRateLabels, rateOn } from './professionalRates';
-import { listMileageRates, mileageRateOn } from './mileageRates';
+import { mileageRateOn, mileageRatesFor } from './mileageRates';
 import { fromCents, toCents } from './money';
 
 export interface PriceOptions {
@@ -62,7 +62,7 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
   const professionalIds = [...new Set(priced.flatMap((line) => (line.professionalId ? [line.professionalId] : [])))];
   const rates = await listRates(tx, professionalIds);
   const labels = await professionalRateLabels(tx, professionalIds);
-  const mileageRates = lines.some((line) => line.expenseTypeCode === 'mileage') ? await listMileageRates(tx) : [];
+  const mileageRates = lines.some((line) => line.expenseTypeCode === 'mileage') ? await mileageRatesFor(tx, options.billedProfessionalId) : [];
   const missingRate = (professionalId: string, date: string) => {
     const label = labels.get(professionalId);
     return label?.kind

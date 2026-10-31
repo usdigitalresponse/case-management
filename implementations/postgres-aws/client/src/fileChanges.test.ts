@@ -45,6 +45,7 @@ describe('the totals notice', () => {
     formatCode: 'document',
     fileAvailable: true,
     invoiceNumber: null,
+    caseNumber: null,
     statedTotal,
     lines,
     warnings: [],
