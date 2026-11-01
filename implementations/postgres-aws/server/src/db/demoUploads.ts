@@ -1,8 +1,6 @@
-// Demo invoices uploaded as files, through the same steps a submitter takes,
-// so the upload, check-the-lines and review-beside-the-file views have
-// something to show on a fresh seed. Each is filed by person with the case
-// number read from its file (design G); one file names none. The PDFs are
-// drawn here from synthetic values and name the seed's own vendors and clients.
+// Demo invoices uploaded as files through the same steps a submitter takes,
+// each filed by person with the case number read from it (one file names
+// none). The PDFs are drawn here from synthetic values.
 import { asc, eq } from 'drizzle-orm';
 import PDFDocument from 'pdfkit';
 import { db } from './client';

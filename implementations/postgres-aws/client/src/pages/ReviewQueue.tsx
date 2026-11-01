@@ -11,29 +11,13 @@ import { RecordTable } from '../components/RecordTable';
 import { caseNumberColumn, FlagNotes, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
 import { AssignReviewer } from '../components/ReviewRouting';
 import { Toast, useToast } from '../components/Toast';
+import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
-const FILTERS = [
-  { id: 'everyone', label: "Everyone's" },
-  { id: 'mine', label: 'Assigned to you' },
-  { id: 'unassigned', label: 'Not assigned yet' },
-  { id: 'flagged', label: 'Has a flag' },
-] as const;
-type FilterId = (typeof FILTERS)[number]['id'];
-
-function matches(invoice: ReviewQueueItem, filter: FilterId, userAccountId: string): boolean {
-  switch (filter) {
-    case 'mine':
-      return invoice.holder?.userAccountId === userAccountId;
-    case 'unassigned':
-      return !invoice.reviewer;
-    case 'flagged':
-      return invoice.flags.length > 0;
-    default:
-      return true;
-  }
-}
+const FILTERS = QUEUE_FILTERS;
+type FilterId = QueueFilterId;
+const matches = matchesQueueFilter;
 
 function matchesQuery(invoice: ReviewQueueItem, query: string): boolean {
   const haystack = [

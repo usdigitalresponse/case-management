@@ -364,45 +364,91 @@ function DetailsForm({
           </PickOrAdd>
         </div>
       )}
-      <div className="upload-details__field">
-        <span className="usa-label" id="upload-period-label">Billing period</span>
-        <div className="upload-period" role="group" aria-labelledby="upload-period-label">
-          <input
-            className="usa-input"
-            type="date"
-            aria-label="First day"
-            value={details.periodStart}
-            onChange={(event) => set({ periodStart: event.target.value })}
-          />
-          <span>to</span>
-          <input
-            className="usa-input"
-            type="date"
-            aria-label="Last day"
-            min={details.periodStart || undefined}
-            value={details.periodEnd}
-            onChange={(event) => set({ periodEnd: event.target.value })}
-          />
-        </div>
-        {(errors.periodStart || errors.periodEnd) && <p className="field-error">{errors.periodStart ?? errors.periodEnd}</p>}
-        <p className="field-hint">{withInvoiceNumber ? 'From the dates on your invoice.' : 'Optional. The dates the work covers.'}</p>
-      </div>
+      <UploadPeriodField
+        start={details.periodStart}
+        end={details.periodEnd}
+        error={errors.periodStart ?? errors.periodEnd}
+        hint={withInvoiceNumber ? 'From the dates on your invoice.' : 'Optional. The dates the work covers.'}
+        onChange={(period) => set(period)}
+      />
       {withInvoiceNumber && (
-        <div className="upload-details__field">
-          <label className="usa-label" htmlFor="upload-invoice-number">Invoice number on your file</label>
-          <input
-            id="upload-invoice-number"
-            className="usa-input"
-            value={details.invoiceNumber}
-            aria-describedby="upload-invoice-number-hint"
-            onChange={(event) => set({ invoiceNumber: event.target.value })}
-          />
-          {errors.invoiceNumber && <p className="field-error">{errors.invoiceNumber}</p>}
-          <p id="upload-invoice-number-hint" className="field-hint">
-            {staff ? "Optional. It helps match the provider's records." : 'Optional. It helps the billing office match your records.'}
-          </p>
-        </div>
+        <InvoiceNumberField
+          label="Invoice number on your file"
+          value={details.invoiceNumber}
+          error={errors.invoiceNumber}
+          hint={staff ? "Optional. It helps match the provider's records." : 'Optional. It helps the billing office match your records.'}
+          onChange={(invoiceNumber) => set({ invoiceNumber })}
+        />
       )}
+    </div>
+  );
+}
+
+export function UploadPeriodField({
+  start,
+  end,
+  error,
+  hint,
+  onChange,
+}: {
+  start: string;
+  end: string;
+  error?: string;
+  hint: string;
+  onChange: (period: { periodStart: string; periodEnd: string }) => void;
+}) {
+  return (
+    <div className="upload-details__field">
+      <span className="usa-label" id="upload-period-label">Billing period</span>
+      <div className="upload-period" role="group" aria-labelledby="upload-period-label">
+        <input
+          className="usa-input"
+          type="date"
+          aria-label="First day"
+          value={start}
+          onChange={(event) => onChange({ periodStart: event.target.value, periodEnd: end })}
+        />
+        <span>to</span>
+        <input
+          className="usa-input"
+          type="date"
+          aria-label="Last day"
+          min={start || undefined}
+          value={end}
+          onChange={(event) => onChange({ periodStart: start, periodEnd: event.target.value })}
+        />
+      </div>
+      {error && <p className="field-error">{error}</p>}
+      <p className="field-hint">{hint}</p>
+    </div>
+  );
+}
+
+export function InvoiceNumberField({
+  label,
+  value,
+  error,
+  hint,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  error?: string;
+  hint: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="upload-details__field">
+      <label className="usa-label" htmlFor="upload-invoice-number">{label}</label>
+      <input
+        id="upload-invoice-number"
+        className="usa-input"
+        value={value}
+        aria-describedby="upload-invoice-number-hint"
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {error && <p className="field-error">{error}</p>}
+      <p id="upload-invoice-number-hint" className="field-hint">{hint}</p>
     </div>
   );
 }

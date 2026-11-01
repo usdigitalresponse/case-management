@@ -46,7 +46,7 @@ import { checkInferredDates } from '../imports/inferServiceDates';
 import { enforceBillingRules } from './billingRules';
 import { assignOnSubmit, endAllAssignments } from './reviewAssignment';
 import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry } from './invoiceReceipt';
-import { cleanCaseNumber } from './caseNumbers';
+import { caseNumberInput, cleanCaseNumber } from './caseNumbers';
 import { fillUnmatchedTimekeepers } from './timekeeperFallback';
 import {
   AWAITING_MATCH_INVOICE_STATUS_CODE,
@@ -379,7 +379,7 @@ async function buildSubmissionSnapshot(
 // elsewhere don't attest for its payee.
 export const ATTESTATION_STATEMENT = 'I confirm this invoice is true and correct, and the work was done for this case.';
 
-// Filed by person, it names the case number the sender typed.
+// Filed by person, it names the typed case number.
 export function attestationStatement(caseNumberAsTyped: string | null): string {
   return caseNumberAsTyped
     ? `I confirm this invoice is true and correct, and the work was done for case ${caseNumberAsTyped}.`
@@ -417,8 +417,8 @@ export async function submitInTx(
     withoutCase?: boolean;
     // The submitter ticked attestationStatement().
     attested?: boolean;
-    // Filed under whom it is from with a typed case number, not under a
-    // case: it needs the number, and goes to review without a case.
+    // Filed under its sender with a typed case number: needs both, and goes
+    // to review without a case.
     filedByPerson?: boolean;
   } = {},
 ): Promise<'submitted' | 'awaiting_match'> {
@@ -435,7 +435,6 @@ export async function submitInTx(
     throw new InvoiceStateError('Only a draft can be submitted.');
   }
   if (options.filedByPerson) {
-    // Filed under its sender, so both are needed; nothing waits on intake.
     if (!locked.caseNumberAsTyped) {
       throw new ValidationError({ caseNumber: 'Add the case number before you send.' });
     }
@@ -612,7 +611,7 @@ export async function updateDraftInvoice(db: Database, actor: PortalActor, invoi
 }
 
 export async function setDraftCaseNumber(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
-  const parsed = z.object({ caseNumber: z.string().max(100, 'Keep the case number under 100 characters.') }).safeParse(rawInput);
+  const parsed = z.object({ caseNumber: caseNumberInput }).safeParse(rawInput);
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }

@@ -8,7 +8,7 @@ import { createInvoice } from '../src/portal/createInvoice';
 import { resolvePortalActor } from '../src/portal/portalActor';
 import { setDraftCaseNumber, submitInvoice } from '../src/billing/invoiceLifecycle';
 import { listReviewQueue } from '../src/billing/reviewQueue';
-import { closeKey, labelledCaseNumber, matchCaseNumbers, readCaseNumber } from '../src/billing/caseNumbers';
+import { closeKey, labelledCaseNumber, matchCaseNumbers, readCaseNumber, searchMatch } from '../src/billing/caseNumbers';
 import { ValidationError } from '../src/errors';
 import { invoiceApprovalChain, invoiceAttestation, userAccount } from '../src/db/schema';
 import { giveRate } from './rateHelpers';
@@ -26,6 +26,14 @@ describe('case numbers as typed', () => {
     expect(matches.get('a')).toEqual({ same: 1, close: 1 });
     expect(matches.get('c')).toEqual({ same: 0, close: 2 });
     expect(matches.has('d')).toBe(false);
+  });
+
+  it('searches names and numbers exactly, then numbers closely', () => {
+    expect(searchMatch('ada', ['Ada Lovelace', null], '26-CR-00418')).toBe('exact');
+    expect(searchMatch('cr-004', ['Ada Lovelace', null], '26-CR-00418')).toBe('exact');
+    expect(searchMatch('26cr418', ['Ada Lovelace', null], '26-CR-00418')).toBe('close');
+    expect(searchMatch('26cr419', ['Ada Lovelace', null], '26-CR-00418')).toBeNull();
+    expect(searchMatch(' ', ['Ada Lovelace', null], '26-CR-00418')).toBeNull();
   });
 
   it('reads the labels forms use, preferring the court’s number', () => {

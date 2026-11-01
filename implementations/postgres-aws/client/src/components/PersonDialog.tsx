@@ -1,6 +1,5 @@
-// Adding a person who can send invoices, or changing their details (design
-// G22, G23): name, role, email for the sign-in code, phone, who is paid and
-// their approved rates. Someone added can sign in with that email straight away.
+// Adding someone who can send invoices, or changing their details and rates.
+// Someone added can sign in with their email straight away.
 import { useState, type FormEvent } from 'react';
 import {
   addProfessional,

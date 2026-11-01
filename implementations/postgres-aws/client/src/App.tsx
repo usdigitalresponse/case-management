@@ -13,7 +13,7 @@ import FinishedInvoices from './pages/FinishedInvoices';
 import People from './pages/People';
 import PersonPage from './pages/PersonPage';
 import SearchResults from './pages/SearchResults';
-import { searchPath } from './caseNumbers';
+import { searchPath } from './staffPaths';
 import UploadInvoices from './pages/UploadInvoices';
 import InvoiceSubmission from './portal/InvoiceSubmission';
 import InvoiceReview from './pages/InvoiceReview';
@@ -43,7 +43,6 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
 
-  // Every sent invoice, by name or case number (design G24).
   function search(event: FormEvent) {
     event.preventDefault();
     const q = query.trim();
@@ -125,8 +124,7 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
             <span><span aria-hidden="true">+ </span>Upload Invoices</span>
           </NavLink>
         </div>
-        {/* As design G. Intake, Cases, Providers and the case-led queue
-            (/home-alternate) are out of view but still work by address. */}
+        {/* Intake, Cases, Providers and /home-alternate still work by address. */}
         <div className="nav-group">
           <h2>Invoices</h2>
           <Link to="/" className={allActive ? 'active' : undefined}>

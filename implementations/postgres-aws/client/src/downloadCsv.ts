@@ -1,5 +1,4 @@
-// A table the viewer already has, saved as a spreadsheet (CSV) in the
-// browser: a person's invoices (G23) and search results (G24).
+// Rows the page already has, saved as a CSV in the browser.
 function cell(value: string | number | null | undefined): string {
   const text = value === null || value === undefined ? '' : String(value);
   // A leading =, +, - or @ would run as a formula in a spreadsheet.

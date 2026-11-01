@@ -33,8 +33,8 @@ router.use(requireFullUser);
 // requireFullUser guarantees a session user.
 const actorId = (req: Request) => getSessionUser(req)!.userAccountId;
 
-// view: open (default), finished, or all sent (search); professionalId:
-// one person's (their page).
+// view: open (default), finished or all; professionalId: one person's;
+// q: a name or case number, close matches included.
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -42,7 +42,8 @@ router.get(
     const professionalId = typeof req.query.professionalId === 'string' && z.uuid().safeParse(req.query.professionalId).success
       ? req.query.professionalId
       : undefined;
-    res.json(await listReviewQueue(db, view, { professionalId }));
+    const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 100) : undefined;
+    res.json(await listReviewQueue(db, view, { professionalId, q }));
   }),
 );
 
@@ -142,8 +143,6 @@ router.get(
           (summary) => summary.professionalId === null || summary.professionalId === detail.invoice.professionalId,
         ) ?? null)
       : null;
-    // Filed by person (design G15): the sender's approved rate today, and
-    // how many other sent invoices share the case number.
     const professionalId = detail.invoice.professionalId;
     const today = new Date().toISOString().slice(0, 10);
     const approvedRate = professionalId ? (rateOn(await listRates(db, [professionalId]), professionalId, today) ?? null) : null;

@@ -169,8 +169,7 @@ export const professional = pgTable(
     displayName: text('display_name'),
     active: boolean('active').notNull().default(true),
     officeId: uuid('office_id').references(() => office.officeId),
-    // Whose rates price this professional's time, unless they have their own
-    // (professional_rate).
+    // Whose rates price their time, until any of their own (professional_rate).
     professionalKindId: uuid('professional_kind_id').references(() => professionalKinds.id),
     // The business or firm that is paid for their invoices.
     paidThrough: text('paid_through'),
@@ -321,9 +320,8 @@ export const professionalKindRate = pgTable(
   (table) => [index('professional_kind_rate_kind_idx').on(table.professionalKindId, table.effectiveFrom)],
 );
 
-// One person's own approved rates, in place of their kind's hourly rate and
-// the mileage rate (../billing/professionalRates.ts). Insert-only; either
-// rate may be left to the general one.
+// A person's own approved rates, in place of their kind's and the general
+// mileage rate (../billing/professionalRates.ts). Insert-only; either may be null.
 export const professionalRate = pgTable(
   'professional_rate',
   {

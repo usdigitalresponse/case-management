@@ -41,7 +41,7 @@ export async function hasUnmatchedTimekeepers(tx: Transaction, invoiceId: string
 }
 
 // What staff still have to match before the request can go to review. One
-// filed by person (a typed case number, ./caseNumbers.ts) needs no case.
+// filed by person (with a typed case number) needs no case.
 export async function needsMatching(
   tx: Transaction,
   row: { invoiceId: string; caseId: string | null; professionalId: string | null; caseNumberAsTyped: string | null },

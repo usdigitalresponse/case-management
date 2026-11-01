@@ -1,6 +1,5 @@
 // The landing page: every invoice waiting for a decision, led by the person
-// who sent it, with the case number as they typed it. Invoices sharing a
-// case number, exactly or closely, say so.
+// who sent it, with the case number as typed.
 import { useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
 import { listInvoiceIntake, listReviewQueue, type ReviewQueueItem } from '../api/client';
@@ -12,21 +11,13 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { RecordTable } from '../components/RecordTable';
-import { FlagNotes, openInvoiceColumn } from '../components/InvoiceCells';
+import { CaseNumberCell, FlagNotes, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
 import { AssignReviewer } from '../components/ReviewRouting';
 import { Toast, useToast } from '../components/Toast';
-import { matchesNote, searchPath, shownCaseNumber } from '../caseNumbers';
+import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
 import { formatDate, formatPeriod } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
-
-const FILTERS = [
-  { id: 'everyone', label: "Everyone's" },
-  { id: 'mine', label: 'Assigned to you' },
-  { id: 'unassigned', label: 'Not assigned yet' },
-  { id: 'flagged', label: 'Has a flag' },
-] as const;
-type FilterId = (typeof FILTERS)[number]['id'];
 
 const SORTS = [
   { id: 'waiting', label: 'Waiting longest first' },
@@ -35,19 +26,7 @@ const SORTS = [
 ] as const;
 type SortId = (typeof SORTS)[number]['id'];
 
-function matches(invoice: ReviewQueueItem, filter: FilterId, userAccountId: string): boolean {
-  switch (filter) {
-    case 'mine':
-      return invoice.holder?.userAccountId === userAccountId;
-    case 'unassigned':
-      return !invoice.reviewer;
-    case 'flagged':
-      return invoice.flags.length > 0;
-    default:
-      return true;
-  }
-}
-
+// 'waiting' keeps the server's order.
 function sorted(rows: ReviewQueueItem[], sort: SortId): ReviewQueueItem[] {
   if (sort === 'newest') {
     return [...rows].sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''));
@@ -55,12 +34,11 @@ function sorted(rows: ReviewQueueItem[], sort: SortId): ReviewQueueItem[] {
   if (sort === 'amount') {
     return [...rows].sort((a, b) => Number(b.submittedTotal) - Number(a.submittedTotal));
   }
-  // The server's order.
   return rows;
 }
 
-// Invoices this staff member uploaded and hasn't sent yet, as drafts lead
-// Your invoices in G6; and, off the sidebar, anything held on Intake.
+// This staff member's unsent drafts, and, since Intake is off the sidebar,
+// anything held there.
 function YourDrafts({ userAccountId }: { userAccountId: string }) {
   const { data } = useApiResource(() => listInvoiceIntake().then((result) => result.items).catch(() => []), []);
   const drafts = (data ?? []).filter((item) => item.invoiceId && item.stage !== 'sent' && item.enteredByUserAccountId === userAccountId);
@@ -99,30 +77,11 @@ function YourDrafts({ userAccountId }: { userAccountId: string }) {
   );
 }
 
-// With how many other sent invoices share it, linking to them all (G24).
-export function CaseNumberCell({ invoice }: { invoice: ReviewQueueItem }) {
-  const number = shownCaseNumber(invoice);
-  if (!number) {
-    return <span className="muted">Not added</span>;
-  }
-  const note = matchesNote(invoice.caseNumberMatches);
-  return (
-    <>
-      <strong>{number}</strong>
-      {note && (
-        <RouterLink className="cell-note" to={searchPath(number)}>
-          {note}
-        </RouterLink>
-      )}
-    </>
-  );
-}
-
 export default function InvoicesToReview() {
   const { user } = useAuth();
   const userAccountId = user?.userAccountId ?? '';
   const [params, setParams] = useSearchParams();
-  const filter = (params.get('show') as FilterId | null) ?? 'everyone';
+  const filter = (params.get('show') as QueueFilterId | null) ?? 'everyone';
   const [sort, setSort] = useState<SortId>('waiting');
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => listReviewQueue('open'), [version]);
@@ -132,8 +91,8 @@ export default function InvoicesToReview() {
   const counts = useMemo(
     () =>
       Object.fromEntries(
-        FILTERS.map(({ id }) => [id, data?.invoices.filter((invoice) => matches(invoice, id, userAccountId)).length ?? 0]),
-      ) as Record<FilterId, number>,
+        QUEUE_FILTERS.map(({ id }) => [id, data?.invoices.filter((invoice) => matchesQueueFilter(invoice, id, userAccountId)).length ?? 0]),
+      ) as Record<QueueFilterId, number>,
     [data, userAccountId],
   );
 
@@ -144,7 +103,7 @@ export default function InvoicesToReview() {
   const isLate = (invoice: ReviewQueueItem) => invoice.workingDaysWaiting > data.waitingAlertWorkingDays;
   const late = data.invoices.filter(isLate);
   const shown = sorted(
-    data.invoices.filter((invoice) => matches(invoice, filter, userAccountId)),
+    data.invoices.filter((invoice) => matchesQueueFilter(invoice, filter, userAccountId)),
     sort,
   );
 
@@ -187,7 +146,7 @@ export default function InvoicesToReview() {
       )}
 
       <div className="chip-filters" role="group" aria-label="Show">
-        {FILTERS.map(({ id, label }) => (
+        {QUEUE_FILTERS.map(({ id, label }) => (
           <button
             key={id}
             type="button"
@@ -211,8 +170,7 @@ export default function InvoicesToReview() {
             rowHeader: true,
             render: (invoice) => (
               <>
-                {submittedByLabel(invoice)}
-                <span className="cell-note">{invoice.professionalKindDisplayName ?? 'Professional'}</span>
+                <FromCell invoice={invoice} />
                 <FlagNotes invoice={invoice} />
               </>
             ),

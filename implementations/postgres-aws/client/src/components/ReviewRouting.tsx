@@ -99,8 +99,7 @@ export function ReviewerPicker({
   reviewer: AssignedPerson | null;
   currentUserId: string;
   canChange: boolean;
-  // Filed under a case, the case's new invoices can follow; else the
-  // sender's (design G18).
+  // Whose new invoices can follow: the case's, else the sender's.
   hasCase: boolean;
   senderName: string | null;
   // Undo restores the previous reviewer; omitted when there was none.

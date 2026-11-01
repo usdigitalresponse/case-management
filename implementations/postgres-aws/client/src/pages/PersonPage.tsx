@@ -1,7 +1,5 @@
-// A person's page (design G23): the main record when invoices are filed by
-// person. Their contact details, who is paid, their approved rates, this
-// year's totals and every invoice they sent.
-import { useState } from 'react';
+// A person's details, rates, this year's totals and every invoice they sent.
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router';
 import { getPerson, listReviewQueue } from '../api/client';
 import { useAuth } from '../AuthContext';
@@ -12,9 +10,9 @@ import { Fact, FactsStrip } from '../components/FactsStrip';
 import { PersonDialog } from '../components/PersonDialog';
 import { IN_REVIEW, SentInvoicesTable } from '../components/SentInvoicesTable';
 import { Toast, useToast } from '../components/Toast';
-import { closeKey, shownCaseNumber } from '../caseNumbers';
+import { shownCaseNumber } from '../caseNumbers';
 import { downloadCsv } from '../downloadCsv';
-import { formatMoney } from '../formatMoney';
+import { formatMoney, sumMoney } from '../formatMoney';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -23,18 +21,33 @@ const FILTERS = [
 ] as const;
 type FilterId = (typeof FILTERS)[number]['id'];
 
-const cents = (value: string | null) => Math.round(Number(value ?? 0) * 100);
-
 export default function PersonPage() {
   const { professionalId } = useParams<{ professionalId: string }>();
   const { user } = useAuth();
   const [version, setVersion] = useState(0);
   const { data: person, error } = useApiResource(() => getPerson(professionalId as string), [professionalId, version]);
-  const { data: queue, error: queueError } = useApiResource(() => listReviewQueue('all', professionalId), [professionalId]);
+  const { data: queue, error: queueError } = useApiResource(() => listReviewQueue('all', { professionalId }), [professionalId]);
   const [filter, setFilter] = useState<FilterId>('all');
   const [caseNumber, setCaseNumber] = useState('');
+  // Invoices whose case number matches, closely or exactly; null for all.
+  const [matching, setMatching] = useState<Set<string> | null>(null);
   const [editing, setEditing] = useState(false);
   const [toast, setToast] = useToast();
+
+  useEffect(() => {
+    if (!caseNumber.trim()) {
+      setMatching(null);
+      return;
+    }
+    let cancelled = false;
+    listReviewQueue('all', { professionalId, q: caseNumber }).then(
+      (result) => !cancelled && setMatching(new Set(result.invoices.map((invoice) => invoice.invoiceId))),
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [professionalId, caseNumber]);
 
   if (error || queueError || !person || !queue) {
     return <LoadState error={error ?? queueError} what="this person" />;
@@ -43,15 +56,10 @@ export default function PersonPage() {
   const year = String(new Date().getFullYear());
   const thisYear = invoices.filter((invoice) => invoice.submittedAt?.startsWith(year));
   const waiting = invoices.filter((invoice) => IN_REVIEW.includes(invoice.statusCode));
-  const sum = (rows: typeof invoices, value: (row: (typeof invoices)[number]) => string | null) =>
-    rows.reduce((total, row) => total + cents(value(row)), 0) / 100;
+  const sum = (rows: typeof invoices, value: (row: (typeof invoices)[number]) => string | null) => sumMoney(rows.map(value));
   const isShown = (invoice: (typeof invoices)[number], id: FilterId) =>
     id === 'all' || (id === 'waiting' ? IN_REVIEW.includes(invoice.statusCode) : !IN_REVIEW.includes(invoice.statusCode));
-  const key = closeKey(caseNumber);
-  const shown = invoices.filter((invoice) => {
-    const number = shownCaseNumber(invoice);
-    return isShown(invoice, filter) && (!key || Boolean(number && closeKey(number).includes(key)));
-  });
+  const shown = invoices.filter((invoice) => isShown(invoice, filter) && (!matching || matching.has(invoice.invoiceId)));
   const name = person.displayName ?? 'This person';
 
   return (

@@ -1,5 +1,5 @@
-// Finished invoices (design G20): every invoice with all its lines decided,
-// newest first, led by the person who sent it. Waiting for sign-off, or decided.
+// Every invoice with all its lines decided, newest first: waiting for
+// sign-off, or decided.
 import { useState } from 'react';
 import { listReviewQueue, type ReviewQueueItem } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
@@ -7,11 +7,9 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { StatusPill } from '../components/StatusPill';
-import { openInvoiceColumn } from '../components/InvoiceCells';
-import { CaseNumberCell } from './InvoicesToReview';
+import { CaseNumberCell, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
-import { submittedByLabel } from '../reviewTotals';
 
 const FINISHED = ['awaiting_sign_off', 'approved', 'rejected'];
 
@@ -68,16 +66,7 @@ export default function FinishedInvoices() {
         rowKey={(invoice) => invoice.invoiceId}
         emptyMessage={filter === 'month' ? 'Nothing finished this month yet.' : 'No invoices here.'}
         columns={[
-          {
-            header: 'From',
-            rowHeader: true,
-            render: (invoice) => (
-              <>
-                {submittedByLabel(invoice)}
-                <span className="cell-note">{invoice.professionalKindDisplayName ?? 'Professional'}</span>
-              </>
-            ),
-          },
+          { header: 'From', rowHeader: true, render: (invoice) => <FromCell invoice={invoice} /> },
           { header: 'Case number, as typed', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },
           {
             header: 'Finished',

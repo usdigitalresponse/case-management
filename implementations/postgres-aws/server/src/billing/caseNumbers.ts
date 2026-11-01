@@ -1,26 +1,22 @@
-// Case numbers as senders type them: never checked against a list of
-// cases, so the same case can be typed several ways. Invoices are compared
-// exactly, and as close matches that ignore case, spaces, dashes and
-// leading zeros (26-CR-0418 and 26cr00418).
+// Case numbers as senders type them, never checked against a list of cases.
+// Close matches ignore case, spaces, dashes and leading zeros.
+import { z } from 'zod';
 import type { ParsedInvoice, SourceRegion } from '../imports/parsedInvoice';
 
-// The number an invoice is filed and matched under: a reviewer's
-// correction (./correctCaseNumber.ts), else what the sender typed.
+export const caseNumberInput = z.string().max(100, 'Keep the case number under 100 characters.');
+
+// A reviewer's correction (./correctCaseNumber.ts), else what the sender typed.
 export function currentCaseNumber(row: { caseNumberAsTyped: string | null; caseNumberCorrected: string | null }): string | null {
   return row.caseNumberCorrected ?? row.caseNumberAsTyped;
 }
 
-const MAX_LENGTH = 100;
-
 // Trimmed with inner spaces collapsed; null when empty.
 export function cleanCaseNumber(value: string | null | undefined): string | null {
-  const cleaned = (value ?? '').trim().replace(/\s+/g, ' ').slice(0, MAX_LENGTH);
+  const cleaned = (value ?? '').trim().replace(/\s+/g, ' ').slice(0, 100);
   return cleaned === '' ? null : cleaned;
 }
 
-function exactKey(value: string): string {
-  return value.toUpperCase();
-}
+const exactKey = (value: string) => value.toUpperCase();
 
 export function closeKey(value: string): string {
   return value
@@ -29,12 +25,11 @@ export function closeKey(value: string): string {
     .replace(/\d+/g, (digits) => digits.replace(/^0+(?=\d)/, ''));
 }
 
-// "Case No. 26-CR-00418", "Court Case No(s).: …", "Case ID: …", "Docket #…".
-// Within one line; the number must contain a digit, so a name isn't taken.
+// "Case No. 26-CR-00418", "Court Case No(s).: …", "Case ID: …", "Docket #…",
+// within one line. The number needs a digit, so a name isn't taken.
 const LABELLED_CASE_NUMBER =
   /\b(court[ \t]+)?(?:case|docket|cause)[ \t]*(?:no|number|num|id|#)?(?:\(s\))?\.?[ \t]*[:#.]?[ \t]*([A-Z0-9][A-Z0-9-]*\d[A-Z0-9-]*)/gi;
 
-// Every labelled number in the text, in order; court numbers marked.
 export function labelledCaseNumbers(text: string | undefined): Array<{ value: string; court: boolean }> {
   return [...(text ?? '').matchAll(LABELLED_CASE_NUMBER)].flatMap((match) => {
     const value = match[2]!.length >= 4 ? cleanCaseNumber(match[2]) : null;
@@ -42,15 +37,14 @@ export function labelledCaseNumbers(text: string | undefined): Array<{ value: st
   });
 }
 
-// The court's number when the file labels one (G asks for the number on the
-// court papers), else the first labelled one.
+// The court's number first: senders are asked for the one on their court papers.
 export function labelledCaseNumber(text: string | undefined): string | null {
   const found = labelledCaseNumbers(text);
   return (found.find((match) => match.court) ?? found[0])?.value ?? null;
 }
 
-// Where the extractor found one, else a labelled number in the file's
-// text, else the one case label its lines share.
+// Where the PDF reader found one, else a labelled number in the text, else
+// the one case label every line shares.
 export function readCaseNumber(
   parsed: Pick<ParsedInvoice, 'invoiceText' | 'lines' | 'caseNumber'>,
 ): { value: string; region?: SourceRegion } | null {
@@ -65,8 +59,17 @@ export function readCaseNumber(
   return labels.length === 1 && labels[0] && /\d/.test(labels[0]) ? { value: labels[0] } : null;
 }
 
+// A search hit: exact on a name or the number as written, else close.
+export function searchMatch(query: string, names: Array<string | null>, caseNumber: string | null): 'exact' | 'close' | null {
+  const words = query.trim().toLowerCase();
+  if (!words) return null;
+  if (names.join(' ').toLowerCase().includes(words) || caseNumber?.toLowerCase().includes(words)) return 'exact';
+  const key = closeKey(query);
+  return key && caseNumber && closeKey(caseNumber).includes(key) ? 'close' : null;
+}
+
+// Other invoices with the same number, and with a close but different one.
 export interface CaseNumberMatches {
-  // Other invoices with the same number, and with a close but different one.
   same: number;
   close: number;
 }
@@ -74,10 +77,11 @@ export interface CaseNumberMatches {
 export function matchCaseNumbers(entries: Array<{ invoiceId: string; caseNumber: string | null }>): Map<string, CaseNumberMatches> {
   const exact = new Map<string, number>();
   const close = new Map<string, number>();
+  const add = (counts: Map<string, number>, key: string) => counts.set(key, (counts.get(key) ?? 0) + 1);
   for (const { caseNumber } of entries) {
     if (caseNumber) {
-      exact.set(exactKey(caseNumber), (exact.get(exactKey(caseNumber)) ?? 0) + 1);
-      close.set(closeKey(caseNumber), (close.get(closeKey(caseNumber)) ?? 0) + 1);
+      add(exact, exactKey(caseNumber));
+      add(close, closeKey(caseNumber));
     }
   }
   const result = new Map<string, CaseNumberMatches>();

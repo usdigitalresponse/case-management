@@ -1,17 +1,17 @@
-// A reviewer corrects a sent invoice's case number (design G15). What the
-// sender typed is kept; typing it back clears the correction. Audited.
+// A reviewer corrects a sent invoice's case number beside the one typed,
+// never over it; typing the typed one back clears the correction. Audited.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { auditEvent, invoice, invoiceStatuses } from '../db/schema';
 import { ConflictError, ValidationError } from '../errors';
-import { cleanCaseNumber } from './caseNumbers';
+import { caseNumberInput, cleanCaseNumber } from './caseNumbers';
 import { requireReviewPermission } from './reviewAccess';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { UNSUBMITTED_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
 
 export async function correctCaseNumber(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
-  const parsed = z.object({ caseNumber: z.string().max(100, 'Keep the case number under 100 characters.') }).safeParse(rawInput);
+  const parsed = z.object({ caseNumber: caseNumberInput }).safeParse(rawInput);
   const value = parsed.success ? cleanCaseNumber(parsed.data.caseNumber) : null;
   if (!value || !z.uuid().safeParse(invoiceId).success) {
     throw new ValidationError({ caseNumber: 'Enter the case number.' });

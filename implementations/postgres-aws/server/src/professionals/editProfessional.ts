@@ -1,28 +1,19 @@
-// Administrators correct a provider's name, role, phone and who is paid, or
-// add or fix the email of one added without it (model/rules.yaml
-// add_professional_without_login), and change their approved rates from
-// today (design G23). Someone who has signed in uses their account's email,
-// so theirs isn't changed here. The values replaced are kept in the audit
-// history; earlier rates stay for earlier work.
+// Administrators change a provider's details, and their approved rates from
+// today. Someone who has signed in keeps their account's email. Replaced
+// values are audited; earlier rates stay for earlier work.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { auditEvent, person, professional, professionalKinds } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
-import { emailInUse, optionalEmail } from '../people/emails';
+import { emailInUse } from '../people/emails';
 import { addOwnRates, listOwnMileageRates, listRates, rateOn } from '../billing/professionalRates';
 import { mileageRateOn } from '../billing/mileageRates';
 import { personDetailsSchema } from './addProfessional';
 
-const inputSchema = z
-  .object({
-    displayName: z.string().trim().min(2, 'Enter their name.').max(200),
-    email: optionalEmail,
-    // Unset keeps their role.
-    professionalKindId: z.uuid('Choose their role.').optional(),
-  })
-  .extend(personDetailsSchema.shape);
+// Unset, their role stays.
+const inputSchema = personDetailsSchema.extend({ professionalKindId: z.uuid('Choose their role.').optional() });
 
 export async function editProfessional(db: Database, actorUserAccountId: string, professionalId: string, rawInput: unknown) {
   if (!z.uuid().safeParse(professionalId).success) {
@@ -81,7 +72,7 @@ export async function editProfessional(db: Database, actorUserAccountId: string,
     // Only a rate that differs from today's starts a new one.
     const today = new Date().toISOString().slice(0, 10);
     const currentHourly = rateOn(await listRates(tx, [professionalId]), professionalId, today);
-    const currentMileage = mileageRateOn(await listOwnMileageRates(tx, professionalId), today);
+    const currentMileage = mileageRateOn((await listOwnMileageRates(tx, [professionalId])).get(professionalId) ?? [], today);
     const newHourly = hourlyRate !== undefined && Number(currentHourly) !== hourlyRate ? hourlyRate : undefined;
     const newMileage = ratePerMile !== undefined && Number(currentMileage) !== ratePerMile ? ratePerMile : undefined;
     if (newHourly !== undefined || newMileage !== undefined) {

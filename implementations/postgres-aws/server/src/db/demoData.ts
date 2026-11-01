@@ -202,7 +202,7 @@ async function seedDemoRates(
     const kind = DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!;
     // eslint-disable-next-line no-await-in-loop
     await setProfessionalKind(db, professionalId, { professionalKindId: kindIds.get(kind) });
-    // People's own details (design G21): 555-01xx numbers are reserved for fiction.
+    // 555-01xx numbers are reserved for fiction.
     // eslint-disable-next-line no-await-in-loop
     await db
       .update(professional)
@@ -216,7 +216,7 @@ async function seedDemoRates(
   }
 }
 
-// Synthetic firms; the investigator and expert have approved rates of their own.
+// By demo vendor (DEMO_VENDOR_KINDS); the investigator and expert have their own rates.
 const DEMO_PAID_THROUGH = ['Synthetic Law Office', 'Example Defense LLP', 'Sample Investigations LLC', 'Demo Forensic Consulting'];
 const DEMO_OWN_RATES: Array<{ hourlyRate: number; ratePerMile?: number } | undefined> = [
   undefined,
@@ -272,15 +272,12 @@ async function seedDemoAssignments(
   return assignments;
 }
 
-// Case numbers as each sender typed them (design G: invoices are filed by
-// person, not case). Several invoices share a number, one is typed without
-// dashes and the review invoice below is a close match, so the queue's
-// "Also on…" and close-match notes show. Synthetic, like every value here.
+// As senders typed them: some shared, one without dashes, and the review
+// invoice below a close match, so the queue's match notes show.
 const TYPED_CASE_NUMBERS = ['26-CR-00211', '26-CR-00214', '26CR230', '26-CR-00211', '26-CR-00245'];
 
-// Logs time on every assignment's case, and sends an invoice filed by person
-// for most of them (one left un-invoiced, one left as a draft), so the
-// invoice views aren't all empty on a fresh seed.
+// Logs time on every assignment's case, and an invoice filed by person for
+// most (one left un-invoiced, one a draft), so status varies.
 async function seedDemoTimeEntriesAndInvoices(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   assignments: DemoAssignment[],
@@ -571,7 +568,7 @@ async function seedDemoReview(
       });
     }
   }
-  // Given to a reviewer but not started, who also gets the sender's new invoices (G18).
+  // Given to a reviewer, not started; they get the sender's new invoices too.
   if (mileage) {
     await reassignReviewer(db, firstReviewer, mileage, { userAccountId: firstReviewer, forPerson: true });
   }

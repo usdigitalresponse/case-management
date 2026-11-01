@@ -11,7 +11,7 @@ import { measureTrips } from '../billing/routeCheck';
 import { authorizeBilling, type PortalActor } from './portalActor';
 import { receiptInputSchema, recordReceipt } from '../billing/invoiceReceipt';
 import { proposedCaseSchema, proposedProviderSchema } from '../billing/proposedDetails';
-import { cleanCaseNumber } from '../billing/caseNumbers';
+import { caseNumberInput, cleanCaseNumber } from '../billing/caseNumbers';
 
 export const createInvoiceInputSchema = draftContentSchema.extend({
   // Null: matched later, in invoice intake.
@@ -27,8 +27,8 @@ export const createInvoiceInputSchema = draftContentSchema.extend({
   withoutCase: z.boolean().optional(),
   // A submitter sending their own confirms it is true and correct.
   attested: z.boolean().optional(),
-  // Filed by person: the case number as typed, needed to send.
-  caseNumber: z.string().max(100, 'Keep the case number under 100 characters.').optional(),
+  // Given, the invoice is filed by person and sent as such.
+  caseNumber: caseNumberInput.optional(),
 }).extend(receiptInputSchema.shape);
 
 export type CreateInvoiceInput = z.input<typeof createInvoiceInputSchema>;

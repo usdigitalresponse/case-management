@@ -1,8 +1,7 @@
 // One invoice in the portal: its file beside its lines. A draft's lines save
-// as they change; once sent they lock, and it can be withdrawn until review starts.
-// Filed by person (byPerson; by default, any invoice not filed under a case),
-// it is filed under whom it is from with a typed case number at the top, and
-// can't be sent without one.
+// as they change; once sent they lock, and it can be withdrawn until review
+// starts. Filed by person (any invoice without a case, unless told), its case
+// number sits at the top and is needed to send.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router';
 import {
@@ -42,6 +41,7 @@ import { WithdrawDialog } from './WithdrawDialog';
 import { INTAKE_PATH, PORTAL_HOME_PATH, useShell } from './useShell';
 import { EnteredFlag } from '../components/NewEntryFields';
 import { Fact, FactsStrip } from '../components/FactsStrip';
+import { CaseNumberBox } from '../components/CaseNumberBox';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -59,8 +59,8 @@ export function checkLinesPath(invoiceId: string, staff: boolean): string {
   return staff ? `/invoices/${invoiceId}/check` : `/portal/invoices/${invoiceId}`;
 }
 
-// The typed case number, saved when the box loses focus.
-function CaseNumberBox({
+// The typed case number, saved as a draft.
+function TypedCaseNumber({
   invoiceId,
   value,
   onChange,
@@ -74,7 +74,7 @@ function CaseNumberBox({
   onFocus,
 }: {
   invoiceId: string;
-  // A reviewer's correction of a sent invoice's number, shown in its place.
+  // A reviewer's correction, shown in its place.
   corrected: string | null;
   value: string;
   onChange: (value: string) => void;
@@ -82,9 +82,8 @@ function CaseNumberBox({
   missing: boolean;
   fromName: string;
   hasFile: boolean;
-  // The value is the one the file labels, highlighted on it.
   readFromFile: boolean;
-  // The submitter's own invoice, rather than one staff entered.
+  // The submitter's own, not one staff entered.
   own: boolean;
   onFocus: () => void;
 }) {
@@ -92,72 +91,59 @@ function CaseNumberBox({
   const saved = useRef(value);
   function save() {
     if (value.trim() === saved.current.trim()) return;
+    const previous = saved.current;
+    saved.current = value;
     setError(null);
-    setDraftCaseNumber(invoiceId, value).then(
-      (result) => {
-        saved.current = result.caseNumber ?? '';
-      },
-      (err: unknown) => setError(apiErrorMessage(err, 'The case number could not be saved. Try again.')),
-    );
+    setDraftCaseNumber(invoiceId, value).catch((err: unknown) => {
+      saved.current = previous;
+      setError(apiErrorMessage(err, 'The case number could not be saved. Try again.'));
+    });
   }
-  const hint = missing
-    ? 'Add the case number before you send.'
-    : corrected
-      ? `Corrected by the billing office. ${own ? 'You' : 'The sender'} typed ${value || 'none'}.`
-      : !editable
-      ? own
-        ? 'As you typed it. The billing office did not change it.'
-        : 'As typed. It is not checked against a list of cases.'
-      : readFromFile
-        ? `We read this from ${own ? 'your' : 'the'} file. Change it if it is wrong.`
-        : value.trim()
-        ? 'Change it if it is wrong.'
-        : hasFile
-          ? `We could not find a case number in ${own ? 'your' : 'the'} file.`
-          : `Type the case number from ${own ? 'your' : 'the'} court papers.`;
+  const yours = own ? 'your' : 'the';
+  const hint = (() => {
+    if (missing) return 'Add the case number before you send.';
+    if (corrected) return `Corrected by the billing office. ${own ? 'You' : 'The sender'} typed ${value || 'none'}.`;
+    if (!editable) return own ? 'As you typed it. The billing office did not change it.' : 'As typed. It is not checked against a list of cases.';
+    if (readFromFile) return `We read this from ${yours} file. Change it if it is wrong.`;
+    if (value.trim()) return 'Change it if it is wrong.';
+    return hasFile ? `We could not find a case number in ${yours} file.` : `Type the case number from ${yours} court papers.`;
+  })();
   return (
-    <section className={`case-number-box${missing ? ' case-number-box--missing' : ''}`} aria-labelledby="case-number-label">
-      <div className="case-number-box__field">
-        <label id="case-number-label" className="usa-label" htmlFor="case-number">Case number</label>
-        <input
-          id="case-number"
-          className="usa-input"
-          placeholder="For example, 26-CR-00418"
-          value={corrected ?? value}
-          readOnly={!editable}
-          aria-describedby="case-number-hint"
-          aria-invalid={missing || undefined}
-          onChange={(event) => onChange(event.target.value)}
-          onFocus={onFocus}
-          onBlur={save}
-        />
-        <p id="case-number-hint" className={missing ? 'field-error' : 'field-hint'}>{error ?? hint}</p>
-      </div>
-      <div className="case-number-box__why">
-        {own ? (
-          <>
-            <strong>Your invoice is filed under your name, not under a case.</strong>
-            <p>
-              Type the case number from your court papers. The billing office uses it to find the case in its own system.
-              This tool does not check it against a list of cases.
-            </p>
-          </>
-        ) : (
-          <>
-            <strong>This invoice is filed under {fromName}, not under a case.</strong>
-            <p>
-              Reviewers use the case number to find the case in the {EXTERNAL_SYSTEM_NAME}. This tool does not check it
-              against a list of cases.
-            </p>
-          </>
-        )}
-      </div>
-    </section>
+    <CaseNumberBox
+      id="case-number"
+      label="Case number"
+      placeholder="For example, 26-CR-00418"
+      value={corrected ?? value}
+      readOnly={!editable}
+      hint={hint}
+      error={error}
+      missing={missing}
+      onChange={onChange}
+      onSave={save}
+      onFocus={onFocus}
+    >
+      {own ? (
+        <>
+          <strong>Your invoice is filed under your name, not under a case.</strong>
+          <p>
+            Type the case number from your court papers. The billing office uses it to find the case in its own system.
+            This tool does not check it against a list of cases.
+          </p>
+        </>
+      ) : (
+        <>
+          <strong>This invoice is filed under {fromName}, not under a case.</strong>
+          <p>
+            Reviewers use the case number to find the case in the {EXTERNAL_SYSTEM_NAME}. This tool does not check it
+            against a list of cases.
+          </p>
+        </>
+      )}
+    </CaseNumberBox>
   );
 }
 
-// Once decided (design G13): what was asked for, approved and cut, and how
-// many lines each way. Who decided stays with the billing office.
+// Once decided. Who decided stays with the billing office.
 function DecisionTotals({ data }: { data: PortalInvoice }) {
   const outcomes = data.lines.map((line) => line.decision?.outcomeCode);
   const count = (code: string) => outcomes.filter((outcome) => outcome === code).length;
@@ -207,12 +193,11 @@ function Lines({
   const editable = isDraft && isSubmitter;
   const [lines, setLines] = useState<LineDraft[]>(() => lineDraftsFrom(data.lines));
   const [typedCaseNumber, setTypedCaseNumber] = useState(invoice.caseNumberAsTyped ?? '');
-  // While the box holds the number the file labels, it's highlighted there (G8).
+  // Highlighted on the file while the box holds the number read from it.
   const fileCaseNumber = byPerson ? fileSource?.caseNumber : null;
   const readFromFile = Boolean(fileCaseNumber && typedCaseNumber.trim() === fileCaseNumber.value);
   const caseNumberRegion = readFromFile && fileCaseNumber?.region ? [{ location: CASE_NUMBER_LOCATION, region: fileCaseNumber.region }] : [];
-  // A new object on every click, so clicking the same line scrolls the file
-  // back to it; it opens on the case number when that is highlighted.
+  // A new object on every click, so clicking the same line scrolls back to it.
   const [focus, setFocus] = useState<{ location: string } | undefined>(() =>
     caseNumberRegion.length > 0 ? { location: CASE_NUMBER_LOCATION } : undefined,
   );
@@ -457,7 +442,7 @@ function Lines({
           {caseNumberMissing && !typedCaseNumber.trim() && (
             <Notice tone="warning">This invoice needs a case number before it can be sent. Type it in the box below.</Notice>
           )}
-          <CaseNumberBox
+          <TypedCaseNumber
             invoiceId={invoice.invoiceId}
             value={typedCaseNumber}
             onChange={setTypedCaseNumber}

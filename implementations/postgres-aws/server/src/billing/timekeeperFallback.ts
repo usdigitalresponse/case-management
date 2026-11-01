@@ -1,8 +1,6 @@
-// Who did the work on an invoice filed by person (design G), when a line
-// names no one who could be matched: most invoices are one person's work, so
-// the person most of its other lines were matched to, else the sender. The
-// invoice never waits on intake for it. Names the sender typed for someone
-// not listed are kept on the line.
+// Filed by person, a line matched to no one is most likely the same person's
+// work as the rest: the invoice's most common match, else the sender. So it
+// never waits on intake; a name typed for someone not listed stays on the line.
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
 import { invoiceLine } from '../db/schema';
@@ -19,7 +17,7 @@ export function fallbackTimekeeper(matched: Array<string | null | undefined>, se
   return best ?? senderProfessionalId;
 }
 
-// Fills every line with no one matched; returns how many were filled.
+// Returns how many lines were filled.
 export async function fillUnmatchedTimekeepers(tx: Transaction, invoiceId: string, senderProfessionalId: string | null): Promise<number> {
   const lines = await tx
     .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })

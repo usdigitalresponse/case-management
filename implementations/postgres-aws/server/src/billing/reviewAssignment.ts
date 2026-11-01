@@ -115,9 +115,8 @@ export async function endAllAssignments(tx: Transaction, invoiceId: string, byUs
     .where(and(eq(invoiceReviewAssignment.invoiceId, invoiceId), isNull(invoiceReviewAssignment.endedAt)));
 }
 
-// On submission: the case's reviewer, else the sender's (design G), else
-// the default, else no one; the default sign-off approvers in order.
-// Reviewers who no longer have the role are skipped.
+// On submission: the case's reviewer, else the sender's, else the default,
+// skipping anyone who lost the role; then the default sign-off approvers.
 export async function assignOnSubmit(tx: Transaction, invoiceId: string, caseId: string | null, professionalId: string): Promise<void> {
   const [settings, [caseReviewer], [personReviewer]] = await Promise.all([
     getReviewSettings(tx),

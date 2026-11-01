@@ -42,9 +42,9 @@ import {
   timeEntryLockedReason,
   updateTimeEntry,
 } from '../portal/changeTimeEntry';
-import { listOwnMileageRates, listRates } from '../billing/professionalRates';
+import { listOwnMileageRates, listRates, ownFirst } from '../billing/professionalRates';
 import { getBillingRules, listBillingCodes } from '../billing/billingRules';
-import { listMileageRates, mileageRatesFor } from '../billing/mileageRates';
+import { listMileageRates } from '../billing/mileageRates';
 import { createInvoice } from '../portal/createInvoice';
 import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
@@ -166,19 +166,20 @@ router.get(
     // Everyone who may bill for a professional sees their rates
     // (model/rules.yaml apply_professional_rates).
     const rates = await listRates(db, ids);
-    const ownMileage = await Promise.all(
-      rows.map(async (row) => ((await listOwnMileageRates(db, row.professionalId)).length > 0 ? mileageRatesFor(db, row.professionalId) : [])),
-    );
+    const [generalMileage, ownMileage] = await Promise.all([listMileageRates(db), listOwnMileageRates(db, ids)]);
     res.json({
-      professionals: rows.map((row, index) => ({
-        ...row,
-        isSelf: row.professionalId === actor.professionalId,
-        rates: rates
-          .filter((rate) => rate.professionalId === row.professionalId)
-          .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
-        // With their own, in place of the general mileage rates; empty when none.
-        mileageRates: ownMileage[index],
-      })),
+      professionals: rows.map((row) => {
+        const own = ownMileage.get(row.professionalId);
+        return {
+          ...row,
+          isSelf: row.professionalId === actor.professionalId,
+          rates: rates
+            .filter((rate) => rate.professionalId === row.professionalId)
+            .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
+          // Only for someone with their own; the general rates otherwise.
+          mileageRates: own ? ownFirst(generalMileage, own, () => '') : [],
+        };
+      }),
     });
   }),
 );

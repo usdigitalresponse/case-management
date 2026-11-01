@@ -1,10 +1,6 @@
-// Upload, filed by person (design G), for staff and submitters alike: each
-// file is read, then its case number (as typed, or read from the file),
-// billing period and invoice number are checked one file at a time, with
-// whom it is from when there's a choice. That is needed: the invoice is
-// filed under them (unlike the case-based upload, ../portal/PortalUpload.tsx).
-// Each becomes a draft whose lines are checked next: staff go through them
-// one after another; submitters find several on their invoices.
+// Upload filed by person, for staff and submitters: each file's case number,
+// billing period, invoice number and, when there's a choice, sender (needed,
+// as it is filed under them) are checked in turn; each becomes a draft.
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -24,7 +20,7 @@ import { PageHeader } from '../components/PageHeader';
 import { AddProvider } from '../components/AddProvider';
 import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
 import { professionalLabel } from '../components/InvoiceLinesEditor';
-import { DropZone, FileCard, Steps, useUploadEntries, type ReadyRead } from '../portal/PortalUpload';
+import { DropZone, FileCard, InvoiceNumberField, Steps, UploadPeriodField, useUploadEntries, type ReadyRead } from '../portal/PortalUpload';
 import { checkLinesPath, type CheckQueue } from '../portal/InvoiceSubmission';
 import type { UploadedState } from '../portal/PortalInvoiceList';
 import { PORTAL_HOME_PATH, useShell } from '../portal/useShell';
@@ -160,43 +156,20 @@ function DetailsForm({
               : `Not found in ${file}. You can add it later.`}
         </p>
       </div>
-      <div className="upload-details__field">
-        <span className="usa-label" id="upload-period-label">Billing period</span>
-        <div className="upload-period" role="group" aria-labelledby="upload-period-label">
-          <input
-            className="usa-input"
-            type="date"
-            aria-label="First day"
-            value={details.periodStart}
-            onChange={(event) => set({ periodStart: event.target.value })}
-          />
-          <span>to</span>
-          <input
-            className="usa-input"
-            type="date"
-            aria-label="Last day"
-            min={details.periodStart || undefined}
-            value={details.periodEnd}
-            onChange={(event) => set({ periodEnd: event.target.value })}
-          />
-        </div>
-        {(errors.periodStart || errors.periodEnd) && <p className="field-error">{errors.periodStart ?? errors.periodEnd}</p>}
-        <p className="field-hint">From the dates on {staff ? 'the' : 'your'} invoice.</p>
-      </div>
-      <div className="upload-details__field">
-        <label className="usa-label" htmlFor="upload-invoice-number">Invoice number on {file}</label>
-        <input
-          id="upload-invoice-number"
-          className="usa-input"
-          value={details.invoiceNumber}
-          aria-describedby="upload-invoice-number-hint"
-          onChange={(event) => set({ invoiceNumber: event.target.value })}
-        />
-        {errors.invoiceNumber && <p className="field-error">{errors.invoiceNumber}</p>}
-        <p id="upload-invoice-number-hint" className="field-hint">
-          {staff ? 'Optional. It helps match the sender’s records.' : 'Optional. It helps the billing office match your records.'}
-        </p>
-      </div>
+      <UploadPeriodField
+        start={details.periodStart}
+        end={details.periodEnd}
+        error={errors.periodStart ?? errors.periodEnd}
+        hint={`From the dates on ${staff ? 'the' : 'your'} invoice.`}
+        onChange={(period) => set(period)}
+      />
+      <InvoiceNumberField
+        label={`Invoice number on ${file}`}
+        value={details.invoiceNumber}
+        error={errors.invoiceNumber}
+        hint={staff ? 'Optional. It helps match the sender’s records.' : 'Optional. It helps the billing office match your records.'}
+        onChange={(invoiceNumber) => set({ invoiceNumber })}
+      />
     </div>
   );
 }

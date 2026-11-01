@@ -1,8 +1,7 @@
-// Staff add a provider who has never signed in, from invoice intake
-// (model/rules.yaml add_professional_without_login). The profile has no
-// account; if the person later signs in with the same email, they get this
-// profile (./ensureProfessional.ts). Probable duplicates are refused, never
-// merged (../people/emails.ts).
+// Staff add someone who hasn't signed in (model/rules.yaml
+// add_professional_without_login); signing in later with the same email
+// links them (./ensureProfessional.ts). Probable duplicates are refused,
+// never merged.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
@@ -20,21 +19,16 @@ const optionalText = z
   .optional()
   .transform((value) => value || undefined);
 
-// Phone, who is paid and their own rates come from People (design G22).
 export const personDetailsSchema = z.object({
+  displayName: z.string().trim().min(2, 'Enter their name.').max(200),
+  email: optionalEmail,
   phone: optionalText,
   paidThrough: optionalText,
   hourlyRate: z.coerce.number().positive('Enter an hourly rate above zero.').max(100000).optional(),
   ratePerMile: z.coerce.number().positive('Enter a mileage rate above zero.').max(100).optional(),
 });
 
-const inputSchema = z
-  .object({
-    displayName: z.string().trim().min(2, 'Enter their name.').max(200),
-    email: optionalEmail,
-    professionalKindId: z.uuid('Choose what kind of provider they are.'),
-  })
-  .extend(personDetailsSchema.shape);
+const inputSchema = personDetailsSchema.extend({ professionalKindId: z.uuid('Choose what kind of provider they are.') });
 
 export async function addProfessional(db: Database, actorUserAccountId: string, rawInput: unknown) {
   const parsed = inputSchema.safeParse(rawInput);

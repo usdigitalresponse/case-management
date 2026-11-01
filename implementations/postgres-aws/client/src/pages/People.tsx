@@ -1,6 +1,4 @@
-// People (design G21): everyone who can send invoices, in place of cases
-// and providers. Each row shows their role, who is paid, their approved
-// rate and what is waiting for review; a row opens their page.
+// Everyone who can send invoices, in place of Cases and Providers.
 import { useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router';
 import { listPeople, type BillingPerson } from '../api/client';
@@ -11,10 +9,7 @@ import { RecordTable } from '../components/RecordTable';
 import { PersonDialog } from '../components/PersonDialog';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
-
-export function personPath(professionalId: string): string {
-  return `/people/${professionalId}`;
-}
+import { personPath } from '../staffPaths';
 
 export default function People() {
   const navigate = useNavigate();

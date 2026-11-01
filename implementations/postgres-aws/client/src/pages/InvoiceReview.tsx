@@ -38,6 +38,7 @@ import { formatMoney } from '../formatMoney';
 import { reviewTotals, submittedByLabel } from '../reviewTotals';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { CaseNumberReview } from '../components/CaseNumberReview';
+import { personPath } from '../staffPaths';
 
 export default function InvoiceReview() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
@@ -154,18 +155,18 @@ export default function InvoiceReview() {
         .join(', ')
     : '';
 
-  // Filed by person (design G15): led by who sent it, not a case.
+  // Filed by person: led by who sent it, not a case.
   const byPerson = invoice.caseId === null;
   const sender = invoice.professionalDisplayName ?? 'Unknown sender';
   const senderFirstName = sender.split(' ')[0];
-  const personPath = invoice.professionalId ? `/people/${invoice.professionalId}` : undefined;
+  const senderPath = invoice.professionalId ? personPath(invoice.professionalId) : undefined;
 
   return (
     <div className="invoice-review">
       <PageHeader
         crumbs={
           byPerson
-            ? [{ label: 'To review', to: '/' }, { label: sender, to: personPath }, { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` }]
+            ? [{ label: 'To review', to: '/' }, { label: sender, to: senderPath }, { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` }]
             : [
                 { label: 'Invoices', to: '/' },
                 { label: invoice.caseClientDisplayName ?? 'Case', to: `/cases/${invoice.caseId}` },
@@ -196,7 +197,7 @@ export default function InvoiceReview() {
                   {formatDate(invoice.receivedOn)}
                 </span>
               )}
-              {personPath && <RouterLink to={personPath}>See all of their invoices</RouterLink>}
+              {senderPath && <RouterLink to={senderPath}>See all of their invoices</RouterLink>}
             </>
           ) : (
             <>

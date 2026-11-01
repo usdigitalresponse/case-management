@@ -17,7 +17,7 @@ import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
 import { loadRateLimits, rateLimitFor } from './preauthorizations';
 import type { RuleFinding } from './billingRules';
-import { currentCaseNumber, matchCaseNumbers } from './caseNumbers';
+import { currentCaseNumber, matchCaseNumbers, searchMatch } from './caseNumbers';
 import {
   APPROVED_INVOICE_STATUS_CODE,
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
@@ -40,7 +40,8 @@ export interface QueueFlag {
 export async function listReviewQueue(
   db: Database,
   view: QueueView,
-  options: { caseId?: string; professionalId?: string; now?: Date } = {},
+  // q: only invoices matching it by name or case number, each with how.
+  options: { caseId?: string; professionalId?: string; q?: string; now?: Date } = {},
 ) {
   const now = options.now ?? new Date();
   const finished = [APPROVED_INVOICE_STATUS_CODE, REJECTED_INVOICE_STATUS_CODE];
@@ -157,7 +158,7 @@ export async function listReviewQueue(
         lineCount: own.length,
         decidedCount: decided,
         approvedTotal: approvedTotal(recorded, round),
-        // When the latest round's review was finished; null until one is.
+        // When the latest round's line review finished.
         finishedAt:
           round === null
             ? null
@@ -179,13 +180,20 @@ export async function listReviewQueue(
   );
   rows.sort((a, b) => b.workingDaysWaiting - a.workingDaysWaiting || Number(a.submittedAt) - Number(b.submittedAt));
   const matches = await sentCaseNumberMatches(db);
+  const q = options.q ?? '';
   return {
-    invoices: rows.map((row) => ({ ...row, caseNumberMatches: matches.get(row.invoiceId) ?? { same: 0, close: 0 } })),
+    invoices: rows
+      .map((row) => ({
+        ...row,
+        caseNumberMatches: matches.get(row.invoiceId) ?? { same: 0, close: 0 },
+        match: q ? searchMatch(q, [row.professionalDisplayName, row.submittedByDisplayName], currentCaseNumber(row) ?? row.caseNumber) : null,
+      }))
+      .filter((row) => !q || row.match),
     waitingAlertWorkingDays: settings.waitingAlertWorkingDays,
   };
 }
 
-// Across every sent invoice: its case number as typed or corrected, else its case's.
+// Across every sent invoice, by its current case number, else its case's.
 export async function sentCaseNumberMatches(db: Database) {
   const sent = await db
     .select({

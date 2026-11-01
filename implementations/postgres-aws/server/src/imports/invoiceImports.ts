@@ -561,8 +561,7 @@ export async function extractIntoDraft(
     parsed: ParsedInvoice;
     fileName?: string;
     everyLineBilled: boolean;
-    // Filed by person: a line naming no one matched falls back to the
-    // invoice's most common match, else the billed professional.
+    // ../billing/timekeeperFallback.ts
     timekeeperFallback?: boolean;
     // The billing period the uploader checked, in place of the one read;
     // the extraction record keeps what was read.

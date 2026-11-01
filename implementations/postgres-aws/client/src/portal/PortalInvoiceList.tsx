@@ -53,7 +53,6 @@ function RowActions({
   );
 }
 
-// A draft with no case number says so, so it's fixed before sending.
 function StatusCell({ invoice }: { invoice: InvoiceRecord }) {
   const status = submissionStatus(invoice);
   const missing = invoice.statusCode === 'draft' && !listCaseNumber(invoice);
@@ -66,8 +65,8 @@ function StatusCell({ invoice }: { invoice: InvoiceRecord }) {
   );
 }
 
-// The submitter's drafts and sent invoices in one list, drafts first, each
-// with its case number. No search or filters: the list is one person's.
+// The submitter's drafts and sent invoices, drafts first. No search or
+// filters: the list is one person's.
 export default function PortalInvoiceList() {
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => listMyInvoices().then((result) => result.invoices), [version]);

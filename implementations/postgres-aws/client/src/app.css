@@ -908,7 +908,7 @@ form.compact-form { max-width: none; }
 .your-drafts ul { margin: 0; padding: 0; list-style: none; }
 .your-drafts li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .45rem 0; border-top: 1px solid var(--line); }
 .your-drafts li:first-child { border-top: 0; }
-/* People, a person's page and search results (design G21–G24). */
+/* People, a person's page and search results. */
 .list-controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem 1rem; margin: 0 0 1rem; }
 .list-controls .chip-filters { margin: 0; }
 .list-controls__search { flex: 0 1 18rem; }

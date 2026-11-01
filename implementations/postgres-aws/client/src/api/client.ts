@@ -290,7 +290,6 @@ export interface VendorRecord {
   rates: ProfessionalRate[];
 }
 
-// Phone, who is paid and their own approved rates (design G22, G23).
 export interface PersonDetailsInput {
   phone?: string;
   paidThrough?: string;
@@ -309,7 +308,7 @@ export function editProfessional(
   });
 }
 
-// Everyone who can send invoices (design G21).
+// Someone who can send invoices.
 export interface BillingPerson {
   professionalId: string;
   displayName: string | null;
@@ -1309,7 +1308,7 @@ export interface QueuedInvoice {
   proposedProvider: ProposedProvider | null;
   // As the sender typed it; never checked against a list of cases.
   caseNumberAsTyped: string | null;
-  // A reviewer's correction, shown in its place (design G15).
+  // A reviewer's correction, shown in its place.
   caseNumberCorrected: string | null;
   returnedReason: string | null;
 }
@@ -1340,17 +1339,23 @@ export interface ReviewQueueItem extends QueuedInvoice {
   flags: QueueFlag[];
   // Other sent invoices with the same case number, and with a close one.
   caseNumberMatches: { same: number; close: number };
+  // How it matched a search's q; null without one.
+  match: 'exact' | 'close' | null;
 }
 
 // 'all': every sent invoice, for search; professionalId: one person's.
+// q: only invoices matching a name or case number, close matches included.
 export function listReviewQueue(
   view: 'open' | 'finished' | 'all',
-  professionalId?: string,
+  options: { professionalId?: string; q?: string } = {},
 ): Promise<{ invoices: ReviewQueueItem[]; waitingAlertWorkingDays: number }> {
-  return request(`/api/invoices?view=${view}${professionalId ? `&professionalId=${encodeURIComponent(professionalId)}` : ''}`);
+  const params = new URLSearchParams({ view });
+  if (options.professionalId) params.set('professionalId', options.professionalId);
+  if (options.q?.trim()) params.set('q', options.q.trim());
+  return request(`/api/invoices?${params}`);
 }
 
-// A reviewer's correction; the sender's typed number is kept (design G15).
+// The sender's typed number is kept beside it.
 export function correctCaseNumber(
   invoiceId: string,
   caseNumber: string,
@@ -1510,8 +1515,7 @@ export interface InvoiceReview {
   signOffStarted: boolean;
   fileSource: FileSource | null;
   submitterChanges: SubmitterChanges | null;
-  // The sender's approved hourly rate today, and other sent invoices with
-  // the same or a close case number (design G15).
+  // The sender's hourly rate today.
   approvedRate: string | null;
   caseNumberMatches: { same: number; close: number };
 }

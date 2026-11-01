@@ -21,7 +21,7 @@ import { proposedCaseSchema, proposedProviderSchema } from '../billing/proposedD
 import { suggestUploadCase, uploadCases } from './caseSuggestions';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { mileageRateOn, mileageRatesFor } from '../billing/mileageRates';
-import { cleanCaseNumber, readCaseNumber } from '../billing/caseNumbers';
+import { caseNumberInput, cleanCaseNumber, readCaseNumber } from '../billing/caseNumbers';
 
 export interface SplitCase {
   caseId: string;
@@ -401,7 +401,7 @@ const uploadDraftSchema = z
     periodStart: z.iso.date('Enter the first day of the billing period.').optional(),
     periodEnd: z.iso.date('Enter the last day of the billing period.').optional(),
     invoiceNumber: z.string().trim().max(100, 'Keep the invoice number under 100 characters.').optional(),
-    caseNumber: z.string().max(100, 'Keep the case number under 100 characters.').optional(),
+    caseNumber: caseNumberInput.optional(),
   })
   .refine((input) => Boolean(input.periodStart) === Boolean(input.periodEnd), {
     message: 'Enter both days of the billing period, or neither.',
@@ -456,10 +456,9 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
         extractedAt: now,
         parsed,
         fileName: read.fileName,
-        // Filed under a case with whom it bills, every line is theirs. Filed
-        // by person, timekeepers named in the file are matched, the rest
-        // falling back (../billing/timekeeperFallback.ts). Otherwise they
-        // are only suggested.
+        // Under a case, every line is the billed person's; filed by person,
+        // named timekeepers are matched and the rest fall back
+        // (../billing/timekeeperFallback.ts); with no one chosen, suggested.
         everyLineBilled: input.professionalId !== null && input.caseId !== null,
         timekeeperFallback: input.caseId === null && input.professionalId !== null,
         checkedPeriod: { start: input.periodStart, end: input.periodEnd },

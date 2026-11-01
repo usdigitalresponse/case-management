@@ -860,8 +860,7 @@ function textOfRows(rows: Row[]): string {
   return rows.map((row) => row.text).join('\n');
 }
 
-// The row labelling the court's case number, else the first labelling any,
-// highlighted whole ("Re: …, Case No. …").
+// As labelledCaseNumber chooses, with its whole row as the region.
 function caseNumberIn(rows: Row[], frames: Map<number, PageFrame>): ParsedInvoice['caseNumber'] {
   const found = rows.flatMap((row) => labelledCaseNumbers(row.text).map((match) => ({ ...match, row })));
   const chosen = found.find((match) => match.court) ?? found[0];

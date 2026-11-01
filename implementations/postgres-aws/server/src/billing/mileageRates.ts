@@ -23,10 +23,14 @@ export async function listMileageRates(db: DatabaseOrTransaction): Promise<Milea
     .orderBy(asc(mileageRate.effectiveFrom), asc(mileageRate.recordedAt));
 }
 
-// The general mileage rates until the person's own first takes effect, then theirs.
+// By person: the general rates until their own first takes effect, then theirs.
+export async function mileageRatesForEach(db: DatabaseOrTransaction, professionalIds: string[]): Promise<Map<string, MileageRateRow[]>> {
+  const [general, own] = await Promise.all([listMileageRates(db), listOwnMileageRates(db, professionalIds)]);
+  return new Map(professionalIds.map((id) => [id, ownFirst(general, own.get(id) ?? [], () => '')]));
+}
+
 export async function mileageRatesFor(db: DatabaseOrTransaction, professionalId: string | null): Promise<MileageRateRow[]> {
-  const [general, own] = await Promise.all([listMileageRates(db), professionalId ? listOwnMileageRates(db, professionalId) : []]);
-  return ownFirst(general, own, () => '');
+  return professionalId ? (await mileageRatesForEach(db, [professionalId])).get(professionalId)! : listMileageRates(db);
 }
 
 export function mileageRateOn(rates: MileageRateRow[], date: string): string | undefined {
