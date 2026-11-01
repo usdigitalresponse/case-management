@@ -22,7 +22,6 @@ import { submittedByLabel } from '../reviewTotals';
 const SORTS = [
   { id: 'waiting', label: 'Waiting longest first' },
   { id: 'newest', label: 'Newest first' },
-  { id: 'amount', label: 'Largest amount first' },
 ] as const;
 type SortId = (typeof SORTS)[number]['id'];
 
@@ -30,9 +29,6 @@ type SortId = (typeof SORTS)[number]['id'];
 function sorted(rows: ReviewQueueItem[], sort: SortId): ReviewQueueItem[] {
   if (sort === 'newest') {
     return [...rows].sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''));
-  }
-  if (sort === 'amount') {
-    return [...rows].sort((a, b) => Number(b.submittedTotal) - Number(a.submittedTotal));
   }
   return rows;
 }
