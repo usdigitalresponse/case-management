@@ -7,6 +7,7 @@ import type { Database, DatabaseOrTransaction, Transaction } from '../db/client'
 import { getReferenceId } from '../db/referenceLookups';
 import {
   caseInvoiceReviewer,
+  professionalInvoiceReviewer,
   invoice,
   invoiceApprovalStepTypes,
   invoiceReviewAssignment,
@@ -114,12 +115,10 @@ export async function endAllAssignments(tx: Transaction, invoiceId: string, byUs
     .where(and(eq(invoiceReviewAssignment.invoiceId, invoiceId), isNull(invoiceReviewAssignment.endedAt)));
 }
 
-// On submission: the case's reviewer, else the default, else no one; the
-// default sign-off approvers in order. Defaults that no longer have the
-// role are skipped.
-// With no case, only the default reviewer applies.
-export async function assignOnSubmit(tx: Transaction, invoiceId: string, caseId: string | null): Promise<void> {
-  const [settings, [caseReviewer]] = await Promise.all([
+// On submission: the case's reviewer, else the sender's, else the default,
+// skipping anyone who lost the role; then the default sign-off approvers.
+export async function assignOnSubmit(tx: Transaction, invoiceId: string, caseId: string | null, professionalId: string): Promise<void> {
+  const [settings, [caseReviewer], [personReviewer]] = await Promise.all([
     getReviewSettings(tx),
     caseId === null
       ? Promise.resolve([])
@@ -127,8 +126,12 @@ export async function assignOnSubmit(tx: Transaction, invoiceId: string, caseId:
           .select({ userAccountId: caseInvoiceReviewer.reviewerUserAccountId })
           .from(caseInvoiceReviewer)
           .where(and(eq(caseInvoiceReviewer.caseId, caseId), isNull(caseInvoiceReviewer.endedAt))),
+    tx
+      .select({ userAccountId: professionalInvoiceReviewer.reviewerUserAccountId })
+      .from(professionalInvoiceReviewer)
+      .where(and(eq(professionalInvoiceReviewer.professionalId, professionalId), isNull(professionalInvoiceReviewer.endedAt))),
   ]);
-  for (const candidate of [caseReviewer?.userAccountId, settings.defaultReviewerUserAccountId]) {
+  for (const candidate of [caseReviewer?.userAccountId, personReviewer?.userAccountId, settings.defaultReviewerUserAccountId]) {
     // eslint-disable-next-line no-await-in-loop
     if (candidate && (await loadReviewPermissions(tx, candidate)).reviewLines) {
       // eslint-disable-next-line no-await-in-loop
@@ -157,7 +160,13 @@ export async function lockInvoiceForReview(tx: Transaction, invoiceId: string) {
     throw new InvoiceNotFoundError();
   }
   const [locked] = await tx
-    .select({ invoiceId: invoice.invoiceId, caseId: invoice.caseId, statusId: invoice.statusId, statusCode: invoiceStatuses.code })
+    .select({
+      invoiceId: invoice.invoiceId,
+      caseId: invoice.caseId,
+      professionalId: invoice.professionalId,
+      statusId: invoice.statusId,
+      statusCode: invoiceStatuses.code,
+    })
     .from(invoice)
     .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
     .where(eq(invoice.invoiceId, invoiceId))
@@ -196,6 +205,8 @@ const reassignInputSchema = z.object({
   userAccountId: z.uuid(),
   // Also send this case's future invoices to them.
   forCase: z.boolean().default(false),
+  // Also send the sender's future invoices to them.
+  forPerson: z.boolean().default(false),
 });
 
 // The actor may reassign, and the person given the work reviews invoices.
@@ -235,8 +246,39 @@ export async function reassignReviewer(db: Database, actorUserAccountId: string,
     if (input.forCase && locked.caseId) {
       await setCaseReviewerInTx(tx, locked.caseId, input.userAccountId, actorUserAccountId);
     }
+    if (input.forPerson && locked.professionalId) {
+      await setPersonReviewerInTx(tx, locked.professionalId, input.userAccountId, actorUserAccountId);
+    }
     return loadAssignments(tx, invoiceId);
   });
+}
+
+async function setPersonReviewerInTx(tx: Transaction, professionalId: string, reviewerUserAccountId: string, actorUserAccountId: string) {
+  const now = new Date();
+  const [current] = await tx
+    .select()
+    .from(professionalInvoiceReviewer)
+    .where(and(eq(professionalInvoiceReviewer.professionalId, professionalId), isNull(professionalInvoiceReviewer.endedAt)))
+    .for('update');
+  if (current?.reviewerUserAccountId === reviewerUserAccountId) {
+    return;
+  }
+  if (current) {
+    await tx
+      .update(professionalInvoiceReviewer)
+      .set({ endedAt: now })
+      .where(eq(professionalInvoiceReviewer.professionalInvoiceReviewerId, current.professionalInvoiceReviewerId));
+  }
+  await tx.insert(professionalInvoiceReviewer).values({ professionalId, reviewerUserAccountId, setAt: now, setByUserAccountId: actorUserAccountId });
+}
+
+export async function loadPersonReviewer(db: DatabaseOrTransaction, professionalId: string): Promise<AssignedPerson | null> {
+  const [row] = await db
+    .select({ userAccountId: professionalInvoiceReviewer.reviewerUserAccountId, displayName: userAccount.displayName })
+    .from(professionalInvoiceReviewer)
+    .innerJoin(userAccount, eq(professionalInvoiceReviewer.reviewerUserAccountId, userAccount.userAccountId))
+    .where(and(eq(professionalInvoiceReviewer.professionalId, professionalId), isNull(professionalInvoiceReviewer.endedAt)));
+  return row ?? null;
 }
 
 async function setCaseReviewerInTx(tx: Transaction, caseId: string, reviewerUserAccountId: string, actorUserAccountId: string) {

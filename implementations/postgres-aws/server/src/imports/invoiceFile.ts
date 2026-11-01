@@ -29,6 +29,8 @@ export interface FileSource {
   fileAvailable: boolean;
   invoiceNumber: string | null;
   statedTotal: number | null;
+  // As the file labels it, and where on a PDF.
+  caseNumber: { value: string; region: SourceRegion | null } | null;
   lines: FileLine[];
   warnings: ImportWarning[];
 }
@@ -53,7 +55,11 @@ interface StoredLine {
 }
 
 interface StoredResult {
-  invoice?: { invoice_number?: { value: string }; stated_total?: { value: number } };
+  invoice?: {
+    invoice_number?: { value: string };
+    stated_total?: { value: number };
+    case_number?: { value: string; region?: SourceRegion };
+  };
   lines?: StoredLine[];
   warnings?: ImportWarning[];
 }
@@ -108,6 +114,9 @@ function fileSourceOf(row: Awaited<ReturnType<typeof importRows>>[number]): File
     fileAvailable: row.contentDeletedAt === null,
     invoiceNumber: result.invoice?.invoice_number?.value ?? null,
     statedTotal: result.invoice?.stated_total?.value ?? null,
+    caseNumber: result.invoice?.case_number
+      ? { value: result.invoice.case_number.value, region: result.invoice.case_number.region ?? null }
+      : null,
     lines: (result.lines ?? []).map(fileLine),
     warnings: result.warnings ?? [],
   };

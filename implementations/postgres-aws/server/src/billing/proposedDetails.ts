@@ -40,13 +40,14 @@ export async function hasUnmatchedTimekeepers(tx: Transaction, invoiceId: string
   return Boolean(line);
 }
 
-// What staff still have to match before the request can go to review.
+// What staff still have to match before the request can go to review. One
+// filed by person (with a typed case number) needs no case.
 export async function needsMatching(
   tx: Transaction,
-  row: { invoiceId: string; caseId: string | null; professionalId: string | null },
+  row: { invoiceId: string; caseId: string | null; professionalId: string | null; caseNumberAsTyped: string | null },
   options: { withoutCase?: boolean } = {},
 ): Promise<boolean> {
-  if ((row.caseId === null && !options.withoutCase) || row.professionalId === null) {
+  if ((row.caseId === null && !row.caseNumberAsTyped && !options.withoutCase) || row.professionalId === null) {
     return true;
   }
   return hasUnmatchedTimekeepers(tx, row.invoiceId);

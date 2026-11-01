@@ -59,20 +59,20 @@ interface Details {
   invoiceNumber: string;
 }
 
-interface Entry {
+export interface Entry<D = Details> {
   key: string;
   file: File;
   uploadReadId?: string;
   read?: UploadRead;
   // Couldn't be sent or read; it is skipped.
   error?: string;
-  details?: Details;
+  details?: D;
   created?: { invoiceImportId: string; invoiceId: string };
 }
 
 const optionValue = (row: Pick<UploadCase, 'caseId' | 'professionalId'>) => `${row.caseId}|${row.professionalId}`;
 
-function detailsFrom(read: Extract<UploadRead, { status: 'ready' }>): Details {
+function detailsFrom(read: ReadyRead): Details {
   return {
     ...noDetails(),
     caseOption: read.suggested ? optionValue(read.suggested) : '',
@@ -96,7 +96,7 @@ function caseLabel(row: UploadCase, showWho: boolean): string {
   return showWho && row.professionalDisplayName ? `${label} (${row.professionalDisplayName})` : label;
 }
 
-function Steps() {
+export function Steps() {
   const steps = ['Upload', 'Check the lines', 'Send for review'];
   return (
     <ol className="steps" aria-label="Steps">
@@ -151,14 +151,14 @@ export function DropZone({ hasFiles, onFiles }: { hasFiles: boolean; onFiles: (f
   );
 }
 
-function FileCard({
+export function FileCard({
   entry,
   position,
   total,
   current,
   onRemove,
 }: {
-  entry: Entry;
+  entry: Entry<unknown>;
   position: number;
   total: number;
   current: boolean;
@@ -211,6 +211,69 @@ function FileCard({
       </span>
     </li>
   );
+}
+
+export type ReadyRead = Extract<UploadRead, { status: 'ready' }>;
+
+// Files sent to be read, polled until each is read; a read file's details
+// start from `detailsFrom`.
+export function useUploadEntries<D>(detailsFrom: (read: ReadyRead) => D) {
+  const [entries, setEntries] = useState<Array<Entry<D>>>([]);
+  const counter = useRef(0);
+
+  const update = useCallback((key: string, patch: Partial<Entry<D>>) => {
+    setEntries((current) => current.map((entry) => (entry.key === key ? { ...entry, ...patch } : entry)));
+  }, []);
+
+  async function refresh(key: string, uploadReadId: string) {
+    try {
+      const read = await getUpload(uploadReadId);
+      setEntries((current) =>
+        current.map((entry) =>
+          entry.key === key ? { ...entry, read, details: entry.details ?? (read.status === 'ready' ? detailsFrom(read) : undefined) } : entry,
+        ),
+      );
+    } catch (err) {
+      update(key, { error: apiErrorMessage(err, 'This file could not be read. Upload it again.') });
+    }
+  }
+
+  function addFiles(files: File[]) {
+    for (const file of files) {
+      counter.current += 1;
+      const key = `file-${counter.current}`;
+      setEntries((current) => [...current, { key, file }]);
+      startUpload(file).then(
+        ({ uploadReadId }) => {
+          update(key, { uploadReadId });
+          void refresh(key, uploadReadId);
+        },
+        (err: unknown) => update(key, { error: apiErrorMessage(err, 'This file could not be uploaded.') }),
+      );
+    }
+  }
+
+  const reading = entries.filter((entry) => entry.uploadReadId && !entry.error && (!entry.read || entry.read.status === 'reading'));
+  const readingKey = reading.map((entry) => entry.key).join(',');
+  useEffect(() => {
+    if (!readingKey) return undefined;
+    const timer = window.setInterval(() => {
+      for (const entry of reading) {
+        void refresh(entry.key, entry.uploadReadId!);
+      }
+    }, 2000);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readingKey]);
+
+  async function remove(entry: Entry<D>) {
+    setEntries((list) => list.filter((row) => row.key !== entry.key));
+    if (entry.uploadReadId && !entry.created) {
+      await discardUpload(entry.uploadReadId).catch(() => undefined);
+    }
+  }
+
+  return { entries, update, addFiles, remove };
 }
 
 // Who the user may bill with no case chosen: staff, any active provider; a
@@ -301,45 +364,91 @@ function DetailsForm({
           </PickOrAdd>
         </div>
       )}
-      <div className="upload-details__field">
-        <span className="usa-label" id="upload-period-label">Billing period</span>
-        <div className="upload-period" role="group" aria-labelledby="upload-period-label">
-          <input
-            className="usa-input"
-            type="date"
-            aria-label="First day"
-            value={details.periodStart}
-            onChange={(event) => set({ periodStart: event.target.value })}
-          />
-          <span>to</span>
-          <input
-            className="usa-input"
-            type="date"
-            aria-label="Last day"
-            min={details.periodStart || undefined}
-            value={details.periodEnd}
-            onChange={(event) => set({ periodEnd: event.target.value })}
-          />
-        </div>
-        {(errors.periodStart || errors.periodEnd) && <p className="field-error">{errors.periodStart ?? errors.periodEnd}</p>}
-        <p className="field-hint">{withInvoiceNumber ? 'From the dates on your invoice.' : 'Optional. The dates the work covers.'}</p>
-      </div>
+      <UploadPeriodField
+        start={details.periodStart}
+        end={details.periodEnd}
+        error={errors.periodStart ?? errors.periodEnd}
+        hint={withInvoiceNumber ? 'From the dates on your invoice.' : 'Optional. The dates the work covers.'}
+        onChange={(period) => set(period)}
+      />
       {withInvoiceNumber && (
-        <div className="upload-details__field">
-          <label className="usa-label" htmlFor="upload-invoice-number">Invoice number on your file</label>
-          <input
-            id="upload-invoice-number"
-            className="usa-input"
-            value={details.invoiceNumber}
-            aria-describedby="upload-invoice-number-hint"
-            onChange={(event) => set({ invoiceNumber: event.target.value })}
-          />
-          {errors.invoiceNumber && <p className="field-error">{errors.invoiceNumber}</p>}
-          <p id="upload-invoice-number-hint" className="field-hint">
-            {staff ? "Optional. It helps match the provider's records." : 'Optional. It helps the billing office match your records.'}
-          </p>
-        </div>
+        <InvoiceNumberField
+          label="Invoice number on your file"
+          value={details.invoiceNumber}
+          error={errors.invoiceNumber}
+          hint={staff ? "Optional. It helps match the provider's records." : 'Optional. It helps the billing office match your records.'}
+          onChange={(invoiceNumber) => set({ invoiceNumber })}
+        />
       )}
+    </div>
+  );
+}
+
+export function UploadPeriodField({
+  start,
+  end,
+  error,
+  hint,
+  onChange,
+}: {
+  start: string;
+  end: string;
+  error?: string;
+  hint: string;
+  onChange: (period: { periodStart: string; periodEnd: string }) => void;
+}) {
+  return (
+    <div className="upload-details__field">
+      <span className="usa-label" id="upload-period-label">Billing period</span>
+      <div className="upload-period" role="group" aria-labelledby="upload-period-label">
+        <input
+          className="usa-input"
+          type="date"
+          aria-label="First day"
+          value={start}
+          onChange={(event) => onChange({ periodStart: event.target.value, periodEnd: end })}
+        />
+        <span>to</span>
+        <input
+          className="usa-input"
+          type="date"
+          aria-label="Last day"
+          min={start || undefined}
+          value={end}
+          onChange={(event) => onChange({ periodStart: start, periodEnd: event.target.value })}
+        />
+      </div>
+      {error && <p className="field-error">{error}</p>}
+      <p className="field-hint">{hint}</p>
+    </div>
+  );
+}
+
+export function InvoiceNumberField({
+  label,
+  value,
+  error,
+  hint,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  error?: string;
+  hint: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="upload-details__field">
+      <label className="usa-label" htmlFor="upload-invoice-number">{label}</label>
+      <input
+        id="upload-invoice-number"
+        className="usa-input"
+        value={value}
+        aria-describedby="upload-invoice-number-hint"
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {error && <p className="field-error">{error}</p>}
+      <p id="upload-invoice-number-hint" className="field-hint">{hint}</p>
     </div>
   );
 }
@@ -456,7 +565,7 @@ export default function PortalUpload() {
   const navigate = useNavigate();
   // Staff come from and go back to Intake; submitters to their invoices.
   const { staff, invoicesPath, invoicesLabel } = useShell();
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const { entries, update, addFiles, remove } = useUploadEntries(detailsFrom);
   const { data: billable } = useBillable();
   const [manual, setManual] = useState(false);
   const location = useLocation();
@@ -464,39 +573,7 @@ export default function PortalUpload() {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
-  const counter = useRef(0);
 
-  const update = useCallback((key: string, patch: Partial<Entry>) => {
-    setEntries((current) => current.map((entry) => (entry.key === key ? { ...entry, ...patch } : entry)));
-  }, []);
-
-  async function refresh(key: string, uploadReadId: string) {
-    try {
-      const read = await getUpload(uploadReadId);
-      setEntries((current) =>
-        current.map((entry) =>
-          entry.key === key ? { ...entry, read, details: entry.details ?? (read.status === 'ready' ? detailsFrom(read) : undefined) } : entry,
-        ),
-      );
-    } catch (err) {
-      update(key, { error: apiErrorMessage(err, 'This file could not be read. Upload it again.') });
-    }
-  }
-
-  function addFiles(files: File[]) {
-    for (const file of files) {
-      counter.current += 1;
-      const key = `file-${counter.current}`;
-      setEntries((current) => [...current, { key, file }]);
-      startUpload(file).then(
-        ({ uploadReadId }) => {
-          update(key, { uploadReadId });
-          void refresh(key, uploadReadId);
-        },
-        (err: unknown) => update(key, { error: apiErrorMessage(err, 'This file could not be uploaded.') }),
-      );
-    }
-  }
   // Once, even in development's double render; the state is cleared so a
   // reload doesn't upload the files again.
   useEffect(() => {
@@ -509,32 +586,11 @@ export default function PortalUpload() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
-  const reading = entries.filter((entry) => entry.uploadReadId && !entry.error && (!entry.read || entry.read.status === 'reading'));
-  const readingKey = reading.map((entry) => entry.key).join(',');
-  useEffect(() => {
-    if (!readingKey) return undefined;
-    const timer = window.setInterval(() => {
-      for (const entry of reading) {
-        void refresh(entry.key, entry.uploadReadId!);
-      }
-    }, 2000);
-    return () => window.clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readingKey]);
-
   const usable = entries.filter((entry) => !entry.error && entry.read?.status !== 'failed');
   const current = usable.find((entry) => !entry.created);
   const currentRead = current?.read?.status === 'ready' ? current.read : undefined;
   const many = entries.length > 1;
   const createdCount = entries.filter((entry) => entry.created).length;
-
-  async function remove(entry: Entry) {
-    setEntries((list) => list.filter((row) => row.key !== entry.key));
-    if (entry.uploadReadId && !entry.created) {
-      await discardUpload(entry.uploadReadId).catch(() => undefined);
-    }
-  }
 
   async function next() {
     if (!current || !currentRead || !current.uploadReadId) return;

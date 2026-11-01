@@ -59,6 +59,8 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
       // Entered by the submitter rather than chosen; shown flagged.
       proposedCase: invoice.proposedCase,
       proposedProvider: invoice.proposedProvider,
+      caseNumberAsTyped: invoice.caseNumberAsTyped,
+      caseNumberCorrected: invoice.caseNumberCorrected,
       // Shown to the submitter until they send it again.
       returnedReason,
     })

@@ -22,6 +22,7 @@ import { editProfessional } from '../professionals/editProfessional';
 import { requireAdmin } from '../auth/requireAdmin';
 import { listRates, setProfessionalKind } from '../billing/professionalRates';
 import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
+import { getPerson, listPeople } from '../professionals/peopleDirectory';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -72,7 +73,21 @@ router.get(
   }),
 );
 
-// Any staff member adds a provider who hasn't signed in, from invoice intake.
+router.get(
+  '/people',
+  asyncHandler(async (_req, res) => {
+    res.json({ people: await listPeople(db) });
+  }),
+);
+
+router.get(
+  '/people/:id',
+  asyncHandler(async (req, res) => {
+    res.json(await getPerson(db, req.params.id as string));
+  }),
+);
+
+// Any staff member.
 router.post(
   '/',
   asyncHandler(async (req, res) => {
@@ -80,7 +95,7 @@ router.post(
   }),
 );
 
-// Administrators correct a provider's name, or their email until they sign in.
+// Administrators only (../professionals/editProfessional.ts).
 router.patch(
   '/:id',
   requireAdmin,

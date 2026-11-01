@@ -10,6 +10,7 @@ import type { Database } from '../db/client';
 import { invoiceEvent } from '../db/schema';
 import { loadInvoiceDetail } from './invoiceDetail';
 import { listReviewQueue } from './reviewQueue';
+import { currentCaseNumber } from './caseNumbers';
 import { APPROVED_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
 import { csvCell } from '../imports/template';
 
@@ -72,7 +73,8 @@ export async function loadBillingRecord(db: Database): Promise<BillingRecordRow[
       ),
     ];
     rows.push({
-      'Case number': queued.caseId === null ? 'Not linked to a case' : (queued.caseNumber ?? queued.caseExternalReference),
+      'Case number':
+        currentCaseNumber(queued) ?? (queued.caseId === null ? 'Not linked to a case' : (queued.caseNumber ?? queued.caseExternalReference)),
       'Court numbers': queued.otherCaseNumbers.join(', ') || null,
       'Invoice number': queued.invoiceId.slice(0, 8),
       Provider: queued.professionalDisplayName,

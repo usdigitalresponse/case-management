@@ -1,10 +1,12 @@
+import type { ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router';
 import type { ReviewQueueItem } from '../api/client';
 import { submittedByLabel } from '../reviewTotals';
+import { matchesNote, shownCaseNumber } from '../caseNumbers';
+import { searchPath } from '../staffPaths';
 import type { RecordTableColumn } from './RecordTable';
 
-// Cells shared by the staff tables of invoices: the queue, a case's
-// invoices and Exports.
+// Cells shared by the staff tables of invoices.
 
 export const caseNumberColumn: RecordTableColumn<ReviewQueueItem> = {
   header: 'Case number',
@@ -23,6 +25,30 @@ export function FromCell({ invoice }: { invoice: ReviewQueueItem }) {
     <>
       {submittedByLabel(invoice)}
       <span className="cell-note">{invoice.professionalKindDisplayName ?? 'Professional'}</span>
+    </>
+  );
+}
+
+// As typed (or corrected), with how many other sent invoices share it,
+// linking to them all; or `note` in place of that.
+export function CaseNumberCell({ invoice, note }: { invoice: ReviewQueueItem; note?: ReactNode }) {
+  const number = shownCaseNumber(invoice);
+  if (!number) {
+    return <span className="muted">Not added</span>;
+  }
+  const matches = matchesNote(invoice.caseNumberMatches);
+  return (
+    <>
+      <strong>{number}</strong>
+      {note !== undefined ? (
+        note && <span className="cell-note">{note}</span>
+      ) : (
+        matches && (
+          <RouterLink className="cell-note" to={searchPath(number)}>
+            {matches}
+          </RouterLink>
+        )
+      )}
     </>
   );
 }

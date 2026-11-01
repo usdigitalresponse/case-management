@@ -46,6 +46,8 @@ import { checkInferredDates } from '../imports/inferServiceDates';
 import { enforceBillingRules } from './billingRules';
 import { assignOnSubmit, endAllAssignments } from './reviewAssignment';
 import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry } from './invoiceReceipt';
+import { caseNumberInput, cleanCaseNumber } from './caseNumbers';
+import { fillUnmatchedTimekeepers } from './timekeeperFallback';
 import {
   AWAITING_MATCH_INVOICE_STATUS_CODE,
   DRAFT_INVOICE_STATUS_CODE,
@@ -377,6 +379,13 @@ async function buildSubmissionSnapshot(
 // elsewhere don't attest for its payee.
 export const ATTESTATION_STATEMENT = 'I confirm this invoice is true and correct, and the work was done for this case.';
 
+// Filed by person, it names the typed case number.
+export function attestationStatement(caseNumberAsTyped: string | null): string {
+  return caseNumberAsTyped
+    ? `I confirm this invoice is true and correct, and the work was done for case ${caseNumberAsTyped}.`
+    : ATTESTATION_STATEMENT;
+}
+
 // The attestor is the submitter as a person: their account's person, or
 // their professional profile's.
 async function attestorPersonId(tx: Transaction, actor: PortalActor): Promise<string | null> {
@@ -406,8 +415,11 @@ export async function submitInTx(
   options: {
     // Staff chose to review it with no case (match_invoice_to_case).
     withoutCase?: boolean;
-    // The submitter ticked ATTESTATION_STATEMENT.
+    // The submitter ticked attestationStatement().
     attested?: boolean;
+    // Filed under its sender with a typed case number: needs both, and goes
+    // to review without a case.
+    filedByPerson?: boolean;
   } = {},
 ): Promise<'submitted' | 'awaiting_match'> {
   const staff = await isStaffAccount(tx, actor.userAccountId);
@@ -421,6 +433,15 @@ export async function submitInTx(
   const { locked, billable } = await lockOwnInvoice(tx, actor, invoiceId);
   if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
     throw new InvoiceStateError('Only a draft can be submitted.');
+  }
+  if (options.filedByPerson) {
+    if (!locked.caseNumberAsTyped) {
+      throw new ValidationError({ caseNumber: 'Add the case number before you send.' });
+    }
+    if (!locked.professionalId) {
+      throw new ValidationError({ professionalId: 'Choose who this invoice is from before you send.' });
+    }
+    await fillUnmatchedTimekeepers(tx, invoiceId, locked.professionalId);
   }
   await requireReceiptForStaffEntry(tx, actor, locked);
   const lines = await tx
@@ -459,6 +480,7 @@ export async function submitInTx(
   }
   await finishSubmission(tx, invoiceId, {
     caseId: locked.caseId,
+    caseNumberAsTyped: locked.caseNumberAsTyped,
     billedProfessionalId: locked.professionalId!,
     invoiceImportId: imported?.invoiceImportId,
     attestor,
@@ -492,6 +514,7 @@ export async function releaseToReviewInTx(tx: Transaction, staffUserAccountId: s
   const imported = await findImportForInvoice(tx, invoiceId);
   await finishSubmission(tx, invoiceId, {
     caseId: locked.caseId,
+    caseNumberAsTyped: locked.caseNumberAsTyped,
     billedProfessionalId: locked.professionalId!,
     invoiceImportId: imported?.invoiceImportId,
     attestor,
@@ -507,6 +530,7 @@ async function finishSubmission(
   invoiceId: string,
   args: {
     caseId: string | null;
+    caseNumberAsTyped: string | null;
     billedProfessionalId: string;
     invoiceImportId: string | undefined;
     attestor: string | null;
@@ -549,7 +573,7 @@ async function finishSubmission(
       attestorPersonId: args.attestor,
       recordedByUserAccountId: args.actorUserAccountId,
       attestedAt: args.attestedAt,
-      statement: ATTESTATION_STATEMENT,
+      statement: attestationStatement(args.caseNumberAsTyped),
     });
   }
   await tx
@@ -565,7 +589,7 @@ async function finishSubmission(
     actorUserAccountId: args.actorUserAccountId,
     chainId: invoiceApprovalChainId,
   });
-  await assignOnSubmit(tx, invoiceId, caseId);
+  await assignOnSubmit(tx, invoiceId, caseId, billedProfessionalId);
 }
 
 export async function updateDraftInvoice(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
@@ -586,12 +610,28 @@ export async function updateDraftInvoice(db: Database, actor: PortalActor, invoi
   });
 }
 
+export async function setDraftCaseNumber(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
+  const parsed = z.object({ caseNumber: caseNumberInput }).safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
+  }
+  return db.transaction(async (tx) => {
+    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
+    if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
+      throw new InvoiceStateError('Only a draft can be edited.');
+    }
+    const caseNumber = cleanCaseNumber(parsed.data.caseNumber);
+    await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
+    return { invoiceId, caseNumber };
+  });
+}
+
 // Staff entering a request received elsewhere pass how and when it came in,
 // and whether to review it without a case; a submitter sending their own
 // passes `attested`, and is emailed a receipt.
 export async function submitInvoice(db: Database, actor: PortalActor, invoiceId: string, rawReceipt: unknown = {}) {
   const receipt = receiptInputSchema
-    .extend({ withoutCase: z.boolean().optional(), attested: z.boolean().optional() })
+    .extend({ withoutCase: z.boolean().optional(), attested: z.boolean().optional(), filedByPerson: z.boolean().optional() })
     .safeParse(rawReceipt ?? {});
   if (!receipt.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(receipt.error.issues));
@@ -608,7 +648,11 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
     // The receipt is recorded only on an invoice this actor may submit; submitInTx locks it again.
     await lockOwnInvoice(tx, actor, invoiceId);
     await recordReceipt(tx, invoiceId, receipt.data);
-    return submitInTx(tx, actor, invoiceId, { withoutCase: receipt.data.withoutCase, attested: receipt.data.attested });
+    return submitInTx(tx, actor, invoiceId, {
+      withoutCase: receipt.data.withoutCase,
+      attested: receipt.data.attested,
+      filedByPerson: receipt.data.filedByPerson,
+    });
   });
   if (!(await isStaffAccount(db, actor.userAccountId))) {
     // Not awaited: sending is a courtesy; a failure is logged, never shown.
@@ -635,6 +679,7 @@ async function emailReceipt(
       periodEnd: invoice.periodEnd,
       caseReference: caseTable.externalReference,
       clientName: person.displayName,
+      caseNumberAsTyped: invoice.caseNumberAsTyped,
     })
     .from(invoice)
     .innerJoin(userAccount, eq(userAccount.userAccountId, actor.userAccountId))
@@ -649,7 +694,9 @@ async function emailReceipt(
       ? 'We received your invoice. Some of its details aren’t in our system yet, so the billing office will match them, then send it for review.'
       : 'We received your invoice and sent it for review.',
     '',
-    `Case: ${[row.caseReference, row.clientName].filter(Boolean).join(', ') || 'not given'}`,
+    row.caseNumberAsTyped
+      ? `Case number: ${row.caseNumberAsTyped}`
+      : `Case: ${[row.caseReference, row.clientName].filter(Boolean).join(', ') || 'not given'}`,
     `Billing period: ${row.periodStart && row.periodEnd ? `${row.periodStart} to ${row.periodEnd}` : 'not given'}`,
     `Amount: ${formatMoney(row.submittedTotal)}`,
     `Sent: ${(row.submittedAt ?? new Date()).toISOString()}`,

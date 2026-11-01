@@ -11,6 +11,7 @@ import { measureTrips } from '../billing/routeCheck';
 import { authorizeBilling, type PortalActor } from './portalActor';
 import { receiptInputSchema, recordReceipt } from '../billing/invoiceReceipt';
 import { proposedCaseSchema, proposedProviderSchema } from '../billing/proposedDetails';
+import { caseNumberInput, cleanCaseNumber } from '../billing/caseNumbers';
 
 export const createInvoiceInputSchema = draftContentSchema.extend({
   // Null: matched later, in invoice intake.
@@ -26,6 +27,8 @@ export const createInvoiceInputSchema = draftContentSchema.extend({
   withoutCase: z.boolean().optional(),
   // A submitter sending their own confirms it is true and correct.
   attested: z.boolean().optional(),
+  // Given, the invoice is filed by person and sent as such.
+  caseNumber: caseNumberInput.optional(),
 }).extend(receiptInputSchema.shape);
 
 export type CreateInvoiceInput = z.input<typeof createInvoiceInputSchema>;
@@ -59,8 +62,16 @@ export async function createInvoice(
       proposedProvider: parsed.data.proposedProvider,
     });
     await recordReceipt(tx, invoiceId, { receivedVia: parsed.data.receivedVia, receivedOn: parsed.data.receivedOn });
+    const caseNumber = cleanCaseNumber(parsed.data.caseNumber);
+    if (caseNumber) {
+      await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
+    }
     const status = submit
-      ? await submitInTx(tx, actor, invoiceId, { withoutCase: parsed.data.withoutCase, attested: parsed.data.attested })
+      ? await submitInTx(tx, actor, invoiceId, {
+          withoutCase: parsed.data.withoutCase,
+          attested: parsed.data.attested,
+          filedByPerson: caseNumber !== null,
+        })
       : 'draft';
     const [created] = await tx.select({ submittedTotal: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, submittedTotal: created?.submittedTotal ?? '0.00', status };

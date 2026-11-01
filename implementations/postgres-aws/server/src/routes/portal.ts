@@ -42,14 +42,14 @@ import {
   timeEntryLockedReason,
   updateTimeEntry,
 } from '../portal/changeTimeEntry';
-import { listRates } from '../billing/professionalRates';
+import { listOwnMileageRates, listRates, ownFirst } from '../billing/professionalRates';
 import { getBillingRules, listBillingCodes } from '../billing/billingRules';
 import { listMileageRates } from '../billing/mileageRates';
 import { createInvoice } from '../portal/createInvoice';
 import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
 import { loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail';
-import { recallInvoice, submitInvoice, updateDraftInvoice, withdrawInvoice } from '../billing/invoiceLifecycle';
+import { recallInvoice, setDraftCaseNumber, submitInvoice, updateDraftInvoice, withdrawInvoice } from '../billing/invoiceLifecycle';
 import { listReceiptChannels } from '../billing/invoiceReceipt';
 import { InvoiceNotFoundError } from '../billing/reviewInvoiceLine';
 import { asyncHandler } from './asyncHandler';
@@ -166,14 +166,20 @@ router.get(
     // Everyone who may bill for a professional sees their rates
     // (model/rules.yaml apply_professional_rates).
     const rates = await listRates(db, ids);
+    const [generalMileage, ownMileage] = await Promise.all([listMileageRates(db), listOwnMileageRates(db, ids)]);
     res.json({
-      professionals: rows.map((row) => ({
-        ...row,
-        isSelf: row.professionalId === actor.professionalId,
-        rates: rates
-          .filter((rate) => rate.professionalId === row.professionalId)
-          .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
-      })),
+      professionals: rows.map((row) => {
+        const own = ownMileage.get(row.professionalId);
+        return {
+          ...row,
+          isSelf: row.professionalId === actor.professionalId,
+          rates: rates
+            .filter((rate) => rate.professionalId === row.professionalId)
+            .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
+          // Only for someone with their own; the general rates otherwise.
+          mileageRates: own ? ownFirst(generalMileage, own, () => '') : [],
+        };
+      }),
     });
   }),
 );
@@ -190,6 +196,13 @@ router.put(
   '/invoices/:id',
   asyncHandler(async (req, res) => {
     res.json(await updateDraftInvoice(db, await sessionActor(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/invoices/:id/case-number',
+  asyncHandler(async (req, res) => {
+    res.json(await setDraftCaseNumber(db, await sessionActor(req), req.params.id as string, req.body));
   }),
 );
 

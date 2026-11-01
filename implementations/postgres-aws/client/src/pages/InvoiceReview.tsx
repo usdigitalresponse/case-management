@@ -37,6 +37,8 @@ import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { reviewTotals, submittedByLabel } from '../reviewTotals';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
+import { CaseNumberReview } from '../components/CaseNumberReview';
+import { personPath } from '../staffPaths';
 
 export default function InvoiceReview() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
@@ -153,15 +155,25 @@ export default function InvoiceReview() {
         .join(', ')
     : '';
 
+  // Filed by person: led by who sent it, not a case.
+  const byPerson = invoice.caseId === null;
+  const sender = invoice.professionalDisplayName ?? 'Unknown sender';
+  const senderFirstName = sender.split(' ')[0];
+  const senderPath = invoice.professionalId ? personPath(invoice.professionalId) : undefined;
+
   return (
     <div className="invoice-review">
       <PageHeader
-        crumbs={[
-          { label: 'Invoices', to: '/' },
-          invoice.caseId ? { label: invoice.caseClientDisplayName ?? 'Case', to: `/cases/${invoice.caseId}` } : { label: 'No case' },
-          { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` },
-        ]}
-        title={invoice.caseId ? (invoice.caseClientDisplayName ?? 'Unknown client') : `Invoice from ${invoice.professionalDisplayName ?? 'an unknown provider'}`}
+        crumbs={
+          byPerson
+            ? [{ label: 'To review', to: '/' }, { label: sender, to: senderPath }, { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` }]
+            : [
+                { label: 'Invoices', to: '/' },
+                { label: invoice.caseClientDisplayName ?? 'Case', to: `/cases/${invoice.caseId}` },
+                { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` },
+              ]
+        }
+        title={byPerson ? sender : (invoice.caseClientDisplayName ?? 'Unknown client')}
         status={
           <StatusPill
             code={everyLineDecided ? 'every_line_decided' : status}
@@ -169,21 +181,41 @@ export default function InvoiceReview() {
           />
         }
         meta={
-          <>
-            <strong>Case {data.caseNumber ?? '—'}</strong>
-            <span>
-              {invoice.professionalKindDisplayName ?? 'Professional'} invoice from {submittedByLabel(invoice)}
-            </span>
-            {invoice.receivedOn && (
+          byPerson ? (
+            <>
+              <strong>{invoice.professionalKindDisplayName ?? 'Professional'}</strong>
               <span>
-                Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
-                {formatDate(invoice.receivedOn)}
+                Invoice for {formatPeriod(invoice.periodStart, invoice.periodEnd)}
+                {invoice.submittedAt && `, sent ${formatDate(invoice.submittedAt.slice(0, 10))}`}
               </span>
-            )}
-            <button type="button" className="link-button" disabled title="Not connected yet">
-              Open the case in your {EXTERNAL_SYSTEM_NAME} ↗
-            </button>
-          </>
+              {invoice.submittedByDisplayName && invoice.submittedByDisplayName !== invoice.professionalDisplayName && (
+                <span>Sent by {invoice.submittedByDisplayName}</span>
+              )}
+              {invoice.receivedOn && (
+                <span>
+                  Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
+                  {formatDate(invoice.receivedOn)}
+                </span>
+              )}
+              {senderPath && <RouterLink to={senderPath}>See all of their invoices</RouterLink>}
+            </>
+          ) : (
+            <>
+              <strong>Case {data.caseNumber ?? '—'}</strong>
+              <span>
+                {invoice.professionalKindDisplayName ?? 'Professional'} invoice from {submittedByLabel(invoice)}
+              </span>
+              {invoice.receivedOn && (
+                <span>
+                  Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
+                  {formatDate(invoice.receivedOn)}
+                </span>
+              )}
+              <button type="button" className="link-button" disabled title="Not connected yet">
+                Open the case in your {EXTERNAL_SYSTEM_NAME} ↗
+              </button>
+            </>
+          )
         }
         actions={
           <>
@@ -192,6 +224,8 @@ export default function InvoiceReview() {
               reviewer={reviewer}
               currentUserId={userId}
               canChange={inReview && Boolean(permissions?.reassign)}
+              hasCase={!byPerson}
+              senderName={invoice.professionalDisplayName}
               onChanged={onRoutingChanged}
             />
             {fileSource?.fileAvailable && (
@@ -204,10 +238,24 @@ export default function InvoiceReview() {
         }
       />
 
+      {byPerson && (
+        <CaseNumberReview
+          invoice={invoice}
+          matches={data.caseNumberMatches}
+          canCorrect={status !== 'awaiting_match' && Boolean(permissions?.reviewLines)}
+          onCorrected={(message) => {
+            setToast({ message });
+            void refresh();
+          }}
+        />
+      )}
+
       <FactsStrip>
-        <Fact label="Case number" note={data.otherCaseNumbers.join(', ') || undefined}>
-          <strong>{data.caseNumber ?? '—'}</strong>
-        </Fact>
+        {!byPerson && (
+          <Fact label="Case number" note={data.otherCaseNumbers.join(', ') || undefined}>
+            <strong>{data.caseNumber ?? '—'}</strong>
+          </Fact>
+        )}
         <Fact label="Submitted">
           <strong>{invoice.submittedAt ? formatDateTime(invoice.submittedAt) : '—'}</strong>
         </Fact>
@@ -224,15 +272,21 @@ export default function InvoiceReview() {
         <Fact label="Approved so far" note={totals.cut > 0 ? `${formatMoney(totals.cut / 100)} cut` : undefined}>
           {formatMoney(totals.approved / 100)}
         </Fact>
-        <Fact
-          label="Pre-authorized"
-          note={
-            data.preauthorization &&
-            `${formatMoney(data.preauthorization.approvedSoFar)} approved, ${formatMoney(data.preauthorization.waiting)} waiting`
-          }
-        >
-          {data.preauthorization ? <strong>{formatMoney(data.preauthorization.ceiling)}</strong> : 'None'}
-        </Fact>
+        {byPerson ? (
+          <Fact label={`${senderFirstName}'s approved rate`} note="Set on their page under People">
+            <strong>{data.approvedRate ? `${formatMoney(data.approvedRate)} an hour` : 'None set'}</strong>
+          </Fact>
+        ) : (
+          <Fact
+            label="Pre-authorized"
+            note={
+              data.preauthorization &&
+              `${formatMoney(data.preauthorization.approvedSoFar)} approved, ${formatMoney(data.preauthorization.waiting)} waiting`
+            }
+          >
+            {data.preauthorization ? <strong>{formatMoney(data.preauthorization.ceiling)}</strong> : 'None'}
+          </Fact>
+        )}
         <Fact label="Lines decided">
           <Progress done={totals.decided} total={lines.length} />
         </Fact>
@@ -269,7 +323,7 @@ export default function InvoiceReview() {
         </Notice>
       )}
 
-      {invoice.caseId === null && status !== 'awaiting_match' && (
+      {byPerson && !invoice.caseNumberAsTyped && status !== 'awaiting_match' && (
         <Notice tone="warning" heading="Not linked to a case.">
           Staff chose to review this invoice without one. This system didn't check the case, whether{' '}
           {invoice.professionalDisplayName ?? 'the provider'} is assigned to it, or any pre-authorization. Exports and the billing

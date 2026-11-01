@@ -46,6 +46,27 @@ function tablesPdf(tables: Array<{ headings: string[]; rows: string[][]; closing
   return done;
 }
 
+describe('case number', () => {
+  it('reads a labelled case number and where it is, for highlighting', async () => {
+    const doc = new PDFDocument({ size: 'LETTER', margin: 48 });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+    const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+    doc.fontSize(10).text('Re: State v. Sample, Case No. 26-CR-00214', 48, 72, { lineBreak: false });
+    let y = 108;
+    for (const cells of [['Date', 'Description', 'Hours', 'Rate', 'Amount'], ['01/05/2026', 'Review', '2.00', '$150.00', '$300.00']]) {
+      cells.forEach((text, column) => doc.text(text, 48 + column * 110, y, { width: 100, lineBreak: false }));
+      y += 18;
+    }
+    doc.text('Balance due: $300.00', 48, y, { lineBreak: false });
+    doc.end();
+
+    const parsed = await extractFromTextLayer(await done);
+    expect(parsed.caseNumber).toMatchObject({ value: '26-CR-00214', region: { page: 1 } });
+    expect(parsed.caseNumber?.region?.top).toBeLessThan(0.12);
+  });
+});
+
 describe('amount due', () => {
   const time = { headings: ['Date', 'Description', 'Hours', 'Rate', 'Amount'], rows: [['01/05/2026', 'Review', '2.00', '$150.00', '$300.00']] };
   const expenses = { headings: ['Date', 'Description', 'Amount'], rows: [['01/06/2026', 'Filing fee', '$45.00']] };

@@ -48,6 +48,8 @@ export interface ParsedInvoice {
   // Text naming the case (a PDF's own text, a LEDES file's matter IDs and
   // description), searched for it; never stored.
   invoiceText?: string;
+  // A case number the file labels ("Case No. …"), and where on a PDF.
+  caseNumber?: { value: string; region?: SourceRegion };
 }
 
 // Larger files are almost certainly bulk exports of many invoices.

@@ -205,6 +205,19 @@ button, input, select, textarea { font: inherit; }
 .submission__meta strong { color: var(--ink); }
 .submission__actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .submission__actions .btn { min-height: 2.4rem; }
+/* The typed case number above the file and lines (filed by person). */
+.case-number-box { display: grid; grid-template-columns: minmax(14rem, 22rem) 1fr; gap: 1rem 2rem; align-items: start; margin-bottom: 1rem; padding: 1.1rem 1.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.case-number-box .usa-label { margin: 0 0 .4rem; font-size: .88rem; }
+.case-number-box .usa-input { max-width: none; width: 100%; margin: 0; }
+.case-number-box .field-hint, .case-number-box .field-error { margin: .4rem 0 0; }
+.case-number-box--missing .usa-input { border: 2px solid var(--warning-line); background: var(--warning-tint); }
+.case-number-box--missing .field-error { color: var(--warning); }
+.case-number-box__why { padding-top: 1.6rem; font-size: .88rem; }
+.case-number-box__why p { margin: .25rem 0 0; color: var(--ink-muted); }
+@media (max-width: 40em) {
+  .case-number-box { grid-template-columns: 1fr; }
+  .case-number-box__why { padding-top: 0; }
+}
 .submission__layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 8fr); gap: 1rem; align-items: start; }
 .submission__lines { min-width: 0; }
 .submission__lines > .notice { margin-bottom: .9rem; }
@@ -637,7 +650,10 @@ form.compact-form { max-width: none; }
 .queue-table th, .queue-table td { vertical-align: top; }
 .data-card table.queue-table th[scope="row"] { font-weight: 700; color: var(--ink); background: transparent; }
 .case-number-cell { white-space: nowrap; }
+.case-number-cell .cell-note { max-width: 12rem; white-space: normal; text-decoration: none; }
 .queue-table .late { color: var(--danger); font-weight: 700; }
+.sort-select { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--ink-muted); }
+.sort-select .usa-select { margin: 0; height: 2.25rem; }
 /* Wide enough for "Choose a reviewer" rather than squeezed by the column. */
 .queue-table .settings-role { width: auto; min-width: 12rem; }
 .row-action { font-weight: 600; text-decoration: none; white-space: nowrap; }
@@ -885,10 +901,29 @@ form.compact-form { max-width: none; }
 .send-back__open { margin-top: .75rem; color: var(--danger); }
 .portal-needs-changes { margin-bottom: 1.5rem; }
 .portal-needs-changes h2 { color: var(--danger); }
-.invoice-list-controls { flex-wrap: wrap; }
-.invoice-list-controls__search { flex: 1 1 16rem; max-width: 24rem; }
-.invoice-list-controls .usa-input { margin: 0; height: 2.25rem; }
-.invoice-list-controls .link-button { margin-bottom: .5rem; }
+.portal-invoices .text-warning, .portal-invoices .cell-note--warning { color: var(--warning); }
+.text-warning { color: var(--warning); }
+.your-drafts { margin: 0 0 1rem; padding: .9rem 1.1rem; background: var(--info-tint); border-radius: var(--radius); }
+.your-drafts h2 { margin: 0 0 .5rem; font-size: .95rem; }
+.your-drafts ul { margin: 0; padding: 0; list-style: none; }
+.your-drafts li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .45rem 0; border-top: 1px solid var(--line); }
+.your-drafts li:first-child { border-top: 0; }
+/* People, a person's page and search results. */
+.list-controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem 1rem; margin: 0 0 1rem; }
+.list-controls .chip-filters { margin: 0; }
+.list-controls__search { flex: 0 1 18rem; }
+.list-controls__search .usa-input { max-width: none; width: 100%; height: 2.25rem; margin: 0; }
+.search-totals { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: .75rem 1rem; margin-top: 1rem; }
+.search-totals .compact-hint { margin: .2rem 0 0; }
+.person-form { display: flex; flex-direction: column; gap: .9rem; min-width: min(34rem, 100%); }
+.person-form > p { margin: 0; color: var(--ink-muted); }
+.dialog-field { margin: 0; padding: 0; border: 0; min-width: 0; }
+.dialog-field .usa-label { margin: 0 0 .35rem; font-size: .88rem; }
+.dialog-field .usa-input { max-width: none; width: 100%; margin: 0; }
+.dialog-field .field-hint, .dialog-field .field-error { margin: .3rem 0 0; }
+.dialog-field-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .9rem; }
+.radio-choices { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
+.radio-choices label { display: flex; align-items: center; gap: .4rem; cursor: pointer; }
 /* Inline row editing keeps the table's layout: fields fill the columns as
    the text left them (size="1" stops an input asking for its own width),
    no taller than the row's select, with the actions on one line. */

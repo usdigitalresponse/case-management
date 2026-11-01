@@ -6,8 +6,8 @@ import type { ReviewTotals } from '../reviewTotals';
 import { Notice } from './Notice';
 
 // Rate check: time lines billed above the pre-authorized rate (or, with no
-// pre-authorization, the configured rate), shown once above the table
-// rather than on every line.
+// pre-authorization, the person's approved rate), shown once above the
+// table rather than on every line.
 export function rateCheck(lines: InvoiceReviewLine[]) {
   const above = lines.filter(
     (line) => line.rateLimit !== null && line.billedRate !== null && Number(line.billedRate) > Number(line.rateLimit),
@@ -20,7 +20,7 @@ export function rateCheck(lines: InvoiceReviewLine[]) {
     above,
     billed: sample.billedRate as string,
     limit: sample.rateLimit as string,
-    limitName: sample.rateLimitSource === 'preauthorized' ? 'pre-authorized rate' : 'configured rate',
+    limitName: sample.rateLimitSource === 'preauthorized' ? 'pre-authorized rate' : 'approved rate',
   };
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE "invoice" ADD COLUMN "case_number_as_typed" text;

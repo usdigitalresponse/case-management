@@ -1,8 +1,7 @@
-// Demo invoices uploaded as files, through the same steps a submitter takes,
-// so the upload, check-the-lines and review-beside-the-file views have
-// something to show on a fresh seed. The PDFs are drawn here from synthetic
-// values and name the seed's own vendors and clients.
-import { asc, eq, inArray } from 'drizzle-orm';
+// Demo invoices uploaded as files through the same steps a submitter takes,
+// each filed by person with the case number read from it (one file names
+// none). The PDFs are drawn here from synthetic values.
+import { asc, eq } from 'drizzle-orm';
 import PDFDocument from 'pdfkit';
 import { db } from './client';
 import { caseAssignment, caseTable, expenseTypes, invoiceLine, invoiceLineTypes, person, professional } from './schema';
@@ -28,6 +27,8 @@ interface DemoFile {
   periodStart: string;
   periodEnd: string;
   client: string;
+  // Printed as "Case No. …" and read from the file; left out on one.
+  caseNumber?: string;
   items: Item[];
   // A total that doesn't match the lines, as on a misread file.
   statedTotal?: number;
@@ -49,7 +50,7 @@ function drawInvoice(file: DemoFile): Promise<Buffer> {
   doc.text(`Invoice No: ${file.invoiceNumber}`);
   doc.text(`Invoice Date: ${usDate(file.periodEnd)}`);
   doc.text(`Billing Period: ${usDate(file.periodStart)} - ${usDate(file.periodEnd)}`);
-  doc.text(`Client: ${file.client}`);
+  doc.text(file.caseNumber ? `Re: State v. ${file.client}, Case No. ${file.caseNumber}` : `Client: ${file.client}`);
   doc.moveDown();
   doc.fontSize(9).table({
     columnStyles: (column) => ({ width: [62, 100, '*', 45, 60, 65][column] ?? '*' }),
@@ -77,8 +78,9 @@ function timeItem(timekeeper: string, rate: number, date: string, description: s
   return { date, timekeeper, description, hours, rate, amount: Math.round(hours * rate * 100) / 100 };
 }
 
-// PDFs are read in the background queue; the seed waits for each.
-async function upload(actor: PortalActor, fileName: string, bytes: Buffer): Promise<string> {
+// PDFs are read in the background queue; the seed waits for each. Returns
+// the case number read from the file, as the upload page fills it in.
+async function upload(actor: PortalActor, fileName: string, bytes: Buffer): Promise<{ uploadReadId: string; caseNumber: string | null }> {
   const { uploadReadId } = await startUploadRead(db, documentStore, actor, { fileName, bytes });
   for (let waited = 0; waited < 120; waited += 1) {
     // eslint-disable-next-line no-await-in-loop
@@ -87,7 +89,7 @@ async function upload(actor: PortalActor, fileName: string, bytes: Buffer): Prom
       throw new Error(`Demo upload ${fileName} could not be read: ${read.failureMessage}`);
     }
     if (read.status === 'ready') {
-      return uploadReadId;
+      return { uploadReadId, caseNumber: read.read.caseNumber };
     }
     // eslint-disable-next-line no-await-in-loop
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -95,15 +97,20 @@ async function upload(actor: PortalActor, fileName: string, bytes: Buffer): Prom
   throw new Error(`Demo upload ${fileName} was still being read after a minute.`);
 }
 
-async function uploadDraft(actor: PortalActor, caseId: string | null, professionalId: string | null, file: DemoFile, fileName: string) {
-  const uploadReadId = await upload(actor, fileName, await drawInvoice(file));
+// Filed by person: no case, whom it is from (null: chosen on Intake).
+async function uploadDraft(actor: PortalActor, professionalId: string | null, file: DemoFile, fileName: string) {
+  const { uploadReadId, caseNumber } = await upload(actor, fileName, await drawInvoice(file));
+  if (caseNumber !== (file.caseNumber ?? null)) {
+    throw new Error(`Demo upload ${fileName} read case number ${caseNumber ?? 'none'}, not ${file.caseNumber ?? 'none'}.`);
+  }
   return createDraftFromUpload(db, actor, {
     uploadReadId,
-    caseId,
+    caseId: null,
     professionalId,
     periodStart: file.periodStart,
     periodEnd: file.periodEnd,
     invoiceNumber: file.invoiceNumber,
+    caseNumber: caseNumber ?? undefined,
   });
 }
 
@@ -181,17 +188,13 @@ export async function seedDemoUploads(input: {
     ).map((row) => row.caseId);
   const partnerName = await nameOf(partner.professionalId);
   const colleagueName = await nameOf(colleague.professionalId);
+  // The files name their cases' clients; the invoices aren't filed under them.
   const partnerCases = await caseOf(partner.professionalId);
   const [colleagueCase] = await caseOf(colleague.professionalId);
   const [firstCase, secondCase = firstCase] = partnerCases;
   if (!firstCase || !secondCase || !colleagueCase) {
     throw new Error('Expected demo cases for the uploads.');
   }
-  // Lines must fall within the assignment for their dates to be kept.
-  await db
-    .update(caseAssignment)
-    .set({ assignedAt: new Date('2026-06-01T00:00:00Z') })
-    .where(inArray(caseAssignment.professionalId, [partner.professionalId, colleague.professionalId]));
 
   const rate = 125;
   const partnerItems = (month: string): Item[] => [
@@ -202,15 +205,24 @@ export async function seedDemoUploads(input: {
     { date: `2026-${month}-24`, timekeeper: partnerName, description: 'Filing fee', amount: 45 },
   ];
 
-  // Uploaded and not yet checked.
+  // Uploaded and not yet checked; the file names no case number, so the
+  // draft says so until one is typed.
   const firstClient = await clientOf(firstCase);
   const untouched: DemoFile = { invoiceNumber: 'SYN-2026-0931', periodStart: '2026-09-01', periodEnd: '2026-09-30', client: firstClient, items: partnerItems('09') };
-  await uploadDraft(partner, firstCase, partner.professionalId, untouched, fileNameFor(firstClient, 'Sep2026'));
+  await uploadDraft(partner, partner.professionalId, untouched, fileNameFor(firstClient, 'Sep2026'));
 
-  // Checked, with one line changed and one removed.
+  // Checked, with one line changed and one removed; the case number is
+  // highlighted where the file names it.
   const secondClient = await clientOf(secondCase);
-  const changed: DemoFile = { invoiceNumber: 'SYN-2026-0932', periodStart: '2026-09-01', periodEnd: '2026-09-30', client: secondClient, items: partnerItems('09') };
-  const changedDraft = await uploadDraft(partner, secondCase, partner.professionalId, changed, fileNameFor(secondClient, 'Sep2026'));
+  const changed: DemoFile = {
+    invoiceNumber: 'SYN-2026-0932',
+    periodStart: '2026-09-01',
+    periodEnd: '2026-09-30',
+    client: secondClient,
+    caseNumber: '26-CR-00214',
+    items: partnerItems('09'),
+  };
+  const changedDraft = await uploadDraft(partner, partner.professionalId, changed, fileNameFor(secondClient, 'Sep2026'));
   await confirmInvoiceImport(db, documentStore, partner, changedDraft.invoiceImportId);
   await changeLines(partner, changedDraft.invoiceId, changed);
 
@@ -221,6 +233,7 @@ export async function seedDemoUploads(input: {
     periodStart: '2026-09-01',
     periodEnd: '2026-09-30',
     client: colleagueClient,
+    caseNumber: '26-CR-00230',
     items: [
       timeItem(colleagueName, rate, '2026-09-04', 'Review of police reports', 2),
       { ...timeItem(colleagueName, rate, '2026-09-11', 'Witness interview', 1.25), date: undefined },
@@ -228,18 +241,26 @@ export async function seedDemoUploads(input: {
     ],
     statedTotal: 712.5,
   };
-  await uploadDraft(partner, colleagueCase, colleague.professionalId, misread, fileNameFor(colleagueClient, 'Sep2026'));
+  await uploadDraft(partner, colleague.professionalId, misread, fileNameFor(colleagueClient, 'Sep2026'));
 
   // Sent with changes, waiting for a reviewer to take it.
-  const sent: DemoFile = { invoiceNumber: 'SYN-2026-0831', periodStart: '2026-08-01', periodEnd: '2026-08-31', client: firstClient, items: partnerItems('08') };
-  const sentDraft = await uploadDraft(partner, firstCase, partner.professionalId, sent, fileNameFor(firstClient, 'Aug2026'));
+  const sent: DemoFile = {
+    invoiceNumber: 'SYN-2026-0831',
+    periodStart: '2026-08-01',
+    periodEnd: '2026-08-31',
+    client: firstClient,
+    caseNumber: '26-CR-00211',
+    items: partnerItems('08'),
+  };
+  const sentDraft = await uploadDraft(partner, partner.professionalId, sent, fileNameFor(firstClient, 'Aug2026'));
   await confirmInvoiceImport(db, documentStore, partner, sentDraft.invoiceImportId);
   await changeLines(partner, sentDraft.invoiceId, sent);
-  await submitInvoice(db, partner, sentDraft.invoiceId, { attested: true });
+  await submitInvoice(db, partner, sentDraft.invoiceId, { attested: true, filedByPerson: true });
 
   // Entered by hand, with no file.
   await createInvoice(db, partner, {
-    caseId: secondCase,
+    caseId: null,
+    caseNumber: '26-CR-00252',
     submit: false,
     periodStart: '2026-10-01',
     periodEnd: '2026-10-31',
@@ -249,8 +270,15 @@ export async function seedDemoUploads(input: {
     ],
   });
 
-  // Received by email and uploaded by staff, waiting on Intake for a case.
+  // Received by email and uploaded by staff for the partner, not sent yet.
   const staff: PortalActor = { userAccountId: input.staffUserAccountId, professionalId: undefined };
-  const held: DemoFile = { invoiceNumber: 'SYN-2026-1007', periodStart: '2026-10-01', periodEnd: '2026-10-31', client: 'Synthetic Client', items: partnerItems('10').slice(0, 4) };
-  await uploadDraft(staff, null, null, held, 'Emailed_invoice_Oct2026.pdf');
+  const held: DemoFile = {
+    invoiceNumber: 'SYN-2026-1007',
+    periodStart: '2026-10-01',
+    periodEnd: '2026-10-31',
+    client: 'Synthetic Client',
+    caseNumber: '26-CR-00261',
+    items: partnerItems('10').slice(0, 4),
+  };
+  await uploadDraft(staff, partner.professionalId, held, 'Example_emailed_invoice_Oct2026.pdf');
 }

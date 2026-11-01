@@ -91,19 +91,24 @@ export function ReviewerPicker({
   reviewer,
   currentUserId,
   canChange,
+  hasCase,
+  senderName,
   onChanged,
 }: {
   invoiceId: string;
   reviewer: AssignedPerson | null;
   currentUserId: string;
   canChange: boolean;
+  // Whose new invoices can follow: the case's, else the sender's.
+  hasCase: boolean;
+  senderName: string | null;
   // Undo restores the previous reviewer; omitted when there was none.
   onChanged: (message: string, undo?: () => Promise<unknown>) => void;
 }) {
   const [open, setOpen] = useState(false);
   const people = useReviewPeople(open);
   const [chosen, setChosen] = useState<string>(reviewer?.userAccountId ?? '');
-  const [forCase, setForCase] = useState(false);
+  const [following, setFollowing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -118,11 +123,11 @@ export function ReviewerPicker({
     setError(null);
     try {
       const previous = reviewer?.userAccountId;
-      await reassignReviewer(invoiceId, { userAccountId: chosen, forCase });
+      await reassignReviewer(invoiceId, { userAccountId: chosen, ...(hasCase ? { forCase: following } : { forPerson: following }) });
       setOpen(false);
       onChanged(
         `Given to ${chosenName ?? 'the new reviewer'}.`,
-        previous && previous !== chosen ? () => reassignReviewer(invoiceId, { userAccountId: previous, forCase: false }) : undefined,
+        previous && previous !== chosen ? () => reassignReviewer(invoiceId, { userAccountId: previous }) : undefined,
       );
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not change the reviewer.'));
@@ -172,11 +177,15 @@ export function ReviewerPicker({
                 ))}
             </ul>
           )}
-          <p className="cell-note">Only people who review invoices appear here. Who works on the case does not change.</p>
-          <label className="checkbox-row">
-            <input type="checkbox" checked={forCase} onChange={(event) => setForCase(event.target.checked)} />
-            Send new invoices on this case to {chosenName ?? 'them'} too
-          </label>
+          <p className="cell-note">Only people who use this tool to review invoices appear here.</p>
+          {(hasCase || senderName) && (
+            <label className="checkbox-row">
+              <input type="checkbox" checked={following} onChange={(event) => setFollowing(event.target.checked)} />
+              {hasCase
+                ? `Send new invoices on this case to ${chosenName ?? 'them'} too`
+                : `Send new invoices from ${senderName} to ${chosenName ?? 'them'} too`}
+            </label>
+          )}
           {error && <p className="field-error" role="alert">{error}</p>}
           <div className="button-row">
             <button type="button" className="btn btn--primary" disabled={!chosen || saving} onClick={() => void save()}>

@@ -1,18 +1,24 @@
 // One invoice in the portal: its file beside its lines. A draft's lines save
-// as they change; once sent they lock, and it can be withdrawn until review starts.
+// as they change; once sent they lock, and it can be withdrawn until review
+// starts. Filed by person (any invoice without a case, unless told), its case
+// number sits at the top and is needed to send.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link as RouterLink, useNavigate, useParams } from 'react-router';
+import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router';
 import {
   apiErrorMessage,
+  attestationStatement,
   getMyInvoice,
   invoiceExportUrl,
   listBillableProfessionals,
   resolveInvoiceImport,
+  setDraftCaseNumber,
   transitionInvoice,
   updateDraftInvoice,
   type FileLine,
   type PortalInvoice,
 } from '../api/client';
+import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
+import { useReceipt } from './ReceivedFields';
 import { useApiResource } from '../hooks/useApiResource';
 import { useAuth } from '../AuthContext';
 import { usePortalBillingRules } from '../components/BillingRules';
@@ -32,43 +38,196 @@ import { canWithdraw, formatSpan, submissionStatus } from './portalWording';
 import { SentBackNotice } from '../components/SentBackNotice';
 import { SendDialog } from './SendDialog';
 import { WithdrawDialog } from './WithdrawDialog';
-import { PORTAL_HOME_PATH } from './useShell';
+import { INTAKE_PATH, PORTAL_HOME_PATH, useShell } from './useShell';
 import { EnteredFlag } from '../components/NewEntryFields';
+import { Fact, FactsStrip } from '../components/FactsStrip';
+import { CaseNumberBox } from '../components/CaseNumberBox';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+// The file viewer's location for the case number, beside the lines'.
+const CASE_NUMBER_LOCATION = 'case-number';
+
+// Drafts from one upload still to check after this one, oldest first.
+export interface CheckQueue {
+  queue: string[];
+  total: number;
+}
+
+// Staff check the lines in their own shell; submitters on the invoice's page.
+export function checkLinesPath(invoiceId: string, staff: boolean): string {
+  return staff ? `/invoices/${invoiceId}/check` : `/portal/invoices/${invoiceId}`;
+}
+
+// The typed case number, saved as a draft.
+function TypedCaseNumber({
+  invoiceId,
+  value,
+  onChange,
+  editable,
+  missing,
+  fromName,
+  hasFile,
+  readFromFile,
+  own,
+  corrected,
+  onFocus,
+}: {
+  invoiceId: string;
+  // A reviewer's correction, shown in its place.
+  corrected: string | null;
+  value: string;
+  onChange: (value: string) => void;
+  editable: boolean;
+  missing: boolean;
+  fromName: string;
+  hasFile: boolean;
+  readFromFile: boolean;
+  // The submitter's own, not one staff entered.
+  own: boolean;
+  onFocus: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const saved = useRef(value);
+  function save() {
+    if (value.trim() === saved.current.trim()) return;
+    const previous = saved.current;
+    saved.current = value;
+    setError(null);
+    setDraftCaseNumber(invoiceId, value).catch((err: unknown) => {
+      saved.current = previous;
+      setError(apiErrorMessage(err, 'The case number could not be saved. Try again.'));
+    });
+  }
+  const yours = own ? 'your' : 'the';
+  const hint = (() => {
+    if (missing) return 'Add the case number before you send.';
+    if (corrected) return `Corrected by the billing office. ${own ? 'You' : 'The sender'} typed ${value || 'none'}.`;
+    if (!editable) return own ? 'As you typed it. The billing office did not change it.' : 'As typed. It is not checked against a list of cases.';
+    if (readFromFile) return `We read this from ${yours} file. Change it if it is wrong.`;
+    if (value.trim()) return 'Change it if it is wrong.';
+    return hasFile ? `We could not find a case number in ${yours} file.` : `Type the case number from ${yours} court papers.`;
+  })();
+  return (
+    <CaseNumberBox
+      id="case-number"
+      label="Case number"
+      placeholder="For example, 26-CR-00418"
+      value={corrected ?? value}
+      readOnly={!editable}
+      hint={hint}
+      error={error}
+      missing={missing}
+      onChange={onChange}
+      onSave={save}
+      onFocus={onFocus}
+    >
+      {own ? (
+        <>
+          <strong>Your invoice is filed under your name, not under a case.</strong>
+          <p>
+            Type the case number from your court papers. The billing office uses it to find the case in its own system.
+            This tool does not check it against a list of cases.
+          </p>
+        </>
+      ) : (
+        <>
+          <strong>This invoice is filed under {fromName}, not under a case.</strong>
+          <p>
+            Reviewers use the case number to find the case in the {EXTERNAL_SYSTEM_NAME}. This tool does not check it
+            against a list of cases.
+          </p>
+        </>
+      )}
+    </CaseNumberBox>
+  );
+}
+
+// Once decided. Who decided stays with the billing office.
+function DecisionTotals({ data }: { data: PortalInvoice }) {
+  const outcomes = data.lines.map((line) => line.decision?.outcomeCode);
+  const count = (code: string) => outcomes.filter((outcome) => outcome === code).length;
+  const asked = Number(data.invoice.submittedTotal);
+  const approved = Number(data.approvedTotal ?? 0);
+  const lineCounts = [
+    count('approved') && `${count('approved')} approved`,
+    count('approved_in_part') && `${count('approved_in_part')} approved in part`,
+    count('rejected') && `${count('rejected')} rejected`,
+  ].filter(Boolean);
+  return (
+    <FactsStrip>
+      <Fact label="You asked for">
+        <strong>{formatMoney(asked)}</strong>
+      </Fact>
+      <Fact label="Approved">
+        <strong className="total-figure--good">{formatMoney(approved)}</strong>
+      </Fact>
+      <Fact label="Cut">
+        <strong className="total-figure--cut">{formatMoney(Math.max(0, Math.round((asked - approved) * 100) / 100))}</strong>
+      </Fact>
+      <Fact label="Lines">{lineCounts.join(', ') || '—'}</Fact>
+    </FactsStrip>
+  );
+}
+
 function Lines({
   data,
+  filedByPerson,
   onChanged,
   setToast,
 }: {
   data: PortalInvoice;
+  // Unset: filed by person unless it was filed under a case.
+  filedByPerson: boolean | undefined;
   onChanged: () => void;
   setToast: ReturnType<typeof useToast>[1];
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { staff } = useShell();
   const { user } = useAuth();
   const { invoice, fileSource } = data;
+  const byPerson = filedByPerson ?? !invoice.caseId;
   const isSubmitter = invoice.submittedByUserAccountId === user?.userAccountId;
   const isDraft = invoice.statusCode === 'draft';
   const editable = isDraft && isSubmitter;
   const [lines, setLines] = useState<LineDraft[]>(() => lineDraftsFrom(data.lines));
-  // A new object on every click, so clicking the same line scrolls the file back to it.
-  const [focus, setFocus] = useState<{ location: string } | undefined>();
+  const [typedCaseNumber, setTypedCaseNumber] = useState(invoice.caseNumberAsTyped ?? '');
+  // Highlighted on the file while the box holds the number read from it.
+  const fileCaseNumber = byPerson ? fileSource?.caseNumber : null;
+  const readFromFile = Boolean(fileCaseNumber && typedCaseNumber.trim() === fileCaseNumber.value);
+  const caseNumberRegion = readFromFile && fileCaseNumber?.region ? [{ location: CASE_NUMBER_LOCATION, region: fileCaseNumber.region }] : [];
+  // A new object on every click, so clicking the same line scrolls back to it.
+  const [focus, setFocus] = useState<{ location: string } | undefined>(() =>
+    caseNumberRegion.length > 0 ? { location: CASE_NUMBER_LOCATION } : undefined,
+  );
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [caseNumberMissing, setCaseNumberMissing] = useState(false);
+  const receipt = useReceipt('send', { receivedOn: invoice.receivedOn, receivedViaDisplayName: invoice.receivedViaDisplayName });
+  const checking = location.state as CheckQueue | null;
+  // Where to go once this one is sent or saved for later.
+  const goOn = () => {
+    const [next, ...rest] = checking?.queue ?? [];
+    if (next) {
+      navigate(checkLinesPath(next, staff), { state: { queue: rest, total: checking!.total } satisfies CheckQueue });
+      return true;
+    }
+    return false;
+  };
   const { mileageRates } = usePortalBillingRules();
   const { data: timekeepers } = useApiResource(
     () => listBillableProfessionals(invoice.caseId).then((result) => result.professionals),
     [invoice.caseId],
   );
+  const ownMileageRates = timekeepers?.find((p) => p.professionalId === invoice.professionalId)?.mileageRates ?? [];
   const context: PricingContext = {
     timekeepers: timekeepers ?? [],
     billedProfessionalId: invoice.professionalId ?? undefined,
-    mileageRates,
+    mileageRates: ownMileageRates.length > 0 ? ownMileageRates : mileageRates,
   };
 
   const fileLines = fileSource && tracksSource(lines.map((line) => line.carried.sourceLocation)) ? fileSource.lines : [];
@@ -131,13 +290,24 @@ function Lines({
       if (fileSource && fileSource.importStatusCode !== 'confirmed') {
         await resolveInvoiceImport(fileSource.invoiceImportId, 'confirm');
       }
-      const { status: sentAs } = await transitionInvoice(invoice.invoiceId, 'submit', { attested: true });
+      const { status: sentAs } = await transitionInvoice(
+        invoice.invoiceId,
+        'submit',
+        byPerson ? { ...receipt.payload, attested: !staff, filedByPerson: true } : { attested: true },
+      );
       setSending(false);
       setToast({
-        message: sentAs === 'awaiting_match' ? 'Invoice sent. The billing office will match its case, then review it.' : 'Invoice sent for review.',
+        message:
+          sentAs !== 'awaiting_match'
+            ? 'Invoice sent for review.'
+            : byPerson
+              ? 'Invoice sent. Who it is from isn’t chosen, so it waits on Intake first.'
+              : 'Invoice sent. The billing office will match its case, then review it.',
         undo: () => transitionInvoice(invoice.invoiceId, 'recall').then(onChanged),
       });
-      onChanged();
+      if (!goOn()) {
+        onChanged();
+      }
     } catch (err) {
       setSendError(apiErrorMessage(err, 'The invoice could not be sent. Check the lines and try again.'));
     }
@@ -156,6 +326,7 @@ function Lines({
   }
 
   const status = submissionStatus(invoice);
+  const decided = invoice.statusCode === 'approved' || invoice.statusCode === 'rejected';
   const period = formatSpan(invoice.periodStart, invoice.periodEnd);
   const month = invoice.periodStart ? `${MONTHS[Number(invoice.periodStart.slice(5, 7)) - 1]} ${invoice.periodStart.slice(0, 4)}` : 'invoice';
   const proposed = invoice.caseId ? null : invoice.proposedCase;
@@ -179,44 +350,83 @@ function Lines({
     return line?.decision ? <RecordedDecision line={line} decision={line.decision} /> : null;
   };
 
+  const home = byPerson && staff ? { label: 'To review', to: '/' } : { label: 'Your invoices', to: PORTAL_HOME_PATH };
+  const fromName = invoice.professionalDisplayName ?? 'whom it is from';
+  const position = checking ? checking.total - checking.queue.length : null;
+
+  function startSending() {
+    if (byPerson && !typedCaseNumber.trim()) {
+      setCaseNumberMissing(true);
+      return;
+    }
+    // The box saves on losing focus; this makes sure it has before sending.
+    const ready = byPerson ? setDraftCaseNumber(invoice.invoiceId, typedCaseNumber) : Promise.resolve();
+    ready.then(
+      () => setSending(true),
+      (err: unknown) => setError(apiErrorMessage(err, 'The case number could not be saved. Try again.')),
+    );
+  }
+
   return (
     <div className="submission">
       <nav className="breadcrumb" aria-label="Breadcrumb">
-        <RouterLink to={PORTAL_HOME_PATH}>Your invoices</RouterLink>
+        <RouterLink to={home.to}>{home.label}</RouterLink>
         <span aria-hidden="true">›</span>
-        <span>{isDraft ? 'Check the lines' : `${client}, ${month}`}</span>
+        {byPerson && isDraft && (
+          <>
+            <span>New invoice</span>
+            <span aria-hidden="true">›</span>
+          </>
+        )}
+        <span>{isDraft ? 'Check the lines' : byPerson ? `Invoice for ${period}` : `${client}, ${month}`}</span>
       </nav>
       <div className="submission__head">
         <div>
           <h1>
-            {client} <StatusPill tone={status.tone} label={status.label} />
+            {byPerson ? `Invoice for ${period}` : client} <StatusPill tone={status.tone} label={status.label} />
           </h1>
-          <p className="submission__meta">
-            {caseNumber && <strong>Case {caseNumber}</strong>}
-            {proposed && <EnteredFlag what="Case" />}
-            {!invoice.caseId && !proposed && <span>Case not chosen: the billing office will match it</span>}
-            {data.otherCaseNumbers.map((number) => (
-              <span key={number}>{number}</span>
-            ))}
-            <span>
-              {kind}, {period}
-            </span>
-          </p>
+          {byPerson ? (
+            <p className="submission__meta">
+              <strong>{fromName}</strong>
+              {invoice.professionalKindDisplayName && <span>{invoice.professionalKindDisplayName}</span>}
+              {position !== null && checking!.total > 1 && (
+                <span>
+                  Invoice {position} of {checking!.total} uploaded
+                </span>
+              )}
+            </p>
+          ) : (
+            <p className="submission__meta">
+              {caseNumber && <strong>Case {caseNumber}</strong>}
+              {proposed && <EnteredFlag what="Case" />}
+              {!invoice.caseId && !proposed && <span>Case not chosen: the billing office will match it</span>}
+              {data.otherCaseNumbers.map((number) => (
+                <span key={number}>{number}</span>
+              ))}
+              <span>
+                {kind}, {period}
+              </span>
+            </p>
+          )}
         </div>
         <div className="submission__actions">
           {editable && (
             <>
-              <button type="button" className="btn btn--outline" onClick={() => navigate(PORTAL_HOME_PATH)}>
+              <button
+                type="button"
+                className="btn btn--outline"
+                onClick={() => goOn() || navigate(byPerson && staff ? INTAKE_PATH : PORTAL_HOME_PATH)}
+              >
                 Save and finish later
               </button>
-              <button type="button" className="btn btn--primary" disabled={askingFor === null || lines.length === 0} onClick={() => setSending(true)}>
+              <button type="button" className="btn btn--primary" disabled={askingFor === null || lines.length === 0} onClick={startSending}>
                 Send for review
               </button>
             </>
           )}
           {sent && (
             <a className="btn btn--outline" href={invoiceExportUrl('portal', invoice.invoiceId, 'pdf')}>
-              Download receipt
+              {decided ? 'Download the decisions' : 'Download receipt'}
             </a>
           )}
           {withdrawable && (
@@ -227,6 +437,28 @@ function Lines({
         </div>
       </div>
 
+      {byPerson && (
+        <>
+          {caseNumberMissing && !typedCaseNumber.trim() && (
+            <Notice tone="warning">This invoice needs a case number before it can be sent. Type it in the box below.</Notice>
+          )}
+          <TypedCaseNumber
+            invoiceId={invoice.invoiceId}
+            value={typedCaseNumber}
+            onChange={setTypedCaseNumber}
+            editable={editable}
+            missing={caseNumberMissing && !typedCaseNumber.trim()}
+            fromName={fromName}
+            hasFile={Boolean(fileSource)}
+            readFromFile={readFromFile}
+            corrected={invoice.caseNumberCorrected}
+            own={!staff}
+            onFocus={() => caseNumberRegion.length > 0 && setFocus({ location: CASE_NUMBER_LOCATION })}
+          />
+          {decided && data.approvedTotal !== null && <DecisionTotals data={data} />}
+        </>
+      )}
+
       <div className={fileSource ? 'submission__layout' : undefined}>
         {fileSource &&
           (fileSource.fileAvailable ? (
@@ -236,7 +468,7 @@ function Lines({
               fileName={fileSource.fileName}
               heading="Your file"
               focus={focus}
-              regions={fileSource.lines}
+              regions={[...fileSource.lines, ...caseNumberRegion]}
             />
           ) : (
             <section className="original-document original-document--gone">
@@ -247,8 +479,9 @@ function Lines({
           {error && <Notice tone="danger">{error}</Notice>}
           {invoice.statusCode === 'submitted' && data.submissionAttempt && (
             <Notice tone="success">
-              Sent for review on {formatDateTime(data.submissionAttempt.submittedAt)}. We emailed a receipt to {user?.email}. You
-              can withdraw it until review starts.
+              {staff
+                ? `Sent for review on ${formatDateTime(data.submissionAttempt.submittedAt)}.`
+                : `Sent for review on ${formatDateTime(data.submissionAttempt.submittedAt)}. We emailed a receipt to ${user?.email}. You can withdraw it until review starts.`}
             </Notice>
           )}
           {isDraft && <SentBackNotice reason={invoice.returnedReason} />}
@@ -318,7 +551,32 @@ function Lines({
         </div>
       </div>
 
-      {sending && (
+      {sending && byPerson && (
+        <SendDialog
+          caseHeading="Case number"
+          caseLabel={`${typedCaseNumber.trim()}, as ${staff ? '' : 'you '}typed it`}
+          period={period}
+          linesSummary={linesSummary}
+          askingFor={askingFor}
+          email={staff ? undefined : user?.email}
+          statement={staff ? null : attestationStatement(typedCaseNumber.trim())}
+          ready={!receipt.missing}
+          explanation={
+            staff
+              ? `It is filed under ${fromName}. Reviewers use the case number to find the case in the ${EXTERNAL_SYSTEM_NAME}, and see the file next to these lines.`
+              : 'It is filed under your name. The billing office uses the case number to find the case in its own system. You can withdraw the invoice until review starts.'
+          }
+          error={sendError}
+          onSend={send}
+          onClose={() => {
+            setSending(false);
+            setSendError(null);
+          }}
+        >
+          {receipt.fields}
+        </SendDialog>
+      )}
+      {sending && !byPerson && (
         <SendDialog
           caseLabel={
             invoice.caseId || proposed
@@ -351,7 +609,7 @@ function Lines({
   );
 }
 
-export default function InvoiceSubmission() {
+export default function InvoiceSubmission({ byPerson }: { byPerson?: boolean }) {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => getMyInvoice(invoiceId as string), [invoiceId, version]);
@@ -374,6 +632,7 @@ export default function InvoiceSubmission() {
       <Lines
         key={`${shown.invoice.invoiceId}-${shown.invoice.statusCode}`}
         data={shown}
+        filedByPerson={byPerson}
         onChanged={() => setVersion((v) => v + 1)}
         setToast={setToast}
       />

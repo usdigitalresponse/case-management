@@ -23,3 +23,7 @@ export function formatMoney(amount: string | number | null | undefined): string 
 export function cents(amount: string | number | null | undefined): number {
   return Math.round(Number(amount ?? 0) * 100);
 }
+
+export function sumMoney(amounts: Array<string | number | null | undefined>): number {
+  return amounts.reduce<number>((total, amount) => total + cents(amount), 0) / 100;
+}

@@ -4,6 +4,7 @@
 import PDFDocument from 'pdfkit';
 import writeXlsxFile, { type Row } from 'write-excel-file/node';
 import type { InvoiceDetail, InvoiceDetailLine } from './invoiceDetail';
+import { currentCaseNumber } from './caseNumbers';
 
 export type InvoiceExportFormat = 'pdf' | 'xlsx';
 
@@ -52,7 +53,7 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
   const summary: Array<[string, string]> = [
     ['Invoice', invoice.invoiceId],
     // Reviewed without a case: say so, as the warning on screen does.
-    ['Case number', detail.caseNumber ?? invoice.caseExternalReference ?? invoice.caseId ?? NO_CASE_WARNING],
+    ['Case number', currentCaseNumber(invoice) ?? detail.caseNumber ?? invoice.caseExternalReference ?? invoice.caseId ?? NO_CASE_WARNING],
     ['Court numbers', detail.otherCaseNumbers.join(', ')],
     ['Client', invoice.caseClientDisplayName ?? ''],
     ['Professional', invoice.professionalDisplayName ?? ''],

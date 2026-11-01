@@ -224,9 +224,20 @@ Its offline tests must not authenticate or mutate a live environment.
 The separate Postgres/AWS prototype lives in `implementations/postgres-aws/`.
 Its staff UI is an invoice review tool designed to sit beside an external
 case management system; links to that system stay inert placeholders, and
-features hidden for it are hidden from navigation, not deleted. Every case and
+features hidden for it are hidden from navigation, not deleted. Its landing
+page `/`, the sidebar's "+ Upload Invoices" and the external upload, check and
+send pages file invoices by the person who sent them with a case number as
+typed (design G, see its `MAPPING.md`); People replaces Cases and Providers in
+its sidebar, a person's own rates override their role's from their effective
+date, and reviewers correct a case number beside the typed one, never over it.
+The earlier case-led queue and Intake (with the case-based upload) are off the
+sidebar but still work by address. Every case and
 person picker is `client/src/components/PickOrAdd.tsx` (first option adds
-one); never block the next step on an unchosen case or provider. Staff and
+one), except a submitter choosing among the people they bill for. In the
+case-based flow, never block the next step on an unchosen case or provider.
+Filed by person, the sender is required, since the invoice is filed under
+them, and a line whose worker isn't matched falls back to the invoice's most
+common match, else the sender, so every sent invoice goes to review. Staff and
 external submitters share the new-invoice form (staff use it on Intake) and
 the import pages; links that differ
 between the two apps go through `client/src/portal/useShell.ts`. Design

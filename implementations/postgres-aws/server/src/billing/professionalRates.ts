@@ -1,14 +1,15 @@
-// Administrator-configured rates (model/rules.yaml apply_professional_rates):
-// a vocabulary of professional kinds, each professional's kind, and each
-// kind's hourly rates. Rates are only added: the rate on a date is the one
-// with the latest effective_from on or before it.
+// Hourly rates by professional kind (model/rules.yaml apply_professional_rates),
+// and a person's own approved rates, which replace their kind's from when
+// they take effect. Rates are only added: the rate on a date is the latest
+// effective on or before it.
 import { z } from 'zod';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
-import { professional, professionalKindRate, professionalKinds } from '../db/schema';
+import { professional, professionalKindRate, professionalKinds, professionalRate } from '../db/schema';
 import { ConflictError, NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
+import type { MileageRateRow } from './mileageRates';
 
 export interface RateRow {
   professionalId: string;
@@ -16,21 +17,80 @@ export interface RateRow {
   effectiveFrom: string;
 }
 
-// Each professional's kind's rates, oldest first.
+// Each professional's hourly rates, oldest first.
 export async function listRates(db: DatabaseOrTransaction, professionalIds: string[]): Promise<RateRow[]> {
   if (professionalIds.length === 0) {
     return [];
   }
-  return db
-    .select({
-      professionalId: professional.professionalId,
-      hourlyRate: professionalKindRate.hourlyRate,
-      effectiveFrom: professionalKindRate.effectiveFrom,
-    })
-    .from(professional)
-    .innerJoin(professionalKindRate, eq(professionalKindRate.professionalKindId, professional.professionalKindId))
-    .where(inArray(professional.professionalId, professionalIds))
-    .orderBy(asc(professionalKindRate.effectiveFrom), asc(professionalKindRate.recordedAt));
+  const [own, kinds] = await Promise.all([
+    db
+      .select({
+        professionalId: professionalRate.professionalId,
+        hourlyRate: professionalRate.hourlyRate,
+        effectiveFrom: professionalRate.effectiveFrom,
+      })
+      .from(professionalRate)
+      .where(and(inArray(professionalRate.professionalId, professionalIds), isNotNull(professionalRate.hourlyRate)))
+      .orderBy(asc(professionalRate.effectiveFrom), asc(professionalRate.recordedAt)),
+    db
+      .select({
+        professionalId: professional.professionalId,
+        hourlyRate: professionalKindRate.hourlyRate,
+        effectiveFrom: professionalKindRate.effectiveFrom,
+      })
+      .from(professional)
+      .innerJoin(professionalKindRate, eq(professionalKindRate.professionalKindId, professional.professionalKindId))
+      .where(inArray(professional.professionalId, professionalIds))
+      .orderBy(asc(professionalKindRate.effectiveFrom), asc(professionalKindRate.recordedAt)),
+  ]);
+  return ownFirst(kinds, own as RateRow[], (rate) => rate.professionalId);
+}
+
+// General rates until each key's own first takes effect, then its own; oldest first.
+export function ownFirst<T extends { effectiveFrom: string }>(general: T[], own: T[], keyOf: (rate: T) => string): T[] {
+  const firstOwn = new Map<string, string>();
+  for (const rate of own) {
+    if (!firstOwn.has(keyOf(rate))) firstOwn.set(keyOf(rate), rate.effectiveFrom);
+  }
+  const before = general.filter((rate) => {
+    const from = firstOwn.get(keyOf(rate));
+    return from === undefined || rate.effectiveFrom < from;
+  });
+  return [...before, ...own].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+}
+
+// People's own mileage rates, oldest first, by person; none for those on the general rate.
+export async function listOwnMileageRates(db: DatabaseOrTransaction, professionalIds: string[]): Promise<Map<string, MileageRateRow[]>> {
+  const rows =
+    professionalIds.length === 0
+      ? []
+      : await db
+          .select({ professionalId: professionalRate.professionalId, ratePerMile: professionalRate.ratePerMile, effectiveFrom: professionalRate.effectiveFrom })
+          .from(professionalRate)
+          .where(and(inArray(professionalRate.professionalId, professionalIds), isNotNull(professionalRate.ratePerMile)))
+          .orderBy(asc(professionalRate.effectiveFrom), asc(professionalRate.recordedAt));
+  const byPerson = new Map<string, MileageRateRow[]>();
+  for (const { professionalId, ratePerMile, effectiveFrom } of rows) {
+    byPerson.set(professionalId, [...(byPerson.get(professionalId) ?? []), { ratePerMile: ratePerMile!, effectiveFrom }]);
+  }
+  return byPerson;
+}
+
+// From today unless dated; earlier rates stay for earlier work.
+export async function addOwnRates(
+  db: DatabaseOrTransaction,
+  actorUserAccountId: string,
+  professionalId: string,
+  input: { hourlyRate?: number; ratePerMile?: number; effectiveFrom?: string },
+): Promise<void> {
+  await db.insert(professionalRate).values({
+    professionalId,
+    hourlyRate: input.hourlyRate?.toFixed(2),
+    ratePerMile: input.ratePerMile?.toFixed(3),
+    effectiveFrom: input.effectiveFrom ?? new Date().toISOString().slice(0, 10),
+    recordedByUserAccountId: actorUserAccountId,
+    recordedAt: new Date(),
+  });
 }
 
 // A later row for the same date replaces an earlier one, as recorded.
