@@ -653,7 +653,7 @@ form.compact-form { max-width: none; }
 .case-number-cell .cell-note { max-width: 12rem; white-space: normal; text-decoration: none; }
 .queue-table .late { color: var(--danger); font-weight: 700; }
 .sort-select { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--ink-muted); }
-.sort-select .usa-select { margin: 0; height: 2.25rem; }
+.sort-select .usa-select { width: auto; margin: 0; height: 2.25rem; padding: 0 2rem 0 .6rem; font-size: .9rem; line-height: normal; color: var(--ink); }
 /* Wide enough for "Choose a reviewer" rather than squeezed by the column. */
 .queue-table .settings-role { width: auto; min-width: 12rem; }
 .row-action { font-weight: 600; text-decoration: none; white-space: nowrap; }
