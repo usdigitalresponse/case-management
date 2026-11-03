@@ -15,6 +15,7 @@ import {
   type BillableProfessional,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { ImportProgressNote } from '../components/ImportProgressNote';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { AddProvider } from '../components/AddProvider';
@@ -186,7 +187,12 @@ export default function UploadInvoices() {
   const [message, setMessage] = useState<string | null>(null);
 
   const usable = entries.filter((entry) => !entry.error && entry.read?.status !== 'failed');
-  const current = usable.find((entry) => !entry.created);
+  const unchecked = usable.filter((entry) => !entry.created);
+  // A read file is checked before one still being read, so a slow file doesn't hold up the rest.
+  const current = unchecked.find((entry) => entry.read?.status === 'ready') ?? unchecked[0];
+  const drafts = usable.flatMap((entry) => (entry.created ? [entry.created.invoiceId] : []));
+  // Every other file failed after these were checked.
+  const finished = !current && drafts.length > 0;
   const currentRead = current?.read?.status === 'ready' ? current.read : undefined;
   const many = entries.length > 1;
   const position = (entry: (typeof entries)[number]) => usable.indexOf(entry) + 1;
@@ -220,17 +226,8 @@ export default function UploadInvoices() {
         caseNumber: details.caseNumber.trim() || undefined,
       });
       update(current.key, { created });
-      const remaining = usable.filter((entry) => !entry.created && entry.key !== current.key);
-      if (remaining.length > 0) {
-        return;
-      }
-      const drafts = [...usable.flatMap((entry) => (entry.created ? [entry.created.invoiceId] : [])), created.invoiceId];
-      if (staff || drafts.length === 1) {
-        // Staff check every draft from this upload, one after another.
-        const [first, ...queue] = drafts;
-        navigate(checkLinesPath(first!, staff), { state: { queue, total: drafts.length } satisfies CheckQueue });
-      } else {
-        navigate(PORTAL_HOME_PATH, { state: { uploadedCount: drafts.length } satisfies UploadedState });
+      if (unchecked.length === 1) {
+        finish([...drafts, created.invoiceId]);
       }
     } catch (err) {
       const fieldErrors = fieldErrorsOf(err);
@@ -240,6 +237,16 @@ export default function UploadInvoices() {
       }
     } finally {
       setBusy(false);
+    }
+  }
+
+  function finish(invoiceIds: string[]) {
+    if (staff || invoiceIds.length === 1) {
+      // Staff check every draft from this upload, one after another.
+      const [first, ...queue] = invoiceIds;
+      navigate(checkLinesPath(first!, staff), { state: { queue, total: invoiceIds.length } satisfies CheckQueue });
+    } else {
+      navigate(PORTAL_HOME_PATH, { state: { uploadedCount: invoiceIds.length } satisfies UploadedState });
     }
   }
 
@@ -326,6 +333,14 @@ export default function UploadInvoices() {
             />
           </>
         )}
+        {many && current && !currentRead && (
+          <>
+            <h2 className="upload-card__heading">
+              Invoice {position(current)} of {usable.length}: reading {current.file.name}. You can check it once it is read.
+            </h2>
+            <ImportProgressNote progress={current.read?.status === 'reading' ? current.read.progress : null} />
+          </>
+        )}
         {byHand && (
           <p className="field-hint">
             {many ? 'None of the files could be read.' : 'The file could not be read.'} You can type the invoice’s lines on the next step.
@@ -337,10 +352,10 @@ export default function UploadInvoices() {
             <button
               type="button"
               className="btn btn--primary"
-              disabled={busy || (!byHand && (!currentRead || !fromChosen))}
-              onClick={() => void (byHand ? enterByHand() : next())}
+              disabled={busy || (!byHand && !finished && (!currentRead || !fromChosen))}
+              onClick={() => (finished ? finish(drafts) : void (byHand ? enterByHand() : next()))}
             >
-              {many && !byHand ? 'Next' : 'Check the lines'}
+              {many && !byHand && !finished ? 'Next' : 'Check the lines'}
             </button>
             <button type="button" className="link-button" disabled={busy} onClick={() => void cancel()}>
               Cancel
