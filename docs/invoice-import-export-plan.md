@@ -99,11 +99,13 @@ processing boundary, which includes the organization's own cloud account.
    accounts, tried locally the same way.
 
    Scans: a PDF with no text layer is now read by in-process text
-   recognition (Tesseract via tesseract.js, with table rules erased first)
-   and the same table reader. Real scanned invoices tried locally and kept
-   outside Git showed borderless tables, a column with no heading, headings
-   only on the first page with page subtotals, dates inside descriptions,
-   attached receipts and maps, letter-style invoices with no table, and
+   recognition (Tesseract via tesseract.js, with coloured heading bands
+   whitened, highlighter faded and table rules erased first) and the same
+   table reader, as is a scanned packet with a typed cover form or stamp.
+   Real scanned invoices tried locally and kept outside Git showed
+   borderless tables, a column with no heading, headings only on the first
+   page with page subtotals, dates inside descriptions, attached receipts
+   and maps, letter-style invoices with no table, and
    reviewers' handwritten marks. The recognition itself read 97–100% of
    printed amounts with every free engine tried (Tesseract, PaddleOCR,
    docTR); losses came from the table reader, which now handles those

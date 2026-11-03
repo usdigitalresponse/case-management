@@ -674,35 +674,57 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     invoice aren't (nor is a later page's total taken for the invoice's).
     Text under no heading goes to the description, not a
     neighbouring figure column; with no quantity heading, the first of two
-    figures under the rate is the quantity; without a date column, a date
-    opening the description is the item's; a line described as mileage is
-    an expense. Outside tables, items written as sentences, as in a letter
+    figures under the rate is the quantity; without a date in the date
+    column, a date opening the description is the item's; a line described
+    as mileage is an expense. Outside tables, items written as sentences, as in a letter
     ("Site visit, March 9: 2 hrs x $100.00 = $200.00"), are read too, with
     a numbered line ending in an amount once such sentences have appeared;
     a total after the last of them ends the invoice like an amount due.
     Amounts with cents are preferred over stray digits, rates can have
     three places ($0.725), points as thousands separators ("2.500.00") are
     read, and a page-number line ("Page 2 of 5") is never an item.
+    Figures right-aligned well past left-aligned headings, one per figure
+    heading but doubled up under the later ones, are taken in order. One
+    heading over hours with the rate stacked under them ("Hrs/Rate",
+    "90.00/hr" on the item's next line) fills both, and an undated row
+    whose amount is all of two or more items above it is their total,
+    labelled or not.
+    In a packet, pages titled as requests for pre-authorization or
+    authorization summaries are skipped, as is a payment-request cover
+    form whose own table (accounting lines) would otherwise be read before
+    the invoice's; a file of nothing else is still refused or read for its
+    total.
   - Scans: a PDF is recognized rather than read from its text layer when
     no page has visible text, which covers image-only scans and
     "searchable" scans whose invisible text (rendering mode 3 or 7, over
     page images) another program recognized, or when its text is mostly
     unmapped characters (fonts without a character map). Hidden-text pages
-    in an otherwise digital file are skipped like other attachments.
+    in an otherwise digital file are skipped like other attachments,
+    unless its visible text has no items and some page has no text at all:
+    that is a scanned packet stamped or typed on in places (a date stamp,
+    a cover form filled in on a computer), and all of it is recognized.
     Telling these apart reads each page's drawing operators, not its
     pixels, so digital PDFs stay fast. `ocr.ts` renders each page at
-    300 DPI (PDF.js with its optional `@napi-rs/canvas`), erases table
-    rules, and recognizes it in-process with tesseract.js and its bundled
-    English data (nothing is downloaded at run time); the words feed the
+    300 DPI (PDF.js with its optional `@napi-rs/canvas`, and its JBIG2 and
+    JPEG 2000 decoders, which office scanners use), whitens coloured bands
+    such as a table's heading row and darkens whatever text is on them,
+    fades highlighter (removing pen ink by colour was tried and dropped:
+    it also removed coloured print), erases table rules, and recognizes it
+    in-process with tesseract.js and its bundled English data (nothing is downloaded at run time); the words feed the
     same table reader. The result warns `read_by_ocr`, flags items whose
     figures were recognized with low confidence (`low_confidence`, e.g.
     handwriting or strike-through) and skips an amount read as negative
-    (`line_not_read`) instead of refusing the file. When a recognized
+    (`line_not_read`) instead of refusing the file. A faint decimal point
+    recognized as a space in a dollar amount ("$420 00") is read as a
+    point, as is a cell of only such a figure ("3480 00"); a one-character
+    mark after a dollar amount (a tick read as "7") is kept apart from it;
+    and "TOTALDUE" counts as an amount due. When a recognized
     item's quantity × rate doesn't make its amount, the one cheapest
     explanation is applied with warning `figures_repaired`: a dropped
-    decimal point ("89250" for 892.50), a number among stray marks, or
-    else one unreadable or low-confidence figure worked out from the other
-    two; with no single fit the figures stay as read. Digital text is never
+    decimal point ("89250" for 892.50, in up to two figures), a number
+    among stray marks, a dollar sign read as a digit ("3480.00" for
+    480.00), or else one unreadable or low-confidence figure worked out
+    from the other two; with no single fit the figures stay as read. Digital text is never
     repaired, so its own errors show as rate mismatches. Handwriting is
     never imported: the printed figures are, and reviewers apply any
     handwritten correction in review. Words recognized without confidence

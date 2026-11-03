@@ -38,6 +38,126 @@ interface DrawingContext {
   putImageData(image: ImageData, x: number, y: number): void;
 }
 
+// Readies a rendered page for recognition: text on coloured bands made dark
+// on white, highlighter faded and table rules erased.
+export function prepareScan(context: DrawingContext, width: number, height: number): void {
+  const image = context.getImageData(0, 0, width, height);
+  clearBands(image.data, width, height);
+  fadeHighlighter(image.data);
+  context.putImageData(image, 0, 0);
+  eraseRules(context, width, height);
+}
+
+// A band is a run of rows mostly filled with colour, as behind a table's
+// headings; thinner runs are rules, taller ones pictures or shading.
+const BAND_FILLED = 200;
+const BAND_SHARE = 0.5;
+const BAND_MIN_HEIGHT = 0.006;
+const BAND_MAX_HEIGHT = 0.08;
+// Its soft edges, above and below, as a share of its height.
+const BAND_EDGE = 0.3;
+// Colour distances from the band's colour: nearer is the band, farther text.
+const BAND_NEAR = 40;
+const BAND_FAR = 120;
+
+// Text on a coloured band, white, outlined or dark, reads poorly, and
+// erasing rules would stripe the band, so the band becomes white and
+// whatever differs from its colour dark.
+export function clearBands(pixels: Uint8ClampedArray, width: number, height: number): void {
+  const level = (index: number) => (pixels[index * 4]! + pixels[index * 4 + 1]! + pixels[index * 4 + 2]!) / 3;
+  const filledRow = (y: number) => {
+    let filled = 0;
+    for (let x = 0; x < width; x += 1) {
+      if (level(y * width + x) < BAND_FILLED) filled += 1;
+    }
+    return filled >= width * BAND_SHARE;
+  };
+  for (let y = 0; y < height; ) {
+    if (!filledRow(y)) {
+      y += 1;
+      continue;
+    }
+    let end = y;
+    while (end < height && filledRow(end)) end += 1;
+    const rows = end - y;
+    if (rows >= height * BAND_MIN_HEIGHT && rows <= height * BAND_MAX_HEIGHT) {
+      clearBand(pixels, width, height, y, end, level);
+    }
+    y = end;
+  }
+}
+
+// Columns of a band's text may be mostly unfilled; wider gaps end it.
+const BAND_GAP = 0.02;
+
+function clearBand(pixels: Uint8ClampedArray, width: number, height: number, top: number, bottom: number, level: (index: number) => number) {
+  // Its extent: the longest run of columns filled in most of its rows, so
+  // a scan's coloured edge beside it isn't taken in.
+  const rows = bottom - top;
+  let left = 0;
+  let right = -1;
+  let start = -1;
+  let last = -1;
+  for (let x = 0; x < width; x += 1) {
+    let filled = 0;
+    for (let y = top; y < bottom; y += 1) {
+      if (level(y * width + x) < BAND_FILLED) filled += 1;
+    }
+    if (filled > rows / 2) {
+      if (start < 0 || x - last > width * BAND_GAP) start = x;
+      last = x;
+      if (last - start > right - left) [left, right] = [start, last];
+    }
+  }
+  const channels: number[][] = [[], [], []];
+  for (let y = top; y < bottom; y += 1) {
+    for (let x = left; x <= right; x += 1) {
+      const offset = (y * width + x) * 4;
+      if (level(y * width + x) < BAND_FILLED) channels.forEach((values, channel) => values.push(pixels[offset + channel]!));
+    }
+  }
+  const colour = channels.map(median);
+  const distance = (offset: number) => Math.hypot(...colour.map((value, channel) => pixels[offset + channel]! - value));
+  const edge = Math.ceil(rows * BAND_EDGE);
+  for (let y = Math.max(0, top - edge); y < Math.min(height, bottom + edge); y += 1) {
+    const inside = y >= top && y < bottom;
+    for (let x = left; x <= right; x += 1) {
+      const offset = (y * width + x) * 4;
+      const far = Math.min(1, Math.max(0, (distance(offset) - BAND_NEAR) / (BAND_FAR - BAND_NEAR)));
+      // Graded, not thresholded: scanned text is rarely one colour. Beside
+      // the band only its colour goes, the page around it being white.
+      if (inside) {
+        pixels.fill(Math.round(255 * (1 - far)), offset, offset + 3);
+      } else if (far === 0) {
+        pixels.fill(255, offset, offset + 3);
+      }
+    }
+  }
+}
+
+// Highlighter is bright and strongly coloured; ink, coloured or not, is
+// darker, so it stays.
+const HIGHLIGHT_BRIGHTEST = 170;
+const HIGHLIGHT_COLOUR = 70;
+const HIGHLIGHT_LEVEL = 130;
+
+export function fadeHighlighter(pixels: Uint8ClampedArray): void {
+  for (let offset = 0; offset < pixels.length; offset += 4) {
+    const red = pixels[offset]!;
+    const green = pixels[offset + 1]!;
+    const blue = pixels[offset + 2]!;
+    const brightest = Math.max(red, green, blue);
+    if (brightest >= HIGHLIGHT_BRIGHTEST && brightest - Math.min(red, green, blue) >= HIGHLIGHT_COLOUR && (red + green + blue) / 3 >= HIGHLIGHT_LEVEL) {
+      pixels.fill(255, offset, offset + 3);
+    }
+  }
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)] ?? 255;
+}
+
 export function eraseRules(context: DrawingContext, width: number, height: number): void {
   const image = context.getImageData(0, 0, width, height);
   const pixels = image.data;
@@ -155,7 +275,7 @@ export async function recognizePages(
       document,
       pageNumber,
       RENDER_SCALE,
-      (context, w, h) => eraseRules(context as DrawingContext, w, h),
+      (context, w, h) => prepareScan(context as DrawingContext, w, h),
       turn,
     );
     const { data } = await withTimeout(

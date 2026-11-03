@@ -147,6 +147,12 @@ function finishRows(rows: Row[]): Row[] {
   return rows;
 }
 
+// A faint decimal point read as a space in a dollar amount ("$420 00"), or
+// in a cell that is only such a figure ("3480 00").
+const SPLIT_CENTS = /(\$\s?\d[\d,]*)\s(\d{2})(?![\d.,])/g;
+const SPLIT_CENTS_CELL = /^(\d{3,}[\d,]*)\s(\d{2})$/;
+const DOLLAR_FIGURE = /^\$\s?\d[\d,]*(?:[.\s]\d{2})?$/;
+
 // Recognized words become cells like text-layer runs: words closer than
 // about half their height join. Lines that overlap vertically share a row, because
 // Tesseract often reads each table column as its own line.
@@ -164,7 +170,9 @@ function recognizedRows(page: number, words: OcrWord[]): Row[] {
     let previousEnd = -Infinity;
     for (const word of line) {
       const cell = cells[cells.length - 1];
-      if (cell && word.x - previousEnd < height * 0.6) {
+      // A tick beside an amount, read as one character ("7"), is a mark.
+      const tick = cell !== undefined && DOLLAR_FIGURE.test(cell.text) && word.text.length === 1;
+      if (cell && !tick && word.x - previousEnd < height * 0.6) {
         cell.text = `${cell.text} ${word.text}`;
         cell.width = word.x + word.width - cell.x;
         cell.bottom = Math.min(cell.bottom!, word.y);
@@ -185,6 +193,9 @@ function recognizedRows(page: number, words: OcrWord[]): Row[] {
         });
       }
       previousEnd = word.x + word.width;
+    }
+    for (const cell of cells) {
+      cell.text = cell.text.replace(SPLIT_CENTS, '$1.$2').replace(SPLIT_CENTS_CELL, '$1.$2');
     }
     // A typical word's extent, so a tall handwritten mark on the line
     // doesn't join it to the next one.
@@ -453,7 +464,8 @@ async function readEmbedded(
 async function readRows(
   bytes: Buffer,
   options: ExtractOptions,
-): Promise<{ rows: Row[]; recognized: boolean; frames: Map<number, PageFrame>; xfa: boolean; notRead: string[] }> {
+  { recognizeAll = false } = {},
+): Promise<{ rows: Row[]; recognized: boolean; frames: Map<number, PageFrame>; xfa: boolean; notRead: string[]; textlessPages: boolean }> {
   const { OPS } = loadPdfJs();
   options.onProgress?.({ stage: 'reading' });
   return withPdf(bytes, async (document) => {
@@ -462,16 +474,17 @@ async function readRows(
     const attachments = await document.getAttachments().catch(() => null);
     const named = [...(attachments ?? new Map())].map(([id, file]): [string, string] => [id, file.filename]);
     const embedded = await readEmbedded(document, new Map([...named, ...pageFiles]), OPS);
+    const pageNumbers = Array.from({ length: document.numPages }, (_, index) => index + 1);
     // A file with visible, readable text is read from its text layer; mixed
     // files keep that only, so scanned attachments behind a digital invoice
     // aren't read as items. Scans, including searchable ones whose hidden
     // text another program recognized, and unusable text layers are
-    // recognized here instead.
+    // recognized here instead, as is all of a file when asked.
     const visibleRows = rows.filter((row) => !hiddenTextPages.has(row.page));
-    if (visibleRows.length > 0 && !textLooksGarbled(visibleRows.map((row) => row.cells.map((cell) => cell.text).join(' ')).join('\n'))) {
-      return { rows: [...finishRows(joinRaisedText(visibleRows)), ...embedded.rows], recognized: false, frames, xfa, notRead: embedded.notRead };
+    if (!recognizeAll && visibleRows.length > 0 && !textLooksGarbled(visibleRows.map((row) => row.cells.map((cell) => cell.text).join(' ')).join('\n'))) {
+      const textlessPages = pageNumbers.some((page) => !visibleRows.some((row) => row.page === page));
+      return { rows: [...finishRows(joinRaisedText(visibleRows)), ...embedded.rows], recognized: false, frames, xfa, notRead: embedded.notRead, textlessPages };
     }
-    const pageNumbers = Array.from({ length: document.numPages }, (_, index) => index + 1);
     const recognized = await recognizePages(document, pageNumbers, (page, pages) =>
       options.onProgress?.({ stage: 'recognizing', page, pages }),
     );
@@ -481,6 +494,7 @@ async function readRows(
       frames: new Map([...recognized.frames].map(([page, frame]) => [page, recognizedFrame(frame)])),
       xfa,
       notRead: embedded.notRead,
+      textlessPages: false,
     };
   });
 }
@@ -544,11 +558,19 @@ const readFigure = (figure: Figure, text: string) =>
   figure === 'quantity' ? (/^(\d+(\.\d+)?|\.\d+)$/.test(text.trim()) ? Number(text) : undefined) : parseMoney(text);
 
 // What a recognized figure may stand for, with a cost: as read (0), a number
-// among marks, or with a dropped decimal point ("89250" for 892.50) (1 each).
+// among marks, with a dropped decimal point ("89250" for 892.50) or after a
+// misread dollar sign (1 each).
 function figureOptions(figure: Figure, text: string): Array<{ value: number; cost: number }> {
   const read = readFigure(figure, text);
   const found = read !== undefined ? [{ value: read, cost: 0 }] : (text.match(/\d+(?:\.\d+)?/g) ?? []).map((token) => ({ value: Number(token), cost: 1 }));
   const options = [...found];
+  // A dollar sign recognized as a digit ("3480.00" for $480.00).
+  if (figure !== 'quantity' && !text.includes('$') && /^\d{2}/.test(text.trim())) {
+    const rest = readFigure(figure, text.trim().slice(1));
+    if (rest !== undefined) {
+      options.push({ value: rest, cost: 1 });
+    }
+  }
   if (!/\.\d/.test(text)) {
     for (const { value, cost } of found) {
       if (Number.isInteger(value) && value >= 10) {
@@ -639,30 +661,41 @@ export function reconcileFigures(read: Partial<Record<Figure, FigureReading>>): 
 }
 
 const headingOf = (text: string) => HEADINGS.find(([, pattern]) => pattern.test(text.trim()))?.[0];
+// One heading over two figures stacked in a cell, the rate under the hours.
+const STACKED_RATE_HEADING = /^(hrs?|hours|qty|quantity)\s*\/\s*rate$/i;
+const PER_HOUR = /^\$?\s?[\d,]+(?:\.\d+)?\s*\/\s*(?:hr|hour)\.?$/i;
+const headingsOf = (text: string): Column[] | undefined => {
+  if (STACKED_RATE_HEADING.test(text.trim())) {
+    return ['hours', 'rate'];
+  }
+  const column = headingOf(text);
+  return column && [column];
+};
 
 // Headings that nearly touch arrive merged ("RATE QUANTITY"); split them,
 // estimating each one's position from the cell's width.
 function headingCells(cell: Cell): Array<{ column: Column; x: number; end: number }> {
-  const whole = headingOf(cell.text);
+  const whole = headingsOf(cell.text);
   if (whole) {
-    return [{ column: whole, x: cell.x, end: cell.x + cell.width }];
+    return whole.map((column) => ({ column, x: cell.x, end: cell.x + cell.width }));
   }
-  const words = cell.text.split(/\s+/);
+  // Marks recognized beside the headings ("~", "|") aren't words.
+  const words = cell.text.split(/\s+/).filter((word) => /[A-Za-z0-9]/.test(word));
   const perChar = cell.width / Math.max(cell.text.length, 1);
   const parts: Array<{ column: Column; x: number; end: number }> = [];
   let offset = 0;
   for (let start = 0; start < words.length; ) {
     let matched = 0;
-    let column: Column | undefined;
-    for (let end = words.length; end > start && !column; end -= 1) {
-      column = headingOf(words.slice(start, end).join(' '));
+    let found: Column[] | undefined;
+    for (let end = words.length; end > start && !found; end -= 1) {
+      found = headingsOf(words.slice(start, end).join(' '));
       matched = end - start;
     }
-    if (!column) {
+    if (!found) {
       return [];
     }
     const phrase = words.slice(start, start + matched).join(' ');
-    parts.push({ column, x: cell.x + offset * perChar, end: cell.x + (offset + phrase.length) * perChar });
+    parts.push(...found.map((column) => ({ column, x: cell.x + offset * perChar, end: cell.x + (offset + phrase.length) * perChar })));
     offset += phrase.length + 1;
     start += matched;
   }
@@ -737,6 +770,17 @@ function cellsByColumn(row: Row, columns: Columns): Map<Column, Cell[]> {
       values.set(best, [...(values.get(best) ?? []), cell]);
     }
   }
+  // Figures right-aligned well past left-aligned headings each land under
+  // the next heading. One figure per figure heading, doubled up, is taken
+  // in order; a tick or note past the table doesn't count.
+  const figureColumns = headings.map(([column]) => column).filter((column) => NUMERIC_COLUMNS.includes(column));
+  const placed = figureColumns.flatMap((column) => values.get(column) ?? []);
+  const figures = placed.filter((cell) => NUMERIC_CELL.test(cell.text)).sort((a, b) => a.x - b.x);
+  const extras = figures.slice(figureColumns.length);
+  const inTable = extras.every((cell) => cell.x > tableEnd + COLUMN_TOLERANCE) ? figures.slice(0, figureColumns.length) : figures;
+  if (placed.length === figures.length && inTable.length === figureColumns.length && figureColumns.some((column) => !values.has(column))) {
+    figureColumns.forEach((column, index) => values.set(column, [inTable[index]!]));
+  }
   // A short quantity ("1") right-aligned past its heading lands nearer the
   // rate's.
   const rates = values.get('rate');
@@ -787,7 +831,8 @@ function itemSentence(text: string, afterItems: boolean): { description: string;
 // A cell that is only a total label (and amount), so "Total knee…" isn't one.
 // The amount may be in its own cell after a "$".
 const TOTAL_CELL = /^[A-Za-z\s()-]*\b(sub-?)?totals?\b[A-Za-z\s()-]*:?\s*(\$?\s?[\d,]+\.\d{2}|\$)?$/i;
-const DUE = /\b(amount|balance|total) due\b/i;
+// Recognition can drop the space ("TOTALDUE").
+const DUE = /\b(amount|balance|total) ?due\b/i;
 const isTotalRow = (row: Row) => DUE.test(row.text) || row.cells.some((cell) => TOTAL_CELL.test(cell.text) && /total/i.test(cell.text));
 // Page and section subtotals; the table continues after them.
 const isSubtotalRow = (row: Row) => !DUE.test(row.text) && row.cells.some((cell) => TOTAL_CELL.test(cell.text) && /\bsub-?totals?\b/i.test(cell.text));
@@ -803,10 +848,13 @@ function invoiceFields(rows: Row[]): Pick<ParsedInvoice, 'invoiceNumber' | 'peri
     .filter((text) => /period/i.test(text))
     .flatMap((text) => [...text.matchAll(DATE_PATTERN)].map((match) => parseDate(match[1]!)))
     .filter((date): date is string => Boolean(date));
-  // The invoice total is the last total that isn't a section subtotal.
+  // The last total labelled as due or requested, else the last that isn't a
+  // subtotal.
   const totalRows = rows.filter(isTotalRow);
   const totalRow =
-    totalRows.filter((row) => /total due|amount due|balance due|^total\b|total amount/i.test(row.text)).at(-1) ?? totalRows.at(-1);
+    totalRows.filter((row) => /total\s?due|amount\s?due|balance\s?due|^total\b|total amount|total requested/i.test(row.text)).at(-1) ??
+    totalRows.filter((row) => !isSubtotalRow(row)).at(-1) ??
+    totalRows.at(-1);
   return {
     invoiceNumber,
     periodStart: periodDates.length >= 2 ? periodDates[0] : undefined,
@@ -855,6 +903,37 @@ const XFA_MESSAGE =
 
 // A request for approval before the work, in the title on page 1.
 const ESTIMATE_TITLE = /\b(request for pre-?authori[sz]ation|pre-?authori[sz]ation request|cost estimate|quotation)\b/i;
+// Pages in a packet that aren't the invoice, by their titles: approvals
+// before the work and summaries of them, and the payment-request cover form
+// sent with an invoice, whose own table lists accounting lines.
+const AUTHORIZATION_TITLE = /\b(request for pre-?authori[sz]ation|pre-?authori[sz]ation request|authori[sz]ation (and|&) payment summary)\b/i;
+const COVER_TITLE = /\brequest for payment\b/i;
+
+function pagesTitled(rows: Row[], title: RegExp): Set<number> {
+  const pages = new Set<number>();
+  for (const page of new Set(rows.filter((row) => !row.embedded).map((row) => row.page))) {
+    if (rows.filter((row) => !row.embedded && row.page === page).slice(0, 8).some((row) => title.test(row.text))) {
+      pages.add(page);
+    }
+  }
+  return pages;
+}
+
+// The rows of a packet's invoice, without its other pages; a file of
+// nothing else is kept whole, so it is still refused or read for its total.
+// A cover form goes only when its own table would be read before the
+// invoice's; otherwise it may be the invoice, or give its number.
+function invoicePagesOf(rows: Row[]): Row[] {
+  const skip = (pages: Set<number>, from: Row[]) => from.filter((row) => row.embedded || !pages.has(row.page));
+  const withoutApprovals = skip(pagesTitled(rows, AUTHORIZATION_TITLE), rows);
+  if (withoutApprovals.length === 0) {
+    return rows;
+  }
+  const cover = pagesTitled(withoutApprovals, COVER_TITLE);
+  const withoutCover = skip(cover, withoutApprovals);
+  const coverTable = withoutApprovals.some((row) => !row.embedded && cover.has(row.page) && headerColumns(row));
+  return coverTable && hasItemTable(withoutCover) ? withoutCover : withoutApprovals;
+}
 
 function textOfRows(rows: Row[]): string {
   return rows.map((row) => row.text).join('\n');
@@ -975,12 +1054,23 @@ function sortAttachments(
   return suggested;
 }
 
+const hasItems = (row: Row) => row.text.length <= MAX_ITEM_TEXT && (ITEM_SENTENCE.test(row.text) || row.text.match(FORM_RATE_ITEM) !== null);
+const hasItemTable = (rows: Row[]) => rows.some((row) => headerColumns(row) || hasItems(row));
+
 export async function extractFromTextLayer(bytes: Buffer, options: ExtractOptions = {}): Promise<ParsedInvoice> {
-  const { rows, recognized, frames, xfa, notRead } = await readRows(bytes, options);
+  let reading = await readRows(bytes, options);
+  // Typed text with no items, beside pages with none, is a scanned packet
+  // stamped or typed on in places (a cover form, a date): all of it is read
+  // as a scan.
+  if (!reading.recognized && reading.textlessPages && !hasItemTable(reading.rows)) {
+    reading = await readRows(bytes, options, { recognizeAll: true });
+  }
+  const { recognized, frames, xfa, notRead } = reading;
   const regionIn = (row: Row, cells: Cell[] = row.cells) => regionOf(frames, row.page, cells);
-  if (rows.length === 0) {
+  if (reading.rows.length === 0) {
     throw new UnreadableInvoiceFileError(xfa ? XFA_MESSAGE : 'No text could be read from this PDF. Enter the items by hand instead.');
   }
+  const rows = invoicePagesOf(reading.rows);
 
   const warnings: ImportWarning[] = [];
   if (recognized) {
@@ -992,7 +1082,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
 
   // Checked only here, so an invoice that mentions a quotation is still read.
   const withoutItems = (invoiceRows: Row[], why: string): ParsedInvoice => {
-    if (rows.filter((row) => row.page === 1).slice(0, 8).some((row) => ESTIMATE_TITLE.test(row.text))) {
+    if (reading.rows.filter((row) => row.page === 1).slice(0, 8).some((row) => ESTIMATE_TITLE.test(row.text))) {
       throw new UnreadableInvoiceFileError(
         'This looks like a request for pre-authorization or an estimate, not a request for payment. Upload the invoice or payment request, or enter the items by hand.',
       );
@@ -1004,8 +1094,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     const ownRows = invoiceRows.filter((row) => !row.embedded);
     return { ...total, invoiceText: textOfRows(ownRows), caseNumber: caseNumberIn(ownRows, frames) };
   };
-  const hasItems = (row: Row) => row.text.length <= MAX_ITEM_TEXT && (ITEM_SENTENCE.test(row.text) || row.text.match(FORM_RATE_ITEM) !== null);
-  if (!rows.some((row) => headerColumns(row) || hasItems(row))) {
+  if (!hasItemTable(rows)) {
     return withoutItems(rows, 'No table of invoice items was found in this PDF. Enter the items by hand instead.');
   }
   const lines: ParsedLine[] = [];
@@ -1038,6 +1127,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   let hoursColumn = false;
   let previous: ParsedLine | undefined;
   let sinceSubtotal = 0;
+  let itemsSinceSubtotal = 0;
   let dueOnPage: number | undefined;
   let looseItems = 0;
   // The page of the total after the last of them; later pages are attachments.
@@ -1223,12 +1313,14 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
         });
       }
       sinceSubtotal = 0;
+      itemsSinceSubtotal = 0;
       previous = undefined;
       continue;
     }
     if (isTotalRow(row)) {
       columns = undefined;
       sinceSubtotal = 0;
+      itemsSinceSubtotal = 0;
       if (!attached && lines.length > 0 && DUE.test(row.text)) {
         dueOnPage = row.page;
       }
@@ -1253,6 +1345,18 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     };
     const { quantity: hours, unitRate, amount } = settle({ quantity: reading('hours'), unitRate: reading('rate'), amount: reading('amount') }, location);
     if (amount === undefined) {
+      // A rate stacked under the item's hours ("90.00/hr").
+      const stackedRate = previous?.unitRate === undefined ? [...cells].find(([, found]) => found.some((cell) => PER_HOUR.test(cell.text))) : undefined;
+      if (previous && stackedRate) {
+        const [column, found] = stackedRate;
+        previous.unitRate = parseMoney(found.find((cell) => PER_HOUR.test(cell.text))!.text);
+        const rest = found.filter((cell) => !PER_HOUR.test(cell.text));
+        if (rest.length > 0) {
+          cells.set(column, rest);
+        } else {
+          cells.delete(column);
+        }
+      }
       // Text-only rows continue the item above; anything else is ignored.
       const onlyText = [...cells.keys()].every((column) => column === 'description' || column === 'timekeeper');
       if (previous && onlyText) {
@@ -1295,6 +1399,15 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       previous = undefined;
       continue;
     }
+    // An undated row adding up two or more items above it is their total,
+    // labelled or not ("For services rendered 3.40 $306.00").
+    if (!attached && itemsSinceSubtotal >= 2 && cents(amount) === sinceSubtotal && row.text.match(DATE_PATTERN) === null) {
+      columns = undefined;
+      sinceSubtotal = 0;
+      itemsSinceSubtotal = 0;
+      previous = undefined;
+      continue;
+    }
     // Without letter ("a.") or number ("7.") list markers. An attachment
     // without a description heading ("Item") is described by its words.
     const described = textOf(cells.get('description')) ?? (attached ? row.cells.filter((cell) => !NUMERIC_CELL.test(cell.text)).map((cell) => cell.text).join(' ') : '');
@@ -1308,12 +1421,11 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       location,
       region: regionIn(row),
       lineType: attached && !hoursColumn ? 'expense' : lineType(section, hours, description, expenseCode),
-      // Without a date column, a date opening a description cell is the item's.
-      serviceDate: dateText
-        ? parseDate(dateText)
-        : columns.has('date')
-          ? undefined
-          : (cells.get('description') ?? []).map((cell) => parseDate(LEADING_DATE.exec(cell.text)?.[1] ?? '')).find(Boolean),
+      // Without a date in the date column, a date opening a description cell
+      // is the item's.
+      serviceDate:
+        (dateText ? parseDate(dateText) : undefined) ??
+        (cells.get('description') ?? []).map((cell) => parseDate(LEADING_DATE.exec(cell.text)?.[1] ?? '')).find(Boolean),
       description: optionalText(description),
       timekeeperLabel: optionalText(textOf(cells.get('timekeeper'))),
       quantity: hours,
@@ -1336,6 +1448,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     add(row, previous);
     if (!attached) {
       sinceSubtotal += cents(amount);
+      itemsSinceSubtotal += 1;
     }
   }
   // Nothing on a page after the amount due, or after the total ending items

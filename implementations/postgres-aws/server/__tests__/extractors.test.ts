@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { documentExtractor, EXTRACTORS } from '../src/imports/extractors';
 import PDFDocument from 'pdfkit';
 import { extractFromTextLayer, legible, parseDate, parseMoney, reconcileFigures, textLooksGarbled } from '../src/imports/extractors/textLayer';
+import { clearBands, fadeHighlighter } from '../src/imports/extractors/ocr';
 import { ConfigurationError } from '../src/errors';
 
 describe('extractor selection', () => {
@@ -167,6 +168,23 @@ function letterPdf(pages: Array<Array<string | string[]>>): Promise<Buffer> {
     lines.forEach((line, index) =>
       [line].flat().forEach((text, column) => doc.text(text, 48 + column * 150, 72 + index * 18, { lineBreak: false })),
     );
+  });
+  doc.end();
+  return done;
+}
+
+// Pages of lines, each line text at the given x positions.
+function placedPdf(pages: Array<Array<Array<[number, string]>>>): Promise<Buffer> {
+  const doc = new PDFDocument({ size: 'LETTER', margin: 48 });
+  const chunks: Buffer[] = [];
+  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+  const done = new Promise<Buffer>((resolve) => doc.on('end', () => resolve(Buffer.concat(chunks))));
+  doc.fontSize(10);
+  pages.forEach((lines, page) => {
+    if (page > 0) {
+      doc.addPage();
+    }
+    lines.forEach((line, index) => line.forEach(([x, text]) => doc.text(text, x, 72 + index * 18, { lineBreak: false })));
   });
   doc.end();
   return done;
@@ -469,6 +487,136 @@ describe('files without readable items', () => {
   });
 });
 
+describe('packets and other layouts', () => {
+  it('reads the invoice in a packet, not its cover form’s accounting lines or an approval request', async () => {
+    const parsed = await extractFromTextLayer(
+      await placedPdf([
+        [
+          [[48, 'Request for Payment of Services']],
+          [[48, 'Description'], [250, 'Activity'], [400, 'Amount']],
+          [[48, 'Accounting line one'], [250, 'GEN'], [400, '$500.00']],
+          [[48, 'TOTAL REQUESTED: $345.00']],
+        ],
+        [
+          [[48, 'Date'], [130, 'Description'], [300, 'Hours'], [360, 'Rate'], [430, 'Amount']],
+          [[48, '01/05/2026'], [130, 'Review'], [300, '2.00'], [360, '$150.00'], [430, '$300.00']],
+          [[48, '01/06/2026'], [130, 'Filing fee'], [430, '$45.00']],
+          [[48, 'Balance due: $345.00']],
+        ],
+        [[[48, 'Request for Pre-Authorization of Expenses']], [[48, 'Total Requested: $2,000.00']]],
+      ]),
+    );
+    expect(parsed.lines.map((line) => line.amount)).toEqual([300, 45]);
+    expect(parsed.statedTotal).toBe(345);
+  });
+
+  it('reads hours and rate stacked under one heading, and a closing total without a label', async () => {
+    const parsed = await extractFromTextLayer(
+      await placedPdf([
+        [
+          [[380, 'Hrs/Rate'], [470, 'Amount']],
+          [[48, '03/02/2026 Reviewed the files'], [380, '2.40'], [470, '216.00']],
+          [[60, 'and wrote notes'], [380, '90.00/hr']],
+          [[48, '03/04/2026 Analysis'], [380, '1.00'], [470, '90.00']],
+          [[380, '90.00/hr']],
+          [[60, 'For services rendered'], [380, '3.40'], [470, '$306.00']],
+        ],
+      ]),
+    );
+    expect(parsed.lines.map(({ quantity, unitRate, amount, description }) => ({ quantity, unitRate, amount, description }))).toEqual([
+      { quantity: 2.4, unitRate: 90, amount: 216, description: '03/02/2026 Reviewed the files and wrote notes' },
+      { quantity: 1, unitRate: 90, amount: 90, description: '03/04/2026 Analysis' },
+    ]);
+  });
+
+  it('takes the date opening a description when the date column is empty', async () => {
+    const parsed = await extractFromTextLayer(
+      await placedPdf([
+        [
+          [[48, 'Date'], [130, 'Description'], [300, 'Hours'], [360, 'Rate'], [430, 'Amount']],
+          [[130, '02/09/2026 - Interview'], [300, '1.5'], [360, '$90.00'], [430, '$135.00']],
+          [[48, 'Total $135.00']],
+        ],
+      ]),
+    );
+    expect(parsed.lines.map((line) => line.serviceDate)).toEqual(['2026-02-09']);
+  });
+
+  it('takes the amount due for the total, even with its space unread, over a subtotal after it', async () => {
+    const parsed = await extractFromTextLayer(
+      await letterPdf([['Request for Payment', ['TOTALDUE:', '$612.30'], ['SUB TOTAL:', '$520.00 $92.30']]]),
+    );
+    expect(parsed.statedTotal).toBe(612.3);
+  });
+
+  it('keeps an undated item equal to the only item since a subtotal', async () => {
+    const parsed = await extractFromTextLayer(
+      await placedPdf([
+        [
+          [[48, 'Description'], [300, 'Hours'], [360, 'Rate'], [430, 'Amount']],
+          [[48, '01/05/2026 Review'], [300, '1.00'], [360, '$100.00'], [430, '$100.00']],
+          [[48, 'Page subtotal: $100.00']],
+          [[48, '01/06/2026 Interview'], [300, '1.00'], [360, '$100.00'], [430, '$100.00']],
+          [[48, 'Follow-up call'], [300, '1.00'], [360, '$100.00'], [430, '$100.00']],
+          [[48, 'Total due: $300.00']],
+        ],
+      ]),
+    );
+    expect(parsed.lines.map((line) => line.amount)).toEqual([100, 100, 100]);
+  });
+
+  it('takes figures in order when right-aligned figures sit past left-aligned headings', async () => {
+    const parsed = await extractFromTextLayer(
+      await placedPdf([
+        [
+          [[48, 'Description'], [300, 'Qty'], [360, 'Rate'], [430, 'Amount']],
+          [[48, 'Witness interview'], [345, '4.5'], [405, '$120.00'], [470, '$540.00']],
+          [[48, 'Total $540.00']],
+        ],
+      ]),
+    );
+    expect(parsed.lines.map(({ quantity, unitRate, amount }) => ({ quantity, unitRate, amount }))).toEqual([{ quantity: 4.5, unitRate: 120, amount: 540 }]);
+  });
+});
+
+describe('preparing a scan for recognition', () => {
+  const width = 200;
+  const height = 1000;
+  const blankPage = () => new Uint8ClampedArray(width * height * 4).fill(255);
+  const paint = (pixels: Uint8ClampedArray, [left, top, right, bottom]: number[], colour: number[]) => {
+    for (let y = top!; y < bottom!; y += 1) {
+      for (let x = left!; x < right!; x += 1) pixels.set(colour, (y * width + x) * 4);
+    }
+  };
+  const colourAt = (pixels: Uint8ClampedArray, x: number, y: number) => [...pixels.slice((y * width + x) * 4, (y * width + x) * 4 + 3)];
+
+  it('turns a coloured band white and its text dark, whether white or dark', () => {
+    const pixels = blankPage();
+    paint(pixels, [10, 500, 190, 530], [31, 120, 200]);
+    paint(pixels, [40, 510, 60, 520], [255, 255, 255]);
+    paint(pixels, [100, 510, 120, 520], [20, 20, 20]);
+    clearBands(pixels, width, height);
+    expect(colourAt(pixels, 15, 505)).toEqual([255, 255, 255]);
+    expect(colourAt(pixels, 50, 515)[0]).toBeLessThan(60);
+    expect(colourAt(pixels, 110, 515)[0]).toBeLessThan(60);
+  });
+
+  it('leaves a rule, too thin for a band, and the page around a band', () => {
+    const pixels = blankPage();
+    paint(pixels, [10, 200, 190, 203], [0, 0, 0]);
+    paint(pixels, [10, 500, 190, 530], [31, 120, 200]);
+    clearBands(pixels, width, height);
+    expect(colourAt(pixels, 100, 201)).toEqual([0, 0, 0]);
+    expect(colourAt(pixels, 100, 600)).toEqual([255, 255, 255]);
+  });
+
+  it('fades highlighter but keeps ink, black or coloured', () => {
+    const pixels = new Uint8ClampedArray([255, 240, 80, 255, 250, 170, 60, 255, 200, 30, 30, 255, 40, 60, 180, 255, 0, 0, 0, 255]);
+    fadeHighlighter(pixels);
+    expect([...pixels]).toEqual([255, 255, 255, 255, 255, 255, 255, 255, 200, 30, 30, 255, 40, 60, 180, 255, 0, 0, 0, 255]);
+  });
+});
+
 describe('recognized figure repair', () => {
   const read = (quantity: string, unitRate: string, amount: string, confidence?: { quantity?: number; unitRate?: number }) => ({
     quantity: { text: quantity, confidence: confidence?.quantity },
@@ -484,6 +632,11 @@ describe('recognized figure repair', () => {
   it('restores a decimal point recognition dropped', () => {
     expect(reconcileFigures(read('1.5', '200.00', '30000'))).toEqual({ figures: { quantity: 1.5, unitRate: 200, amount: 300 }, repaired: ['amount'] });
     expect(reconcileFigures(read('35', '100.00', '350.00'))).toEqual({ figures: { quantity: 3.5, unitRate: 100, amount: 350 }, repaired: ['quantity'] });
+    expect(reconcileFigures(read('45', '$120.00', '$54000'))).toEqual({ figures: { quantity: 4.5, unitRate: 120, amount: 540 }, repaired: ['quantity', 'amount'] });
+  });
+
+  it('drops a dollar sign recognized as a digit', () => {
+    expect(reconcileFigures(read('4', '$120.00', '3480.00'))).toEqual({ figures: { quantity: 4, unitRate: 120, amount: 480 }, repaired: ['amount'] });
   });
 
   it('works out an unreadable or unsure figure from the other two', () => {
