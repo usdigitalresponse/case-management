@@ -447,6 +447,18 @@ async function fillInForm(sample: Sample, { fields = false } = {}): Promise<Buff
 // provider's itemized invoice attached behind it.
 async function coverSheet(sample: Sample): Promise<Buffer> {
   const { doc, done } = newDocument('Synthetic cover sheet with invoice');
+  coverForm(doc, sample);
+  doc.addPage();
+  doc.x = 48;
+  doc.y = 48;
+  header(doc, sample);
+  table(doc, ['Date', 'Timekeeper', 'Description', 'Hours', 'Rate', 'Amount'], sample.items.map(itemRow), [62, 100, '*', 45, 60, 65]);
+  footerTotal(doc, total(sample.items));
+  doc.end();
+  return done;
+}
+
+function coverForm(doc: PDFKit.PDFDocument, sample: Sample) {
   doc.font('Helvetica-Bold').fontSize(13).text('Request for Payment of Services', { align: 'center' });
   doc.font('Helvetica').fontSize(9).text('Synthetic form for testing', { align: 'center' });
   doc.fontSize(10);
@@ -460,11 +472,41 @@ async function coverSheet(sample: Sample): Promise<Buffer> {
     130,
     false,
   );
-  doc.addPage();
-  doc.x = 48;
-  doc.y = 48;
+}
+
+// Column headings in white on a coloured band, and one row highlighted by
+// a reviewer, as on many printed invoices.
+async function banded(sample: Sample): Promise<Buffer> {
+  const { doc, done } = newDocument('Synthetic banded invoice');
   header(doc, sample);
-  table(doc, ['Date', 'Timekeeper', 'Description', 'Hours', 'Rate', 'Amount'], sample.items.map(itemRow), [62, 100, '*', 45, 60, 65]);
+  const columns = [
+    { title: 'Date', x: 48, width: 58 },
+    { title: 'Timekeeper', x: 108, width: 92 },
+    { title: 'Description', x: 202, width: 186 },
+    { title: 'Hours', x: 390, width: 36, right: true },
+    { title: 'Rate', x: 430, width: 50, right: true },
+    { title: 'Amount', x: 484, width: 60, right: true },
+  ];
+  let y = doc.y + 6;
+  doc.rect(44, y - 5, 506, 20).fill('#1f78c8');
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('white');
+  for (const column of columns) {
+    doc.text(column.title, column.x, y, { width: column.width, align: column.right ? 'right' : 'left' });
+  }
+  doc.fillColor('black').font('Helvetica');
+  y += 22;
+  for (const [index, item] of sample.items.entries()) {
+    const cells = itemRow(item);
+    const height = Math.max(...columns.map((column, c) => doc.heightOfString(cells[c] ?? '', { width: column.width })));
+    if (index === 5) {
+      doc.save().opacity(0.6).rect(200, y - 3, 350, height + 4).fill('#ffa630').restore();
+      doc.fillColor('black');
+    }
+    columns.forEach((column, c) => doc.text(cells[c] ?? '', column.x, y, { width: column.width, align: column.right ? 'right' : 'left' }));
+    y += height + 8;
+  }
+  doc.y = y + 6;
+  doc.x = 48;
   footerTotal(doc, total(sample.items));
   doc.end();
   return done;
@@ -559,7 +601,12 @@ async function marked(sample: Sample): Promise<Buffer> {
 // scanners that make "searchable" PDFs do.
 // With turns, a page is scanned turned that many degrees clockwise, as a
 // sheet fed sideways or upside down comes out.
-async function scanned(pdf: Buffer, { hiddenText = false, turns = {} as Record<number, 90 | 180 | 270> } = {}): Promise<Buffer> {
+// With cover, a typed page is put in front, as a cover form filled in on a
+// computer and sent with a scanned invoice.
+async function scanned(
+  pdf: Buffer,
+  { hiddenText = false, turns = {} as Record<number, 90 | 180 | 270>, cover = undefined as ((doc: PDFKit.PDFDocument) => void) | undefined } = {},
+): Promise<Buffer> {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const pdfjs = require('pdfjs-dist/legacy/build/pdf.mjs');
   const pdfjsDir = join(require.resolve('pdfjs-dist/package.json'), '..');
@@ -567,6 +614,7 @@ async function scanned(pdf: Buffer, { hiddenText = false, turns = {} as Record<n
   const task = pdfjs.getDocument({ data: new Uint8Array(pdf), standardFontDataUrl: `${join(pdfjsDir, 'standard_fonts')}/`, verbosity: 0 });
   const source = await task.promise;
   const { doc, done } = newDocument('Synthetic scanned invoice');
+  cover?.(doc);
   const scale = 200 / 72;
   for (let pageNumber = 1; pageNumber <= source.numPages; pageNumber += 1) {
     const page = await source.getPage(pageNumber);
@@ -581,7 +629,7 @@ async function scanned(pdf: Buffer, { hiddenText = false, turns = {} as Record<n
     turned.context.drawImage(flat.canvas, -flat.canvas.width / 2, -flat.canvas.height / 2);
     // The first page keeps the document's portrait size, so only later
     // pages may be turned sideways.
-    if (pageNumber > 1) {
+    if (pageNumber > 1 || cover) {
       doc.addPage({ size: [viewport.width / scale, viewport.height / scale] });
     }
     doc.image(turned.canvas.toBuffer('image/jpeg', 80), 0, 0, { width: doc.page.width, height: doc.page.height });
@@ -790,6 +838,12 @@ const LAYOUTS: Layout[] = [
     sample: { invoiceNumber: 'SAMPLE-PDF-012', periodStart: '2026-01-01', periodEnd: '2026-01-31', items: BASE_ITEMS },
     render: async (sample) => scanned(await marked(sample)),
     shows: 'A scanned borderless table marked by a reviewer: ticks, an amount struck through with another written beside it, and a margin note; the printed figures are expected',
+  },
+  {
+    file: 'pdf-scanned-packet.pdf',
+    sample: { invoiceNumber: 'SAMPLE-PDF-017', periodStart: '2026-01-01', periodEnd: '2026-01-31', items: BASE_ITEMS },
+    render: async (sample) => scanned(await banded(sample), { cover: (doc) => coverForm(doc, sample) }),
+    shows: 'A typed cover form stating the total requested, then the invoice scanned: its column headings white on a coloured band and one row highlighted by a reviewer',
   },
   {
     file: 'pdf-fill-in-form.pdf',

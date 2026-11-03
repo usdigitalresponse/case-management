@@ -95,8 +95,7 @@ export async function withPdf<T>(bytes: Buffer, read: (document: PdfDocument) =>
     disableFontFace: true,
     useSystemFonts: false,
     maxImageSize: MAX_IMAGE_PIXELS,
-    // JBIG2 and JPEG 2000 decoders, common in office scans; without them
-    // those images are silently skipped and the page reads as blank.
+    // Decoders for JBIG2 and JPEG 2000 scans, which PDF.js otherwise skips.
     wasmUrl: `${join(require.resolve('pdfjs-dist/package.json'), '..', 'wasm')}/`,
     verbosity: 0,
   });

@@ -591,6 +591,8 @@ export default function PortalUpload() {
   const currentRead = current?.read?.status === 'ready' ? current.read : undefined;
   const many = entries.length > 1;
   const createdCount = entries.filter((entry) => entry.created).length;
+  // No file could be read, so the lines are typed in instead.
+  const byHand = entries.length > 0 && usable.length === 0;
 
   async function next() {
     if (!current || !currentRead || !current.uploadReadId) return;
@@ -712,11 +714,21 @@ export default function PortalUpload() {
             )}
           </>
         )}
+        {byHand && (
+          <p className="field-hint">
+            {many ? 'None of the files could be read.' : 'The file could not be read.'} You can type the invoice’s lines on the next step.
+          </p>
+        )}
         {message && <Notice tone="danger">{message}</Notice>}
         {entries.length > 0 && (
           <div className="upload-card__actions">
-            <button type="button" className="btn btn--primary" disabled={busy || !currentRead} onClick={() => void next()}>
-              {many ? 'Next' : 'Check the lines'}
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={busy || (!byHand && !currentRead)}
+              onClick={() => (byHand ? setManual(true) : void next())}
+            >
+              {many && !byHand ? 'Next' : 'Check the lines'}
             </button>
             <button type="button" className="link-button" disabled={busy} onClick={() => void cancel()}>
               Cancel

@@ -2214,5 +2214,67 @@
       ]
     },
     "shows": "A cover letter with no items, the itemized invoice embedded in it as a file and a store receipt attached to its page; the invoice’s items are read and the receipt’s offered as suggestions"
+  },
+  "pdf-scanned-packet.pdf": {
+    "format": "document",
+    "document": {
+      "invoiceNumber": "SAMPLE-PDF-017",
+      "periodStart": "2026-01-01",
+      "periodEnd": "2026-01-31",
+      "statedTotal": "1013.90",
+      "lines": [
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-05",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Initial case assessment and review of charging documents",
+          "quantity": 1.5,
+          "unitRate": 200,
+          "amount": "300.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-07",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Research on suppression standard",
+          "quantity": 2.25,
+          "unitRate": 150,
+          "amount": "337.50"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-12",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Client meeting to review discovery and next steps before the status hearing",
+          "quantity": 1,
+          "unitRate": 200,
+          "amount": "200.00"
+        },
+        {
+          "lineType": "time",
+          "serviceDate": "2026-01-15",
+          "timekeeper": "Synthetic Timekeeper B",
+          "description": "Draft motion to continue",
+          "quantity": 0.75,
+          "unitRate": 150,
+          "amount": "112.50"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-20",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Filing fee",
+          "amount": "45.00"
+        },
+        {
+          "lineType": "expense",
+          "serviceDate": "2026-01-22",
+          "timekeeper": "Synthetic Timekeeper A",
+          "description": "Mileage to courthouse",
+          "amount": "18.90"
+        }
+      ]
+    },
+    "shows": "A typed cover form stating the total requested, then the invoice scanned: its column headings white on a coloured band and one row highlighted by a reviewer"
   }
 }

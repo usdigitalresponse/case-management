@@ -190,6 +190,9 @@ export default function UploadInvoices() {
   const currentRead = current?.read?.status === 'ready' ? current.read : undefined;
   const many = entries.length > 1;
   const position = (entry: (typeof entries)[number]) => usable.indexOf(entry) + 1;
+  const canEnterByHand = !staff && Boolean(self);
+  // No file could be read, so the lines are typed in instead.
+  const byHand = canEnterByHand && entries.length > 0 && usable.length === 0;
 
   // Whom it bills: as chosen, or the submitter when there's no choice.
   function billedFor(details: Details) {
@@ -277,7 +280,7 @@ export default function UploadInvoices() {
       <Steps />
       <div className="upload-card">
         <DropZone hasFiles={entries.length > 0} onFiles={addFiles} />
-        {entries.length === 0 && !staff && self && (
+        {entries.length === 0 && canEnterByHand && (
           <p className="manual-entry__offer">
             No file?{' '}
             <button type="button" className="link-button" disabled={busy} onClick={() => void enterByHand()}>
@@ -323,11 +326,21 @@ export default function UploadInvoices() {
             />
           </>
         )}
+        {byHand && (
+          <p className="field-hint">
+            {many ? 'None of the files could be read.' : 'The file could not be read.'} You can type the invoice’s lines on the next step.
+          </p>
+        )}
         {message && <Notice tone="danger">{message}</Notice>}
         {entries.length > 0 && (
           <div className="upload-card__actions">
-            <button type="button" className="btn btn--primary" disabled={busy || !currentRead || !fromChosen} onClick={() => void next()}>
-              {many ? 'Next' : 'Check the lines'}
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={busy || (!byHand && (!currentRead || !fromChosen))}
+              onClick={() => void (byHand ? enterByHand() : next())}
+            >
+              {many && !byHand ? 'Next' : 'Check the lines'}
             </button>
             <button type="button" className="link-button" disabled={busy} onClick={() => void cancel()}>
               Cancel
