@@ -23,7 +23,6 @@ import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
 import { professionalLabel } from '../components/InvoiceLinesEditor';
 import { DropZone, FileCard, InvoiceNumberField, Steps, UploadPeriodField, useUploadEntries, type ReadyRead } from '../portal/PortalUpload';
 import { checkLinesPath, type CheckQueue } from '../portal/InvoiceSubmission';
-import type { UploadedState } from '../portal/PortalInvoiceList';
 import { PORTAL_HOME_PATH, useShell } from '../portal/useShell';
 
 interface Details {
@@ -240,14 +239,10 @@ export default function UploadInvoices() {
     }
   }
 
+  // Every draft from this upload is checked, one after another.
   function finish(invoiceIds: string[]) {
-    if (staff || invoiceIds.length === 1) {
-      // Staff check every draft from this upload, one after another.
-      const [first, ...queue] = invoiceIds;
-      navigate(checkLinesPath(first!, staff), { state: { queue, total: invoiceIds.length } satisfies CheckQueue });
-    } else {
-      navigate(PORTAL_HOME_PATH, { state: { uploadedCount: invoiceIds.length } satisfies UploadedState });
-    }
+    const [first, ...queue] = invoiceIds;
+    navigate(checkLinesPath(first!, staff), { state: { queue, total: invoiceIds.length } satisfies CheckQueue });
   }
 
   // An empty draft, its lines and case number added on the next page.

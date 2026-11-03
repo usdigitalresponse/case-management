@@ -172,7 +172,7 @@ export function FileCard({
   if (entry.created) {
     status = (
       <>
-        <span className="file-card__ok">✓ Checked</span>
+        <span className="file-card__ok">✓ Imported</span>
         {many && <span>Invoice {position} of {total}</span>}
       </>
     );
