@@ -69,8 +69,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     So every invoice filed by person goes to review, and none waits on
     Intake. A submitter's true-and-correct statement names the
     case number (`attestationStatement`), and the receipt email shows it.
-    Staff check several files one after another; a submitter's land in
-    Your invoices. The typed number is `invoice.case_number_as_typed`
+    Several files are checked one after another, by staff and submitters
+    alike. The typed number is `invoice.case_number_as_typed`
     (migration `0020`), never checked against cases; close matches ignore
     case, spaces, dashes and leading zeros. Intake's own drop zone and
     manual entry still open the case-based upload
