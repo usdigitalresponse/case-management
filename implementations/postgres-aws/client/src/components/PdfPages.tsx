@@ -30,7 +30,11 @@ export default function PdfPages({
 
   useEffect(() => {
     let cancelled = false;
-    const task = getDocument({ data: new Uint8Array(data.slice(0)) });
+    const task = getDocument({
+      data: new Uint8Array(data.slice(0)),
+      // Decoders for JBIG2 and JPEG 2000 scans, served by vite.config.ts.
+      wasmUrl: new URL(`${import.meta.env.BASE_URL}pdfjs-wasm/`, window.location.href).href,
+    });
     task.promise.then(
       (loaded) => {
         if (!cancelled) {

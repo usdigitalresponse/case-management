@@ -828,7 +828,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     LEDES/CSV, rows for XLSX (both capped), or `{kind: 'pdf'}`, in which case
     the client draws the file onto canvases with PDF.js
     (`client/src/components/OriginalDocument.tsx`, `PdfPages.tsx`, loaded
-    only on that page). The file is never opened as a page in the app's
+    only on that page), with the same JBIG2 and JPEG 2000 decoders as the
+    server (served from `/pdfjs-wasm/` by `client/vite.config.ts`), or
+    scanned pages draw blank. The file is never opened as a page in the app's
     origin. Each item's "page N, row M" links to its page.
     `.../confirm` requires every line matched (a file designated to one
     professional fills lines with no one named as theirs); `.../discard`
