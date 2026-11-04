@@ -8,6 +8,7 @@ import type { LineType } from '../../billing/invoiceLifecycle';
 import {
   cents,
   checkLineCount,
+  lineTotalCents,
   type SourceRegion,
   optionalText,
   UnreadableInvoiceFileError,
@@ -84,8 +85,9 @@ const HEADINGS: Array<[Column, RegExp]> = [
   ['timekeeper', /^(timekeeper|attorney|staff|professional|name|biller|billed by|ee|tk|initials|timekeeper initials)$/i],
   // A section title can head the description column ("Time Entries |
   // Billed By | Price | Qty | Sub").
-  ['description', /^(description|services?|narrative|category|details?|work performed|time entries|time|expenses|disbursements)$/i],
-  ['hours', /^(hours|hrs|qty|quantity|units)$/i],
+  ['description', /^(description|services?|services? (provided|rendered)(\s*\/\s*description)?|narrative|category|details?|work performed|time entries|time|expenses|disbursements)$/i],
+  // A time sheet's "Total Time" is hours, not an amount.
+  ['hours', /^(hours|hrs|qty|quantity|units|total (time|hours|hrs))$/i],
   ['rate', /^(rate|price|unit cost|unit price|hourly rate)$/i],
   ['amount', /^(amount|total|fees?|amount claimed|line total|charges?|sub|subtotal)$/i],
   ['task', /^(task|task code|utbms task)$/i],
@@ -116,6 +118,13 @@ const UNIT = String.raw`(?:hours?|hrs?|miles?|mi)\.?`;
 const FORM_RATE_ITEM = new RegExp(
   String.raw`([A-Za-z][A-Za-z ()'/-]*?)\s*:?\s*(${FIGURE})?\s*(${UNIT})\s*[;,]?\s*\$\s*(${FIGURE})?\s*\/\s*${UNIT}\s*=\s*\$\s*(${FIGURE})?`,
   'gi',
+);
+// "2.0 hrs/March 2 Review of records", priced by one rate stated below.
+const HOURS_DAY_ITEM = /^\W*(\d+(?:\.\d+)?)\s*(?:hrs?|hours?)\.?\s*\/\s*([A-Za-z]{3,9})\.?\s+(\d{1,2})\b\s*(.*)$/i;
+// A charge stated below the items: "COPIES: 30 COPIES @ $0.10/ COPY $3.00".
+const SUMMARY_CHARGE = new RegExp(
+  String.raw`^\W*([A-Za-z][A-Za-z ]*?)\s*:?\s+(${FIGURE})\s*([A-Za-z]+)\.?\s*@\s*\$\s?(${FIGURE})\s*\/\s*[A-Za-z]+\.?\s*=?\s*\$\s?([\d,]+\.\d{2})$`,
+  'i',
 );
 // The same form's other expenses: "Hotel, two nights = $ 161.00".
 const FORM_AMOUNT_ITEM = /^(.*?)\s*=\s*\$\s*([\d,]*\.\d{2})$/;
@@ -525,6 +534,17 @@ export function parseDate(raw: string): string | undefined {
   return date.toISOString().slice(0, 10);
 }
 
+// A day without its year, in the reference date's year, or the year before
+// if that would be later.
+export function dateBefore(month: string, day: string, reference: string | undefined): string | undefined {
+  if (!reference) {
+    return undefined;
+  }
+  const year = Number(reference.slice(0, 4));
+  const date = parseDate(`${month} ${day}, ${year}`);
+  return date && date > reference ? parseDate(`${month} ${day}, ${year - 1}`) : date;
+}
+
 // The last amount in the text, preferring one with cents, so a stray mark
 // read as a digit after a total ("$1,250.00 7") isn't taken for it.
 export function parseMoney(raw: string | undefined): number | undefined {
@@ -664,8 +684,10 @@ const headingOf = (text: string) => HEADINGS.find(([, pattern]) => pattern.test(
 // One heading over two figures stacked in a cell, the rate under the hours.
 const STACKED_RATE_HEADING = /^(hrs?|hours|qty|quantity)\s*\/\s*rate$/i;
 const PER_HOUR = /^\$?\s?[\d,]+(?:\.\d+)?\s*\/\s*(?:hr|hour)\.?$/i;
-const headingsOf = (text: string): Column[] | undefined => {
-  if (STACKED_RATE_HEADING.test(text.trim())) {
+const headingsOf = (raw: string): Column[] | undefined => {
+  // Without marks recognized at its edges ("AMOUNT]").
+  const text = raw.trim().replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '');
+  if (STACKED_RATE_HEADING.test(text)) {
     return ['hours', 'rate'];
   }
   const column = headingOf(text);
@@ -712,6 +734,34 @@ function headerColumns(row: Row): Columns | undefined {
   return columns.has('amount') && columns.size >= 3 ? columns : undefined;
 }
 
+// A second "Miles | Rate | Amount" after the first amount: each row's
+// mileage, read as its own expense.
+interface MileageColumns {
+  // Cells centred past this belong to the mileage figures.
+  from: number;
+  columns: Columns;
+}
+
+const MILES_HEADING = /^(miles?|mileage)$/i;
+
+function mileageColumns(row: Row, columns: Columns): MileageColumns | undefined {
+  const amount = columns.get('amount')!;
+  const later = row.cells.filter((cell) => cell.x > amount.end - COLUMN_TOLERANCE);
+  const miles = later.find((cell) => MILES_HEADING.test(cell.text.trim().replace(/[^A-Za-z]+$/, '')));
+  if (!miles) {
+    return undefined;
+  }
+  const mileage: Columns = new Map([['hours', { x: miles.x, end: miles.x + miles.width }]]);
+  for (const part of later.filter((cell) => cell.x > miles.x).flatMap(headingCells)) {
+    if ((part.column === 'rate' || part.column === 'amount') && !mileage.has(part.column)) {
+      mileage.set(part.column, { x: part.x, end: part.end });
+    }
+  }
+  return mileage.has('amount') ? { from: (amount.end + miles.x) / 2, columns: mileage } : undefined;
+}
+
+const centre = (cell: Cell) => cell.x + cell.width / 2;
+
 // PDF.js can merge text across a column boundary ("Timekeeper A Initial
 // case…"); split at the word gap nearest each boundary.
 function splitAtColumns(cell: Cell, boundaries: number[]): Cell[] {
@@ -738,7 +788,7 @@ function splitAtColumns(cell: Cell, boundaries: number[]): Cell[] {
 // By overlap, not left edges, because right-aligned values can start left of
 // their heading. Text under no heading goes to the description (even without
 // a description heading, as a receipt's "Item") rather than a neighbouring
-// figure column, and with no quantity heading (or nothing under
+// figure or date column, and with no quantity heading (or nothing under
 // it) the first of two figures under the rate is the quantity.
 function cellsByColumn(row: Row, columns: Columns): Map<Column, Cell[]> {
   const headings = [...columns.entries()].sort((a, b) => a[1].x - b[1].x);
@@ -763,7 +813,11 @@ function cellsByColumn(row: Row, columns: Columns): Map<Column, Cell[]> {
         bestScore = score;
       }
     }
-    if (best && bestScore < 1000 && NUMERIC_COLUMNS.includes(best) && !NUMERIC_CELL.test(cell.text)) {
+    const misplaced =
+      best === 'date'
+        ? !columns.has('description') && LEADING_DATE.exec(cell.text) === null
+        : best !== undefined && NUMERIC_COLUMNS.includes(best) && !NUMERIC_CELL.test(cell.text);
+    if (bestScore < 1000 && misplaced) {
       best = 'description';
     }
     if (best) {
@@ -839,11 +893,51 @@ const isSubtotalRow = (row: Row) => !DUE.test(row.text) && row.cells.some((cell)
 // Summary figures between a subtotal and the total.
 const SUMMARY_CELL = /^((sales )?tax|amount paid|payments?( received)?|paid)\s*:?\s*(\$?\s?[\d,]+\.\d{2})?$/i;
 
+const INVOICE_NUMBER_LABEL = /\b(?:invoice|voucher|bill)\s*(?:no\.?|number|#)/gi;
+const INVOICE_NUMBER = /^[A-Z0-9][A-Z0-9/-]*/i;
+const numberIn = (text: string) => {
+  const value = INVOICE_NUMBER.exec(text.trim())?.[0];
+  return value && /\d/.test(value) ? value : undefined;
+};
+
+// The first labelled value with a digit (so not "N/A" or the next heading),
+// beside its label or under it when the label heads a column.
+function invoiceNumberIn(rows: Row[]): string | undefined {
+  for (const [index, row] of rows.entries()) {
+    for (const label of row.text.matchAll(INVOICE_NUMBER_LABEL)) {
+      const end = label.index + label[0].length;
+      const beside = numberIn(row.text.slice(end).replace(/^\s*[:#]?/, ''));
+      if (beside) {
+        return beside;
+      }
+      const below = rows[index + 1];
+      const labelCells = row.cells.filter((cell) => cell.start !== undefined && cell.start < end && cell.end! > label.index);
+      if (!below || below.page !== row.page || labelCells.length === 0) {
+        continue;
+      }
+      const left = Math.min(...labelCells.map((cell) => cell.x));
+      const right = Math.max(...labelCells.map((cell) => cell.x + cell.width));
+      // Word positions are estimated: one wide cell can hold a whole row.
+      const words = below.cells.flatMap((cell) => {
+        const perChar = cell.width / Math.max(cell.text.length, 1);
+        return [...cell.text.matchAll(/\S+/g)].map((word) => ({
+          text: word[0],
+          overlap: Math.min(right, cell.x + (word.index + word[0].length) * perChar) - Math.max(left, cell.x + word.index * perChar),
+        }));
+      });
+      const under = words.filter((word) => word.overlap > -COLUMN_TOLERANCE).sort((a, b) => b.overlap - a.overlap)[0];
+      const value = under && numberIn(under.text);
+      if (value) {
+        return value;
+      }
+    }
+  }
+  return undefined;
+}
+
 function invoiceFields(rows: Row[]): Pick<ParsedInvoice, 'invoiceNumber' | 'periodStart' | 'periodEnd' | 'statedTotal'> {
   const all = rows.map((row) => row.text);
-  const invoiceNumber = all
-    .map((text) => /\b(?:invoice|voucher|bill)\s*(?:no\.?|number|#)\s*[:#]?\s*([A-Z0-9][A-Z0-9/-]*)/i.exec(text)?.[1])
-    .find(Boolean);
+  const invoiceNumber = invoiceNumberIn(rows);
   const periodDates = all
     .filter((text) => /period/i.test(text))
     .flatMap((text) => [...text.matchAll(DATE_PATTERN)].map((match) => parseDate(match[1]!)))
@@ -1054,7 +1148,47 @@ function sortAttachments(
   return suggested;
 }
 
-const hasItems = (row: Row) => row.text.length <= MAX_ITEM_TEXT && (ITEM_SENTENCE.test(row.text) || row.text.match(FORM_RATE_ITEM) !== null);
+interface TimeSheet {
+  columns: Columns;
+  hours: Map<string, number>;
+  // Until its total row.
+  open: boolean;
+}
+
+// Dates where an attached time sheet's hours differ from the invoice's are
+// pointed out, never changed.
+function compareTimeSheets(lines: ParsedLine[], sheets: Map<number, TimeSheet>, places: Map<number, PagePlace>, warnings: ImportWarning[]): void {
+  const invoiced = new Map<string, number>();
+  for (const line of lines) {
+    if (line.lineType === 'time' && line.serviceDate && line.quantity !== undefined) {
+      invoiced.set(line.serviceDate, (invoiced.get(line.serviceDate) ?? 0) + cents(line.quantity));
+    }
+  }
+  const hours = (hundredths: number) => String(hundredths / 100);
+  for (const [page, sheet] of sheets) {
+    if (sheet.hours.size === 0 || invoiced.size === 0) {
+      continue;
+    }
+    const dates = [...new Set([...sheet.hours.keys(), ...invoiced.keys()])].sort();
+    const differing = dates.filter((date) => (sheet.hours.get(date) ?? 0) !== (invoiced.get(date) ?? 0));
+    if (differing.length === 0) {
+      continue;
+    }
+    const total = (byDate: Map<string, number>) => [...byDate.values()].reduce((sum, value) => sum + value, 0);
+    const place = places.get(page) ?? { text: `Page ${page} of the file`, location: `page ${page}` };
+    warnings.push({
+      code: 'time_sheet_mismatch',
+      location: place.location,
+      message:
+        `${place.text} is a time sheet whose hours differ from the invoice’s on ` +
+        `${differing.map((date) => `${date} (${hours(sheet.hours.get(date) ?? 0)} on the sheet, ${hours(invoiced.get(date) ?? 0)} invoiced)`).join(', ')}; ` +
+        `${hours(total(sheet.hours))} hours on the sheet, ${hours(total(invoiced))} invoiced. Check which is right.`,
+    });
+  }
+}
+
+const hasItems = (row: Row) =>
+  row.text.length <= MAX_ITEM_TEXT && (ITEM_SENTENCE.test(row.text) || row.text.match(FORM_RATE_ITEM) !== null || HOURS_DAY_ITEM.test(row.text));
 const hasItemTable = (rows: Row[]) => rows.some((row) => headerColumns(row) || hasItems(row));
 
 export async function extractFromTextLayer(bytes: Buffer, options: ExtractOptions = {}): Promise<ParsedInvoice> {
@@ -1121,6 +1255,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   // of them ends the invoice the same way. Attachments are read too, but
   // their items are only suggested (see sortAttachments).
   let columns: Columns | undefined;
+  let mileage: MileageColumns | undefined;
   let section: Section;
   // A quantity column headed in hours; otherwise an attachment's items
   // (receipt lines) are expenses.
@@ -1137,6 +1272,10 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   let formSection: Section;
   // A numbered row without figures, which the next item sentence describes.
   let listText: string | undefined;
+  // Items with hours but no amount, until the rate below them.
+  let unpriced: Array<{ row: Row; hours: number; serviceDate?: string; description: string; region?: SourceRegion }> = [];
+  let lastFullDate: string | undefined;
+  const summaryCharges: Array<{ row: Row; label: string; quantity: number; hours: boolean; unitRate: number; amount: number }> = [];
   let lastRow = rows.length - 1;
   // Each attachment item and the page it's on.
   const attachedLines = new Map<ParsedLine, number>();
@@ -1144,6 +1283,8 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   // Amounts written on attachment pages, by page.
   const attachedAmounts = new Map<number, number[]>();
   let attached = false;
+  // By page; hours in hundredths by date.
+  const timeSheets = new Map<number, TimeSheet>();
   // The file the invoice's items are in: the document's own ('') or, behind
   // a cover letter, an embedded one.
   const fileOf = (row: Row) => row.embedded?.file ?? '';
@@ -1198,14 +1339,35 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     }
     places.set(row.page, placeOf(row));
     if (attached) {
+      // A time sheet (dates and hours, no amounts) totals hours.
+      const sheetColumns: Columns = new Map();
+      for (const part of headings ? [] : row.cells.flatMap(headingCells)) {
+        if (!sheetColumns.has(part.column)) {
+          sheetColumns.set(part.column, { x: part.x, end: part.end });
+        }
+      }
+      const sheet = timeSheets.get(row.page);
+      if (sheetColumns.has('date') && sheetColumns.has('hours')) {
+        timeSheets.set(row.page, { columns: sheetColumns, hours: new Map(), open: true });
+      } else if (sheet?.open && isTotalRow(row)) {
+        sheet.open = false;
+      } else if (sheet?.open) {
+        const found = cellsByColumn(row, sheet.columns);
+        const date = parseDate(textOf(found.get('date')) ?? '');
+        const hours = readFigure('quantity', textOf(found.get('hours')) ?? '');
+        if (date && hours !== undefined) {
+          sheet.hours.set(date, (sheet.hours.get(date) ?? 0) + cents(hours));
+        }
+      }
       const written = [...row.text.matchAll(/\$\s?([\d,]+\.\d{2})\b/g)].map((match) => parseMoney(match[1]));
-      const total = isTotalRow(row) ? parseMoney(row.text) : undefined;
+      const total = isTotalRow(row) && (!timeSheets.has(row.page) || row.text.includes('$')) ? parseMoney(row.text) : undefined;
       const amounts = [...written, total].filter((amount): amount is number => amount !== undefined && amount > 0);
       attachedAmounts.set(row.page, [...(attachedAmounts.get(row.page) ?? []), ...amounts]);
     }
     if (headings) {
       // Headings repeated on a new page continue the table and its subtotal.
       columns = headings;
+      mileage = mileageColumns(row, headings);
       section = sectionOf(rows, index);
       hoursColumn = /\b(hours|hrs)\b/i.test(row.text);
       previous = undefined;
@@ -1218,6 +1380,54 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       // Very long text (a paragraph, a crafted file) holds no item and slows
       // the patterns.
       const itemText = row.text.length <= MAX_ITEM_TEXT ? row.text : '';
+      const hoursDay = attached ? null : HOURS_DAY_ITEM.exec(itemText);
+      const matched = attached ? null : SUMMARY_CHARGE.exec(itemText);
+      const charge = matched && {
+        row,
+        label: matched[1]!,
+        quantity: Number(matched[2]!.replace(/,/g, '')),
+        hours: /^h/i.test(matched[3]!),
+        unitRate: parseMoney(matched[4])!,
+        amount: parseMoney(matched[5])!,
+      };
+      if (hoursDay) {
+        const [, hours, month, day, text] = hoursDay;
+        unpriced.push({ row, hours: Number(hours), serviceDate: dateBefore(month!, day!, lastFullDate), description: text!.trim(), region: regionIn(row) });
+        continue;
+      }
+      if (unpriced.length > 0 && charge?.hours) {
+        const rate = charge.unitRate;
+        summaryCharges.push(charge);
+        for (const item of unpriced) {
+          add(item.row, {
+            location: locate(item.row),
+            region: item.region,
+            lineType: 'time',
+            serviceDate: item.serviceDate,
+            description: optionalText(item.description),
+            quantity: item.hours,
+            unitRate: rate,
+            amount: cents(item.hours * rate) / 100,
+          });
+          looseItems += 1;
+        }
+        looseItemsTotalPage = undefined;
+        unpriced = [];
+        continue;
+      }
+      // Until the rate, other text continues the item above.
+      if (unpriced.length > 0 && !isTotalRow(row)) {
+        const item = unpriced.at(-1)!;
+        item.description = `${item.description} ${row.text}`.trim();
+        item.region = joinRegions(item.region, regionIn(row));
+        continue;
+      }
+      if (charge && lines.length > 0) {
+        summaryCharges.push(charge);
+      }
+      for (const match of itemText.matchAll(DATE_PATTERN)) {
+        lastFullDate = parseDate(match[1]!) ?? lastFullDate;
+      }
       const sentence = itemSentence(itemText, looseItems > 0);
       const formItems = sentence ? [] : [...itemText.matchAll(FORM_RATE_ITEM)];
       onForm ||= formItems.length > 0;
@@ -1337,13 +1547,33 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       }
       continue;
     }
-    const cells = cellsByColumn(row, columns);
+    const cells = cellsByColumn(mileage ? { ...row, cells: row.cells.filter((cell) => centre(cell) < mileage!.from) } : row, columns);
     const location = locate(row);
-    const reading = (column: Column): FigureReading | undefined => {
-      const found = cells.get(column);
+    const reading = (column: Column, from = cells): FigureReading | undefined => {
+      const found = from.get(column);
       return found && { text: textOf(found)!, confidence: Math.min(...found.map((cell) => cell.confidence ?? 100)) };
     };
     const { quantity: hours, unitRate, amount } = settle({ quantity: reading('hours'), unitRate: reading('rate'), amount: reading('amount') }, location);
+    const addMileage = (serviceDate: string | undefined) => {
+      const mileageCells = mileage && cellsByColumn({ ...row, cells: row.cells.filter((cell) => centre(cell) >= mileage!.from) }, mileage.columns);
+      if (!mileageCells) {
+        return;
+      }
+      const at = locate(row);
+      const figures = settle({ quantity: reading('hours', mileageCells), unitRate: reading('rate', mileageCells), amount: reading('amount', mileageCells) }, at);
+      if (figures.amount !== undefined && figures.amount > 0) {
+        add(row, {
+          location: at,
+          region: regionIn(row, [...mileageCells.values()].flat()),
+          lineType: 'expense',
+          serviceDate,
+          description: 'Mileage',
+          quantity: figures.quantity,
+          unitRate: figures.unitRate,
+          amount: figures.amount,
+        });
+      }
+    };
     if (amount === undefined) {
       // A rate stacked under the item's hours ("90.00/hr").
       const stackedRate = previous?.unitRate === undefined ? [...cells].find(([, found]) => found.some((cell) => PER_HOUR.test(cell.text))) : undefined;
@@ -1396,6 +1626,8 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       continue;
     }
     if (amount === 0) {
+      const dateText = textOf(cells.get('date'));
+      addMileage(dateText ? parseDate(dateText) : undefined);
       previous = undefined;
       continue;
     }
@@ -1411,21 +1643,24 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     // Without letter ("a.") or number ("7.") list markers. An attachment
     // without a description heading ("Item") is described by its words.
     const described = textOf(cells.get('description')) ?? (attached ? row.cells.filter((cell) => !NUMERIC_CELL.test(cell.text)).map((cell) => cell.text).join(' ') : '');
-    const description = described.replace(/^([a-z]|\d{1,3})\.\s+/, '');
+    const dateText = textOf(cells.get('date'));
+    const columnDate = dateText ? parseDate(dateText) : undefined;
+    // Without a date in the date column, a date opening a description cell
+    // is the item's, and isn't repeated in it.
+    const opening = columnDate ? undefined : (cells.get('description') ?? []).map((cell) => LEADING_DATE.exec(cell.text)).find((match) => match && parseDate(match[1]!));
+    const openingDate = opening ? parseDate(opening[1]!) : undefined;
+    const at = opening ? described.indexOf(opening[0]) : -1;
+    const undated = at < 0 ? described : `${described.slice(0, at)} ${described.slice(at + opening![0].length).replace(/^[\s,:;—–-]+/, '')}`.trim();
+    const description = undated.replace(/^([a-z]|\d{1,3})\.\s+/, '');
     const taskText = optionalText(textOf(cells.get('task')));
     const expenseCode = taskText && /^E\d{3}$/i.test(taskText) ? taskText.toUpperCase() : undefined;
     // Only code-like values ("A102"); words like "Research" are categories.
     const activityText = optionalText(textOf(cells.get('activity')));
-    const dateText = textOf(cells.get('date'));
     previous = {
       location,
       region: regionIn(row),
       lineType: attached && !hoursColumn ? 'expense' : lineType(section, hours, description, expenseCode),
-      // Without a date in the date column, a date opening a description cell
-      // is the item's.
-      serviceDate:
-        (dateText ? parseDate(dateText) : undefined) ??
-        (cells.get('description') ?? []).map((cell) => parseDate(LEADING_DATE.exec(cell.text)?.[1] ?? '')).find(Boolean),
+      serviceDate: columnDate ?? openingDate,
       description: optionalText(description),
       timekeeperLabel: optionalText(textOf(cells.get('timekeeper'))),
       quantity: hours,
@@ -1450,6 +1685,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       sinceSubtotal += cents(amount);
       itemsSinceSubtotal += 1;
     }
+    addMileage(previous.serviceDate);
   }
   // Nothing on a page after the amount due, or after the total ending items
   // outside tables, is the invoice's, so an attached receipt's total isn't
@@ -1459,6 +1695,45 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   // An embedded invoice's own number and total come before its cover letter's.
   const ownFields = invoiceFields(invoiceRows.filter((row) => fileOf(row) === invoiceFile));
   const fields = { ...invoiceFields(invoiceRows), ...Object.fromEntries(Object.entries(ownFields).filter(([, value]) => value !== undefined)) };
+  // A summary charge that isn't hours or a restated total is an item listed
+  // only there, taken when it makes up the shortfall to the stated total.
+  const charges = summaryCharges.filter((charge) => charge.row.page <= lastPage);
+  const itemSums = [lines, lines.filter((line) => line.lineType === 'time'), lines.filter((line) => line.lineType !== 'time')].map(lineTotalCents);
+  const unlisted = charges.filter(
+    (charge) => !charge.hours && cents(charge.quantity * charge.unitRate) === cents(charge.amount) && !itemSums.includes(cents(charge.amount)),
+  );
+  // Catches an hours figure misread along with its amount.
+  const timeLines = lines.filter((line) => line.lineType === 'time' && line.quantity !== undefined);
+  for (const charge of charges.filter((candidate) => candidate.hours)) {
+    const atRate = timeLines.filter((line) => line.unitRate !== undefined && cents(line.unitRate) === cents(charge.unitRate));
+    const itemHours = (atRate.length > 0 ? atRate : timeLines).reduce((sum, line) => sum + cents(line.quantity!), 0) / 100;
+    if (timeLines.length > 0 && cents(itemHours) !== cents(charge.quantity)) {
+      warnings.push({
+        code: 'hours_mismatch',
+        location: placeOf(charge.row).location,
+        message: `The file states ${charge.quantity} hours at ${money(charge.unitRate)}, but the items’ hours ${atRate.length > 0 ? 'at that rate ' : ''}add up to ${itemHours}.`,
+      });
+    }
+  }
+  if (unlisted.length > 0 && fields.statedTotal !== undefined && itemSums[0]! + lineTotalCents(unlisted) === cents(fields.statedTotal)) {
+    for (const charge of unlisted) {
+      const location = `${placeOf(charge.row).location}, row ${lines.length + 1}`;
+      lines.push({
+        location,
+        region: regionIn(charge.row),
+        lineType: 'expense',
+        description: charge.label,
+        quantity: charge.quantity,
+        unitRate: charge.unitRate,
+        amount: charge.amount,
+      });
+      warnings.push({
+        code: 'summary_charge',
+        location,
+        message: 'Read from the summary below the items, as it isn’t in the item list. Check it against the file.',
+      });
+    }
+  }
   if (lines.length === 0) {
     return withoutItems(
       invoiceRows,
@@ -1469,6 +1744,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   }
   checkLineCount(lines);
   const suggestedLines = sortAttachments(lines, attachedLines, attachedAmounts, places, warnings);
+  compareTimeSheets(lines, timeSheets, places, warnings);
   if (notRead.length > 0) {
     warnings.push({
       code: 'embedded_not_read',
@@ -1487,7 +1763,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
 
 export const textLayerExtractor: InvoiceExtractor = {
   id: 'pdf-text-layer',
-  version: '4',
+  version: '5',
   inBoundary: true,
   extract: extractFromTextLayer,
 };

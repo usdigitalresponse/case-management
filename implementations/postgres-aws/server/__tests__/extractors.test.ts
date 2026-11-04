@@ -133,6 +133,40 @@ describe('amount due', () => {
     expect(parsed.warnings?.map((warning) => warning.code)).not.toContain('attachment_matches');
   });
 
+  it('does not take an attached time sheet’s total time for amounts', async () => {
+    const parsed = await extractFromTextLayer(
+      await tablesPdf([
+        { ...time, closing: 'Balance due: $300.00' },
+        { headings: ['Date', 'Time', 'Task', 'Total Time'], rows: [['01/05/2026', '9:00am-11:00am', 'Review', '2.00']], closing: 'Total 2.00', newPage: true },
+      ]),
+    );
+    expect(parsed.suggestedLines).toBeUndefined();
+    expect(parsed.warnings).toEqual([]);
+  });
+
+  it('points out where an attached time sheet’s hours differ from the invoice’s', async () => {
+    const parsed = await extractFromTextLayer(
+      await tablesPdf([
+        { ...time, rows: [...time.rows, ['01/07/2026', 'Interview', '1.00', '$150.00', '$150.00']], closing: 'Balance due: $450.00' },
+        {
+          headings: ['Date', 'Time', 'Task', 'Total Time'],
+          rows: [['01/05/2026', '9:00am-11:00am', 'Review', '2.00'], ['01/06/2026', '1:00pm-2:00pm', 'Interview', '1.00']],
+          closing: 'Total 3.00',
+          newPage: true,
+        },
+      ]),
+    );
+    expect(parsed.lines.map((line) => line.amount)).toEqual([300, 150]);
+    expect(parsed.warnings).toEqual([
+      {
+        code: 'time_sheet_mismatch',
+        location: 'page 2',
+        message:
+          'Page 2 of the file is a time sheet whose hours differ from the invoice’s on 2026-01-06 (1 on the sheet, 0 invoiced), 2026-01-07 (0 on the sheet, 1 invoiced); 3 hours on the sheet, 3 invoiced. Check which is right.',
+      },
+    ]);
+  });
+
   it('does not take a page number line for an item', async () => {
     const parsed = await extractFromTextLayer(
       await tablesPdf([{ ...time, rows: [...time.rows, ['', 'Invoice 12 | Page', '', '', '1']], closing: 'Balance due: $300.00' }]),
@@ -524,8 +558,8 @@ describe('packets and other layouts', () => {
       ]),
     );
     expect(parsed.lines.map(({ quantity, unitRate, amount, description }) => ({ quantity, unitRate, amount, description }))).toEqual([
-      { quantity: 2.4, unitRate: 90, amount: 216, description: '03/02/2026 Reviewed the files and wrote notes' },
-      { quantity: 1, unitRate: 90, amount: 90, description: '03/04/2026 Analysis' },
+      { quantity: 2.4, unitRate: 90, amount: 216, description: 'Reviewed the files and wrote notes' },
+      { quantity: 1, unitRate: 90, amount: 90, description: 'Analysis' },
     ]);
   });
 
@@ -539,7 +573,119 @@ describe('packets and other layouts', () => {
         ],
       ]),
     );
-    expect(parsed.lines.map((line) => line.serviceDate)).toEqual(['2026-02-09']);
+    expect(parsed.lines.map(({ serviceDate, description }) => ({ serviceDate, description }))).toEqual([{ serviceDate: '2026-02-09', description: 'Interview' }]);
+  });
+
+  it('reads mileage in its own columns beside an item as a separate expense, and text under no heading as the description', async () => {
+    const parsed = await extractFromTextLayer(
+      await placedPdf([
+        [
+          [[48, 'Date'], [130, 'Services Provided/Description'], [300, 'Hours'], [340, 'Rate'], [385, 'Amount'], [440, 'Miles'], [480, 'Rate'], [530, 'Amount']],
+          [[48, '01/05/2026'], [110, 'Records request'], [300, '0.50'], [340, '$60.00'], [385, '$30.00'], [530, '$0.00']],
+          [[48, '01/06/2026'], [110, 'Site visit'], [300, '2.00'], [340, '$60.00'], [385, '$120.00'], [445, '40'], [480, '0.725'], [530, '$29.00']],
+          [[48, 'Total due: $179.00']],
+        ],
+      ]),
+    );
+    expect(parsed.lines.map(({ serviceDate, lineType, description, quantity, unitRate, amount }) => ({ serviceDate, lineType, description, quantity, unitRate, amount }))).toEqual([
+      { serviceDate: '2026-01-05', lineType: 'time', description: 'Records request', quantity: 0.5, unitRate: 60, amount: 30 },
+      { serviceDate: '2026-01-06', lineType: 'time', description: 'Site visit', quantity: 2, unitRate: 60, amount: 120 },
+      { serviceDate: '2026-01-06', lineType: 'expense', description: 'Mileage', quantity: 40, unitRate: 0.725, amount: 29 },
+    ]);
+  });
+
+  it('adds a charge listed only in the summary below the items when it makes up the stated total', async () => {
+    const parsed = await extractFromTextLayer(
+      await placedPdf([
+        [
+          [[48, 'Date'], [150, 'Description'], [300, 'Hours'], [360, 'Rate'], [430, 'Amount']],
+          [[48, '01/05/2026'], [150, 'Review'], [300, '2.00'], [360, '$50.00'], [430, '$100.00']],
+          [[48, 'Total fees: $100.00']],
+          [[48, 'HOURS: 2 HOURS @ $50.00/ HOUR $100.00']],
+          [[48, 'COPIES: 30 COPIES @ $0.10/ COPY $3.00']],
+          [[48, 'TOTAL DUE: $103.00']],
+        ],
+      ]),
+    );
+    expect(parsed.lines.map(({ lineType, description, quantity, unitRate, amount }) => ({ lineType, description, quantity, unitRate, amount }))).toEqual([
+      { lineType: 'time', description: 'Review', quantity: 2, unitRate: 50, amount: 100 },
+      { lineType: 'expense', description: 'COPIES', quantity: 30, unitRate: 0.1, amount: 3 },
+    ]);
+    expect(parsed.warnings?.map((warning) => [warning.code, warning.location])).toEqual([['summary_charge', 'page 1, row 2']]);
+  });
+
+  it('points out stated hours the items don’t add up to, and reads no number from "N/A"', async () => {
+    const parsed = await extractFromTextLayer(
+      await placedPdf([
+        [
+          [[48, 'Invoice No.: N/A']],
+          [[48, 'Date'], [150, 'Description'], [300, 'Hours'], [360, 'Rate'], [430, 'Amount']],
+          [[48, '01/05/2026'], [150, 'Review'], [300, '2.00'], [360, '$50.00'], [430, '$100.00']],
+          [[48, '01/06/2026'], [150, 'Interview'], [300, '1.00'], [360, '$50.00'], [430, '$50.00']],
+          [[48, 'Total fees: $150.00']],
+          [[48, 'HOURS: 3.5 HOURS @ $50.00/ HOUR $175.00']],
+          [[48, 'TOTAL DUE: $150.00']],
+        ],
+      ]),
+    );
+    expect(parsed.invoiceNumber).toBeUndefined();
+    expect(parsed.lines.map((line) => line.amount)).toEqual([100, 50]);
+    expect(parsed.warnings).toEqual([
+      { code: 'hours_mismatch', location: 'page 1', message: 'The file states 3.5 hours at 50.00, but the items’ hours at that rate add up to 3.' },
+    ]);
+  });
+
+  it('reads an invoice number under its heading, and skips a labelled value with no digit', async () => {
+    const pdf = (labelled: string) =>
+      placedPdf([
+        [
+          [[48, labelled]],
+          [[48, 'INVOICE #'], [150, 'DATE'], [250, 'TOTAL DUE']],
+          [[48, '4410'], [150, '01/02/2026'], [250, '$100.00']],
+          [[48, 'Date'], [150, 'Description'], [300, 'Hours'], [360, 'Rate'], [430, 'Amount']],
+          [[48, '01/02/2026'], [150, 'Review'], [300, '1.00'], [360, '$100.00'], [430, '$100.00']],
+          [[48, 'Balance due: $100.00']],
+        ],
+      ]);
+    expect((await extractFromTextLayer(await pdf('Invoice No.: see below'))).invoiceNumber).toBe('4410');
+    expect((await extractFromTextLayer(await pdf('Invoice No.: A-17'))).invoiceNumber).toBe('A-17');
+  });
+
+  it('leaves out a summary charge that would not make up the stated total', async () => {
+    const parsed = await extractFromTextLayer(
+      await placedPdf([
+        [
+          [[48, 'Date'], [150, 'Description'], [300, 'Hours'], [360, 'Rate'], [430, 'Amount']],
+          [[48, '01/05/2026'], [150, 'Review'], [300, '2.00'], [360, '$50.00'], [430, '$100.00']],
+          [[48, 'Total fees: $100.00']],
+          [[48, 'COPIES: 30 COPIES @ $0.10/ COPY $3.00']],
+          [[48, 'TOTAL DUE: $100.00']],
+        ],
+      ]),
+    );
+    expect(parsed.lines.map((line) => line.amount)).toEqual([100]);
+  });
+
+  it('prices items given as hours and a day by the rate stated below them', async () => {
+    const parsed = await extractFromTextLayer(
+      await placedPdf([
+        [
+          [[48, 'INVOICE #12']],
+          [[200, 'January 9, 2026']],
+          [[48, 'Time/Date'], [200, 'Activity']],
+          [[48, '2.0 hrs/December 29'], [200, 'Review of records']],
+          [[200, 'and reports']],
+          [[48, '1.5 hrs/January 5'], [200, 'Interview']],
+          [[48, 'Total Hours: 3.5 hrs @ $100.00/hour = $350.00']],
+          [[48, 'Total'], [400, '$350.00']],
+        ],
+      ]),
+    );
+    expect(parsed.lines.map(({ serviceDate, lineType, description, quantity, unitRate, amount }) => ({ serviceDate, lineType, description, quantity, unitRate, amount }))).toEqual([
+      { serviceDate: '2025-12-29', lineType: 'time', description: 'Review of records and reports', quantity: 2, unitRate: 100, amount: 200 },
+      { serviceDate: '2026-01-05', lineType: 'time', description: 'Interview', quantity: 1.5, unitRate: 100, amount: 150 },
+    ]);
+    expect(parsed.statedTotal).toBe(350);
   });
 
   it('takes the amount due for the total, even with its space unread, over a subtotal after it', async () => {
