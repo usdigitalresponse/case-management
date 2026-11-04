@@ -4,12 +4,15 @@ on:
   pull_request:
     paths:
       - "implementations/postgres-aws/**"
+      - "scenarios/fixtures/**"
       - ".github/workflows/postgres-aws.yml"
   push:
     branches: [main]
     paths:
       - "implementations/postgres-aws/**"
+      - "scenarios/fixtures/**"
       - ".github/workflows/postgres-aws.yml"
+  workflow_dispatch:
 
 jobs:
   server:
