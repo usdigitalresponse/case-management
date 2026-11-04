@@ -232,14 +232,19 @@ button, input, select, textarea { font: inherit; }
 .check-lines__table th { padding: .6rem .7rem; background: var(--table-head); border-bottom: 1px solid var(--line); color: var(--ink-muted); font-size: .68rem; font-weight: 600; letter-spacing: .04em; text-align: left; text-transform: uppercase; white-space: nowrap; }
 .check-lines__table td { padding: .85rem .7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
 .check-lines__table .amount { text-align: right; white-space: nowrap; }
+/* One tbody per line: figures, then what was done below. */
 .check-lines__row { cursor: pointer; }
-.check-lines__row:hover { background: var(--row-open); }
-.check-lines__row td:first-child { color: var(--ink-faint); width: 1.5rem; }
-.check-lines__row td:nth-child(2) { white-space: nowrap; }
-.check-lines__row .chip { margin-top: .35rem; }
-.check-lines__row--flagged { background: var(--warning-tint); box-shadow: inset 3px 0 0 var(--warning-line); }
-.check-lines__row--flagged:hover { background: var(--warning-tint); }
-.check-lines__row--editing, .check-lines__row--focus { background: var(--row-open); box-shadow: inset 3px 0 0 var(--primary); }
+.check-lines__row:hover td { background: var(--row-open); }
+.check-lines__summary td { border-bottom: 0; padding-bottom: .3rem; }
+.check-lines__summary td:first-child { color: var(--ink-faint); width: 1.5rem; }
+.check-lines__summary td:nth-child(2) { white-space: nowrap; }
+.check-lines__summary .chip { margin-left: .4rem; }
+.check-lines__what td { padding-top: 0; }
+.check-lines__date { width: 9.5rem; margin-top: 0; padding: .3rem .4rem; }
+.check-lines__row--flagged td, .check-lines__row--flagged:hover td { background: var(--warning-tint); }
+.check-lines__row--flagged tr:not(.check-lines__edit-row) td:first-child { box-shadow: inset 3px 0 0 var(--warning-line); }
+.check-lines__row--editing td, .check-lines__row--focus td { background: var(--row-open); }
+.check-lines__row--editing td:first-child, .check-lines__row--focus td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
 .check-lines__row--removed td { color: var(--ink-faint); }
 .check-lines__row--removed s { text-decoration-thickness: 1px; }
 .check-lines__warning { color: var(--warning); }
@@ -248,7 +253,7 @@ button, input, select, textarea { font: inherit; }
 .check-lines__actions .link-button { font-weight: 600; margin-left: .9rem; }
 .check-lines__actions .link-button:first-child { margin-left: 0; }
 .check-lines__actions .chip { margin-bottom: .2rem; }
-.check-lines__edit-row td { padding: 0; background: var(--row-open); box-shadow: inset 3px 0 0 var(--primary); }
+.check-lines__table .check-lines__edit-row td { padding: 0; background: var(--row-open); box-shadow: inset 3px 0 0 var(--primary); }
 .check-lines__footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; padding: .9rem 1rem; }
 .check-lines__add { font-weight: 600; }
 .check-lines__empty { color: var(--ink-faint); text-align: center; }

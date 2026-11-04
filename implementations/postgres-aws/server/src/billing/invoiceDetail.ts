@@ -115,7 +115,6 @@ async function selectLines(db: DatabaseOrTransaction, invoiceId: string) {
       lineTypeCode: invoiceLineTypes.code,
       amount: invoiceLine.amount,
       serviceDate: invoiceLine.serviceDate,
-      serviceDateInferred: invoiceLine.serviceDateInferred,
       description: invoiceLine.description,
       quantity: invoiceLine.quantity,
       unitRate: invoiceLine.unitRate,
@@ -152,7 +151,7 @@ async function selectLines(db: DatabaseOrTransaction, invoiceId: string) {
     .leftJoin(professional, eq(invoiceLine.timekeeperProfessionalId, professional.professionalId))
     .leftJoin(trip, eq(invoiceLine.tripId, trip.tripId))
     .where(eq(invoiceLine.invoiceId, invoiceId))
-    .orderBy(asc(invoiceLine.serviceDate), asc(timeEntry.activityOn), asc(invoiceLine.invoiceLineId));
+    .orderBy(asc(invoiceLine.position), asc(invoiceLine.invoiceLineId));
 }
 
 // approved_in_part is shown, not stored: an approval below the request.

@@ -816,15 +816,17 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     The page can also set one professional on every unassigned item, or on
     all items (replacing suggestions); this is a client-side edit saved like
     any other, so confirmation still checks every line.
-  - A line with no date in a file stating a billing period gets the
-    period's end date (`src/imports/inferServiceDates.ts`), marked
-    `service_date_inferred` with a `date_from_period` warning and a "check
-    it" note on the line (cleared when the date is changed; confirmation and
-    submission repeat the checks below for whoever the line then names), unless
-    the person's rate changes inside the period, they weren't assigned to
-    the case for all of it, or who did the work isn't known yet; then it
-    stays blank with a `date_not_inferred` warning saying why. Lines are
-    never split across days.
+  - A line with no date in the file takes the date of the line before it
+    on the same draft (for a file split by case, the case's previous line),
+    with a `date_from_previous_line` warning flagging it to check until the
+    date is changed (`src/imports/undatedLines.ts`). A line with no earlier
+    date stays blank with a `date_missing` warning; the check page shows a
+    date box in its place, and confirmation and submission refuse any line
+    read from the file without a date (Send stays disabled until then).
+    Lines are never split across days. Lines keep their
+    order as `invoice_line.position`: the file's, then as entered, on every
+    page. Drafts imported before migration 0026 keep any period-end date and
+    its stored warning.
   - `GET .../invoice-imports/:id` shows the import, its warnings and time
     already recorded that matches a line, which the submitter may link
     instead. `.../file` downloads the original until it's deleted, and

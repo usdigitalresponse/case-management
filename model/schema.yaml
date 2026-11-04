@@ -1,4 +1,4 @@
-spec_version: "0.6.0"
+spec_version: "0.7.0"
 status: draft
 kind: domain_schema
 
@@ -577,10 +577,10 @@ entities:
         type: date
         required: false
         description: Service date as stated by the payee; a linked source time entry or expense date governs.
-      service_date_inferred:
-        type: boolean
-        required: false
-        description: True while the service date is one filled from the billing period on import rather than stated; cleared when the date is changed.
+      position:
+        type: integer
+        required: true
+        description: The line's place on the request, shown in this order; an imported line keeps its place in the file, then lines follow as entered.
       description:
         type: string
         required: false

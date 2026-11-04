@@ -33,7 +33,6 @@ import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { listInvoiceIntake } from '../src/billing/invoiceIntake';
 import { ValidationError } from '../src/errors';
 import { giveRate } from './rateHelpers';
-import { addKindRate } from '../src/billing/professionalRates';
 import {
   caseAssignment,
   document,
@@ -44,7 +43,6 @@ import {
   invoiceImportStatuses,
   invoiceLine,
   invoiceStatuses,
-  professional,
   timeEntry,
   userAccount,
 } from '../src/db/schema';
@@ -384,7 +382,6 @@ describe('invoice import workflow', () => {
       lineCount: 2,
       unmatchedCount: 0,
       undatedCount: 0,
-      inferredDateCount: 0,
       otherWarningCount: 0,
       failureMessage: null,
       statedTotal: '190.00',
@@ -404,43 +401,63 @@ describe('invoice import workflow', () => {
     expect((await listInvoiceImports(testDb, actor)).map((row) => row.invoiceImportId)).toEqual([pending.invoiceImportId]);
   });
 
-  it('dates undated lines from the billing period, unless a rate change or assignment gap makes that unsafe', async () => {
+  it('dates an undated line from the line before it, flagged, and leaves a first one blank until entered', async () => {
     const { actor, caseId, professionalId, store } = await setup();
-    // syntheticLedes states a 2026-01-01 to 2026-01-31 period; blank the line dates.
-    const undated = Buffer.from(syntheticLedes('Synthetic Timekeeper').replace(/\|2026011[02]\|/g, '||'));
-    const datesOf = async (invoiceId: string) =>
-      (await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)).orderBy(asc(invoiceLine.amount))).map(
-        (line) => line.serviceDate,
-      );
-    const warningCodes = async (importId: string) =>
-      ((await getInvoiceImport(testDb, actor, importId)).extractionResult as { warnings: Array<{ code: string; message: string }> })
+    const warningsOf = async (importId: string) =>
+      ((await getInvoiceImport(testDb, actor, importId)).extractionResult as { warnings: Array<{ code: string; location?: string; message: string }> })
         .warnings;
+    const shown = async (invoiceId: string) =>
+      (await loadInvoiceDetail(testDb, invoiceId))!.lines.map((line) => [line.description, line.serviceDate]);
 
-    const first = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'a.ledes', bytes: undated });
-    expect(await datesOf(first.invoiceId as string)).toEqual(['2026-01-31', '2026-01-31']);
-    expect((await warningCodes(first.invoiceImportId)).filter((w) => w.code === 'date_from_period')).toHaveLength(2);
+    // An undated second line takes the first's date, flagged.
+    const later = await uploadInvoiceFile(testDb, store, actor, {
+      caseId, fileName: 'a.ledes', bytes: Buffer.from(syntheticLedes('Synthetic Timekeeper').replace('|20260112|', '||')),
+    });
+    expect(await shown(later.invoiceId as string)).toEqual([
+      ['Synthetic research', '2026-01-10'],
+      ['Synthetic filing fee', '2026-01-10'],
+    ]);
+    expect((await warningsOf(later.invoiceImportId)).find((warning) => warning.code === 'date_from_previous_line')).toMatchObject({
+      location: 'line 4',
+      message: expect.stringContaining('the line before it (2026-01-10)'),
+    });
+    expect((await listInvoiceImports(testDb, actor))[0]).toMatchObject({ undatedCount: 0, inferredDateCount: 1, otherWarningCount: 0 });
+    await confirmInvoiceImport(testDb, store, actor, later.invoiceImportId);
 
-    // A rate change inside the period: the time line is left for the submitter.
-    const [row] = await testDb.select({ kindId: professional.professionalKindId }).from(professional).where(eq(professional.professionalId, professionalId));
-    await addKindRate(testDb, fixtures.staffUserAccountId, row!.kindId!, { hourlyRate: 140, effectiveFrom: '2026-01-15' });
-    const second = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'b.ledes', bytes: undated });
-    expect(await datesOf(second.invoiceId as string)).toEqual(['2026-01-31', null]);
-    // The first file's time was dated before the change; confirming rechecks it.
+    // An undated first line stays blank, in place rather than last.
+    const first = await uploadInvoiceFile(testDb, store, actor, {
+      caseId, fileName: 'b.ledes', bytes: Buffer.from(syntheticLedes('Synthetic Timekeeper', { number: 'SAMPLE-INV-2' }).replace('|20260110|', '||')),
+    });
+    const invoiceId = first.invoiceId as string;
+    expect(await shown(invoiceId)).toEqual([
+      ['Synthetic research', null],
+      ['Synthetic filing fee', '2026-01-12'],
+    ]);
+    expect((await warningsOf(first.invoiceImportId)).filter((warning) => warning.code === 'date_missing').map((warning) => warning.location)).toEqual([
+      'line 3',
+    ]);
     await expect(confirmInvoiceImport(testDb, store, actor, first.invoiceImportId)).rejects.toThrow(
-      expect.objectContaining({
-        fieldErrors: {
-          lines: expect.stringMatching(/"Synthetic research" is dated to the end of the billing period, but .*rate changed on 2026-01-15/),
-        },
-      }),
-    );
-    expect((await warningCodes(second.invoiceImportId)).find((w) => w.code === 'date_not_inferred')?.message).toMatch(
-      /rate changed on 2026-01-15/,
+      expect.objectContaining({ fieldErrors: { lines: '"Synthetic research" has no date in the file. Enter its date.' } }),
     );
 
-    // Assigned only partway through: nothing is dated.
-    await testDb.update(caseAssignment).set({ assignedAt: new Date('2026-01-10T12:00:00Z') }).where(eq(caseAssignment.caseId, caseId));
-    const third = await uploadInvoiceFile(testDb, store, actor, { caseId, fileName: 'c.ledes', bytes: undated });
-    expect(await datesOf(third.invoiceId as string)).toEqual([null, null]);
+    // Expenses need a date too.
+    const save = (dates: [string | undefined, string | undefined]) =>
+      updateDraftInvoice(testDb, actor, invoiceId, {
+        lines: [
+          { lineType: 'time', serviceDate: dates[0], description: 'Synthetic research', quantity: 1.5, timekeeperProfessionalId: professionalId, sourceLocation: 'line 3' },
+          { lineType: 'expense', amount: 40, serviceDate: dates[1], description: 'Synthetic filing fee', sourceLocation: 'line 4' },
+        ],
+      });
+    await save(['2026-01-20', undefined]);
+    await expect(confirmInvoiceImport(testDb, store, actor, first.invoiceImportId)).rejects.toThrow(
+      expect.objectContaining({ fieldErrors: { lines: '"Synthetic filing fee" has no date in the file. Enter its date.' } }),
+    );
+    await save(['2026-01-20', '2026-01-12']);
+    expect(await shown(invoiceId)).toEqual([
+      ['Synthetic research', '2026-01-20'],
+      ['Synthetic filing fee', '2026-01-12'],
+    ]);
+    await confirmInvoiceImport(testDb, store, actor, first.invoiceImportId);
   });
 
   // PDFs are read in the background: the upload returns while received.

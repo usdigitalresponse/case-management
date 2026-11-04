@@ -83,6 +83,15 @@ amount, and sign-off sees it flagged (`decide_invoice_lines`,
 `record_approved_request_amounts`). A travel time and distance billing rule
 compares travel hours with the trip's distance at an average speed.
 
+Model files are now 0.7.0, a breaking revision for imported dates.
+`invoice_line.service_date_inferred` is removed and a required
+`invoice_line.position` keeps each request's lines in order: an imported
+line's place in the file, then lines as entered. A line read without a date
+takes the date of the line before it, flagged to check, or stays blank when
+there is none; confirmation and submission require a date on every line read
+from the file (`validate_invoice_import`). Submission snapshot layout `0.7.0`
+records `position` on each line.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

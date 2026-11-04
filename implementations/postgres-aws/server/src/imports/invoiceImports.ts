@@ -51,13 +51,16 @@ import { releaseDocumentIfUnneeded } from './documentRetention';
 import { priceLines } from '../billing/priceLines';
 import { enforceBillingRules } from '../billing/billingRules';
 import { matchTimekeeperName } from './matchTimekeeper';
-import { checkInferredDates, inferServiceDates } from './inferServiceDates';
+import { DATE_FROM_PREVIOUS_WARNING, DATE_MISSING_WARNING, fillMissingDates, requireImportedDates } from './undatedLines';
 import { fallbackTimekeeper } from '../billing/timekeeperFallback';
 import { readCaseNumber } from '../billing/caseNumbers';
 
 export const IMPORT_EXPIRY_MS = 3 * 24 * 60 * 60 * 1000;
 
 const UNRESOLVED_STATUS_CODES = UNRESOLVED_IMPORT_STATUS_CODES;
+// With the codes imports wrote before migration 0026.
+const DATE_CHECK_CODES = [DATE_FROM_PREVIOUS_WARNING, 'date_from_period'];
+const DATE_CODES = [...DATE_CHECK_CODES, DATE_MISSING_WARNING, 'date_not_inferred'];
 
 export class InvoiceImportNotFoundError extends NotFoundError {
   constructor() {
@@ -629,24 +632,9 @@ export async function extractIntoDraft(
     );
     content.lines = content.lines.map((line) => ({ ...line, timekeeperProfessionalId: line.timekeeperProfessionalId ?? fallback ?? undefined }));
   }
-  // Undated lines take the billing period's end where that's safe.
-  const inferred = await inferServiceDates(tx, {
-    caseId,
-    periodStart,
-    periodEnd,
-    lines: content.lines.map((line, index) => ({
-      location: parsed.lines[index]!.location,
-      lineType: line.lineType ?? 'other',
-      serviceDate: line.serviceDate,
-      timekeeperProfessionalId: line.timekeeperProfessionalId,
-    })),
-  });
-  content.lines = content.lines.map((line, index) => ({
-    ...line,
-    serviceDate: inferred.dates[index],
-    serviceDateInferred: inferred.inferred[index],
-  }));
-  warnings.push(...inferred.warnings);
+  const filled = fillMissingDates(parsed.lines);
+  content.lines = content.lines.map((line, index) => ({ ...line, serviceDate: filled.dates[index] }));
+  warnings.push(...filled.warnings);
   const invoiceId = await createDraftInTx(tx, actor, caseId, billedProfessionalId, content, {
     fillTimekeepers: false,
     proposedCase: args.proposedCase,
@@ -784,7 +772,7 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
     if (lines.length === 0) {
       throw new ValidationError({ lines: 'Add at least one invoice item before confirming.' });
     }
-    await checkInferredDates(tx, row.invoiceId);
+    await requireImportedDates(tx, row.invoiceId);
     // From here the configured rates price each time line, not the file. With
     // someone still to be matched, that waits until it's released to review.
     const matched = draft.professionalId !== null && !(await hasUnmatchedTimekeepers(tx, row.invoiceId));
@@ -936,7 +924,7 @@ export async function listInvoiceImports(db: Database, actor: PortalActor) {
       unmatchedCount: sql<number>`(select count(*) from invoice_line l
         where l.invoice_id = ${invoiceImport.invoiceId} and l.timekeeper_professional_id is null)`.mapWith(Number),
       undatedCount: sql<number>`(select count(*) from invoice_line l
-        where l.invoice_id = ${invoiceImport.invoiceId} and l.service_date is null)`.mapWith(Number),
+        where l.invoice_id = ${invoiceImport.invoiceId} and l.service_date is null and l.source_location is not null)`.mapWith(Number),
       // What the file's lines said, beside the total billed at rates.
       statedTotal: sql<string | null>`(select sum(l.stated_amount)::numeric(12,2)::text from invoice_line l
         where l.invoice_id = ${invoiceImport.invoiceId})`,
@@ -964,9 +952,8 @@ export async function listInvoiceImports(db: Database, actor: PortalActor) {
     return {
       ...row,
       warningCount: warnings.length,
-      // Dates filled from the billing period, for the submitter to check.
-      inferredDateCount: warnings.filter((warning) => warning.code === 'date_from_period').length,
-      otherWarningCount: warnings.filter((warning) => !['date_from_period', 'date_not_inferred'].includes(warning.code)).length,
+      inferredDateCount: warnings.filter((warning) => DATE_CHECK_CODES.includes(warning.code)).length,
+      otherWarningCount: warnings.filter((warning) => !DATE_CODES.includes(warning.code)).length,
       // Why it couldn't be read, for a failed import.
       failureMessage: row.statusCode === 'failed' ? (warnings[0]?.message ?? null) : null,
       expiresAt: expiryOf(row),

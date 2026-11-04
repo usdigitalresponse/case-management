@@ -13,7 +13,7 @@ import { createInvoice } from '../portal/createInvoice';
 import type { PortalActor } from '../portal/portalActor';
 
 interface Item {
-  // Left blank to show a date taken from the billing period, with a warning.
+  // Blank to show a date taken from the line before.
   date?: string;
   timekeeper: string;
   description: string;
@@ -122,7 +122,6 @@ async function draftLines(invoiceId: string) {
       expenseTypeCode: expenseTypes.code,
       amount: invoiceLine.amount,
       serviceDate: invoiceLine.serviceDate,
-      serviceDateInferred: invoiceLine.serviceDateInferred,
       description: invoiceLine.description,
       quantity: invoiceLine.quantity,
       unitRate: invoiceLine.unitRate,
@@ -135,7 +134,7 @@ async function draftLines(invoiceId: string) {
     .innerJoin(invoiceLineTypes, eq(invoiceLine.lineTypeId, invoiceLineTypes.id))
     .leftJoin(expenseTypes, eq(invoiceLine.expenseTypeId, expenseTypes.id))
     .where(eq(invoiceLine.invoiceId, invoiceId))
-    .orderBy(asc(invoiceLine.sourceLocation));
+    .orderBy(asc(invoiceLine.position));
   return rows.map(({ expenseTypeCode, ...row }) => {
     const defined = Object.fromEntries(Object.entries(row).filter(([, value]) => value !== null));
     return { ...defined, lineType: expenseTypeCode === 'mileage' ? 'mileage' : row.lineType };
