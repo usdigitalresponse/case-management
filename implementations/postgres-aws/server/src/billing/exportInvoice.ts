@@ -16,19 +16,43 @@ export const INVOICE_EXPORT_MEDIA_TYPES: Record<InvoiceExportFormat, string> = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
+const LINE_COLUMNS = ['Date', 'Type', 'Description', 'Timekeeper', 'Codes', 'Hours / qty', 'Rate', 'Requested', 'Decision', 'Approved', 'Reason', 'Reviewed by'];
+const TRAVEL_COLUMNS = ['Date', 'From', 'To', 'Round trip', 'Travel hours', 'Miles claimed', 'Driving route (mi)', 'Travel expenses', 'Requested'];
+
+// What the person exporting may leave out, before sending the file on, by
+// the name it's shown under; the totals and invoice ID always stay. Keys
+// are `group:name` (exportFieldKey), as the client's export dialog sends.
+export const OMITTABLE_EXPORT_FIELDS = {
+  summary: ['Case number', 'Court numbers', 'Client', 'Professional', 'Submitted by', 'Signed off'],
+  lines: LINE_COLUMNS,
+  travel: TRAVEL_COLUMNS,
+} as const;
+
+export type ExportFieldGroup = keyof typeof OMITTABLE_EXPORT_FIELDS;
+
+export function exportFieldKey(group: ExportFieldGroup, name: string): string {
+  return `${group}:${name}`;
+}
+
 export interface InvoiceExportOptions {
   // Reviewer names are shown to staff only.
   includeReviewer: boolean;
   exportedAt: Date;
+  // exportFieldKey values to leave out.
+  omit?: ReadonlySet<string>;
 }
+
+type Cell = string | number | null;
 
 export interface InvoiceExportContent {
   summary: Array<[string, string]>;
   columns: string[];
-  rows: Array<Array<string | number | null>>;
+  rows: Cell[][];
   amountColumns: Set<number>;
   // Mileage items' trips, in place of a printed map; empty without mileage.
-  travelLog: { columns: string[]; rows: Array<Array<string | number | null>>; amountColumns: Set<number> };
+  travelLog: { columns: string[]; rows: Cell[][]; amountColumns: Set<number> };
+  // Says what was left out, so no one takes the file for the full record.
+  redactionNote: string | null;
 }
 
 function toNumber(value: string | null): number | null {
@@ -45,6 +69,16 @@ function lineCodes(line: InvoiceDetailLine): string {
 
 // invoice_line_types codes as shown to people; 'service' is "Other".
 const LINE_TYPE_LABELS: Record<string, string> = { time: 'Time', expense: 'Expense' };
+
+function keepColumns(group: ExportFieldGroup, columns: string[], rows: Cell[][], omit: ReadonlySet<string>, omitted: string[]) {
+  const kept = columns.flatMap((name, index) => (omit.has(exportFieldKey(group, name)) ? [] : [index]));
+  omitted.push(...columns.filter((name) => omit.has(exportFieldKey(group, name))).map((name) => (group === 'travel' ? `${name} (travel log)` : name)));
+  return { columns: kept.map((index) => columns[index]!), rows: rows.map((row) => kept.map((index) => row[index]!)) };
+}
+
+function columnSet(columns: string[], names: string[]): Set<number> {
+  return new Set(names.map((name) => columns.indexOf(name)).filter((index) => index >= 0));
+}
 
 export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExportOptions): InvoiceExportContent {
   const { invoice, lines } = detail;
@@ -74,13 +108,10 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
 
   // Each line's latest decision only; earlier rounds stay in the tool
   // (model/rules.yaml authorize_payment_request_export).
-  const columns = ['Date', 'Type', 'Description', 'Timekeeper', 'Codes', 'Hours / qty', 'Rate', 'Requested', 'Decision', 'Approved', 'Reason'];
-  if (options.includeReviewer) {
-    columns.push('Reviewed by');
-  }
+  const allColumns = options.includeReviewer ? LINE_COLUMNS : LINE_COLUMNS.filter((name) => name !== 'Reviewed by');
 
-  const rows = lines.map((line) => {
-    const row: Array<string | number | null> = [
+  const allRows = lines.map((line) => {
+    const row: Cell[] = [
       line.serviceDate ?? line.sourceActivityOn ?? '',
       line.expenseTypeCode === 'mileage'
         ? 'Mileage'
@@ -106,10 +137,7 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
     return row;
   });
 
-  const amountColumns = new Set(['Rate', 'Requested', 'Approved'].map((name) => columns.indexOf(name)));
-
   // One row per trip: its travel time, miles and other costs together.
-  const travelColumns = ['Date', 'From', 'To', 'Round trip', 'Travel hours', 'Miles claimed', 'Driving route (mi)', 'Travel expenses', 'Requested'];
   const trips = new Map<string, typeof lines>();
   for (const line of lines) {
     if (line.tripId) trips.set(line.tripId, [...(trips.get(line.tripId) ?? []), line]);
@@ -133,8 +161,18 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
       sum(tripLines),
     ];
   });
-  const travelLog = { columns: travelColumns, rows: travelRows, amountColumns: new Set([7, 8]) };
-  return { summary, columns, rows, amountColumns, travelLog };
+
+  const omit = options.omit ?? new Set<string>();
+  const omitted = [...new Set(summary.map(([label]) => label).filter((label) => omit.has(exportFieldKey('summary', label))))];
+  const table = keepColumns('lines', allColumns, allRows, omit, omitted);
+  const travel = keepColumns('travel', TRAVEL_COLUMNS, travelRows, omit, travelRows.length > 0 ? omitted : []);
+  return {
+    summary: summary.filter(([label]) => !omit.has(exportFieldKey('summary', label))),
+    ...table,
+    amountColumns: columnSet(table.columns, ['Rate', 'Requested', 'Approved']),
+    travelLog: { ...travel, amountColumns: columnSet(travel.columns, ['Travel expenses', 'Requested']) },
+    redactionNote: omitted.length > 0 ? `Redacted copy. Left out: ${omitted.join(', ')}.` : null,
+  };
 }
 
 // Money to the cent, except a rate per mile, which may have a third place.
@@ -142,8 +180,13 @@ function formatAmount(value: number): string {
   return Math.abs(Math.round(value * 100) - value * 100) < 1e-6 ? value.toFixed(2) : value.toFixed(3);
 }
 
-export function invoiceExportFileName(detail: InvoiceDetail, format: InvoiceExportFormat): string {
-  return `invoice-${detail.invoice.invoiceId.slice(0, 8)}.${format}`;
+export function invoiceExportFileName(detail: InvoiceDetail, format: InvoiceExportFormat, redacted = false): string {
+  return `invoice-${detail.invoice.invoiceId.slice(0, 8)}${redacted ? '-redacted' : ''}.${format}`;
+}
+
+// Leaving out every column of a table leaves out the table.
+function hasTable(table: { columns: string[]; rows: Cell[][] }): boolean {
+  return table.columns.length > 0 && table.rows.length > 0;
 }
 
 export async function renderInvoiceXlsx(detail: InvoiceDetail, options: InvoiceExportOptions): Promise<Buffer> {
@@ -160,14 +203,15 @@ export async function renderInvoiceXlsx(detail: InvoiceDetail, options: InvoiceE
   ];
   const { travelLog } = content;
   const sheet: Row[] = [
+    ...(content.redactionNote ? [[{ value: content.redactionNote, fontWeight: 'bold' as const }], []] : []),
     ...content.summary.map(([label, value]): Row => [{ value: label, fontWeight: 'bold' }, { value }]),
     [],
-    ...table(content.columns, content.rows, content.amountColumns),
-    ...(travelLog.rows.length > 0
+    ...(hasTable(content) ? table(content.columns, content.rows, content.amountColumns) : []),
+    ...(hasTable(travelLog)
       ? [[], [{ value: 'Travel log', fontWeight: 'bold' as const }], ...table(travelLog.columns, travelLog.rows, travelLog.amountColumns)]
       : []),
   ];
-  return writeXlsxFile(sheet, { sheet: 'Invoice', columns: content.columns.map(() => ({ width: 18 })) }).toBuffer();
+  return writeXlsxFile(sheet, { sheet: 'Invoice', columns: (content.columns.length > 0 ? content.columns : ['']).map(() => ({ width: 18 })) }).toBuffer();
 }
 
 export function renderInvoicePdf(detail: InvoiceDetail, options: InvoiceExportOptions): Promise<Buffer> {
@@ -181,6 +225,9 @@ export function renderInvoicePdf(detail: InvoiceDetail, options: InvoiceExportOp
   });
 
   doc.font('Helvetica-Bold').fontSize(16).text('Payment request');
+  if (content.redactionNote) {
+    doc.moveDown(0.3).fontSize(10).text(content.redactionNote);
+  }
   doc.moveDown(0.5).fontSize(10);
   for (const [label, value] of content.summary) {
     doc.font('Helvetica-Bold').text(`${label}: `, { continued: true }).font('Helvetica').text(value || '—');
@@ -189,27 +236,36 @@ export function renderInvoicePdf(detail: InvoiceDetail, options: InvoiceExportOp
 
   const formatCell = (cell: string | number | null, index: number, amountColumns = content.amountColumns): string =>
     cell === null ? '' : typeof cell === 'number' ? (amountColumns.has(index) ? formatAmount(cell) : String(cell)) : cell;
-  // Widths in points across the landscape page; description takes the rest.
-  const widths = [56, 42, '*', 78, 72, 42, 48, 52, 52, 52, 84, 70];
+  // Widths in points across the landscape page; unlisted columns share the rest.
+  const widths: Record<string, number> = {
+    Date: 56, Type: 42, Timekeeper: 78, Codes: 72, 'Hours / qty': 42, Rate: 48, Requested: 52,
+    Decision: 52, Approved: 52, Reason: 84, 'Reviewed by': 70,
+  };
   const hoursColumn = content.columns.indexOf('Hours / qty');
-  doc.fontSize(8).table({
-    columnStyles: (column) => ({
-      width: widths[column] ?? '*',
-      align: content.amountColumns.has(column) || column === hoursColumn ? { x: 'right' } : { x: 'left' },
-    }),
-    data: [
-      content.columns.map((header) => ({ text: header, font: { src: 'Helvetica-Bold' } })),
-      ...content.rows.map((row) => row.map((cell, index) => formatCell(cell, index))),
-    ],
-  });
+  if (hasTable(content)) {
+    doc.fontSize(8).table({
+      columnStyles: (column) => ({
+        width: widths[content.columns[column]!] ?? '*',
+        align: content.amountColumns.has(column) || column === hoursColumn ? { x: 'right' } : { x: 'left' },
+      }),
+      data: [
+        content.columns.map((header) => ({ text: header, font: { src: 'Helvetica-Bold' } })),
+        ...content.rows.map((row) => row.map((cell, index) => formatCell(cell, index))),
+      ],
+    });
+  }
 
   const { travelLog } = content;
-  if (travelLog.rows.length > 0) {
+  if (hasTable(travelLog)) {
+    const travelWidths: Record<string, number> = {
+      Date: 56, 'Round trip': 48, 'Travel hours': 60, 'Miles claimed': 72, 'Driving route (mi)': 48, 'Travel expenses': 56,
+    };
+    const leftAligned = new Set(['Date', 'From', 'To', 'Round trip']);
     doc.moveDown().font('Helvetica-Bold').fontSize(12).text('Travel log', doc.page.margins.left);
     doc.moveDown(0.3).fontSize(8).table({
       columnStyles: (column) => ({
-        width: [56, '*', '*', 48, 60, 72, 48, 56][column] ?? '*',
-        align: column >= 4 ? { x: 'right' } : { x: 'left' },
+        width: travelWidths[travelLog.columns[column]!] ?? '*',
+        align: leftAligned.has(travelLog.columns[column]!) ? { x: 'left' } : { x: 'right' },
       }),
       data: [
         travelLog.columns.map((header) => ({ text: header, font: { src: 'Helvetica-Bold' } })),

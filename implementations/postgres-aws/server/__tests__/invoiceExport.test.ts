@@ -8,12 +8,14 @@ import { ensureProfessionalForUserAccount } from '../src/professionals/ensurePro
 import { createInvoice } from '../src/portal/createInvoice';
 import { canPortalReaderReadInvoice, isExportableStatus, portalReadableInvoiceCondition } from '../src/billing/invoiceAccess';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
-import { invoiceExportContent, renderInvoicePdf, renderInvoiceXlsx } from '../src/billing/exportInvoice';
+import { exportFieldKey, invoiceExportContent, OMITTABLE_EXPORT_FIELDS, renderInvoicePdf, renderInvoiceXlsx, type ExportFieldGroup } from '../src/billing/exportInvoice';
 import { addMileageRate } from '../src/billing/mileageRates';
 import { billingRecordCsv, loadBillingRecord } from '../src/billing/billingRecord';
 import { caseAssignment, invoice, invoiceLine, invoiceStatuses, userAccount } from '../src/db/schema';
 import { getReferenceId } from '../src/db/referenceLookups';
 import { DRAFT_INVOICE_STATUS_CODE } from '../src/billing/invoiceStatusCodes';
+import type { Request } from 'express';
+import { parseExportOmit } from '../src/routes/sendInvoiceExport';
 
 let fixtures: BaselineFixtureIds;
 
@@ -145,6 +147,44 @@ describe('invoice export', () => {
     // The case number leads; each line carries its latest decision only.
     expect(external.summary.map(([label]) => label)).toEqual(expect.arrayContaining(['Case number', 'Court numbers', 'Client']));
     expect(external.columns).not.toContain('Earlier decisions');
+    expect(external.redactionNote).toBeNull();
+  });
+
+  it('leaves out the chosen fields, keeps the totals and says what was left out', async () => {
+    const detail = await exportFixture();
+    const omit = new Set(['summary:Client', 'lines:Description', 'lines:Rate', 'lines:Reviewed by', 'travel:From']);
+    const content = invoiceExportContent(detail, { includeReviewer: false, exportedAt: new Date('2026-03-01T12:00:00Z'), omit });
+
+    expect(content.summary.map(([label]) => label)).not.toContain('Client');
+    expect(content.summary).toContainEqual(['Requested total', '175.00']);
+    expect(content.columns).toEqual(['Date', 'Type', 'Timekeeper', 'Codes', 'Hours / qty', 'Requested', 'Decision', 'Approved', 'Reason']);
+    expect(content.rows).toContainEqual(['2026-02-03', 'Other', '', 'SAMPLE-TASK', 1.5, 150, 'Not reviewed', null, '']);
+    expect(content.amountColumns).toEqual(new Set([5, 7]));
+    // Only what this export would have shown: no reviewers or trips here.
+    expect(content.redactionNote).toBe('Redacted copy. Left out: Client, Description, Rate.');
+    expect(JSON.stringify(content)).not.toContain('Synthetic research');
+
+    const pdf = await renderInvoicePdf(detail, { includeReviewer: false, exportedAt: new Date(), omit });
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  });
+
+  it('can leave out every field it offers, keeping the totals', async () => {
+    const detail = await exportFixture();
+    const every = Object.entries(OMITTABLE_EXPORT_FIELDS).flatMap(([group, names]) =>
+      names.map((name) => exportFieldKey(group as ExportFieldGroup, name)),
+    );
+    expect(every.length).toBeGreaterThan(20);
+    const omit = parseExportOmit({ query: { omit: every.join(',') } } as unknown as Request);
+    expect(omit.size).toBe(every.length);
+    expect(() => parseExportOmit({ query: { omit: ['lines:Date', 'lines:Rate'] } } as unknown as Request)).toThrow();
+    expect(() => parseExportOmit({ query: { omit: 'lines:Unknown' } } as unknown as Request)).toThrow();
+
+    const options = { includeReviewer: true, exportedAt: new Date(), omit };
+    const content = invoiceExportContent(detail, options);
+    expect(content.columns).toEqual([]);
+    expect(content.summary).toContainEqual(['Requested total', '175.00']);
+    expect((await renderInvoicePdf(detail, options)).subarray(0, 5).toString()).toBe('%PDF-');
+    expect((await renderInvoiceXlsx(detail, options)).length).toBeGreaterThan(0);
   });
 
   it('lists every submitted invoice once in the billing record', async () => {
