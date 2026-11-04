@@ -677,13 +677,32 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     after the amount or balance due is read, so attachments behind the
     invoice aren't (nor is a later page's total taken for the invoice's).
     Text under no heading goes to the description, not a
-    neighbouring figure column; with no quantity heading, the first of two
+    neighbouring figure column (nor, in a table without a description
+    heading, the date column); with no quantity heading, the first of two
     figures under the rate is the quantity; without a date in the date
-    column, a date opening the description is the item's; a line described
-    as mileage is an expense. Outside tables, items written as sentences, as in a letter
+    column, a date opening the description is the item's and is left out
+    of it; a line described as mileage is an expense. A second "Miles |
+    Rate | Amount" after the first amount is mileage beside each item,
+    imported as its own expense line. A time sheet's "Total Time" is hours,
+    and an attached time sheet's total isn't taken for an amount; its
+    hours by date are compared with the invoice's time lines, and dates
+    that differ are listed (warning `time_sheet_mismatch`) without
+    changing any line. The invoice number is the first labelled value
+    ("Invoice No.", "Invoice #", "Voucher No.") with a digit in it, beside
+    its label or, when the label heads a column, under it; so "N/A", a
+    misread scribble or the next heading ("Invoice # | Date") isn't one. Outside tables, items written as sentences, as in a letter
     ("Site visit, March 9: 2 hrs x $100.00 = $200.00"), are read too, with
     a numbered line ending in an amount once such sentences have appeared;
     a total after the last of them ends the invoice like an amount due.
+    Items given as hours and a day ("2.0 hrs/March 2 Review of records")
+    are priced by the one rate stated below them ("3.5 hrs @
+    $100.00/hour = $350.00"), dated in the year of the latest full date
+    above them (the year before when that would be later). A charge stated
+    only in the summary below the items ("30 copies @ $0.10/copy $3.00")
+    is imported, with warning `summary_charge`, when it isn't hours or a
+    restated total and makes up exactly what the items fall short of the
+    stated total. Stated hours ("3.5 hours @ $100.00") are checked against
+    the items' hours at that rate, or all of them (`hours_mismatch`).
     Amounts with cents are preferred over stray digits, rates can have
     three places ($0.725), points as thousands separators ("2.500.00") are
     read, and a page-number line ("Page 2 of 5") is never an item.
@@ -991,7 +1010,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     restart fails the ones in progress and forgets pending case-split reads
     (their uploader starts again); a scan on the 1 GB demo instance runs
     partly in swap, so it is slow; invoices with neither an item table
-    nor items written as "hours × rate = amount" sentences aren't read;
+    nor items written as "hours × rate = amount" sentences or hours priced
+    by one stated rate aren't read;
     handwritten figures are flagged, not read; no cloud AI method (one needs a cost review
     first); expense lines create no
     `expense` records (no table); credits and adjustment lines are refused
