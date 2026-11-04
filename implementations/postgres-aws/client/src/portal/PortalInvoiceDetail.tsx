@@ -16,7 +16,7 @@ import { UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 import { useAuth } from '../AuthContext';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
-import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
+import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { invoiceReference, isSubmittedStatus } from '../components/InvoiceSummary';
 import { StatusPill } from '../components/StatusPill';
 import { RecordedDecision } from '../components/LineReview';
@@ -254,7 +254,7 @@ export default function PortalInvoiceDetail() {
                   {recalling ? 'Recalling…' : 'Recall to draft'}
                 </button>
               )}
-              {submitted && <InvoiceExportLinks scope="portal" invoiceId={invoice.invoiceId} />}
+              {submitted && <InvoiceExportButton scope="portal" invoiceId={invoice.invoiceId} hasTrips={lines.some((line) => line.tripId)} />}
               {deletable && !editing && <DeleteInvoiceButton invoiceId={invoice.invoiceId} onDeleted={toInvoices} />}
             </>
           )

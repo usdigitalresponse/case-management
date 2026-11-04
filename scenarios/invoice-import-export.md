@@ -85,6 +85,12 @@ implementation has passed these scenarios yet.
     identified submission attempt, its status and decisions, and the export
     time. After a revision, exporting the earlier attempt still shows its
     original values.
+13. **Redacted export:** A submitter exports a request with two lines and a
+    trip. Every field is ticked by default; they untick line descriptions,
+    the client and the trip's origin. Both formats leave those out, keep the
+    requested and approved totals, and are labelled as a redacted copy naming
+    what was left out. Their next export starts from the same choices; ticking
+    everything back gives an unlabelled full export.
 
 An implementation must document unenforced boundaries, unavailable formats and
 non-atomic time-entry or expense creation as gaps before claiming parity.

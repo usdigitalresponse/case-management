@@ -1241,6 +1241,15 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     Anything else is a 404. Reviewer names are left out.
   - Both formats are built from one row set, so they always agree.
     `pdfkit` renders the PDF and `write-excel-file` the spreadsheet.
+  - Redaction: one Export Invoice button (`client/src/components/InvoiceExportButton.tsx`)
+    opens a dialog with a format dropdown and, under "Redact some invoice
+    details", a checkbox per summary field, line column and travel-log column
+    (all ticked by default). The server leaves out each
+    `group:name` field in `?omit=` (comma-separated; `OMITTABLE_EXPORT_FIELDS`), keeps the totals,
+    prints "Redacted copy. Left out: …" and adds `-redacted` to the file
+    name. Choices are kept per user account in the browser's local storage
+    (`client/src/exportChoices.ts`), so they don't follow a person to
+    another browser or device.
   - Exports show the current submission attempt (its chain ID is in the
     summary). Submitted invoices can't be edited, only recalled to an
     unexportable draft, so current values equal that attempt's snapshot.

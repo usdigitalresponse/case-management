@@ -55,7 +55,7 @@ import { listReceiptChannels } from '../billing/invoiceReceipt';
 import { InvoiceNotFoundError } from '../billing/reviewInvoiceLine';
 import { asyncHandler } from './asyncHandler';
 import { sendFileDownload, sendFilePreview } from './sendUploadedFile';
-import { parseExportFormat, sendInvoiceExport } from './sendInvoiceExport';
+import { parseExportFormat, parseExportOmit, sendInvoiceExport } from './sendInvoiceExport';
 
 const router = Router();
 router.use(requireAuth);
@@ -298,7 +298,7 @@ router.get(
     if (!isExportableStatus(detail.invoice.statusCode)) {
       throw new InvoiceNotFoundError();
     }
-    await sendInvoiceExport(res, detail, format, false);
+    await sendInvoiceExport(res, detail, format, false, parseExportOmit(req));
   }),
 );
 

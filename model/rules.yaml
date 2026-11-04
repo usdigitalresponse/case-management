@@ -528,7 +528,7 @@ rules:
       - Render the values of an identified submission attempt, its status and line decisions as of export time, labelled with that time; never mix values from different attempts.
       - Show the case number and court or other case numbers, and each line's latest recorded decision, reason and note. Earlier recorded rounds stay in the request's history but are not exported. Working decisions and internal_only comments are never exported.
       - Offer the same content in document and spreadsheet formats. Imported originals are not retained, so exports never include them.
-      - Exports of signed-off requests are the documentation sent on for payment. The system does not redact them; staff check them for confidential information before sending.
+      - Exports of signed-off requests are the documentation sent on for payment. Before downloading, anyone exporting may leave out any summary field other than the request identifier and totals, and any line or trip column; nothing is left out by default. Each person's last choice is offered again on their next export. Leaving fields out never changes the totals, and a file with fields left out is labelled as a redacted copy naming them. Redaction is for the file's recipients, not an access control, and does not search free text; staff still check exports for confidential information before sending.
 
   report_billing_results:
     description: Keep one billing record per submitted request, so spending can be reported outside the system without retyping.

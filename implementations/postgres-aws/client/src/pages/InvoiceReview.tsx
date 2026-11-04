@@ -17,7 +17,7 @@ import {
 } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
-import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
+import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { RuleFindings } from '../components/BillingRules';
 import { TravelLog } from '../components/TravelLog';
 import { StatusPill } from '../components/StatusPill';
@@ -233,7 +233,7 @@ export default function InvoiceReview() {
                 {fileShown ? 'Hide the file' : 'Show the file'}
               </button>
             )}
-            <InvoiceExportLinks scope="staff" invoiceId={invoice.invoiceId} />
+            <InvoiceExportButton scope="staff" invoiceId={invoice.invoiceId} hasTrips={lines.some((line) => line.tripId)} />
           </>
         }
       />

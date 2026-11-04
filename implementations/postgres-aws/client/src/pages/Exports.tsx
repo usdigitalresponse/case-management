@@ -1,6 +1,6 @@
 import { billingRecordUrl, listReviewQueue } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
-import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
+import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
@@ -32,7 +32,7 @@ export default function Exports() {
         cut and its reasons, status and who signed off. Use it for reports outside this tool.
       </p>
       <Notice tone="info">
-        Check each PDF or spreadsheet for confidential information before you send it. This system does not remove it.
+        Export Invoice lets you redact details such as the client's name before you send a file on. Check each PDF or spreadsheet for confidential information first; reasons are free text.
       </Notice>
       <RecordTable
         className="queue-table"
@@ -44,7 +44,7 @@ export default function Exports() {
           { header: 'Client', render: (invoice) => invoice.caseClientDisplayName ?? '—' },
           { header: 'From', render: (invoice) => <FromCell invoice={invoice} /> },
           { header: 'Approved', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.approvedTotal ?? 0)}</strong> },
-          { header: 'Export', render: (invoice) => <InvoiceExportLinks scope="staff" invoiceId={invoice.invoiceId} /> },
+          { header: 'Export', render: (invoice) => <InvoiceExportButton scope="staff" invoiceId={invoice.invoiceId} compact /> },
           openInvoiceColumn(() => 'View'),
         ]}
       />

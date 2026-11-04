@@ -25,7 +25,7 @@ import { readFileForInvoice } from '../imports/invoiceFile';
 import { documentStore } from '../imports/documentStore';
 import { sendFileDownload, sendFilePreview } from './sendUploadedFile';
 import { asyncHandler } from './asyncHandler';
-import { parseExportFormat, sendInvoiceExport } from './sendInvoiceExport';
+import { parseExportFormat, parseExportOmit, sendInvoiceExport } from './sendInvoiceExport';
 
 const router = Router();
 router.use(requireFullUser);
@@ -160,7 +160,7 @@ router.get(
     if (!isExportableStatus(detail.invoice.statusCode)) {
       throw new InvoiceNotFoundError();
     }
-    await sendInvoiceExport(res, detail, format, true);
+    await sendInvoiceExport(res, detail, format, true, parseExportOmit(req));
   }),
 );
 
