@@ -826,7 +826,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-01",
-          "description": "04/01/2026 Witness interview and notes (1)",
+          "description": "Witness interview and notes (1)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -834,7 +834,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-02",
-          "description": "04/02/2026 Witness interview and notes (2)",
+          "description": "Witness interview and notes (2)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -842,7 +842,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-03",
-          "description": "04/03/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -850,7 +850,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-04",
-          "description": "04/04/2026 Witness interview and notes (4)",
+          "description": "Witness interview and notes (4)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -858,7 +858,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-05",
-          "description": "04/05/2026 Witness interview and notes (5)",
+          "description": "Witness interview and notes (5)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -866,7 +866,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-06",
-          "description": "04/06/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -874,7 +874,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-07",
-          "description": "04/07/2026 Witness interview and notes (7)",
+          "description": "Witness interview and notes (7)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -882,7 +882,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-08",
-          "description": "04/08/2026 Witness interview and notes (8)",
+          "description": "Witness interview and notes (8)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -890,7 +890,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-09",
-          "description": "04/09/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -898,7 +898,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-10",
-          "description": "04/10/2026 Witness interview and notes (10)",
+          "description": "Witness interview and notes (10)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -906,7 +906,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-11",
-          "description": "04/11/2026 Witness interview and notes (11)",
+          "description": "Witness interview and notes (11)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -914,7 +914,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-12",
-          "description": "04/12/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -922,7 +922,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-13",
-          "description": "04/13/2026 Witness interview and notes (13)",
+          "description": "Witness interview and notes (13)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -930,7 +930,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-14",
-          "description": "04/14/2026 Witness interview and notes (14)",
+          "description": "Witness interview and notes (14)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -938,7 +938,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-15",
-          "description": "04/15/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -946,7 +946,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-16",
-          "description": "04/16/2026 Witness interview and notes (16)",
+          "description": "Witness interview and notes (16)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -954,7 +954,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-17",
-          "description": "04/17/2026 Witness interview and notes (17)",
+          "description": "Witness interview and notes (17)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -962,7 +962,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-18",
-          "description": "04/18/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -970,7 +970,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-19",
-          "description": "04/19/2026 Witness interview and notes (19)",
+          "description": "Witness interview and notes (19)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -978,7 +978,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-20",
-          "description": "04/20/2026 Witness interview and notes (20)",
+          "description": "Witness interview and notes (20)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -986,7 +986,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-21",
-          "description": "04/21/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -994,7 +994,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-22",
-          "description": "04/22/2026 Witness interview and notes (22)",
+          "description": "Witness interview and notes (22)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1002,7 +1002,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-23",
-          "description": "04/23/2026 Witness interview and notes (23)",
+          "description": "Witness interview and notes (23)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1010,7 +1010,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-24",
-          "description": "04/24/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1018,7 +1018,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-25",
-          "description": "04/25/2026 Witness interview and notes (25)",
+          "description": "Witness interview and notes (25)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1026,7 +1026,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-26",
-          "description": "04/26/2026 Witness interview and notes (26)",
+          "description": "Witness interview and notes (26)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1034,7 +1034,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-27",
-          "description": "04/27/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1042,7 +1042,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-01",
-          "description": "04/01/2026 Witness interview and notes (28)",
+          "description": "Witness interview and notes (28)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1050,7 +1050,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-02",
-          "description": "04/02/2026 Witness interview and notes (29)",
+          "description": "Witness interview and notes (29)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1058,7 +1058,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-03",
-          "description": "04/03/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1066,7 +1066,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-04",
-          "description": "04/04/2026 Witness interview and notes (31)",
+          "description": "Witness interview and notes (31)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1074,7 +1074,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-05",
-          "description": "04/05/2026 Witness interview and notes (32)",
+          "description": "Witness interview and notes (32)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1138,7 +1138,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-01",
-          "description": "04/01/2026 Witness interview and notes (1)",
+          "description": "Witness interview and notes (1)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1146,7 +1146,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-02",
-          "description": "04/02/2026 Witness interview and notes (2)",
+          "description": "Witness interview and notes (2)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1154,7 +1154,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-03",
-          "description": "04/03/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1162,7 +1162,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-04",
-          "description": "04/04/2026 Witness interview and notes (4)",
+          "description": "Witness interview and notes (4)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1170,7 +1170,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-05",
-          "description": "04/05/2026 Witness interview and notes (5)",
+          "description": "Witness interview and notes (5)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1178,7 +1178,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-06",
-          "description": "04/06/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1186,7 +1186,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-07",
-          "description": "04/07/2026 Witness interview and notes (7)",
+          "description": "Witness interview and notes (7)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1194,7 +1194,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-08",
-          "description": "04/08/2026 Witness interview and notes (8)",
+          "description": "Witness interview and notes (8)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1202,7 +1202,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-09",
-          "description": "04/09/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1210,7 +1210,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-10",
-          "description": "04/10/2026 Witness interview and notes (10)",
+          "description": "Witness interview and notes (10)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1218,7 +1218,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-11",
-          "description": "04/11/2026 Witness interview and notes (11)",
+          "description": "Witness interview and notes (11)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1226,7 +1226,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-12",
-          "description": "04/12/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1234,7 +1234,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-13",
-          "description": "04/13/2026 Witness interview and notes (13)",
+          "description": "Witness interview and notes (13)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1242,7 +1242,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-14",
-          "description": "04/14/2026 Witness interview and notes (14)",
+          "description": "Witness interview and notes (14)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1250,7 +1250,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-15",
-          "description": "04/15/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1258,7 +1258,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-16",
-          "description": "04/16/2026 Witness interview and notes (16)",
+          "description": "Witness interview and notes (16)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1266,7 +1266,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-17",
-          "description": "04/17/2026 Witness interview and notes (17)",
+          "description": "Witness interview and notes (17)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1274,7 +1274,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-18",
-          "description": "04/18/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1282,7 +1282,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-19",
-          "description": "04/19/2026 Witness interview and notes (19)",
+          "description": "Witness interview and notes (19)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1290,7 +1290,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-20",
-          "description": "04/20/2026 Witness interview and notes (20)",
+          "description": "Witness interview and notes (20)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1298,7 +1298,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-21",
-          "description": "04/21/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1306,7 +1306,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-22",
-          "description": "04/22/2026 Witness interview and notes (22)",
+          "description": "Witness interview and notes (22)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1314,7 +1314,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-23",
-          "description": "04/23/2026 Witness interview and notes (23)",
+          "description": "Witness interview and notes (23)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1322,7 +1322,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-24",
-          "description": "04/24/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1330,7 +1330,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-25",
-          "description": "04/25/2026 Witness interview and notes (25)",
+          "description": "Witness interview and notes (25)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1338,7 +1338,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-26",
-          "description": "04/26/2026 Witness interview and notes (26)",
+          "description": "Witness interview and notes (26)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1346,7 +1346,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-27",
-          "description": "04/27/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1354,7 +1354,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-01",
-          "description": "04/01/2026 Witness interview and notes (28)",
+          "description": "Witness interview and notes (28)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1362,7 +1362,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-02",
-          "description": "04/02/2026 Witness interview and notes (29)",
+          "description": "Witness interview and notes (29)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1370,7 +1370,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-03",
-          "description": "04/03/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1378,7 +1378,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-04",
-          "description": "04/04/2026 Witness interview and notes (31)",
+          "description": "Witness interview and notes (31)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1386,7 +1386,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-05",
-          "description": "04/05/2026 Witness interview and notes (32)",
+          "description": "Witness interview and notes (32)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1676,7 +1676,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-01",
-          "description": "04/01/2026 Witness interview and notes (1)",
+          "description": "Witness interview and notes (1)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1684,7 +1684,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-02",
-          "description": "04/02/2026 Witness interview and notes (2)",
+          "description": "Witness interview and notes (2)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1692,7 +1692,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-03",
-          "description": "04/03/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1700,7 +1700,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-04",
-          "description": "04/04/2026 Witness interview and notes (4)",
+          "description": "Witness interview and notes (4)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1708,7 +1708,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-05",
-          "description": "04/05/2026 Witness interview and notes (5)",
+          "description": "Witness interview and notes (5)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1716,7 +1716,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-06",
-          "description": "04/06/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1724,7 +1724,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-07",
-          "description": "04/07/2026 Witness interview and notes (7)",
+          "description": "Witness interview and notes (7)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1732,7 +1732,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-08",
-          "description": "04/08/2026 Witness interview and notes (8)",
+          "description": "Witness interview and notes (8)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1740,7 +1740,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-09",
-          "description": "04/09/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1748,7 +1748,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-10",
-          "description": "04/10/2026 Witness interview and notes (10)",
+          "description": "Witness interview and notes (10)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1756,7 +1756,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-11",
-          "description": "04/11/2026 Witness interview and notes (11)",
+          "description": "Witness interview and notes (11)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1764,7 +1764,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-12",
-          "description": "04/12/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1772,7 +1772,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-13",
-          "description": "04/13/2026 Witness interview and notes (13)",
+          "description": "Witness interview and notes (13)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1780,7 +1780,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-14",
-          "description": "04/14/2026 Witness interview and notes (14)",
+          "description": "Witness interview and notes (14)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1788,7 +1788,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-15",
-          "description": "04/15/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1796,7 +1796,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-16",
-          "description": "04/16/2026 Witness interview and notes (16)",
+          "description": "Witness interview and notes (16)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1804,7 +1804,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-17",
-          "description": "04/17/2026 Witness interview and notes (17)",
+          "description": "Witness interview and notes (17)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1812,7 +1812,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-18",
-          "description": "04/18/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1820,7 +1820,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-19",
-          "description": "04/19/2026 Witness interview and notes (19)",
+          "description": "Witness interview and notes (19)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1828,7 +1828,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-20",
-          "description": "04/20/2026 Witness interview and notes (20)",
+          "description": "Witness interview and notes (20)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1836,7 +1836,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-21",
-          "description": "04/21/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1844,7 +1844,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-22",
-          "description": "04/22/2026 Witness interview and notes (22)",
+          "description": "Witness interview and notes (22)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1852,7 +1852,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-23",
-          "description": "04/23/2026 Witness interview and notes (23)",
+          "description": "Witness interview and notes (23)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1860,7 +1860,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-24",
-          "description": "04/24/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1868,7 +1868,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-25",
-          "description": "04/25/2026 Witness interview and notes (25)",
+          "description": "Witness interview and notes (25)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1876,7 +1876,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-26",
-          "description": "04/26/2026 Witness interview and notes (26)",
+          "description": "Witness interview and notes (26)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1884,7 +1884,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-27",
-          "description": "04/27/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1892,7 +1892,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-01",
-          "description": "04/01/2026 Witness interview and notes (28)",
+          "description": "Witness interview and notes (28)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1900,7 +1900,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-02",
-          "description": "04/02/2026 Witness interview and notes (29)",
+          "description": "Witness interview and notes (29)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1908,7 +1908,7 @@
         {
           "lineType": "expense",
           "serviceDate": "2026-04-03",
-          "description": "04/03/2026 Mileage to interview location",
+          "description": "Mileage to interview location",
           "quantity": 42,
           "unitRate": 0.7,
           "amount": "29.40"
@@ -1916,7 +1916,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-04",
-          "description": "04/04/2026 Witness interview and notes (31)",
+          "description": "Witness interview and notes (31)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
@@ -1924,7 +1924,7 @@
         {
           "lineType": "time",
           "serviceDate": "2026-04-05",
-          "description": "04/05/2026 Witness interview and notes (32)",
+          "description": "Witness interview and notes (32)",
           "quantity": 1.5,
           "unitRate": 120,
           "amount": "180.00"
