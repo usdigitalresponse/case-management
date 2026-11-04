@@ -254,6 +254,8 @@ function Lines({
           }
         : null,
   });
+  // Only lines read from the file must have a date.
+  const undatedRow = rows.find((row) => row.kind === 'line' && row.read && !row.line.serviceDate);
   const fileSays = fileSource ? (fileSource.statedTotal ?? fileLines.reduce((sum, line) => sum + (line.amount ?? 0), 0)) : null;
 
   // Saves go one at a time, each the whole set of lines; on a failure the
@@ -421,7 +423,7 @@ function Lines({
               >
                 Save and finish later
               </button>
-              <button type="button" className="btn btn--primary" disabled={askingFor === null || lines.length === 0} onClick={startSending}>
+              <button type="button" className="btn btn--primary" disabled={askingFor === null || lines.length === 0 || Boolean(undatedRow)} onClick={startSending}>
                 Send for review
               </button>
             </>
@@ -509,6 +511,9 @@ function Lines({
             </Notice>
           )}
           {isDraft && notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
+          {editable && undatedRow && (
+            <Notice tone="warning">Line {undatedRow.number} has no date in your file. Enter its date before you send.</Notice>
+          )}
           <CheckLinesTable
             rows={rows}
             context={context}
@@ -541,9 +546,12 @@ function Lines({
               );
               void persist(next, tripKey ? `Line ${number} added to the trip.` : `Line ${number} taken off the trip.`);
             }}
-            onPutBack={(read: FileLine, number) =>
-              void persist([...lines, draftFromRead(read, invoice.professionalId ?? undefined)], `Line ${number} put back.`)
-            }
+            onPutBack={(read: FileLine, number) => {
+              // In its file place, which sets its saved position.
+              const restored = draftFromRead(read, invoice.professionalId ?? undefined);
+              const next = rows.flatMap((row) => (row.kind === 'line' ? [row.line] : row.read === read ? [restored] : []));
+              void persist(next, `Line ${number} put back.`);
+            }}
             onUndoChange={(index, read, number) =>
               void persist(
                 lines.map((line, at) => (at === index ? { ...draftFromRead(read, invoice.professionalId ?? undefined), invoiceLineId: line.invoiceLineId } : line)),

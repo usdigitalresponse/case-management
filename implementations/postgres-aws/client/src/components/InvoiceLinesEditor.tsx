@@ -32,7 +32,7 @@ export const isTimeKind = (kind: DraftKind) => kind === 'time' || kind === 'wait
 
 type Carried = Pick<
   CreateInvoiceLineInput,
-  'unitRate' | 'statedAmount' | 'serviceDateInferred' | 'timekeeperLabel' | 'taskCode' | 'activityCode' | 'expenseCode' | 'sourceLocation'
+  'unitRate' | 'statedAmount' | 'timekeeperLabel' | 'taskCode' | 'activityCode' | 'expenseCode' | 'sourceLocation'
 >;
 
 export interface TravelCost {
@@ -99,7 +99,6 @@ function carriedFrom(line: PortalInvoiceLine): Carried {
   return {
     unitRate: line.unitRate === null ? undefined : Number(line.unitRate),
     statedAmount: line.statedAmount === null ? undefined : Number(line.statedAmount),
-    serviceDateInferred: line.serviceDateInferred || undefined,
     timekeeperLabel: line.timekeeperLabel ?? undefined,
     taskCode: line.taskCode ?? undefined,
     activityCode: line.activityCode ?? undefined,
@@ -745,7 +744,6 @@ export function InvoiceLinesEditor({
             : update(index, { carried: { ...line.carried, taskCode: code } });
         const differsFromFile =
           stated !== undefined && priced && 'amount' in priced && Math.abs(Number(priced.amount) - stated) >= 0.005;
-        const dateInferred = Boolean(line.serviceDate && line.carried.serviceDateInferred);
         // Typed time that looks like work already recorded: offered, never merged.
         const sameAsRecorded =
           line.lineType === 'time' && !linked
@@ -802,10 +800,8 @@ export function InvoiceLinesEditor({
                 type="date"
                 className="usa-input"
                 value={line.serviceDate}
-                // A date the submitter sets is no longer inferred.
-                onChange={(event) =>
-                  update(index, { serviceDate: event.target.value, carried: { ...line.carried, serviceDateInferred: undefined } })
-                }
+                required={Boolean(line.carried.sourceLocation)}
+                onChange={(event) => update(index, { serviceDate: event.target.value })}
               />
             </div>
             <div className="usa-form-group line-what" data-label="What was done">
@@ -1002,7 +998,6 @@ export function InvoiceLinesEditor({
                   </span>
                 ) : null}
                 {line.carried.timekeeperLabel ? <span>On file: {line.carried.timekeeperLabel}</span> : null}
-                {dateInferred ? <span className="line-row-suggested">Date from the billing period: check it</span> : null}
                 {differsFromFile ? (
                   <span className="line-row-suggested">
                     The file says {formatMoney(String(stated))}

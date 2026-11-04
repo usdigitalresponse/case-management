@@ -1,4 +1,4 @@
-spec_version: "0.6.0"
+spec_version: "0.7.0"
 status: draft
 kind: business_rules
 
@@ -407,7 +407,7 @@ rules:
       - The uploader must be authorized to submit requests for the selected case; selecting or extracting a case grants no access.
       - The uploader designates either one case for the whole file, or one professional whose cases the file's lines cover. With a professional, every line is billed to that professional as the one whose work it is, set rather than suggested, and each line names its case; the system may suggest a case from a line's case reference, identifier or client name among the professional's open assignments the uploader may bill, but the uploader assigns every line before anything is created, and the file becomes one import and one draft request per case, sharing the one document.
       - Extraction creates at most one draft request per import and never submits, approves or creates source records on the submitter's behalf.
-      - A line with no service date in a file that states a billing period takes the period's end date, marked as inferred (service_date_inferred) with a warning for the submitter to check; it is not split across days. The date is left blank, with the reason, when the professional's rate changes within the period, when they were not assigned to the case for all of it, or when who did the work is not yet known. Confirmation and submission repeat those checks for whoever the line then names, until its date is changed.
+      - A line with no service date in the file keeps its place in the file's order and takes the date of the line before it on the same request, with a warning for the submitter to check; a line with no earlier date stays blank with a warning. Lines are not split across days. Confirmation and submission require a date on every line read from the file.
       - Retain extraction method, version, timestamp and result immutably. Corrections are made on the draft request; re-processing creates a new import rather than overwriting a result.
       - Show the original file beside the draft while the submitter checks and changes its lines, and beside the request while it is reviewed. The file is kept while any import of it is unresolved or its confirmed request is live, and its content is deleted (recording content_deleted_at, keeping the document metadata, hash and extraction result) when its imports are discarded or expire, or its request is withdrawn, deleted or recorded as paid.
       - The submitter may change, remove, restore and add lines without a reason. Each line keeps the place in the file it was read from (invoice_line.source_location); the extraction result keeps each line as first drafted, so reviewers see what changed and the lines removed, which need no decision.

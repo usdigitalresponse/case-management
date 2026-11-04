@@ -489,8 +489,8 @@ export const invoiceLine = pgTable(
     // On a time or mileage line, quantity × billedRate (../billing/priceLines.ts).
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     serviceDate: date('service_date'),
-    // Filled from the billing period on import (../imports/inferServiceDates.ts).
-    serviceDateInferred: boolean('service_date_inferred').notNull().default(false),
+    // File order, then as entered.
+    position: integer('position').notNull().default(0),
     description: text('description'),
     quantity: numeric('quantity', { precision: 10, scale: 2 }),
     // Supplier-stated; on a time line it is the billed rate.

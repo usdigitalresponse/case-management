@@ -43,7 +43,7 @@ import {
 import { recordTimeEntryChange } from '../portal/changeTimeEntry';
 import { priceLines } from './priceLines';
 import { applyTripDistances, measureTrips } from './routeCheck';
-import { checkInferredDates } from '../imports/inferServiceDates';
+import { requireImportedDates } from '../imports/undatedLines';
 import { enforceBillingRules } from './billingRules';
 import { assignOnSubmit, endAllAssignments } from './reviewAssignment';
 import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry } from './invoiceReceipt';
@@ -58,7 +58,7 @@ import {
 import { optionalEmail } from '../people/emails';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.6.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.7.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
 // Mileage is an expense line with the mileage expense type.
@@ -77,8 +77,6 @@ export const invoiceLineInputSchema = z
     // The billed professionals' time on this case; makes the line a time line.
     sourceTimeEntryId: z.string().uuid().optional(),
     serviceDate: z.iso.date().optional(),
-    // Set by import; the client drops it once the date is changed.
-    serviceDateInferred: z.boolean().optional(),
     description: z.string().trim().min(1).optional(),
     quantity: z.coerce.number().positive().optional(),
     // Supplier-stated; prices a time line in place of the configured rate.
@@ -322,15 +320,15 @@ async function replaceLines(
     tripIds.set(key, tripId);
   }
   if (lines.length > 0) await tx.insert(invoiceLine).values(
-    lines.map((line) => ({
+    lines.map((line, position) => ({
       invoiceId,
       caseId,
+      position,
       lineTypeId: lineTypeIds[line.lineType],
       sourceTimeEntryId: line.sourceTimeEntryId,
       // A time line's amount is set by pricing below.
       amount: (line.amount ?? 0).toFixed(2),
       serviceDate: line.serviceDate,
-      serviceDateInferred: Boolean(line.serviceDateInferred && line.serviceDate && !line.sourceTimeEntryId),
       description: line.description,
       quantity: line.quantity?.toString(),
       unitRate: line.unitRate?.toFixed(2),
@@ -520,7 +518,7 @@ export async function submitInTx(
   if (imported && imported.statusCode !== CONFIRMED_IMPORT_STATUS_CODE) {
     throw new InvoiceStateError('Confirm the imported values before submitting this invoice.');
   }
-  await checkInferredDates(tx, invoiceId);
+  await requireImportedDates(tx, invoiceId);
   // Only staff may send one to review without a case (match_invoice_to_case).
   if (await needsMatching(tx, locked, { withoutCase: staff && options.withoutCase })) {
     // What can be checked before matching is checked now, for the submitter.

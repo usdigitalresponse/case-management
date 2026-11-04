@@ -1,6 +1,6 @@
 // An invoice's lines in file order, with what the submitter changed and
 // removed lines struck through; on a draft, an Edit panel under a line.
-import { Fragment, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import type { FileLine, ImportWarning, InvoiceLineType } from '../api/client';
 import { emptyLine, isTimeKind, mileageItemPreview, tripParts, type DraftKind, type LineDraft } from '../components/InvoiceLinesEditor';
 import { TripFields } from '../components/TripFields';
@@ -34,6 +34,33 @@ export function tripToJoin(lines: LineDraft[], line: LineDraft): string | undefi
       other.serviceDate === line.serviceDate &&
       (line.lineType !== 'time' || !lines.some((part) => part.tripKey === other.tripKey && part.lineType === 'time')),
   )?.tripKey;
+}
+
+// Saved on leaving the box: typing a year passes through valid dates.
+function DateToEnter({ number, onEnter }: { number: number; onEnter: (date: string) => void }) {
+  const [value, setValue] = useState('');
+  // Enter then leaving the box would save twice.
+  const saved = useRef(false);
+  const enter = () => {
+    if (value && !saved.current) {
+      saved.current = true;
+      onEnter(value);
+    }
+  };
+  return (
+    <input
+      className="usa-input check-lines__date"
+      type="date"
+      aria-label={`Line ${number} date`}
+      required
+      aria-invalid="true"
+      value={value}
+      onClick={(event) => event.stopPropagation()}
+      onChange={(event) => setValue(event.target.value)}
+      onBlur={enter}
+      onKeyDown={(event) => event.key === 'Enter' && enter()}
+    />
+  );
 }
 
 function EditPanel({
@@ -93,7 +120,7 @@ function EditPanel({
             className="usa-input"
             type="date"
             value={draft.serviceDate}
-            onChange={(event) => set({ serviceDate: event.target.value, carried: { ...draft.carried, serviceDateInferred: undefined } })}
+            onChange={(event) => set({ serviceDate: event.target.value })}
           />
         </div>
         {travel ? null : priced ? (
@@ -250,31 +277,31 @@ export function CheckLinesTable({
           <tr>
             <th scope="col">#</th>
             <th scope="col">Date</th>
-            <th scope="col">What was done</th>
+            <th scope="col">Kind</th>
             <th scope="col" className="amount">Qty</th>
             <th scope="col" className="amount">Rate</th>
             <th scope="col" className="amount">Amount</th>
             <th scope="col"><span className="usa-sr-only">{extra ? 'Decision' : 'Actions'}</span></th>
           </tr>
         </thead>
-        <tbody>
-          {rows.length === 0 && editing !== 'new' && (
+        {rows.length === 0 && editing !== 'new' && (
+          <tbody>
             <tr>
               <td colSpan={columns} className="check-lines__empty">No lines yet.</td>
             </tr>
-          )}
-          {rows.map((row) => {
-            if (row.kind === 'removed') {
-              const { read } = row;
-              const lineType = read.lineType === 'time' ? 'time' : read.lineType === 'mileage' ? 'mileage' : 'other';
-              return (
-                <tr key={`removed-${read.location}`} className="check-lines__row check-lines__row--removed">
+          </tbody>
+        )}
+        {rows.map((row) => {
+          if (row.kind === 'removed') {
+            const { read } = row;
+            const lineType = read.lineType === 'time' ? 'time' : read.lineType === 'mileage' ? 'mileage' : 'other';
+            return (
+              <tbody key={`removed-${read.location}`} className="check-lines__row check-lines__row--removed">
+                <tr className="check-lines__summary">
                   <td>{row.number}</td>
                   <td><s>{formatDay(read.serviceDate)}</s></td>
                   <td>
-                    <s>{read.description ?? '—'}</s>
-                    <span className="cell-note">{TYPE_LABEL[lineType]}</span>
-                    <span className="chip chip--neutral">Removed</span>
+                    {TYPE_LABEL[lineType]} <span className="chip chip--neutral">Removed</span>
                   </td>
                   <td className="amount">{formatQuantity(lineType, read.quantity)}</td>
                   <td className="amount">{read.unitRate !== null ? formatRate(read.unitRate) : ''}</td>
@@ -287,118 +314,135 @@ export function CheckLinesTable({
                     )}
                   </td>
                 </tr>
-              );
-            }
-            const { line, read, index, number } = row;
-            const values = valuesOf(line);
-            const price = priceOf(line, context);
-            const fields = read ? changedFields(read, values) : [];
-            const lineWarnings = read ? warnings.filter((warning) => warning.location === read.location) : [];
-            const duplicate = duplicates.get(number);
-            const location = line.carried.sourceLocation;
-            const isEditing = editing === number;
-            const flagged = lineWarnings.length > 0 && fields.length === 0;
-            const joinable = editable ? tripToJoin(allLines, line) : undefined;
-            return (
-              <Fragment key={`line-${index}-${location ?? 'added'}`}>
-                <tr
-                  className={[
-                    'check-lines__row',
-                    isEditing ? 'check-lines__row--editing' : '',
-                    flagged ? 'check-lines__row--flagged' : '',
-                    focus && focus === location ? 'check-lines__row--focus' : '',
-                  ].join(' ')}
-                  onClick={() => onFocus(location)}
-                >
-                  <td>{number}</td>
-                  <td>{formatDay(line.serviceDate || null)}</td>
-                  <td>
-                    {line.description || '—'}
-                    <span className="cell-note">{typeLabel(line)}</span>
-                    {flagged && (
-                      <>
-                        <span className="chip chip--warning">Check this</span>
-                        {lineWarnings.map((warning) => (
-                          <span key={warning.code} className="cell-note check-lines__warning">{warning.message}</span>
-                        ))}
-                      </>
-                    )}
-                    {read && fields.length > 0 && <span className="cell-note check-lines__changed">{changeSentence(read, values, fields)}</span>}
-                    {!read && addLabel !== 'Add a line' && <span className="cell-note check-lines__changed">You added this line.</span>}
-                    {duplicate && <span className="cell-note">Same date, text and amount as line {duplicate}. Is it a duplicate?</span>}
-                    {joinable && (
-                      <span className="cell-note" onClick={(event) => event.stopPropagation()}>
-                        Mileage on line {numberOf(joinable)} is the same day.{' '}
-                        <button type="button" className="link-button" onClick={() => onTrip(index, joinable, number)}>
-                          Add to that trip
-                        </button>
-                      </span>
-                    )}
-                    {editable && line.tripKey && line.lineType !== 'mileage' && (
-                      <span className="cell-note" onClick={(event) => event.stopPropagation()}>
-                        <button type="button" className="link-button" onClick={() => onTrip(index, undefined, number)}>
-                          Take off the trip
-                        </button>
-                      </span>
-                    )}
-                  </td>
-                  <td className="amount">
-                    {formatQuantity(values.lineType, values.quantity)}
-                    {read && fields.includes('quantity') && <span className="cell-note">was {read.quantity ?? 0}</span>}
-                  </td>
-                  <td className="amount">{price.rate ? formatRate(price.rate) : ''}</td>
-                  <td className="amount">
-                    <strong>{price.total === null ? '—' : formatMoney(price.total)}</strong>
-                  </td>
-                  <td className="check-lines__actions" onClick={(event) => event.stopPropagation()}>
-                    {extra?.(index)}
-                    {editable &&
-                      (isEditing ? (
-                        <span className="muted">Editing</span>
-                      ) : (
-                        <>
-                          <button type="button" className="link-button" onClick={() => setEditing(number)}>
-                            Edit
-                          </button>
-                          {read && fields.length > 0 ? (
-                            <button type="button" className="link-button" onClick={() => onUndoChange(index, read, number)}>
-                              Undo change
-                            </button>
-                          ) : (
-                            <button type="button" className="link-button" onClick={() => onRemoveLine(index, number)}>
-                              Remove
-                            </button>
-                          )}
-                        </>
-                      ))}
+                <tr className="check-lines__what">
+                  <td />
+                  <td colSpan={columns - 1}>
+                    <s>{read.description ?? '—'}</s>
                   </td>
                 </tr>
-                {isEditing && (
-                  <tr className="check-lines__edit-row">
-                    <td colSpan={columns}>
-                      <EditPanel
-                        number={number}
-                        initial={line}
-                        read={read}
-                        context={context}
-                        isNew={false}
-                        onSave={(drafts) => {
-                          setEditing(null);
-                          onSaveLine(index, drafts, number);
-                        }}
-                        onCancel={() => setEditing(null)}
-                        onRemove={() => {
-                          setEditing(null);
-                          onRemoveLine(index, number);
-                        }}
-                      />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
+              </tbody>
             );
-          })}
-          {editing === 'new' && (
+          }
+          const { line, read, index, number } = row;
+          const values = valuesOf(line);
+          const price = priceOf(line, context);
+          const fields = read ? changedFields(read, values) : [];
+          const lineWarnings = read ? warnings.filter((warning) => warning.location === read.location) : [];
+          const duplicate = duplicates.get(number);
+          const location = line.carried.sourceLocation;
+          const isEditing = editing === number;
+          const flagged = lineWarnings.length > 0 && fields.length === 0;
+          const joinable = editable ? tripToJoin(allLines, line) : undefined;
+          return (
+            <tbody
+              key={`line-${index}-${location ?? 'added'}`}
+              className={[
+                'check-lines__row',
+                isEditing ? 'check-lines__row--editing' : '',
+                flagged ? 'check-lines__row--flagged' : '',
+                focus && focus === location ? 'check-lines__row--focus' : '',
+              ].join(' ')}
+              onClick={() => onFocus(location)}
+            >
+              <tr className="check-lines__summary">
+                <td>{number}</td>
+                <td>
+                  {editable && !line.serviceDate && !isEditing ? (
+                    <DateToEnter number={number} onEnter={(serviceDate) => onSaveLine(index, [{ ...line, serviceDate }], number)} />
+                  ) : (
+                    formatDay(line.serviceDate || null)
+                  )}
+                </td>
+                <td>
+                  {typeLabel(line)}
+                  {flagged && <span className="chip chip--warning">Check this</span>}
+                </td>
+                <td className="amount">
+                  {formatQuantity(values.lineType, values.quantity)}
+                  {read && fields.includes('quantity') && <span className="cell-note">was {read.quantity ?? 0}</span>}
+                </td>
+                <td className="amount">{price.rate ? formatRate(price.rate) : ''}</td>
+                <td className="amount">
+                  <strong>{price.total === null ? '—' : formatMoney(price.total)}</strong>
+                </td>
+                <td className="check-lines__actions" onClick={(event) => event.stopPropagation()}>
+                  {extra?.(index)}
+                  {editable &&
+                    (isEditing ? (
+                      <span className="muted">Editing</span>
+                    ) : (
+                      <>
+                        <button type="button" className="link-button" onClick={() => setEditing(number)}>
+                          Edit
+                        </button>
+                        {read && fields.length > 0 ? (
+                          <button type="button" className="link-button" onClick={() => onUndoChange(index, read, number)}>
+                            Undo change
+                          </button>
+                        ) : (
+                          <button type="button" className="link-button" onClick={() => onRemoveLine(index, number)}>
+                            Remove
+                          </button>
+                        )}
+                      </>
+                    ))}
+                </td>
+              </tr>
+              <tr className="check-lines__what">
+                <td />
+                <td colSpan={columns - 1}>
+                  {line.description || '—'}
+                  {flagged &&
+                    lineWarnings.map((warning) => (
+                      <span key={warning.code} className="cell-note check-lines__warning">{warning.message}</span>
+                    ))}
+                  {read && fields.length > 0 && <span className="cell-note check-lines__changed">{changeSentence(read, values, fields)}</span>}
+                  {!read && addLabel !== 'Add a line' && <span className="cell-note check-lines__changed">You added this line.</span>}
+                  {duplicate && <span className="cell-note">Same date, text and amount as line {duplicate}. Is it a duplicate?</span>}
+                  {joinable && (
+                    <span className="cell-note" onClick={(event) => event.stopPropagation()}>
+                      Mileage on line {numberOf(joinable)} is the same day.{' '}
+                      <button type="button" className="link-button" onClick={() => onTrip(index, joinable, number)}>
+                        Add to that trip
+                      </button>
+                    </span>
+                  )}
+                  {editable && line.tripKey && line.lineType !== 'mileage' && (
+                    <span className="cell-note" onClick={(event) => event.stopPropagation()}>
+                      <button type="button" className="link-button" onClick={() => onTrip(index, undefined, number)}>
+                        Take off the trip
+                      </button>
+                    </span>
+                  )}
+                </td>
+              </tr>
+              {isEditing && (
+                <tr className="check-lines__edit-row" onClick={(event) => event.stopPropagation()}>
+                  <td colSpan={columns}>
+                    <EditPanel
+                      number={number}
+                      initial={line}
+                      read={read}
+                      context={context}
+                      isNew={false}
+                      onSave={(drafts) => {
+                        setEditing(null);
+                        onSaveLine(index, drafts, number);
+                      }}
+                      onCancel={() => setEditing(null)}
+                      onRemove={() => {
+                        setEditing(null);
+                        onRemoveLine(index, number);
+                      }}
+                    />
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          );
+        })}
+        {editing === 'new' && (
+          <tbody>
             <tr className="check-lines__edit-row">
               <td colSpan={columns}>
                 <EditPanel
@@ -415,8 +459,8 @@ export function CheckLinesTable({
                 />
               </td>
             </tr>
-          )}
-        </tbody>
+          </tbody>
+        )}
       </table>
       <div className="check-lines__footer">
         {editable && editing !== 'new' ? (

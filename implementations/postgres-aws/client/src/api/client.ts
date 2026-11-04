@@ -745,7 +745,6 @@ export interface CreateInvoiceLineInput {
   // Supplier-stated detail from an imported file; kept as evidence.
   unitRate?: number;
   statedAmount?: number;
-  serviceDateInferred?: boolean;
   timekeeperLabel?: string;
   taskCode?: string;
   activityCode?: string;
@@ -1130,7 +1129,7 @@ export interface ImportInProgress {
   statedTotal: string | null;
   lineCount: number;
   unmatchedCount: number;
-  // Lines still without a date, and dates filled from the billing period.
+  // Blank dates, and dates taken from the line before.
   undatedCount: number;
   inferredDateCount: number;
   warningCount: number;
@@ -1502,8 +1501,6 @@ export interface InvoiceReviewLine {
   amount: string;
   // Supplier-stated detail; when absent, the linked time entry's values apply.
   serviceDate: string | null;
-  // Filled from the billing period on import, until the date is changed.
-  serviceDateInferred: boolean;
   description: string | null;
   quantity: string | null;
   // As stated on an imported file; a time line is billed at it.
