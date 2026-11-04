@@ -1,6 +1,6 @@
 // Idempotent seeding of the reference/config rows the app needs to
-// function at all (activity_types, the mileage expense type, invoice statuses/line types/approval
-// step types/outcomes/event types, invoice import formats/statuses, and the
+// function at all (activity_types, including travel and waiting, the mileage expense
+// type, invoice statuses/line types/approval step types/outcomes/event types, invoice import formats/statuses, and the
 // fixed staff, administrator, assignment and delegate roles). Safe to run in every
 // environment, including production, and is: ./migrate.ts calls it, and
 // ./fixtures.ts calls it after its reset, so there is one definition of
@@ -37,7 +37,11 @@ export async function ensureReferenceData(db: Database): Promise<void> {
   await Promise.all([
     db
       .insert(activityTypes)
-      .values({ code: 'legal_services', displayName: 'Legal Services' })
+      .values([
+        { code: 'legal_services', displayName: 'Legal Services' },
+        { code: 'travel', displayName: 'Travel' },
+        { code: 'waiting', displayName: 'Waiting' },
+      ])
       .onConflictDoNothing({ target: activityTypes.code }),
     db
       .insert(invoiceStatuses)

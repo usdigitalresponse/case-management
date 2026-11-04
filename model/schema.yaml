@@ -1,4 +1,4 @@
-spec_version: "0.5.0"
+spec_version: "0.6.0"
 status: draft
 kind: domain_schema
 
@@ -257,6 +257,11 @@ entities:
         type: uuid
         required: false
         references: activity.activity_id
+      trip_id:
+        type: uuid
+        required: false
+        references: trip.trip_id
+        description: Travel time only. The trip of the request line it was created from.
       office_id:
         type: uuid
         required: false
@@ -312,26 +317,86 @@ entities:
         type: decimal
         required: false
         description: Units of the expense; on mileage, the miles claimed for the whole trip.
+      trip_id:
+        type: uuid
+        required: false
+        references: trip.trip_id
+        description: The trip this cost was part of, from the request line it was created from; every mileage expense has one.
+
+  trip:
+    display_name: Trip
+    description: One journey claimed on a payment request. Its travel time, mileage and other travel costs are separate invoice lines that reference it, each priced and decided on its own (apply_time_category_rates).
+    primary_key: trip_id
+    fields:
+      trip_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+        description: The request the trip is claimed on.
+      trip_date:
+        type: date
+        required: false
+        description: The date of the trip and every line on it; required to submit.
       trip_origin:
         type: string
         required: false
-        description: Mileage only. Where the trip started, as an address or place.
+        description: Where the trip started, as an address or place.
       trip_destination:
         type: string
         required: false
-        description: Mileage only. Where the trip went, as an address or place.
+        description: Where the trip went, as an address or place.
       round_trip:
         type: boolean
-        required: false
-        description: Mileage only. True when the miles claimed cover the journey there and back.
+        required: true
+        description: True when the trip went there and back.
       route_distance:
         type: decimal
         required: false
-        description: Mileage only. One-way driving distance in miles between origin and destination from a routing service; absent until measured.
+        description: One-way driving distance in miles between origin and destination from a routing service; absent until measured. Kept in the submission snapshot.
       route_checked_at:
         type: datetime
         required: false
         description: When route_distance was looked up.
+
+  time_category_rate:
+    display_name: Time Category Rate
+    description: How travel or waiting time is priced from a date until a later setting for the same category takes over. Settings are added, never changed. With none in force, that time is priced like work (apply_time_category_rates).
+    primary_key: time_category_rate_id
+    fields:
+      time_category_rate_id:
+        type: uuid
+        required: true
+        generated: true
+      time_category:
+        type: string
+        required: true
+        description: travel or waiting.
+      basis:
+        type: string
+        required: true
+        description: hourly_rate (the professional's hourly rate), percent_of_hourly_rate, or flat_rate (one rate per hour for everyone).
+      percent:
+        type: decimal
+        required: false
+        description: percent_of_hourly_rate only. The share of the hourly rate paid for this time, above zero.
+      hourly_rate:
+        type: money
+        required: false
+        description: flat_rate only. The rate per hour of this time.
+      effective_from:
+        type: date
+        required: true
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
 
   mileage_rate:
     display_name: Mileage Rate
@@ -534,7 +599,7 @@ entities:
       configured_rate:
         type: money
         required: false
-        description: Time lines only. The professional_kind_rate in force for the professional on the service date, kept beside billed_rate so review can flag and re-price a stated rate that differs.
+        description: The default rate on the service date, kept beside billed_rate so review can flag a stated or corrected rate that differs. On a time line, the professional_kind_rate in force for the professional, or on travel or waiting time its time_category_rate; on a mileage line, the mileage_rate.
       stated_amount:
         type: money
         required: false
@@ -573,26 +638,15 @@ entities:
         required: false
         reference_data: expense_types
         description: The expense type an expense line is classified as, given to the expense created from it; mileage is priced from mileage rates.
-      trip_origin:
+      trip_id:
+        type: uuid
+        required: false
+        references: trip.trip_id
+        description: The trip on the same request this line is part of. A time line on a trip is travel time (apply_time_category_rates); every mileage line has one.
+      time_category:
         type: string
         required: false
-        description: Mileage only, as stated by the payee; a linked expense governs.
-      trip_destination:
-        type: string
-        required: false
-        description: Mileage only, as stated by the payee; a linked expense governs.
-      round_trip:
-        type: boolean
-        required: false
-        description: Mileage only, as stated by the payee; a linked expense governs.
-      route_distance:
-        type: decimal
-        required: false
-        description: Mileage only. One-way driving miles found for the trip when the request was submitted, kept in its snapshot.
-      route_checked_at:
-        type: datetime
-        required: false
-        description: When route_distance was looked up.
+        description: waiting on waiting time, a time line off a trip priced at the waiting time rate; empty on other lines (apply_time_category_rates).
       source_location:
         type: string
         required: false

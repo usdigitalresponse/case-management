@@ -1,11 +1,22 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
 import type { DecisionReason, InvoiceReviewLine, LineDecision, LineDecisionInput } from '../api/client';
 import { formatDateTime } from '../formatDateTime';
-import { cents, formatMoney } from '../formatMoney';
+import { cents, formatMoney, formatRate } from '../formatMoney';
+import { isMileage } from '../invoiceLineDisplay';
 import { StatusPill } from './StatusPill';
 
-// A decision as recorded or in progress: what, how much, why, by whom.
-export function DecisionSummary({ decision, requested }: { decision: LineDecision; requested: string }) {
+// A decision as recorded or in progress: what, how much, why, by whom, and
+// a corrected rate that differs from the line's default.
+export function DecisionSummary({
+  decision,
+  requested,
+  defaultRate = null,
+}: {
+  decision: LineDecision;
+  requested: string;
+  defaultRate?: string | null;
+}) {
+  const rateDiffers = decision.approvedRate && defaultRate !== null && Number(decision.approvedRate) !== Number(defaultRate);
   return (
     <div className="decision-summary">
       <div className="decision-summary__head">
@@ -18,6 +29,11 @@ export function DecisionSummary({ decision, requested }: { decision: LineDecisio
           <strong>{formatMoney(decision.approvedAmount)}</strong>
         ) : null}
       </div>
+      {rateDiffers && (
+        <p className="line-rate-differs">
+          At {formatRate(decision.approvedRate!)}, not the default {formatRate(defaultRate!)}
+        </p>
+      )}
       {(decision.reasonDisplayName || decision.note) && (
         <p className="decision-summary__why">{[decision.reasonDisplayName, decision.note].filter(Boolean).join('. ')}</p>
       )}
@@ -55,8 +71,9 @@ export function DecisionHistory({ line }: { line: Pick<InvoiceReviewLine, 'histo
   );
 }
 
+// Time, travel time and mileage: corrected by quantity and rate.
 function hasHours(line: InvoiceReviewLine): boolean {
-  return line.quantity !== null && Number(line.quantity) > 0 && line.billedRate !== null && line.expenseTypeCode !== 'mileage';
+  return line.quantity !== null && Number(line.quantity) > 0 && line.billedRate !== null;
 }
 
 // Approve part (corrected hours or rate, or the amount) or reject: both ask
@@ -81,6 +98,7 @@ export function DecisionPanel({
   onCancel: () => void;
 }) {
   const byHours = hasHours(line);
+  const miles = isMileage(line);
   const [hours, setHours] = useState(initial?.approvedQuantity ?? line.quantity ?? '');
   const [rate, setRate] = useState(initial?.approvedRate ?? line.billedRate ?? '');
   const [amount, setAmount] = useState(initial?.outcomeCode === 'approved_in_part' ? (initial.approvedAmount ?? '') : '');
@@ -94,11 +112,19 @@ export function DecisionPanel({
   const requestedCents = cents(line.amount);
   const approvedCents = byHours ? cents(Number(hours) * Number(rate)) : cents(Number(amount));
   const validAmount = Number.isFinite(approvedCents) && approvedCents > 0 && approvedCents < requestedCents;
+  // A changed rate, up or down, needs no reason; sign-off sees it flagged.
+  const rateCents = cents(Number(line.quantity) * Number(rate));
+  const validRate = Number(rate) > 0 && Number(rate) !== Number(line.billedRate);
+  const needsReason = mode === 'approved_in_part' || mode === 'rejected';
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (mode === 'note') {
       onSubmit({ outcome: 'approved', note: note.trim() || undefined });
+      return;
+    }
+    if (mode === 'rate') {
+      onSubmit({ outcome: 'approved', approvedRate: Number(rate), note: note.trim() || undefined });
       return;
     }
     const base = { reasonCode, note: note.trim() || undefined };
@@ -116,7 +142,9 @@ export function DecisionPanel({
   const title =
     mode === 'note'
       ? 'Add a note to this approval'
-      : mode === 'rejected'
+      : mode === 'rate'
+        ? 'Approve at a different rate'
+        : mode === 'rejected'
         ? `Reject the ${formatMoney(line.amount)} on this line`
         : `Approve part of the ${formatMoney(line.amount)} on this line`;
   const prefix = `line-${line.invoiceLineId}`;
@@ -127,18 +155,21 @@ export function DecisionPanel({
       <div className="decision-panel__grid">
         {mode === 'approved_in_part' && (
           <fieldset className="decision-panel__amount">
-            <legend>{byHours ? 'Correct the hours or the rate' : 'Correct the amount'}</legend>
+            <legend>{byHours ? `Correct the ${miles ? 'miles' : 'hours'} or the rate` : 'Correct the amount'}</legend>
             {byHours ? (
               <div className="inline-pair">
                 <label>
-                  Hours
+                  {miles ? 'Miles' : 'Hours'}
                   <input type="number" step="0.01" min="0" value={hours} onChange={(e) => setHours(e.target.value)} />
                 </label>
                 <span aria-hidden="true">×</span>
                 <label>
-                  Rate
-                  <input type="number" step="0.01" min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
+                  Rate{miles ? ' per mile' : ''}
+                  <input type="number" step={miles ? '0.001' : '0.01'} min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
                 </label>
+                {line.configuredRate !== null && rate !== '' && Number(rate) !== Number(line.configuredRate) && (
+                  <span className="line-rate-differs">Differs from the default {formatRate(line.configuredRate)}</span>
+                )}
               </div>
             ) : (
               <label>
@@ -151,7 +182,7 @@ export function DecisionPanel({
                 <strong>You approve {formatMoney(approvedCents / 100)}</strong>
                 <span className="cell-note">
                   Cutting {formatMoney((requestedCents - approvedCents) / 100)} from this line
-                  {byHours ? `. Was ${Number(line.quantity)} hours.` : '.'}
+                  {byHours ? `. Was ${Number(line.quantity)} ${miles ? 'miles' : 'hours'}.` : '.'}
                 </span>
               </p>
             ) : (
@@ -159,7 +190,32 @@ export function DecisionPanel({
             )}
           </fieldset>
         )}
-        {mode !== 'note' && (
+        {mode === 'rate' && (
+          <fieldset className="decision-panel__amount">
+            <legend>The rate to approve it at, higher or lower</legend>
+            <div className="inline-pair">
+              <label>
+                Rate{miles ? ' per mile' : ' per hour'}
+                <input type="number" step={miles ? '0.001' : '0.01'} min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
+              </label>
+              {line.configuredRate !== null && rate !== '' && Number(rate) !== Number(line.configuredRate) && (
+                <span className="line-rate-differs">Differs from the default {formatRate(line.configuredRate)}</span>
+              )}
+            </div>
+            {validRate ? (
+              <p className="decision-panel__result">
+                <strong>You approve {formatMoney(rateCents / 100)}</strong>
+                <span className="cell-note">
+                  {Number(line.quantity)} {miles ? 'miles' : 'hours'} at {formatRate(rate)}, instead of {formatMoney(line.amount)} at{' '}
+                  {formatRate(line.billedRate ?? '0')}. Sign-off sees the changed rate flagged.
+                </span>
+              </p>
+            ) : (
+              <p className="cell-note">Enter a rate other than the billed {formatRate(line.billedRate ?? '0')}.</p>
+            )}
+          </fieldset>
+        )}
+        {needsReason && (
           <fieldset>
             <legend>{mode === 'rejected' ? 'Why are you rejecting it?' : 'Why are you cutting it?'}</legend>
             {options.map((reason) => (
@@ -187,18 +243,39 @@ export function DecisionPanel({
         <button
           type="submit"
           className="btn btn--primary"
-          disabled={saving || (mode !== 'note' && !reasonCode) || (mode === 'approved_in_part' && !validAmount) || (reasonCode === 'other' && !note.trim())}
+          disabled={
+            saving ||
+            (needsReason && !reasonCode) ||
+            (mode === 'approved_in_part' && !validAmount) ||
+            (mode === 'rate' && !validRate) ||
+            (reasonCode === 'other' && !note.trim())
+          }
         >
-          {mode === 'note' ? 'Save note' : mode === 'rejected' ? 'Reject line' : validAmount ? `Approve ${formatMoney(approvedCents / 100)}` : 'Approve part'}
+          {mode === 'note'
+            ? 'Save note'
+            : mode === 'rejected'
+              ? 'Reject line'
+              : mode === 'rate'
+                ? validRate
+                  ? `Approve ${formatMoney(rateCents / 100)}`
+                  : 'Approve at this rate'
+                : validAmount
+                  ? `Approve ${formatMoney(approvedCents / 100)}`
+                  : 'Approve part'}
         </button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
-        {mode !== 'note' && !reasonCode && <span className="cell-note">Choose a reason first.</span>}
+        {needsReason && !reasonCode && <span className="cell-note">Choose a reason first.</span>}
       </div>
     </form>
   );
 }
 
-export type PanelMode = 'approved_in_part' | 'rejected' | 'note';
+export type PanelMode = 'approved_in_part' | 'rejected' | 'note' | 'rate';
+
+// Approved at a rate other than the one billed.
+export function rateChanged(line: Pick<InvoiceReviewLine, 'billedRate'>, decision: LineDecision | null): boolean {
+  return Boolean(decision?.approvedRate) && Number(decision!.approvedRate) !== Number(line.billedRate);
+}
 
 // A line's decision column: Approve, Approve part and Reject while it is
 // undecided (or being changed), else the decision with ways to change it.
@@ -243,6 +320,16 @@ export function DecisionCell({
           >
             Approve part
           </button>
+          {hasHours(line) && (
+            <button
+              type="button"
+              className={`btn ${openPanel === 'rate' ? 'btn--primary' : 'btn--outline'}`}
+              aria-expanded={openPanel === 'rate'}
+              onClick={() => toggle('rate')}
+            >
+              Change rate
+            </button>
+          )}
           <button
             type="button"
             className={`btn ${openPanel === 'rejected' ? 'btn--danger-solid' : 'btn--danger'}`}
@@ -252,7 +339,7 @@ export function DecisionCell({
             Reject
           </button>
         </div>
-        {openPanel && <span className="cell-note decision-hint">Give a reason below</span>}
+        {openPanel && openPanel !== 'rate' && <span className="cell-note decision-hint">Give a reason below</span>}
         {decision && (
           <button type="button" className="link-button" onClick={() => onChanging(false)}>
             Keep {decision.outcomeDisplayName.toLowerCase()}
@@ -271,7 +358,12 @@ export function DecisionCell({
               <button type="button" className="link-button" onClick={() => onPanel('rejected')}>Edit reason</button>
             </>
           ) : (
-            <button type="button" className="link-button" onClick={() => onPanel(decision.outcomeCode === 'approved' ? 'note' : 'approved_in_part')}>
+            <button
+              type="button"
+              className="link-button"
+              // A changed rate keeps its rate when its note is edited.
+              onClick={() => onPanel(rateChanged(line, decision) && decision.outcomeCode === 'approved' ? 'rate' : decision.outcomeCode === 'approved' ? 'note' : 'approved_in_part')}
+            >
               {decision.note ? 'Edit note' : 'Add a note'}
             </button>
           )}
@@ -289,7 +381,7 @@ export function RecordedDecision({
   pending = 'Not reviewed yet',
   children,
 }: {
-  line: Pick<InvoiceReviewLine, 'amount' | 'history'>;
+  line: Pick<InvoiceReviewLine, 'amount' | 'history' | 'configuredRate'>;
   decision: LineDecision | null;
   pending?: string;
   children?: ReactNode;
@@ -299,7 +391,7 @@ export function RecordedDecision({
   }
   return (
     <>
-      <DecisionSummary decision={decision} requested={line.amount} />
+      <DecisionSummary decision={decision} requested={line.amount} defaultRate={line.configuredRate} />
       {children}
       <DecisionHistory line={line} />
     </>

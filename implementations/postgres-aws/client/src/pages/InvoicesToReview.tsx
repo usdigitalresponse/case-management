@@ -10,6 +10,7 @@ import { useApiResource } from '../hooks/useApiResource';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
+import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { RecordTable } from '../components/RecordTable';
 import { CaseNumberCell, FlagNotes, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
 import { AssignReviewer } from '../components/ReviewRouting';
@@ -36,7 +37,8 @@ function sorted(rows: ReviewQueueItem[], sort: SortId): ReviewQueueItem[] {
 // This staff member's unsent drafts, and, since Intake is off the sidebar,
 // anything held there.
 function YourDrafts({ userAccountId }: { userAccountId: string }) {
-  const { data } = useApiResource(() => listInvoiceIntake().then((result) => result.items).catch(() => []), []);
+  const [version, setVersion] = useState(0);
+  const { data } = useApiResource(() => listInvoiceIntake().then((result) => result.items).catch(() => []), [version]);
   const drafts = (data ?? []).filter((item) => item.invoiceId && item.stage !== 'sent' && item.enteredByUserAccountId === userAccountId);
   const held = (data ?? []).filter((item) => item.stage === 'sent');
   return (
@@ -61,9 +63,13 @@ function YourDrafts({ userAccountId }: { userAccountId: string }) {
                     {item.fileName && `, ${item.fileName}`}
                   </span>
                 </span>
-                <RouterLink className="row-action" to={checkLinesPath(item.invoiceId!, true)}>
-                  Check the lines <span aria-hidden="true">→</span>
-                </RouterLink>
+                <span className="row-actions">
+                  <RouterLink className="row-action" to={checkLinesPath(item.invoiceId!, true)}>
+                    Check the lines <span aria-hidden="true">→</span>
+                  </RouterLink>
+                  {/* Your own drafts, never sent, so always deletable. */}
+                  <DeleteInvoiceButton compact invoiceId={item.invoiceId!} onDeleted={() => setVersion((v) => v + 1)} />
+                </span>
               </li>
             ))}
           </ul>

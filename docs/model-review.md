@@ -66,6 +66,23 @@ external case management system (see `docs/DECISIONS.md`):
   login (`add_professional_without_login`).
 - Configured system roles map to review actions (`authorize_invoice_review`).
 
+Model files are now 0.6.0, a breaking revision for travel. A `trip` on a
+request groups one journey's separate lines: at most one travel time line (a
+time line on the trip), at most one mileage line and other travel costs as
+expense lines. The trip holds the date, `trip_origin`, `trip_destination`,
+`round_trip`, `route_distance` and `route_checked_at`, which move off
+`invoice_line` and `expense`; lines, time entries and expenses reference it
+by `trip_id`. Every mileage line has a trip, its own when entered alone.
+Insert-only `time_category_rate` prices travel and waiting time
+(`invoice_line.time_category`) from the hourly rate, a percent of it or a flat
+rate (`apply_time_category_rates`); with none in force, that time is priced
+like other time. Each line is still reviewed and decided on its own. A
+reviewer may approve a line with hours or miles at a changed rate, higher or
+lower, without a reason; its approved amount may then exceed the requested
+amount, and sign-off sees it flagged (`decide_invoice_lines`,
+`record_approved_request_amounts`). A travel time and distance billing rule
+compares travel hours with the trip's distance at an average speed.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

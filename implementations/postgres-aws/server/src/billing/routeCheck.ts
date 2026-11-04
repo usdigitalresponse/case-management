@@ -8,7 +8,7 @@ import { GeoPlacesClient, GeocodeCommand } from '@aws-sdk/client-geo-places';
 import { CalculateRoutesCommand, GeoRoutesClient } from '@aws-sdk/client-geo-routes';
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';
-import { expenseTypes, invoiceLine, routeCheck } from '../db/schema';
+import { expenseTypes, invoiceLine, routeCheck, trip } from '../db/schema';
 import { getBillingRules } from './billingRules';
 
 export interface RouteProvider {
@@ -205,23 +205,24 @@ export async function measureTrips(db: DatabaseOrTransaction, trips: Trip[]): Pr
   }
 }
 
-// Copies measured distances onto an invoice's mileage lines, without any
-// lookups. Lines whose trip has no measurement are cleared.
+// Copies measured distances onto an invoice's trips with mileage, without
+// any lookups. A trip with no measurement is cleared.
 export async function applyTripDistances(db: DatabaseOrTransaction, invoiceId: string): Promise<void> {
-  const lines = await db
-    .select({
-      invoiceLineId: invoiceLine.invoiceLineId,
-      tripOrigin: invoiceLine.tripOrigin,
-      tripDestination: invoiceLine.tripDestination,
-      routeDistance: invoiceLine.routeDistance,
+  const trips = await db
+    .selectDistinct({
+      tripId: trip.tripId,
+      tripOrigin: trip.tripOrigin,
+      tripDestination: trip.tripDestination,
+      routeDistance: trip.routeDistance,
     })
-    .from(invoiceLine)
+    .from(trip)
+    .innerJoin(invoiceLine, eq(invoiceLine.tripId, trip.tripId))
     .innerJoin(expenseTypes, eq(invoiceLine.expenseTypeId, expenseTypes.id))
-    .where(and(eq(invoiceLine.invoiceId, invoiceId), eq(expenseTypes.code, 'mileage')));
+    .where(and(eq(trip.invoiceId, invoiceId), eq(expenseTypes.code, 'mileage')));
   const keys = new Map(
-    lines.map((line) => [
-      line.invoiceLineId,
-      line.tripOrigin && line.tripDestination ? pairKey(line.tripOrigin, line.tripDestination) : undefined,
+    trips.map((row) => [
+      row.tripId,
+      row.tripOrigin && row.tripDestination ? pairKey(row.tripOrigin, row.tripDestination) : undefined,
     ]),
   );
   const wanted = [...new Set([...keys.values()].filter((key): key is string => Boolean(key)))];
@@ -239,16 +240,16 @@ export async function applyTripDistances(db: DatabaseOrTransaction, invoiceId: s
       byKey.set(row.pairKey, row);
     }
   }
-  for (const line of lines) {
-    const key = keys.get(line.invoiceLineId);
+  for (const row of trips) {
+    const key = keys.get(row.tripId);
     const measured = key ? byKey.get(key) : undefined;
-    if ((measured?.distanceMiles ?? null) === line.routeDistance) {
+    if ((measured?.distanceMiles ?? null) === row.routeDistance) {
       continue;
     }
     // eslint-disable-next-line no-await-in-loop
     await db
-      .update(invoiceLine)
+      .update(trip)
       .set({ routeDistance: measured?.distanceMiles ?? null, routeCheckedAt: measured?.checkedAt ?? null })
-      .where(eq(invoiceLine.invoiceLineId, line.invoiceLineId));
+      .where(eq(trip.tripId, row.tripId));
   }
 }

@@ -86,7 +86,11 @@ export function TotalsBar({
       <dl>
         <div><dt>Requested</dt><dd className="total-figure">{formatMoney(requested)}</dd></div>
         <div><dt>Approved</dt><dd className="total-figure total-figure--good">{formatMoney(totals.approved / 100)}</dd></div>
-        <div><dt>Cut</dt><dd className="total-figure total-figure--cut">{formatMoney(totals.cut / 100)}</dd></div>
+        {/* Raised rates can approve more than was asked for. */}
+        <div>
+          <dt>{totals.cut < 0 ? 'Added' : 'Cut'}</dt>
+          <dd className="total-figure total-figure--cut">{formatMoney(Math.abs(totals.cut) / 100)}</dd>
+        </div>
         <div>
           <dt>Lines</dt>
           <dd>{counts.approved} approved, {counts.part} in part, {counts.rejected} rejected</dd>

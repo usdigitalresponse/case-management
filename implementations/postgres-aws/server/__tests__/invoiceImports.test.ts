@@ -211,7 +211,7 @@ describe('invoice import workflow', () => {
     expect(timeLine).toMatchObject({
       amount: '150.00',
       billedRate: '100.000',
-      configuredRate: '120.00',
+      configuredRate: '120.000',
       unitRate: '100.00',
       statedAmount: '150.00',
     });

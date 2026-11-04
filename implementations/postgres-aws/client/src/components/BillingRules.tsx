@@ -10,19 +10,21 @@ export function usePortalBillingRules() {
     rules,
     codes: rules.some((rule) => rule.code === 'billing_codes') ? (data?.codes ?? []) : [],
     mileageRates: data?.mileageRates ?? [],
+    timeCategoryRates: data?.timeCategoryRates ?? [],
   };
 }
 
 // One rule in plain words, as firms see it.
 export function ruleSummary(rule: BillingRule): string {
-  const { increment, hours, withinMonth, tolerancePercent } = rule.parameters;
+  const { increment, hours, withinMonth, tolerancePercent, averageSpeedMph } = rule.parameters;
   const text = {
-    billing_codes: "a task code from the agency's list on each time item",
+    billing_codes: "a task code from the agency's list on each time item, including travel time",
     time_increment: `time in steps of ${increment} h`,
     daily_hour_cap: `at most ${hours} h per person per day`,
     long_entry: `single entries over ${hours} h are flagged`,
     billing_period: withinMonth ? 'a billing period within one calendar month' : 'a billing period',
     mileage_distance: `mileage within ${tolerancePercent}% of the driving route between From and To`,
+    travel_time_distance: `travel hours within ${tolerancePercent}% of the trip's distance at ${averageSpeedMph} mph`,
   }[rule.code];
   return rule.enforcement === 'require' ? `${text} (required)` : text;
 }

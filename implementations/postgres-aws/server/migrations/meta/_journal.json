@@ -155,6 +155,34 @@
       "when": 1793475243242,
       "tag": "0021_people_rates_reviewers",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793751909708,
+      "tag": "0022_trips",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793751921656,
+      "tag": "0023_trip_route_off_lines",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793753061961,
+      "tag": "0024_configured_rate_per_mile",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793754272989,
+      "tag": "0025_time_categories",
+      "breakpoints": true
     }
   ]
 }

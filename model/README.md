@@ -221,7 +221,7 @@ evidence; it is not a payment instruction or disbursement engine.
 `preauthorization` is an external-service ceiling, distinct from chain pre-approval.
 
 `submission_snapshot` must contain `spec_version`, capture timestamp, request ID,
-chain ID and exact reviewed values of the request, lines, supporting invoice
+chain ID and exact reviewed values of the request, lines, trips, supporting invoice
 references, allocations and payee contact/vendor details, and the billing rule
 settings in force with their findings (`apply_billing_rules`). Capture relied-on case
 identifiers, participant/assignment identities, jurisdiction, issue descriptions,
@@ -251,13 +251,25 @@ Additional source types are added as further optional typed references after a
 model decision, following the same one-of pattern as `document_link`.
 
 Mileage is an expense type rather than a separate line type. A mileage line's
-quantity is the miles claimed for the whole trip, with `trip_origin`,
-`trip_destination` and `round_trip` describing it; it is priced at the
-`mileage_rate` in force on its date (`apply_mileage_rates`). The optional
-mileage distance billing rule records the driving distance found for each trip
-on the line (`route_distance`, `route_checked_at`), so the submission snapshot
-keeps what the claim was compared with. Which routing service supplies distances
-is an implementation choice.
+quantity is the miles claimed for the whole trip; it is priced at the
+`mileage_rate` in force on its date (`apply_mileage_rates`).
+
+A `trip` groups the separate lines one journey is claimed as: at most one
+travel time line (a time line on a trip), at most one mileage line and any
+number of other travel costs as expense lines. The trip holds what they share:
+its date, `trip_origin`, `trip_destination` and `round_trip`. Each line is
+still priced, reviewed and decided on its own; the trip is not a competing
+aggregate. Time is work, travel (a time line on a trip) or waiting
+(`invoice_line.time_category`). Travel and waiting time are priced from their
+category's `time_category_rate` in force, whose basis is the hourly rate, a
+percent of it or a flat rate (`apply_time_category_rates`). A reviewer may
+approve a line at a changed rate, higher or lower, which sign-off sees flagged
+(`decide_invoice_lines`). The optional mileage distance billing rule
+records the driving distance found for each trip on the trip
+(`route_distance`, `route_checked_at`), so the submission snapshot keeps what
+the claim was compared with. Which routing service supplies distances is an
+implementation choice. The time entries and expenses created from a trip's
+lines reference it by `trip_id`.
 
 ## Supporting invoice import and export
 

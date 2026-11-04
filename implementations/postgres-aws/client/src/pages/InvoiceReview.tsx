@@ -21,7 +21,7 @@ import { InvoiceExportLinks } from '../components/InvoiceExportLinks';
 import { RuleFindings } from '../components/BillingRules';
 import { TravelLog } from '../components/TravelLog';
 import { StatusPill } from '../components/StatusPill';
-import { DecisionCell, DecisionPanel, decisionInput, type PanelMode } from '../components/LineReview';
+import { DecisionCell, DecisionPanel, decisionInput, rateChanged, type PanelMode } from '../components/LineReview';
 import { ReviewerPicker, SignOffApprovers } from '../components/ReviewRouting';
 import { RateCheckNotice, SignOffHistory, SignOffPanel, TotalsBar } from '../components/ReviewPanels';
 import { InvoiceLinesTable, lineRowClass } from '../components/InvoiceLinesTable';
@@ -34,7 +34,7 @@ import { Notice } from '../components/Notice';
 import { EnteredFlag, proposedCaseLabel } from '../components/NewEntryFields';
 import { Toast, useToast, type ToastMessage } from '../components/Toast';
 import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
-import { formatMoney } from '../formatMoney';
+import { formatMoney, formatRate } from '../formatMoney';
 import { reviewTotals, submittedByLabel } from '../reviewTotals';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { CaseNumberReview } from '../components/CaseNumberReview';
@@ -366,6 +366,22 @@ export default function InvoiceReview() {
           allows. <a href="#travel-log">See the travel log</a>.
         </Notice>
       )}
+      {invoice.professionalId && data.sameDayTravel.length > 0 && (
+        // The same trip may be claimed on more than one case.
+        <Notice tone="info" heading="Travel on other cases the same day">
+          <ul>
+            {data.sameDayTravel.map(({ date, otherInvoiceCount }) => (
+              <li key={date}>
+                {formatDate(date)}: {otherInvoiceCount} other {otherInvoiceCount === 1 ? 'invoice' : 'invoices'} from{' '}
+                {invoice.professionalDisplayName ?? 'this person'} also claim travel.{' '}
+                <RouterLink to={`${personPath(invoice.professionalId!)}?day=${date}`} target="_blank" rel="noopener">
+                  Review their invoices for that day<span className="usa-sr-only"> (opens a new tab)</span>
+                </RouterLink>
+              </li>
+            ))}
+          </ul>
+        </Notice>
+      )}
       {actionError && <Notice tone="danger">{actionError}</Notice>}
       {changedCount > 0 && (
         <Notice tone="info">
@@ -476,6 +492,22 @@ export default function InvoiceReview() {
         />
       )}
 
+      {status === 'awaiting_sign_off' && lines.some((line) => rateChanged(line, line.decision)) && (
+        <Notice tone="warning" heading="The reviewer changed the rate on these lines. Check them before signing off.">
+          <ul>
+            {lines
+              .filter((line) => rateChanged(line, line.decision))
+              .map((line) => (
+                <li key={line.invoiceLineId}>
+                  Line {lineNumber.get(line.invoiceLineId)}: {formatRate(line.decision!.approvedRate!)} instead of the billed{' '}
+                  {formatRate(line.billedRate ?? '0')}
+                  {line.configuredRate !== null ? ` (default ${formatRate(line.configuredRate)})` : ''}, approved{' '}
+                  {formatMoney(line.decision!.approvedAmount)} of {formatMoney(line.amount)}.
+                </li>
+              ))}
+          </ul>
+        </Notice>
+      )}
       {status === 'awaiting_sign_off' && (
         <SignOffPanel
           nextApprover={data.nextSignOff}

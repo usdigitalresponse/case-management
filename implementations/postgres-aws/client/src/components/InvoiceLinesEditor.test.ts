@@ -10,6 +10,10 @@ import {
   mileageItemPreview,
   ratesInPlay,
   timeItemPreview,
+  addToTrip,
+  travelItemPreview,
+  tripParts,
+  tripToJoin,
 } from './InvoiceLinesEditor';
 import { ADD_NEW } from './PickOrAdd';
 
@@ -36,6 +40,8 @@ const importedLine: PortalInvoiceLine = {
   activityCode: 'SAMPLE-ACT',
   expenseCode: null,
   expenseTypeCode: null,
+  tripId: null,
+  timeCategory: null,
   tripOrigin: null,
   tripDestination: null,
   roundTrip: false,
@@ -210,43 +216,113 @@ describe('previewing what a time item bills', () => {
   });
 });
 
-describe('mileage items', () => {
+describe('trips', () => {
   const rates = [
     { ratePerMile: '0.655', effectiveFrom: '2025-01-01' },
     { ratePerMile: '0.700', effectiveFrom: '2026-02-01' },
   ];
+  const attorney = {
+    professionalId: 'professional-1',
+    displayName: 'Synthetic Attorney',
+    isSelf: true,
+    kindDisplayName: 'Attorney',
+    rates: [{ hourlyRate: '100.00', effectiveFrom: '2026-01-01' }],
+  };
+  const halfRate = [
+    { category: 'travel' as const, basis: 'percent_of_hourly_rate' as const, percent: '50.00', hourlyRate: null, effectiveFrom: '2026-01-01' },
+    { category: 'waiting' as const, basis: 'flat_rate' as const, percent: null, hourlyRate: '30.00', effectiveFrom: '2026-01-01' },
+  ];
   const trip = {
     ...emptyLine,
-    lineType: 'mileage' as const,
+    lineType: 'travel' as const,
     serviceDate: '2026-02-10',
+    description: 'Court hearing',
     quantity: '40',
+    travelHours: '2',
+    travelCosts: [{ description: 'Parking', amount: '12', carried: {} }],
     tripOrigin: ' 100 Main St ',
     tripDestination: '1 Court Plaza',
     roundTrip: true,
   };
 
-  it('are priced at the mileage rate on their date', () => {
+  it('price miles at the mileage rate on their date', () => {
     expect(mileageItemPreview(trip, rates)).toEqual({ amount: '28.00', rate: '0.700', miles: 40 });
     expect(mileageItemPreview({ ...trip, serviceDate: '2026-01-10' }, rates)).toMatchObject({ amount: '26.20' });
     expect(mileageItemPreview({ ...trip, quantity: '' }, rates)).toEqual({ missing: 'Add the miles' });
     expect(mileageItemPreview(trip, [])).toEqual({ missing: 'No mileage rate set for this date' });
-    expect(invoiceTotalPreview([trip], [], undefined, rates)).toEqual({ time: 0, other: 28, total: 28, complete: true });
   });
 
-  it('save their trip and load it back from a saved line', () => {
-    expect(hasInvoiceItems([{ ...trip, quantity: '' }])).toBe(false);
-    expect(linesFromDrafts([trip])[0]).toMatchObject({
-      lineType: 'mileage',
-      quantity: 40,
-      tripOrigin: '100 Main St',
-      tripDestination: '1 Court Plaza',
-      roundTrip: true,
-    });
-    const [draft] = lineDraftsFrom([
-      { ...importedLine, lineTypeCode: 'expense', expenseTypeCode: 'mileage', tripOrigin: 'A', tripDestination: 'B', roundTrip: true },
+  it('price travel time at the travel time rate, and total every part', () => {
+    expect(travelItemPreview(trip, [attorney], 'professional-1', rates, halfRate).time).toMatchObject({ amount: '100.00', rate: '50.00' });
+    expect(invoiceTotalPreview([trip], [attorney], 'professional-1', rates, halfRate)).toEqual({ time: 100, other: 40, total: 140, complete: true });
+    // With no travel time rate, the hourly rate.
+    expect(invoiceTotalPreview([trip], [attorney], 'professional-1', rates)).toMatchObject({ time: 200 });
+    expect(invoiceTotalPreview([trip], [attorney], 'professional-1', [], halfRate).complete).toBe(false);
+  });
+
+  it('save as separate lines sharing a trip key, date and route', () => {
+    const sent = linesFromDrafts([trip]);
+    expect(sent.map((line) => line.lineType)).toEqual(['time', 'mileage', 'expense']);
+    expect(new Set(sent.map((line) => line.tripKey)).size).toBe(1);
+    expect(sent.every((line) => line.serviceDate === '2026-02-10' && line.tripOrigin === '100 Main St' && line.roundTrip)).toBe(true);
+    expect(sent.map((line) => line.quantity ?? line.amount)).toEqual([2, 40, 12]);
+    // Only the parts claimed.
+    expect(linesFromDrafts([{ ...trip, travelHours: '', travelCosts: [] }]).map((line) => line.lineType)).toEqual(['mileage']);
+    expect(hasInvoiceItems([{ ...trip, quantity: '', travelHours: '', travelCosts: [] }])).toBe(false);
+  });
+
+  it("load a trip's lines back as one row, or as rows of their own where each line is one", () => {
+    const onTrip = { ...importedLine, sourceTimeEntryId: null, tripId: 'trip-1', tripOrigin: 'A', tripDestination: 'B', roundTrip: true };
+    const lines = [
+      { ...onTrip, invoiceLineId: 'time', quantity: '2.00' },
+      { ...onTrip, invoiceLineId: 'miles', lineTypeCode: 'expense', expenseTypeCode: 'mileage', quantity: '40.0' },
+      { ...onTrip, invoiceLineId: 'parking', lineTypeCode: 'expense', amount: '12.00', description: 'Parking' },
+      { ...importedLine, invoiceLineId: 'other', sourceTimeEntryId: null },
+    ];
+    const drafts = lineDraftsFrom(lines);
+    expect(drafts.map((draft) => draft.lineType)).toEqual(['travel', 'time']);
+    expect(drafts[0]).toMatchObject({ quantity: '40.0', travelHours: '2.00', tripOrigin: 'A', invoiceLineId: 'miles' });
+    expect(drafts[0]?.travelCosts).toMatchObject([{ description: 'Parking', amount: '12.00', invoiceLineId: 'parking' }]);
+    expect(linesFromDrafts(drafts)).toHaveLength(4);
+    const rows = lineDraftsFrom(lines, { perLine: true });
+    expect(rows.map((row) => [row.lineType, row.tripKey])).toEqual([
+      ['time', 'trip-1'],
+      ['mileage', 'trip-1'],
+      ['expense', 'trip-1'],
+      ['time', undefined],
     ]);
-    expect(draft).toMatchObject({ lineType: 'mileage', tripOrigin: 'A', tripDestination: 'B', roundTrip: true });
-    // Trip fields go only with mileage.
-    expect(linesFromDrafts([{ ...trip, lineType: 'expense', amount: '5' }])[0]).not.toHaveProperty('tripOrigin');
+    expect(linesFromDrafts(rows).map((line) => line.tripKey)).toEqual(['trip-1', 'trip-1', 'trip-1', undefined]);
+  });
+
+  it('price waiting time at its own rate and send it as time marked waiting', () => {
+    const waiting = { ...emptyLine, lineType: 'waiting' as const, serviceDate: '2026-02-10', quantity: '2' };
+    expect(invoiceTotalPreview([waiting], [attorney], 'professional-1', rates, halfRate)).toMatchObject({ time: 60, complete: true });
+    expect(linesFromDrafts([waiting])[0]).toMatchObject({ lineType: 'time', timeCategory: 'waiting', quantity: 2 });
+    const [loaded] = lineDraftsFrom([{ ...importedLine, sourceTimeEntryId: null, timeCategory: 'waiting' }]);
+    expect(loaded?.lineType).toBe('waiting');
+  });
+
+  it('let a time or expense row on the same day join a trip, never on their own', () => {
+    const time = { ...emptyLine, serviceDate: '2026-02-10', quantity: '1.5', description: 'Drive' };
+    const parking = { ...emptyLine, lineType: 'expense' as const, serviceDate: '2026-02-10', amount: '7', description: 'Parking' };
+    const mileageOnly = { ...trip, travelHours: '', travelCosts: [] };
+    const lines = [mileageOnly, time, parking];
+    expect(tripToJoin(lines, 1)).toBe(0);
+    expect(tripToJoin([...lines.slice(0, 1), { ...time, serviceDate: '2026-02-11' }], 1)).toBeUndefined();
+    const joined = addToTrip(addToTrip(lines, 1, 0), 1, 0);
+    expect(joined).toHaveLength(1);
+    expect(joined[0]).toMatchObject({ travelHours: '1.5', travelCosts: [expect.objectContaining({ description: 'Parking', amount: '7' })] });
+    // A trip with travel time takes no more.
+    expect(tripToJoin([joined[0]!, time], 1)).toBeUndefined();
+  });
+
+  it('add as rows of their own on one trip, where each line is a row', () => {
+    const parts = tripParts(trip, 'new-1');
+    expect(parts.map((part) => [part.lineType, part.tripKey, part.serviceDate])).toEqual([
+      ['time', 'new-1', '2026-02-10'],
+      ['mileage', 'new-1', '2026-02-10'],
+      ['expense', 'new-1', '2026-02-10'],
+    ]);
+    expect(linesFromDrafts(parts)).toEqual(linesFromDrafts([trip]).map((line) => ({ ...line, tripKey: 'new-1' })));
   });
 });

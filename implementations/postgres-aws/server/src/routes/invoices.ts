@@ -34,7 +34,7 @@ router.use(requireFullUser);
 const actorId = (req: Request) => getSessionUser(req)!.userAccountId;
 
 // view: open (default), finished or all; professionalId: one person's;
-// q: a name or case number, close matches included.
+// q: a name or case number, close matches included; day: with an item that date.
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -43,7 +43,8 @@ router.get(
       ? req.query.professionalId
       : undefined;
     const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 100) : undefined;
-    res.json(await listReviewQueue(db, view, { professionalId, q }));
+    const day = typeof req.query.day === 'string' && z.iso.date().safeParse(req.query.day).success ? req.query.day : undefined;
+    res.json(await listReviewQueue(db, view, { professionalId, q, day }));
   }),
 );
 

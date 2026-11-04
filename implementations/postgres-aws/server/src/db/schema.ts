@@ -356,6 +356,27 @@ export const mileageRate = pgTable(
   (table) => [index('mileage_rate_effective_idx').on(table.effectiveFrom)],
 );
 
+// Insert-only, like mileage_rate, per category of time: travel or waiting
+// (model/rules.yaml apply_time_category_rates; ../billing/timeCategoryRates.ts).
+// basis is hourly_rate, percent_of_hourly_rate or flat_rate; percent and
+// hourlyRate are set only for the basis using them.
+export const timeCategoryRate = pgTable(
+  'time_category_rate',
+  {
+    timeCategoryRateId: uuid('time_category_rate_id').primaryKey().defaultRandom(),
+    category: text('category').notNull(),
+    basis: text('basis').notNull(),
+    percent: numeric('percent', { precision: 5, scale: 2 }),
+    hourlyRate: numeric('hourly_rate', { precision: 12, scale: 2 }),
+    effectiveFrom: date('effective_from').notNull(),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('time_category_rate_effective_idx').on(table.category, table.effectiveFrom)],
+);
+
 // Every routing lookup, kept as a cache by address pair and to count each
 // month's calls (../billing/routeCheck.ts). Implementation-only.
 export const routeCheck = pgTable(
@@ -436,6 +457,25 @@ export const invoice = pgTable(
   (table) => [index('invoice_professional_id_idx').on(table.professionalId), index('invoice_case_id_idx').on(table.caseId)],
 );
 
+// One journey on a request; its travel time, mileage and costs are separate
+// lines (model/rules.yaml apply_travel_time_rates). Replaced with its lines on
+// every draft save.
+export const trip = pgTable(
+  'trip',
+  {
+    tripId: uuid('trip_id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
+    tripDate: date('trip_date'),
+    tripOrigin: text('trip_origin'),
+    tripDestination: text('trip_destination'),
+    roundTrip: boolean('round_trip').notNull().default(false),
+    // One-way driving distance in miles, from ../billing/routeCheck.ts.
+    routeDistance: numeric('route_distance', { precision: 10, scale: 1 }),
+    routeCheckedAt: timestamp('route_checked_at', { withTimezone: true }),
+  },
+  (table) => [index('trip_invoice_id_idx').on(table.invoiceId)],
+);
+
 export const invoiceLine = pgTable(
   'invoice_line',
   {
@@ -458,8 +498,9 @@ export const invoiceLine = pgTable(
     statedAmount: numeric('stated_amount', { precision: 12, scale: 2 }),
     // Three places for a per-mile rate.
     billedRate: numeric('billed_rate', { precision: 12, scale: 3 }),
-    // Time lines: the professional kind's rate on the service date, for the rate check.
-    configuredRate: numeric('configured_rate', { precision: 12, scale: 2 }),
+    // The default rate on the service date: a time line's from its kind (or
+    // travel time rate), a mileage line's per mile. Review flags rates that differ.
+    configuredRate: numeric('configured_rate', { precision: 12, scale: 3 }),
     timekeeperLabel: text('timekeeper_label'),
     // Whom the submitter matched the label to.
     timekeeperProfessionalId: uuid('timekeeper_professional_id').references(
@@ -473,12 +514,10 @@ export const invoiceLine = pgTable(
     expenseCode: text('expense_code'),
     // Mileage is an expense line with the mileage type; its quantity is miles.
     expenseTypeId: uuid('expense_type_id').references(() => expenseTypes.id),
-    tripOrigin: text('trip_origin'),
-    tripDestination: text('trip_destination'),
-    roundTrip: boolean('round_trip').notNull().default(false),
-    // One-way driving distance in miles, from ../billing/routeCheck.ts.
-    routeDistance: numeric('route_distance', { precision: 10, scale: 1 }),
-    routeCheckedAt: timestamp('route_checked_at', { withTimezone: true }),
+    // A time line on a trip is travel time; every mileage line has one.
+    tripId: uuid('trip_id').references(() => trip.tripId),
+    // 'waiting' on waiting time; null on other lines, including travel time.
+    timeCategory: text('time_category'),
     // The import's line or row it was read from; null if the submitter added it.
     sourceLocation: text('source_location'),
   },

@@ -282,10 +282,10 @@ each rule off, warn or require in Settings. Built first: billing codes from a
 configured list, time increments (flagged, never rounded), a daily hour cap,
 long single entries (warn only, as possible block billing) and billing period
 requirements. Settings are kept as history and every submission snapshot
-records the rules it was checked against. Planned, not built: rates by kind
-of work (such as travel or in-court time) and other expense rules (such as
+records the rules it was checked against. Planned, not built: rates by
+other kinds of work (such as in-court time) and other expense rules (such as
 receipts above an amount), which need activity-based rates and receipt
-records first. Mileage is decided below.
+records first. Mileage and travel time are decided below.
 
 ### Mileage priced per mile and checked against driving distance
 
@@ -304,6 +304,40 @@ the per-request cost stays small; an unmeasured trip never blocks
 submission and reviewers can open the route themselves. Address
 autocomplete is left out because it costs requests per keystroke. Splitting
 one trip across several cases is planned, not built.
+
+### Trips group travel time, mileage and travel costs as separate lines
+
+- **Status:** Active
+- **Decided:** 2026-11-03
+
+A submitter claims a journey as one trip: its date and route, travel time,
+miles and other travel costs entered together. It is saved as separate lines
+linked to a `trip` record, not as one combined travel line, because review
+decides, prices and allocates each line on its own (a reviewer may accept the
+miles and cut the hours), time and expenses are priced and reported
+differently, and imported invoices list them separately. The trip holds the
+shared date and route, so a trip claimed by transit or with travel time only
+still has one. Travel time is a time line on a trip, and waiting time a
+third category of time; each is priced at a rate administrators set from a
+date: the professional's hourly rate, a percent of it or one flat rate, so the
+model fixes no policy. A flat rate is general, not per person; reviewers may
+change any line's rate instead. Imports never group lines into a trip; while
+checking a request the submitter may put a same-day time or expense line on a
+trip, and is never made to. An optional billing rule compares travel hours
+with the trip's distance at an average speed. Reviewers see when the same
+professional claims travel on another case the same day, and can open all of
+their requests for that day in another tab.
+
+### Reviewers may change a rate, flagged for sign-off
+
+- **Status:** Active
+- **Decided:** 2026-11-03
+
+Any reviewer may approve a line with hours or miles at a different rate,
+higher or lower than billed, without a reason code, instead of only cutting
+it. The approved amount may then exceed what was requested. Every changed
+rate is shown to the sign-off approvers, with the billed and default rates,
+before they sign off, so a second person checks it.
 
 ### Firm-added professionals with staff approval
 

@@ -2,7 +2,7 @@
 // portal and exports. Callers check access first. Submitters see recorded
 // decisions only: never working decisions or internal comments
 // (model/rules.yaml limit_review_comment_visibility).
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import {
   caseIdentifier,
@@ -21,9 +21,11 @@ import {
   professional,
   professionalKinds,
   timeEntry,
+  trip,
   userAccount,
 } from '../db/schema';
 import { evaluateBillingRules, type RuleFinding } from './billingRules';
+import { sameDayTravel, type SameDayTravel } from './sameDayTravel';
 import { loadRateLimits, rateLimitFor, type RateLimit } from './preauthorizations';
 import { approvedTotal, latestRoundNumber, loadRecordedDecisions, signOffProgress, type RecordedDecision } from './reviewRounds';
 import { AWAITING_SIGN_OFF_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
@@ -129,11 +131,14 @@ async function selectLines(db: DatabaseOrTransaction, invoiceId: string) {
       activityCode: invoiceLine.activityCode,
       expenseCode: invoiceLine.expenseCode,
       expenseTypeCode: expenseTypes.code,
-      tripOrigin: invoiceLine.tripOrigin,
-      tripDestination: invoiceLine.tripDestination,
-      roundTrip: invoiceLine.roundTrip,
-      routeDistance: invoiceLine.routeDistance,
-      routeCheckedAt: invoiceLine.routeCheckedAt,
+      // The line's trip, flattened onto each of its lines.
+      tripId: invoiceLine.tripId,
+      timeCategory: invoiceLine.timeCategory,
+      tripOrigin: trip.tripOrigin,
+      tripDestination: trip.tripDestination,
+      roundTrip: sql<boolean>`coalesce(${trip.roundTrip}, false)`,
+      routeDistance: trip.routeDistance,
+      routeCheckedAt: trip.routeCheckedAt,
       sourceTimeEntryId: invoiceLine.sourceTimeEntryId,
       sourceLocation: invoiceLine.sourceLocation,
       sourceActivityOn: timeEntry.activityOn,
@@ -145,6 +150,7 @@ async function selectLines(db: DatabaseOrTransaction, invoiceId: string) {
     .leftJoin(expenseTypes, eq(invoiceLine.expenseTypeId, expenseTypes.id))
     .leftJoin(timeEntry, eq(invoiceLine.sourceTimeEntryId, timeEntry.timeEntryId))
     .leftJoin(professional, eq(invoiceLine.timekeeperProfessionalId, professional.professionalId))
+    .leftJoin(trip, eq(invoiceLine.tripId, trip.tripId))
     .where(eq(invoiceLine.invoiceId, invoiceId))
     .orderBy(asc(invoiceLine.serviceDate), asc(timeEntry.activityOn), asc(invoiceLine.invoiceLineId));
 }
@@ -238,6 +244,9 @@ export interface InvoiceDetail {
   fileSource: FileSource | null;
   // What the submitter changed since the file was read.
   submitterChanges: ReturnType<typeof submitterChanges>;
+  // Staff only: days this invoice claims travel that the same professional's
+  // invoices on other cases also do.
+  sameDayTravel: SameDayTravel[];
 }
 
 async function displayNames(db: DatabaseOrTransaction, ids: string[]): Promise<Map<string, string>> {
@@ -392,5 +401,6 @@ export async function loadInvoiceDetail(
     signOffStarted: awaitingSignOff && progress.started,
     fileSource,
     submitterChanges: fileSource ? submitterChanges(fileSource, lineRows) : null,
+    sameDayTravel: audience === 'staff' ? await sameDayTravel(db, header, lineRows) : [],
   };
 }

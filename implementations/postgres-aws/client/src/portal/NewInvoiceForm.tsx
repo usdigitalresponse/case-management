@@ -235,6 +235,7 @@ export function NewInvoiceForm({
             recordedTime={unbilled}
             billingCodes={billingRules.codes}
             mileageRates={billingRules.mileageRates}
+            timeCategoryRates={billingRules.timeCategoryRates}
           />
           <p className="compact-hint">
             Time is priced at the hourly rate for the professional's kind, and mileage at the per-mile rate.

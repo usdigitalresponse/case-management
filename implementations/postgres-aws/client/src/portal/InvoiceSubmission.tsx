@@ -33,6 +33,7 @@ import { changedFields, duplicateOf, rowsInFileOrder, tracksSource } from '../fi
 import { formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { CheckLinesTable } from './CheckLinesTable';
+import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { draftFromRead, priceOf, rowChanges, totalsNotice, valuesOf, type PricingContext } from './checkLines';
 import { canWithdraw, formatSpan, submissionStatus } from './portalWording';
 import { SentBackNotice } from '../components/SentBackNotice';
@@ -191,7 +192,7 @@ function Lines({
   const isSubmitter = invoice.submittedByUserAccountId === user?.userAccountId;
   const isDraft = invoice.statusCode === 'draft';
   const editable = isDraft && isSubmitter;
-  const [lines, setLines] = useState<LineDraft[]>(() => lineDraftsFrom(data.lines));
+  const [lines, setLines] = useState<LineDraft[]>(() => lineDraftsFrom(data.lines, { perLine: true }));
   const [typedCaseNumber, setTypedCaseNumber] = useState(invoice.caseNumberAsTyped ?? '');
   // Highlighted on the file while the box holds the number read from it.
   const fileCaseNumber = byPerson ? fileSource?.caseNumber : null;
@@ -218,7 +219,7 @@ function Lines({
     }
     return false;
   };
-  const { mileageRates } = usePortalBillingRules();
+  const { mileageRates, timeCategoryRates } = usePortalBillingRules();
   const { data: timekeepers } = useApiResource(
     () => listBillableProfessionals(invoice.caseId).then((result) => result.professionals),
     [invoice.caseId],
@@ -228,6 +229,7 @@ function Lines({
     timekeepers: timekeepers ?? [],
     billedProfessionalId: invoice.professionalId ?? undefined,
     mileageRates: ownMileageRates.length > 0 ? ownMileageRates : mileageRates,
+    timeCategoryRates,
   };
 
   const fileLines = fileSource && tracksSource(lines.map((line) => line.carried.sourceLocation)) ? fileSource.lines : [];
@@ -434,6 +436,13 @@ function Lines({
               Withdraw
             </button>
           )}
+          {/* A draft, or one withdrawn before review started. */}
+          {data.deletable && (
+            <DeleteInvoiceButton
+              invoiceId={invoice.invoiceId}
+              onDeleted={() => navigate(staff ? '/' : PORTAL_HOME_PATH)}
+            />
+          )}
         </div>
       </div>
 
@@ -508,11 +517,30 @@ function Lines({
             editable={editable}
             focus={focus?.location}
             onFocus={(location) => setFocus(location ? { location } : undefined)}
-            onSaveLine={(index, draft, number) => {
-              const next = index === null ? [...lines, draft] : lines.map((line, at) => (at === index ? draft : line));
-              void persist(next, index === null ? 'Line added.' : `Line ${number} changed.`);
+            onSaveLine={(index, drafts, number) => {
+              const [draft] = drafts;
+              // A trip's lines share its date, so changing one changes them all.
+              const next =
+                index === null
+                  ? [...lines, ...drafts]
+                  : lines.map((line, at) =>
+                      at === index ? draft! : draft?.tripKey && line.tripKey === draft.tripKey ? { ...line, serviceDate: draft.serviceDate } : line,
+                    );
+              void persist(next, index === null ? (drafts.length > 1 ? 'Trip added.' : 'Line added.') : `Line ${number} changed.`);
             }}
             onRemoveLine={(index, number) => void persist(lines.filter((_, at) => at !== index), `Line ${number} removed.`)}
+            onTrip={(index, tripKey, number) => {
+              // Joining takes the trip's date and route, as the server would.
+              const trip = tripKey ? lines.find((line) => line.tripKey === tripKey) : undefined;
+              const next = lines.map((line, at) =>
+                at !== index
+                  ? line
+                  : trip
+                    ? { ...line, tripKey, serviceDate: trip.serviceDate, tripOrigin: trip.tripOrigin, tripDestination: trip.tripDestination, roundTrip: trip.roundTrip }
+                    : { ...line, tripKey: undefined },
+              );
+              void persist(next, tripKey ? `Line ${number} added to the trip.` : `Line ${number} taken off the trip.`);
+            }}
             onPutBack={(read: FileLine, number) =>
               void persist([...lines, draftFromRead(read, invoice.professionalId ?? undefined)], `Line ${number} put back.`)
             }

@@ -377,7 +377,8 @@ export type BillingRuleCode =
   | 'daily_hour_cap'
   | 'long_entry'
   | 'billing_period'
-  | 'mileage_distance';
+  | 'mileage_distance'
+  | 'travel_time_distance';
 
 export interface BillingRule {
   code: BillingRuleCode;
@@ -385,7 +386,7 @@ export interface BillingRule {
   description: string;
   warnOnly: boolean;
   enforcement: RuleEnforcement;
-  parameters: { increment?: number; hours?: number; withinMonth?: boolean; tolerancePercent?: number };
+  parameters: { increment?: number; hours?: number; withinMonth?: boolean; tolerancePercent?: number; averageSpeedMph?: number };
 }
 
 // Oldest first (server/src/billing/mileageRates.ts).
@@ -411,6 +412,59 @@ export function mileageRateOn(rates: MileageRate[], date: string): string | unde
     }
   }
   return found;
+}
+
+// Oldest first (server/src/billing/timeCategoryRates.ts). With none in force
+// for a category, its time is priced at the hourly rate.
+export type TimeCategory = 'travel' | 'waiting';
+export type TimeCategoryBasis = 'hourly_rate' | 'percent_of_hourly_rate' | 'flat_rate';
+
+export interface TimeCategoryRate {
+  category: TimeCategory;
+  basis: TimeCategoryBasis;
+  percent: string | null;
+  hourlyRate: string | null;
+  effectiveFrom: string;
+}
+
+export function listTimeCategoryRates(): Promise<{ rates: TimeCategoryRate[] }> {
+  return request('/api/settings/time-category-rates');
+}
+
+// Adds a setting from a date rather than changing an earlier one.
+export function addTimeCategoryRate(input: {
+  category: TimeCategory;
+  basis: TimeCategoryBasis;
+  percent?: number;
+  hourlyRate?: number;
+  effectiveFrom: string;
+}): Promise<TimeCategoryRate> {
+  return request('/api/settings/time-category-rates', { method: 'POST', body: JSON.stringify(input) });
+}
+
+// As server/src/billing/timeCategoryRates.ts prices it.
+export function categoryRateOn(
+  settings: TimeCategoryRate[],
+  category: TimeCategory,
+  date: string,
+  hourlyRate: string | undefined,
+): string | undefined {
+  const setting = categoryRateIn(settings, category, date);
+  if (setting?.basis === 'flat_rate') {
+    return setting.hourlyRate ?? undefined;
+  }
+  if (hourlyRate === undefined) {
+    return undefined;
+  }
+  if (setting?.basis === 'percent_of_hourly_rate') {
+    return (Math.round(Number(hourlyRate) * Number(setting.percent)) / 100).toFixed(2);
+  }
+  return hourlyRate;
+}
+
+// The category's setting in force on a date; oldest first, so the last one started.
+export function categoryRateIn(settings: TimeCategoryRate[], category: TimeCategory, date: string): TimeCategoryRate | undefined {
+  return settings.filter((setting) => setting.category === category && setting.effectiveFrom <= date).at(-1);
 }
 
 export interface BillingCode {
@@ -446,11 +500,12 @@ export function setBillingCodeActive(billingCodeId: string, active: boolean): Pr
   return request(`/api/settings/billing-codes/${billingCodeId}`, { method: 'PUT', body: JSON.stringify({ active }) });
 }
 
-// The rules in force, active codes and mileage rates, for firms entering invoices.
+// The rules in force, active codes, and mileage, travel and waiting time rates, for firms entering invoices.
 export function getPortalBillingRules(): Promise<{
   rules: BillingRule[];
   codes: Array<{ code: string; displayName: string }>;
   mileageRates: MileageRate[];
+  timeCategoryRates: TimeCategoryRate[];
 }> {
   return request('/api/portal/billing-rules');
 }
@@ -700,7 +755,12 @@ export interface CreateInvoiceLineInput {
   // Someone not listed, named instead; staff match them on Intake.
   proposedTimekeeperName?: string;
   proposedTimekeeperEmail?: string;
-  // Mileage only; quantity is the miles for the whole trip.
+  // Lines sharing a key are one trip; a time line on one is travel time. A
+  // mileage line without one is a trip of its own. Each line on a trip
+  // carries its route; a mileage line's quantity is the miles.
+  tripKey?: string;
+  // A time line off a trip may be waiting time.
+  timeCategory?: 'waiting';
   tripOrigin?: string;
   tripDestination?: string;
   roundTrip?: boolean;
@@ -1321,7 +1381,7 @@ export interface AssignedPerson {
 }
 
 export interface QueueFlag {
-  kind: 'rate' | 'arithmetic' | 'rule';
+  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case';
   message: string;
 }
 
@@ -1349,11 +1409,13 @@ export interface ReviewQueueItem extends QueuedInvoice {
 // q: only invoices matching a name or case number, close matches included.
 export function listReviewQueue(
   view: 'open' | 'finished' | 'all',
-  options: { professionalId?: string; q?: string } = {},
+  // day: only invoices with an item on that date.
+  options: { professionalId?: string; q?: string; day?: string } = {},
 ): Promise<{ invoices: ReviewQueueItem[]; waitingAlertWorkingDays: number }> {
   const params = new URLSearchParams({ view });
   if (options.professionalId) params.set('professionalId', options.professionalId);
   if (options.q?.trim()) params.set('q', options.q.trim());
+  if (options.day) params.set('day', options.day);
   return request(`/api/invoices?${params}`);
 }
 
@@ -1457,6 +1519,11 @@ export interface InvoiceReviewLine {
   rateLimitSource: 'preauthorized' | 'configured' | null;
   // 'mileage' on a mileage line; its quantity is the miles claimed.
   expenseTypeCode: string | null;
+  // Its trip, shared by that trip's lines, with the trip's route; a time
+  // line on a trip is travel time.
+  tripId: string | null;
+  // 'waiting' on waiting time.
+  timeCategory: string | null;
   tripOrigin: string | null;
   tripDestination: string | null;
   roundTrip: boolean;
@@ -1520,6 +1587,9 @@ export interface InvoiceReview {
   // The sender's hourly rate today.
   approvedRate: string | null;
   caseNumberMatches: { same: number; close: number };
+  // Days this invoice claims travel that the same professional's invoices
+  // on other cases also do.
+  sameDayTravel: Array<{ date: string; otherInvoiceCount: number }>;
 }
 
 export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {

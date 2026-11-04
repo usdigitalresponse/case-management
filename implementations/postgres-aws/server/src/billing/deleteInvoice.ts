@@ -17,6 +17,7 @@ import {
   invoiceStatuses,
   supportingInvoice,
   timeEntry,
+  trip,
 } from '../db/schema';
 import type { DocumentStore } from '../imports/documentStore';
 import { releaseDocumentIfUnneeded } from '../imports/documentRetention';
@@ -105,6 +106,7 @@ export async function deleteUnsubmittedInvoice(
       );
     await tx.delete(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
     await tx.delete(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
+    await tx.delete(trip).where(eq(trip.invoiceId, invoiceId));
     await tx.delete(supportingInvoice).where(eq(supportingInvoice.invoiceId, invoiceId));
     if (importIds.length > 0) {
       // Time the import created goes too, unless another invoice uses it.

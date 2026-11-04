@@ -1,0 +1,1 @@
+ALTER TABLE "invoice_line" ALTER COLUMN "configured_rate" SET DATA TYPE numeric(12, 3);

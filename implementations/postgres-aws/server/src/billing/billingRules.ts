@@ -14,6 +14,7 @@ import {
   invoiceStatuses,
   professional,
   timeEntry,
+  trip,
 } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
@@ -66,6 +67,14 @@ export const BILLING_RULES = {
     warnOnly: false,
     parameters: z.object({ tolerancePercent: z.coerce.number().min(0).max(100) }),
     defaults: { tolerancePercent: 10 },
+  },
+  travel_time_distance: {
+    label: 'Travel time and distance',
+    description:
+      "A trip's travel hours are compared with the time its distance takes at the average speed: the driving route when it was looked up, else the miles claimed.",
+    warnOnly: false,
+    parameters: z.object({ averageSpeedMph: z.coerce.number().min(1).max(100), tolerancePercent: z.coerce.number().min(0).max(500) }),
+    defaults: { averageSpeedMph: 30, tolerancePercent: 25 },
   },
 } as const;
 
@@ -222,16 +231,18 @@ export async function evaluateBillingRules(db: DatabaseOrTransaction, invoiceId:
       date: sql<string | null>`coalesce(${timeEntry.activityOn}, ${invoiceLine.serviceDate})`,
       hours: sql<string | null>`coalesce(${timeEntry.durationHours}, ${invoiceLine.quantity})`,
       expenseTypeCode: expenseTypes.code,
-      tripOrigin: invoiceLine.tripOrigin,
-      tripDestination: invoiceLine.tripDestination,
-      roundTrip: invoiceLine.roundTrip,
-      routeDistance: invoiceLine.routeDistance,
+      tripId: invoiceLine.tripId,
+      tripOrigin: trip.tripOrigin,
+      tripDestination: trip.tripDestination,
+      roundTrip: trip.roundTrip,
+      routeDistance: trip.routeDistance,
     })
     .from(invoiceLine)
     .innerJoin(invoice, eq(invoiceLine.invoiceId, invoice.invoiceId))
     .innerJoin(invoiceLineTypes, eq(invoiceLine.lineTypeId, invoiceLineTypes.id))
     .leftJoin(timeEntry, eq(invoiceLine.sourceTimeEntryId, timeEntry.timeEntryId))
     .leftJoin(expenseTypes, eq(invoiceLine.expenseTypeId, expenseTypes.id))
+    .leftJoin(trip, eq(invoiceLine.tripId, trip.tripId))
     .where(eq(invoiceLine.invoiceId, invoiceId));
   const timeLines = rows
     .filter((row) => row.lineTypeCode === 'time')
@@ -342,6 +353,32 @@ export async function evaluateBillingRules(db: DatabaseOrTransaction, invoiceId:
             add(
               `${trip} claims ${formatMiles(claimed)}, more than ${tolerance}% over the ${formatMiles(route)} driving route${line.roundTrip ? ' there and back' : ''}.`,
               line.invoiceLineId,
+            );
+          }
+        }
+        break;
+      }
+      case 'travel_time_distance': {
+        const speed = Number(rule.parameters.averageSpeedMph);
+        const tolerance = Number(rule.parameters.tolerancePercent);
+        for (const travel of timeLines.filter((line) => line.tripId)) {
+          const mileage = rows.find((row) => row.tripId === travel.tripId && row.expenseTypeCode === 'mileage');
+          // The driving route when measured, else the miles claimed; neither, no finding.
+          const miles =
+            travel.routeDistance !== null && mileage
+              ? Number(travel.routeDistance) * (travel.roundTrip ? 2 : 1)
+              : mileage?.hours != null
+                ? Number(mileage.hours)
+                : undefined;
+          if (miles === undefined || travel.hours === undefined) {
+            continue;
+          }
+          const expected = miles / speed;
+          // A quarter hour of slack for parking and short trips.
+          if (travel.hours > expected * (1 + tolerance / 100) + 0.25) {
+            add(
+              `${item(travel)} claims ${formatHours(travel.hours)} of travel for ${formatMiles(miles)}, about ${formatHours(expected)} at ${speed} mph.`,
+              travel.invoiceLineId,
             );
           }
         }

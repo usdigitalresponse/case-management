@@ -192,6 +192,11 @@ button, input, select, textarea { font: inherit; }
 .upload-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.25rem 1rem; }
 .upload-details .usa-label { margin: 0 0 .4rem; font-size: .88rem; }
 .upload-details .usa-select, .upload-details .usa-input { max-width: none; width: 100%; height: 2.5rem; margin: 0; }
+/* Adding someone takes the whole row; the picker keeps its column's width. */
+.upload-details__field:has(.new-entry) { grid-column: 1 / -1; }
+@media (min-width: 48rem) {
+  .upload-details__field:has(.new-entry) > .pick-or-add > .usa-select { max-width: calc(50% - .5rem); }
+}
 .upload-period { display: flex; align-items: center; gap: .5rem; }
 .upload-period .usa-input { flex: 1 1 0; min-width: 0; }
 .upload-footnote { margin: 1rem 0 0; color: var(--ink-muted); font-size: .85rem; }
@@ -519,6 +524,16 @@ form.compact-form { max-width: none; }
 .line-trip .usa-label { margin-top: 0; font-size: .8rem; color: var(--ink-faint); }
 .line-trip .usa-input { max-width: none; margin-top: .2rem; }
 .line-trip .usa-checkbox { margin-bottom: .35rem; }
+/* A trip's miles and each travel expense take a line of their own under its route. */
+.line-trip .line-trip-part { flex: 0 1 18rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .6rem; }
+.line-trip-part .usa-label { flex-basis: 100%; }
+.line-trip-part .usa-input { width: 7rem; }
+.line-trip-cost { flex-basis: 100%; display: flex; align-items: flex-end; gap: 0 1rem; }
+.line-trip-cost .usa-form-group:last-of-type { flex: 0 1 8rem; }
+.line-trip-add, .line-trip-note { flex-basis: 100%; text-align: left; }
+.line-trip-note { margin: 0; font-size: .8rem; color: var(--ink-faint); }
+.line-switch-confirm { margin: .25rem 0 0; font-size: .8rem; }
+.trip-cost { display: block; }
 .line-remove { border: 0; background: none; color: var(--ink-faint); font-size: 1.25rem; line-height: 1; cursor: pointer; height: 2.25rem; padding: 0 .3rem; }
 .line-remove:hover { color: var(--danger); }
 .line-add { margin-top: .5rem; }
@@ -869,7 +884,8 @@ form.compact-form { max-width: none; }
 /* Intake */
 .intake-match { grid-template-columns: minmax(0, 24rem) auto; margin-bottom: .6rem; }
 .intake-provider { margin: 0 0 1.2rem; }
-.intake-provider__fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 12rem; }
+/* Side by side where there's room; in a narrow column, each takes a row. */
+.intake-provider__fields { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
 /* Finish this review? */
 .confirm-panel { flex-basis: 100%; padding: .9rem 1.1rem; border-radius: var(--radius); background: var(--info-tint); border-left: 3px solid var(--primary); }
 .confirm-panel h3 { margin: 0 0 .3rem; font-size: 1rem; }

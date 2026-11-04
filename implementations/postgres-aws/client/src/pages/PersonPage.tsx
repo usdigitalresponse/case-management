@@ -1,6 +1,7 @@
-// A person's details, rates, this year's totals and every invoice they sent.
+// A person's details, rates, this year's totals and every invoice they sent;
+// with ?day=, only those with an item on that date.
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { getPerson, listReviewQueue } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
@@ -13,6 +14,9 @@ import { Toast, useToast } from '../components/Toast';
 import { shownCaseNumber } from '../caseNumbers';
 import { downloadCsv } from '../downloadCsv';
 import { formatMoney, sumMoney } from '../formatMoney';
+import { formatDate } from '../formatDateTime';
+import { Notice } from '../components/Notice';
+import { personPath } from '../staffPaths';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -26,7 +30,10 @@ export default function PersonPage() {
   const { user } = useAuth();
   const [version, setVersion] = useState(0);
   const { data: person, error } = useApiResource(() => getPerson(professionalId as string), [professionalId, version]);
-  const { data: queue, error: queueError } = useApiResource(() => listReviewQueue('all', { professionalId }), [professionalId]);
+  const [searchParams] = useSearchParams();
+  const dayParam = searchParams.get('day') ?? '';
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : undefined;
+  const { data: queue, error: queueError } = useApiResource(() => listReviewQueue('all', { professionalId, day }), [professionalId, day]);
   const [filter, setFilter] = useState<FilterId>('all');
   const [caseNumber, setCaseNumber] = useState('');
   // Invoices whose case number matches, closely or exactly; null for all.
@@ -40,14 +47,14 @@ export default function PersonPage() {
       return;
     }
     let cancelled = false;
-    listReviewQueue('all', { professionalId, q: caseNumber }).then(
+    listReviewQueue('all', { professionalId, q: caseNumber, day }).then(
       (result) => !cancelled && setMatching(new Set(result.invoices.map((invoice) => invoice.invoiceId))),
       () => undefined,
     );
     return () => {
       cancelled = true;
     };
-  }, [professionalId, caseNumber]);
+  }, [professionalId, caseNumber, day]);
 
   if (error || queueError || !person || !queue) {
     return <LoadState error={error ?? queueError} what="this person" />;
@@ -120,6 +127,12 @@ export default function PersonPage() {
         </Fact>
         {person.reviewer && <Fact label="New invoices go to">{person.reviewer.displayName}</Fact>}
       </FactsStrip>
+      {day && (
+        <Notice tone="info">
+          Showing only invoices with an item on {formatDate(day)}, such as travel on several cases that day.{' '}
+          <Link to={personPath(professionalId as string)}>Show all their invoices</Link>
+        </Notice>
+      )}
       <div className="list-controls">
         <div className="chip-filters" role="group" aria-label="Show">
           {FILTERS.map(({ id, label }) => (

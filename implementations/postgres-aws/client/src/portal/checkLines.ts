@@ -1,7 +1,16 @@
 // The figures behind "Check the lines": each line's amount as the server will
 // bill it, the lines read from the file, and the notice comparing the two.
-import type { BillableProfessional, FileLine, FileSource, MileageRate } from '../api/client';
-import { emptyLine, mileageItemPreview, timeItemPreview, type LineDraft } from '../components/InvoiceLinesEditor';
+import type { BillableProfessional, FileLine, FileSource, MileageRate, TimeCategoryRate } from '../api/client';
+import {
+  emptyLine,
+  hasInvoiceItems,
+  isTimeKind,
+  mileageItemPreview,
+  timeItemPreview,
+  timeKindPreview,
+  travelItemPreview,
+  type LineDraft,
+} from '../components/InvoiceLinesEditor';
 import { readLineType, type LineValues, type Row } from '../fileChanges';
 import { formatMoney } from '../formatMoney';
 
@@ -9,11 +18,13 @@ export interface PricingContext {
   timekeepers: BillableProfessional[];
   billedProfessionalId: string | undefined;
   mileageRates: MileageRate[];
+  timeCategoryRates: TimeCategoryRate[];
 }
 
+// Lines here are rows of their own, never a whole trip.
 export function valuesOf(draft: LineDraft): LineValues {
   return {
-    lineType: draft.lineType,
+    lineType: draft.lineType === 'travel' ? 'mileage' : draft.lineType === 'waiting' ? 'time' : draft.lineType,
     serviceDate: draft.serviceDate || null,
     description: draft.description || null,
     quantity: Number(draft.quantity) > 0 ? Number(draft.quantity) : null,
@@ -24,8 +35,21 @@ export function valuesOf(draft: LineDraft): LineValues {
 
 // What a line bills and at what rate; null while it can't be priced yet.
 export function priceOf(draft: LineDraft, context: PricingContext): { total: number | null; rate: string | null; missing?: string } {
-  if (draft.lineType === 'time') {
-    const preview = timeItemPreview(draft, context.timekeepers, context.billedProfessionalId);
+  if (draft.lineType === 'travel') {
+    const preview = travelItemPreview(draft, context.timekeepers, context.billedProfessionalId, context.mileageRates, context.timeCategoryRates);
+    const missing = [preview.time, preview.mileage].flatMap((part) => (part && 'missing' in part ? [part.missing] : []));
+    if (!hasInvoiceItems([draft])) {
+      return { total: null, rate: null, missing: 'Add travel hours, miles or a cost' };
+    }
+    return missing.length > 0
+      ? { total: null, rate: null, missing: missing.join('; ') }
+      : { total: (preview.timeCents + preview.otherCents) / 100, rate: null };
+  }
+  if (isTimeKind(draft.lineType)) {
+    // A time line on a trip is travel time.
+    const preview = draft.tripKey
+      ? timeItemPreview(draft, context.timekeepers, context.billedProfessionalId, { category: 'travel', rates: context.timeCategoryRates })
+      : timeKindPreview(draft, context.timekeepers, context.billedProfessionalId, context.timeCategoryRates);
     return 'amount' in preview ? { total: Number(preview.amount), rate: preview.rate } : { total: null, rate: null, missing: preview.missing };
   }
   if (draft.lineType === 'mileage') {

@@ -16,6 +16,7 @@ import {
 import { finishReview, reopenReview, signOffInvoice } from '../src/billing/reviewRounds';
 import { NotYourInvoiceError, reassignReviewer, setSignOffApprovers } from '../src/billing/reviewAssignment';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
+import { listReviewQueue } from '../src/billing/reviewQueue';
 import { ConflictError, ForbiddenError, ValidationError } from '../src/errors';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import {
@@ -264,6 +265,30 @@ describe('line decisions', () => {
       reasonCode: 'rate_above_configured',
     });
     expect(lines.find((line) => line.invoiceLineId === lineIds[1])?.working).toBeNull();
+  });
+
+  it('lets a reviewer raise or lower a rate without a reason, flagged for sign-off', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines([
+      { amount: '250.00', quantity: '2.00', billedRate: '125.00', configuredRate: '125.00' },
+      '40.00',
+    ]);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved', approvedRate: 150 });
+    const lines = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.lines;
+    expect(lines.find((line) => line.invoiceLineId === lineIds[0])?.working).toMatchObject({
+      outcomeCode: 'approved',
+      approvedAmount: '300.00',
+      approvedRate: '150.000',
+      reasonCode: null,
+    });
+    await expect(reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[1]!, { outcome: 'approved', approvedRate: 10 })).rejects.toThrow(
+      ValidationError,
+    );
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[1]!, { outcome: 'approved' });
+    await setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [approver] });
+    await finishReview(testDb, reviewer, invoiceId);
+    const [queued] = (await listReviewQueue(testDb, 'open')).invoices.filter((row) => row.invoiceId === invoiceId);
+    expect(queued?.flags).toContainEqual({ kind: 'rate_changed', message: 'Reviewer changed the rate on 1 line' });
+    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.approvedTotal).toBe('340.00');
   });
 
   it('checks and re-prices against the pre-authorized rate when the case has one', async () => {

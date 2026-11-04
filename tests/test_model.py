@@ -157,6 +157,11 @@ def check_selected_rules(fixture, index):
     for row in records['invoice_line']:
         require(row['case_id'] == index['invoice'][row['invoice_id']]['case_id'], 'Cross-case invoice line')
         require(row['amount'] > 0, 'Nonpositive requested amount')
+    for row in records['invoice_line']:
+        if row.get('trip_id'):
+            trip = index['trip'][row['trip_id']]
+            require(trip['invoice_id'] == row['invoice_id'], 'Cross-request trip line')
+            require(row.get('service_date') == trip.get('trip_date'), 'Trip line date differs from trip')
     for request in records['invoice']:
         lines = [r for r in records['invoice_line'] if r['invoice_id'] == request['invoice_id']]
         require(sum(Decimal(str(r['amount'])) for r in lines) == Decimal(str(request['submitted_total'])),
@@ -165,7 +170,9 @@ def check_selected_rules(fixture, index):
         chain = index['invoice_approval_chain'][row['invoice_approval_chain_id']]
         line = index['invoice_line'][row['invoice_line_id']]
         require(line['invoice_id'] == chain['invoice_id'], 'Cross-request review')
-        require(0 <= row['approved_amount'] <= line['amount'], 'Approval exceeds request')
+        # Only a line approved at a changed rate may exceed its request.
+        rate_changed = row.get('approved_rate') is not None and row['approved_rate'] != line.get('billed_rate')
+        require(0 <= row['approved_amount'] and (rate_changed or row['approved_amount'] <= line['amount']), 'Approval exceeds request')
     for row in records['invoice_authorization_allocation']:
         request = index['invoice'][row['invoice_id']]
         authorization = index['preauthorization'][row['preauthorization_id']]
@@ -285,6 +292,16 @@ class ModelTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, error):
                     self.validate(fixture)
 
+    def test_changed_rate_approval_may_exceed_request(self):
+        fixture = deepcopy(self.fixture)
+        decision = fixture['records']['invoice_approval_decision'][0]
+        decision['approved_amount'] = 999
+        with self.assertRaisesRegex(ValueError, 'Approval exceeds request'):
+            self.validate(fixture)
+        decision['approved_quantity'] = 1
+        decision['approved_rate'] = 999
+        self.validate(fixture)
+
     def test_cross_case_links_rejected(self):
         for entity in ['activity', 'invoice_line', 'preauthorization', 'invoice_import']:
             with self.subTest(entity=entity):
@@ -396,6 +413,30 @@ class ModelTests(unittest.TestCase):
         self.validate(fixture)
         fixture['records']['time_entry'][1]['case_id'] = fixture['records']['case'][1]['case_id']
         with self.assertRaisesRegex(ValueError, 'Cross-case imported time'):
+            self.validate(fixture)
+
+    def test_trip_lines_share_its_request_and_date(self):
+        fixture = deepcopy(self.fixture)
+        line = fixture['records']['invoice_line'][0]
+        fixture['records']['trip'] = [{
+            'trip_id': '00000000-0000-4000-8000-000000000003',
+            'invoice_id': line['invoice_id'],
+            'trip_date': line['service_date'],
+            'trip_origin': 'Synthetic Office',
+            'trip_destination': 'Synthetic Courthouse',
+            'round_trip': True,
+        }]
+        line['trip_id'] = fixture['records']['trip'][0]['trip_id']
+        self.validate(fixture)
+        fixture['records']['trip'][0]['trip_date'] = '2026-01-06'
+        with self.assertRaisesRegex(ValueError, 'Trip line date differs'):
+            self.validate(fixture)
+        fixture['records']['trip'][0]['trip_date'] = line['service_date']
+        fixture['records']['trip'][0]['invoice_id'] = '00000000-0000-4000-8000-000000000004'
+        fixture['records']['invoice'].append({**fixture['records']['invoice'][0],
+                                              'invoice_id': '00000000-0000-4000-8000-000000000004',
+                                              'submitted_total': 0})
+        with self.assertRaisesRegex(ValueError, 'Cross-request trip line'):
             self.validate(fixture)
 
     def test_imported_expense_must_share_import_case(self):
