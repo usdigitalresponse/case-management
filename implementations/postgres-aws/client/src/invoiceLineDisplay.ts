@@ -26,8 +26,18 @@ export function lineTimekeeper(line: PortalInvoiceLine): string {
 
 const LINE_TYPE_LABELS: Record<string, string> = { time: 'Time', expense: 'Expense' };
 
+// A trip's time is its travel time, and its other expenses travel expenses.
 export function lineType(line: PortalInvoiceLine): string {
-  return isMileage(line) ? 'Mileage' : (LINE_TYPE_LABELS[line.lineTypeCode ?? ''] ?? 'Other');
+  if (isMileage(line)) {
+    return 'Mileage';
+  }
+  if (line.tripId) {
+    return line.lineTypeCode === 'time' ? 'Travel time' : 'Travel expense';
+  }
+  if (line.timeCategory === 'waiting') {
+    return 'Waiting time';
+  }
+  return LINE_TYPE_LABELS[line.lineTypeCode ?? ''] ?? 'Other';
 }
 
 // The configured rate a time or mileage line is billed at; else the file's stated one.

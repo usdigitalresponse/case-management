@@ -147,7 +147,25 @@ export async function reviewInvoiceLine(
       approvedRate?: string;
       reasonCodeId?: string;
     };
-    if (input.outcome === 'approved') {
+    const hasHours = line.quantity !== null && Number(line.quantity) > 0 && line.billedRate !== null;
+    if (input.outcome === 'approved' && input.approvedRate !== undefined) {
+      // Approved at a changed rate, higher or lower, without a reason; sign-off
+      // sees it flagged (model/rules.yaml decide_invoice_lines).
+      if (!hasHours) {
+        throw new ValidationError({ approvedRate: 'Only a line priced by hours or miles has a rate to change.' });
+      }
+      const quantity = input.approvedQuantity ?? Number(line.quantity);
+      const cents = Math.round(quantity * input.approvedRate * 100);
+      if (cents <= 0) {
+        throw new ValidationError({ approvedRate: 'Approve more than nothing, or reject the line.' });
+      }
+      decision = {
+        outcomeCode: 'approved',
+        approvedAmount: money(cents),
+        approvedQuantity: String(quantity),
+        approvedRate: String(input.approvedRate),
+      };
+    } else if (input.outcome === 'approved') {
       decision = { outcomeCode: 'approved', approvedAmount: money(requestedCents) };
     } else {
       const reasonCodeId = await activeReasonId(tx, input.reasonCode, input.outcome);
@@ -157,7 +175,6 @@ export async function reviewInvoiceLine(
       if (input.outcome === 'rejected') {
         decision = { outcomeCode: 'rejected', reasonCodeId };
       } else {
-        const hasHours = line.quantity !== null && Number(line.quantity) > 0 && line.billedRate !== null;
         let cents: number;
         let approvedQuantity: string | undefined;
         let approvedRate: string | undefined;

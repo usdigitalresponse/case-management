@@ -43,6 +43,36 @@ values, not configuration defaults.
    excluding the current request. Resubmission history is visible but not counted
    twice as current authorized consumption. Denied and superseded attempts do not
    become current approved balances.
+8. **Trip with travel time:** Configure an hourly rate of 100 for the provider
+   and a travel time rate of 50% of the hourly rate, and a mileage rate of 0.5.
+   Claim one round trip on one date with 2 hours of travel time, 30 miles and
+   a parking cost of 10. The request has three lines on one trip, priced at
+   100 (2 hours at 50), 15 and 10, all dated the trip's date. A second time
+   line or mileage line on the same trip, or a trip line dated differently, is
+   blocked. Reviewers approve the mileage and parking and approve the travel
+   time in part at 1 hour; the travel log shows the trip with its hours, miles
+   and costs. Changing the travel time rate afterwards does not change the
+   submitted snapshot. With no travel time rate in force, the travel time is
+   priced at 200 like other time.
+9. **Mileage without a trip:** An imported or entered mileage line with its
+   own route and no trip is given a trip of its own; it is never grouped with
+   other lines without the submitter or staff doing so. While checking an
+   import, a parking line on the same date can be added to that trip and taken
+   off again; submitting without grouping is allowed.
+10. **Waiting time:** Configure a flat waiting time rate of 60. One and a half
+    hours of waiting time is priced at 90 and its time entry recorded as
+    waiting.
+11. **Changed rate:** A reviewer approves a 2-hour line billed at 125 at a
+    rate of 150, with no reason. The approved amount is 300, above the 250
+    requested. Sign-off approvers see the line flagged with the billed and
+    changed rates before signing off.
+12. **Travel hours and distance:** With the travel time and distance rule
+    warning at 30 mph and 25% tolerance, a trip of 30 miles with 2 hours of
+    travel time is flagged; 1 hour is not.
+13. **Same-day travel on another case:** The same professional submits travel
+    for one date on two cases. Reviewing either request shows one other request
+    with travel that day and opens that professional's requests for the date
+    in another tab; drafts and the same case are not counted.
 
 An implementation must document unavailable transactions, immutable evidence,
 review authorization or all-write-path validation as gaps before claiming parity.

@@ -1,17 +1,41 @@
 import type { PortalInvoiceLine, RuleFinding } from '../api/client';
 import { RecordTable } from './RecordTable';
-import { directionsUrl, isMileage, lineDate, lineRate } from '../invoiceLineDisplay';
+import { directionsUrl, isMileage, lineDate } from '../invoiceLineDisplay';
 import { formatMoney } from '../formatMoney';
+
+interface Trip {
+  tripId: string;
+  first: PortalInvoiceLine;
+  travel?: PortalInvoiceLine;
+  mileage?: PortalInvoiceLine;
+  costs: PortalInvoiceLine[];
+  total: number;
+}
+
+// A trip's lines, in the order its first line appears.
+export function tripsOf(lines: PortalInvoiceLine[]): Trip[] {
+  const trips = new Map<string, Trip>();
+  for (const line of lines) {
+    if (!line.tripId) continue;
+    const trip = trips.get(line.tripId) ?? { tripId: line.tripId, first: line, costs: [], total: 0 };
+    if (isMileage(line)) trip.mileage = line;
+    else if (line.lineTypeCode === 'time') trip.travel = line;
+    else trip.costs.push(line);
+    trip.total = (Math.round(trip.total * 100) + Math.round(Number(line.amount) * 100)) / 100;
+    trips.set(line.tripId, trip);
+  }
+  return [...trips.values()];
+}
 
 // The driving route as claimed: both ways for a round trip.
 function routeMiles(line: PortalInvoiceLine): number | undefined {
   return line.routeDistance === null ? undefined : Number(line.routeDistance) * (line.roundTrip ? 2 : 1);
 }
 
-// Each mileage item's trip, in place of a printed map. Trips the billing
-// rules flagged are marked.
+// Each trip with its travel time, miles and costs, in place of a printed
+// map. Trips the billing rules flagged are marked.
 export function TravelLog({ lines, findings = [] }: { lines: PortalInvoiceLine[]; findings?: RuleFinding[] }) {
-  const trips = lines.filter(isMileage);
+  const trips = tripsOf(lines);
   const flagged = new Set(
     findings.filter((finding) => finding.rule === 'mileage_distance').map((finding) => finding.invoiceLineId),
   );
@@ -22,36 +46,46 @@ export function TravelLog({ lines, findings = [] }: { lines: PortalInvoiceLine[]
     <div className="detail-section">
       <h2>Travel log</h2>
       <p className="compact-hint">
-        Driving distances are looked up when an invoice is submitted with the mileage distance rule on. Use the map
-        link to check a trip yourself.
+        Each part of a trip is a separate item above. Driving distances are looked up when an invoice is submitted with
+        the mileage distance rule on. Use the map link to check a trip yourself.
       </p>
       <RecordTable
         rows={trips}
-        rowKey={(line) => line.invoiceLineId}
+        rowKey={(trip) => trip.tripId}
         columns={[
-          { header: 'Date', render: lineDate },
+          { header: 'Date', render: (trip) => lineDate(trip.first) },
           {
             header: 'Trip',
-            render: (line) =>
-              line.tripOrigin && line.tripDestination ? (
+            render: ({ first }) =>
+              first.tripOrigin && first.tripDestination ? (
                 <>
-                  {line.tripOrigin} → {line.tripDestination}
-                  {line.roundTrip && <span className="trip-note">Round trip</span>}
+                  {first.tripOrigin} → {first.tripDestination}
+                  {first.roundTrip && <span className="trip-note">Round trip</span>}
                 </>
               ) : (
                 <span className="line-amount-missing">No From and To given</span>
               ),
           },
-          { header: 'Miles claimed', render: (line) => (line.quantity === null ? '—' : Number(line.quantity)) },
+          {
+            header: 'Travel time',
+            render: ({ travel }) => {
+              const hours = travel?.quantity ?? travel?.sourceDurationHours;
+              return hours ? `${Number(hours)} h` : '—';
+            },
+          },
+          { header: 'Miles claimed', render: ({ mileage }) => (mileage?.quantity ? Number(mileage.quantity) : '—') },
           {
             header: 'Driving route',
-            render: (line) => {
-              const route = routeMiles(line);
+            render: ({ first, mileage }) => {
+              const route = mileage ? routeMiles(first) : undefined;
+              if (!mileage) {
+                return '—';
+              }
               if (route === undefined) {
                 return <span className="trip-note">Not checked</span>;
               }
-              const over = Number(line.quantity ?? 0) - route;
-              const isFlagged = flagged.has(line.invoiceLineId);
+              const over = Number(mileage.quantity ?? 0) - route;
+              const isFlagged = flagged.has(mileage.invoiceLineId);
               return (
                 <>
                   {Number(route.toFixed(1))} mi
@@ -64,13 +98,23 @@ export function TravelLog({ lines, findings = [] }: { lines: PortalInvoiceLine[]
               );
             },
           },
-          { header: 'Rate', render: (line) => <span className="amount">{lineRate(line)}</span> },
-          { header: 'Requested', render: (line) => <span className="amount">{formatMoney(line.amount)}</span> },
+          {
+            header: 'Travel expenses',
+            render: ({ costs }) =>
+              costs.length === 0
+                ? '—'
+                : costs.map((cost) => (
+                    <span key={cost.invoiceLineId} className="trip-cost">
+                      {cost.description ?? 'Travel expense'} {formatMoney(cost.amount)}
+                    </span>
+                  )),
+          },
+          { header: 'Requested', render: (trip) => <span className="amount">{formatMoney(trip.total.toFixed(2))}</span> },
           {
             header: 'Map',
-            render: (line) =>
-              line.tripOrigin && line.tripDestination ? (
-                <a href={directionsUrl(line.tripOrigin, line.tripDestination)} target="_blank" rel="noreferrer noopener">
+            render: ({ first }) =>
+              first.tripOrigin && first.tripDestination ? (
+                <a href={directionsUrl(first.tripOrigin, first.tripDestination)} target="_blank" rel="noreferrer noopener">
                   Directions<span className="usa-sr-only"> (opens a new tab)</span>
                 </a>
               ) : (

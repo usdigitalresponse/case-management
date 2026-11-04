@@ -127,7 +127,8 @@ function FileTotalComparison({ lines, timekeepers }: { lines: LineDraft[]; timek
 function draftFrom(suggestion: SuggestedImportLine): LineDraft {
   return {
     ...emptyLine,
-    lineType: suggestion.line_type?.value ?? 'other',
+    // The editor takes mileage as a trip; its quantity is the miles either way.
+    lineType: suggestion.line_type?.value === 'mileage' ? 'travel' : (suggestion.line_type?.value ?? 'other'),
     serviceDate: suggestion.service_date?.value ?? '',
     description: suggestion.description?.value ?? '',
     quantity: suggestion.quantity === undefined ? '' : String(suggestion.quantity.value),
@@ -316,6 +317,7 @@ function ExtractedReview({
           onProviderAdded={staff ? providers.onProviderAdded : undefined}
           billingCodes={billingRules.codes}
           mileageRates={billingRules.mileageRates}
+          timeCategoryRates={billingRules.timeCategoryRates}
           importReview={{
             duplicateTime: importDetail.possibleDuplicateTime,
             // Only while items are still in their extracted order.

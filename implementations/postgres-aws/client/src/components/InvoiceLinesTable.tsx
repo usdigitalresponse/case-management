@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PortalInvoiceLine } from '../api/client';
 import { RecordTable } from './RecordTable';
-import { formatMoney } from '../formatMoney';
+import { formatMoney, formatRate } from '../formatMoney';
 import { isMileage, lineDate, lineDescription, lineHours, lineRate, lineTimekeeper, lineType } from '../invoiceLineDisplay';
 import { EnteredFlag } from './NewEntryFields';
 
@@ -45,7 +45,7 @@ export function InvoiceLinesTable<L extends PortalInvoiceLine>({
               {lineDescription(line)}
               <span className="cell-note">
                 {lineType(line)} · {lineTimekeeper(line)}
-                {isMileage(line) && line.tripOrigin && line.tripDestination ? ` · ${line.tripOrigin} → ${line.tripDestination}` : ''}
+                {line.tripId && line.tripOrigin && line.tripDestination ? ` · ${line.tripOrigin} → ${line.tripDestination}` : ''}
               </span>
               {line.proposedTimekeeperName && (
                 <EnteredFlag what={`Person (“${line.proposedTimekeeperName}”)`} matched={Boolean(line.timekeeperProfessionalId)} compact />
@@ -64,7 +64,18 @@ export function InvoiceLinesTable<L extends PortalInvoiceLine>({
             </>
           ),
         },
-        { header: 'Rate', align: 'right', render: (line) => lineRate(line) },
+        {
+          header: 'Rate',
+          align: 'right',
+          render: (line) => (
+            <>
+              {lineRate(line)}
+              {line.configuredRate !== null && line.billedRate !== null && Number(line.billedRate) !== Number(line.configuredRate) && (
+                <span className="cell-note line-rate-differs">Default {formatRate(line.configuredRate)}</span>
+              )}
+            </>
+          ),
+        },
         {
           header: 'Requested',
           align: 'right',

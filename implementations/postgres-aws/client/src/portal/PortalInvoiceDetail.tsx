@@ -135,6 +135,7 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
         recordedTime={pickable}
         billingCodes={billingRules.codes}
         mileageRates={billingRules.mileageRates}
+        timeCategoryRates={billingRules.timeCategoryRates}
       />
       <div className="invoice-actions">
         {/* Who it's from is chosen when it's matched, so it can't go to review yet. */}

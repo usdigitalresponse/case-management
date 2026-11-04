@@ -37,6 +37,7 @@ import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase } from '../cases/closeCase';
 import { addKindRate, addOwnRates, createKind, listRates, setProfessionalKind } from '../billing/professionalRates';
 import { addMileageRate } from '../billing/mileageRates';
+import { addTimeCategoryRate } from '../billing/timeCategoryRates';
 import { addBillingCode, setBillingRule } from '../billing/billingRules';
 import { pairKey } from '../billing/routeCheck';
 import { getAdminAccountRoleId, getBillingReviewerRoleId, getSignOffApproverRoleId } from '../auth/staffAccountRole';
@@ -197,7 +198,8 @@ async function seedDemoRates(
     kindIds.set(displayName, professionalKindId);
   }
   // Synthetic, not any agency's rate.
-  await addMileageRate(db, fixtures.staffUserAccountId, { ratePerMile: 0.6, effectiveFrom: '2025-01-01' });
+  await addMileageRate(db, fixtures.staffUserAccountId, { ratePerMile: 0.76, effectiveFrom: '2025-01-01' });
+  await addTimeCategoryRate(db, fixtures.staffUserAccountId, { category: 'travel', basis: 'percent_of_hourly_rate', percent: 50, effectiveFrom: '2025-01-01' });
   for (const [index, { professionalId }] of professionals.entries()) {
     const kind = DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!;
     // eslint-disable-next-line no-await-in-loop
@@ -376,8 +378,10 @@ async function seedDemoMileage(
     periodStart: '2026-02-01',
     periodEnd: '2026-02-28',
     lines: [
-      trip('2026-02-03', 'Meeting near the Lincoln Memorial', LINCOLN_MEMORIAL, 4.5, true),
-      { lineType: 'expense', serviceDate: '2026-02-03', description: 'Parking', amount: 8 },
+      // One trip: its travel time, miles and parking are separate items.
+      { ...trip('2026-02-03', 'Meeting near the Lincoln Memorial', LINCOLN_MEMORIAL, 4.5, true), tripKey: 'lincoln' },
+      { ...trip('2026-02-03', 'Travel to the meeting and back', LINCOLN_MEMORIAL, 0, true), lineType: 'time', quantity: 0.5, tripKey: 'lincoln' },
+      { ...trip('2026-02-03', 'Parking', LINCOLN_MEMORIAL, 0, true), lineType: 'expense', quantity: undefined, amount: 8, tripKey: 'lincoln' },
       // Far over the roughly 11 mi round trip, so it's flagged.
       trip('2026-02-10', 'Client visit near the National Cathedral', NATIONAL_CATHEDRAL, 30, true),
       trip('2026-02-17', 'Witness interview near the National Zoo', NATIONAL_ZOO, 4, false),

@@ -24,6 +24,7 @@ import {
   person,
   professional,
   timeEntry,
+  trip,
   userAccount,
 } from '../db/schema';
 import { authorizeBilling, isStaffAccount, resolvePortalActor, type PortalActor } from '../portal/portalActor';
@@ -57,7 +58,7 @@ import {
 import { optionalEmail } from '../people/emails';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.5.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.6.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
 // Mileage is an expense line with the mileage expense type.
@@ -92,7 +93,14 @@ export const invoiceLineInputSchema = z
     // Someone not listed, named by the submitter (./proposedDetails.ts).
     proposedTimekeeperName: z.string().trim().min(1).max(200).optional(),
     proposedTimekeeperEmail: optionalEmail,
-    // Mileage only; quantity is the miles claimed for the whole trip.
+    // Lines sharing a key are one trip (model/rules.yaml
+    // apply_travel_time_rates): a time line on one is travel time. A mileage
+    // line without one is a trip of its own. The trip's route is given on
+    // each of its lines; the first line's governs.
+    tripKey: z.string().trim().min(1).max(100).optional(),
+    // A time line off a trip may be waiting time, priced at its own rate.
+    timeCategory: z.literal('waiting').optional(),
+    // A mileage line's quantity is the miles claimed for the whole trip.
     tripOrigin: address.optional(),
     tripDestination: address.optional(),
     roundTrip: z.boolean().optional(),
@@ -106,6 +114,10 @@ export const invoiceLineInputSchema = z
   .refine((line) => line.lineType === 'time' || line.lineType === 'mileage' || line.amount !== undefined, {
     message: 'Each expense or other item needs an amount above zero.',
     path: ['amount'],
+  })
+  .refine((line) => !line.tripKey || line.lineType !== 'other', {
+    message: 'A trip takes travel time, mileage and expenses only.',
+    path: ['tripKey'],
   });
 
 // A draft may start with no lines, as an invoice entered by hand does;
@@ -133,7 +145,48 @@ export function parseDraftContent(rawInput: unknown): DraftContent {
   if (content.periodStart && content.periodEnd && content.periodEnd < content.periodStart) {
     throw new ValidationError({ periodEnd: 'The billing period cannot end before it starts.' });
   }
+  const counts = new Map<string, { time: number; mileage: number }>();
+  for (const line of content.lines) {
+    if (!line.tripKey) continue;
+    const count = counts.get(line.tripKey) ?? { time: 0, mileage: 0 };
+    if (line.lineType === 'time') count.time += 1;
+    if (line.lineType === 'mileage') count.mileage += 1;
+    counts.set(line.tripKey, count);
+  }
+  if ([...counts.values()].some((count) => count.time > 1 || count.mileage > 1)) {
+    throw new ValidationError({ lines: 'A trip has one travel time item and one mileage item at most.' });
+  }
   return content;
+}
+
+type TripValues = Pick<typeof trip.$inferInsert, 'tripDate' | 'tripOrigin' | 'tripDestination' | 'roundTrip'>;
+
+// Each line's trip, by key; a mileage line without one gets its own. Every
+// line on a trip takes its date, the first one set among them.
+function groupTrips<T extends DraftContent['lines'][number]>(lines: T[]): { lines: Array<T & { tripKey?: string }>; trips: Map<string, TripValues> } {
+  const trips = new Map<string, TripValues>();
+  const keyed = lines.map((line, index) => ({
+    ...line,
+    tripKey: line.tripKey ? `trip:${line.tripKey}` : line.lineType === 'mileage' ? `line:${index}` : undefined,
+  }));
+  for (const line of keyed) {
+    if (!line.tripKey) continue;
+    const found = trips.get(line.tripKey);
+    if (!found) {
+      trips.set(line.tripKey, {
+        tripDate: line.serviceDate,
+        tripOrigin: line.tripOrigin,
+        tripDestination: line.tripDestination,
+        roundTrip: Boolean(line.roundTrip),
+      });
+    } else if (!found.tripDate && line.serviceDate) {
+      found.tripDate = line.serviceDate;
+    }
+  }
+  return {
+    trips,
+    lines: keyed.map((line) => (line.tripKey ? { ...line, serviceDate: trips.get(line.tripKey)!.tripDate ?? undefined } : line)),
+  };
 }
 
 // Each line is rounded to cents once, so the total always equals the sum of
@@ -152,7 +205,8 @@ async function replaceLines(
 ): Promise<string> {
   const billable = await authorizeBilling(tx, actor, caseId, billedProfessionalId);
   const delegated = billedProfessionalId !== actor.professionalId;
-  let lines = content.lines.map((line) => ({
+  const grouped = groupTrips(content.lines);
+  let lines = grouped.lines.map((line) => ({
     ...line,
     amount: line.amount === undefined ? undefined : Math.round(line.amount * 100) / 100,
     timekeeperProfessionalId:
@@ -260,6 +314,13 @@ async function replaceLines(
   // Safe: draft lines have no decisions, and submitted values live on in
   // their attempt's snapshot.
   await tx.delete(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
+  await tx.delete(trip).where(eq(trip.invoiceId, invoiceId));
+  const tripIds = new Map<string, string>();
+  for (const [key, values] of grouped.trips) {
+    // eslint-disable-next-line no-await-in-loop
+    const { tripId } = firstRow(await tx.insert(trip).values({ invoiceId, ...values }).returning({ tripId: trip.tripId }));
+    tripIds.set(key, tripId);
+  }
   if (lines.length > 0) await tx.insert(invoiceLine).values(
     lines.map((line) => ({
       invoiceId,
@@ -283,12 +344,9 @@ async function replaceLines(
       proposedTimekeeperName: line.proposedTimekeeperName,
       proposedTimekeeperEmail: line.proposedTimekeeperName ? line.proposedTimekeeperEmail : undefined,
       sourceLocation: line.sourceLocation,
-      ...(line.lineType === 'mileage' && {
-        expenseTypeId: mileageTypeId,
-        tripOrigin: line.tripOrigin,
-        tripDestination: line.tripDestination,
-        roundTrip: Boolean(line.roundTrip),
-      }),
+      expenseTypeId: line.lineType === 'mileage' ? mileageTypeId : undefined,
+      tripId: line.tripKey ? tripIds.get(line.tripKey) : undefined,
+      timeCategory: line.lineType === 'time' && !line.tripKey ? line.timeCategory : undefined,
     })),
   );
   await applyTripDistances(tx, invoiceId);
@@ -363,13 +421,14 @@ async function buildSubmissionSnapshot(
 ) {
   const invoiceRow = await tx.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
   const lines = await tx.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
+  const trips = await tx.select().from(trip).where(eq(trip.invoiceId, invoiceId));
   const attestations = await tx.select().from(invoiceAttestation).where(eq(invoiceAttestation.invoiceApprovalChainId, chainId));
   return {
     spec_version: SUBMISSION_SNAPSHOT_SPEC_VERSION,
     captured_at: capturedAt.toISOString(),
     invoice_id: invoiceId,
     invoice_approval_chain_id: chainId,
-    records: { invoice: invoiceRow, invoice_line: lines, invoice_attestation: attestations },
+    records: { invoice: invoiceRow, invoice_line: lines, trip: trips, invoice_attestation: attestations },
     billing_rules: billingRules,
   };
 }
@@ -638,10 +697,19 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
   }
   if (z.uuid().safeParse(invoiceId).success) {
     const trips = await db
-      .select({ tripOrigin: invoiceLine.tripOrigin, tripDestination: invoiceLine.tripDestination })
-      .from(invoiceLine)
-      .innerJoin(invoice, eq(invoiceLine.invoiceId, invoice.invoiceId))
-      .where(and(eq(invoiceLine.invoiceId, invoiceId), eq(invoice.submittedByUserAccountId, actor.userAccountId)));
+      .select({ tripOrigin: trip.tripOrigin, tripDestination: trip.tripDestination })
+      .from(trip)
+      .innerJoin(invoice, eq(trip.invoiceId, invoice.invoiceId))
+      // Only mileage is checked against the route.
+      .innerJoin(invoiceLine, eq(invoiceLine.tripId, trip.tripId))
+      .innerJoin(expenseTypes, eq(invoiceLine.expenseTypeId, expenseTypes.id))
+      .where(
+        and(
+          eq(trip.invoiceId, invoiceId),
+          eq(invoice.submittedByUserAccountId, actor.userAccountId),
+          eq(expenseTypes.code, MILEAGE_EXPENSE_TYPE_CODE),
+        ),
+      );
     await measureTrips(db, trips);
   }
   const status = await db.transaction(async (tx) => {

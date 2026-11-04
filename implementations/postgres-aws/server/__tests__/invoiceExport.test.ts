@@ -183,7 +183,7 @@ describe('invoice export', () => {
     const detail = (await loadInvoiceDetail(testDb, invoiceId))!;
     const content = invoiceExportContent(detail, { includeReviewer: false, exportedAt: new Date() });
     expect(content.rows[0]?.[1]).toBe('Mileage');
-    expect(content.travelLog.rows).toEqual([['2026-02-04', '1 Office Way', '2 Interview Road', 'Yes', 20, 'Not checked', 0.655, 13.1]]);
+    expect(content.travelLog.rows).toEqual([['2026-02-04', '1 Office Way', '2 Interview Road', 'Yes', null, 20, 'Not checked', null, 13.1]]);
     const pdf = await renderInvoicePdf(detail, { includeReviewer: false, exportedAt: new Date() });
     const xlsx = await renderInvoiceXlsx(detail, { includeReviewer: false, exportedAt: new Date() });
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');

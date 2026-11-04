@@ -3,23 +3,48 @@ import { Checkbox, Label, Select, TextInput } from '@trussworks/react-uswds';
 import {
   mileageRateOn,
   rateOn,
+  categoryRateIn,
+  categoryRateOn,
   type BillableProfessional,
   type CreateInvoiceLineInput,
-  type InvoiceLineType,
   type MileageRate,
   type PortalInvoiceLine,
   type ProposedProvider,
   type TimeEntryRecord,
+  type TimeCategory,
+  type TimeCategoryRate,
 } from '../api/client';
 import { AddProvider, type AddedProvider } from './AddProvider';
 import { NO_PROPOSED_PERSON, ProposedPersonFields } from './NewEntryFields';
 import { formatMoney, formatRate } from '../formatMoney';
 import { formatDate } from '../formatDateTime';
 import { ADD_NEW, PickOrAdd } from './PickOrAdd';
+import { TripFields } from './TripFields';
+
+// A trip is one row here and separate lines once saved: its travel time,
+// mileage and other costs (model/rules.yaml apply_time_category_rates).
+// 'waiting' is waiting time, a time line priced at its own rate. 'mileage'
+// is one line alone, where each line is a row (Check the lines).
+export type DraftKind = 'time' | 'waiting' | 'travel' | 'mileage' | 'expense' | 'other';
+
+// Time worked and waiting time take hours on the row itself.
+export const isTimeKind = (kind: DraftKind) => kind === 'time' || kind === 'waiting';
+
+type Carried = Pick<
+  CreateInvoiceLineInput,
+  'unitRate' | 'statedAmount' | 'serviceDateInferred' | 'timekeeperLabel' | 'taskCode' | 'activityCode' | 'expenseCode' | 'sourceLocation'
+>;
+
+export interface TravelCost {
+  description: string;
+  amount: string;
+  invoiceLineId?: string;
+  carried: Carried;
+}
 
 // Raw input strings until saved.
 export interface LineDraft {
-  lineType: InvoiceLineType;
+  lineType: DraftKind;
   serviceDate: string;
   description: string;
   quantity: string;
@@ -32,25 +57,22 @@ export interface LineDraft {
   proposedTimekeeperEmail: string;
   // Recorded time this item bills; editing the item edits that time.
   sourceTimeEntryId: string;
-  // Mileage only; quantity holds the miles.
+  // Travel only: quantity holds the miles, and these the trip's route,
+  // travel time and other costs.
   tripOrigin: string;
   tripDestination: string;
   roundTrip: boolean;
+  travelHours: string;
+  travelCosts: TravelCost[];
+  // The travel time line's own saved values; the row's are its mileage's.
+  travelTime?: { invoiceLineId?: string; sourceTimeEntryId: string; carried: Carried };
+  // One line of a saved trip, where each line is a row: kept on its trip.
+  tripKey?: string;
   invoiceLineId?: string;
   // Pre-selected on import and not yet checked.
   suggestedTimekeeper?: boolean;
   // Values the editor doesn't show, saved back so edits never drop them.
-  carried: Pick<
-    CreateInvoiceLineInput,
-    | 'unitRate'
-    | 'statedAmount'
-    | 'serviceDateInferred'
-    | 'timekeeperLabel'
-    | 'taskCode'
-    | 'activityCode'
-    | 'expenseCode'
-    | 'sourceLocation'
-  >;
+  carried: Carried;
 }
 
 export const emptyLine: LineDraft = {
@@ -66,37 +88,89 @@ export const emptyLine: LineDraft = {
   tripOrigin: '',
   tripDestination: '',
   roundTrip: false,
+  travelHours: '',
+  travelCosts: [],
   carried: {},
 };
 
-const LINE_TYPE_BY_CODE: Record<string, InvoiceLineType> = { time: 'time', expense: 'expense' };
+const LINE_TYPE_BY_CODE: Record<string, DraftKind> = { time: 'time', expense: 'expense' };
 
-export function lineDraftsFrom(lines: PortalInvoiceLine[]): LineDraft[] {
-  return lines.map((line) => ({
-    lineType: line.expenseTypeCode === 'mileage' ? 'mileage' : (LINE_TYPE_BY_CODE[line.lineTypeCode ?? ''] ?? 'other'),
-    tripOrigin: line.tripOrigin ?? '',
-    tripDestination: line.tripDestination ?? '',
-    roundTrip: line.roundTrip,
-    serviceDate: line.serviceDate ?? '',
-    description: line.description ?? '',
-    quantity: line.quantity ?? '',
-    amount: line.amount,
-    timekeeperProfessionalId: line.timekeeperProfessionalId ?? (line.proposedTimekeeperName ? ADD_NEW : ''),
-    proposedTimekeeperName: line.proposedTimekeeperName ?? '',
-    proposedTimekeeperEmail: line.proposedTimekeeperEmail ?? '',
-    sourceTimeEntryId: line.sourceTimeEntryId ?? '',
-    invoiceLineId: line.invoiceLineId,
-    carried: {
-      unitRate: line.unitRate === null ? undefined : Number(line.unitRate),
-      statedAmount: line.statedAmount === null ? undefined : Number(line.statedAmount),
-      serviceDateInferred: line.serviceDateInferred || undefined,
-      timekeeperLabel: line.timekeeperLabel ?? undefined,
-      taskCode: line.taskCode ?? undefined,
-      activityCode: line.activityCode ?? undefined,
-      expenseCode: line.expenseCode ?? undefined,
-      sourceLocation: line.sourceLocation ?? undefined,
-    },
-  }));
+function carriedFrom(line: PortalInvoiceLine): Carried {
+  return {
+    unitRate: line.unitRate === null ? undefined : Number(line.unitRate),
+    statedAmount: line.statedAmount === null ? undefined : Number(line.statedAmount),
+    serviceDateInferred: line.serviceDateInferred || undefined,
+    timekeeperLabel: line.timekeeperLabel ?? undefined,
+    taskCode: line.taskCode ?? undefined,
+    activityCode: line.activityCode ?? undefined,
+    expenseCode: line.expenseCode ?? undefined,
+    sourceLocation: line.sourceLocation ?? undefined,
+  };
+}
+
+// A trip's lines become one travel row, where its first line was; with
+// `perLine`, each line stays a row of its own, kept on its trip.
+export function lineDraftsFrom(lines: PortalInvoiceLine[], { perLine = false } = {}): LineDraft[] {
+  const drafts: LineDraft[] = [];
+  const trips = new Map<string, LineDraft>();
+  for (const line of lines) {
+    const kind: DraftKind =
+      line.expenseTypeCode === 'mileage'
+        ? 'mileage'
+        : line.timeCategory === 'waiting'
+          ? 'waiting'
+          : (LINE_TYPE_BY_CODE[line.lineTypeCode ?? ''] ?? 'other');
+    const draft: LineDraft = {
+      ...emptyLine,
+      lineType: line.tripId && !perLine ? 'travel' : kind,
+      tripOrigin: line.tripOrigin ?? '',
+      tripDestination: line.tripDestination ?? '',
+      roundTrip: line.roundTrip,
+      serviceDate: line.serviceDate ?? '',
+      timekeeperProfessionalId: line.timekeeperProfessionalId ?? (line.proposedTimekeeperName ? ADD_NEW : ''),
+      proposedTimekeeperName: line.proposedTimekeeperName ?? '',
+      proposedTimekeeperEmail: line.proposedTimekeeperEmail ?? '',
+    };
+    if (!line.tripId || perLine) {
+      drafts.push({
+        ...draft,
+        description: line.description ?? '',
+        quantity: line.quantity ?? '',
+        amount: line.amount,
+        sourceTimeEntryId: line.sourceTimeEntryId ?? '',
+        invoiceLineId: line.invoiceLineId,
+        tripKey: line.tripId ?? undefined,
+        carried: carriedFrom(line),
+      });
+      continue;
+    }
+    let travel = trips.get(line.tripId);
+    if (!travel) {
+      travel = draft;
+      trips.set(line.tripId, travel);
+      drafts.push(travel);
+    }
+    if (line.expenseTypeCode === 'mileage') {
+      Object.assign(travel, {
+        description: line.description ?? travel.description,
+        quantity: line.quantity ?? '',
+        invoiceLineId: line.invoiceLineId,
+        carried: carriedFrom(line),
+      });
+    } else if (line.lineTypeCode === 'time') {
+      Object.assign(travel, {
+        description: travel.description || (line.description ?? ''),
+        travelHours: line.quantity ?? line.sourceDurationHours ?? '',
+        travelTime: { invoiceLineId: line.invoiceLineId, sourceTimeEntryId: line.sourceTimeEntryId ?? '', carried: carriedFrom(line) },
+      });
+    } else {
+      travel.travelCosts = [
+        ...travel.travelCosts,
+        { description: line.description ?? '', amount: line.amount, invoiceLineId: line.invoiceLineId, carried: carriedFrom(line) },
+      ];
+    }
+  }
+  return drafts;
 }
 
 export function professionalLabel(professional: BillableProfessional): string {
@@ -130,7 +204,7 @@ function sameTimekeeperForAll(lines: LineDraft[], from: LineDraft, fixed: boolea
   return fixed
     ? lines
     : lines.map((line) =>
-        line.sourceTimeEntryId
+        line.sourceTimeEntryId || line.travelTime?.sourceTimeEntryId
           ? line
           : {
               ...line,
@@ -150,10 +224,17 @@ function proposedName(draft: LineDraft): string | undefined {
     : undefined;
 }
 
-// A time item needs hours (or recorded time), mileage miles, anything else an amount.
+const hasTravelTime = (draft: LineDraft) => Number(draft.travelHours) > 0 || Boolean(draft.travelTime?.sourceTimeEntryId);
+const travelCostsOf = (draft: LineDraft) => draft.travelCosts.filter((cost) => Number(cost.amount) > 0);
+
+// A time item needs hours (or recorded time), a trip travel time, miles or a
+// cost, anything else an amount.
 function isItem(draft: LineDraft): boolean {
-  if (draft.lineType === 'time') {
+  if (isTimeKind(draft.lineType)) {
     return Number(draft.quantity) > 0 || Boolean(draft.sourceTimeEntryId);
+  }
+  if (draft.lineType === 'travel') {
+    return hasTravelTime(draft) || Number(draft.quantity) > 0 || travelCostsOf(draft).length > 0;
   }
   return draft.lineType === 'mileage' ? Number(draft.quantity) > 0 : Number(draft.amount) > 0;
 }
@@ -163,26 +244,85 @@ export function hasInvoiceItems(drafts: LineDraft[]): boolean {
   return drafts.some(isItem);
 }
 
-// Incomplete rows are dropped; the server validates and prices the rest.
+// A trip as rows of their own, where each line is a row (Check the lines):
+// its travel time, miles and costs, sharing `tripKey`, its date and route.
+export function tripParts(draft: LineDraft, tripKey: string): LineDraft[] {
+  const shared = {
+    ...emptyLine,
+    serviceDate: draft.serviceDate,
+    timekeeperProfessionalId: draft.timekeeperProfessionalId,
+    tripOrigin: draft.tripOrigin,
+    tripDestination: draft.tripDestination,
+    roundTrip: draft.roundTrip,
+    tripKey,
+  };
+  return [
+    ...(Number(draft.travelHours) > 0
+      ? [{ ...shared, lineType: 'time' as const, description: draft.description, quantity: draft.travelHours, carried: draft.travelTime?.carried ?? {} }]
+      : []),
+    ...(Number(draft.quantity) > 0 ? [{ ...shared, lineType: 'mileage' as const, description: draft.description, quantity: draft.quantity }] : []),
+    ...travelCostsOf(draft).map((cost) => ({ ...shared, lineType: 'expense' as const, description: cost.description, amount: cost.amount })),
+  ];
+}
+
+// Incomplete rows are dropped; the server validates and prices the rest. A
+// trip's parts go as separate lines sharing a trip key and its route.
 export function linesFromDrafts(drafts: LineDraft[]): CreateInvoiceLineInput[] {
-  return drafts.filter(isItem).map((draft) => ({
-    ...draft.carried,
-    lineType: draft.lineType,
-    // Ignored on a priced time item; kept while an import is unconfirmed.
-    amount: Number(draft.amount) > 0 ? Number(draft.amount) : undefined,
-    serviceDate: draft.serviceDate || undefined,
-    description: draft.description.trim() || undefined,
-    quantity: Number(draft.quantity) > 0 ? Number(draft.quantity) : undefined,
-    timekeeperProfessionalId: draft.timekeeperProfessionalId && draft.timekeeperProfessionalId !== ADD_NEW ? draft.timekeeperProfessionalId : undefined,
-    proposedTimekeeperName: proposedName(draft),
-    proposedTimekeeperEmail: (draft.timekeeperProfessionalId === ADD_NEW && draft.proposedTimekeeperEmail.trim()) || undefined,
-    sourceTimeEntryId: draft.sourceTimeEntryId || undefined,
-    ...(draft.lineType === 'mileage' && {
+  return drafts.filter(isItem).flatMap((draft, index): CreateInvoiceLineInput[] => {
+    const shared = {
+      serviceDate: draft.serviceDate || undefined,
+      timekeeperProfessionalId: draft.timekeeperProfessionalId && draft.timekeeperProfessionalId !== ADD_NEW ? draft.timekeeperProfessionalId : undefined,
+      proposedTimekeeperName: proposedName(draft),
+      proposedTimekeeperEmail: (draft.timekeeperProfessionalId === ADD_NEW && draft.proposedTimekeeperEmail.trim()) || undefined,
+    };
+    const description = draft.description.trim() || undefined;
+    const route = {
       tripOrigin: draft.tripOrigin.trim() || undefined,
       tripDestination: draft.tripDestination.trim() || undefined,
       roundTrip: draft.roundTrip,
-    }),
-  }));
+    };
+    if (draft.lineType !== 'travel') {
+      return [
+        {
+          ...draft.carried,
+          ...shared,
+          lineType: draft.lineType === 'waiting' ? 'time' : draft.lineType,
+          ...(draft.lineType === 'waiting' && { timeCategory: 'waiting' as const }),
+          // Ignored on a priced time item; kept while an import is unconfirmed.
+          amount: Number(draft.amount) > 0 ? Number(draft.amount) : undefined,
+          description,
+          quantity: Number(draft.quantity) > 0 ? Number(draft.quantity) : undefined,
+          sourceTimeEntryId: draft.sourceTimeEntryId || undefined,
+          ...((draft.tripKey || draft.lineType === 'mileage') && { tripKey: draft.tripKey, ...route }),
+        },
+      ];
+    }
+    const trip = { ...shared, ...route, tripKey: `trip-${index}` };
+    return [
+      ...(hasTravelTime(draft)
+        ? [
+            {
+              ...draft.travelTime?.carried,
+              ...trip,
+              lineType: 'time' as const,
+              description,
+              quantity: Number(draft.travelHours) > 0 ? Number(draft.travelHours) : undefined,
+              sourceTimeEntryId: draft.travelTime?.sourceTimeEntryId || undefined,
+            },
+          ]
+        : []),
+      ...(Number(draft.quantity) > 0
+        ? [{ ...draft.carried, ...trip, lineType: 'mileage' as const, description, quantity: Number(draft.quantity) }]
+        : []),
+      ...travelCostsOf(draft).map((cost) => ({
+        ...cost.carried,
+        ...trip,
+        lineType: 'expense' as const,
+        description: cost.description.trim() || undefined,
+        amount: Number(cost.amount),
+      })),
+    ];
+  });
 }
 
 // What the server will bill for a mileage item, for display.
@@ -205,11 +345,13 @@ export function mileageItemPreview(
 
 // What the server will bill for a time item, for display; it prices again on
 // save, as server/src/billing/priceLines.ts does: a rate stated on an imported
-// file, else the configured rate, which must exist either way.
+// file, else the configured rate, which must exist either way. Travel and
+// waiting time's configured rate is that category's, given `category`.
 export function timeItemPreview(
   line: Pick<LineDraft, 'serviceDate' | 'quantity' | 'timekeeperProfessionalId'> & { carried?: Pick<LineDraft['carried'], 'unitRate'> },
   timekeepers: BillableProfessional[],
   billedProfessionalId: string | undefined,
+  category?: { category: TimeCategory; rates: TimeCategoryRate[] },
 ): { amount: string; rate: string; hours: number; configuredRate: string } | { missing: string } {
   const professional = timekeepers.find(
     (candidate) => candidate.professionalId === (line.timekeeperProfessionalId || billedProfessionalId),
@@ -223,7 +365,8 @@ export function timeItemPreview(
       missing: !line.serviceDate && !(hours > 0) ? 'Add a date and hours' : !line.serviceDate ? 'Add a date' : 'Add the hours',
     };
   }
-  const configuredRate = rateOn(professional.rates, line.serviceDate);
+  const hourly = rateOn(professional.rates, line.serviceDate);
+  const configuredRate = category ? categoryRateOn(category.rates, category.category, line.serviceDate, hourly) : hourly;
   if (configuredRate === undefined) {
     return { missing: 'No rate set for this date' };
   }
@@ -232,37 +375,171 @@ export function timeItemPreview(
   return { amount: (Math.round(hours * Number(rate) * 100) / 100).toFixed(2), rate, hours, configuredRate };
 }
 
+const toCents = (amount: string | number) => Math.round(Number(amount) * 100);
+
+// Each part of a trip as it would be billed; a part not claimed is absent.
+export function travelItemPreview(
+  draft: LineDraft,
+  timekeepers: BillableProfessional[],
+  billedProfessionalId: string | undefined,
+  mileageRates: MileageRate[],
+  categoryRates: TimeCategoryRate[],
+): {
+  time?: ReturnType<typeof timeItemPreview>;
+  mileage?: ReturnType<typeof mileageItemPreview>;
+  timeCents: number;
+  otherCents: number;
+  complete: boolean;
+} {
+  const time = hasTravelTime(draft)
+    ? timeItemPreview({ ...draft, quantity: draft.travelHours, carried: draft.travelTime?.carried }, timekeepers, billedProfessionalId, {
+        category: 'travel',
+        rates: categoryRates,
+      })
+    : undefined;
+  const mileage = Number(draft.quantity) > 0 ? mileageItemPreview(draft, mileageRates) : undefined;
+  const timeCents = time && 'amount' in time ? toCents(time.amount) : 0;
+  const otherCents =
+    (mileage && 'amount' in mileage ? toCents(mileage.amount) : 0) +
+    travelCostsOf(draft).reduce((cents, cost) => cents + toCents(cost.amount), 0);
+  const complete = (!time || 'amount' in time) && (!mileage || 'amount' in mileage);
+  return { time, mileage, timeCents, otherCents, complete };
+}
+
+// A time or waiting item as it would be billed.
+export function timeKindPreview(
+  line: LineDraft,
+  timekeepers: BillableProfessional[],
+  billedProfessionalId: string | undefined,
+  categoryRates: TimeCategoryRate[],
+) {
+  return timeItemPreview(
+    line,
+    timekeepers,
+    billedProfessionalId,
+    line.lineType === 'waiting' ? { category: 'waiting', rates: categoryRates } : undefined,
+  );
+}
+
 // The invoice as it would be billed, before saving. `complete` is false
-// while any time or mileage item can't be priced yet.
+// while any time, travel time or mileage can't be priced yet.
 export function invoiceTotalPreview(
   lines: LineDraft[],
   timekeepers: BillableProfessional[],
   billedProfessionalId: string | undefined,
   mileageRates: MileageRate[] = [],
+  categoryRates: TimeCategoryRate[] = [],
 ): { time: number; other: number; total: number; complete: boolean } {
   let timeCents = 0;
   let otherCents = 0;
   let complete = true;
   for (const line of lines.filter(isItem)) {
-    if (line.lineType === 'time') {
-      const preview = timeItemPreview(line, timekeepers, billedProfessionalId);
+    if (isTimeKind(line.lineType)) {
+      const preview = timeKindPreview(line, timekeepers, billedProfessionalId, categoryRates);
       if ('amount' in preview) {
-        timeCents += Math.round(Number(preview.amount) * 100);
+        timeCents += toCents(preview.amount);
       } else {
         complete = false;
       }
+    } else if (line.lineType === 'travel') {
+      const preview = travelItemPreview(line, timekeepers, billedProfessionalId, mileageRates, categoryRates);
+      timeCents += preview.timeCents;
+      otherCents += preview.otherCents;
+      complete &&= preview.complete;
     } else if (line.lineType === 'mileage') {
       const preview = mileageItemPreview(line, mileageRates);
       if ('amount' in preview) {
-        otherCents += Math.round(Number(preview.amount) * 100);
+        otherCents += toCents(preview.amount);
       } else {
         complete = false;
       }
     } else {
-      otherCents += Math.round(Number(line.amount) * 100);
+      otherCents += toCents(line.amount);
     }
   }
   return { time: timeCents / 100, other: otherCents / 100, total: (timeCents + otherCents) / 100, complete };
+}
+
+// How travel or waiting time is billed today, for the note above the items.
+export function categoryRateNote(categoryRates: TimeCategoryRate[], category: TimeCategory): string {
+  return timeCategoryRateLabel(categoryRateIn(categoryRates, category, new Date().toISOString().slice(0, 10)));
+}
+
+// With no setting, the hourly rate.
+export function timeCategoryRateLabel(setting: TimeCategoryRate | undefined): string {
+  if (setting?.basis === 'flat_rate') {
+    return `${formatMoney(setting.hourlyRate ?? '0')}/h`;
+  }
+  if (setting?.basis === 'percent_of_hourly_rate') {
+    return `${Number(setting.percent)}% of the hourly rate`;
+  }
+  return 'the hourly rate';
+}
+
+// Switching a trip to another kind keeps what that kind takes: its hours
+// as time or waiting, its first cost as an expense or other cost.
+function switchKind(line: LineDraft, kind: DraftKind): LineDraft {
+  if (kind === line.lineType) {
+    return line;
+  }
+  if (kind === 'travel') {
+    const timed = isTimeKind(line.lineType);
+    const cost = Number(line.amount) > 0 && !timed ? [{ description: line.description, amount: line.amount, carried: {} }] : [];
+    return { ...line, lineType: kind, travelHours: timed ? line.quantity : '', quantity: '', travelCosts: cost };
+  }
+  if (line.lineType !== 'travel') {
+    return { ...line, lineType: kind };
+  }
+  const [cost] = travelCostsOf(line);
+  return isTimeKind(kind)
+    ? { ...line, lineType: kind, quantity: line.travelHours, travelHours: '', travelCosts: [] }
+    : { ...line, lineType: kind, quantity: '', amount: cost?.amount ?? '', description: line.description || (cost?.description ?? ''), travelHours: '', travelCosts: [] };
+}
+
+// What switching would drop, to ask before it does.
+function dropsOnSwitch(line: LineDraft, kind: DraftKind): string[] {
+  if (line.lineType !== 'travel' || kind === 'travel') {
+    return [];
+  }
+  const costs = travelCostsOf(line);
+  return [
+    ...(!isTimeKind(kind) && hasTravelTime(line) ? ['its travel time'] : []),
+    ...(Number(line.quantity) > 0 ? ['its miles'] : []),
+    ...(costs.length > (isTimeKind(kind) ? 0 : 1) ? [costs.length > 1 ? 'its travel expenses' : 'its travel expense'] : []),
+  ];
+}
+
+// Puts a time or expense row onto a trip row of the same date, as its travel
+// time or one of its costs; the row's own values carry over.
+export function addToTrip(lines: LineDraft[], index: number, tripIndex: number): LineDraft[] {
+  const line = lines[index]!;
+  const trip = lines[tripIndex]!;
+  const joined: LineDraft = isTimeKind(line.lineType)
+    ? {
+        ...trip,
+        travelHours: line.quantity,
+        travelTime: { invoiceLineId: line.invoiceLineId, sourceTimeEntryId: line.sourceTimeEntryId, carried: line.carried },
+        description: trip.description || line.description,
+      }
+    : {
+        ...trip,
+        travelCosts: [...trip.travelCosts, { description: line.description, amount: line.amount, invoiceLineId: line.invoiceLineId, carried: line.carried }],
+      };
+  return lines.flatMap((candidate, i) => (i === index ? [] : i === tripIndex ? [joined] : [candidate]));
+}
+
+// The trip row a time or expense row could join: same date, and for time,
+// no travel time yet.
+export function tripToJoin(lines: LineDraft[], index: number): number | undefined {
+  const line = lines[index]!;
+  if (!line.serviceDate || !(line.lineType === 'time' || line.lineType === 'expense')) {
+    return undefined;
+  }
+  const found = lines.findIndex(
+    (candidate, i) =>
+      i !== index && candidate.lineType === 'travel' && candidate.serviceDate === line.serviceDate && (line.lineType !== 'time' || !hasTravelTime(candidate)),
+  );
+  return found >= 0 ? found : undefined;
 }
 
 // Each person billed on these items, with the rates their dates fall under
@@ -274,7 +551,8 @@ export function ratesInPlay(
 ): Array<{ professional: BillableProfessional; rates: Array<{ hourlyRate: string; from?: string }> }> {
   const today = new Date().toISOString().slice(0, 10);
   const people = new Map<string, Set<string>>();
-  for (const line of lines.filter((candidate) => candidate.lineType === 'time')) {
+  // Travel and waiting time's rates follow the hourly rate, unless flat rates are set.
+  for (const line of lines.filter((candidate) => isTimeKind(candidate.lineType) || (candidate.lineType === 'travel' && hasTravelTime(candidate)))) {
     const professionalId = line.timekeeperProfessionalId || billedProfessionalId;
     if (professionalId) {
       people.set(professionalId, (people.get(professionalId) ?? new Set()).add(line.serviceDate || today));
@@ -334,6 +612,7 @@ export function InvoiceLinesEditor({
   recordedTime = [],
   billingCodes = [],
   mileageRates = [],
+  timeCategoryRates = [],
   importReview,
   onProviderAdded,
 }: {
@@ -347,8 +626,9 @@ export function InvoiceLinesEditor({
   recordedTime?: TimeEntryRecord[];
   // The agency's task codes, when it uses them: adds a code column.
   billingCodes?: Array<{ code: string; displayName: string }>;
-  // Prices mileage items in the preview.
+  // Price mileage, travel and waiting time in the preview.
   mileageRates?: MileageRate[];
+  timeCategoryRates?: TimeCategoryRate[];
   importReview?: {
     duplicateTime: DuplicateTimeSuggestion[];
     sourceLocations?: string[];
@@ -363,23 +643,27 @@ export function InvoiceLinesEditor({
 }) {
   // Added here, to offer using them for the other items.
   const [addedIds, setAddedIds] = useState<string[]>([]);
+  // A switch away from a trip that would drop some of it, until confirmed.
+  const [pendingSwitch, setPendingSwitch] = useState<{ index: number; kind: DraftKind; drops: string[] }>();
   const showTimekeeper = timekeepers.length > 1 || Boolean(importReview);
   // Staff review's columns (client/src/pages/InvoiceReview.tsx), led by the
-  // kind of item, which decides whether it takes hours, miles or an amount.
-  // Who did it and its code sit under the description. Widths and the
-  // narrow layouts are in app.css (.line-editor).
-  const columns = [
-    'Kind',
-    'Date',
-    'What was done',
-    lines.some((line) => line.lineType === 'mileage') ? 'Hours / miles' : 'Hours',
-    'Rate',
-    'Amount',
-    '',
-  ];
+  // kind of item, which decides whether it takes hours or an amount; a trip
+  // takes its miles and costs below. Who did it and its code sit under the
+  // description. Widths and the narrow layouts are in app.css (.line-editor).
+  const columns = ['Kind', 'Date', 'What was done', 'Hours', 'Rate', 'Amount', ''];
 
   function update(index: number, changes: Partial<LineDraft>) {
     onChange(lines.map((line, i) => (i === index ? { ...line, ...changes } : line)));
+  }
+
+  function chooseKind(index: number, kind: DraftKind) {
+    const drops = dropsOnSwitch(lines[index]!, kind);
+    if (drops.length > 0) {
+      setPendingSwitch({ index, kind, drops });
+      return;
+    }
+    setPendingSwitch(undefined);
+    onChange(lines.map((line, i) => (i === index ? switchKind(line, kind) : line)));
   }
 
   async function addProvider(index: number, provider: AddedProvider) {
@@ -391,7 +675,7 @@ export function InvoiceLinesEditor({
 
   const pricingFor = importReview ? undefined : billedProfessionalId;
   const inPlay = ratesInPlay(lines, timekeepers, pricingFor);
-  const totals = invoiceTotalPreview(lines, timekeepers, pricingFor, mileageRates);
+  const totals = invoiceTotalPreview(lines, timekeepers, pricingFor, mileageRates, timeCategoryRates);
   const mileageRateToday = mileageRateOn(mileageRates, new Date().toISOString().slice(0, 10));
 
   return (
@@ -414,10 +698,14 @@ export function InvoiceLinesEditor({
           . Administrators set the rates.
         </p>
       )}
-      {lines.some((line) => line.lineType === 'mileage') && (
+      {lines.some((line) => line.lineType === 'travel') && (
         <p className="rate-note">
-          Mileage is billed at {mileageRateToday ? `${formatRate(mileageRateToday)} per mile` : 'a rate not set yet'}.
+          Travel time is billed at {categoryRateNote(timeCategoryRates, 'travel')}, and mileage at{' '}
+          {mileageRateToday ? `${formatRate(mileageRateToday)} per mile` : 'a rate not set yet'}.
         </p>
+      )}
+      {lines.some((line) => line.lineType === 'waiting') && (
+        <p className="rate-note">Waiting time is billed at {categoryRateNote(timeCategoryRates, 'waiting')}.</p>
       )}
     <div className="line-editor">
       <div className="line-editor-head" aria-hidden="true">
@@ -433,12 +721,28 @@ export function InvoiceLinesEditor({
         const item = `Item ${index + 1}`;
         const duplicate = importReview?.duplicateTime.find((candidate) => candidate.invoiceLineId === line.invoiceLineId);
         const unmatched = Boolean(importReview) && !line.timekeeperProfessionalId;
-        const linked = Boolean(line.sourceTimeEntryId);
-        const mileage = line.lineType === 'mileage';
-        const preview = line.lineType === 'time' ? timeItemPreview(line, timekeepers, importReview ? undefined : billedProfessionalId) : undefined;
-        const mileagePreview = mileage ? mileageItemPreview(line, mileageRates) : undefined;
+        const linked = Boolean(line.sourceTimeEntryId || line.travelTime?.sourceTimeEntryId);
+        const travel = line.lineType === 'travel';
+        const pricingProfessionalId = importReview ? undefined : billedProfessionalId;
+        const travelPreview = travel ? travelItemPreview(line, timekeepers, pricingProfessionalId, mileageRates, timeCategoryRates) : undefined;
+        // The hours column's: time worked or waiting, or a trip's travel time.
+        const preview = isTimeKind(line.lineType)
+          ? timeKindPreview(line, timekeepers, pricingProfessionalId, timeCategoryRates)
+          : travelPreview?.time;
+        const joinTrip = tripToJoin(lines, index);
+        const mileagePreview = travelPreview?.mileage;
         const stated = line.carried.statedAmount;
-        const priced = preview ?? mileagePreview;
+        // The file's stated amount is on a time line or a trip's mileage.
+        const priced = travel ? mileagePreview : preview;
+        const missing = [preview, mileagePreview].flatMap((part) => (part && 'missing' in part ? [part.missing] : []));
+        // A trip's task code is its travel time's.
+        const taskCode = travel ? line.travelTime?.carried.taskCode : line.carried.taskCode;
+        const setTaskCode = (code: string | undefined) =>
+          travel
+            ? update(index, {
+                travelTime: { sourceTimeEntryId: '', ...line.travelTime, carried: { ...line.travelTime?.carried, taskCode: code } },
+              })
+            : update(index, { carried: { ...line.carried, taskCode: code } });
         const differsFromFile =
           stated !== undefined && priced && 'amount' in priced && Math.abs(Number(priced.amount) - stated) >= 0.005;
         const dateInferred = Boolean(line.serviceDate && line.carried.serviceDateInferred);
@@ -463,14 +767,33 @@ export function InvoiceLinesEditor({
                 name={id('type')}
                 value={line.lineType}
                 disabled={linked}
-                title="Time is priced by the hour, mileage by the mile; enter an amount for an expense or other cost."
-                onChange={(event) => update(index, { lineType: event.target.value as InvoiceLineType })}
+                title="Time and waiting time are priced by the hour. A trip takes its travel time, miles and other costs together; each is billed as its own item. Enter an amount for an expense or other cost."
+                onChange={(event) => chooseKind(index, event.target.value as DraftKind)}
               >
                 <option value="time">Time worked</option>
-                <option value="mileage">Mileage</option>
+                <option value="waiting">Waiting time</option>
+                <option value="travel">Travel</option>
                 <option value="expense">Expense</option>
                 <option value="other">Other cost</option>
               </Select>
+              {pendingSwitch?.index === index && (
+                <p className="line-switch-confirm" role="alert">
+                  This removes {pendingSwitch.drops.join(' and ')}.{' '}
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => {
+                      setPendingSwitch(undefined);
+                      onChange(lines.map((other, i) => (i === index ? switchKind(other, pendingSwitch.kind) : other)));
+                    }}
+                  >
+                    Switch
+                  </button>{' '}
+                  <button type="button" className="link-button" onClick={() => setPendingSwitch(undefined)}>
+                    Keep the trip
+                  </button>
+                </p>
+              )}
             </div>
             <div className="usa-form-group" data-label="Date">
               <Label htmlFor={id('date')} className="line-label">{`${item} date`}</Label>
@@ -495,7 +818,7 @@ export function InvoiceLinesEditor({
                 value={line.description}
                 onChange={(event) => update(index, { description: event.target.value })}
               />
-              {(showTimekeeper || (billingCodes.length > 0 && line.lineType === 'time')) && (
+              {(showTimekeeper || (billingCodes.length > 0 && (isTimeKind(line.lineType) || travel))) && (
               <div className="line-meta">
                 {showTimekeeper && (
                   <>
@@ -544,20 +867,18 @@ export function InvoiceLinesEditor({
                       )}
                   </>
                 )}
-                {billingCodes.length > 0 && line.lineType === 'time' && (
+                {billingCodes.length > 0 && (isTimeKind(line.lineType) || travel) && (
                   <>
-                    <Label htmlFor={id('task-code')} className="line-label">{`${item} task code`}</Label>
+                    <Label htmlFor={id('task-code')} className="line-label">{`${item} ${travel ? 'travel time ' : ''}task code`}</Label>
                     <Select
                       id={id('task-code')}
                       name={id('task-code')}
-                      value={line.carried.taskCode ?? ''}
-                      onChange={(event) =>
-                        update(index, { carried: { ...line.carried, taskCode: event.target.value || undefined } })
-                      }
+                      value={taskCode ?? ''}
+                      onChange={(event) => setTaskCode(event.target.value || undefined)}
                     >
-                      <option value="">- Task code -</option>
-                      {line.carried.taskCode && !billingCodes.some((code) => code.code === line.carried.taskCode) && (
-                        <option value={line.carried.taskCode}>{line.carried.taskCode} (not on list)</option>
+                      <option value="">{travel ? '- Travel time task code -' : '- Task code -'}</option>
+                      {taskCode && !billingCodes.some((code) => code.code === taskCode) && (
+                        <option value={taskCode}>{taskCode} (not on list)</option>
                       )}
                       {billingCodes.map((code) => (
                         <option key={code.code} value={code.code}>
@@ -570,17 +891,17 @@ export function InvoiceLinesEditor({
               </div>
               )}
             </div>
-            <div className="usa-form-group" data-label={mileage ? 'Miles' : 'Hours'}>
-              <Label htmlFor={id('quantity')} className="line-label">{`${item} ${mileage ? 'miles' : 'hours'}`}</Label>
+            <div className="usa-form-group" data-label={travel ? 'Travel hours' : 'Hours'}>
+              <Label htmlFor={id('quantity')} className="line-label">{`${item} ${travel ? 'travel hours' : 'hours'}`}</Label>
               <TextInput
                 id={id('quantity')}
                 name={id('quantity')}
                 type="number"
                 min="0"
                 step="0.01"
-                placeholder={line.lineType === 'time' ? 'Hours' : mileage ? 'Miles' : 'Optional'}
-                value={line.quantity}
-                onChange={(event) => update(index, { quantity: event.target.value })}
+                placeholder={isTimeKind(line.lineType) ? 'Hours' : travel ? 'Travel hours' : 'Optional'}
+                value={travel ? line.travelHours : line.quantity}
+                onChange={(event) => update(index, travel ? { travelHours: event.target.value } : { quantity: event.target.value })}
               />
             </div>
             <div className="line-amount line-rate" data-label="Rate">
@@ -592,13 +913,11 @@ export function InvoiceLinesEditor({
                     <span className="line-amount-basis line-rate-differs">Configured {formatMoney(preview.configuredRate)}</span>
                   )}
                 </span>
-              ) : mileagePreview && 'amount' in mileagePreview ? (
-                <span className="amount">{formatRate(mileagePreview.rate)}/mi</span>
               ) : (
                 <span className="muted amount">—</span>
               )}
             </div>
-            {line.lineType === 'time' ? (
+            {isTimeKind(line.lineType) ? (
               <div className="usa-form-group line-amount" data-label="Amount">
                 <span className="line-label">{`${item} amount in dollars`}</span>
                 {preview && 'amount' in preview ? (
@@ -607,13 +926,14 @@ export function InvoiceLinesEditor({
                   <span className="line-amount-missing">{preview?.missing}</span>
                 )}
               </div>
-            ) : mileagePreview ? (
-              <div className="usa-form-group line-amount" data-label="Amount">
-                <span className="line-label">{`${item} amount in dollars`}</span>
-                {'amount' in mileagePreview ? (
-                  <strong className="amount">{formatMoney(mileagePreview.amount)}</strong>
+            ) : travelPreview ? (
+              // The trip's total; each part is priced below.
+              <div className="usa-form-group line-amount" data-label="Trip total">
+                <span className="line-label">{`${item} trip total in dollars`}</span>
+                {missing.length > 0 || !isItem(line) ? (
+                  <span className="line-amount-missing">{missing.length > 0 ? missing.join('; ') : 'Add hours, miles or a cost'}</span>
                 ) : (
-                  <span className="line-amount-missing">{mileagePreview.missing}</span>
+                  <strong className="amount">{formatMoney(((travelPreview.timeCents + travelPreview.otherCents) / 100).toFixed(2))}</strong>
                 )}
               </div>
             ) : (
@@ -643,41 +963,20 @@ export function InvoiceLinesEditor({
             ) : (
               <span />
             )}
-            {mileage && (
-              <div className="line-trip">
-                <div className="usa-form-group">
-                  <Label htmlFor={id('trip-from')}>From</Label>
-                  <TextInput
-                    id={id('trip-from')}
-                    name={id('trip-from')}
-                    type="text"
-                    placeholder="Address or place"
-                    value={line.tripOrigin}
-                    onChange={(event) => update(index, { tripOrigin: event.target.value })}
-                  />
-                </div>
-                <div className="usa-form-group">
-                  <Label htmlFor={id('trip-to')}>To</Label>
-                  <TextInput
-                    id={id('trip-to')}
-                    name={id('trip-to')}
-                    type="text"
-                    placeholder="Address or place"
-                    value={line.tripDestination}
-                    onChange={(event) => update(index, { tripDestination: event.target.value })}
-                  />
-                </div>
-                <Checkbox
-                  id={id('round-trip')}
-                  name={id('round-trip')}
-                  label="Round trip"
-                  checked={line.roundTrip}
-                  onChange={(event) => update(index, { roundTrip: event.target.checked })}
-                />
-              </div>
+            {travel && (
+              <TripFields idPrefix={`${idPrefix}-${index}`} line={line} mileagePreview={mileagePreview} onChange={(changes) => update(index, changes)} />
             )}
-            {(importReview || linked || differsFromFile || sameAsRecorded) && (
+            {(importReview || linked || differsFromFile || sameAsRecorded || joinTrip !== undefined) && (
               <p className="line-row-note">
+                {joinTrip !== undefined && (
+                  // Offered, never done for them: grouping is optional.
+                  <span>
+                    A trip on the same day is item {joinTrip + 1}.{' '}
+                    <button type="button" className="link-button" onClick={() => onChange(addToTrip(lines, index, joinTrip))}>
+                      {line.lineType === 'time' ? 'Make this its travel time' : 'Add this as one of its travel expenses'}
+                    </button>
+                  </span>
+                )}
                 {sameAsRecorded && (
                   <span className="line-row-suggested">
                     Matches time already recorded on {formatDate(sameAsRecorded.activityOn)} ({Number(sameAsRecorded.durationHours)} h).{' '}
@@ -708,9 +1007,9 @@ export function InvoiceLinesEditor({
                   <span className="line-row-suggested">
                     The file says {formatMoney(String(stated))}
                     {line.carried.unitRate !== undefined
-                      ? ` at ${formatRate(String(line.carried.unitRate))}${mileage ? '/mi' : '/h'}`
+                      ? ` at ${formatRate(String(line.carried.unitRate))}${travel ? '/mi' : '/h'}`
                       : ''}
-                    , which doesn't match the hours and rate.
+                    , which doesn't match the {travel ? 'miles' : 'hours'} and rate.
                   </span>
                 ) : null}
                 {unmatched ? (

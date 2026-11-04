@@ -4,12 +4,15 @@ import {
   addBillingCode,
   addKindRate,
   addMileageRate,
+  addTimeCategoryRate,
   apiErrorMessage,
+  categoryRateIn,
   createProfessionalKind,
   getBillingRuleSettings,
   getOwnDemoRole,
   listMileageRates,
   listProfessionalKinds,
+  listTimeCategoryRates,
   mileageRateOn,
   rateOn,
   resetDemoData,
@@ -20,7 +23,10 @@ import {
   type BillingRule,
   type ProfessionalKind,
   type RuleEnforcement,
+  type TimeCategory,
+  type TimeCategoryBasis,
 } from '../api/client';
+import { timeCategoryRateLabel } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
 import { useAuth } from '../AuthContext';
 import { PageHeading } from '../components/PageHeading';
@@ -179,14 +185,17 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
       <section className="settings-section">
         <h2>Rates</h2>
         <p className="compact-hint">
-          Time is invoiced at the hourly rate for each professional's kind on the date of the work, and mileage at the
-          rate per mile on the date of the trip. Give each provider a kind on the Providers page.
+          Time is invoiced at the hourly rate for each professional's kind on the date of the work, travel and waiting
+          time at their settings below, and mileage at the rate per mile on the date of the trip. Give each provider a
+          kind on the Providers page.
         </p>
         {Boolean(error) && <Notice tone="danger">Failed to load rates.</Notice>}
         {data && data.length === 0 && <p>No kinds of professional yet.</p>}
         {data?.map((kind) => <KindCard key={kind.professionalKindId} kind={kind} isAdmin={isAdmin} onChanged={refresh} />)}
         {isAdmin && <AddKindForm onAdded={refresh} />}
         <MileageRates isAdmin={isAdmin} />
+        <TimeCategoryRates category="travel" isAdmin={isAdmin} />
+        <TimeCategoryRates category="waiting" isAdmin={isAdmin} />
       </section>
       <BillingRulesSettings isAdmin={isAdmin} />
     </div>
@@ -380,6 +389,111 @@ function MileageRates({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
+// How travel or waiting time is priced from a date: the hourly rate, a
+// percent of it or one flat rate (model/rules.yaml apply_time_category_rates).
+function TimeCategoryRates({ category, isAdmin }: { category: TimeCategory; isAdmin: boolean }) {
+  const [version, setVersion] = useState(0);
+  const { data, error: loadError } = useApiResource(() => listTimeCategoryRates().then((result) => result.rates), [version]);
+  const [basis, setBasis] = useState<TimeCategoryBasis>('percent_of_hourly_rate');
+  const [amount, setAmount] = useState('');
+  const [effectiveFrom, setEffectiveFrom] = useState(today);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const rates = data?.filter((rate) => rate.category === category);
+  const current = data ? categoryRateIn(data, category, today()) : undefined;
+  const needsAmount = basis !== 'hourly_rate';
+  const name = category === 'travel' ? 'Travel time' : 'Waiting time';
+  const id = (field: string) => `${category}-${field}`;
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSaving(true);
+    try {
+      await addTimeCategoryRate({
+        category,
+        basis,
+        effectiveFrom,
+        ...(basis === 'percent_of_hourly_rate' && { percent: Number(amount) }),
+        ...(basis === 'flat_rate' && { hourlyRate: Number(amount) }),
+      });
+      setAmount('');
+      setVersion((v) => v + 1);
+    } catch (err) {
+      setError(apiErrorMessage(err, `The ${name.toLowerCase()} rate could not be saved.`));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="compact-card settings-kind">
+      <h3>{name}</h3>
+      <p className="rate-note">
+        {name} today: {timeCategoryRateLabel(current)}
+      </p>
+      {Boolean(loadError) && <Notice tone="danger">Failed to load {name.toLowerCase()} rates.</Notice>}
+      {rates && (
+        <RecordTable
+          rows={[...rates].reverse()}
+          rowKey={(rate) => `${rate.effectiveFrom}-${rate.basis}-${rate.percent}-${rate.hourlyRate}`}
+          emptyMessage={`None set, so ${name.toLowerCase()} is invoiced at the hourly rate.`}
+          columns={[
+            { header: 'Applies from', render: (rate) => formatDate(rate.effectiveFrom) },
+            { header: name, render: (rate) => timeCategoryRateLabel(rate) },
+          ]}
+        />
+      )}
+      {isAdmin && (
+        <Form className="compact-form" onSubmit={(event) => void submit(event)}>
+          {error && <Notice tone="danger">{error}</Notice>}
+          <div className="inline-fields rate-fields">
+            <FormGroup>
+              <Label htmlFor={id('basis')}>Invoice {name.toLowerCase()} at</Label>
+              <Select id={id('basis')} name="basis" value={basis} onChange={(event) => setBasis(event.target.value as TimeCategoryBasis)}>
+                <option value="hourly_rate">The hourly rate</option>
+                <option value="percent_of_hourly_rate">A percent of the hourly rate</option>
+                <option value="flat_rate">One rate per hour for everyone</option>
+              </Select>
+            </FormGroup>
+            {needsAmount && (
+              <FormGroup>
+                <Label htmlFor={id('amount')}>{basis === 'flat_rate' ? 'Rate per hour ($)' : 'Percent of hourly rate'}</Label>
+                <TextInput
+                  id={id('amount')}
+                  name="amount"
+                  type="number"
+                  min="0.01"
+                  max={basis === 'flat_rate' ? undefined : '100'}
+                  step="0.01"
+                  required
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                />
+              </FormGroup>
+            )}
+            <FormGroup>
+              <Label htmlFor={id('from')}>Applies from</Label>
+              <input
+                id={id('from')}
+                name="effectiveFrom"
+                type="date"
+                className="usa-input"
+                required
+                value={effectiveFrom}
+                onChange={(event) => setEffectiveFrom(event.target.value)}
+              />
+            </FormGroup>
+            <button type="submit" className="btn btn--primary" disabled={saving || (needsAmount && !(Number(amount) > 0)) || !effectiveFrom}>
+              {saving ? 'Saving…' : 'Add setting'}
+            </button>
+          </div>
+        </Form>
+      )}
+    </section>
+  );
+}
+
 // Each save adds a setting rather than changing one, so history is kept.
 function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: boolean; onSaved: () => void }) {
   const [enforcement, setEnforcement] = useState<RuleEnforcement>(rule.enforcement);
@@ -404,7 +518,7 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
     }
   }
 
-  const numberField = (key: 'increment' | 'hours' | 'tolerancePercent', label: string, step: string, min = step) => (
+  const numberField = (key: 'increment' | 'hours' | 'tolerancePercent' | 'averageSpeedMph', label: string, step: string, min = step) => (
     <FormGroup>
       <Label htmlFor={id(key)}>{label}</Label>
       <TextInput
@@ -443,6 +557,12 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
         {rule.code === 'time_increment' && numberField('increment', 'Increment (hours)', '0.01')}
         {(rule.code === 'daily_hour_cap' || rule.code === 'long_entry') && numberField('hours', 'Hours', '0.5')}
         {rule.code === 'mileage_distance' && numberField('tolerancePercent', 'Tolerance (%)', '1', '0')}
+        {rule.code === 'travel_time_distance' && (
+          <>
+            {numberField('averageSpeedMph', 'Average speed (mph)', '1')}
+            {numberField('tolerancePercent', 'Tolerance (%)', '1', '0')}
+          </>
+        )}
         {rule.code === 'billing_period' && (
           <Checkbox
             id={id('within-month')}

@@ -19,6 +19,10 @@ export const UNRESOLVED_IMPORT_STATUS_CODES = ['received', 'extracted', 'failed'
 
 // No mapping from supplier activity codes yet; typed time uses the same.
 const IMPORTED_TIME_ACTIVITY_TYPE_CODE = 'legal_services';
+// Time on a trip, and waiting time. time_entry has no trip_id here, since
+// trips are replaced with their lines on every draft save.
+const TRAVEL_TIME_ACTIVITY_TYPE_CODE = 'travel';
+const WAITING_TIME_ACTIVITY_TYPE_CODE = 'waiting';
 
 export async function findImportForInvoice(db: DatabaseOrTransaction, invoiceId: string) {
   const [row] = await db
@@ -43,6 +47,8 @@ export async function createTimeEntriesForTimeLines(
       serviceDate: invoiceLine.serviceDate,
       quantity: invoiceLine.quantity,
       description: invoiceLine.description,
+      tripId: invoiceLine.tripId,
+      timeCategory: invoiceLine.timeCategory,
     })
     .from(invoiceLine)
     .innerJoin(invoiceLineTypes, eq(invoiceLine.lineTypeId, invoiceLineTypes.id))
@@ -59,6 +65,10 @@ export async function createTimeEntriesForTimeLines(
     return;
   }
   const activityTypeId = await getReferenceId(tx, activityTypes, IMPORTED_TIME_ACTIVITY_TYPE_CODE);
+  const travelTypeId = lines.some((line) => line.tripId) ? await getReferenceId(tx, activityTypes, TRAVEL_TIME_ACTIVITY_TYPE_CODE) : undefined;
+  const waitingTypeId = lines.some((line) => line.timeCategory === 'waiting')
+    ? await getReferenceId(tx, activityTypes, WAITING_TIME_ACTIVITY_TYPE_CODE)
+    : undefined;
 
   for (const line of lines) {
     const professionalId = line.professionalId ?? invoice.billedProfessionalId;
@@ -89,10 +99,12 @@ export async function createTimeEntriesForTimeLines(
           .values({
             caseId,
             professionalId,
-            activityTypeId,
+            activityTypeId: line.tripId ? travelTypeId! : line.timeCategory === 'waiting' ? waitingTypeId! : activityTypeId,
             activityOn,
             durationHours,
-            description: line.description ?? (invoiceImportId ? 'Imported time' : 'Time'),
+            description:
+              line.description ??
+              (line.tripId ? 'Travel time' : line.timeCategory === 'waiting' ? 'Waiting time' : invoiceImportId ? 'Imported time' : 'Time'),
             sourceInvoiceImportId: invoiceImportId,
             recordedByUserAccountId,
           })

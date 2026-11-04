@@ -1062,23 +1062,69 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     required or warned on. Hours are flagged, never rounded.
   - Not built: rates by kind of work and other expense rules, such as
     receipts above an amount (see `docs/DECISIONS.md`).
-- **Mileage** (`src/billing/mileageRates.ts`, `routeCheck.ts`,
-  `priceLines.ts`; `client/src/components/InvoiceLinesEditor.tsx`,
-  `TravelLog.tsx`, `pages/Settings.tsx`; `model/rules.yaml`
-  `apply_mileage_rates` and the mileage distance rule in
-  `apply_billing_rules`; migration `0007`):
+- **Trips, travel and waiting time, and mileage** (`src/billing/mileageRates.ts`,
+  `timeCategoryRates.ts`, `routeCheck.ts`, `priceLines.ts`,
+  `invoiceLifecycle.ts`, `sameDayTravel.ts`; `client/src/components/InvoiceLinesEditor.tsx`,
+  `TripFields.tsx`, `TravelLog.tsx`, `pages/Settings.tsx`; `model/rules.yaml`
+  `apply_mileage_rates`, `apply_time_category_rates` and the mileage
+  distance and travel time rules in `apply_billing_rules`; migrations
+  `0007`, `0022`–`0025`):
+  - The editor's "Travel" kind is one row for a trip: date, From, To,
+    Round trip, travel hours, miles and any number of costs. It saves as
+    separate lines sharing a `tripKey` (each carries the route), which the
+    server turns into one `trip` row with the lines' `trip_id`; the
+    trip's date, the first one given, becomes every line's. A trip takes
+    at most one time line (its travel time) and one mileage line, plus
+    expense lines; a mileage line sent alone is a trip of its own, as
+    imports send them. Imports never group lines into a trip. Trips are
+    replaced with their lines on every draft save, and frozen in the
+    submission snapshot (`records.trip`, layout `0.6.0`). Check the lines
+    (`InvoiceSubmission.tsx`) shows each line of a trip as its own row and
+    keeps it on its trip; its "Add a line" offers Travel, which adds the
+    trip's lines together. Both use `components/TripFields.tsx`. Switching
+    a trip to another kind asks before dropping its other parts.
+  - Grouping is optional. On Check the lines, a time or expense line on the
+    same date as a mileage line offers "Add to that trip" (taking the trip's
+    date and route) and a line on a trip offers "Take off the trip"; in the
+    editor, a time or expense row on a trip row's date offers to become its
+    travel time or one of its travel expenses.
   - A mileage item is an `expense` line with the `mileage` expense type
-    (an `expense_types` table seeded with that one code), entered as
-    "Mileage" with From, To, Round trip and miles. Its quantity is the
-    miles; it's priced as miles × the administrator-set `mileage_rate` in
-    force on its date (three decimal places, so `invoice_line.billed_rate`
-    widened to `numeric(12,3)`). Firms see the rate beside entry
-    (`GET /api/portal/billing-rules` carries `mileageRates`). Imports
-    suggest mileage for expense lines described as mileage, taking miles
-    from the quantity or a "30 miles" in the description; the extraction
-    result keeps the file's own type. Mileage lines create no `expense`
-    record, like other expense lines (no table yet), so the trip lives on
-    the line.
+    (an `expense_types` table seeded with that one code). Its quantity is
+    the miles; it's priced as miles × the administrator-set `mileage_rate`
+    in force on its date (three decimal places, so
+    `invoice_line.billed_rate` and `configured_rate` are `numeric(12,3)`),
+    which is also kept as its `configured_rate`, its default. Firms see the
+    rate beside entry (`GET /api/portal/billing-rules` carries
+    `mileageRates` and `timeCategoryRates`). Imports suggest mileage for
+    expense lines described as mileage, taking miles from the quantity or
+    a "30 miles" in the description; the extraction result keeps the
+    file's own type. Lines create no `expense` record (no table yet).
+  - Travel time is a time line on a trip; waiting time ("Waiting time" in
+    the editor and Check the lines) is a time line with
+    `invoice_line.time_category` `waiting`. Each is priced like other time
+    except that its configured rate is its category's `time_category_rate`
+    in force (Settings → Rates → Travel time and Waiting time, insert-only;
+    migration `0025` renamed `travel_time_rate` and added `category`): the
+    hourly rate, a percent of it (rounded to cents) or one flat hourly rate;
+    with none, the hourly rate. Their time entries get the `travel` or
+    `waiting` activity type: `time_entry` has no `trip_id` here, since
+    trips are replaced on draft save (model gap).
+  - In review, any reviewer may "Change rate" on a time, travel time,
+    waiting time or mileage line: it is approved at that rate, higher or
+    lower, with no reason, and its amount may exceed the request. A changed
+    rate flags the queue row ("Reviewer changed the rate"), and the review
+    page lists changed rates above the sign-off panel. "Approve part" still
+    corrects hours or a rate downward with a reason. The review table, the
+    decision panel and the decision flag a billed or changed rate that
+    differs from the line's `configured_rate`.
+  - The travel time and distance rule (off/warn/require, average speed and
+    tolerance %) compares a trip's travel hours with its measured driving
+    route, else its miles claimed, plus a quarter hour; it makes no lookups.
+  - Review shows, per date the invoice claims travel, how many of the same
+    professional's other submitted invoices on another case (by case, else
+    case number) also claim travel that day, with a link opening their
+    person page filtered to that date (`/people/:id?day=`, `GET
+    /api/invoices?professionalId=&day=`) in a new tab.
   - The mileage distance rule (off/warn/require, tolerance %) compares
     the miles with the driving route, doubled for a round trip, plus half
     a mile. Distances come from Amazon Location (`Geocode` twice and
@@ -1092,14 +1138,18 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     county, state or country) aren't. Each month's calls are counted: the
     server logs a warning past `ROUTE_CHECK_MONTHLY_CALL_WARNING` (default
     1000) and stops only at an optional `ROUTE_CHECK_MONTHLY_CALL_LIMIT`.
-    Saves copy cached distances onto lines without lookups, so drafts show
+    Only trips with a mileage line are looked up. Saves copy cached
+    distances onto those trips without lookups, so drafts show
     findings for trips already measured. An unmeasured trip gives no
     finding.
-  - Staff review and submitted portal invoices show a travel log (trip,
-    miles claimed, driving route, rate, amount and a directions link that
-    opens in the viewer's own browser); exports add a travel log table.
+  - Staff review and submitted portal invoices show a travel log, one row
+    per trip (route, travel time, miles claimed, driving route, other
+    costs, total and a directions link that opens in the viewer's own
+    browser); review lines say "Travel time" or "Travel expense"; exports add
+    a travel log table, one row per trip.
   - Gaps: no address autocomplete (it would cost calls per keystroke); one
-    trip can't be split across cases; no other expense types are priced.
+    trip can't be split across cases; no other expense types are priced;
+    a flat travel or waiting rate is general, not per person.
 - **Rates and billing from time** (`src/billing/professionalRates.ts`,
   `priceLines.ts`, `invoiceLifecycle.ts`; `src/routes/settings.ts`;
   `client/src/pages/Settings.tsx`, `components/UnbilledTimePicker.tsx`;
@@ -1339,8 +1389,9 @@ list/detail views are implemented as tables:
 `user_account`, `county`, `organization`, `office`, `role`, `person`,
 `person_affiliation`, `case`, `case_participant`, `case_lifecycle_event`,
 `case_identifier`, `professional`, `case_assignment`, `time_entry`,
-`professional_kind_rate`, `mileage_rate`, `billing_rule_setting`,
-`invoice`, `invoice_line`, `invoice_approval_chain`,
+`professional_kind_rate`, `mileage_rate`, `time_category_rate`,
+`billing_rule_setting`, `invoice`, `invoice_line`, `trip`,
+`invoice_approval_chain`,
 `invoice_approval_decision`, `invoice_line_working_decision`,
 `invoice_review_assignment`, `case_invoice_reviewer`,
 `invoice_review_setting`, `preauthorization`, `preauthorization_decision`,

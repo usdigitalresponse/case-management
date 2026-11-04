@@ -1,6 +1,7 @@
 // Prices an invoice's time lines at their stated rate, or the professional's
-// configured rate when none is stated, and its mileage lines from mileage
-// rates (model/rules.yaml apply_professional_rates, apply_mileage_rates),
+// configured rate when none is stated (for travel or waiting time, that
+// category's rate), and its mileage lines from mileage rates (model/rules.yaml
+// apply_professional_rates, apply_time_category_rates, apply_mileage_rates),
 // and refreshes its total. A linked time entry's date and hours govern;
 // before one exists, the line's own.
 import { and, eq } from 'drizzle-orm';
@@ -9,6 +10,7 @@ import { expenseTypes, invoice, invoiceLine, invoiceLineTypes, timeEntry } from 
 import { ValidationError } from '../errors';
 import { listRates, professionalRateLabels, rateOn } from './professionalRates';
 import { mileageRateOn, mileageRatesFor } from './mileageRates';
+import { categoryRateOn, listTimeCategoryRates, type TimeCategory } from './timeCategoryRates';
 import { fromCents, toCents } from './money';
 
 export interface PriceOptions {
@@ -34,6 +36,8 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
       unitRate: invoiceLine.unitRate,
       description: invoiceLine.description,
       timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
+      tripId: invoiceLine.tripId,
+      timeCategory: invoiceLine.timeCategory,
       entryProfessionalId: timeEntry.professionalId,
       entryDate: timeEntry.activityOn,
       entryHours: timeEntry.durationHours,
@@ -62,6 +66,9 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
   const professionalIds = [...new Set(priced.flatMap((line) => (line.professionalId ? [line.professionalId] : [])))];
   const rates = await listRates(tx, professionalIds);
   const labels = await professionalRateLabels(tx, professionalIds);
+  const categoryOf = (line: { tripId: string | null; timeCategory: string | null }): TimeCategory | undefined =>
+    line.tripId ? 'travel' : line.timeCategory === 'waiting' ? 'waiting' : undefined;
+  const categoryRates = lines.some((line) => line.lineTypeCode === 'time' && categoryOf(line)) ? await listTimeCategoryRates(tx) : [];
   const mileageRates = lines.some((line) => line.expenseTypeCode === 'mileage') ? await mileageRatesFor(tx, options.billedProfessionalId) : [];
   const missingRate = (professionalId: string, date: string) => {
     const label = labels.get(professionalId);
@@ -100,19 +107,22 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
       }
       const cents = Math.round(miles * Number(rate) * 100);
       totalCents += cents;
+      // Kept as the default a reviewer's corrected rate is flagged against.
       // eslint-disable-next-line no-await-in-loop
-      await setPrice(line.invoiceLineId, cents, rate);
+      await setPrice(line.invoiceLineId, cents, rate, { configuredRate: rate });
       continue;
     }
     if (line.lineTypeCode !== 'time') {
       totalCents += toCents(line.amount);
       continue;
     }
-    const rate = line.professionalId && line.date ? rateOn(rates, line.professionalId, line.date) : undefined;
+    const hourly = line.professionalId && line.date ? rateOn(rates, line.professionalId, line.date) : undefined;
+    const category = categoryOf(line);
+    const rate = category && line.date ? categoryRateOn(categoryRates, category, line.date, hourly) : hourly;
     const hours = line.hours === undefined ? 0 : Number(line.hours);
     if (!line.professionalId || !line.date || hours <= 0 || rate === undefined) {
       if (options.strict) {
-        const item = line.description ? `The time item "${line.description}"` : 'A time item';
+        const item = line.description ? `The time item "${line.description}"` : category ? `A ${category} time item` : 'A time item';
         const missing = !line.date && hours <= 0 ? 'a date and hours' : !line.date ? 'a date' : 'hours';
         throw new ValidationError({
           lines: !line.professionalId

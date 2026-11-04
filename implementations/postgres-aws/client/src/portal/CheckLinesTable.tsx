@@ -2,13 +2,39 @@
 // removed lines struck through; on a draft, an Edit panel under a line.
 import { Fragment, useState, type ReactNode } from 'react';
 import type { FileLine, ImportWarning, InvoiceLineType } from '../api/client';
-import { emptyLine, type LineDraft } from '../components/InvoiceLinesEditor';
+import { emptyLine, isTimeKind, mileageItemPreview, tripParts, type DraftKind, type LineDraft } from '../components/InvoiceLinesEditor';
+import { TripFields } from '../components/TripFields';
 import { changedFields, changeSentence, formatQuantity, type Row } from '../fileChanges';
 import { formatMoney, formatRate } from '../formatMoney';
 import { formatDay } from './portalWording';
 import { priceOf, valuesOf, type PricingContext } from './checkLines';
 
 const TYPE_LABEL: Record<InvoiceLineType, string> = { time: 'Time', mileage: 'Mileage', expense: 'Expense', other: 'Other' };
+
+// Each line of a trip is its own row here.
+const typeLabel = (line: LineDraft) =>
+  line.tripKey && line.lineType === 'time'
+    ? 'Travel time'
+    : line.tripKey && line.lineType === 'expense'
+      ? 'Travel expense'
+      : line.lineType === 'waiting'
+        ? 'Waiting time'
+        : TYPE_LABEL[valuesOf(line).lineType];
+
+// The trip a time or expense row off a trip could join: a trip on the same
+// date, and for time, one without travel time yet. Grouping is optional.
+export function tripToJoin(lines: LineDraft[], line: LineDraft): string | undefined {
+  if (line.tripKey || !line.serviceDate || !(line.lineType === 'time' || line.lineType === 'expense')) {
+    return undefined;
+  }
+  return lines.find(
+    (other) =>
+      other.lineType === 'mileage' &&
+      other.tripKey &&
+      other.serviceDate === line.serviceDate &&
+      (line.lineType !== 'time' || !lines.some((part) => part.tripKey === other.tripKey && part.lineType === 'time')),
+  )?.tripKey;
+}
 
 function EditPanel({
   number,
@@ -25,7 +51,8 @@ function EditPanel({
   read: FileLine | undefined;
   context: PricingContext;
   isNew: boolean;
-  onSave: (draft: LineDraft) => void;
+  // A trip saves as several lines.
+  onSave: (drafts: LineDraft[]) => void;
   onCancel: () => void;
   onRemove?: () => void;
 }) {
@@ -33,12 +60,14 @@ function EditPanel({
   const set = (patch: Partial<LineDraft>) => setDraft((current) => ({ ...current, ...patch }));
   const price = priceOf(draft, context);
   const id = (field: string) => `edit-line-${number}-${field}`;
-  const priced = draft.lineType === 'time' || draft.lineType === 'mileage';
+  const travel = draft.lineType === 'travel';
+  const timed = isTimeKind(draft.lineType);
+  const priced = timed || draft.lineType === 'mileage';
   const fields = read ? changedFields(read, valuesOf(draft)) : [];
 
   return (
     <div className="edit-line" role="group" aria-labelledby={id('heading')}>
-      <h3 id={id('heading')}>{isNew ? 'Add a line' : `Change line ${number}`}</h3>
+      <h3 id={id('heading')}>{isNew ? (travel ? 'Add a trip' : 'Add a line') : `Change line ${number}`}</h3>
       <div className="edit-line__fields">
         {isNew && (
           <div className="edit-line__field">
@@ -47,10 +76,11 @@ function EditPanel({
               id={id('type')}
               className="usa-select"
               value={draft.lineType}
-              onChange={(event) => set({ lineType: event.target.value as InvoiceLineType })}
+              onChange={(event) => set({ lineType: event.target.value as DraftKind })}
             >
               <option value="time">Time</option>
-              <option value="mileage">Mileage</option>
+              <option value="waiting">Waiting time</option>
+              <option value="travel">Travel</option>
               <option value="expense">Expense</option>
               <option value="other">Other</option>
             </select>
@@ -66,10 +96,10 @@ function EditPanel({
             onChange={(event) => set({ serviceDate: event.target.value, carried: { ...draft.carried, serviceDateInferred: undefined } })}
           />
         </div>
-        {priced ? (
+        {travel ? null : priced ? (
           <>
             <div className="edit-line__field edit-line__field--short">
-              <label className="usa-label" htmlFor={id('quantity')}>{draft.lineType === 'time' ? 'Hours' : 'Miles'}</label>
+              <label className="usa-label" htmlFor={id('quantity')}>{timed ? 'Hours' : 'Miles'}</label>
               <input
                 id={id('quantity')}
                 className="usa-input"
@@ -81,8 +111,8 @@ function EditPanel({
             </div>
             <span className="edit-line__times" aria-hidden="true">×</span>
             <div className="edit-line__field edit-line__field--short">
-              <label className="usa-label" htmlFor={id('rate')}>{draft.lineType === 'time' ? 'Rate per hour' : 'Rate per mile'}</label>
-              {draft.lineType === 'time' ? (
+              <label className="usa-label" htmlFor={id('rate')}>{timed ? 'Rate per hour' : 'Rate per mile'}</label>
+              {timed ? (
                 <input
                   id={id('rate')}
                   className="usa-input"
@@ -127,6 +157,15 @@ function EditPanel({
           onChange={(event) => set({ description: event.target.value })}
         />
       </div>
+      {travel && (
+        <TripFields
+          idPrefix={id('trip')}
+          line={draft}
+          withHours
+          mileagePreview={Number(draft.quantity) > 0 ? mileageItemPreview(draft, context.mileageRates) : undefined}
+          onChange={set}
+        />
+      )}
       {read && (
         <p className="field-hint">
           We read {formatQuantity(read.lineType === 'time' ? 'time' : read.lineType === 'mileage' ? 'mileage' : 'other', read.quantity)}
@@ -138,8 +177,13 @@ function EditPanel({
         <p className="field-hint">Mileage is paid at the rate per mile set for its date.</p>
       )}
       <div className="edit-line__actions">
-        <button type="button" className="btn btn--primary" disabled={price.total === null} onClick={() => onSave(draft)}>
-          {isNew ? 'Add line' : 'Save line'}
+        <button
+          type="button"
+          className="btn btn--primary"
+          disabled={price.total === null}
+          onClick={() => onSave(travel ? tripParts(draft, `new-${Date.now()}`) : [draft])}
+        >
+          {isNew ? (travel ? 'Add trip' : 'Add line') : 'Save line'}
         </button>
         <button type="button" className="link-button" onClick={onCancel}>
           Cancel
@@ -162,10 +206,12 @@ export interface CheckLinesTableProps {
   editable: boolean;
   focus: string | undefined;
   onFocus: (location: string | undefined) => void;
-  onSaveLine: (index: number | null, draft: LineDraft, number: number) => void;
+  onSaveLine: (index: number | null, drafts: LineDraft[], number: number) => void;
   onRemoveLine: (index: number, number: number) => void;
   onPutBack: (read: FileLine, number: number) => void;
   onUndoChange: (index: number, read: FileLine, number: number) => void;
+  // Puts a time or expense line on a trip, or with undefined takes it off.
+  onTrip: (index: number, tripKey: string | undefined, number: number) => void;
   // Read-only extras, such as a decision, by line index.
   extra?: (index: number) => ReactNode;
   footer: ReactNode;
@@ -185,10 +231,13 @@ export function CheckLinesTable({
   onRemoveLine,
   onPutBack,
   onUndoChange,
+  onTrip,
   extra,
   footer,
   addLabel = 'Add a line we missed',
 }: CheckLinesTableProps) {
+  const allLines = rows.flatMap((row) => (row.kind === 'line' ? [row.line] : []));
+  const numberOf = (tripKey: string) => rows.find((row) => row.kind === 'line' && row.line.tripKey === tripKey && row.line.lineType === 'mileage')?.number;
   // The row number being edited, or 'new' for an added line; an empty
   // invoice opens on adding its first line.
   const [editing, setEditing] = useState<number | 'new' | null>(() => (editable && rows.length === 0 ? 'new' : null));
@@ -249,6 +298,7 @@ export function CheckLinesTable({
             const location = line.carried.sourceLocation;
             const isEditing = editing === number;
             const flagged = lineWarnings.length > 0 && fields.length === 0;
+            const joinable = editable ? tripToJoin(allLines, line) : undefined;
             return (
               <Fragment key={`line-${index}-${location ?? 'added'}`}>
                 <tr
@@ -264,7 +314,7 @@ export function CheckLinesTable({
                   <td>{formatDay(line.serviceDate || null)}</td>
                   <td>
                     {line.description || '—'}
-                    <span className="cell-note">{TYPE_LABEL[line.lineType]}</span>
+                    <span className="cell-note">{typeLabel(line)}</span>
                     {flagged && (
                       <>
                         <span className="chip chip--warning">Check this</span>
@@ -276,9 +326,24 @@ export function CheckLinesTable({
                     {read && fields.length > 0 && <span className="cell-note check-lines__changed">{changeSentence(read, values, fields)}</span>}
                     {!read && addLabel !== 'Add a line' && <span className="cell-note check-lines__changed">You added this line.</span>}
                     {duplicate && <span className="cell-note">Same date, text and amount as line {duplicate}. Is it a duplicate?</span>}
+                    {joinable && (
+                      <span className="cell-note" onClick={(event) => event.stopPropagation()}>
+                        Mileage on line {numberOf(joinable)} is the same day.{' '}
+                        <button type="button" className="link-button" onClick={() => onTrip(index, joinable, number)}>
+                          Add to that trip
+                        </button>
+                      </span>
+                    )}
+                    {editable && line.tripKey && line.lineType !== 'mileage' && (
+                      <span className="cell-note" onClick={(event) => event.stopPropagation()}>
+                        <button type="button" className="link-button" onClick={() => onTrip(index, undefined, number)}>
+                          Take off the trip
+                        </button>
+                      </span>
+                    )}
                   </td>
                   <td className="amount">
-                    {formatQuantity(line.lineType, values.quantity)}
+                    {formatQuantity(values.lineType, values.quantity)}
                     {read && fields.includes('quantity') && <span className="cell-note">was {read.quantity ?? 0}</span>}
                   </td>
                   <td className="amount">{price.rate ? formatRate(price.rate) : ''}</td>
@@ -317,9 +382,9 @@ export function CheckLinesTable({
                         read={read}
                         context={context}
                         isNew={false}
-                        onSave={(draft) => {
+                        onSave={(drafts) => {
                           setEditing(null);
-                          onSaveLine(index, draft, number);
+                          onSaveLine(index, drafts, number);
                         }}
                         onCancel={() => setEditing(null)}
                         onRemove={() => {
@@ -342,9 +407,9 @@ export function CheckLinesTable({
                   read={undefined}
                   context={context}
                   isNew
-                  onSave={(draft) => {
+                  onSave={(drafts) => {
                     setEditing(null);
-                    onSaveLine(null, draft, rows.length + 1);
+                    onSaveLine(null, drafts, rows.length + 1);
                   }}
                   onCancel={() => setEditing(null)}
                 />

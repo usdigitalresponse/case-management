@@ -33,15 +33,16 @@ import {
 export type QueueView = 'open' | 'finished' | 'all';
 
 export interface QueueFlag {
-  kind: 'rate' | 'arithmetic' | 'rule' | 'no_case';
+  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case';
   message: string;
 }
 
 export async function listReviewQueue(
   db: Database,
   view: QueueView,
-  // q: only invoices matching it by name or case number, each with how.
-  options: { caseId?: string; professionalId?: string; q?: string; now?: Date } = {},
+  // q: only invoices matching it by name or case number, each with how;
+  // day: only invoices with an item on that date.
+  options: { caseId?: string; professionalId?: string; q?: string; day?: string; now?: Date } = {},
 ) {
   const now = options.now ?? new Date();
   const finished = [APPROVED_INVOICE_STATUS_CODE, REJECTED_INVOICE_STATUS_CODE];
@@ -52,6 +53,14 @@ export async function listReviewQueue(
       inArray(invoiceStatuses.code, statusCodes),
       ...(options.caseId ? [eq(invoice.caseId, options.caseId)] : []),
       ...(options.professionalId ? [eq(invoice.professionalId, options.professionalId)] : []),
+      ...(options.day
+        ? [
+            inArray(
+              invoice.invoiceId,
+              db.select({ invoiceId: invoiceLine.invoiceId }).from(invoiceLine).where(eq(invoiceLine.serviceDate, options.day)),
+            ),
+          ]
+        : []),
     ),
   );
   const invoiceIds = headers.map((header) => header.invoiceId);
@@ -68,6 +77,7 @@ export async function listReviewQueue(
         statedAmount: invoiceLine.statedAmount,
         billedRate: invoiceLine.billedRate,
         configuredRate: invoiceLine.configuredRate,
+        expenseTypeId: invoiceLine.expenseTypeId,
         timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       })
       .from(invoiceLine)
@@ -117,10 +127,10 @@ export async function listReviewQueue(
       if (header.caseId === null && !header.caseNumberAsTyped) {
         flags.push({ kind: 'no_case', message: 'No case: the provider and case are not tracked in this system' });
       }
-      // Time lines (the ones with a configured rate) billed above their limit.
+      // Time lines (priced lines other than mileage) billed above their limit.
       const limits = rateLimits.get(header.caseId) ?? new Map();
       const overRate = own
-        .filter((line) => line.configuredRate !== null && line.billedRate !== null)
+        .filter((line) => line.configuredRate !== null && line.billedRate !== null && line.expenseTypeId === null)
         .map((line) => ({ line, limit: rateLimitFor(line, header.professionalId, limits) }))
         .find(({ line, limit }) => limit && Number(line.billedRate) > Number(limit.rate));
       if (overRate?.limit) {
@@ -141,6 +151,16 @@ export async function listReviewQueue(
           kind: 'arithmetic',
           message: `One line does not add up: ${mismatch.quantity} × ${formatMoney(mismatch.unitRate as string)} is not ${formatMoney(mismatch.statedAmount as string)}`,
         });
+      }
+      // A reviewer's changed rate is flagged for sign-off.
+      const changedRates = recorded.filter(
+        (decision) =>
+          decision.sequenceNumber === round &&
+          decision.approvedRate !== null &&
+          Number(decision.approvedRate) !== Number(own.find((line) => line.invoiceLineId === decision.invoiceLineId)?.billedRate),
+      ).length;
+      if (changedRates > 0) {
+        flags.push({ kind: 'rate_changed', message: `Reviewer changed the rate on ${changedRates} ${changedRates === 1 ? 'line' : 'lines'}` });
       }
       const findings =
         (chain?.snapshot as { billing_rules?: { findings?: RuleFinding[] } } | null)?.billing_rules?.findings ?? [];

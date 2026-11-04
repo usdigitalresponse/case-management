@@ -1,4 +1,4 @@
-spec_version: "0.5.0"
+spec_version: "0.6.0"
 status: draft
 kind: business_rules
 
@@ -85,6 +85,7 @@ rules:
       - Only the user holding the active line-review invoice_review_assignment may record, change or undo working decisions, and only while the request is under review.
       - Each line has at most one working decision; changing or undoing it replaces or removes it without history.
       - Approve takes the requested amount and needs no reason. Approve in part needs a reason code and an approved amount above zero and below the requested amount; on a line with hours the reviewer corrects the hours or the rate and the amount is their product rounded to cents, otherwise the reviewer corrects the amount. A reviewer may approve a line that states no hours.
+      - Any reviewer may instead approve a line with hours or miles (time, travel time, waiting time or mileage) at a changed rate, higher or lower than billed, with no reason code; the amount is its quantity times that rate, rounded to cents, and may exceed the requested amount. A changed rate is flagged to the sign-off approvers before they sign off, with the billed rate and the line's configured_rate.
       - Reject needs a reason code and approves nothing. Any decision may carry a note; the reason code for another reason requires one.
       - Approving in part and rejecting each draw from their own list of reason codes (invoice_decision_reasons.applies_to); a reason may be on both. A reason not on the list for the outcome is refused. Administrators maintain the lists without a code release; a retired reason stays on decisions that used it.
       - Re-pricing applies approve-in-part decisions at the line's rate limit (apply_professional_rates), with the rate reason, to every undecided time line whose billed_rate is above it.
@@ -273,7 +274,7 @@ rules:
       - A draft may be saved with time lines not yet priceable, but a time line without a service date, positive hours, a professional kind or an effective configured rate cannot be confirmed from an import or submitted; the error says which is missing, for whom and for which date.
       - Amounts stated on an imported supporting invoice stay as evidence (stated_amount) and in the import's extraction result.
       - A time line's rate limit is the approved_hourly_rate of the latest decision on an approved preauthorization for the professional whose work it is on the request case (or for the whole case), else its configured_rate.
-      - Review flags a time line whose billed_rate is above its rate limit, and a line whose stated amount differs from its quantity times its stated rate; neither blocks submission. Reviewers may re-price flagged lines (decide_invoice_lines).
+      - Review flags a time line whose billed_rate is above its rate limit, and a line whose stated amount differs from its quantity times its stated rate; neither blocks submission. Reviewers may re-price flagged lines (decide_invoice_lines), and any reviewer may correct the rate of any time, travel time or mileage line when approving it in part. Review flags a billed or corrected rate that differs from the line's configured_rate, its default.
       - Submission prices lines again, so the frozen snapshot carries the rates applied; a later rate change never alters a submitted attempt.
 
   apply_mileage_rates:
@@ -282,11 +283,27 @@ rules:
     trigger: before_change
     outcome: blocking
     requirements:
-      - Mileage is an expense line, and the expense it creates, with the configured mileage expense type. Its quantity is the miles claimed for the whole trip; trip_origin and trip_destination name where it started and ended, as an address or place, and round_trip says it went there and back.
+      - Mileage is an expense line, and the expense it creates, with the configured mileage expense type. Its quantity is the miles claimed for the whole trip. Every mileage line is on a trip (apply_time_category_rates), whose trip_origin and trip_destination name where it started and ended, as an address or place, and round_trip says it went there and back.
       - Administrators add a mileage_rate per mile from an effective date, never by changing an earlier one. The rate on a date is the one with the latest effective_from on or before it; anyone entering or reviewing requests can see it.
       - A mileage line's amount is its miles times the rate on its service date, rounded to cents; billed_rate records the rate applied and the submitter cannot override it. A stated amount from an imported file stays as evidence.
       - A draft may be saved with mileage not yet priceable, but a mileage line without a service date, positive miles or an effective rate cannot be confirmed from an import or submitted; the error says which is missing.
       - Import may suggest classifying an expense described as mileage as mileage, taking the miles from its quantity or description; the extraction result keeps the file's own classification.
+
+  apply_time_category_rates:
+    description: Claim a trip's travel time, mileage and travel costs as separate lines linked to one trip, and price travel and waiting time from configured time category rates.
+    applies_to: invoice_line
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - A trip groups lines on one request; every line on it shares its date, which is required to confirm an import or submit. A trip has at most one time line, its travel time, at most one mileage line, any number of expense lines for its other costs (such as parking, tolls, fares or lodging), and no other lines. A trip with no lines is removed.
+      - Each line on a trip is requested, reviewed, decided, allocated and exported on its own; the trip changes none of those rules. Removing a trip removes its lines.
+      - A mileage line entered or imported without a trip is given one of its own, from its date and route.
+      - Time falls in one of three categories - work, travel (a time line on a trip) or waiting (a time line off a trip with time_category waiting). Travel and waiting time are priced like work (apply_professional_rates), except that the configured_rate is their category's rate on the date. Administrators add a time_category_rate for a category from an effective date, never by changing an earlier one, with one basis - the professional's hourly rate, a percent of it, or one flat hourly rate - and the rate for a category on a date is its setting with the latest effective_from on or before it. With none in force, that time is priced at the hourly rate. A percent of an hourly rate is rounded to cents.
+      - A rate stated on an imported supporting invoice still becomes billed_rate, and review flags it when it differs from the category's rate. Reviewers may change it (decide_invoice_lines).
+      - Time billing rules (billing codes, time increment, daily hour cap, long entry) apply to travel and waiting time as to other time.
+      - Anyone entering or reviewing requests can see the travel and waiting time rates in force.
+      - Imports never put lines on a shared trip. While checking a request, before submitting, the submitter or staff may put a time or expense line onto a trip with a mileage line on the same date, or take it off again; doing so is offered, never required. Each imported mileage line stays its own trip until they do.
+      - Reviewers are shown, for each date a request claims travel, how many of the same professional's other submitted requests on another case also claim travel that day, with a way to open all of that professional's requests with an item on that date beside the review.
 
   apply_billing_rules:
     description: Apply the deployment's configured billing rules to payment requests.
@@ -301,8 +318,9 @@ rules:
       - Daily hour cap - one professional's billed hours on one date, across this request and other submitted requests, stay within the cap; other drafts do not count.
       - Long entry - a single time line over the configured hours is flagged as possible block billing; this rule can only warn.
       - Billing period - the request states a billing period, optionally within one calendar month.
-      - Mileage distance - each mileage line's miles stay within the configured tolerance percent of the driving distance between its trip_origin and trip_destination, doubled for a round trip. Require also makes trip_origin and trip_destination required; warn flags a trip without them. The distance is looked up from a routing service only on submission while the rule is on, and recorded on the line with when it was checked; a trip that cannot be measured (address not found, service unavailable or an optional deployment lookup limit reached) produces no finding and is left to the reviewer. Address matching tolerates common variations in spelling, and one lookup serves a trip in either direction.
-      - Reviewers see a travel log of each request's trips with the miles claimed, the driving distance where known and a link to check the route themselves, in place of printed map evidence.
+      - Mileage distance - each mileage line's miles stay within the configured tolerance percent of the driving distance between its trip's trip_origin and trip_destination, doubled for a round trip. Require also makes trip_origin and trip_destination required; warn flags a trip without them. The distance is looked up from a routing service only on submission while the rule is on, and recorded on the trip with when it was checked; a trip that cannot be measured (address not found, service unavailable or an optional deployment lookup limit reached) produces no finding and is left to the reviewer. Address matching tolerates common variations in spelling, and one lookup serves a trip in either direction.
+      - Travel time and distance - a trip's travel hours stay within the configured tolerance percent of its distance at the configured average speed, plus a quarter hour. The distance is the measured driving route (doubled for a round trip) when the mileage distance rule measured it, else the miles claimed; a trip with neither produces no finding. This rule makes no lookups of its own.
+      - Reviewers see a travel log of each request's trips with the travel time and miles claimed, other travel costs, the driving distance where known and a link to check the route themselves, in place of printed map evidence.
       - A warn finding is shown to the submitter before submission and to reviewers; a require finding blocks import confirmation and submission with a message naming the item and the rule. Submitters see which rules are in force where they enter requests.
       - The submission snapshot records the rule settings in force and every finding, so a later change to a rule never alters what a reviewed attempt was checked against.
 
@@ -312,7 +330,7 @@ rules:
     trigger: before_create
     outcome: blocking
     requirements:
-      - Approving a line requires approved_amount between zero and that line requested amount. Pre-approval and non-approval outcomes omit approved_amount.
+      - Approving a line requires approved_amount between zero and that line requested amount, except a line approved at a changed rate (decide_invoice_lines), which may exceed it and is flagged for sign-off. Pre-approval and non-approval outcomes omit approved_amount.
       - The approved request amount is the sum of approved line amounts in the latest line-review round of the current chain; it is not submitted_total. Rejected lines contribute nothing.
       - A later line-review round in the same chain replaces the earlier round's amounts and may raise or lower them; earlier rounds stay in history. Changes to the request itself require a new review attempt.
       - Final decisions, allocation decisions and completion events are recorded atomically; final approval requires all requested lines reviewed.

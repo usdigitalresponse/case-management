@@ -163,6 +163,10 @@ dotnet run --project implementations/dataverse/SetupTests/SetupTests.csproj
   invoice processing is the likely extraction path; whether it meets the
   in-boundary processing requirement is undecided. Time-entry creation on
   submission and export rendering are not mapped.
+- Rate-based pricing and travel: professional kind, mileage and time category
+  rates, `trip`, `invoice_line.time_category` and the line, time entry and
+  expense `trip_id` columns are not provisioned, so trips, travel and waiting
+  time, mileage pricing and reviewer rate changes are not mapped.
 
 Next workflow work should implement these using supported Dataverse capabilities
 and Solution tooling, with shared scenarios and server-side checks. Avoid growing

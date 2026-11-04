@@ -1,5 +1,5 @@
-// Administrator settings: professional kinds and their rates, mileage rates,
-// billing rules with their codes, review routing, staff roles and, on demo
+// Administrator settings: professional kinds and their rates, mileage rates
+// and travel and waiting time rates, billing rules with their codes, review routing, staff roles and, on demo
 // servers, demo tools. Staff can read most of them; only administrators
 // change them, except their own role in the demo tools.
 import { Router, type NextFunction, type Request, type Response } from 'express';
@@ -8,6 +8,7 @@ import { getSessionUser, requireFullUser } from '../auth/session';
 import { requireAdmin } from '../auth/requireAdmin';
 import { addKindRate, createKind, listKinds } from '../billing/professionalRates';
 import { addMileageRate, listMileageRates } from '../billing/mileageRates';
+import { addTimeCategoryRate, listTimeCategoryRates } from '../billing/timeCategoryRates';
 import {
   addBillingCode,
   getBillingRules,
@@ -74,6 +75,23 @@ router.post(
   asyncHandler(async (req, res) => {
     const user = getSessionUser(req)!;
     res.status(201).json(await addMileageRate(db, user.userAccountId, req.body));
+  }),
+);
+
+router.get(
+  '/time-category-rates',
+  asyncHandler(async (_req, res) => {
+    res.json({ rates: await listTimeCategoryRates(db) });
+  }),
+);
+
+// Added from a date, never edited.
+router.post(
+  '/time-category-rates',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    const user = getSessionUser(req)!;
+    res.status(201).json(await addTimeCategoryRate(db, user.userAccountId, req.body));
   }),
 );
 

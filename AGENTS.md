@@ -237,7 +237,11 @@ one), except a submitter choosing among the people they bill for. In the
 case-based flow, never block the next step on an unchosen case or provider.
 Filed by person, the sender is required, since the invoice is filed under
 them, and a line whose worker isn't matched falls back to the invoice's most
-common match, else the sender, so every sent invoice goes to review. Staff and
+common match, else the sender, so every sent invoice goes to review. A trip
+is one "Travel" row in the editor but separate lines (travel time, mileage,
+costs) linked by `trip`, each priced and decided on its own; never merge them
+into one travel line, and never group lines into a trip for the submitter.
+A reviewer's changed rate must stay flagged for sign-off. Staff and
 external submitters share the new-invoice form (staff use it on Intake) and
 the import pages; links that differ
 between the two apps go through `client/src/portal/useShell.ts`. Design

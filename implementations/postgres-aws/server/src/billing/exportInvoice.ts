@@ -82,7 +82,13 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
   const rows = lines.map((line) => {
     const row: Array<string | number | null> = [
       line.serviceDate ?? line.sourceActivityOn ?? '',
-      line.expenseTypeCode === 'mileage' ? 'Mileage' : (LINE_TYPE_LABELS[line.lineTypeCode ?? ''] ?? 'Other'),
+      line.expenseTypeCode === 'mileage'
+        ? 'Mileage'
+        : line.tripId && line.lineTypeCode === 'time'
+          ? 'Travel time'
+          : line.timeCategory === 'waiting'
+            ? 'Waiting time'
+            : (LINE_TYPE_LABELS[line.lineTypeCode ?? ''] ?? 'Other'),
       line.description ?? line.sourceDescription ?? '',
       line.timekeeperDisplayName ?? line.timekeeperLabel ?? '',
       lineCodes(line),
@@ -102,21 +108,32 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
 
   const amountColumns = new Set(['Rate', 'Requested', 'Approved'].map((name) => columns.indexOf(name)));
 
-  const travelColumns = ['Date', 'From', 'To', 'Round trip', 'Miles claimed', 'Driving route (mi)', 'Rate', 'Requested'];
-  const travelRows = lines
-    .filter((line) => line.expenseTypeCode === 'mileage')
-    .map((line) => [
-      line.serviceDate ?? '',
-      line.tripOrigin ?? '',
-      line.tripDestination ?? '',
-      line.roundTrip ? 'Yes' : 'No',
-      toNumber(line.quantity),
+  // One row per trip: its travel time, miles and other costs together.
+  const travelColumns = ['Date', 'From', 'To', 'Round trip', 'Travel hours', 'Miles claimed', 'Driving route (mi)', 'Travel expenses', 'Requested'];
+  const trips = new Map<string, typeof lines>();
+  for (const line of lines) {
+    if (line.tripId) trips.set(line.tripId, [...(trips.get(line.tripId) ?? []), line]);
+  }
+  const travelRows = [...trips.values()].map((tripLines) => {
+    const [first] = tripLines;
+    const travel = tripLines.find((line) => line.lineTypeCode === 'time');
+    const mileage = tripLines.find((line) => line.expenseTypeCode === 'mileage');
+    const costs = tripLines.filter((line) => line !== travel && line !== mileage);
+    const sum = (some: typeof lines) => some.reduce((cents, line) => cents + Math.round(Number(line.amount) * 100), 0) / 100;
+    return [
+      first!.serviceDate ?? '',
+      first!.tripOrigin ?? '',
+      first!.tripDestination ?? '',
+      first!.roundTrip ? 'Yes' : 'No',
+      travel ? toNumber(travel.quantity ?? travel.sourceDurationHours) : null,
+      mileage ? toNumber(mileage.quantity) : null,
       // Both ways for a round trip, as claimed.
-      line.routeDistance === null ? 'Not checked' : Number(line.routeDistance) * (line.roundTrip ? 2 : 1),
-      toNumber(line.billedRate),
-      toNumber(line.amount),
-    ]);
-  const travelLog = { columns: travelColumns, rows: travelRows, amountColumns: new Set([6, 7]) };
+      !mileage ? null : first!.routeDistance === null ? 'Not checked' : Number(first!.routeDistance) * (first!.roundTrip ? 2 : 1),
+      costs.length > 0 ? sum(costs) : null,
+      sum(tripLines),
+    ];
+  });
+  const travelLog = { columns: travelColumns, rows: travelRows, amountColumns: new Set([7, 8]) };
   return { summary, columns, rows, amountColumns, travelLog };
 }
 
