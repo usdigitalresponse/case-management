@@ -70,7 +70,11 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     Intake. A submitter's true-and-correct statement names the
     case number (`attestationStatement`), and the receipt email shows it.
     Several files are checked one after another, by staff and submitters
-    alike. The typed number is `invoice.case_number_as_typed`
+    alike. With no file, or when none could be read, "Enter an invoice by
+    hand" makes an empty draft filed the same way: a submitter's is their
+    own, opened straight away; staff first choose or add who it is from
+    and may give its case number and billing period (`ManualEntry`), then
+    add its lines on the check page. The typed number is `invoice.case_number_as_typed`
     (migration `0020`), never checked against cases; close matches ignore
     case, spaces, dashes and leading zeros. Intake's own drop zone and
     manual entry still open the case-based upload

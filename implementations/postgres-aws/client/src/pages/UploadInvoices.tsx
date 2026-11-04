@@ -1,6 +1,7 @@
 // Upload filed by person, for staff and submitters: each file's case number,
 // billing period, invoice number and, when there's a choice, sender (needed,
 // as it is filed under them) are checked in turn; each becomes a draft.
+// Staff entering one by hand give the same details first.
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -35,6 +36,8 @@ interface Details {
   periodEnd: string;
   invoiceNumber: string;
 }
+
+const noDetails: Details = { professionalId: '', caseNumber: '', caseNumberRead: false, periodStart: '', periodEnd: '', invoiceNumber: '' };
 
 function detailsFrom(read: ReadyRead): Details {
   return {
@@ -120,11 +123,14 @@ function DetailsForm({
   details,
   billable,
   errors,
+  byHand = false,
   onChange,
 }: {
   details: Details;
   billable: BillableProfessional[] | undefined;
   errors: Record<string, string>;
+  // No file: its hints don't mention one, and there's no invoice number.
+  byHand?: boolean;
   onChange: (details: Details) => void;
 }) {
   const { staff } = useShell();
@@ -153,7 +159,9 @@ function DetailsForm({
             ? `We read this from ${file}. Change it if it is wrong.`
             : details.caseNumber
               ? 'As typed. It is not checked against a list of cases.'
-              : `Not found in ${file}. You can add it later.`}
+              : byHand
+                ? 'Optional. You can add it later.'
+                : `Not found in ${file}. You can add it later.`}
         </p>
       </div>
       <UploadPeriodField
@@ -163,13 +171,69 @@ function DetailsForm({
         hint={`From the dates on ${staff ? 'the' : 'your'} invoice.`}
         onChange={(period) => set(period)}
       />
-      <InvoiceNumberField
-        label={`Invoice number on ${file}`}
-        value={details.invoiceNumber}
-        error={errors.invoiceNumber}
-        hint={staff ? 'Optional. It helps match the sender’s records.' : 'Optional. It helps the billing office match your records.'}
-        onChange={(invoiceNumber) => set({ invoiceNumber })}
-      />
+      {!byHand && (
+        <InvoiceNumberField
+          label={`Invoice number on ${file}`}
+          value={details.invoiceNumber}
+          error={errors.invoiceNumber}
+          hint={staff ? 'Optional. It helps match the sender’s records.' : 'Optional. It helps the billing office match your records.'}
+          onChange={(invoiceNumber) => set({ invoiceNumber })}
+        />
+      )}
+    </div>
+  );
+}
+
+// Staff only: an empty draft filed under whom it is from, its lines added
+// on the next page.
+function ManualEntry({ billable, onCancel }: { billable: BillableProfessional[] | undefined; onCancel: () => void }) {
+  const navigate = useNavigate();
+  const [details, setDetails] = useState<Details>(noDetails);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const professionalId = details.professionalId === ADD_NEW ? '' : details.professionalId;
+
+  async function start() {
+    setBusy(true);
+    setErrors({});
+    setMessage(null);
+    try {
+      const created = await createInvoice({
+        caseId: null,
+        professionalId,
+        submit: false,
+        periodStart: details.periodStart || undefined,
+        periodEnd: details.periodEnd || undefined,
+        caseNumber: details.caseNumber.trim() || undefined,
+        lines: [],
+      });
+      navigate(checkLinesPath(created.invoiceId, true));
+    } catch (err) {
+      const fieldErrors = fieldErrorsOf(err);
+      setErrors(fieldErrors);
+      if (Object.keys(fieldErrors).length === 0) {
+        setMessage(apiErrorMessage(err, 'The invoice could not be started. Try again.'));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="upload-card manual-entry">
+      <h2 className="upload-card__heading">Enter an invoice by hand</h2>
+      <p className="field-hint">Say whom it is from, then add each line of the invoice on the next step.</p>
+      <DetailsForm byHand details={details} billable={billable} errors={errors} onChange={setDetails} />
+      {message && <Notice tone="danger">{message}</Notice>}
+      <div className="upload-card__actions">
+        <button type="button" className="btn btn--primary" disabled={busy || !professionalId} onClick={() => void start()}>
+          {busy ? 'Starting…' : 'Enter lines'}
+        </button>
+        <button type="button" className="link-button" disabled={busy} onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -184,6 +248,7 @@ export default function UploadInvoices() {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [manual, setManual] = useState(false);
 
   const usable = entries.filter((entry) => !entry.error && entry.read?.status !== 'failed');
   const unchecked = usable.filter((entry) => !entry.created);
@@ -195,7 +260,7 @@ export default function UploadInvoices() {
   const currentRead = current?.read?.status === 'ready' ? current.read : undefined;
   const many = entries.length > 1;
   const position = (entry: (typeof entries)[number]) => usable.indexOf(entry) + 1;
-  const canEnterByHand = !staff && Boolean(self);
+  const canEnterByHand = staff || Boolean(self);
   // No file could be read, so the lines are typed in instead.
   const byHand = canEnterByHand && entries.length > 0 && usable.length === 0;
 
@@ -245,8 +310,13 @@ export default function UploadInvoices() {
     navigate(checkLinesPath(first!, staff), { state: { queue, total: invoiceIds.length } satisfies CheckQueue });
   }
 
-  // An empty draft, its lines and case number added on the next page.
+  // A submitter's is an empty draft, its lines and case number added on the
+  // next page; staff first say whom it is from.
   async function enterByHand() {
+    if (staff) {
+      setManual(true);
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
@@ -277,9 +347,12 @@ export default function UploadInvoices() {
     <div className="portal-narrow">
       <PageHeader
         crumbs={[home, { label: many ? 'New invoices' : 'New invoice' }]}
-        title={many ? 'Upload invoices' : 'Upload an invoice'}
+        title={manual ? 'Enter an invoice' : many ? 'Upload invoices' : 'Upload an invoice'}
       />
       <Steps />
+      {manual ? (
+        <ManualEntry billable={billable ?? undefined} onCancel={() => setManual(false)} />
+      ) : (
       <div className="upload-card">
         <DropZone hasFiles={entries.length > 0} onFiles={addFiles} />
         {entries.length === 0 && canEnterByHand && (
@@ -359,6 +432,7 @@ export default function UploadInvoices() {
           </div>
         )}
       </div>
+      )}
       <p className="upload-footnote">
         Using a spreadsheet? Start from the template so every column is read correctly.{' '}
         <a href={invoiceTemplateUrl('xlsx')}>Download the template</a>

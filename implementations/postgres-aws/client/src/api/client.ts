@@ -831,6 +831,8 @@ export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt 
   proposedProvider?: ProposedProvider;
   // False keeps it as an editable draft; the server defaults to submitting.
   submit?: boolean;
+  // Files it by person under this number as typed.
+  caseNumber?: string;
 }
 
 // Entered because they weren't listed (model/rules.yaml match_invoice_to_case).
