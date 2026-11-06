@@ -10,6 +10,8 @@ import { LoadState } from '../components/LoadState';
 import { Fact, FactsStrip } from '../components/FactsStrip';
 import { PersonDialog } from '../components/PersonDialog';
 import { IN_REVIEW, SentInvoicesTable } from '../components/SentInvoicesTable';
+import { useCountyControl } from '../components/CountyListControl';
+import { countyOfInvoice } from '../components/InvoiceCells';
 import { Toast, useToast } from '../components/Toast';
 import { shownCaseNumber } from '../caseNumbers';
 import { downloadCsv } from '../downloadCsv';
@@ -56,17 +58,22 @@ export default function PersonPage() {
     };
   }, [professionalId, caseNumber, day]);
 
+  const invoices = [...(queue?.invoices ?? [])].sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''));
+  const isShown = (invoice: (typeof invoices)[number], id: FilterId) =>
+    id === 'all' || (id === 'waiting' ? IN_REVIEW.includes(invoice.statusCode) : !IN_REVIEW.includes(invoice.statusCode));
+  const county = useCountyControl(
+    invoices.filter((invoice) => isShown(invoice, filter) && (!matching || matching.has(invoice.invoiceId))),
+    countyOfInvoice,
+  );
+
   if (error || queueError || !person || !queue) {
     return <LoadState error={error ?? queueError} what="this person" />;
   }
-  const invoices = [...queue.invoices].sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''));
   const year = String(new Date().getFullYear());
   const thisYear = invoices.filter((invoice) => invoice.submittedAt?.startsWith(year));
   const waiting = invoices.filter((invoice) => IN_REVIEW.includes(invoice.statusCode));
   const sum = (rows: typeof invoices, value: (row: (typeof invoices)[number]) => string | null) => sumMoney(rows.map(value));
-  const isShown = (invoice: (typeof invoices)[number], id: FilterId) =>
-    id === 'all' || (id === 'waiting' ? IN_REVIEW.includes(invoice.statusCode) : !IN_REVIEW.includes(invoice.statusCode));
-  const shown = invoices.filter((invoice) => isShown(invoice, filter) && (!matching || matching.has(invoice.invoiceId)));
+  const shown = county.shown;
   const name = person.displayName ?? 'This person';
 
   return (
@@ -99,6 +106,7 @@ export default function PersonPage() {
                   invoices.map((invoice) => ({
                     'Case number': shownCaseNumber(invoice),
                     'Case number as typed': invoice.caseNumberAsTyped,
+                    County: invoice.countyDisplayName,
                     'Billing period start': invoice.periodStart,
                     'Billing period end': invoice.periodEnd,
                     Submitted: invoice.submittedAt?.slice(0, 10),
@@ -141,6 +149,7 @@ export default function PersonPage() {
             </button>
           ))}
         </div>
+        {county.control}
         <label className="list-controls__search">
           <span className="usa-sr-only">Filter by case number</span>
           <input className="usa-input" type="search" placeholder="Filter by case number" value={caseNumber} onChange={(event) => setCaseNumber(event.target.value)} />

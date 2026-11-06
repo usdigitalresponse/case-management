@@ -7,6 +7,8 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { SentInvoicesTable } from '../components/SentInvoicesTable';
+import { useCountyControl } from '../components/CountyListControl';
+import { countyOfInvoice } from '../components/InvoiceCells';
 import { shownCaseNumber } from '../caseNumbers';
 import { downloadCsv } from '../downloadCsv';
 import { formatPeriod } from '../formatDateTime';
@@ -21,12 +23,18 @@ export default function SearchResults() {
     [query],
   );
 
+  // Totals and the export follow the county chosen.
+  const county = useCountyControl(
+    [...(data?.invoices ?? [])].sort((a, b) =>
+      a.match === b.match ? (b.submittedAt ?? '').localeCompare(a.submittedAt ?? '') : a.match === 'exact' ? -1 : 1,
+    ),
+    countyOfInvoice,
+  );
+
   if (error || !data) {
     return <LoadState error={error} what="invoices" />;
   }
-  const found = [...data.invoices].sort((a, b) =>
-    a.match === b.match ? (b.submittedAt ?? '').localeCompare(a.submittedAt ?? '') : a.match === 'exact' ? -1 : 1,
-  );
+  const found = county.shown;
   const exact = found.filter((invoice) => invoice.match === 'exact');
   const close = found.filter((invoice) => invoice.match === 'close');
   const total = (rows: ReviewQueueItem[]) => sumMoney(rows.map((row) => row.submittedTotal));
@@ -53,11 +61,12 @@ export default function SearchResults() {
           . Check it is the same case before you add these invoices up.
         </Notice>
       )}
+      {data.invoices.length > 0 && <div className="list-controls">{county.control}</div>}
       <SentInvoicesTable
         invoices={found}
         showFrom
         caseNumberNote={(invoice) => (close.includes(invoice) ? <span className="text-warning">Close match</span> : null)}
-        emptyMessage={query ? 'No sent invoices match.' : 'Nothing searched yet.'}
+        emptyMessage={county.narrowed ? 'No matching invoices for that county.' : query ? 'No sent invoices match.' : 'Nothing searched yet.'}
       />
       {found.length > 0 && (
         <div className="search-totals">
@@ -81,6 +90,7 @@ export default function SearchResults() {
                 found.map((invoice) => ({
                   From: submittedByLabel(invoice),
                   'Case number': shownCaseNumber(invoice),
+                  County: invoice.countyDisplayName,
                   Match: invoice.match === 'exact' ? 'Exact' : 'Close',
                   'Billing period start': invoice.periodStart,
                   'Billing period end': invoice.periodEnd,

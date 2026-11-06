@@ -58,6 +58,12 @@ A `county` has a stable identifier, display name, and active status. Each case
 may be associated with one county through the optional `case.county_id`
 reference; a county may be associated with many cases.
 
+Some cases are recorded with a setting in place of a county, such as
+post-conviction or prison. These are `county` rows with `is_county` false, so a
+case still has one value; pickers list them first. Users add a county that
+isn't listed by typing it, and imports suggest one read from the file
+(`record_case_county` in `rules.yaml`).
+
 The case association is provisional. Whether counties should also or instead
 be associated with offices or professionals remains unresolved.
 

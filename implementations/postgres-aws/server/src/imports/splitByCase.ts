@@ -22,6 +22,7 @@ import { suggestUploadCase, uploadCases } from './caseSuggestions';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { mileageRateOn, mileageRatesFor } from '../billing/mileageRates';
 import { caseNumberInput, cleanCaseNumber, readCaseNumber } from '../billing/caseNumbers';
+import { countyChoice, listCounties, readCounty, resolveCounty } from '../cases/counties';
 import { enterInReviewInTx } from '../billing/enterInReview';
 
 export interface SplitCase {
@@ -371,6 +372,7 @@ export async function getUploadRead(db: Database, actor: PortalActor, uploadRead
   }
   const cases = await uploadCases(db, actor);
   const { parsed } = read;
+  const county = readCounty(parsed, await listCounties(db));
   return {
     status: 'ready' as const,
     file,
@@ -378,6 +380,7 @@ export async function getUploadRead(db: Database, actor: PortalActor, uploadRead
       lineCount: parsed.lines.length,
       invoiceNumber: parsed.invoiceNumber ?? null,
       caseNumber: readCaseNumber(parsed)?.value ?? null,
+      county,
       periodStart: parsed.periodStart ?? null,
       periodEnd: parsed.periodEnd ?? null,
       statedTotal: parsed.statedTotal ?? null,
@@ -403,6 +406,7 @@ const uploadDraftSchema = z
     periodEnd: z.iso.date('Enter the last day of the billing period.').optional(),
     invoiceNumber: z.string().trim().max(100, 'Keep the invoice number under 100 characters.').optional(),
     caseNumber: caseNumberInput.optional(),
+    ...countyChoice,
     // A reviewing staff member's draft goes straight into their own review
     // (../billing/enterInReview.ts).
     enterInReview: z.boolean().optional(),
@@ -472,6 +476,10 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
       const caseNumber = cleanCaseNumber(input.caseNumber);
       if (caseNumber) {
         await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
+      }
+      const countyId = await resolveCounty(tx, actor.userAccountId, input);
+      if (countyId) {
+        await tx.update(invoice).set({ countyId }).where(eq(invoice.invoiceId, invoiceId));
       }
       if (input.invoiceNumber) {
         await tx.insert(supportingInvoice).values({

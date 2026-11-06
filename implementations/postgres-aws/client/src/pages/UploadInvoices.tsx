@@ -1,5 +1,5 @@
 // Upload filed by person, for staff and submitters: each file's case number,
-// billing period, invoice number and, when there's a choice, sender (needed,
+// county, billing period, invoice number and, when there's a choice, sender (needed,
 // as it is filed under them) are checked in turn; each becomes a draft, or
 // for staff an invoice under their own review, its lines entered there.
 // Staff entering one by hand give the same details first.
@@ -22,6 +22,8 @@ import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { AddProvider } from '../components/AddProvider';
 import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
+import { CountyPicker } from '../components/CountyPicker';
+import { countyChoiceOf, type CountyValue } from '../counties';
 import { professionalLabel } from '../components/InvoiceLinesEditor';
 import { DropZone, FileCard, InvoiceNumberField, Steps, UploadPeriodField, useUploadEntries, type ReadyRead } from '../portal/PortalUpload';
 import { checkLinesPath, type CheckQueue } from '../portal/InvoiceSubmission';
@@ -36,18 +38,32 @@ interface Details {
   caseNumber: string;
   // Whether caseNumber came from the file.
   caseNumberRead: boolean;
+  county: CountyValue | null;
+  // Whether county came from the file.
+  countyRead: boolean;
   periodStart: string;
   periodEnd: string;
   invoiceNumber: string;
 }
 
-const noDetails: Details = { professionalId: '', caseNumber: '', caseNumberRead: false, periodStart: '', periodEnd: '', invoiceNumber: '' };
+const noDetails: Details = {
+  professionalId: '',
+  caseNumber: '',
+  caseNumberRead: false,
+  county: null,
+  countyRead: false,
+  periodStart: '',
+  periodEnd: '',
+  invoiceNumber: '',
+};
 
 function detailsFrom(read: ReadyRead): Details {
   return {
     professionalId: read.suggested?.professionalId ?? '',
     caseNumber: read.read.caseNumber ?? '',
     caseNumberRead: Boolean(read.read.caseNumber),
+    county: read.read.county,
+    countyRead: Boolean(read.read.county),
     periodStart: read.read.periodStart ?? '',
     periodEnd: read.read.periodEnd ?? '',
     invoiceNumber: read.read.invoiceNumber ?? '',
@@ -175,6 +191,19 @@ function DetailsForm({
                 : `Not found in ${file}. You can add it later.`}
         </p>
       </div>
+      <div className="upload-details__field">
+        <CountyPicker
+          id="upload-county"
+          value={details.county}
+          onChange={(county) => set({ county, countyRead: false })}
+          error={errors.countyId ?? errors.countyName}
+          hint={
+            details.countyRead
+              ? `We read this from ${file}. Change it if it is wrong.`
+              : 'Optional. You can add it later.'
+          }
+        />
+      </div>
       <UploadPeriodField
         start={details.periodStart}
         end={details.periodEnd}
@@ -217,6 +246,7 @@ function ManualEntry({ billable, onCancel }: { billable: BillableProfessional[] 
         periodStart: details.periodStart || undefined,
         periodEnd: details.periodEnd || undefined,
         caseNumber: details.caseNumber.trim() || undefined,
+        ...countyChoiceOf(details.county),
         invoiceNumber: details.invoiceNumber.trim() || undefined,
         enterInReview: reviews,
         lines: [],
@@ -306,6 +336,7 @@ export default function UploadInvoices() {
         periodEnd: details.periodEnd || undefined,
         invoiceNumber: details.invoiceNumber.trim() || undefined,
         caseNumber: details.caseNumber.trim() || undefined,
+        ...countyChoiceOf(details.county),
         // Reviewers enter and decide it in one pass, on its review.
         enterInReview: reviews,
       });

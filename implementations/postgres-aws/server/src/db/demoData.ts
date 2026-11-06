@@ -278,6 +278,8 @@ async function seedDemoAssignments(
 // As senders typed them: some shared, one without dashes, and the review
 // invoice below a close match, so the queue's match notes show.
 const TYPED_CASE_NUMBERS = ['26-CR-00211', '26-CR-00214', '26CR230', '26-CR-00211', '26-CR-00245'];
+// Their counties, settings included.
+const DEMO_COUNTIES = ['County A', 'County B', 'Post-conviction', 'County A', 'Prison'];
 
 // By demo vendor kind (DEMO_VENDOR_KINDS).
 const DEMO_TIME_DESCRIPTIONS: Record<string, string[]> = {
@@ -335,6 +337,7 @@ async function seedDemoTimeEntriesAndInvoices(
     await createInvoice(db, actor, {
       caseId: null,
       caseNumber: TYPED_CASE_NUMBERS[index],
+      countyName: DEMO_COUNTIES[index],
       submit: index !== assignments.length - 2,
       attested: true,
       // Priced from the demo rates (seedDemoRates).
@@ -403,6 +406,7 @@ async function seedDemoMileage(
   await createInvoice(db, actor, {
     caseId: null,
     caseNumber: '26-CR-00211',
+    countyName: 'County A',
     attested: true,
     periodStart: '2026-02-01',
     periodEnd: '2026-02-28',

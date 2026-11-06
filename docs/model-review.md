@@ -103,6 +103,13 @@ are visible to everyone who may read the request and kept in the system, but
 are never included in exports or the billing record. The snapshot layout is
 unchanged apart from `spec_version`.
 
+Model files are now 0.9.0, additive: `county.is_county` marks settings recorded
+in place of a county, such as post-conviction or prison, which pickers list
+first; existing counties take `true`. Users add a county that isn't listed by
+typing it, matched by name so it isn't duplicated, and imports suggest one from
+the file (`record_case_county`). The billing record carries the case's county.
+The snapshot layout is unchanged apart from `spec_version`.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

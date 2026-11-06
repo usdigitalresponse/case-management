@@ -5,13 +5,18 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { RecordTable } from '../components/RecordTable';
-import { caseNumberColumn, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
+import { caseNumberColumn, countyOfInvoice, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
+import { useCountyControl } from '../components/CountyListControl';
 import { formatMoney } from '../formatMoney';
 
 // Signed-off invoices, ready to export for payment. Payment itself happens
 // outside this system.
 export default function Exports() {
   const { data, error } = useApiResource(() => listReviewQueue('finished'), []);
+  const county = useCountyControl(
+    (data?.invoices ?? []).filter((invoice) => invoice.statusCode === 'approved'),
+    countyOfInvoice,
+  );
   if (error || !data) {
     return <LoadState error={error} what="invoices" />;
   }
@@ -34,11 +39,12 @@ export default function Exports() {
       <Notice tone="info">
         Export Invoice lets you redact details such as the client's name before you send a file on. Check each PDF or spreadsheet for confidential information first; reasons are free text.
       </Notice>
+      <div className="list-controls">{county.control}</div>
       <RecordTable
         className="queue-table"
-        rows={data.invoices.filter((invoice) => invoice.statusCode === 'approved')}
+        rows={county.shown}
         rowKey={(invoice) => invoice.invoiceId}
-        emptyMessage="No invoices have been signed off yet."
+        emptyMessage={county.narrowed ? 'No signed-off invoices for that county.' : 'No invoices have been signed off yet.'}
         columns={[
           caseNumberColumn,
           { header: 'Client', render: (invoice) => invoice.caseClientDisplayName ?? '—' },

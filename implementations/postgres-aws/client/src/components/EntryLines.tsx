@@ -7,6 +7,7 @@ import {
   apiErrorMessage,
   saveEnteredLines,
   setEnteredCaseNumber,
+  setEnteredCounty,
   setEnteredReceipt,
   type InvoiceReceipt,
   type InvoiceReview,
@@ -18,6 +19,8 @@ import { useLineEntry } from '../portal/useLineEntry';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { formatMoney } from '../formatMoney';
 import { CaseNumberBox } from './CaseNumberBox';
+import { SavedCountyPicker } from './CountyPicker';
+import { countyValueOf } from '../counties';
 import { Notice } from './Notice';
 import { OriginalDocument } from './OriginalDocument';
 import type { ToastMessage } from './Toast';
@@ -50,6 +53,14 @@ export function EnteredCaseNumber({ invoice }: { invoice: InvoiceReview['invoice
       missing={missing}
       onChange={setValue}
       onSave={save}
+      county={
+        <SavedCountyPicker
+          id="entered-county"
+          initial={countyValueOf(invoice)}
+          save={(choice) => setEnteredCounty(invoice.invoiceId, choice)}
+          hint="Or post-conviction or prison, if that is what it is for."
+        />
+      }
     >
       <strong>This invoice is filed under {invoice.professionalDisplayName ?? 'whom it is from'}, not under a case.</strong>
       <p>Reviewers use the case number to find the case in the {EXTERNAL_SYSTEM_NAME}.</p>

@@ -7,6 +7,7 @@ import type { Database, DatabaseOrTransaction } from '../db/client';
 import {
   caseIdentifier,
   caseTable,
+  county,
   expenseTypes,
   invoice,
   invoiceApprovalChain,
@@ -64,6 +65,9 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
       proposedProvider: invoice.proposedProvider,
       caseNumberAsTyped: invoice.caseNumberAsTyped,
       caseNumberCorrected: invoice.caseNumberCorrected,
+      // Its own, else its case's.
+      countyId: county.countyId,
+      countyDisplayName: county.displayName,
       // A staff upload, under review from the start (./enterInReview.ts).
       enteredInReview: invoice.enteredInReview,
       linesVersion: invoice.linesVersion,
@@ -75,6 +79,7 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
     .from(invoice)
     .leftJoin(caseTable, eq(invoice.caseId, caseTable.caseId))
     .leftJoin(person, eq(caseTable.clientId, person.personId))
+    .leftJoin(county, eq(county.countyId, sql`coalesce(${invoice.countyId}, ${caseTable.countyId})`))
     .leftJoin(professional, eq(invoice.professionalId, professional.professionalId))
     .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
     .leftJoin(userAccount, eq(invoice.submittedByUserAccountId, userAccount.userAccountId))

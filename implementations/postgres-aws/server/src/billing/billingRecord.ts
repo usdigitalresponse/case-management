@@ -17,6 +17,7 @@ import { csvCell } from '../imports/template';
 export const BILLING_RECORD_COLUMNS = [
   'Case number',
   'Court numbers',
+  'County',
   'Invoice number',
   'Provider',
   'Provider role',
@@ -76,6 +77,7 @@ export async function loadBillingRecord(db: Database): Promise<BillingRecordRow[
       'Case number':
         currentCaseNumber(queued) ?? (queued.caseId === null ? 'Not linked to a case' : (queued.caseNumber ?? queued.caseExternalReference)),
       'Court numbers': queued.otherCaseNumbers.join(', ') || null,
+      County: detail.invoice.countyDisplayName,
       'Invoice number': queued.invoiceId.slice(0, 8),
       Provider: queued.professionalDisplayName,
       'Provider role': queued.professionalKindDisplayName,

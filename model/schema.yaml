@@ -1,4 +1,4 @@
-spec_version: "0.8.0"
+spec_version: "0.9.0"
 status: draft
 kind: domain_schema
 
@@ -33,7 +33,7 @@ entities:
 
   county:
     display_name: County
-    description: A geographic administrative area that can be associated with a case.
+    description: A geographic administrative area that can be associated with a case, or a configured setting recorded in its place, such as post-conviction or prison.
     primary_key: county_id
     fields:
       county_id:
@@ -46,6 +46,10 @@ entities:
       active:
         type: boolean
         required: true
+      is_county:
+        type: boolean
+        required: true
+        description: False for a setting recorded in place of a county, such as post-conviction or prison; pickers list these before counties.
 
   case:
     display_name: Case

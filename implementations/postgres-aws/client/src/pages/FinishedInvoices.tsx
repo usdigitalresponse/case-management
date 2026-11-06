@@ -7,7 +7,8 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { StatusPill } from '../components/StatusPill';
-import { CaseNumberCell, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
+import { CaseNumberCell, countyOfInvoice, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
+import { useCountyControl } from '../components/CountyListControl';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
@@ -37,14 +38,18 @@ function matches(invoice: ReviewQueueItem, filter: FilterId): boolean {
 export default function FinishedInvoices() {
   const { data, error } = useApiResource(() => listReviewQueue('all'), []);
   const [filter, setFilter] = useState<FilterId>('month');
+  const finished = (data?.invoices ?? [])
+    .filter((invoice) => FINISHED.includes(invoice.statusCode))
+    .sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
+  const county = useCountyControl(
+    finished.filter((invoice) => matches(invoice, filter)),
+    countyOfInvoice,
+  );
 
   if (error || !data) {
     return <LoadState error={error} what="invoices" />;
   }
-  const finished = data.invoices
-    .filter((invoice) => FINISHED.includes(invoice.statusCode))
-    .sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
-  const shown = finished.filter((invoice) => matches(invoice, filter));
+  const shown = county.shown;
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -53,18 +58,21 @@ export default function FinishedInvoices() {
         title="Finished invoices"
         description="Every line on these invoices is decided. Each one belongs to the person who sent it. Case numbers are as they typed them."
       />
-      <div className="chip-filters" role="group" aria-label="Show">
-        {FILTERS.map(({ id, label, tone }) => (
-          <button key={id} type="button" className={`chip chip--filter${tone}`} aria-pressed={filter === id} onClick={() => setFilter(id)}>
-            {label} <span className="chip-count">{finished.filter((invoice) => matches(invoice, id)).length}</span>
-          </button>
-        ))}
+      <div className="list-controls">
+        <div className="chip-filters" role="group" aria-label="Show">
+          {FILTERS.map(({ id, label, tone }) => (
+            <button key={id} type="button" className={`chip chip--filter${tone}`} aria-pressed={filter === id} onClick={() => setFilter(id)}>
+              {label} <span className="chip-count">{finished.filter((invoice) => matches(invoice, id)).length}</span>
+            </button>
+          ))}
+        </div>
+        {county.control}
       </div>
       <RecordTable
         className="queue-table"
         rows={shown}
         rowKey={(invoice) => invoice.invoiceId}
-        emptyMessage={filter === 'month' ? 'Nothing finished this month yet.' : 'No invoices here.'}
+        emptyMessage={county.narrowed ? 'No invoices here for that county.' : filter === 'month' ? 'Nothing finished this month yet.' : 'No invoices here.'}
         columns={[
           { header: 'From', rowHeader: true, render: (invoice) => <FromCell invoice={invoice} /> },
           { header: 'Case number, as typed', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },

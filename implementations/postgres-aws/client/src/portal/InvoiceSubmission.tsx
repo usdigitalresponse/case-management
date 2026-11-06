@@ -1,8 +1,8 @@
 // One invoice in the portal: its file beside its lines. A draft's lines save
 // as they change; once sent they lock, and it can be withdrawn until review
 // starts. Filed by person (any invoice without a case, unless told), its case
-// number sits at the top and is needed to send.
-import { useEffect, useRef, useState } from 'react';
+// number sits at the top and is needed to send, with its county below.
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router';
 import {
   answerQuestion,
@@ -12,6 +12,7 @@ import {
   invoiceExportUrl,
   resolveInvoiceImport,
   setDraftCaseNumber,
+  setDraftCounty,
   transitionInvoice,
   updateDraftInvoice,
   type PortalInvoice,
@@ -41,6 +42,8 @@ import { INTAKE_PATH, PORTAL_HOME_PATH, useShell } from './useShell';
 import { EnteredFlag } from '../components/NewEntryFields';
 import { Fact, FactsStrip } from '../components/FactsStrip';
 import { CaseNumberBox } from '../components/CaseNumberBox';
+import { SavedCountyPicker } from '../components/CountyPicker';
+import { countyValueOf } from '../counties';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -71,8 +74,10 @@ function TypedCaseNumber({
   own,
   corrected,
   onFocus,
+  county,
 }: {
   invoiceId: string;
+  county: ReactNode;
   // A reviewer's correction, shown in its place.
   corrected: string | null;
   value: string;
@@ -120,6 +125,7 @@ function TypedCaseNumber({
       onChange={onChange}
       onSave={save}
       onFocus={onFocus}
+      county={county}
     >
       {own ? (
         <>
@@ -451,6 +457,18 @@ function Lines({
             corrected={invoice.caseNumberCorrected}
             own={!staff}
             onFocus={() => caseNumberRegion.length > 0 && setFocus({ location: CASE_NUMBER_LOCATION })}
+            county={
+              editable ? (
+                <SavedCountyPicker
+                  id="county"
+                  initial={countyValueOf(invoice)}
+                  save={(choice) => setDraftCounty(invoice.invoiceId, choice)}
+                  hint="Or post-conviction or prison, if that is what it is for."
+                />
+              ) : (
+                <p className="field-hint">County: {invoice.countyDisplayName ?? 'Not added'}</p>
+              )
+            }
           />
           {decided && data.approvedTotal !== null && <DecisionTotals data={data} />}
         </>

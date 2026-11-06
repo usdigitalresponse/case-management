@@ -114,6 +114,40 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     - **Search** (`/search`, `pages/SearchResults.tsx`, G24): the header search covers every
       sent invoice by name or case number, with exact and close matches listed and totalled
       apart, and an export to CSV. The queue no longer filters in place.
+    - **County** (`model/rules.yaml` `record_case_county`; `server/src/cases/counties.ts`,
+      `client/src/components/CountyPicker.tsx`): filed by person, an invoice carries its
+      case's county (`invoice.county_id`, migration `0031`) beside its case number; one
+      under a case shows the case's unless it has its own. Every county picker (upload
+      and manual entry, the check page, entering in review, the reviewer's case number
+      box, and new case intake) matches as the person types and lists `is_county` false
+      settings first; Post-conviction and Prison are added in every environment by
+      `ensureReferenceData`. Typing a county not listed offers "+ Add … as a new county",
+      added when the choice is saved; a name matching one already there (ignoring case,
+      spacing, punctuation and the word "county") reuses it, a retired one is refused
+      rather than reactivated, and each addition is an `audit_event` (`county_added`).
+      `ensureReferenceData` also makes a county typed as "Prison" or "Post-conviction"
+      before then a setting. Uploads suggest one from the file (`readCounty`): a
+      labelled "County:" (up to four words, stopping at a wider gap) first, then a
+      setting the file names that no item mentions (so a prison visit on one line
+      doesn't count), then a listed county, then a new one only where a court is named
+      with it ("Court of X County", "X County … Court") or "County of X", so a client's
+      name before "County" isn't taken. The sender sets it on a draft (`PUT
+      /api/portal/invoices/:id/county`), the reviewer while entering (`PUT
+      .../entered-county`), and after sending a line reviewer changes it (`PUT
+      /api/invoices/:id/county`); each change names a county or sends `countyId: null`,
+      and an empty one is refused. Each returns the county the invoice now shows, so
+      clearing an invoice's own county under a case shows the case's again. A change
+      after sending that alters the county shown is audited as `county_changed` with the
+      one shown before and the invoice's own. Exports' summary and the billing record have a County. Every staff list
+      of invoices (To review, Finished, Search, a person's page, Exports, the case-led
+      queue) shows the county under the case number, and the Cases list has a County
+      column. Each has one County control (`components/CountyListControl.tsx`): All,
+      All grouped by county (settings, then counties, then none, each keeping the
+      list's order), one setting or county, or No county, with counts. It works on what
+      the page's other filters show; on Search the totals and export follow it. Gaps: counties
+      a submitter adds are offered to everyone straight away (staff review is an
+      open decision); there is no screen to rename, hide or merge counties; the
+      county isn't highlighted on the file as the case number is.
     - **Finished** (`/finished`, `pages/FinishedInvoices.tsx`, G20) leads with the person, with
       chips for This month, Waiting for sign-off and Decided. The case-led version is at
       `/home-alternate/finished`.
@@ -1479,7 +1513,9 @@ rows the app needs to function at all (`activity_types`,
 `invoice_approval_outcomes`, and the "Intake Staff", "External Submitter"
 and "Assigned Staff" roles) via `insert ... on conflict do nothing`,
 keyed by each table's unique `code` column (or, for `role`, a unique
-index on `(display_name, role_context)`). `src/db/migrate.ts` runs it
+index on `(display_name, role_context)`). The settings recorded in place
+of a county (Post-conviction, Prison) have no code, so each is added only
+when no county shares its name key (`ensureDefaultSettings`). `src/db/migrate.ts` runs it
 right after applying migrations, so it executes in every environment,
 including production. `resetAndSeedBaselineFixtures` (destructive,
 test/dev-only) calls it too after truncating, so there is a single
@@ -1650,10 +1686,13 @@ form relies on this being airtight.
 - **Invoices filed by person** (`src/db/demoData.ts`, `demoUploads.ts`):
   every demo invoice has no case and a synthetic typed case number
   (`26-CR-00211` and similar). Several share one, one is typed without
-  dashes and one is a close match, for the queue's notes. The uploaded
+  dashes and one is a close match, for the queue's notes. Most have a
+  synthetic county (County A, B) or a setting (Post-conviction, Prison). The uploaded
   PDFs print "Re: State v. [client], Case No. …", read back by the upload
   and highlighted on the check page; one names none, so its draft shows
-  "Not added yet". The cases, their numbers and pre-authorizations stay for
+  "Not added yet". Three print a county line ("Superior Court of County B",
+  "County: County A", "Post-conviction petition"), which the seed checks is
+  read back. The cases, their numbers and pre-authorizations stay for
   the hidden case pages and Intake's fallback. Each demo person has a
   synthetic firm they're paid through and a 555-01xx phone number; the
   investigator and expert have approved rates of their own, and the demo
@@ -1695,7 +1734,7 @@ form relies on this being airtight.
 - `sign_in_code`: not in `model/schema.yaml`. Hashed one-time codes for
   external sign-in (see "Emailed-code sign-in for external users" above).
 - `invoice.case_number_as_typed`, `invoice.case_number_corrected`,
-  `professional.paid_through`, `professional.phone`, `professional_rate` and
+  `invoice.county_id`, `professional.paid_through`, `professional.phone`, `professional_rate` and
   `professional_invoice_reviewer`: not in `model/schema.yaml`. They support
   filing invoices by person (design G, above). Whether the canonical model
   files invoices by person rather than case is an open decision; until it
