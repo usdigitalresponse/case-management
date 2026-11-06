@@ -1528,7 +1528,12 @@ form relies on this being airtight.
   investigator invoice states a $175 rate against the $75 configured one;
   and invoices are left signed off, awaiting sign-off, part-decided,
   assigned but not started and unassigned, one backdated past the
-  10-working-day callout. All amounts and identifiers are synthetic.
+  10-working-day callout. The demo sign-in holds three: the part-decided
+  one, waiting for an answer to its question; an expert invoice just
+  submitted and given to them, billed $180 against the $150 configured
+  rate; and an attorney invoice another reviewer finished, with an answered
+  question and one line approved at a changed rate, for them to sign off.
+  All amounts and identifiers are synthetic.
 - **Invoices filed by person** (`src/db/demoData.ts`, `demoUploads.ts`):
   every demo invoice has no case and a synthetic typed case number
   (`26-CR-00211` and similar). Several share one, one is typed without

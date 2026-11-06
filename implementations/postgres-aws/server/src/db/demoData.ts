@@ -23,7 +23,8 @@ import {
   routeCheck,
 } from './schema';
 import { getReferenceId } from './referenceLookups';
-import { reassignReviewer } from '../billing/reviewAssignment';
+import { reassignReviewer, setSignOffApprovers } from '../billing/reviewAssignment';
+import { answerQuestionAsSubmitter, askQuestion } from '../billing/reviewQuestions';
 import { reviewInvoiceLine } from '../billing/reviewInvoiceLine';
 import { finishReview, signOffInvoice } from '../billing/reviewRounds';
 import { setReviewSettings } from '../billing/reviewSettings';
@@ -278,6 +279,33 @@ async function seedDemoAssignments(
 // invoice below a close match, so the queue's match notes show.
 const TYPED_CASE_NUMBERS = ['26-CR-00211', '26-CR-00214', '26CR230', '26-CR-00211', '26-CR-00245'];
 
+// By demo vendor kind (DEMO_VENDOR_KINDS).
+const DEMO_TIME_DESCRIPTIONS: Record<string, string[]> = {
+  Attorney: [
+    'Reviewed discovery from the prosecution',
+    'Met the client to go over the case',
+    'Drafted a motion to continue',
+    'Prepared for the pretrial hearing',
+    'Attended the status conference',
+    'Called the client about the plea offer',
+  ],
+  Investigator: [
+    'Interviewed a witness',
+    'Photographed the scene',
+    'Requested records from the hospital',
+    'Reviewed the surveillance video',
+    'Wrote up the witness interview',
+    'Tried to locate a witness at their last known address',
+  ],
+  Expert: [
+    'Reviewed the lab report',
+    'Examined the evidence',
+    'Drafted the expert report',
+    'Called counsel about the findings',
+    'Prepared to testify',
+  ],
+};
+
 // Logs time on every assignment's case, and an invoice filed by person for
 // most (one left un-invoiced, one a draft), so status varies.
 async function seedDemoTimeEntriesAndInvoices(
@@ -286,10 +314,11 @@ async function seedDemoTimeEntriesAndInvoices(
 ): Promise<void> {
   for (const [index, assignment] of assignments.entries()) {
     const actor = { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId };
+    const descriptions = DEMO_TIME_DESCRIPTIONS[DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!]!;
     const entries = Array.from({ length: faker.number.int({ min: 1, max: 3 }) }, () => ({
       activityOn: faker.date.recent({ days: 60 }).toISOString().slice(0, 10),
       durationHours: faker.number.float({ min: 0.5, max: 6, fractionDigits: 2 }),
-      description: faker.lorem.sentence(),
+      description: faker.helpers.arrayElement(descriptions),
     }));
     for (const entry of entries) {
       // eslint-disable-next-line no-await-in-loop
@@ -561,14 +590,21 @@ async function seedDemoReview(
     await approveAll(secondReviewer, awaiting);
     await finishReview(db, secondReviewer, awaiting);
   }
-  // Part way through, with one line cut.
+  // Part way through by the demo sign-in, with one line cut and a question
+  // waiting for the sender's answer.
   if (inProgress) {
-    const [first] = await lineIds(inProgress);
-    if (first) {
-      await reviewInvoiceLine(db, firstReviewer, inProgress, first, {
+    const lines = await lineIds(inProgress);
+    const [first] = lines;
+    const last = lines.at(-1);
+    if (first && last) {
+      await reviewInvoiceLine(db, fixtures.staffUserAccountId, inProgress, first, {
         outcome: 'rejected',
         reasonCode: 'duplicate',
-        note: 'Same call as the entry the day before.',
+        note: 'Already billed on an earlier invoice.',
+      });
+      await askQuestion(db, fixtures.staffUserAccountId, inProgress, {
+        invoiceLineId: last,
+        question: 'Could you say a little more about what this time covered?',
       });
     }
   }
@@ -576,6 +612,73 @@ async function seedDemoReview(
   if (mileage) {
     await reassignReviewer(db, firstReviewer, mileage, { userAccountId: firstReviewer, forPerson: true });
   }
+
+  await seedDemoSignInReview(fixtures, assignments, secondReviewer, lineIds);
+}
+
+// Two invoices for the demo sign-in: one just submitted and given to them
+// to review, billed above the configured rate; and one another reviewer
+// finished, with an answered question and a changed rate, for them to sign off.
+async function seedDemoSignInReview(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+  assignments: DemoAssignment[],
+  reviewer: string,
+  lineIds: (invoiceId: string) => Promise<string[]>,
+): Promise<void> {
+  const signIn = fixtures.staffUserAccountId;
+  const [, attorney, , expert] = assignments;
+  if (!attorney || !expert) {
+    throw new Error('Expected demo attorney and expert assignments.');
+  }
+
+  // The expert's configured rate is $150.
+  const toReview = await createInvoice(db, { userAccountId: expert.userAccountId, professionalId: expert.professionalId }, {
+    caseId: null,
+    caseNumber: '26-CR-00245',
+    attested: true,
+    periodStart: '2026-03-01',
+    periodEnd: '2026-03-31',
+    lines: [
+      { lineType: 'time', serviceDate: '2026-03-03', quantity: 2, unitRate: 180, description: 'Reviewed the lab report and photographs' },
+      { lineType: 'time', serviceDate: '2026-03-10', quantity: 3.5, unitRate: 180, description: 'Drafted the expert report' },
+      { lineType: 'time', serviceDate: '2026-03-12', quantity: 1, unitRate: 180, description: 'Call with counsel about the draft report' },
+    ],
+  });
+  await reassignReviewer(db, signIn, toReview.invoiceId, { userAccountId: signIn });
+
+  const attorneyActor = { userAccountId: attorney.userAccountId, professionalId: attorney.professionalId };
+  const toSignOff = await createInvoice(db, attorneyActor, {
+    caseId: null,
+    caseNumber: '26-CR-00214',
+    attested: true,
+    periodStart: '2026-03-01',
+    periodEnd: '2026-03-31',
+    lines: [
+      { lineType: 'time', serviceDate: '2026-03-02', quantity: 1.5, description: 'Met the client to go over the plea offer' },
+      { lineType: 'time', serviceDate: '2026-03-09', quantity: 2.25, description: 'Prepared the motion to suppress' },
+      { lineType: 'time', serviceDate: '2026-03-16', quantity: 3, description: 'Attended the motion hearing' },
+    ],
+  });
+  await db
+    .update(invoice)
+    .set({ submittedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) })
+    .where(eq(invoice.invoiceId, toSignOff.invoiceId));
+  const [meeting, motion, hearing] = await lineIds(toSignOff.invoiceId);
+  if (!meeting || !motion || !hearing) {
+    throw new Error('Expected three lines on the sign-off demo invoice.');
+  }
+  await reviewInvoiceLine(db, reviewer, toSignOff.invoiceId, meeting, { outcome: 'approved' });
+  const { invoiceReviewQuestionId } = await askQuestion(db, reviewer, toSignOff.invoiceId, {
+    invoiceLineId: hearing,
+    question: 'Was the hearing continued, or did it go ahead?',
+  });
+  await answerQuestionAsSubmitter(db, attorneyActor, toSignOff.invoiceId, invoiceReviewQuestionId, {
+    answer: 'It went ahead; the motion was argued and taken under advisement.',
+  });
+  await reviewInvoiceLine(db, reviewer, toSignOff.invoiceId, motion, { outcome: 'approved', approvedRate: 110 });
+  await reviewInvoiceLine(db, reviewer, toSignOff.invoiceId, hearing, { outcome: 'approved' });
+  await setSignOffApprovers(db, reviewer, toSignOff.invoiceId, { userAccountIds: [signIn] });
+  await finishReview(db, reviewer, toSignOff.invoiceId);
 }
 
 async function giveRole(userAccountId: string, systemRoleId: string): Promise<void> {
