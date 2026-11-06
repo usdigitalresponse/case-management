@@ -20,6 +20,8 @@ import {
   invoiceEventTypes,
   invoiceLine,
   invoiceLineTypes,
+  invoiceLineWorkingDecision,
+  invoiceReviewQuestion,
   invoiceStatuses,
   person,
   professional,
@@ -104,6 +106,9 @@ export const invoiceLineInputSchema = z
     roundTrip: z.boolean().optional(),
     // The imported file's line or row it was read from; carried back on save.
     sourceLocation: z.string().trim().min(1).max(200).optional(),
+    // Keeps the saved line, with any decision or question on it; one not on
+    // this invoice is a new line.
+    invoiceLineId: z.uuid().optional(),
   })
   .transform((line) => ({
     ...line,
@@ -187,9 +192,20 @@ function groupTrips<T extends DraftContent['lines'][number]>(lines: T[]): { line
   };
 }
 
+// Whether a saved line already holds these values; numbers compare by value,
+// as the database writes "0.40" for "0.4".
+function sameValues(saved: Record<string, unknown>, values: Record<string, unknown>): boolean {
+  return Object.entries(values).every(([key, value]) => {
+    const before = saved[key] ?? null;
+    if (before === value) return true;
+    const numeric = (v: unknown) => typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v));
+    return numeric(before) && numeric(value) && Number(before) === Number(value);
+  });
+}
+
 // Each line is rounded to cents once, so the total always equals the sum of
 // its lines (model/rules.yaml validate_invoice_total).
-async function replaceLines(
+export async function replaceLines(
   tx: Transaction,
   actor: PortalActor,
   invoiceId: string,
@@ -309,44 +325,88 @@ async function replaceLines(
     ? await getReferenceId(tx, expenseTypes, MILEAGE_EXPENSE_TYPE_CODE)
     : undefined;
 
-  // Safe: draft lines have no decisions, and submitted values live on in
-  // their attempt's snapshot.
-  await tx.delete(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
-  await tx.delete(trip).where(eq(trip.invoiceId, invoiceId));
+  // Submitted values live on in their attempt's snapshot.
+  const saved = await tx.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
+  const savedById = new Map(saved.map((row) => [row.invoiceLineId, row]));
+  const oldTrips = await tx.select({ tripId: trip.tripId }).from(trip).where(eq(trip.invoiceId, invoiceId));
+  const unclaimed = new Set(saved.map((row) => row.invoiceLineId));
+  const keptIds = lines.map((line) => (line.invoiceLineId && unclaimed.delete(line.invoiceLineId) ? line.invoiceLineId : undefined));
+  // A new line keeps the id its page gave it, so the next save finds it,
+  // unless any line anywhere already has that id.
+  const proposed = lines.flatMap((line, index) => (!keptIds[index] && line.invoiceLineId ? [line.invoiceLineId] : []));
+  const taken = new Set(
+    proposed.length === 0
+      ? []
+      : (await tx.select({ id: invoiceLine.invoiceLineId }).from(invoiceLine).where(inArray(invoiceLine.invoiceLineId, proposed))).map(
+          (row) => row.id,
+        ),
+  );
+  const newIds = lines.map((line, index) => {
+    const id = line.invoiceLineId;
+    if (keptIds[index] || !id || taken.has(id)) return undefined;
+    taken.add(id);
+    return id;
+  });
+  const removedIds = [...unclaimed];
+  if (removedIds.length > 0) {
+    const [asked] = await tx
+      .select({ id: invoiceReviewQuestion.invoiceReviewQuestionId })
+      .from(invoiceReviewQuestion)
+      .where(inArray(invoiceReviewQuestion.invoiceLineId, removedIds))
+      .limit(1);
+    if (asked) {
+      throw new ValidationError({ lines: 'A line with a question on it is kept on the record, so it can’t be removed.' });
+    }
+    await tx.delete(invoiceLineWorkingDecision).where(inArray(invoiceLineWorkingDecision.invoiceLineId, removedIds));
+    await tx.delete(invoiceLine).where(inArray(invoiceLine.invoiceLineId, removedIds));
+  }
   const tripIds = new Map<string, string>();
   for (const [key, values] of grouped.trips) {
     // eslint-disable-next-line no-await-in-loop
     const { tripId } = firstRow(await tx.insert(trip).values({ invoiceId, ...values }).returning({ tripId: trip.tripId }));
     tripIds.set(key, tripId);
   }
-  if (lines.length > 0) await tx.insert(invoiceLine).values(
-    lines.map((line, position) => ({
-      invoiceId,
-      caseId,
-      position,
-      lineTypeId: lineTypeIds[line.lineType],
-      sourceTimeEntryId: line.sourceTimeEntryId,
-      // A time line's amount is set by pricing below.
-      amount: (line.amount ?? 0).toFixed(2),
-      serviceDate: line.serviceDate,
-      description: line.description,
-      quantity: line.quantity?.toString(),
-      unitRate: line.unitRate?.toFixed(2),
-      statedAmount: line.statedAmount?.toFixed(2),
-      timekeeperLabel: line.timekeeperLabel,
-      // Upper case, as billing codes are kept.
-      taskCode: line.taskCode?.toUpperCase(),
-      activityCode: line.activityCode,
-      expenseCode: line.expenseCode,
-      timekeeperProfessionalId: line.timekeeperProfessionalId,
-      proposedTimekeeperName: line.proposedTimekeeperName,
-      proposedTimekeeperEmail: line.proposedTimekeeperName ? line.proposedTimekeeperEmail : undefined,
-      sourceLocation: line.sourceLocation,
-      expenseTypeId: line.lineType === 'mileage' ? mileageTypeId : undefined,
-      tripId: line.tripKey ? tripIds.get(line.tripKey) : undefined,
-      timeCategory: line.lineType === 'time' && !line.tripKey ? line.timeCategory : undefined,
-    })),
-  );
+  const rows = lines.map((line, position) => ({
+    invoiceId,
+    caseId,
+    position,
+    lineTypeId: lineTypeIds[line.lineType],
+    sourceTimeEntryId: line.sourceTimeEntryId,
+    // A time line's amount is set by pricing below.
+    amount: (line.amount ?? 0).toFixed(2),
+    serviceDate: line.serviceDate,
+    description: line.description,
+    quantity: line.quantity?.toString(),
+    unitRate: line.unitRate?.toFixed(2),
+    statedAmount: line.statedAmount?.toFixed(2),
+    timekeeperLabel: line.timekeeperLabel,
+    // Upper case, as billing codes are kept.
+    taskCode: line.taskCode?.toUpperCase(),
+    activityCode: line.activityCode,
+    expenseCode: line.expenseCode,
+    timekeeperProfessionalId: line.timekeeperProfessionalId,
+    proposedTimekeeperName: line.proposedTimekeeperName,
+    proposedTimekeeperEmail: line.proposedTimekeeperName ? line.proposedTimekeeperEmail : undefined,
+    sourceLocation: line.sourceLocation,
+    expenseTypeId: line.lineType === 'mileage' ? mileageTypeId : undefined,
+    tripId: line.tripKey ? tripIds.get(line.tripKey) : undefined,
+    timeCategory: line.lineType === 'time' && !line.tripKey ? line.timeCategory : undefined,
+  }));
+  const added = rows.flatMap((row, index) => (keptIds[index] ? [] : [{ ...row, ...(newIds[index] && { invoiceLineId: newIds[index] }) }]));
+  if (added.length > 0) await tx.insert(invoiceLine).values(added);
+  for (const [index, row] of rows.entries()) {
+    const keptId = keptIds[index];
+    if (!keptId) continue;
+    // Every column, so a field cleared in the editor is cleared here.
+    const values = Object.fromEntries(Object.entries(row).map(([key, value]) => [key, value ?? null])) as typeof row;
+    if (sameValues(savedById.get(keptId)!, values)) continue;
+    // And the rates pricing sets, as on a new line.
+    // eslint-disable-next-line no-await-in-loop
+    await tx.update(invoiceLine).set({ ...values, billedRate: null, configuredRate: null }).where(eq(invoiceLine.invoiceLineId, keptId));
+  }
+  if (oldTrips.length > 0) {
+    await tx.delete(trip).where(inArray(trip.tripId, oldTrips.map((row) => row.tripId)));
+  }
   await applyTripDistances(tx, invoiceId);
   // A draft may be saved incomplete; confirmation and submission are strict.
   return priceLines(tx, invoiceId, {
@@ -582,6 +642,34 @@ export async function releaseToReviewInTx(tx: Transaction, staffUserAccountId: s
   return true;
 }
 
+// Prices the lines for good, checks the billing rules and freezes what was
+// asked for in the attempt's snapshot. Callers measure trips first, outside
+// the transaction.
+export async function freezeRequest(
+  tx: Transaction,
+  invoiceId: string,
+  chainId: string,
+  capturedAt: Date,
+  args: { caseId: string | null; billedProfessionalId: string; invoiceImportId: string | undefined; actorUserAccountId: string },
+): Promise<void> {
+  const { caseId, billedProfessionalId } = args;
+  // Time is recorded against a case; with none, time lines stand alone.
+  if (caseId !== null) {
+    await createTimeEntriesForTimeLines(
+      tx,
+      { invoiceId, caseId, billedProfessionalId, invoiceImportId: args.invoiceImportId },
+      args.actorUserAccountId,
+    );
+  }
+  await priceLines(tx, invoiceId, { billedProfessionalId, unmatchedMeansBilled: true, strict: true });
+  await applyTripDistances(tx, invoiceId);
+  const billingRules = await enforceBillingRules(tx, invoiceId);
+  await tx
+    .update(invoiceApprovalChain)
+    .set({ submissionSnapshot: await buildSubmissionSnapshot(tx, invoiceId, chainId, capturedAt, billingRules) })
+    .where(eq(invoiceApprovalChain.invoiceApprovalChainId, chainId));
+}
+
 async function finishSubmission(
   tx: Transaction,
   invoiceId: string,
@@ -597,24 +685,6 @@ async function finishSubmission(
   },
 ): Promise<void> {
   const { caseId, billedProfessionalId } = args;
-  // Time is recorded against a case; with none, time lines stand alone.
-  if (caseId !== null) {
-    await createTimeEntriesForTimeLines(
-      tx,
-      { invoiceId, caseId, billedProfessionalId, invoiceImportId: args.invoiceImportId },
-      args.actorUserAccountId,
-    );
-  }
-  // Priced again so the snapshot below freezes the rates in force.
-  await priceLines(tx, invoiceId, {
-    billedProfessionalId,
-    unmatchedMeansBilled: true,
-    strict: true,
-  });
-  // Callers measure trips first, outside the transaction.
-  await applyTripDistances(tx, invoiceId);
-  const billingRules = await enforceBillingRules(tx, invoiceId);
-
   const submittedAt = new Date();
   const submittedStatusId = await statusId(tx, SUBMITTED_INVOICE_STATUS_CODE);
   await tx.update(invoice).set({ statusId: submittedStatusId, submittedAt }).where(eq(invoice.invoiceId, invoiceId));
@@ -633,12 +703,7 @@ async function finishSubmission(
       statement: attestationStatement(args.caseNumberAsTyped),
     });
   }
-  await tx
-    .update(invoiceApprovalChain)
-    .set({
-      submissionSnapshot: await buildSubmissionSnapshot(tx, invoiceId, invoiceApprovalChainId, submittedAt, billingRules),
-    })
-    .where(eq(invoiceApprovalChain.invoiceApprovalChainId, invoiceApprovalChainId));
+  await freezeRequest(tx, invoiceId, invoiceApprovalChainId, submittedAt, args);
   await recordInvoiceEvent(tx, {
     invoiceId,
     eventTypeCode: args.eventTypeCode,

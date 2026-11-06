@@ -214,6 +214,9 @@ See the implementation README for preparation, deployment and verification.
   the explicitly frozen payment submission evidence.
 - Required attestation roles/text and signature assurance; review routing,
   delegation, withdrawal and paid-request corrections.
+- Whether a request a reviewer entered in review (`enter_request_in_review`)
+  must have its round finished by someone else, or above what amount. For now
+  it is allowed and flagged to the sign-off approvers.
 - Whether authorization coverage is mandatory, pending reservation treatment,
   authorization expiry/overrides, currency precision, and partial payment,
   external settlement/reversal reporting. Payment and refund execution are outside

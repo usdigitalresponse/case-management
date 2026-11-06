@@ -66,13 +66,15 @@ export function FlagNotes({ invoice }: { invoice: ReviewQueueItem }) {
 
 // Questions to the submitter while the round isn't finished: unanswered ones
 // hold review, answered ones are back with the reviewer.
+// The row's live state: still being entered, and questions waiting or answered.
 export function QuestionChips({ invoice }: { invoice: ReviewQueueItem }) {
-  const { openQuestionCount: open, answeredQuestionCount: answered } = invoice;
-  if (open === 0 && answered === 0) {
+  const { openQuestionCount: open, answeredQuestionCount: answered, beingEntered } = invoice;
+  if (open === 0 && answered === 0 && !beingEntered) {
     return null;
   }
   return (
     <span className="question-chips">
+      {beingEntered && <StatusPill tone="info" label="Being entered" />}
       {open > 0 && <StatusPill tone="warning" label={open === 1 ? 'Question unanswered' : `${open} questions unanswered`} />}
       {answered > 0 && <StatusPill tone="info" label={answered === 1 ? 'Question answered' : `${answered} questions answered`} />}
     </span>

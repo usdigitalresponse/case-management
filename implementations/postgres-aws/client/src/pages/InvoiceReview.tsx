@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router';
+import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router';
 import {
   answerQuestion,
   apiErrorMessage,
@@ -26,7 +26,7 @@ import { StatusPill } from '../components/StatusPill';
 import { DecisionCell, DecisionPanel, decisionInput, rateChanged, type PanelMode } from '../components/LineReview';
 import { ReviewerPicker, SignOffApprovers } from '../components/ReviewRouting';
 import { RateCheckNotice, SignOffHistory, SignOffPanel, TotalsBar } from '../components/ReviewPanels';
-import { LineQuestions, QuestionForm } from '../components/ReviewQuestions';
+import { AskLink, LineQuestions, QuestionForm } from '../components/ReviewQuestions';
 import { InvoiceLinesTable, lineRowClass } from '../components/InvoiceLinesTable';
 import { OriginalDocument } from '../components/OriginalDocument';
 import { ChangeNote, fileChangesFor, RemovedLines, WasNote, wasAmount, wasQuantity } from '../components/SubmitterChanges';
@@ -41,7 +41,12 @@ import { formatMoney, formatRate } from '../formatMoney';
 import { reviewTotals, submittedByLabel } from '../reviewTotals';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { CaseNumberReview } from '../components/CaseNumberReview';
-import { personPath } from '../staffPaths';
+import { EnteredCaseNumber, EntryLines, EntryReceipt } from '../components/EntryLines';
+import { EntryBadge } from '../components/EntryBadge';
+import { countOf } from '../portal/importProgress';
+import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
+import type { CheckQueue } from '../portal/InvoiceSubmission';
+import { personPath, reviewPath } from '../staffPaths';
 
 export default function InvoiceReview() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
@@ -65,13 +70,26 @@ export default function InvoiceReview() {
   const [showFile, setShowFile] = useState<boolean | null>(null);
   // A new object on every click, so the same line scrolls the file back to it.
   const [fileFocus, setFileFocus] = useState<{ location: string } | undefined>();
+  const navigate = useNavigate();
+  // The rest of an upload, entered one after another.
+  const checking = useLocation().state as CheckQueue | null;
+  // The newest version of its lines this page knows: loaded, or just saved
+  // and not yet reloaded. Decisions while entering send it.
+  const knownVersion = useRef(0);
+  // The invoice shown now, for an Undo offered on the one before.
+  const shownId = useRef(invoiceId);
+  shownId.current = invoiceId;
+  // Finishing moves on to the upload's next invoice, keeping its message and Undo.
+  const keepToast = useRef(false);
 
   useEffect(() => {
     latestRequest.current += 1;
+    knownVersion.current = 0;
     setRefreshed(null);
     setPanel(null);
     setAsking(null);
-    setToast(null);
+    if (!keepToast.current) setToast(null);
+    keepToast.current = false;
     setShowFile(null);
     setFileFocus(undefined);
   }, [invoiceId, setToast]);
@@ -82,6 +100,16 @@ export default function InvoiceReview() {
       if (request === latestRequest.current) setRefreshed(result);
     });
   }
+
+  // Someone else is entering it: their saved changes appear as they go.
+  const watching = Boolean(data?.entryOpen) && data?.assignments?.reviewer?.userAccountId !== user?.userAccountId;
+  useEffect(() => {
+    if (!watching) return undefined;
+    const timer = window.setInterval(() => void refresh().catch(() => undefined), 30_000);
+    return () => window.clearInterval(timer);
+    // refresh reads the current invoice id; restarting on it is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watching, invoiceId]);
 
   // Runs an action, then shows `next` (or what it returns) and reloads.
   async function act<T>(action: () => Promise<T>, next?: ToastMessage | ((result: T) => ToastMessage)) {
@@ -119,6 +147,12 @@ export default function InvoiceReview() {
   const isReviewer = reviewer?.userAccountId === userId;
   // Deciding a line on an unassigned invoice takes it.
   const canDecide = inReview && Boolean(permissions?.reviewLines) && (!reviewer || isReviewer);
+  // Its reviewer enters its lines and decides them in one pass.
+  const entering = data.entryOpen && inReview && isReviewer;
+  knownVersion.current = Math.max(knownVersion.current, invoice.linesVersion);
+  // Sent with a decision while lines are being entered, so one made on an
+  // out-of-date page is refused.
+  const linesVersion = () => (data.entryOpen ? knownVersion.current : undefined);
   const lineNumber = new Map(lines.map((line, index) => [line.invoiceLineId, index + 1]));
 
   // While reviewing, the working decisions; afterwards, the recorded ones.
@@ -137,13 +171,45 @@ export default function InvoiceReview() {
 
   async function decide(line: InvoiceReviewLine, input: LineDecisionInput, label: string) {
     const previous = line.working;
-    await act(() => decideInvoiceLine(invoice.invoiceId, line.invoiceLineId, input), {
+    const done = await act(() => decideInvoiceLine(invoice.invoiceId, line.invoiceLineId, input, linesVersion()), {
       message: `Line ${lineNumber.get(line.invoiceLineId)} ${label}.`,
       undo: () =>
         previous
-          ? decideInvoiceLine(invoice.invoiceId, line.invoiceLineId, decisionInput(previous))
-          : undoInvoiceLineDecision(invoice.invoiceId, line.invoiceLineId),
+          ? decideInvoiceLine(invoice.invoiceId, line.invoiceLineId, decisionInput(previous), linesVersion())
+          : undoInvoiceLineDecision(invoice.invoiceId, line.invoiceLineId, linesVersion()),
     });
+    // Refused because the lines changed elsewhere: show them as they are now.
+    if (!done && data!.entryOpen) void refresh();
+  }
+
+  // The upload's next invoice, if any; true when there is one.
+  function goToNext() {
+    const [next, ...rest] = checking?.queue ?? [];
+    if (!next) return false;
+    navigate(reviewPath(next), { state: { queue: rest, total: checking!.total } satisfies CheckQueue });
+    return true;
+  }
+
+  // Entered in review, this also freezes the lines; then the upload goes on
+  // to its next invoice.
+  async function finish() {
+    const finishedId = invoice.invoiceId;
+    const done = await act(() => finishReview(finishedId), {
+      message: `Review finished. It went to ${approvers[0]?.displayName ?? 'the approver'} to sign off.`,
+      // From the upload's next invoice, Undo goes back to this one.
+      undo: async () => {
+        await reopenReview(finishedId);
+        if (shownId.current !== finishedId) navigate(reviewPath(finishedId));
+      },
+    });
+    // Confirming the file's values may have undone decisions on lines it changed.
+    if (!done && entering) {
+      void refresh();
+    }
+    if (done && entering && checking?.queue.length) {
+      keepToast.current = true;
+      goToNext();
+    }
   }
 
   const openPanel = (line: InvoiceReviewLine) => (panel?.lineId === line.invoiceLineId ? panel.mode : null);
@@ -169,6 +235,14 @@ export default function InvoiceReview() {
   const fileShown = Boolean(fileSource?.fileAvailable) && (showFile ?? changedCount > 0);
   const who = invoice.submittedByDisplayName ?? invoice.professionalDisplayName ?? 'the submitter';
   const whoKind = (invoice.professionalKindDisplayName ?? 'submitter').toLowerCase();
+  // Entered in review by staff: the file is the sender's, the changes from it
+  // were made entering it, and questions go to the sender.
+  const entered = invoice.enteredInReview;
+  const from = invoice.professionalDisplayName ?? 'the sender';
+  const fileOwner = entered ? from : who;
+  const changer = entered ? (invoice.submittedByDisplayName ?? 'staff') : `the ${whoKind}`;
+  const changedWhen = entered ? 'while entering it' : 'before sending';
+  const askWhom = entered ? from : 'the submitter';
   const fileSaid = fileSource ? (fileSource.statedTotal ?? fileSource.lines.reduce((sum, read) => sum + (read.amount ?? 0), 0)) : null;
   const changesSummary = submitterChanges
     ? [
@@ -179,6 +253,96 @@ export default function InvoiceReview() {
         .filter(Boolean)
         .join(', ')
     : '';
+
+  const decisionCell = (line: InvoiceReviewLine) => (
+    <DecisionCell
+      line={line}
+      decision={current(line)}
+      inReview={inReview}
+      canDecide={canDecide}
+      changing={changing === line.invoiceLineId}
+      openPanel={openPanel(line)}
+      saving={saving}
+      onApprove={() => void decide(line, { outcome: 'approved' }, 'approved')}
+      onPanel={(mode) => {
+        setAsking(null);
+        setPanel(mode ? { lineId: line.invoiceLineId, mode } : null);
+      }}
+      onChanging={(on) => setChanging(on ? line.invoiceLineId : null)}
+      onUndoRejection={() =>
+        void act(() => undoInvoiceLineDecision(invoice.invoiceId, line.invoiceLineId, linesVersion()), {
+          message: 'Rejection undone. The line is undecided.',
+        })
+      }
+    />
+  );
+  // A way to ask about a line, while nothing else is open on it.
+  const askLinkOf = (line: InvoiceReviewLine) =>
+    canDecide && asking !== line.invoiceLineId && !openPanel(line) ? (
+      <AskLink
+        askWhom={askWhom}
+        onAsk={() => {
+          setPanel(null);
+          setAsking(line.invoiceLineId);
+        }}
+      />
+    ) : null;
+  // What is open on a line: the question being asked, or the decision being made.
+  const lineFormOf = (line: InvoiceReviewLine) => {
+    const mode = openPanel(line);
+    if (asking === line.invoiceLineId) {
+      return (
+        <QuestionForm
+          invoiceLineId={line.invoiceLineId}
+          lineNumber={lineNumber.get(line.invoiceLineId)}
+          saving={saving}
+          onAsk={ask}
+          onCancel={() => setAsking(null)}
+          askWhom={askWhom}
+        />
+      );
+    }
+    return (
+      mode && (
+        <DecisionPanel
+          line={line}
+          mode={mode}
+          reasons={reasonData?.reasons ?? []}
+          initial={line.working}
+          saving={saving}
+          error={actionError}
+          onCancel={() => setPanel(null)}
+          onSubmit={(input) =>
+            void decide(
+              line,
+              input,
+              input.outcome === 'rejected'
+                ? 'rejected'
+                : input.outcome === 'approved_in_part'
+                  ? 'approved in part'
+                  : input.approvedRate !== undefined
+                    ? 'approved at a changed rate'
+                    : 'approved, with a note',
+            )
+          }
+        />
+      )
+    );
+  };
+  // Under each line: its questions, then a way to ask about it, then any
+  // decision being made.
+  const lineDetail = (line: InvoiceReviewLine) => {
+    const questions = lineQuestions(line);
+    const asker = askLinkOf(line);
+    const form = lineFormOf(line);
+    return questions || asker || form ? (
+      <>
+        {questions}
+        {asker}
+        {form}
+      </>
+    ) : null;
+  };
 
   // Filed by person: led by who sent it, not a case.
   const byPerson = invoice.caseId === null;
@@ -211,10 +375,12 @@ export default function InvoiceReview() {
               <strong>{invoice.professionalKindDisplayName ?? 'Professional'}</strong>
               <span>
                 Invoice for {formatPeriod(invoice.periodStart, invoice.periodEnd)}
-                {invoice.submittedAt && `, sent ${formatDate(invoice.submittedAt.slice(0, 10))}`}
+                {invoice.submittedAt && `, submitted ${formatDate(invoice.submittedAt.slice(0, 10))}`}
               </span>
               {invoice.submittedByDisplayName && invoice.submittedByDisplayName !== invoice.professionalDisplayName && (
-                <span>Sent by {invoice.submittedByDisplayName}</span>
+                <span>
+                  {entered ? 'Entered' : 'Sent'} by {invoice.submittedByDisplayName}
+                </span>
               )}
               {invoice.receivedOn && (
                 <span>
@@ -223,6 +389,11 @@ export default function InvoiceReview() {
                 </span>
               )}
               {senderPath && <RouterLink to={senderPath}>See all of their invoices</RouterLink>}
+              {entering && checking && checking.total > 1 && (
+                <span>
+                  Invoice {countOf(checking.total - checking.queue.length, checking.total)} uploaded
+                </span>
+              )}
             </>
           ) : (
             <>
@@ -252,22 +423,54 @@ export default function InvoiceReview() {
               hasCase={!byPerson}
               senderName={invoice.professionalDisplayName}
               onChanged={onRoutingChanged}
+              beingEntered={data.entryOpen}
             />
-            {fileSource?.fileAvailable && (
+            {fileSource?.fileAvailable && !entering && (
               <button type="button" className="btn btn--outline" aria-pressed={fileShown} onClick={() => setShowFile(!fileShown)}>
                 {fileShown ? 'Hide the file' : 'Show the file'}
               </button>
             )}
+            {/* A wrong upload, before its lines are frozen. */}
+            {/* Everything is saved as it changes; this only leaves. */}
+            {entering && (
+              <button type="button" className="btn btn--outline" onClick={() => goToNext() || navigate('/')}>
+                Finish later
+              </button>
+            )}
+            {entering && data.discardable && <DeleteInvoiceButton invoiceId={invoice.invoiceId} onDeleted={() => navigate('/')} />}
             <InvoiceExportButton scope="staff" invoiceId={invoice.invoiceId} hasTrips={lines.some((line) => line.tripId)} />
           </>
         }
       />
 
-      {byPerson && (
+      {data.entryOpen && (
+        <EntryBadge
+          enteringName={reviewer?.displayName ?? null}
+          own={entering}
+          changedByName={data.linesChangedByDisplayName}
+          changedAt={invoice.linesChangedAt}
+        />
+      )}
+      {entering && (
+        <Notice tone="info" heading="You're entering this invoice.">
+          Check or type each line beside the file and decide it as you go. Everything saves as you go, so you can finish
+          later. Finishing the review locks the lines as you entered them, so say how it came in first.
+          <EntryReceipt invoice={invoice} onSaved={() => void refresh()} />
+        </Notice>
+      )}
+      {data.entryOpen && !entering && (
+        <Notice tone="info" heading={`${reviewer?.displayName ?? 'Someone'} is still entering this invoice.`}>
+          Its lines and decisions may change until they finish the review. This page checks for changes every 30 seconds.
+          Its case number can be corrected once the review is finished.
+        </Notice>
+      )}
+
+      {entering && <EnteredCaseNumber invoice={invoice} />}
+      {byPerson && !entering && (
         <CaseNumberReview
           invoice={invoice}
           matches={data.caseNumberMatches}
-          canCorrect={status !== 'awaiting_match' && Boolean(permissions?.reviewLines)}
+          canCorrect={status !== 'awaiting_match' && !data.entryOpen && Boolean(permissions?.reviewLines)}
           onCorrected={(message) => {
             setToast({ message });
             void refresh();
@@ -286,11 +489,18 @@ export default function InvoiceReview() {
         </Fact>
         <Fact label="Billing period">{formatPeriod(invoice.periodStart, invoice.periodEnd)}</Fact>
         {fileSaid !== null && <Fact label="File said">{formatMoney(fileSaid)}</Fact>}
-        <Fact label="Requested" note={changedCount > 0 ? `After the ${whoKind}'s changes` : undefined}>
+        <Fact
+          label="Requested"
+          note={changedCount > 0 ? (entered ? 'As corrected from the file' : `After the ${whoKind}'s changes`) : undefined}
+        >
           <strong>{formatMoney(invoice.submittedTotal)}</strong>
         </Fact>
-        {changedCount > 0 && (
-          <Fact label={`${invoice.professionalKindDisplayName ?? 'Submitter'} changed`} note="Before sending">
+        {/* While entering, the lines themselves show what differs from the file. */}
+        {changedCount > 0 && !entering && (
+          <Fact
+            label={entered ? 'Corrected from the file' : `${invoice.professionalKindDisplayName ?? 'Submitter'} changed`}
+            note={entered ? `By ${changer}, while entering it` : 'Before sending'}
+          >
             {changesSummary}
           </Fact>
         )}
@@ -348,7 +558,7 @@ export default function InvoiceReview() {
         </Notice>
       )}
 
-      {byPerson && !invoice.caseNumberAsTyped && status !== 'awaiting_match' && (
+      {byPerson && !invoice.caseNumberAsTyped && status !== 'awaiting_match' && !data.entryOpen && (
         <Notice tone="warning" heading="Not linked to a case.">
           Staff chose to review this invoice without one. This system didn't check the case, whether{' '}
           {invoice.professionalDisplayName ?? 'the provider'} is assigned to it, or any pre-authorization. Exports and the billing
@@ -368,7 +578,7 @@ export default function InvoiceReview() {
       {awaitingAnswer && (
         <Notice tone="warning" heading="Review is waiting for an answer.">
           {openQuestions} {openQuestions === 1 ? 'question is' : 'questions are'} unanswered, shown on{' '}
-          {openQuestions === 1 ? 'its line' : 'their lines'}. You can keep deciding lines, but the review can't be finished until the submitter answers. If they answer another
+          {openQuestions === 1 ? 'its line' : 'their lines'}. You can keep deciding lines, but the review can't be finished until {askWhom} answers. If they answer another
           way, record it on the line.
         </Notice>
       )}
@@ -391,14 +601,18 @@ export default function InvoiceReview() {
         saving={saving}
         onReprice={(configured) =>
           void act(
-            () => repriceInvoice(invoice.invoiceId),
+            () => repriceInvoice(invoice.invoiceId, linesVersion()),
             ({ repriced }) => ({
               message: `${repriced} ${repriced === 1 ? 'line' : 'lines'} re-priced at ${formatMoney(configured)} an hour.`,
             }),
           )
         }
       />
-      <RuleFindings findings={ruleFindings.filter((finding) => finding.rule !== 'mileage_distance')} submitted />
+      <RuleFindings
+        findings={ruleFindings.filter((finding) => finding.rule !== 'mileage_distance')}
+        submitted={!data.entryOpen}
+        fixBefore={data.entryOpen ? 'finishing the review' : undefined}
+      />
       {mileageFindings.length > 0 && (
         <Notice tone="warning">
           Mileage: {mileageFindings.length} {mileageFindings.length === 1 ? 'trip is' : 'trips are'} longer than the driving route
@@ -422,18 +636,37 @@ export default function InvoiceReview() {
         </Notice>
       )}
       {actionError && <Notice tone="danger">{actionError}</Notice>}
-      {changedCount > 0 && (
+      {changedCount > 0 && !entering && (
         <Notice tone="info">
-          {who} changed {changesSummary} before sending. Changed lines are marked{fileSource?.fileAvailable ? '; open one on the file to compare' : ''}.
+          {entered ? changer : who} changed {changesSummary} {changedWhen}. Changed lines are marked{fileSource?.fileAvailable ? '; open one on the file to compare' : ''}.
         </Notice>
       )}
 
+      {entering ? (
+        <EntryLines
+          data={data}
+          setToast={setToast}
+          questions={lineQuestions}
+          ask={askLinkOf}
+          decision={decisionCell}
+          form={lineFormOf}
+          onSaved={(undecided, savedVersion) => {
+            knownVersion.current = Math.max(knownVersion.current, savedVersion);
+            if (undecided > 0) {
+              setActionError(null);
+              setToast({ message: `Changed, so ${undecided === 1 ? 'its decision was' : `${undecided} decisions were`} undone. Decide it again.` });
+            }
+            void refresh();
+          }}
+          onRefused={() => void refresh()}
+        />
+      ) : (
       <div className={fileShown ? 'review-file-layout' : undefined}>
         {fileShown && fileSource && (
           <OriginalDocument
             invoiceId={invoice.invoiceId}
             fileName={fileSource.fileName}
-            heading={`${who}'s file, as uploaded`}
+            heading={`${fileOwner}'s file, as uploaded`}
             focus={fileFocus}
             regions={fileSource.lines}
           />
@@ -448,7 +681,7 @@ export default function InvoiceReview() {
                   line={line}
                   read={fileChanges.readOf(line)}
                   changed={fileChanges.fieldsOf(line).length > 0}
-                  who={`the ${whoKind}`}
+                  who={changer}
                   onShow={
                     fileSource.fileAvailable && line.sourceLocation
                       ? () => {
@@ -465,77 +698,14 @@ export default function InvoiceReview() {
         amountNote={(line) => <WasNote value={wasAmount(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
         decisionHeader={inReview ? 'Your decision' : 'Decision'}
         rowClassName={(line) => lineRowClass(current(line)?.outcomeCode, Boolean(openPanel(line)))}
-        decision={(line) => (
-          <DecisionCell
-            line={line}
-            decision={current(line)}
-            inReview={inReview}
-            canDecide={canDecide}
-            changing={changing === line.invoiceLineId}
-            openPanel={openPanel(line)}
-            saving={saving}
-            onApprove={() => void decide(line, { outcome: 'approved' }, 'approved')}
-            onPanel={(mode) => {
-              setAsking(null);
-              setPanel(mode ? { lineId: line.invoiceLineId, mode } : null);
-            }}
-            onChanging={(on) => setChanging(on ? line.invoiceLineId : null)}
-            onUndoRejection={() =>
-              void act(() => undoInvoiceLineDecision(invoice.invoiceId, line.invoiceLineId), {
-                message: 'Rejection undone. The line is undecided.',
-              })
-            }
-            asking={asking === line.invoiceLineId}
-            onAsk={() => {
-              setPanel(null);
-              setAsking(asking === line.invoiceLineId ? null : line.invoiceLineId);
-            }}
-          />
-        )}
-        rowDetail={(line) => {
-          const mode = openPanel(line);
-          const questions = lineQuestions(line);
-          const form =
-            asking === line.invoiceLineId ? (
-              <QuestionForm
-                invoiceLineId={line.invoiceLineId}
-                lineNumber={lineNumber.get(line.invoiceLineId)}
-                saving={saving}
-                onAsk={ask}
-                onCancel={() => setAsking(null)}
-              />
-            ) : (
-              mode && (
-              <DecisionPanel
-                line={line}
-                mode={mode}
-                reasons={reasonData?.reasons ?? []}
-                initial={line.working}
-                saving={saving}
-                error={actionError}
-                onCancel={() => setPanel(null)}
-                onSubmit={(input) =>
-                  void decide(
-                    line,
-                    input,
-                    input.outcome === 'rejected' ? 'rejected' : input.outcome === 'approved_in_part' ? 'approved in part' : 'approved, with a note',
-                  )
-                }
-              />
-              )
-            );
-          return questions || form ? (
-            <>
-              {questions}
-              {form}
-            </>
-          ) : null;
-        }}
+        decision={decisionCell}
+        rowDetail={lineDetail}
       />
-      <RemovedLines removed={fileChanges.removed} who={`the ${whoKind}`} />
+      <RemovedLines removed={fileChanges.removed} who={changer} when={changedWhen} />
       {fileShown && <p className="compact-hint">The file is read-only. It is exactly what was uploaded.</p>}
         </div>
       </div>
+      )}
 
       {(inReview || status === 'awaiting_sign_off' || status === 'approved') && totals.decided > 0 && (
         <TotalsBar
@@ -546,13 +716,21 @@ export default function InvoiceReview() {
           canFinish={isReviewer && !awaitingAnswer}
           approvers={approvers}
           saving={saving}
-          onFinish={() =>
-            void act(() => finishReview(invoice.invoiceId), {
-              message: `Review finished. It went to ${approvers[0]?.displayName ?? 'the approver'} to sign off.`,
-              undo: () => reopenReview(invoice.invoiceId),
-            })
+          onFinish={() => void finish()}
+          locksLines={entering}
+          needs={
+            entering && !(invoice.receivedOn && invoice.receivedViaDisplayName)
+              ? 'Say how and when the invoice came in, at the top of the page, to finish the review.'
+              : null
           }
         />
+      )}
+
+      {status === 'awaiting_sign_off' && data.decidedByEnterer && (
+        <Notice tone="warning" heading="Entered and decided by the same person.">
+          {invoice.submittedByDisplayName ?? 'The reviewer'} entered this invoice's lines from the file and decided them. Compare
+          them with the file before signing off.
+        </Notice>
       )}
 
       {status === 'awaiting_sign_off' && lines.some((line) => rateChanged(line, line.decision)) && (

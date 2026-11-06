@@ -42,7 +42,16 @@ export function RulesInForce({ rules }: { rules: BillingRule[] }) {
 
 // What the rules found: warnings to check, and anything that must be fixed
 // before confirming or submitting.
-export function RuleFindings({ findings, submitted = false }: { findings: RuleFinding[]; submitted?: boolean }) {
+export function RuleFindings({
+  findings,
+  submitted = false,
+  fixBefore = 'submitting',
+}: {
+  findings: RuleFinding[];
+  submitted?: boolean;
+  // What required findings block, when not yet submitted.
+  fixBefore?: string;
+}) {
   if (findings.length === 0) {
     return null;
   }
@@ -51,7 +60,7 @@ export function RuleFindings({ findings, submitted = false }: { findings: RuleFi
   return (
     <>
       {required.length > 0 && (
-        <Notice tone="danger" className="rule-findings" heading={submitted ? 'Required by billing rules:' : 'Fix before submitting:'}>
+        <Notice tone="danger" className="rule-findings" heading={submitted ? 'Required by billing rules:' : `Fix before ${fixBefore}:`}>
           <ul>
             {required.map((finding, index) => (
               <li key={index}>{finding.message}</li>

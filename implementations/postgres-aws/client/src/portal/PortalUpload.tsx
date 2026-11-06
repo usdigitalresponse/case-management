@@ -29,6 +29,7 @@ import { PageHeader } from '../components/PageHeader';
 import { professionalLabel } from '../components/InvoiceLinesEditor';
 import type { UploadedState } from './PortalInvoiceList';
 import { useShell } from './useShell';
+import { countOf } from './importProgress';
 import { AddProvider } from '../components/AddProvider';
 import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
 import {
@@ -96,8 +97,10 @@ function caseLabel(row: UploadCase, showWho: boolean): string {
   return showWho && row.professionalDisplayName ? `${label} (${row.professionalDisplayName})` : label;
 }
 
-export function Steps() {
-  const steps = ['Upload', 'Check the lines', 'Send for review'];
+// A reviewer's own upload goes straight into their review, so there is
+// nothing to send.
+export function Steps({ reviewing = false }: { reviewing?: boolean }) {
+  const steps = reviewing ? ['Upload', 'Check and review the lines', 'Finish the review'] : ['Upload', 'Check the lines', 'Send for review'];
   return (
     <ol className="steps" aria-label="Steps">
       {steps.map((step, index) => (
@@ -173,7 +176,7 @@ export function FileCard({
     status = (
       <>
         <span className="file-card__ok">✓ Imported</span>
-        {many && <span>Invoice {position} of {total}</span>}
+        {many && <span>Invoice {countOf(position, total)}</span>}
       </>
     );
   } else if (entry.error || read?.status === 'failed') {
@@ -186,7 +189,7 @@ export function FileCard({
         </span>
         {many && (
           <span className={current ? 'file-card__current' : undefined}>
-            Invoice {position} of {total} · {current ? 'checking now' : 'next'}
+            Invoice {countOf(position, total)} · {current ? 'checking now' : 'next'}
           </span>
         )}
       </>

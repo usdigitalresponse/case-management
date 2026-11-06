@@ -239,7 +239,7 @@ button, input, select, textarea { font: inherit; }
 .check-lines__summary td:first-child { color: var(--ink-faint); width: 1.5rem; }
 .check-lines__summary td:nth-child(2) { white-space: nowrap; }
 .check-lines__summary .chip { margin-left: .4rem; }
-.check-lines__what td { padding-top: 0; }
+.check-lines__what td { padding-top: 0; overflow-wrap: anywhere; }
 .check-lines__table .check-lines__detail-row td { padding: 0; }
 .check-lines__date { width: 9.5rem; margin-top: 0; padding: .3rem .4rem; }
 .check-lines__row--flagged td, .check-lines__row--flagged:hover td { background: var(--warning-tint); }
@@ -254,6 +254,13 @@ button, input, select, textarea { font: inherit; }
 .check-lines__actions .link-button { font-weight: 600; margin-left: .9rem; }
 .check-lines__actions .link-button:first-child { margin-left: 0; }
 .check-lines__actions .chip { margin-bottom: .2rem; }
+/* Decided while entered (EntryLines): its buttons wrap rather than widen
+   the table past the file beside it. */
+.check-lines__actions--decide { white-space: normal; min-width: 12rem; }
+.check-lines__actions--decide .decision-buttons { align-items: flex-end; }
+.check-lines__actions--decide .decision-button-row { flex-wrap: wrap; justify-content: flex-end; }
+/* The line number opens it for editing, for keyboards; the row does for a click. */
+.check-lines__number { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .check-lines__table .check-lines__edit-row td { padding: 0; background: var(--row-open); box-shadow: inset 3px 0 0 var(--primary); }
 .check-lines__footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; padding: .9rem 1rem; }
 .check-lines__add { font-weight: 600; }
@@ -655,6 +662,9 @@ form.compact-form { max-width: none; }
 .chip--filter[aria-pressed="false"]:not(.chip--warning) { background: var(--neutral-tint); color: var(--ink-muted); }
 .chip-filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
 .chip-count { font-weight: 400; }
+/* An invoice whose lines are still being entered (EntryBadge). */
+.entry-badge { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: 0 0 1rem; }
+.entry-badge .cell-note { margin-top: 0; }
 
 /* Page headings */
 .page-title-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.2rem; }
@@ -703,6 +713,10 @@ form.compact-form { max-width: none; }
 .review-table tr.is-open, .review-table tr.detail-row { background: var(--row-open); }
 .data-card table.review-table tbody tr.detail-row:hover { background: var(--row-open); }
 .data-card table tr.detail-row td { padding: 0; }
+/* A row and the full-width note under it read as one (RecordTable rowNote). */
+.data-card table tr.has-note > td, .data-card table tr.has-note > th { border-bottom: 0; padding-bottom: .3rem; }
+.data-card table tr.note-row > td { padding-top: 0; overflow-wrap: anywhere; }
+.data-card table tbody tr.has-note:hover + tr.note-row { background: var(--row-open); }
 .decision-cell { min-width: 18.5rem; }
 .decision-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
 /* Approve, Approve part and Reject stay on one line. */
@@ -710,6 +724,25 @@ form.compact-form { max-width: none; }
 .decision-button-row .btn { padding: .35rem .7rem; }
 .decision-panel__question { max-width: 36rem; margin-bottom: .5rem; }
 .decision-buttons > .link-button { font-size: .85rem; }
+/* Asking about a line, under its questions. */
+.line-ask { margin: 0; padding: 0 1.5rem .7rem; font-size: .85rem; }
+/* Entering: under a line's description, asking about it on the left and
+   deciding it on the right, on one row (EntryLines). */
+.check-lines__table .check-lines__bar td { padding-top: .1rem; }
+.line-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+.line-bar .line-ask { padding: 0; }
+.line-bar__decide { margin-left: auto; }
+.line-bar__decide .decision-buttons { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .4rem .75rem; }
+.line-bar__decide .decision-button-row .btn { padding: .3rem .75rem; }
+/* A decided line: its decision, why, who and the links to change it, across the bar. */
+.line-bar__decide { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .3rem .9rem; }
+.line-bar__decide .decision-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .75rem; }
+.line-bar__decide .decision-summary p, .line-bar__decide .link-row, .line-bar__decide .decision-history { margin: 0; }
+.question-form { margin: 0; padding: .4rem 1.5rem .6rem; border-left: 3px solid var(--primary); background: var(--row-open); }
+.question-form__row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; }
+.question-form__row .usa-input { flex: 1 1 18rem; max-width: 36rem; margin: 0; padding: .35rem .6rem; height: auto; }
+.question-form__row .btn { padding: .35rem .9rem; }
+.question-form .cell-note { margin-top: .25rem; }
 /* A line's questions, in the full-width row under it. */
 .line-questions { display: grid; gap: .5rem; margin: 0; padding: .6rem 1.5rem .9rem; list-style: none; }
 .line-question { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .5rem 1.5rem; padding: .6rem .9rem; border-left: 3px solid var(--line-strong); border-radius: 0 6px 6px 0; background: var(--surface); }

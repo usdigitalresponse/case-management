@@ -64,6 +64,11 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
       proposedProvider: invoice.proposedProvider,
       caseNumberAsTyped: invoice.caseNumberAsTyped,
       caseNumberCorrected: invoice.caseNumberCorrected,
+      // A staff upload, under review from the start (./enterInReview.ts).
+      enteredInReview: invoice.enteredInReview,
+      linesVersion: invoice.linesVersion,
+      linesChangedAt: invoice.linesChangedAt,
+      linesChangedByUserAccountId: invoice.linesChangedByUserAccountId,
       // Shown to the submitter until they send it again.
       returnedReason,
     })
@@ -249,6 +254,13 @@ export interface InvoiceDetail {
   // Staff only: days this invoice claims travel that the same professional's
   // invoices on other cases also do.
   sameDayTravel: SameDayTravel[];
+  // Entered in review and not yet frozen: its reviewer may still edit lines.
+  entryOpen: boolean;
+  // While open, who last changed its lines, and when.
+  linesChangedByDisplayName: string | null;
+  // Staff only: whoever entered it also finished its latest round, shown to
+  // the approvers (model/rules.yaml enter_request_in_review).
+  decidedByEnterer: boolean;
 }
 
 async function displayNames(db: DatabaseOrTransaction, ids: string[]): Promise<Map<string, string>> {
@@ -307,7 +319,8 @@ export async function loadInvoiceDetail(
           .leftJoin(invoiceDecisionReasons, eq(invoiceLineWorkingDecision.reasonCodeId, invoiceDecisionReasons.id))
           .where(eq(invoiceLineWorkingDecision.invoiceApprovalChainId, attempt.invoiceApprovalChainId))
       : [],
-    attempt
+    // Live until frozen: for a draft, or an invoice still being entered in review.
+    attempt && !(header.enteredInReview && attempt.snapshot === null)
       ? ((attempt.snapshot as { billing_rules?: { findings?: RuleFinding[] } } | null)?.billing_rules?.findings ?? [])
       : evaluateBillingRules(db, invoiceId),
     loadReviewQuestions(db, invoiceId, audience),
@@ -315,6 +328,7 @@ export async function loadInvoiceDetail(
   const names = await displayNames(db, [
     ...recorded.map((decision) => decision.decidedByUserAccountId),
     ...working.map((decision) => decision.decidedByUserAccountId),
+    ...(header.linesChangedByUserAccountId ? [header.linesChangedByUserAccountId] : []),
   ]);
 
   const round = latestRoundNumber(recorded, lineRows.length);
@@ -406,5 +420,13 @@ export async function loadInvoiceDetail(
     fileSource,
     submitterChanges: fileSource ? submitterChanges(fileSource, lineRows) : null,
     sameDayTravel: audience === 'staff' ? await sameDayTravel(db, header, lineRows) : [],
+    entryOpen: Boolean(header.enteredInReview && attempt && attempt.snapshot === null),
+    linesChangedByDisplayName: header.linesChangedByUserAccountId ? (names.get(header.linesChangedByUserAccountId) ?? null) : null,
+    decidedByEnterer:
+      audience === 'staff' &&
+      header.enteredInReview &&
+      recorded.some(
+        (decision) => decision.sequenceNumber === round && decision.decidedByUserAccountId === header.submittedByUserAccountId,
+      ),
   };
 }

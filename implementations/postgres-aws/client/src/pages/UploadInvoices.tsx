@@ -1,6 +1,7 @@
 // Upload filed by person, for staff and submitters: each file's case number,
 // billing period, invoice number and, when there's a choice, sender (needed,
-// as it is filed under them) are checked in turn; each becomes a draft.
+// as it is filed under them) are checked in turn; each becomes a draft, or
+// for staff an invoice under their own review, its lines entered there.
 // Staff entering one by hand give the same details first.
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -25,6 +26,9 @@ import { professionalLabel } from '../components/InvoiceLinesEditor';
 import { DropZone, FileCard, InvoiceNumberField, Steps, UploadPeriodField, useUploadEntries, type ReadyRead } from '../portal/PortalUpload';
 import { checkLinesPath, type CheckQueue } from '../portal/InvoiceSubmission';
 import { PORTAL_HOME_PATH, useShell } from '../portal/useShell';
+import { reviewPath } from '../staffPaths';
+import { useAuth } from '../AuthContext';
+import { countOf } from '../portal/importProgress';
 
 interface Details {
   // '' until chosen, or ADD_NEW while staff add someone.
@@ -48,6 +52,13 @@ function detailsFrom(read: ReadyRead): Details {
     periodEnd: read.read.periodEnd ?? '',
     invoiceNumber: read.read.invoiceNumber ?? '',
   };
+}
+
+// Staff who review take their own uploads straight into review.
+function useReviewsOwnUploads() {
+  const { staff } = useShell();
+  const { user } = useAuth();
+  return staff && Boolean(user?.reviewPermissions?.reviewLines);
 }
 
 // Asked of staff, and of a submitter who bills for more than themselves.
@@ -129,7 +140,7 @@ function DetailsForm({
   details: Details;
   billable: BillableProfessional[] | undefined;
   errors: Record<string, string>;
-  // No file: its hints don't mention one, and there's no invoice number.
+  // No file: its hints don't mention one.
   byHand?: boolean;
   onChange: (details: Details) => void;
 }) {
@@ -171,23 +182,23 @@ function DetailsForm({
         hint={`From the dates on ${staff ? 'the' : 'your'} invoice.`}
         onChange={(period) => set(period)}
       />
-      {!byHand && (
-        <InvoiceNumberField
-          label={`Invoice number on ${file}`}
-          value={details.invoiceNumber}
-          error={errors.invoiceNumber}
-          hint={staff ? 'Optional. It helps match the sender’s records.' : 'Optional. It helps the billing office match your records.'}
-          onChange={(invoiceNumber) => set({ invoiceNumber })}
-        />
-      )}
+      <InvoiceNumberField
+        label={byHand ? 'Invoice number' : `Invoice number on ${file}`}
+        value={details.invoiceNumber}
+        error={errors.invoiceNumber}
+        hint={staff ? 'Optional. It helps match the sender’s records.' : 'Optional. It helps the billing office match your records.'}
+        onChange={(invoiceNumber) => set({ invoiceNumber })}
+      />
     </div>
   );
 }
 
-// Staff only: an empty draft filed under whom it is from, its lines added
-// on the next page.
+// Staff only: an empty invoice filed under whom it is from, its lines added
+// on the next page; a reviewer's goes straight into their review, as an
+// upload does.
 function ManualEntry({ billable, onCancel }: { billable: BillableProfessional[] | undefined; onCancel: () => void }) {
   const navigate = useNavigate();
+  const reviews = useReviewsOwnUploads();
   const [details, setDetails] = useState<Details>(noDetails);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -206,9 +217,11 @@ function ManualEntry({ billable, onCancel }: { billable: BillableProfessional[] 
         periodStart: details.periodStart || undefined,
         periodEnd: details.periodEnd || undefined,
         caseNumber: details.caseNumber.trim() || undefined,
+        invoiceNumber: details.invoiceNumber.trim() || undefined,
+        enterInReview: reviews,
         lines: [],
       });
-      navigate(checkLinesPath(created.invoiceId, true));
+      navigate(reviews ? reviewPath(created.invoiceId) : checkLinesPath(created.invoiceId, true));
     } catch (err) {
       const fieldErrors = fieldErrorsOf(err);
       setErrors(fieldErrors);
@@ -223,7 +236,11 @@ function ManualEntry({ billable, onCancel }: { billable: BillableProfessional[] 
   return (
     <div className="upload-card manual-entry">
       <h2 className="upload-card__heading">Enter an invoice by hand</h2>
-      <p className="field-hint">Say whom it is from, then add each line of the invoice on the next step.</p>
+      <p className="field-hint">
+        {reviews
+          ? 'Say whom it is from, then enter each line of the invoice and decide it on the next step.'
+          : 'Say whom it is from, then add each line of the invoice on the next step.'}
+      </p>
       <DetailsForm byHand details={details} billable={billable} errors={errors} onChange={setDetails} />
       {message && <Notice tone="danger">{message}</Notice>}
       <div className="upload-card__actions">
@@ -241,6 +258,7 @@ function ManualEntry({ billable, onCancel }: { billable: BillableProfessional[] 
 export default function UploadInvoices() {
   const navigate = useNavigate();
   const { staff } = useShell();
+  const reviews = useReviewsOwnUploads();
   const home = staff ? { label: 'To review', to: '/' } : { label: 'Your invoices', to: PORTAL_HOME_PATH };
   const { entries, update, addFiles, remove } = useUploadEntries(detailsFrom);
   const { data: billable } = useApiResource(() => listBillableProfessionals(null).then((result) => result.professionals), []);
@@ -288,6 +306,8 @@ export default function UploadInvoices() {
         periodEnd: details.periodEnd || undefined,
         invoiceNumber: details.invoiceNumber.trim() || undefined,
         caseNumber: details.caseNumber.trim() || undefined,
+        // Reviewers enter and decide it in one pass, on its review.
+        enterInReview: reviews,
       });
       update(current.key, { created });
       if (unchecked.length === 1) {
@@ -304,10 +324,10 @@ export default function UploadInvoices() {
     }
   }
 
-  // Every draft from this upload is checked, one after another.
+  // Every invoice from this upload is checked, one after another.
   function finish(invoiceIds: string[]) {
     const [first, ...queue] = invoiceIds;
-    navigate(checkLinesPath(first!, staff), { state: { queue, total: invoiceIds.length } satisfies CheckQueue });
+    navigate(reviews ? reviewPath(first!) : checkLinesPath(first!, staff), { state: { queue, total: invoiceIds.length } satisfies CheckQueue });
   }
 
   // A submitter's is an empty draft, its lines and case number added on the
@@ -349,7 +369,7 @@ export default function UploadInvoices() {
         crumbs={[home, { label: many ? 'New invoices' : 'New invoice' }]}
         title={manual ? 'Enter an invoice' : many ? 'Upload invoices' : 'Upload an invoice'}
       />
-      <Steps />
+      <Steps reviewing={reviews} />
       {manual ? (
         <ManualEntry billable={billable ?? undefined} onCancel={() => setManual(false)} />
       ) : (
@@ -388,7 +408,7 @@ export default function UploadInvoices() {
           <>
             <h2 className="upload-card__heading">
               {many
-                ? `Invoice ${position(current)} of ${usable.length}: what we read from ${current.file.name}. `
+                ? `Invoice ${countOf(position(current), usable.length)}: what we read from ${current.file.name}. `
                 : `What we read from ${staff ? 'the' : 'your'} file. `}
               Check it is right.
             </h2>
@@ -404,7 +424,7 @@ export default function UploadInvoices() {
         {many && current && !currentRead && (
           <>
             <h2 className="upload-card__heading">
-              Invoice {position(current)} of {usable.length}: reading {current.file.name}. You can check it once it is read.
+              Invoice {countOf(position(current), usable.length)}: reading {current.file.name}. You can check it once it is read.
             </h2>
             <ImportProgressNote progress={current.read?.status === 'reading' ? current.read.progress : null} />
           </>
@@ -423,7 +443,7 @@ export default function UploadInvoices() {
               disabled={busy || (!byHand && !finished && (!currentRead || !fromChosen))}
               onClick={() => (finished ? finish(drafts) : void (byHand ? enterByHand() : next()))}
             >
-              {many && !byHand && !finished ? 'Next' : 'Check the lines'}
+              {many && !byHand && !finished ? 'Next' : reviews ? 'Check and review the lines' : 'Check the lines'}
             </button>
             <button type="button" className="link-button" disabled={busy} onClick={() => void cancel()}>
               Cancel

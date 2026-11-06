@@ -82,7 +82,22 @@ describe('invoice line editor round trip', () => {
         expenseCode: undefined,
         sourceTimeEntryId: 'time-1',
         sourceLocation: 'line 2',
+        invoiceLineId: 'line-1',
       },
+    ]);
+  });
+
+  it('keeps each line of a trip as the saved line it is', () => {
+    const trip = { ...importedLine, tripId: 'trip-1', sourceTimeEntryId: null, sourceLocation: null };
+    const saved = [
+      { ...trip, invoiceLineId: 'travel-time', lineTypeCode: 'time' },
+      { ...trip, invoiceLineId: 'mileage', lineTypeCode: 'expense', expenseTypeCode: 'mileage', quantity: '30' },
+      { ...trip, invoiceLineId: 'parking', lineTypeCode: 'expense', amount: '12.00', quantity: null },
+    ];
+    expect(linesFromDrafts(lineDraftsFrom(saved)).map((line) => [line.lineType, line.invoiceLineId])).toEqual([
+      ['time', 'travel-time'],
+      ['mileage', 'mileage'],
+      ['expense', 'parking'],
     ]);
   });
 

@@ -453,6 +453,14 @@ export const invoice = pgTable(
     caseNumberAsTyped: text('case_number_as_typed'),
     // A reviewer's correction; the typed one is kept, and the change audited.
     caseNumberCorrected: text('case_number_corrected'),
+    // Staff upload, under review from the start; its lines stay editable
+    // until the first round freezes them (model/rules.yaml enter_request_in_review).
+    enteredInReview: boolean('entered_in_review').notNull().default(false),
+    // While entered in review: bumped by each change to its lines, so a save
+    // from an out-of-date page is refused; and who changed them last, when.
+    linesVersion: integer('lines_version').notNull().default(0),
+    linesChangedAt: timestamp('lines_changed_at', { withTimezone: true }),
+    linesChangedByUserAccountId: uuid('lines_changed_by_user_account_id').references(() => userAccount.userAccountId),
   },
   (table) => [index('invoice_professional_id_idx').on(table.professionalId), index('invoice_case_id_idx').on(table.caseId)],
 );

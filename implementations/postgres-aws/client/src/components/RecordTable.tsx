@@ -22,6 +22,7 @@ export function RecordTable<T>({
   columns,
   rowKey,
   rowClassName,
+  rowNote,
   rowDetail,
   emptyMessage = 'None.',
   label,
@@ -31,6 +32,9 @@ export function RecordTable<T>({
   columns: RecordTableColumn<T>[];
   rowKey: (row: T) => string;
   rowClassName?: (row: T) => string | undefined;
+  // Part of the row given the full width under it, such as a long
+  // description, so it isn't squeezed into a column.
+  rowNote?: (row: T) => ReactNode;
   // A full-width row under a row, such as an open form for it.
   rowDetail?: (row: T) => ReactNode;
   emptyMessage?: string;
@@ -72,9 +76,11 @@ export function RecordTable<T>({
         <tbody>
           {rows.map((row) => {
             const detail = rowDetail?.(row);
+            const note = rowNote?.(row);
+            const rowClass = rowClassName?.(row);
             return (
               <Fragment key={rowKey(row)}>
-                <tr className={rowClassName?.(row)}>
+                <tr className={[rowClass, note ? 'has-note' : ''].filter(Boolean).join(' ') || undefined}>
                   {columns.map((column) =>
                     column.rowHeader ? (
                       <th scope="row" key={column.header} className={cellClass(column, row)}>
@@ -87,6 +93,11 @@ export function RecordTable<T>({
                     ),
                   )}
                 </tr>
+                {note && (
+                  <tr className={['note-row', rowClass].filter(Boolean).join(' ')}>
+                    <td colSpan={columns.length}>{note}</td>
+                  </tr>
+                )}
                 {detail && (
                   <tr className="detail-row">
                     <td colSpan={columns.length}>{detail}</td>

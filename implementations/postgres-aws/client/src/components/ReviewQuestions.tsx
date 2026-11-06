@@ -63,47 +63,66 @@ export function LineQuestions({ questions, ...answer }: { questions: ReviewQuest
   );
 }
 
+// Under a line, after its questions: opens the form to ask about it.
+export function AskLink({ askWhom, onAsk }: { askWhom: string; onAsk: () => void }) {
+  return (
+    <p className="line-ask">
+      <button type="button" className="link-button" onClick={onAsk}>
+        Ask {askWhom} about this line
+      </button>
+    </p>
+  );
+}
+
 export function QuestionForm({
   invoiceLineId,
   lineNumber,
   saving,
   onAsk,
   onCancel,
+  askWhom = 'the submitter',
 }: {
   invoiceLineId: string;
   lineNumber: number | undefined;
   saving: boolean;
   onAsk: (input: { question: string; invoiceLineId: string }) => Promise<boolean>;
   onCancel: () => void;
+  // Who answers: the person it is from, when staff entered it.
+  askWhom?: string;
 }) {
   const [question, setQuestion] = useState('');
-  const title = `Ask the submitter about line ${lineNumber ?? ''}`.trim();
+  const title = `Ask ${askWhom} about line ${lineNumber ?? ''}`.trim();
 
+  // One line: the question, Ask and Cancel, with who sees it underneath.
   return (
     <form
-      className="decision-panel"
+      className="question-form"
       aria-label={title}
       onSubmit={(event) => {
         event.preventDefault();
         void onAsk({ question, invoiceLineId });
       }}
     >
-      <h3>{title}</h3>
-      <label className="decision-panel__note decision-panel__question">
-        Question
-        <textarea
-          rows={2}
+      <div className="question-form__row">
+        <label className="usa-sr-only" htmlFor={`question-${invoiceLineId}`}>
+          {title}
+        </label>
+        <input
+          id={`question-${invoiceLineId}`}
+          className="usa-input"
+          placeholder={`${title}…`}
           maxLength={MAX_QUESTION_LENGTH}
           value={question}
           autoFocus
           onChange={(event) => setQuestion(event.target.value)}
         />
-        <span className="cell-note">The submitter sees it. Review waits until it's answered.</span>
-      </label>
-      <div className="button-row">
         <button type="submit" className="btn btn--primary" disabled={!question.trim() || saving}>Ask</button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
       </div>
+      <span className="cell-note">
+        {askWhom.charAt(0).toUpperCase()}
+        {askWhom.slice(1)} sees it. Review waits until it's answered.
+      </span>
     </form>
   );
 }

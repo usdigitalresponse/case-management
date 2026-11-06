@@ -2,10 +2,11 @@
 // not to. Time and mileage are priced from configured rates.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
-import type { Database } from '../db/client';
+import type { Database, Transaction } from '../db/client';
 import { ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
-import { invoice } from '../db/schema';
+import { invoice, supportingInvoice } from '../db/schema';
+import { enterInReviewInTx } from '../billing/enterInReview';
 import { createDraftInTx, draftContentSchema, parseDraftContent, submitInTx } from '../billing/invoiceLifecycle';
 import { measureTrips } from '../billing/routeCheck';
 import { authorizeBilling, type PortalActor } from './portalActor';
@@ -29,6 +30,11 @@ export const createInvoiceInputSchema = draftContentSchema.extend({
   attested: z.boolean().optional(),
   // Given, the invoice is filed by person and sent as such.
   caseNumber: caseNumberInput.optional(),
+  // The number on the sender's own invoice, kept as its supporting invoice.
+  invoiceNumber: z.string().trim().max(100, 'Keep the invoice number under 100 characters.').optional(),
+  // A reviewing staff member's draft goes straight into their own review
+  // (../billing/enterInReview.ts).
+  enterInReview: z.boolean().optional(),
 }).extend(receiptInputSchema.shape);
 
 export type CreateInvoiceInput = z.input<typeof createInvoiceInputSchema>;
@@ -36,7 +42,7 @@ export type CreateInvoiceInput = z.input<typeof createInvoiceInputSchema>;
 export interface CreateInvoiceResult {
   invoiceId: string;
   submittedTotal: string;
-  status: 'draft' | 'submitted' | 'awaiting_match';
+  status: 'draft' | 'submitted' | 'awaiting_match' | 'under_review';
 }
 
 export async function createInvoice(
@@ -66,6 +72,21 @@ export async function createInvoice(
     if (caseNumber) {
       await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
     }
+    if (parsed.data.invoiceNumber) {
+      await tx.insert(supportingInvoice).values({
+        invoiceId,
+        invoiceNumber: parsed.data.invoiceNumber,
+        periodStart: content.periodStart ?? null,
+        periodEnd: content.periodEnd ?? null,
+      });
+    }
+    if (parsed.data.enterInReview) {
+      if (submit) {
+        throw new ValidationError({ enterInReview: 'An invoice entered in review is not sent.' });
+      }
+      await enterInReviewInTx(tx, actor.userAccountId, invoiceId);
+      return { invoiceId, submittedTotal: await totalOf(tx, invoiceId), status: 'under_review' as const };
+    }
     const status = submit
       ? await submitInTx(tx, actor, invoiceId, {
           withoutCase: parsed.data.withoutCase,
@@ -73,7 +94,11 @@ export async function createInvoice(
           filedByPerson: caseNumber !== null,
         })
       : 'draft';
-    const [created] = await tx.select({ submittedTotal: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
-    return { invoiceId, submittedTotal: created?.submittedTotal ?? '0.00', status };
+    return { invoiceId, submittedTotal: await totalOf(tx, invoiceId), status };
   });
+}
+
+async function totalOf(tx: Transaction, invoiceId: string): Promise<string> {
+  const [created] = await tx.select({ submittedTotal: invoice.submittedTotal }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+  return created?.submittedTotal ?? '0.00';
 }

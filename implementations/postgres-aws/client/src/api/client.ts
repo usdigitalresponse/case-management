@@ -765,6 +765,8 @@ export interface CreateInvoiceLineInput {
   roundTrip?: boolean;
   // The imported file's line or row it was read from; carried back on save.
   sourceLocation?: string;
+  // The saved line this is, so its decision and questions stay with it.
+  invoiceLineId?: string;
 }
 
 // Who the signed-in user may bill for on a case: themselves, and anyone
@@ -892,6 +894,11 @@ export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt 
   submit?: boolean;
   // Files it by person under this number as typed.
   caseNumber?: string;
+  // The number on the sender's own invoice.
+  invoiceNumber?: string;
+  // A reviewer's goes straight into their own review; its status is then
+  // under_review, which callers asking for it don't read.
+  enterInReview?: boolean;
 }
 
 // Entered because they weren't listed (model/rules.yaml match_invoice_to_case).
@@ -1260,6 +1267,8 @@ export function createUploadDraft(
     periodEnd?: string;
     invoiceNumber?: string;
     caseNumber?: string;
+    // A reviewer's goes straight into their own review.
+    enterInReview?: boolean;
   },
 ): Promise<{ invoiceImportId: string; invoiceId: string }> {
   return request(`/api/portal/uploads/${uploadReadId}/draft`, { method: 'POST', body: JSON.stringify(details) });
@@ -1377,6 +1386,13 @@ export interface QueuedInvoice {
   caseNumberAsTyped: string | null;
   // A reviewer's correction, shown in its place.
   caseNumberCorrected: string | null;
+  // A staff upload, under review from the start.
+  enteredInReview: boolean;
+  // While its lines are being entered: their version, sent back with each
+  // save, and who changed them last, when.
+  linesVersion: number;
+  linesChangedAt: string | null;
+  linesChangedByUserAccountId: string | null;
   returnedReason: string | null;
 }
 
@@ -1396,6 +1412,8 @@ export interface ReviewQueueItem extends QueuedInvoice {
   otherCaseNumbers: string[];
   lineCount: number;
   decidedCount: number;
+  // Its reviewer is still entering its lines.
+  beingEntered: boolean;
   // Questions to the submitter, while the round isn't finished.
   openQuestionCount: number;
   answeredQuestionCount: number;
@@ -1612,6 +1630,13 @@ export interface InvoiceReview {
   // Days this invoice claims travel that the same professional's invoices
   // on other cases also do.
   sameDayTravel: Array<{ date: string; otherInvoiceCount: number }>;
+  // Entered in review and not yet frozen: its reviewer may still edit lines.
+  entryOpen: boolean;
+  linesChangedByDisplayName: string | null;
+  // Whoever entered it may throw it away.
+  discardable: boolean;
+  // Whoever entered it also finished its latest round.
+  decidedByEnterer: boolean;
 }
 
 export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {
@@ -1638,22 +1663,51 @@ export interface LineDecisionInput {
   note?: string;
 }
 
-export function decideInvoiceLine(invoiceId: string, invoiceLineId: string, input: LineDecisionInput): Promise<unknown> {
-  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/decision`, { method: 'PUT', body: JSON.stringify(input) });
+// linesVersion: while its lines are being entered, the version the page
+// shows; a decision from an out-of-date page is refused (409 stale_lines).
+export function decideInvoiceLine(invoiceId: string, invoiceLineId: string, input: LineDecisionInput, linesVersion?: number): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/decision`, {
+    method: 'PUT',
+    body: JSON.stringify({ ...input, linesVersion }),
+  });
 }
 
-export function undoInvoiceLineDecision(invoiceId: string, invoiceLineId: string): Promise<unknown> {
-  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/decision`, { method: 'DELETE' });
+export function undoInvoiceLineDecision(invoiceId: string, invoiceLineId: string, linesVersion?: number): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/decision`, { method: 'DELETE', body: JSON.stringify({ linesVersion }) });
 }
 
-export function repriceInvoice(invoiceId: string): Promise<{ repriced: number }> {
-  return request(`/api/invoices/${invoiceId}/reprice`, { method: 'POST' });
+export function repriceInvoice(invoiceId: string, linesVersion?: number): Promise<{ repriced: number }> {
+  return request(`/api/invoices/${invoiceId}/reprice`, { method: 'POST', body: JSON.stringify({ linesVersion }) });
 }
 
+// The first round of an invoice entered in review also freezes it.
 export function finishReview(invoiceId: string): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/finish`, { method: 'POST' });
 }
 
+// linesVersion: the version the page was showing; a save from an
+// out-of-date page is refused (409 stale_lines). undecided: lines whose
+// decision was undone because they changed.
+export function saveEnteredLines(
+  invoiceId: string,
+  content: DraftInvoiceContent & { linesVersion: number },
+): Promise<{ invoiceId: string; submittedTotal: string; undecided: string[]; linesVersion: number }> {
+  return request(`/api/invoices/${invoiceId}/entered-lines`, { method: 'PUT', body: JSON.stringify(content) });
+}
+
+// A reviewer's own draft, continued in their review as an upload would be.
+export function enterInReview(invoiceId: string): Promise<{ invoiceId: string }> {
+  return request(`/api/invoices/${invoiceId}/enter-in-review`, { method: 'POST' });
+}
+
+// How and when it came in, saved as entered (either field alone).
+export function setEnteredReceipt(invoiceId: string, receipt: InvoiceReceipt): Promise<{ invoiceId: string }> {
+  return request(`/api/invoices/${invoiceId}/entered-receipt`, { method: 'PUT', body: JSON.stringify(receipt) });
+}
+
+export function setEnteredCaseNumber(invoiceId: string, caseNumber: string): Promise<{ invoiceId: string; caseNumber: string | null }> {
+  return request(`/api/invoices/${invoiceId}/entered-case-number`, { method: 'PUT', body: JSON.stringify({ caseNumber }) });
+}
 export function reopenReview(invoiceId: string): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/reopen`, { method: 'POST' });
 }

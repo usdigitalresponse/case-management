@@ -9,6 +9,7 @@ import {
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { OrderedChoiceList } from './OrderedChoiceList';
+import { Notice } from './Notice';
 
 // Staff who review or sign off, with how many invoices each has waiting.
 // Loaded only once `enabled`, such as when a picker opens.
@@ -94,6 +95,7 @@ export function ReviewerPicker({
   hasCase,
   senderName,
   onChanged,
+  beingEntered = false,
 }: {
   invoiceId: string;
   reviewer: AssignedPerson | null;
@@ -104,6 +106,8 @@ export function ReviewerPicker({
   senderName: string | null;
   // Undo restores the previous reviewer; omitted when there was none.
   onChanged: (message: string, undo?: () => Promise<unknown>) => void;
+  // Its reviewer is still entering its lines, so giving it away stops them.
+  beingEntered?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const people = useReviewPeople(open);
@@ -178,6 +182,13 @@ export function ReviewerPicker({
             </ul>
           )}
           <p className="cell-note">Only people who use this tool to review invoices appear here.</p>
+          {beingEntered && reviewer && chosen && chosen !== reviewer.userAccountId && (
+            <Notice tone="warning">
+              {reviewer.userAccountId === currentUserId ? 'You are' : `${reviewer.displayName} is`} still entering this
+              invoice&rsquo;s lines. {chosenName ?? 'The new reviewer'} takes over the entry, and any change not yet saved
+              {reviewer.userAccountId === currentUserId ? '' : ` by ${reviewer.displayName}`} is lost.
+            </Notice>
+          )}
           {(hasCase || senderName) && (
             <label className="checkbox-row">
               <input type="checkbox" checked={following} onChange={(event) => setFollowing(event.target.checked)} />

@@ -68,6 +68,8 @@ export function TotalsBar({
   approvers,
   saving,
   onFinish,
+  locksLines = false,
+  needs = null,
 }: {
   requested: string;
   totals: ReviewTotals;
@@ -77,6 +79,10 @@ export function TotalsBar({
   approvers: AssignedPerson[];
   saving: boolean;
   onFinish: () => void;
+  // Entered in review: finishing also locks the lines, for good.
+  locksLines?: boolean;
+  // What is still needed before finishing, shown in place of the button.
+  needs?: string | null;
 }) {
   const { counts } = totals;
   const [confirming, setConfirming] = useState(false);
@@ -96,7 +102,8 @@ export function TotalsBar({
           <dd>{counts.approved} approved, {counts.part} in part, {counts.rejected} rejected</dd>
         </div>
       </dl>
-      {inReview && totals.decided === lineCount && canFinish && !confirming && (
+      {inReview && totals.decided === lineCount && canFinish && needs && <p className="totals-bar__next cell-note">{needs}</p>}
+      {inReview && totals.decided === lineCount && canFinish && !needs && !confirming && (
         <div className="totals-bar__next">
           <p>
             {approvers.length > 0
@@ -112,8 +119,10 @@ export function TotalsBar({
         <div className="confirm-panel" role="dialog" aria-labelledby="finish-heading">
           <h3 id="finish-heading">Finish this review?</h3>
           <p>
-            The decisions lock and the invoice goes to {signers} to sign off. You can reopen the review until
-            {approvers.length === 1 ? ' they sign' : ' the first of them signs'}.
+            {locksLines ? 'The lines lock as you entered them, and so do the decisions. ' : 'The decisions lock. '}
+            The invoice goes to {signers} to sign off. You can reopen the review until
+            {approvers.length === 1 ? ' they sign' : ' the first of them signs'}
+            {locksLines ? ', to change decisions but not the lines.' : '.'}
           </p>
           <div className="button-row">
             <button
@@ -169,12 +178,21 @@ export function SignOffPanel({
         {nextApprover ? `Waiting for ${nextApprover.displayName} to sign off.` : 'Waiting for sign-off.'} Approvers sign off the
         whole invoice, not line by line.
       </p>
-      {canSignOff && !sendingBack && (
+      {!sendingBack && (canSignOff || canReopen) && (
         <div className="button-row">
-          <button type="button" className="btn btn--primary" disabled={saving} onClick={onSignOff}>
-            Sign off {formatMoney(approvedCents / 100)}
-          </button>
-          <button type="button" className="btn btn--outline" onClick={() => setSendingBack(true)}>Send back to the reviewer</button>
+          {canSignOff && (
+            <>
+              <button type="button" className="btn btn--primary" disabled={saving} onClick={onSignOff}>
+                Sign off {formatMoney(approvedCents / 100)}
+              </button>
+              <button type="button" className="btn btn--outline" onClick={() => setSendingBack(true)}>Send back to the reviewer</button>
+            </>
+          )}
+          {canReopen && (
+            <button type="button" className="btn btn--outline" disabled={saving} onClick={onReopen}>
+              Reopen review
+            </button>
+          )}
         </div>
       )}
       {canSignOff && sendingBack && (
@@ -200,11 +218,6 @@ export function SignOffPanel({
             <button type="button" className="link-button" onClick={() => setSendingBack(false)}>Cancel</button>
           </div>
         </form>
-      )}
-      {canReopen && (
-        <button type="button" className="btn btn--outline" disabled={saving} onClick={onReopen}>
-          Reopen review
-        </button>
       )}
     </section>
   );

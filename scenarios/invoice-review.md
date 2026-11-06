@@ -119,6 +119,37 @@ and day counts are synthetic test values, not configuration defaults.
       the request nor is the professional it bills for cannot answer.
     - Exports and the billing record of the signed-off request include no
       questions or answers; both remain on the request in the system.
+13. **Entering a request in review:** A reviewer uploads a request a
+    professional emailed in, with two lines read from the file
+    (`enter_request_in_review`).
+    - It is under review at once, assigned to the reviewer, with the default
+      sign-off approvers. Staff without a reviewing role upload as a draft and
+      submit it as before. A request typed in by hand, with its invoice
+      number, goes into review the same way.
+    - The reviewer approves both lines, then corrects the second line's
+      amount. The first keeps its decision; the second is undecided again. A
+      line they add has no decision until they decide it.
+    - Removing a line the reviewer asked a question about is refused.
+    - Finishing without how it was received, or without a case number, is
+      blocked. Finishing with both freezes the lines as entered and records
+      the round; the approvers are told the same person entered and decided
+      it.
+    - After reopening, or after an approver sends it back, its lines cannot
+      be changed, only decided again.
+    - Reassigned to another reviewer before finishing, only the new reviewer
+      can change its lines, and approvers are not told it was entered and
+      decided by one person. The new reviewer can finish it, and finishing
+      confirms the file's values; a decided line that confirming changes is
+      undecided again, and finishing waits until it is decided.
+    - Before finishing, and with no question asked, the reviewer may discard
+      it. Nobody else can.
+    - With the request open in two windows, a change saved in one is refused
+      in the other, which then shows the latest lines. After it is reassigned,
+      the earlier reviewer's open page can't save over the new reviewer's.
+    - While it is being entered, the queue and the request's page show it as
+      being entered, by whom and when its lines last changed. Another
+      reviewer can't correct its case number until it is finished, and is
+      warned before taking it over.
 
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

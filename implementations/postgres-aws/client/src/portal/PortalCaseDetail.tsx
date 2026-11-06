@@ -157,11 +157,11 @@ function TimeEntrySection({
           rows={data}
           rowKey={(entry) => entry.timeEntryId}
           emptyMessage="No time logged yet."
+          rowNote={(e) => e.description}
           columns={[
             { header: 'Date', render: (e) => formatDate(e.activityOn) },
             ...(billable.length > 1 ? [{ header: 'Work done by', render: (e: TimeEntryRecord) => workDoneBy(e.professionalId) }] : []),
             { header: 'Hours', render: (e) => e.durationHours },
-            { header: 'Description', render: (e) => e.description },
             { header: 'Billing', render: (e) => <BillingState entry={e} /> },
             {
               header: 'Actions',
