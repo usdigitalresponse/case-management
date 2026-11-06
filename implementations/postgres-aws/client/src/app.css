@@ -259,8 +259,17 @@ button, input, select, textarea { font: inherit; }
 .check-lines__actions--decide { white-space: normal; min-width: 12rem; }
 .check-lines__actions--decide .decision-buttons { align-items: flex-end; }
 .check-lines__actions--decide .decision-button-row { flex-wrap: wrap; justify-content: flex-end; }
-/* The line number opens it for editing, for keyboards; the row does for a click. */
-.check-lines__number { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+/* Edited in place while entered: compact fields in the cells. */
+.check-lines__input { width: 100%; min-width: 4rem; max-width: none; height: auto; margin-top: 0; padding: .3rem .4rem; font-size: .9rem; }
+.check-lines__table .amount .check-lines__input { width: 4.5rem; min-width: 0; text-align: right; }
+.check-lines__input.check-lines__date { width: 8.75rem; min-width: 0; }
+/* Grows with its text where the browser can size fields to content. */
+.check-lines__description { display: block; min-height: 3.4rem; line-height: 1.35; resize: vertical; field-sizing: content; }
+.check-lines__route { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; margin-top: .4rem; }
+.check-lines__route .check-lines__input { flex: 1 1 8rem; width: auto; }
+.check-lines__round-trip { white-space: nowrap; }
+.check-lines__unsaved { color: var(--ink-muted); font-style: italic; }
+.line-bar__line { display: inline-flex; gap: 1rem; }
 .check-lines__table .check-lines__edit-row td { padding: 0; background: var(--row-open); box-shadow: inset 3px 0 0 var(--primary); }
 .check-lines__footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem; padding: .9rem 1rem; }
 .check-lines__add { font-weight: 600; }

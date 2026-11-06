@@ -81,6 +81,8 @@ export default function InvoiceReview() {
   shownId.current = invoiceId;
   // Finishing moves on to the upload's next invoice, keeping its message and Undo.
   const keepToast = useRef(false);
+  // While entering, saves lines changed in place; false if they can't be saved.
+  const saveEdits = useRef<() => Promise<boolean>>(async () => true);
 
   useEffect(() => {
     latestRequest.current += 1;
@@ -111,11 +113,18 @@ export default function InvoiceReview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watching, invoiceId]);
 
+  // Set while an action runs, so a second click doesn't start another.
+  const busy = useRef(false);
+
   // Runs an action, then shows `next` (or what it returns) and reloads.
   async function act<T>(action: () => Promise<T>, next?: ToastMessage | ((result: T) => ToastMessage)) {
+    if (busy.current) return false;
+    busy.current = true;
     setSaving(true);
     setActionError(null);
     try {
+      // Lines changed in place save first, so nothing acts on values not yet saved.
+      if (!(await saveEdits.current())) return false;
       const result = await action();
       setPanel(null);
       setChanging(null);
@@ -127,6 +136,26 @@ export default function InvoiceReview() {
       setActionError(apiErrorMessage(err, 'That did not save. Try again.'));
       return false;
     } finally {
+      busy.current = false;
+      setSaving(false);
+    }
+  }
+
+  // Approve part or Reject on a line changed in place: saved and reloaded
+  // first, so the panel starts from the line's saved figures.
+  async function openAfterSaving(lineId: string, mode: PanelMode) {
+    if (busy.current) return;
+    busy.current = true;
+    setSaving(true);
+    setActionError(null);
+    try {
+      if (!(await saveEdits.current())) return;
+      await refresh();
+      setPanel({ lineId, mode });
+    } catch (err) {
+      setActionError(apiErrorMessage(err, 'The line could not be reloaded. Try again.'));
+    } finally {
+      busy.current = false;
       setSaving(false);
     }
   }
@@ -169,8 +198,9 @@ export default function InvoiceReview() {
     void refresh();
   };
 
-  async function decide(line: InvoiceReviewLine, input: LineDecisionInput, label: string) {
-    const previous = line.working;
+  async function decide(line: InvoiceReviewLine, input: LineDecisionInput, label: string, edited = false) {
+    // Saving a changed line undoes its decision, so Undo leaves it undecided.
+    const previous = edited ? null : line.working;
     const done = await act(() => decideInvoiceLine(invoice.invoiceId, line.invoiceLineId, input, linesVersion()), {
       message: `Line ${lineNumber.get(line.invoiceLineId)} ${label}.`,
       undo: () =>
@@ -254,19 +284,21 @@ export default function InvoiceReview() {
         .join(', ')
     : '';
 
-  const decisionCell = (line: InvoiceReviewLine) => (
+  const decisionCell = (line: InvoiceReviewLine, edited = false) => (
     <DecisionCell
       line={line}
       decision={current(line)}
       inReview={inReview}
       canDecide={canDecide}
       changing={changing === line.invoiceLineId}
+      edited={edited}
       openPanel={openPanel(line)}
       saving={saving}
-      onApprove={() => void decide(line, { outcome: 'approved' }, 'approved')}
+      onApprove={() => void decide(line, { outcome: 'approved' }, 'approved', edited)}
       onPanel={(mode) => {
         setAsking(null);
-        setPanel(mode ? { lineId: line.invoiceLineId, mode } : null);
+        if (mode && edited) void openAfterSaving(line.invoiceLineId, mode);
+        else setPanel(mode ? { lineId: line.invoiceLineId, mode } : null);
       }}
       onChanging={(on) => setChanging(on ? line.invoiceLineId : null)}
       onUndoRejection={() =>
@@ -305,6 +337,8 @@ export default function InvoiceReview() {
     return (
       mode && (
         <DecisionPanel
+          // Starts again from the line's figures when entering changes them.
+          key={`${line.quantity}-${line.billedRate}-${line.amount}`}
           line={line}
           mode={mode}
           reasons={reasonData?.reasons ?? []}
@@ -644,7 +678,9 @@ export default function InvoiceReview() {
 
       {entering ? (
         <EntryLines
+          key={invoice.invoiceId}
           data={data}
+          saveEdits={saveEdits}
           setToast={setToast}
           questions={lineQuestions}
           ask={askLinkOf}
@@ -656,8 +692,11 @@ export default function InvoiceReview() {
               setActionError(null);
               setToast({ message: `Changed, so ${undecided === 1 ? 'its decision was' : `${undecided} decisions were`} undone. Decide it again.` });
             }
-            void refresh();
+            // An action saving first reloads once it's done.
+            if (!busy.current) void refresh();
           }}
+          // Its open Approve part or Reject would decide on the old figures.
+          onEditing={(lineId) => setPanel((open) => (open?.lineId === lineId ? null : open))}
           onRefused={() => void refresh()}
         />
       ) : (

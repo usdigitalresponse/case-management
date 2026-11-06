@@ -1,5 +1,6 @@
 // An invoice's lines in file order, with what the submitter changed and
-// removed lines struck through; on a draft, an Edit panel under a line.
+// removed lines struck through; on a draft, an Edit panel under a line, or
+// while staff enter it in review, its fields in the cells.
 import { useRef, useState, type ReactNode } from 'react';
 import type { FileLine, ImportWarning, InvoiceLineType } from '../api/client';
 import { emptyLine, isTimeKind, mileageItemPreview, tripParts, type DraftKind, type LineDraft } from '../components/InvoiceLinesEditor';
@@ -56,6 +57,42 @@ function DateToEnter({ number, onEnter }: { number: number; onEnter: (date: stri
   );
 }
 
+// Keeps what is typed, such as "12.", while the line holds a number.
+function RateInput({
+  id,
+  className = 'usa-input check-lines__input',
+  label,
+  placeholder,
+  value,
+  onChange,
+}: {
+  id?: string;
+  className?: string;
+  // Without a <label> of its own.
+  label?: string;
+  placeholder: string;
+  value: number | undefined;
+  onChange: (rate: number | undefined) => void;
+}) {
+  const [text, setText] = useState(value === undefined ? '' : String(value));
+  const shown = Number(text) === value || (text === '' && value === undefined) ? text : value === undefined ? '' : String(value);
+  return (
+    <input
+      id={id}
+      className={className}
+      inputMode="decimal"
+      aria-label={label}
+      placeholder={placeholder}
+      value={shown}
+      onChange={(event) => {
+        const rate = Number(event.target.value);
+        setText(event.target.value);
+        onChange(event.target.value === '' || !(rate >= 0) ? undefined : rate);
+      }}
+    />
+  );
+}
+
 function EditPanel({
   number,
   initial,
@@ -65,7 +102,6 @@ function EditPanel({
   onSave,
   onCancel,
   onRemove,
-  onUndoChange,
   ownFile = true,
 }: {
   number: number;
@@ -77,8 +113,6 @@ function EditPanel({
   onSave: (drafts: LineDraft[]) => void;
   onCancel: () => void;
   onRemove?: () => void;
-  // Back to the values read from the file.
-  onUndoChange?: () => void;
   ownFile?: boolean;
 }) {
   const [draft, setDraft] = useState(initial);
@@ -138,16 +172,12 @@ function EditPanel({
             <div className="edit-line__field edit-line__field--short">
               <label className="usa-label" htmlFor={id('rate')}>{timed ? 'Rate per hour' : 'Rate per mile'}</label>
               {timed ? (
-                <input
+                <RateInput
                   id={id('rate')}
                   className="usa-input"
-                  inputMode="decimal"
                   placeholder={price.rate ?? ''}
-                  value={draft.carried.unitRate === undefined ? '' : String(draft.carried.unitRate)}
-                  onChange={(event) => {
-                    const rate = Number(event.target.value);
-                    set({ carried: { ...draft.carried, unitRate: event.target.value === '' || !(rate >= 0) ? undefined : rate } });
-                  }}
+                  value={draft.carried.unitRate}
+                  onChange={(unitRate) => set({ carried: { ...draft.carried, unitRate } })}
                 />
               ) : (
                 <input id={id('rate')} className="usa-input" value={price.rate ? formatRate(price.rate) : '—'} readOnly aria-readonly="true" />
@@ -213,11 +243,6 @@ function EditPanel({
         <button type="button" className="link-button" onClick={onCancel}>
           Cancel
         </button>
-        {onUndoChange && (
-          <button type="button" className="link-button" onClick={onUndoChange}>
-            Put it back as read
-          </button>
-        )}
         {onRemove && (
           <button type="button" className="link-button link-button--danger edit-line__remove" onClick={onRemove}>
             Remove this line
@@ -249,9 +274,12 @@ export interface CheckLinesTableProps {
   footer: ReactNode;
   // An invoice entered by hand has no file to have missed lines from.
   addLabel?: string;
-  // Decided as entered: a line opens for editing when clicked, and removing
-  // or putting it back is in its edit form.
-  editByClicking?: boolean;
+  // Decided as entered: a line's cells are its fields, kept unsaved until
+  // whatever comes next saves them, and removing or putting it back is in
+  // its bar.
+  onEditLine?: (index: number, patch: Partial<LineDraft>) => void;
+  // Changed in place and not saved yet.
+  edited?: (index: number) => boolean;
   // Shown with a line's description, such as its questions.
   notes?: (index: number) => ReactNode;
   // A bar under the description, such as asking about the line and
@@ -278,17 +306,20 @@ export function CheckLinesTable({
   detail,
   footer,
   addLabel = 'Add a line we missed',
-  editByClicking = false,
+  onEditLine,
+  edited,
   ownFile = true,
   notes,
   actions,
 }: CheckLinesTableProps) {
+  const inPlace = Boolean(onEditLine) && editable;
   const allLines = rows.flatMap((row) => (row.kind === 'line' ? [row.line] : []));
   const numberOf = (tripKey: string) => rows.find((row) => row.kind === 'line' && row.line.tripKey === tripKey && row.line.lineType === 'mileage')?.number;
   // The row number being edited, or 'new' for an added line; an empty
   // invoice opens on adding its first line.
   const [editing, setEditing] = useState<number | 'new' | null>(() => (editable && rows.length === 0 ? 'new' : null));
-  const columns = 7;
+  // Edited in place, a line's actions are in its bar, not a last column.
+  const columns = inPlace ? 6 : 7;
 
   return (
     <div className="check-lines">
@@ -301,7 +332,7 @@ export function CheckLinesTable({
             <th scope="col" className="amount">Qty</th>
             <th scope="col" className="amount">Rate</th>
             <th scope="col" className="amount">Amount</th>
-            <th scope="col"><span className="usa-sr-only">{extra && !actions ? 'Decision' : 'Actions'}</span></th>
+            {!inPlace && <th scope="col"><span className="usa-sr-only">{extra && !actions ? 'Decision' : 'Actions'}</span></th>}
           </tr>
         </thead>
         {rows.length === 0 && editing !== 'new' && (
@@ -326,18 +357,27 @@ export function CheckLinesTable({
                   <td className="amount">{formatQuantity(lineType, read.quantity)}</td>
                   <td className="amount">{formatLineRate(lineType, read.unitRate)}</td>
                   <td className="amount"><s>{formatMoney(read.amount)}</s></td>
-                  <td className="check-lines__actions">
-                    {editable && (
-                      <button type="button" className="link-button" onClick={() => onPutBack(read, row.number)}>
-                        Put it back
-                      </button>
-                    )}
-                  </td>
+                  {!inPlace && (
+                    <td className="check-lines__actions">
+                      {editable && (
+                        <button type="button" className="link-button" onClick={() => onPutBack(read, row.number)}>
+                          Put it back
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
                 <tr className="check-lines__what">
                   <td />
                   <td colSpan={columns - 1}>
                     <s>{read.description ?? '—'}</s>
+                    {inPlace && (
+                      <span className="cell-note">
+                        <button type="button" className="link-button" onClick={() => onPutBack(read, row.number)}>
+                          Put it back
+                        </button>
+                      </span>
+                    )}
                   </td>
                 </tr>
               </tbody>
@@ -363,23 +403,21 @@ export function CheckLinesTable({
                 flagged ? 'check-lines__row--flagged' : '',
                 focus && focus === location ? 'check-lines__row--focus' : '',
               ].join(' ')}
-              onClick={() => {
-                onFocus(location);
-                if (editByClicking && editable && !isEditing) setEditing(number);
-              }}
+              onClick={() => onFocus(location)}
             >
               <tr className="check-lines__summary">
+                <td>{number}</td>
                 <td>
-                  {editByClicking && editable ? (
-                    <button type="button" className="check-lines__number" aria-label={`Edit line ${number}`}>
-                      {number}
-                    </button>
-                  ) : (
-                    number
-                  )}
-                </td>
-                <td>
-                  {editable && !line.serviceDate && !isEditing ? (
+                  {inPlace ? (
+                    <input
+                      className="usa-input check-lines__input check-lines__date"
+                      type="date"
+                      aria-label={`Line ${number} date`}
+                      aria-invalid={!line.serviceDate || undefined}
+                      value={line.serviceDate}
+                      onChange={(event) => onEditLine!(index, { serviceDate: event.target.value })}
+                    />
+                  ) : editable && !line.serviceDate && !isEditing ? (
                     <DateToEnter number={number} onEnter={(serviceDate) => onSaveLine(index, [{ ...line, serviceDate }], number)} />
                   ) : (
                     formatDay(line.serviceDate || null)
@@ -390,44 +428,125 @@ export function CheckLinesTable({
                   {flagged && <span className="chip chip--warning">Check this</span>}
                 </td>
                 <td className="amount">
-                  {formatQuantity(values.lineType, values.quantity)}
+                  {inPlace && (isTimeKind(line.lineType) || line.lineType === 'mileage') ? (
+                    <input
+                      className="usa-input check-lines__input"
+                      inputMode="decimal"
+                      aria-label={`Line ${number} ${line.lineType === 'mileage' ? 'miles' : 'hours'}`}
+                      value={line.quantity}
+                      onChange={(event) => onEditLine!(index, { quantity: event.target.value })}
+                    />
+                  ) : (
+                    formatQuantity(values.lineType, values.quantity)
+                  )}
                   {read && fields.includes('quantity') && <span className="cell-note">was {read.quantity ?? 0}</span>}
                 </td>
-                <td className="amount">{formatLineRate(values.lineType, price.rate || null)}</td>
                 <td className="amount">
-                  <strong>{price.total === null ? '—' : formatMoney(price.total)}</strong>
+                  {inPlace && isTimeKind(line.lineType) ? (
+                    <RateInput
+                      label={`Line ${number} rate per hour`}
+                      placeholder={price.rate ?? ''}
+                      value={line.carried.unitRate}
+                      onChange={(unitRate) => onEditLine!(index, { carried: { ...line.carried, unitRate } })}
+                    />
+                  ) : (
+                    formatLineRate(values.lineType, price.rate || null)
+                  )}
                 </td>
-                <td
-                  className={`check-lines__actions${extra && !actions ? ' check-lines__actions--decide' : ''}`}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  {!actions && extra?.(index)}
-                  {editable &&
-                    !editByClicking &&
-                    (isEditing ? (
-                      <span className="muted">Editing</span>
-                    ) : (
-                      <>
-                        <button type="button" className="link-button" onClick={() => setEditing(number)}>
-                          Edit
-                        </button>
-                        {read && fields.length > 0 ? (
-                          <button type="button" className="link-button" onClick={() => onUndoChange(index, read, number)}>
-                            Undo change
-                          </button>
-                        ) : (
-                          <button type="button" className="link-button" onClick={() => onRemoveLine(index, number)}>
-                            Remove
-                          </button>
-                        )}
-                      </>
-                    ))}
+                <td className="amount">
+                  {inPlace && (line.lineType === 'expense' || line.lineType === 'other') ? (
+                    <input
+                      className="usa-input check-lines__input"
+                      inputMode="decimal"
+                      aria-label={`Line ${number} amount`}
+                      aria-invalid={price.total === null || undefined}
+                      value={line.amount}
+                      onChange={(event) => onEditLine!(index, { amount: event.target.value })}
+                    />
+                  ) : (
+                    <strong>{price.total === null ? '—' : formatMoney(price.total)}</strong>
+                  )}
                 </td>
+                {!inPlace && (
+                  <td
+                    className={`check-lines__actions${extra && !actions ? ' check-lines__actions--decide' : ''}`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {!actions && extra?.(index)}
+                    {editable &&
+                      (isEditing ? (
+                        <span className="muted">Editing</span>
+                      ) : (
+                        <>
+                          <button type="button" className="link-button" onClick={() => setEditing(number)}>
+                            Edit
+                          </button>
+                          {read && fields.length > 0 ? (
+                            <button type="button" className="link-button" onClick={() => onUndoChange(index, read, number)}>
+                              Undo change
+                            </button>
+                          ) : (
+                            <button type="button" className="link-button" onClick={() => onRemoveLine(index, number)}>
+                              Remove
+                            </button>
+                          )}
+                        </>
+                      ))}
+                  </td>
+                )}
               </tr>
               <tr className="check-lines__what">
                 <td />
                 <td colSpan={columns - 1}>
-                  {line.description || '—'}
+                  {inPlace ? (
+                    <>
+                      <textarea
+                        className="usa-textarea check-lines__input check-lines__description"
+                        rows={2}
+                        aria-label={`Line ${number} what was done`}
+                        placeholder="What was done"
+                        value={line.description}
+                        onChange={(event) => onEditLine!(index, { description: event.target.value })}
+                      />
+                      {line.lineType === 'mileage' && line.tripKey && (
+                        <div className="check-lines__route">
+                          <input
+                            className="usa-input check-lines__input"
+                            aria-label={`Line ${number} from`}
+                            placeholder="From"
+                            value={line.tripOrigin}
+                            onChange={(event) => onEditLine!(index, { tripOrigin: event.target.value })}
+                          />
+                          <input
+                            className="usa-input check-lines__input"
+                            aria-label={`Line ${number} to`}
+                            placeholder="To"
+                            value={line.tripDestination}
+                            onChange={(event) => onEditLine!(index, { tripDestination: event.target.value })}
+                          />
+                          <label className="check-lines__round-trip">
+                            <input
+                              type="checkbox"
+                              checked={line.roundTrip}
+                              onChange={(event) => onEditLine!(index, { roundTrip: event.target.checked })}
+                            />{' '}
+                            Round trip
+                          </label>
+                        </div>
+                      )}
+                      {edited?.(index) && (
+                        <span className="cell-note check-lines__unsaved">
+                          {price.total === null
+                            ? `${price.missing ?? 'Finish this line'} before you go on.`
+                            : actions
+                              ? 'Saved when you decide this line or finish.'
+                              : 'Saved when you send it or save it for later.'}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    line.description || '—'
+                  )}
                   {flagged &&
                     lineWarnings.map((warning) => (
                       <span key={warning.code} className="cell-note check-lines__warning">{warning.message}</span>
@@ -453,17 +572,26 @@ export function CheckLinesTable({
                   {notes && <div onClick={(event) => event.stopPropagation()}>{notes(index)}</div>}
                 </td>
               </tr>
-              {actions && (
+              {(actions || inPlace) && !isEditing && (
                 <tr className="check-lines__bar" onClick={(event) => event.stopPropagation()}>
                   <td />
                   <td colSpan={columns - 1}>
-                    <div className="line-bar">{actions(index)}</div>
+                    <div className="line-bar">
+                      {inPlace && (
+                        <span className="line-bar__line">
+                          {read && fields.length > 0 && (
+                            <button type="button" className="link-button" onClick={() => onUndoChange(index, read, number)}>
+                              Put it back as read
+                            </button>
+                          )}
+                          <button type="button" className="link-button link-button--danger" onClick={() => onRemoveLine(index, number)}>
+                            Remove
+                          </button>
+                        </span>
+                      )}
+                      {actions?.(index)}
+                    </div>
                   </td>
-                </tr>
-              )}
-              {lineDetail && (
-                <tr className="check-lines__detail-row" onClick={(event) => event.stopPropagation()}>
-                  <td colSpan={columns}>{lineDetail}</td>
                 </tr>
               )}
               {isEditing && (
@@ -484,17 +612,14 @@ export function CheckLinesTable({
                         setEditing(null);
                         onRemoveLine(index, number);
                       }}
-                      onUndoChange={
-                        editByClicking && read && fields.length > 0
-                          ? () => {
-                              setEditing(null);
-                              onUndoChange(index, read, number);
-                            }
-                          : undefined
-                      }
                       ownFile={ownFile}
                     />
                   </td>
+                </tr>
+              )}
+              {lineDetail && (
+                <tr className="check-lines__detail-row" onClick={(event) => event.stopPropagation()}>
+                  <td colSpan={columns}>{lineDetail}</td>
                 </tr>
               )}
             </tbody>
