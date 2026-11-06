@@ -1,4 +1,4 @@
-spec_version: "0.7.0"
+spec_version: "0.8.0"
 status: draft
 kind: business_rules
 
@@ -91,6 +91,22 @@ rules:
       - Re-pricing applies approve-in-part decisions at the line's rate limit (apply_professional_rates), with the rate reason, to every undecided time line whose billed_rate is above it.
       - Finishing a round requires a working decision on every line; it records them all as invoice_approval_decision rows at a new sequence_number with the finishing reviewer and time, clears the working decisions, records an invoice event and moves the request to awaiting sign-off.
       - Until the first sign-off decision after a round, the reviewer may reopen review; the next round starts from that round's decisions as working decisions and is recorded as a new round when finished. Recorded rounds are never changed.
+
+  ask_review_question:
+    description: Let the line reviewer ask the submitter a brief question about a line, hold review for the answer, and keep both on the request's record.
+    applies_to: invoice_review_question
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Only the user holding the active line-review invoice_review_assignment may ask, taking an unassigned request as deciding a line does, while the request is submitted, under review or awaiting an answer.
+      - Every question is about one line of the request. A question and an answer are each brief, at most 500 characters.
+      - Asking moves the request to awaiting an answer. While awaiting an answer, the reviewer may keep deciding lines but may not finish the round, and the submitter may not recall the request.
+      - The submitter or the represented professional answers. A staff user with a reviewing role may instead record an answer received another way, and is recorded as answering; this is also how review continues without a reply.
+      - Each question is answered once. Questions and answers are never changed or deleted.
+      - Answering the last unanswered question returns the request to under review.
+      - Until the round is finished, lists of requests show reviewers which have unanswered questions and which have answered ones, and the submitter which have questions for them.
+      - Asking and answering each record an invoice_event with the actor and time.
+      - Questions and answers are visible to staff and to everyone who may read the request, including its submitter and represented professionals. They are kept in the system, never in exports or the billing record.
 
   assign_invoice_review:
     description: Route each request to a reviewer and its sign-off approvers, from configured defaults that staff can change.

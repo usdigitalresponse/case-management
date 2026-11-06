@@ -101,7 +101,7 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
   await db.execute(sql`
     TRUNCATE TABLE
       intake_request, case_identifier, case_lifecycle_event, invoice_approval_decision,
-      invoice_line_working_decision, invoice_review_assignment, case_invoice_reviewer, invoice_review_setting,
+      invoice_line_working_decision, invoice_review_question, invoice_review_assignment, case_invoice_reviewer, invoice_review_setting,
       invoice_decision_reasons, preauthorization_decision, preauthorization, preauthorization_statuses,
       preauthorization_outcomes,
       invoice_event, invoice_approval_chain, invoice_line, trip, time_entry, audit_event, professional_kind_rate, professional_kinds, mileage_rate, time_category_rate, route_check, expense_types, billing_rule_setting, billing_codes, invoice_import, supporting_invoice, invoice_attestation, document, invoice,

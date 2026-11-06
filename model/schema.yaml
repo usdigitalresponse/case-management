@@ -1,4 +1,4 @@
-spec_version: "0.7.0"
+spec_version: "0.8.0"
 status: draft
 kind: domain_schema
 
@@ -861,6 +861,54 @@ entities:
       decided_at:
         type: datetime
         required: true
+
+  invoice_review_question:
+    display_name: Review Question
+    description: A brief question the line reviewer asks the request's submitter about one of its lines, and its
+      answer. Review waits until it is answered. The question is never changed once asked, and the answer is
+      recorded once and never changed (ask_review_question). Both are part of the request's record, visible to
+      everyone who may read it.
+    primary_key: invoice_review_question_id
+    fields:
+      invoice_review_question_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      invoice_approval_chain_id:
+        type: uuid
+        required: true
+        references: invoice_approval_chain.invoice_approval_chain_id
+        description: The submission attempt it was asked about.
+      invoice_line_id:
+        type: uuid
+        required: true
+        references: invoice_line.invoice_line_id
+      question:
+        type: string
+        required: true
+      asked_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      asked_at:
+        type: datetime
+        required: true
+      answer:
+        type: string
+        required: false
+      answered_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+        description: The submitter or represented professional, or a staff user recording an answer received
+          another way.
+      answered_at:
+        type: datetime
+        required: false
 
   invoice_review_assignment:
     display_name: Invoice Review Assignment

@@ -103,6 +103,10 @@ generic requirement in the repository.
 - Invoice line decisions are working decisions until the reviewer finishes a
   round; only finished rounds are recorded and never changed. Sign-off
   comments are internal-only and never reach submitters or exports.
+- A reviewer's question to the submitter is about one line; it and its answer
+  are each recorded once and never changed, and never exported. While any
+  question is unanswered, the request is `awaiting_answer` and its round
+  cannot be finished.
 - Prefer validation at data entry over downstream cleanup.
 - Do not silently merge probable duplicate records.
 - Do not overwrite historical facts when requirements call for an audit trail.

@@ -32,6 +32,7 @@ import { AWAITING_SIGN_OFF_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
 import { loadAssignments, SIGN_OFF_STEP_TYPE_CODE, type InvoiceAssignments } from './reviewAssignment';
 import { loadFileSource, submitterChanges, type FileSource } from '../imports/invoiceFile';
 import { returnedReason } from './invoiceEvents';
+import { loadReviewQuestions, type ReviewQuestionView } from './reviewQuestions';
 
 export type Audience = 'staff' | 'submitter';
 
@@ -233,6 +234,8 @@ export interface InvoiceDetail {
   round: number | null;
   approvedTotal: string | null;
   signOffs: SignOffView[];
+  // The reviewer's questions to the submitter and their answers, oldest first.
+  questions: ReviewQuestionView[];
   // Staff only.
   assignments: InvoiceAssignments | null;
   // Staff only: who signs off next, and whether sign-off of the latest
@@ -283,7 +286,7 @@ export async function loadInvoiceDetail(
     audience === 'staff' ? loadAssignments(db, invoiceId) : null,
     loadFileSource(db, invoiceId),
   ]);
-  const [recorded, working, ruleFindings] = await Promise.all([
+  const [recorded, working, ruleFindings, questions] = await Promise.all([
     attempt ? loadRecordedDecisions(db, attempt.invoiceApprovalChainId) : ([] as RecordedDecision[]),
     attempt && audience === 'staff'
       ? db
@@ -307,6 +310,7 @@ export async function loadInvoiceDetail(
     attempt
       ? ((attempt.snapshot as { billing_rules?: { findings?: RuleFinding[] } } | null)?.billing_rules?.findings ?? [])
       : evaluateBillingRules(db, invoiceId),
+    loadReviewQuestions(db, invoiceId, audience),
   ]);
   const names = await displayNames(db, [
     ...recorded.map((decision) => decision.decidedByUserAccountId),
@@ -395,6 +399,7 @@ export async function loadInvoiceDetail(
     round,
     approvedTotal: approvedTotal(recorded, round),
     signOffs,
+    questions,
     assignments,
     nextSignOff: awaitingSignOff && progress.next ? { userAccountId: progress.next.userAccountId, displayName: progress.next.displayName } : null,
     signOffStarted: awaitingSignOff && progress.started,

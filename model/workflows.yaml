@@ -1,4 +1,4 @@
-spec_version: "0.7.0"
+spec_version: "0.8.0"
 status: draft
 kind: workflows
 
@@ -45,6 +45,14 @@ workflows:
         from: [submitted, under_review]
         to: under_review
         requires: [current_assigned_reviewer, earlier_steps_complete, working_line_decision]
+      - action: ask_question
+        from: [submitted, under_review, awaiting_answer]
+        to: awaiting_answer
+        requires: [current_assigned_reviewer, line_of_request, brief_question]
+      - action: answer_question
+        from: awaiting_answer
+        to: under_review
+        requires: [submitter_or_represented_professional_or_recording_staff, brief_answer, no_other_unanswered_question]
       - action: finish_review
         from: under_review
         to: awaiting_sign_off
@@ -97,6 +105,7 @@ workflows:
       - Configure reference status mappings and actor permissions before enabling transitions.
       - Reviewed timestamps and reviewers come from decisions; final approval cannot be asserted by editing status.
       - Line decisions during review are working decisions (decide_invoice_lines); finish_review records them as one immutable round. A request with several sign-off approvers stays awaiting sign-off until the last approves.
+      - The reviewer may ask the submitter a question about a line (ask_review_question). Asking moves the request to awaiting_answer, where lines may still be decided but the round can't be finished; it returns to under_review when the last open question is answered. To stop waiting without a reply, staff record what they learned as the answer.
       - send_back returns the request to its line reviewer with an internal comment; deny and request_changes are the paths back to the submitter.
       - External completion confirmation references the approved attempt and leaves approval status unchanged; it never executes payment.
       - The submitter may edit a draft until submitting it, and may recall a submission before any review decision is recorded; recalled attempts keep their snapshot and the request returns to draft for editing. Starting over withdraws the draft; a new upload creates a new import and request.

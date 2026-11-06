@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router';
 import {
+  answerQuestion,
   apiErrorMessage,
   attestationStatement,
   getMyInvoice,
@@ -37,6 +38,7 @@ import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { draftFromRead, priceOf, rowChanges, totalsNotice, valuesOf, type PricingContext } from './checkLines';
 import { canWithdraw, formatSpan, submissionStatus } from './portalWording';
 import { SentBackNotice } from '../components/SentBackNotice';
+import { LineQuestions } from '../components/ReviewQuestions';
 import { SendDialog } from './SendDialog';
 import { WithdrawDialog } from './WithdrawDialog';
 import { INTAKE_PATH, PORTAL_HOME_PATH, useShell } from './useShell';
@@ -208,6 +210,7 @@ function Lines({
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [caseNumberMissing, setCaseNumberMissing] = useState(false);
+  const [answering, setAnswering] = useState(false);
   const receipt = useReceipt('send', { receivedOn: invoice.receivedOn, receivedViaDisplayName: invoice.receivedViaDisplayName });
   const checking = location.state as CheckQueue | null;
   // Where to go once this one is sent or saved for later.
@@ -352,6 +355,33 @@ function Lines({
   const decisionFor = (index: number) => {
     const line = data.lines[index];
     return line?.decision ? <RecordedDecision line={line} decision={line.decision} /> : null;
+  };
+  const questionsFor = (index: number) => {
+    const lineId = data.lines[index]?.invoiceLineId;
+    const questions = data.questions.filter((question) => question.invoiceLineId === lineId);
+    return questions.length === 0 ? null : (
+      <LineQuestions
+        questions={questions}
+        staff={false}
+        canAnswer={data.canAnswer}
+        saving={answering}
+        onAnswer={async (questionId, answer) => {
+          setAnswering(true);
+          setError(null);
+          try {
+            await answerQuestion(invoice.invoiceId, questionId, answer, true);
+            setToast({ message: 'Answer sent.' });
+            onChanged();
+            return true;
+          } catch (err) {
+            setError(apiErrorMessage(err, 'The answer could not be sent. Try again.'));
+            return false;
+          } finally {
+            setAnswering(false);
+          }
+        }}
+      />
+    );
   };
 
   const home = byPerson && staff ? { label: 'To review', to: '/' } : { label: 'Your invoices', to: PORTAL_HOME_PATH };
@@ -502,6 +532,11 @@ function Lines({
               You can withdraw it until then.
             </Notice>
           )}
+          {invoice.statusCode === 'awaiting_answer' && (
+            <Notice tone="warning" heading="The billing office has a question.">
+              Review is waiting for {data.canAnswer ? 'your' : 'an'} answer. Answer it on the line it's about, below.
+            </Notice>
+          )}
           {(invoice.statusCode === 'under_review' || invoice.statusCode === 'awaiting_sign_off') && (
             <Notice tone="info">Review has started, so the invoice can no longer be withdrawn. Contact the billing office to change it.</Notice>
           )}
@@ -559,6 +594,7 @@ function Lines({
               )
             }
             extra={sent ? decisionFor : undefined}
+            detail={sent ? questionsFor : undefined}
             addLabel={fileSource ? 'Add a line we missed' : 'Add a line'}
             footer={
               <div className="check-lines__totals">

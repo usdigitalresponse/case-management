@@ -66,14 +66,6 @@ export function rowsInFileOrder<L>(fileLines: FileLine[], lines: L[], locationOf
   return rows;
 }
 
-export const quantityUnit = (lineType: InvoiceLineType) => (lineType === 'time' ? 'h' : lineType === 'mileage' ? 'mi' : '');
-
-export function formatQuantity(lineType: InvoiceLineType, quantity: number | null): string {
-  if (quantity === null || quantity === 0) return '—';
-  const unit = quantityUnit(lineType);
-  return lineType === 'time' ? `${quantity.toFixed(2)} ${unit}` : unit ? `${quantity} ${unit}` : String(quantity);
-}
-
 // "You changed miles from 84 to 64." for the line's note.
 export function changeSentence(read: FileLine, line: LineValues, fields: ChangedField[]): string {
   if (fields.length === 1 && fields[0] === 'quantity' && (line.lineType === 'time' || line.lineType === 'mileage')) {

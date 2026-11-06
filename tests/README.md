@@ -1,16 +1,8 @@
 # Offline model checks
 
 These tests use the actual YAML specification and synthetic linked records in
-`scenarios/fixtures/review-example.yaml`. Python 3.9+ and PyYAML 6.x are required.
-If PyYAML is unavailable, install it in a local virtual environment:
-
-```sh
-python3 -m venv /tmp/case-model-tests
-/tmp/case-model-tests/bin/python -m pip install -r tests/requirements.txt
-/tmp/case-model-tests/bin/python -B -m unittest discover -s tests -v
-```
-
-With the dependency already available, run from the repository root:
+`scenarios/fixtures/review-example.yaml`. Python 3.9+ and PyYAML 6.x
+(`tests/requirements.txt`) are required. Run from the repository root:
 
 ```sh
 python3 -B -m unittest discover -s tests -v

@@ -1,19 +1,51 @@
-import type { PortalInvoiceLine } from './api/client';
+// How a line's cells read in every invoice table: staff review
+// (components/InvoiceLinesTable.tsx) and the submitter's lines
+// (portal/CheckLinesTable.tsx) share the kind, quantity and rate wording.
+import type { InvoiceLineType, PortalInvoiceLine } from './api/client';
 import { formatDate } from './formatDateTime';
 import { formatMoney, formatRate } from './formatMoney';
 
-// Supplier-stated values, else the linked time entry's, as in exports.
-export function lineDate(line: PortalInvoiceLine): string {
-  return formatDate(line.serviceDate ?? line.sourceActivityOn);
+const KIND_LABELS: Record<InvoiceLineType, string> = { time: 'Time', mileage: 'Mileage', expense: 'Expense', other: 'Other' };
+
+// A trip's time is its travel time, and its other expenses travel expenses.
+export function lineKindLabel(kind: InvoiceLineType, { onTrip = false, waiting = false } = {}): string {
+  if (onTrip && kind === 'time') return 'Travel time';
+  if (onTrip && kind === 'expense') return 'Travel expense';
+  if (waiting) return 'Waiting time';
+  return KIND_LABELS[kind];
+}
+
+const quantityUnit = (kind: InvoiceLineType) => (kind === 'time' ? 'h' : kind === 'mileage' ? 'mi' : '');
+
+// "1.70 h", "64 mi"; a dash for none.
+export function formatQuantity(kind: InvoiceLineType, quantity: number | null): string {
+  if (quantity === null || quantity === 0) return '—';
+  const unit = quantityUnit(kind);
+  return kind === 'time' ? `${quantity.toFixed(2)} ${unit}` : unit ? `${quantity} ${unit}` : String(quantity);
+}
+
+// "$150.00", "$0.725/mi"; a dash for none.
+export function formatLineRate(kind: InvoiceLineType, rate: number | string | null): string {
+  return rate === null ? '—' : `${formatRate(rate)}${kind === 'mileage' ? '/mi' : ''}`;
 }
 
 export function isMileage(line: Pick<PortalInvoiceLine, 'expenseTypeCode'>): boolean {
   return line.expenseTypeCode === 'mileage';
 }
 
+export function lineKind(line: PortalInvoiceLine): InvoiceLineType {
+  if (isMileage(line)) return 'mileage';
+  return line.lineTypeCode === 'time' || line.lineTypeCode === 'expense' ? line.lineTypeCode : 'other';
+}
+
+// Supplier-stated values, else the linked time entry's, as in exports.
+export function lineDate(line: PortalInvoiceLine): string {
+  return formatDate(line.serviceDate ?? line.sourceActivityOn);
+}
+
 export function lineHours(line: PortalInvoiceLine): string {
   const quantity = line.quantity ?? line.sourceDurationHours;
-  return quantity === null ? '—' : isMileage(line) ? `${Number(quantity)} mi` : quantity;
+  return formatQuantity(lineKind(line), quantity === null ? null : Number(quantity));
 }
 
 export function lineDescription(line: PortalInvoiceLine): string {
@@ -24,26 +56,13 @@ export function lineTimekeeper(line: PortalInvoiceLine): string {
   return line.timekeeperDisplayName ?? line.timekeeperLabel ?? '—';
 }
 
-const LINE_TYPE_LABELS: Record<string, string> = { time: 'Time', expense: 'Expense' };
-
-// A trip's time is its travel time, and its other expenses travel expenses.
 export function lineType(line: PortalInvoiceLine): string {
-  if (isMileage(line)) {
-    return 'Mileage';
-  }
-  if (line.tripId) {
-    return line.lineTypeCode === 'time' ? 'Travel time' : 'Travel expense';
-  }
-  if (line.timeCategory === 'waiting') {
-    return 'Waiting time';
-  }
-  return LINE_TYPE_LABELS[line.lineTypeCode ?? ''] ?? 'Other';
+  return lineKindLabel(lineKind(line), { onTrip: Boolean(line.tripId), waiting: line.timeCategory === 'waiting' });
 }
 
 // The configured rate a time or mileage line is billed at; else the file's stated one.
 export function lineRate(line: PortalInvoiceLine): string {
-  const rate = line.billedRate ?? line.unitRate;
-  return rate === null ? '—' : `${formatRate(rate)}${isMileage(line) ? '/mi' : ''}`;
+  return formatLineRate(lineKind(line), line.billedRate ?? line.unitRate);
 }
 
 // What an imported file claimed, when it differs from what is billed.

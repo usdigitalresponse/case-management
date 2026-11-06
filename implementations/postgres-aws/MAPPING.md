@@ -564,6 +564,28 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     the last one approves the invoice. A send-back reopens review for the
     same reviewer in the same chain. A rejected line counts as decided
     with nothing approved; it no longer rejects the invoice.
+  - Questions (`ask_review_question`; `src/billing/reviewQuestions.ts`,
+    `client/src/components/ReviewQuestions.tsx`): `POST .../questions` (the
+    reviewer, taking an unassigned invoice) asks the submitter a question of
+    up to 500 characters about one line ("Ask the submitter" under its
+    decision buttons), stored as `invoice_review_question`. The invoice
+    moves to `awaiting_answer`: lines can still be decided, but finishing
+    is refused and recall isn't offered. The submitter, or the professional
+    it bills for, answers on the portal invoice page
+    (`POST /api/portal/invoices/:id/questions/:questionId/answer`); a
+    reviewer may record an answer given by phone or email
+    (`POST /api/invoices/:id/questions/:questionId/answer`), named as the
+    one who answered. Each question is answered once and neither is ever
+    edited. Answering the last open question returns the invoice to
+    `under_review`. Asking and answering each append an `invoice_event`
+    (`question_asked`, `question_answered`). Each question shows in a row
+    under its line, highlighted until answered, where the submitter answers
+    it; the portal shows no staff names. Until the round is finished, staff
+    invoice lists (both queues, a person's and a case's invoices) show
+    "Question unanswered" and "Question answered" chips from the queue's
+    `openQuestionCount` and `answeredQuestionCount`, and the review page says
+    when answers are in; the portal shows "Question for you". Exports and the
+    billing record never include questions.
   - Routing: submission assigns line review to the case's
     `case_invoice_reviewer`, else the `invoice_review_setting` default,
     else no one, and sign-off to the default approvers. `PUT .../reviewer`
@@ -1424,7 +1446,7 @@ list/detail views are implemented as tables:
 `billing_rule_setting`, `invoice`, `invoice_line`, `trip`,
 `invoice_approval_chain`,
 `invoice_approval_decision`, `invoice_line_working_decision`,
-`invoice_review_assignment`, `case_invoice_reviewer`,
+`invoice_review_question`, `invoice_review_assignment`, `case_invoice_reviewer`,
 `invoice_review_setting`, `preauthorization`, `preauthorization_decision`,
 `invoice_event`, `document`, `invoice_import`, `supporting_invoice`,
 `invoice_attestation`, plus lookup tables for the `reference_data`
@@ -1575,6 +1597,17 @@ form relies on this being airtight.
   with a single-instance (non-Multi-AZ) RDS Postgres instance. No
   staging/production promotion path, autoscaling policy, or WAF is configured
   yet.
+- **Review questions**: no email tells the submitter a question is waiting;
+  they see it on the invoice and its status in their list ("Question for
+  you").
+- **Cleanup (next round)**: submitters see a sent invoice's lines in two
+  different tables: `client/src/portal/CheckLinesTable.tsx` when it's filed
+  by person, `client/src/components/InvoiceLinesTable.tsx` on
+  `PortalInvoiceDetail` when it's filed under a case. Use `CheckLinesTable`
+  for both, read-only once sent, so portal-only line features (such as a
+  line's questions) are built once. Cell wording is already shared in
+  `client/src/invoiceLineDisplay.ts`; dates still differ between the two
+  ("18 Sep 2026" against "Sep 18, 2026").
 - **Reference data**: lookup tables are seeded with synthetic values for
   development only; they do not represent real organizational configuration
   (per `../../AGENTS.md`'s data and privacy guidance).

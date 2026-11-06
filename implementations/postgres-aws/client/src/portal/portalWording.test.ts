@@ -59,6 +59,10 @@ describe('submissionStatus', () => {
       label: 'Being reviewed',
       note: 'Reviewer: A Reviewer',
     });
+    expect(submissionStatus(invoice({ statusCode: 'awaiting_answer' }))).toMatchObject({
+      label: 'Question for you',
+      tone: 'warning',
+    });
     expect(submissionStatus(invoice({ statusCode: 'approved', approvedTotal: '1980.00', cutLineCount: 1 }))).toMatchObject({
       label: 'Decided',
       note: '$1,980.00 approved. 1 line cut.',

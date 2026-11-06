@@ -61,7 +61,13 @@ export function MyInvoicesTable({
             ),
         },
         { header: 'Requested', width: '14%', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
-        { header: 'Status', width: '14%', render: (invoice) => <StatusPill code={invoice.statusCode} label={invoice.statusDisplayName} /> },
+        { header: 'Status', width: '14%', render: (invoice) => (
+            <StatusPill
+              code={invoice.statusCode}
+              label={invoice.statusCode === 'awaiting_answer' ? 'Question for you' : invoice.statusDisplayName}
+            />
+          ),
+        },
         {
           header: 'Open',
           width: '12%',

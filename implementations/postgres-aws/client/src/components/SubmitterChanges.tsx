@@ -1,7 +1,8 @@
 // On the review page: what the submitter changed from their file, and the
 // lines they removed, which need no decision.
 import type { FileLine, FileSource, InvoiceLineType, InvoiceReviewLine } from '../api/client';
-import { changedFields, formatQuantity, readLineType, tracksSource, type LineValues } from '../fileChanges';
+import { changedFields, readLineType, tracksSource, type LineValues } from '../fileChanges';
+import { formatQuantity } from '../invoiceLineDisplay';
 import { formatDate } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
 import { isMileage } from '../invoiceLineDisplay';

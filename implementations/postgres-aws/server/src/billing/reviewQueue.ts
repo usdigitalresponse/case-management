@@ -7,6 +7,7 @@ import {
   invoiceApprovalChain,
   invoiceLine,
   invoiceLineWorkingDecision,
+  invoiceReviewQuestion,
   invoiceStatuses,
 } from '../db/schema';
 import { loadCaseNumbers, selectInvoiceHeaders } from './invoiceDetail';
@@ -94,12 +95,16 @@ export async function listReviewQueue(
     getReviewSettings(db),
   ]);
   const caseIds = [...new Set(headers.map((header) => header.caseId))];
-  const [working, rateLimits] = await Promise.all([
+  const [working, rateLimits, questions] = await Promise.all([
     db
       .select({ chainId: invoiceLineWorkingDecision.invoiceApprovalChainId })
       .from(invoiceLineWorkingDecision)
       .where(inArray(invoiceLineWorkingDecision.invoiceApprovalChainId, chains.map((chain) => chain.chainId))),
     Promise.all(caseIds.map(async (caseId) => [caseId, await loadRateLimits(db, caseId)] as const)).then((pairs) => new Map(pairs)),
+    db
+      .select({ invoiceId: invoiceReviewQuestion.invoiceId, answeredAt: invoiceReviewQuestion.answeredAt })
+      .from(invoiceReviewQuestion)
+      .where(inArray(invoiceReviewQuestion.invoiceId, invoiceIds)),
   ]);
   const linesFor = new Map<string, typeof lines>();
   for (const line of lines) {
@@ -122,6 +127,9 @@ export async function listReviewQueue(
       const round = latestRoundNumber(recorded, own.length);
       const inLineReview = LINE_REVIEW_STATUS_CODES.includes(header.statusCode ?? '');
       const decided = inLineReview ? (chain ? (workingCount.get(chain.chainId) ?? 0) : 0) : round === null ? 0 : own.length;
+      // Until the round is finished, so the reviewer sees answers come back.
+      const ownQuestions = inLineReview ? questions.filter((question) => question.invoiceId === header.invoiceId) : [];
+      const answeredQuestionCount = ownQuestions.filter((question) => question.answeredAt).length;
 
       const flags: QueueFlag[] = [];
       if (header.caseId === null && !header.caseNumberAsTyped) {
@@ -177,6 +185,8 @@ export async function listReviewQueue(
         otherCaseNumbers: numbers?.otherNumbers ?? [],
         lineCount: own.length,
         decidedCount: decided,
+        openQuestionCount: ownQuestions.length - answeredQuestionCount,
+        answeredQuestionCount,
         approvedTotal: approvedTotal(recorded, round),
         // When the latest round's line review finished.
         finishedAt:

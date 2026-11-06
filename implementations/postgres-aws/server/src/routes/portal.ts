@@ -53,6 +53,7 @@ import { loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail'
 import { recallInvoice, setDraftCaseNumber, submitInvoice, updateDraftInvoice, withdrawInvoice } from '../billing/invoiceLifecycle';
 import { listReceiptChannels } from '../billing/invoiceReceipt';
 import { InvoiceNotFoundError } from '../billing/reviewInvoiceLine';
+import { answerQuestionAsSubmitter, mayAnswerAsSubmitter } from '../billing/reviewQuestions';
 import { asyncHandler } from './asyncHandler';
 import { sendFileDownload, sendFilePreview } from './sendUploadedFile';
 import { parseExportFormat, parseExportOmit, sendInvoiceExport } from './sendInvoiceExport';
@@ -271,6 +272,7 @@ function withoutReviewer(detail: InvoiceDetail) {
     approvedTotal: detail.approvedTotal,
     fileSource: detail.fileSource,
     submitterChanges: detail.submitterChanges,
+    questions: detail.questions,
     lines: detail.lines.map(({ decidedByDisplayName: _reviewer, decision, history, ...line }) => ({
       ...line,
       decision: decision ? anonymous(decision) : null,
@@ -286,7 +288,17 @@ router.get(
     const imported = await findImportForInvoice(db, detail.invoice.invoiceId);
     const reader = await sessionActor(req);
     const deletable = await isInvoiceDeletableBy(db, reader.userAccountId, detail.invoice.invoiceId);
-    res.json({ ...withoutReviewer(detail), import: imported ?? null, deletable });
+    res.json({ ...withoutReviewer(detail), import: imported ?? null, deletable, canAnswer: mayAnswerAsSubmitter(reader, detail.invoice) });
+  }),
+);
+
+router.post(
+  '/invoices/:id/questions/:questionId/answer',
+  asyncHandler(async (req, res) => {
+    await loadReadableOrThrow(req);
+    res.json(
+      await answerQuestionAsSubmitter(db, await sessionActor(req), req.params.id as string, req.params.questionId as string, req.body),
+    );
   }),
 );
 

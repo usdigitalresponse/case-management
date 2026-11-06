@@ -721,6 +721,31 @@ export const invoiceLineWorkingDecision = pgTable(
   (table) => [uniqueIndex('invoice_line_working_decision_line_uidx').on(table.invoiceApprovalChainId, table.invoiceLineId)],
 );
 
+// The reviewer's questions to the submitter and their answers, never changed
+// once recorded (model/rules.yaml ask_review_question).
+export const invoiceReviewQuestion = pgTable(
+  'invoice_review_question',
+  {
+    invoiceReviewQuestionId: uuid('invoice_review_question_id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
+    invoiceApprovalChainId: uuid('invoice_approval_chain_id')
+      .notNull()
+      .references(() => invoiceApprovalChain.invoiceApprovalChainId),
+    invoiceLineId: uuid('invoice_line_id')
+      .notNull()
+      .references(() => invoiceLine.invoiceLineId),
+    question: text('question').notNull(),
+    askedByUserAccountId: uuid('asked_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    askedAt: timestamp('asked_at', { withTimezone: true }).notNull(),
+    answer: text('answer'),
+    answeredByUserAccountId: uuid('answered_by_user_account_id').references(() => userAccount.userAccountId),
+    answeredAt: timestamp('answered_at', { withTimezone: true }),
+  },
+  (table) => [index('invoice_review_question_invoice_idx').on(table.invoiceId)],
+);
+
 // Who holds each review step; ended rows are the history
 // (model/rules.yaml assign_invoice_review).
 export const invoiceReviewAssignment = pgTable(

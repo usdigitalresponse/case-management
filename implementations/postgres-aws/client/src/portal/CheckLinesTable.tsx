@@ -4,22 +4,15 @@ import { useRef, useState, type ReactNode } from 'react';
 import type { FileLine, ImportWarning, InvoiceLineType } from '../api/client';
 import { emptyLine, isTimeKind, mileageItemPreview, tripParts, type DraftKind, type LineDraft } from '../components/InvoiceLinesEditor';
 import { TripFields } from '../components/TripFields';
-import { changedFields, changeSentence, formatQuantity, type Row } from '../fileChanges';
+import { changedFields, changeSentence, type Row } from '../fileChanges';
 import { formatMoney, formatRate } from '../formatMoney';
+import { formatLineRate, formatQuantity, lineKindLabel } from '../invoiceLineDisplay';
 import { formatDay } from './portalWording';
 import { priceOf, valuesOf, type PricingContext } from './checkLines';
 
-const TYPE_LABEL: Record<InvoiceLineType, string> = { time: 'Time', mileage: 'Mileage', expense: 'Expense', other: 'Other' };
-
 // Each line of a trip is its own row here.
 const typeLabel = (line: LineDraft) =>
-  line.tripKey && line.lineType === 'time'
-    ? 'Travel time'
-    : line.tripKey && line.lineType === 'expense'
-      ? 'Travel expense'
-      : line.lineType === 'waiting'
-        ? 'Waiting time'
-        : TYPE_LABEL[valuesOf(line).lineType];
+  lineKindLabel(valuesOf(line).lineType, { onTrip: Boolean(line.tripKey), waiting: line.lineType === 'waiting' });
 
 // The trip a time or expense row off a trip could join: a trip on the same
 // date, and for time, one without travel time yet. Grouping is optional.
@@ -241,6 +234,8 @@ export interface CheckLinesTableProps {
   onTrip: (index: number, tripKey: string | undefined, number: number) => void;
   // Read-only extras, such as a decision, by line index.
   extra?: (index: number) => ReactNode;
+  // A full-width row under a line, such as the billing office's questions.
+  detail?: (index: number) => ReactNode;
   footer: ReactNode;
   // An invoice entered by hand has no file to have missed lines from.
   addLabel?: string;
@@ -260,6 +255,7 @@ export function CheckLinesTable({
   onUndoChange,
   onTrip,
   extra,
+  detail,
   footer,
   addLabel = 'Add a line we missed',
 }: CheckLinesTableProps) {
@@ -301,10 +297,10 @@ export function CheckLinesTable({
                   <td>{row.number}</td>
                   <td><s>{formatDay(read.serviceDate)}</s></td>
                   <td>
-                    {TYPE_LABEL[lineType]} <span className="chip chip--neutral">Removed</span>
+                    {lineKindLabel(lineType)} <span className="chip chip--neutral">Removed</span>
                   </td>
                   <td className="amount">{formatQuantity(lineType, read.quantity)}</td>
-                  <td className="amount">{read.unitRate !== null ? formatRate(read.unitRate) : ''}</td>
+                  <td className="amount">{formatLineRate(lineType, read.unitRate)}</td>
                   <td className="amount"><s>{formatMoney(read.amount)}</s></td>
                   <td className="check-lines__actions">
                     {editable && (
@@ -333,6 +329,7 @@ export function CheckLinesTable({
           const isEditing = editing === number;
           const flagged = lineWarnings.length > 0 && fields.length === 0;
           const joinable = editable ? tripToJoin(allLines, line) : undefined;
+          const lineDetail = detail?.(index);
           return (
             <tbody
               key={`line-${index}-${location ?? 'added'}`}
@@ -361,7 +358,7 @@ export function CheckLinesTable({
                   {formatQuantity(values.lineType, values.quantity)}
                   {read && fields.includes('quantity') && <span className="cell-note">was {read.quantity ?? 0}</span>}
                 </td>
-                <td className="amount">{price.rate ? formatRate(price.rate) : ''}</td>
+                <td className="amount">{formatLineRate(values.lineType, price.rate || null)}</td>
                 <td className="amount">
                   <strong>{price.total === null ? '—' : formatMoney(price.total)}</strong>
                 </td>
@@ -416,6 +413,11 @@ export function CheckLinesTable({
                   )}
                 </td>
               </tr>
+              {lineDetail && (
+                <tr className="check-lines__detail-row" onClick={(event) => event.stopPropagation()}>
+                  <td colSpan={columns}>{lineDetail}</td>
+                </tr>
+              )}
               {isEditing && (
                 <tr className="check-lines__edit-row" onClick={(event) => event.stopPropagation()}>
                   <td colSpan={columns}>

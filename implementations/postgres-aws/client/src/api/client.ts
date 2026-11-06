@@ -1017,6 +1017,10 @@ export interface PortalInvoice {
   ruleFindings: RuleFinding[];
   fileSource: FileSource | null;
   submitterChanges: SubmitterChanges | null;
+  questions: ReviewQuestion[];
+  // Whether this user may answer its questions: whoever sent it, or the
+  // professional it bills for.
+  canAnswer: boolean;
 }
 
 export function deleteInvoice(invoiceId: string): Promise<{ invoiceId: string }> {
@@ -1392,6 +1396,9 @@ export interface ReviewQueueItem extends QueuedInvoice {
   otherCaseNumbers: string[];
   lineCount: number;
   decidedCount: number;
+  // Questions to the submitter, while the round isn't finished.
+  openQuestionCount: number;
+  answeredQuestionCount: number;
   // From the latest finished round; null until one is finished.
   approvedTotal: string | null;
   finishedAt: string | null;
@@ -1565,6 +1572,21 @@ export interface SignOff {
   decidedAt: string;
 }
 
+export interface ReviewQuestion {
+  invoiceReviewQuestionId: string;
+  invoiceLineId: string;
+  question: string;
+  // Staff only.
+  askedByDisplayName: string | null;
+  askedAt: string;
+  answer: string | null;
+  // Staff only.
+  answeredByDisplayName: string | null;
+  answeredAt: string | null;
+}
+
+export const MAX_QUESTION_LENGTH = 500;
+
 export interface InvoiceReview {
   invoice: QueuedInvoice;
   // This professional's pre-authorization on the case, if there is one.
@@ -1576,6 +1598,7 @@ export interface InvoiceReview {
   round: number | null;
   approvedTotal: string | null;
   signOffs: SignOff[];
+  questions: ReviewQuestion[];
   assignments: { reviewer: AssignedPerson | null; signOff: Array<AssignedPerson & { position: number }> } | null;
   // Staff only, while waiting for sign-off: who signs next, and whether
   // anyone has signed this round (which ends reopening).
@@ -1637,6 +1660,22 @@ export function reopenReview(invoiceId: string): Promise<unknown> {
 
 export function signOffInvoice(invoiceId: string, input: { outcome: 'approved' | 'changes_requested'; comment?: string }): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/sign-off`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function askQuestion(
+  invoiceId: string,
+  input: { question: string; invoiceLineId: string },
+): Promise<{ invoiceReviewQuestionId: string; statusCode: string }> {
+  return request(`/api/invoices/${invoiceId}/questions`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+// Staff answer through /api/invoices (recording a reply received another
+// way); the submitter through /api/portal/invoices.
+export function answerQuestion(invoiceId: string, questionId: string, answer: string, portal = false): Promise<{ statusCode: string }> {
+  return request(`/api/${portal ? 'portal/' : ''}invoices/${invoiceId}/questions/${questionId}/answer`, {
+    method: 'POST',
+    body: JSON.stringify({ answer }),
+  });
 }
 
 // forCase, forPerson: also send that case's, or that sender's, new invoices to them.
