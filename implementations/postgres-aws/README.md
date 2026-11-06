@@ -72,7 +72,10 @@ Open http://localhost:5173 and click "Demo sign-in." The staff app opens on
 the invoice review queue, filtered to invoices assigned to you; choose "To
 review" for everyone's. The seed leaves invoices signed off, waiting for
 sign-off, part-reviewed, assigned and unassigned, one waiting past the
-callout and one billed above the configured rate. Settings has the demo
+callout and one billed above the configured rate. Three are yours: one
+part-reviewed and waiting for the sender's answer to your question, one
+just submitted and billed above the configured rate, and one another
+reviewer finished, with a changed rate, for you to sign off. Settings has the demo
 reviewers' and approver's roles, the sign-off default and the callout
 threshold. The demo partner also has invoices uploaded as synthetic PDFs
 (`src/db/demoUploads.ts`): one not yet checked, one with a changed and a
