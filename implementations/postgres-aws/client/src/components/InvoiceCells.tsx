@@ -22,10 +22,8 @@ export const caseNumberColumn: RecordTableColumn<ReviewQueueItem> = {
   ),
 };
 
-// For each invoice list's county control (./CountyListControl.tsx).
 export const countyOfInvoice = (invoice: ReviewQueueItem) => ({ countyId: invoice.countyId, displayName: invoice.countyDisplayName });
 
-// Under the case number, whose county it is.
 function CountyNote({ invoice }: { invoice: ReviewQueueItem }) {
   return invoice.countyDisplayName ? <span className="cell-note">{invoice.countyDisplayName}</span> : null;
 }

@@ -31,7 +31,7 @@ interface DemoFile {
   client: string;
   // Printed as "Case No. …" and read from the file; left out on one.
   caseNumber?: string;
-  // Printed under it, naming the county as invoices do; the county read from it.
+  // Printed under it, naming the county; and the county expected back.
   courtLine?: string;
   county?: string;
   items: Item[];

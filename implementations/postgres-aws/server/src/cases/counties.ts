@@ -82,9 +82,8 @@ export async function listCounties(db: DatabaseOrTransaction): Promise<CountyOpt
     .orderBy(asc(county.isCounty), asc(county.displayName));
 }
 
-// The county to record: undefined when none was given. A typed name reuses
-// the active county with its key, else adds one, audited; one an
-// administrator retired stays retired.
+// Undefined when none was given. A typed name reuses the county with its
+// key, or adds one (audited); a retired one is refused, not reactivated.
 export async function resolveCounty(tx: Transaction, actorUserAccountId: string, choice: CountyChoice): Promise<string | null | undefined> {
   if (choice.countyName) {
     const displayName = choice.countyName.replace(/\s+/g, ' ');

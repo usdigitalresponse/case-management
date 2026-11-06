@@ -567,8 +567,7 @@ export interface SavedCounty {
   displayName: string;
 }
 
-// countyId null clears it; countyName adds one not listed, or reuses one
-// with the same name.
+// countyId null clears it; countyName adds one, or reuses one with that name.
 export interface CountyChoice {
   countyId?: string | null;
   countyName?: string;

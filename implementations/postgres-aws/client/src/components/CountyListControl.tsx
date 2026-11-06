@@ -1,6 +1,5 @@
-// Every list of cases or invoices narrows or groups its rows by county with
-// one control: settings such as post-conviction first, then the counties its
-// rows have, then those with none.
+// One control on every list of cases or invoices to filter or group its rows
+// by county (../counties.ts).
 import { useState } from 'react';
 import { listCounties } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';

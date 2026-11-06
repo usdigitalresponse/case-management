@@ -1,6 +1,5 @@
-// A reviewer changes a sent invoice's county, as they correct its case
-// number (./correctCaseNumber.ts). Audited with the county shown before, and
-// the invoice's own (absent under a case that has one).
+// A reviewer changes a sent invoice's county; audited with the county shown
+// before and the invoice's own.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';

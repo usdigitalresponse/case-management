@@ -1,6 +1,5 @@
-// Every county picker: it matches as the person types, lists settings such
-// as post-conviction before counties, and first offers to add a county that
-// isn't listed, saved by whoever owns the value (countyChoiceOf).
+// Every county picker: matches as you type, settings first, and an option to
+// add a county not listed, which the caller saves (countyChoiceOf).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useCombobox } from 'downshift';
 import { apiErrorMessage, listCounties, type CountyChoice, type CountyOption, type SavedCounty } from '../api/client';
@@ -42,7 +41,7 @@ export function CountyPicker({
   const { matches, addName } = countyMatches(options, query);
   const items: Item[] = [...(addName ? [{ add: addName }] : []), ...matches.map((option) => ({ option }))];
 
-  const { isOpen, highlightedIndex, getInputProps, getMenuProps, getItemProps, openMenu } = useCombobox<Item>({
+  const { isOpen, highlightedIndex, getInputProps, getMenuProps, getItemProps } = useCombobox<Item>({
     items,
     inputValue,
     selectedItem: null,
@@ -80,10 +79,8 @@ export function CountyPicker({
             disabled={disabled}
             aria-invalid={Boolean(error) || undefined}
             aria-describedby={`${id}-hint`}
+            // Not opened on focus: downshift's click toggle would close it again.
             {...getInputProps({
-              onFocus: () => {
-                if (!isOpen) openMenu();
-              },
               // Typed text nobody chose goes back to what is saved.
               onBlur: () => setInputValue(value?.displayName ?? ''),
             })}

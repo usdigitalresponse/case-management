@@ -43,8 +43,8 @@ export interface CountyRow {
   displayName?: string | null;
 }
 
-// Rows in their order, or grouped: settings first, then counties by name,
-// then those with none. Each group keeps the list's own order.
+// Grouped: settings, then counties as listed, then none, each group keeping
+// the list's order.
 export function applyCountyControl<T>(rows: T[], countyOf: (row: T) => CountyRow, choice: string, options: CountyOption[]): T[] {
   if (choice === ALL_COUNTIES) return rows;
   if (choice === NO_COUNTY) return rows.filter((row) => !countyOf(row).countyId);

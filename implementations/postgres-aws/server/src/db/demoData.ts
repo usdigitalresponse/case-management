@@ -278,7 +278,7 @@ async function seedDemoAssignments(
 // As senders typed them: some shared, one without dashes, and the review
 // invoice below a close match, so the queue's match notes show.
 const TYPED_CASE_NUMBERS = ['26-CR-00211', '26-CR-00214', '26CR230', '26-CR-00211', '26-CR-00245'];
-// Their counties, by name, including the settings recorded in a county's place.
+// Their counties, settings included.
 const DEMO_COUNTIES = ['County A', 'County B', 'Post-conviction', 'County A', 'Prison'];
 
 // By demo vendor kind (DEMO_VENDOR_KINDS).
