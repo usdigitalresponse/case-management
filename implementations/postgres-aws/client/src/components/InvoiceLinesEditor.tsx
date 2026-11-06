@@ -292,6 +292,7 @@ export function linesFromDrafts(drafts: LineDraft[]): CreateInvoiceLineInput[] {
           description,
           quantity: Number(draft.quantity) > 0 ? Number(draft.quantity) : undefined,
           sourceTimeEntryId: draft.sourceTimeEntryId || undefined,
+          invoiceLineId: draft.invoiceLineId,
           ...((draft.tripKey || draft.lineType === 'mileage') && { tripKey: draft.tripKey, ...route }),
         },
       ];
@@ -307,11 +308,12 @@ export function linesFromDrafts(drafts: LineDraft[]): CreateInvoiceLineInput[] {
               description,
               quantity: Number(draft.travelHours) > 0 ? Number(draft.travelHours) : undefined,
               sourceTimeEntryId: draft.travelTime?.sourceTimeEntryId || undefined,
+              invoiceLineId: draft.travelTime?.invoiceLineId,
             },
           ]
         : []),
       ...(Number(draft.quantity) > 0
-        ? [{ ...draft.carried, ...trip, lineType: 'mileage' as const, description, quantity: Number(draft.quantity) }]
+        ? [{ ...draft.carried, ...trip, lineType: 'mileage' as const, description, quantity: Number(draft.quantity), invoiceLineId: draft.invoiceLineId }]
         : []),
       ...travelCostsOf(draft).map((cost) => ({
         ...cost.carried,
@@ -319,6 +321,7 @@ export function linesFromDrafts(drafts: LineDraft[]): CreateInvoiceLineInput[] {
         lineType: 'expense' as const,
         description: cost.description.trim() || undefined,
         amount: Number(cost.amount),
+        invoiceLineId: cost.invoiceLineId,
       })),
     ];
   });

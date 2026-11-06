@@ -4,11 +4,12 @@
 import { asc, eq } from 'drizzle-orm';
 import PDFDocument from 'pdfkit';
 import { db } from './client';
-import { caseAssignment, caseTable, expenseTypes, invoiceLine, invoiceLineTypes, person, professional } from './schema';
+import { caseAssignment, caseTable, expenseTypes, invoice, invoiceLine, invoiceLineTypes, person, professional } from './schema';
 import { documentStore } from '../imports/documentStore';
 import { createDraftFromUpload, getUploadRead, startUploadRead } from '../imports/splitByCase';
 import { confirmInvoiceImport } from '../imports/invoiceImports';
 import { submitInvoice, updateDraftInvoice } from '../billing/invoiceLifecycle';
+import { reviewInvoiceLine } from '../billing/reviewInvoiceLine';
 import { createInvoice } from '../portal/createInvoice';
 import type { PortalActor } from '../portal/portalActor';
 
@@ -98,7 +99,8 @@ async function upload(actor: PortalActor, fileName: string, bytes: Buffer): Prom
 }
 
 // Filed by person: no case, whom it is from (null: chosen on Intake).
-async function uploadDraft(actor: PortalActor, professionalId: string | null, file: DemoFile, fileName: string) {
+// enterInReview: a reviewer's upload, straight into their own review.
+async function uploadDraft(actor: PortalActor, professionalId: string | null, file: DemoFile, fileName: string, enterInReview = false) {
   const { uploadReadId, caseNumber } = await upload(actor, fileName, await drawInvoice(file));
   if (caseNumber !== (file.caseNumber ?? null)) {
     throw new Error(`Demo upload ${fileName} read case number ${caseNumber ?? 'none'}, not ${file.caseNumber ?? 'none'}.`);
@@ -111,6 +113,7 @@ async function uploadDraft(actor: PortalActor, professionalId: string | null, fi
     periodEnd: file.periodEnd,
     invoiceNumber: file.invoiceNumber,
     caseNumber: caseNumber ?? undefined,
+    enterInReview,
   });
 }
 
@@ -269,7 +272,8 @@ export async function seedDemoUploads(input: {
     ],
   });
 
-  // Received by email and uploaded by staff for the partner, not sent yet.
+  // Received by email and uploaded by the demo sign-in, who reviews: being
+  // entered in their own review, its first line decided, to finish later.
   const staff: PortalActor = { userAccountId: input.staffUserAccountId, professionalId: undefined };
   const held: DemoFile = {
     invoiceNumber: 'SYN-2026-1007',
@@ -279,5 +283,16 @@ export async function seedDemoUploads(input: {
     caseNumber: '26-CR-00261',
     items: partnerItems('10').slice(0, 4),
   };
-  await uploadDraft(staff, partner.professionalId, held, 'Example_emailed_invoice_Oct2026.pdf');
+  const entered = await uploadDraft(staff, partner.professionalId, held, 'Example_emailed_invoice_Oct2026.pdf', true);
+  const [first] = await db
+    .select({ invoiceLineId: invoiceLine.invoiceLineId })
+    .from(invoiceLine)
+    .where(eq(invoiceLine.invoiceId, entered.invoiceId))
+    .orderBy(asc(invoiceLine.position))
+    .limit(1);
+  const [version] = await db.select({ linesVersion: invoice.linesVersion }).from(invoice).where(eq(invoice.invoiceId, entered.invoiceId));
+  await reviewInvoiceLine(db, input.staffUserAccountId, entered.invoiceId, first!.invoiceLineId, {
+    outcome: 'approved',
+    linesVersion: version!.linesVersion,
+  });
 }

@@ -1,5 +1,6 @@
 // On the review page: what the submitter changed from their file, and the
 // lines they removed, which need no decision.
+import { Fragment } from 'react';
 import type { FileLine, FileSource, InvoiceLineType, InvoiceReviewLine } from '../api/client';
 import { changedFields, readLineType, tracksSource, type LineValues } from '../fileChanges';
 import { formatQuantity } from '../invoiceLineDisplay';
@@ -95,31 +96,38 @@ export function wasAmount(line: InvoiceReviewLine, read: FileLine | undefined, f
   return read && fields.length > 0 && read.amount !== null && Math.abs(read.amount - Number(line.amount)) >= 0.005 ? formatMoney(read.amount) : null;
 }
 
-export function RemovedLines({ removed, who }: { removed: FileLine[]; who: string }) {
+export function RemovedLines({ removed, who, when = 'before sending' }: { removed: FileLine[]; who: string; when?: string }) {
   if (removed.length === 0) {
     return null;
   }
   return (
     <div className="data-card removed-lines">
       <table className="usa-table usa-table--borderless">
-        <caption>Removed by {who} before sending</caption>
+        <caption>Removed by {who} {when}</caption>
         <tbody>
           {removed.map((read) => {
             const lineType = readLineType(read);
+            // What was done has the full width under the figures, as on the lines above.
             return (
-              <tr key={read.location}>
-                <td>{read.serviceDate ? formatDate(read.serviceDate) : '—'}</td>
-                <td>
-                  <s>{read.description ?? '—'}</s>
-                  <span className="chip chip--neutral">Removed by {who}</span>
-                </td>
-                <td className="amount">{formatQuantity(lineType, read.quantity)}</td>
-                <td className="amount">{read.unitRate !== null ? formatRate(read.unitRate) : ''}</td>
-                <td className="amount">
-                  <s>{formatMoney(read.amount)}</s>
-                </td>
-                <td className="muted">Not on the invoice. Nothing to decide.</td>
-              </tr>
+              <Fragment key={read.location}>
+                <tr className="has-note">
+                  <td>{read.serviceDate ? formatDate(read.serviceDate) : '—'}</td>
+                  <td>
+                    <span className="chip chip--neutral">Removed by {who}</span>
+                  </td>
+                  <td className="amount">{formatQuantity(lineType, read.quantity)}</td>
+                  <td className="amount">{read.unitRate !== null ? formatRate(read.unitRate) : ''}</td>
+                  <td className="amount">
+                    <s>{formatMoney(read.amount)}</s>
+                  </td>
+                  <td className="muted">Not on the invoice. Nothing to decide.</td>
+                </tr>
+                <tr className="note-row">
+                  <td colSpan={6}>
+                    <s>{read.description ?? '—'}</s>
+                  </td>
+                </tr>
+              </Fragment>
             );
           })}
         </tbody>

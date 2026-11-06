@@ -10,6 +10,7 @@ import {
   type ImportPreview,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { countOf } from '../portal/importProgress';
 
 const PdfPages = lazy(() => import('./PdfPages'));
 
@@ -118,7 +119,7 @@ export function OriginalDocument({
         <div className="original-document__tools">
           {pageCount > 1 && (
             <span className="original-document__page" aria-live="polite">
-              Page {currentPage} of {pageCount}
+              Page&nbsp;{countOf(currentPage, pageCount)}
             </span>
           )}
           {data && (

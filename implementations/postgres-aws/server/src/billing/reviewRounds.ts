@@ -28,6 +28,9 @@ import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments, lockInvoiceForReview, SIGN
 import { requireReviewPermission } from './reviewAccess';
 import { OTHER_REASON_CODE } from './decisionReasons';
 import { fromCents, toCents } from './money';
+import { closeEntry, entryIsOpen } from './enterInReview';
+import { receiptInputSchema } from './invoiceReceipt';
+import { fieldErrorsFromZodIssues } from '../intake/validation';
 
 export async function currentChainId(db: DatabaseOrTransaction, invoiceId: string): Promise<string | undefined> {
   const [chain] = await db
@@ -172,7 +175,13 @@ async function seedWorkingFromRound(tx: Transaction, chainId: string, round: num
   }
 }
 
-export async function finishReview(db: Database, actorUserAccountId: string, invoiceId: string) {
+// Finishing the first round of an invoice entered in review also freezes
+// it, with how it was received (rawReceipt).
+export async function finishReview(db: Database, actorUserAccountId: string, invoiceId: string, rawReceipt: unknown = {}) {
+  const receipt = receiptInputSchema.safeParse(rawReceipt ?? {});
+  if (!receipt.success) {
+    throw new ValidationError(fieldErrorsFromZodIssues(receipt.error.issues));
+  }
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
   return db.transaction(async (tx) => {
     const locked = await lockInvoiceForReview(tx, invoiceId);
@@ -190,6 +199,9 @@ export async function finishReview(db: Database, actorUserAccountId: string, inv
       throw new ValidationError({ signOff: 'Choose who signs off before finishing the review.' });
     }
     const chainId = (await currentChainId(tx, invoiceId)) as string;
+    if (await entryIsOpen(tx, invoiceId)) {
+      await closeEntry(tx, actorUserAccountId, invoiceId, chainId, receipt.data);
+    }
     const [lines, working, otherReasonId] = await Promise.all([
       tx.select({ invoiceLineId: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)),
       tx.select().from(invoiceLineWorkingDecision).where(eq(invoiceLineWorkingDecision.invoiceApprovalChainId, chainId)),

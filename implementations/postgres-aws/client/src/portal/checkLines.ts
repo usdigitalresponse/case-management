@@ -90,7 +90,7 @@ const lineList = (numbers: number[]) =>
   numbers.length === 1 ? `line ${numbers[0]}` : `lines ${numbers.slice(0, -1).join(', ')} and ${numbers.at(-1)}`;
 
 // The notice above the lines: the file's total beside the lines', and why
-// they differ when the submitter's changes explain it.
+// they differ when the changes of whoever is entering it explain it.
 export function totalsNotice({
   source,
   askingFor,
@@ -99,6 +99,7 @@ export function totalsNotice({
   added,
   duplicates,
   warningLine,
+  ownFile = true,
 }: {
   source: FileSource | null;
   askingFor: number | null;
@@ -108,10 +109,14 @@ export function totalsNotice({
   duplicates: Map<number, number>;
   // The first line a reading warning names, with its message.
   warningLine: { number: number; message: string } | null;
+  // False for staff entering someone else's invoice.
+  ownFile?: boolean;
 }): TotalsNotice | null {
   if (!source || askingFor === null) {
     return null;
   }
+  const file = ownFile ? 'your file' : 'the file';
+  const File = ownFile ? 'Your file' : 'The file';
   const readTotal = sum(source.lines.map((line) => line.amount ?? 0));
   const fileSays = source.statedTotal ?? readTotal;
   const firstDuplicate = [...duplicates.entries()][0];
@@ -122,13 +127,13 @@ export function totalsNotice({
     const check = warningLine ? ` Check line ${warningLine.number}: ${warningLine.message.charAt(0).toLowerCase()}${warningLine.message.slice(1)}` : '';
     return {
       tone: 'warning',
-      text: `Your file says the total is ${formatMoney(fileSays)}. The lines we read add up to ${formatMoney(readTotal)}, which is ${formatMoney(difference)} ${readTotal > fileSays ? 'more' : 'less'}.${check}`,
+      text: `${File} says the total is ${formatMoney(fileSays)}. The lines we read add up to ${formatMoney(readTotal)}, which is ${formatMoney(difference)} ${readTotal > fileSays ? 'more' : 'less'}.${check}`,
     };
   }
   if (cents(askingFor) === cents(fileSays)) {
     return {
       tone: 'success',
-      text: `The lines add up to ${formatMoney(askingFor)}, the same as the total on your file.${duplicateHint}`,
+      text: `The lines add up to ${formatMoney(askingFor)}, the same as the total on ${file}.${duplicateHint}`,
     };
   }
   const reasons = [
@@ -140,8 +145,10 @@ export function totalsNotice({
   return {
     tone: reasons.length > 0 ? 'success' : 'warning',
     text:
-      `Your lines add up to ${formatMoney(askingFor)}. That is ${formatMoney(difference)} ${askingFor > fileSays ? 'more' : 'less'} than your file` +
-      (reasons.length > 0 ? `, because ${reasons.join(' and ')}. Reviewers will see your file and every change you made.` : '.') +
+      `${ownFile ? 'Your lines' : 'The lines'} add up to ${formatMoney(askingFor)}. That is ${formatMoney(difference)} ${askingFor > fileSays ? 'more' : 'less'} than ${file}` +
+      (reasons.length > 0
+        ? `, because ${reasons.join(' and ')}. ${ownFile ? 'Reviewers will see your file and every change you made.' : 'The file and every change stay on the invoice.'}`
+        : '.') +
       duplicateHint,
   };
 }

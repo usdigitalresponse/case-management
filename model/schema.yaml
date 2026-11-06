@@ -539,6 +539,10 @@ entities:
         type: object
         required: false
         description: Provider details a submitter entered because the provider wasn't listed (name, and optionally email and kind). Unverified, handled and kept like proposed_case.
+      entered_in_review:
+        type: boolean
+        required: false
+        description: True when a reviewing staff member entered the request straight into their own review (enter_request_in_review); absent means false. Its lines stay editable until the attempt's snapshot is frozen on finishing the first round.
 
   invoice_line:
     display_name: Invoice Line

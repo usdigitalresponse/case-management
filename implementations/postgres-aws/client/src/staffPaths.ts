@@ -6,3 +6,7 @@ export function searchPath(query: string): string {
 export function personPath(professionalId: string): string {
   return `/people/${professionalId}`;
 }
+
+export function reviewPath(invoiceId: string): string {
+  return `/billing/${invoiceId}`;
+}

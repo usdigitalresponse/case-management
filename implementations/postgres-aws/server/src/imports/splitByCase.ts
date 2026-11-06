@@ -22,6 +22,7 @@ import { suggestUploadCase, uploadCases } from './caseSuggestions';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { mileageRateOn, mileageRatesFor } from '../billing/mileageRates';
 import { caseNumberInput, cleanCaseNumber, readCaseNumber } from '../billing/caseNumbers';
+import { enterInReviewInTx } from '../billing/enterInReview';
 
 export interface SplitCase {
   caseId: string;
@@ -402,6 +403,9 @@ const uploadDraftSchema = z
     periodEnd: z.iso.date('Enter the last day of the billing period.').optional(),
     invoiceNumber: z.string().trim().max(100, 'Keep the invoice number under 100 characters.').optional(),
     caseNumber: caseNumberInput.optional(),
+    // A reviewing staff member's draft goes straight into their own review
+    // (../billing/enterInReview.ts).
+    enterInReview: z.boolean().optional(),
   })
   .refine((input) => Boolean(input.periodStart) === Boolean(input.periodEnd), {
     message: 'Enter both days of the billing period, or neither.',
@@ -477,6 +481,9 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
           periodEnd: input.periodEnd ?? null,
           documentId,
         });
+      }
+      if (input.enterInReview) {
+        await enterInReviewInTx(tx, actor.userAccountId, invoiceId);
       }
       return { invoiceImportId: importId, invoiceId };
     });

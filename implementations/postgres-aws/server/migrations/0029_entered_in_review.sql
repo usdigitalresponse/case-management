@@ -1,0 +1,1 @@
+ALTER TABLE "invoice" ADD COLUMN "entered_in_review" boolean DEFAULT false NOT NULL;

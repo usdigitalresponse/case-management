@@ -29,6 +29,7 @@ import { claimLineReview, lockInvoiceForReview } from './reviewAssignment';
 import { requireReviewPermission } from './reviewAccess';
 import { OTHER_REASON_CODE, RATE_REASON_CODE, reasonAppliesTo } from './decisionReasons';
 import { loadRateLimits, rateLimitFor } from './preauthorizations';
+import { requireCurrentEntryLines } from './enterInReview';
 
 export const reviewOutcomeSchema = z.enum(['approved', 'approved_in_part', 'rejected']);
 export type ReviewOutcome = z.infer<typeof reviewOutcomeSchema>;
@@ -42,7 +43,14 @@ export const reviewInvoiceLineInputSchema = z.object({
   approvedAmount: z.coerce.number().positive().optional(),
   reasonCode: z.string().trim().min(1).optional(),
   note: z.string().trim().max(2000).optional(),
+  // While lines are still being entered: the version the deciding page showed.
+  linesVersion: z.number().int().nonnegative().optional(),
 });
+
+const linesVersionOf = (raw: unknown): number | undefined => {
+  const parsed = z.object({ linesVersion: z.number().int().nonnegative() }).safeParse(raw);
+  return parsed.success ? parsed.data.linesVersion : undefined;
+};
 
 export class InvoiceNotFoundError extends NotFoundError {
   constructor() {
@@ -63,13 +71,15 @@ export class InvoiceNotInReviewError extends ConflictError {
 }
 
 // Locks the invoice, checks it is reviewable by this actor (taking it if
-// unassigned) and returns its current chain.
-async function beginLineChange(tx: Transaction, actorUserAccountId: string, invoiceId: string) {
+// unassigned), and while its lines are being entered that the deciding page
+// showed the latest of them; returns its current chain.
+async function beginLineChange(tx: Transaction, actorUserAccountId: string, invoiceId: string, linesVersion: number | undefined) {
   const locked = await lockInvoiceForReview(tx, invoiceId);
   if (!LINE_REVIEW_STATUS_CODES.includes(locked.statusCode)) {
     throw new InvoiceNotInReviewError();
   }
   await claimLineReview(tx, invoiceId, actorUserAccountId);
+  await requireCurrentEntryLines(tx, invoiceId, actorUserAccountId, linesVersion);
   // Submission creates the chain; only invoices submitted before that
   // existed get one here, without a snapshot.
   const [existing] = await tx
@@ -130,7 +140,7 @@ export async function reviewInvoiceLine(
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
 
   return db.transaction(async (tx) => {
-    const { locked, chainId } = await beginLineChange(tx, actorUserAccountId, invoiceId);
+    const { locked, chainId } = await beginLineChange(tx, actorUserAccountId, invoiceId, input.linesVersion);
     const [line] = await tx
       .select({ amount: invoiceLine.amount, quantity: invoiceLine.quantity, billedRate: invoiceLine.billedRate })
       .from(invoiceLine)
@@ -223,10 +233,10 @@ export async function reviewInvoiceLine(
 }
 
 // Undo: the line is undecided again. Nothing is recorded.
-export async function undoLineDecision(db: Database, actorUserAccountId: string, invoiceId: string, invoiceLineId: string) {
+export async function undoLineDecision(db: Database, actorUserAccountId: string, invoiceId: string, invoiceLineId: string, rawInput: unknown = {}) {
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
   return db.transaction(async (tx) => {
-    const { chainId } = await beginLineChange(tx, actorUserAccountId, invoiceId);
+    const { chainId } = await beginLineChange(tx, actorUserAccountId, invoiceId, linesVersionOf(rawInput));
     await tx
       .delete(invoiceLineWorkingDecision)
       .where(
@@ -241,10 +251,10 @@ export async function undoLineDecision(db: Database, actorUserAccountId: string,
 
 // Approves in part, at the pre-authorized rate (else the configured one),
 // every undecided time line billed above it.
-export async function repriceLines(db: Database, actorUserAccountId: string, invoiceId: string) {
+export async function repriceLines(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown = {}) {
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
   return db.transaction(async (tx) => {
-    const { locked, chainId } = await beginLineChange(tx, actorUserAccountId, invoiceId);
+    const { locked, chainId } = await beginLineChange(tx, actorUserAccountId, invoiceId, linesVersionOf(rawInput));
     const [header] = await tx
       .select({ caseId: invoice.caseId, professionalId: invoice.professionalId })
       .from(invoice)

@@ -112,18 +112,29 @@ export function DecisionPanel({
   const requestedCents = cents(line.amount);
   const approvedCents = byHours ? cents(Number(hours) * Number(rate)) : cents(Number(amount));
   const validAmount = Number.isFinite(approvedCents) && approvedCents > 0 && approvedCents < requestedCents;
-  // A changed rate, up or down, needs no reason; sign-off sees it flagged.
-  const rateCents = cents(Number(line.quantity) * Number(rate));
-  const validRate = Number(rate) > 0 && Number(rate) !== Number(line.billedRate);
-  const needsReason = mode === 'approved_in_part' || mode === 'rejected';
+  // The same hours at a higher rate approve more than was asked: no reason
+  // is needed, and sign-off sees the changed rate flagged.
+  const raised =
+    mode === 'approved_in_part' &&
+    byHours &&
+    Number(hours) === Number(line.quantity) &&
+    Number(rate) > 0 &&
+    Number(rate) !== Number(line.billedRate) &&
+    approvedCents >= requestedCents;
+  const needsReason = mode === 'rejected' || (mode === 'approved_in_part' && !raised);
 
   function submit(event: FormEvent) {
     event.preventDefault();
     if (mode === 'note') {
-      onSubmit({ outcome: 'approved', note: note.trim() || undefined });
+      // An approval at a changed rate, higher or lower, keeps it.
+      const kept =
+        initial?.outcomeCode === 'approved' && initial.approvedRate
+          ? { approvedRate: Number(initial.approvedRate), approvedQuantity: initial.approvedQuantity ? Number(initial.approvedQuantity) : undefined }
+          : {};
+      onSubmit({ outcome: 'approved', ...kept, note: note.trim() || undefined });
       return;
     }
-    if (mode === 'rate') {
+    if (raised) {
       onSubmit({ outcome: 'approved', approvedRate: Number(rate), note: note.trim() || undefined });
       return;
     }
@@ -142,11 +153,11 @@ export function DecisionPanel({
   const title =
     mode === 'note'
       ? 'Add a note to this approval'
-      : mode === 'rate'
-        ? 'Approve at a different rate'
-        : mode === 'rejected'
+      : mode === 'rejected'
         ? `Reject the ${formatMoney(line.amount)} on this line`
-        : `Approve part of the ${formatMoney(line.amount)} on this line`;
+        : byHours
+          ? `Approve part of the ${formatMoney(line.amount)} on this line, or change its rate`
+          : `Approve part of the ${formatMoney(line.amount)} on this line`;
   const prefix = `line-${line.invoiceLineId}`;
 
   return (
@@ -177,41 +188,28 @@ export function DecisionPanel({
                 <input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} />
               </label>
             )}
-            {validAmount ? (
+            {raised ? (
+              <p className="decision-panel__result">
+                <strong>You approve {formatMoney(approvedCents / 100)}</strong>
+                <span className="cell-note">
+                  {Number(line.quantity)} {miles ? 'miles' : 'hours'} at {formatRate(rate)}, instead of {formatMoney(line.amount)} at{' '}
+                  {formatRate(line.billedRate ?? '0')}. No reason needed; sign-off sees the changed rate flagged.
+                </span>
+              </p>
+            ) : validAmount ? (
               <p className="decision-panel__result">
                 <strong>You approve {formatMoney(approvedCents / 100)}</strong>
                 <span className="cell-note">
                   Cutting {formatMoney((requestedCents - approvedCents) / 100)} from this line
-                  {byHours ? `. Was ${Number(line.quantity)} ${miles ? 'miles' : 'hours'}.` : '.'}
+                  {byHours ? `. Was ${Number(line.quantity)} ${miles ? 'miles' : 'hours'} at ${formatRate(line.billedRate ?? '0')}.` : '.'}
                 </span>
               </p>
             ) : (
-              <p className="cell-note">Approve more than nothing and less than {formatMoney(line.amount)}.</p>
-            )}
-          </fieldset>
-        )}
-        {mode === 'rate' && (
-          <fieldset className="decision-panel__amount">
-            <legend>The rate to approve it at, higher or lower</legend>
-            <div className="inline-pair">
-              <label>
-                Rate{miles ? ' per mile' : ' per hour'}
-                <input type="number" step={miles ? '0.001' : '0.01'} min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
-              </label>
-              {line.configuredRate !== null && rate !== '' && Number(rate) !== Number(line.configuredRate) && (
-                <span className="line-rate-differs">Differs from the default {formatRate(line.configuredRate)}</span>
-              )}
-            </div>
-            {validRate ? (
-              <p className="decision-panel__result">
-                <strong>You approve {formatMoney(rateCents / 100)}</strong>
-                <span className="cell-note">
-                  {Number(line.quantity)} {miles ? 'miles' : 'hours'} at {formatRate(rate)}, instead of {formatMoney(line.amount)} at{' '}
-                  {formatRate(line.billedRate ?? '0')}. Sign-off sees the changed rate flagged.
-                </span>
+              <p className="cell-note">
+                {byHours
+                  ? `Approve less than ${formatMoney(line.amount)}, or keep the ${miles ? 'miles' : 'hours'} and raise the rate.`
+                  : `Approve more than nothing and less than ${formatMoney(line.amount)}.`}
               </p>
-            ) : (
-              <p className="cell-note">Enter a rate other than the billed {formatRate(line.billedRate ?? '0')}.</p>
             )}
           </fieldset>
         )}
@@ -246,8 +244,7 @@ export function DecisionPanel({
           disabled={
             saving ||
             (needsReason && !reasonCode) ||
-            (mode === 'approved_in_part' && !validAmount) ||
-            (mode === 'rate' && !validRate) ||
+            (mode === 'approved_in_part' && !validAmount && !raised) ||
             (reasonCode === 'other' && !note.trim())
           }
         >
@@ -255,13 +252,9 @@ export function DecisionPanel({
             ? 'Save note'
             : mode === 'rejected'
               ? 'Reject line'
-              : mode === 'rate'
-                ? validRate
-                  ? `Approve ${formatMoney(rateCents / 100)}`
-                  : 'Approve at this rate'
-                : validAmount
-                  ? `Approve ${formatMoney(approvedCents / 100)}`
-                  : 'Approve part'}
+              : validAmount || raised
+                ? `Approve ${formatMoney(approvedCents / 100)}`
+                : 'Approve part'}
         </button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
         {needsReason && !reasonCode && <span className="cell-note">Choose a reason first.</span>}
@@ -270,7 +263,7 @@ export function DecisionPanel({
   );
 }
 
-export type PanelMode = 'approved_in_part' | 'rejected' | 'note' | 'rate';
+export type PanelMode = 'approved_in_part' | 'rejected' | 'note';
 
 // Approved at a rate other than the one billed.
 export function rateChanged(line: Pick<InvoiceReviewLine, 'billedRate'>, decision: LineDecision | null): boolean {
@@ -291,8 +284,6 @@ export function DecisionCell({
   onPanel,
   onChanging,
   onUndoRejection,
-  asking,
-  onAsk,
 }: {
   line: InvoiceReviewLine;
   decision: LineDecision | null;
@@ -305,15 +296,7 @@ export function DecisionCell({
   onPanel: (mode: PanelMode | null) => void;
   onChanging: (changing: boolean) => void;
   onUndoRejection: () => void;
-  // Whether this line's question form is open, and toggling it.
-  asking: boolean;
-  onAsk: () => void;
 }) {
-  const askButton = (
-    <button type="button" className="link-button" aria-expanded={asking} onClick={onAsk}>
-      Ask the submitter
-    </button>
-  );
   if (canDecide && (!decision || changing)) {
     const toggle = (mode: PanelMode) => onPanel(openPanel === mode ? null : mode);
     return (
@@ -330,16 +313,6 @@ export function DecisionCell({
           >
             Approve part
           </button>
-          {hasHours(line) && (
-            <button
-              type="button"
-              className={`btn ${openPanel === 'rate' ? 'btn--primary' : 'btn--outline'}`}
-              aria-expanded={openPanel === 'rate'}
-              onClick={() => toggle('rate')}
-            >
-              Change rate
-            </button>
-          )}
           <button
             type="button"
             className={`btn ${openPanel === 'rejected' ? 'btn--danger-solid' : 'btn--danger'}`}
@@ -349,8 +322,7 @@ export function DecisionCell({
             Reject
           </button>
         </div>
-        {askButton}
-        {openPanel && openPanel !== 'rate' && <span className="cell-note decision-hint">Give a reason below</span>}
+        {openPanel && <span className="cell-note decision-hint">{openPanel === 'rejected' ? 'Give a reason below' : 'Correct it below'}</span>}
         {decision && (
           <button type="button" className="link-button" onClick={() => onChanging(false)}>
             Keep {decision.outcomeDisplayName.toLowerCase()}
@@ -373,13 +345,12 @@ export function DecisionCell({
               type="button"
               className="link-button"
               // A changed rate keeps its rate when its note is edited.
-              onClick={() => onPanel(rateChanged(line, decision) && decision.outcomeCode === 'approved' ? 'rate' : decision.outcomeCode === 'approved' ? 'note' : 'approved_in_part')}
+              onClick={() => onPanel(decision.outcomeCode === 'approved' ? 'note' : 'approved_in_part')}
             >
               {decision.note ? 'Edit note' : 'Add a note'}
             </button>
           )}
           <button type="button" className="link-button" onClick={() => onChanging(true)}>Change</button>
-          {askButton}
         </div>
       )}
     </RecordedDecision>

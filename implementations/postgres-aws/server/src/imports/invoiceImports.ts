@@ -726,70 +726,79 @@ async function withdrawImportDraft(tx: Transaction, invoiceId: string | null, by
 }
 
 export async function confirmInvoiceImport(db: Database, store: DocumentStore, actor: PortalActor, importId: string) {
-  const storageReference = await db.transaction(async (tx) => {
-    const row = await lockOwnImport(tx, actor, importId);
-    if (row.statusCode !== 'extracted' || !row.invoiceId) {
-      throw new InvoiceStateError('Only an import that was read successfully and not yet resolved can be confirmed.');
-    }
-    const draft = await lockDraft(tx, row.invoiceId);
-    if (!draft) {
-      throw new NotAssignedToCaseError();
-    }
-    await authorizeBilling(tx, actor, draft.caseId, draft.professionalId);
-    // A file designated to one professional is all their work, lines the
-    // submitter added included.
-    const [designation] = await tx
-      .select({ professionalId: sql<string | null>`${invoiceImport.extractionResult} ->> 'designated_professional_id'` })
-      .from(invoiceImport)
-      .where(eq(invoiceImport.invoiceImportId, importId));
-    const designated = designation?.professionalId;
-    if (designated) {
-      await tx
-        .update(invoiceLine)
-        .set({ timekeeperProfessionalId: designated })
-        .where(and(eq(invoiceLine.invoiceId, row.invoiceId), isNull(invoiceLine.timekeeperProfessionalId)));
-    }
-    // Someone the file names but no one chose is left for staff to match,
-    // as if the submitter had named them as new.
-    await tx
-      .update(invoiceLine)
-      .set({ proposedTimekeeperName: invoiceLine.timekeeperLabel })
-      .where(
-        and(
-          eq(invoiceLine.invoiceId, row.invoiceId),
-          isNull(invoiceLine.timekeeperProfessionalId),
-          isNull(invoiceLine.proposedTimekeeperName),
-          isNotNull(invoiceLine.timekeeperLabel),
-        ),
-      );
-    const lines = await tx
-      .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
-      .from(invoiceLine)
-      .where(eq(invoiceLine.invoiceId, row.invoiceId));
-    if (designated && lines.some((line) => line.timekeeperProfessionalId !== designated)) {
-      throw new ValidationError({ lines: 'Every item in this file is the work of the professional it was imported for.' });
-    }
-    if (lines.length === 0) {
-      throw new ValidationError({ lines: 'Add at least one invoice item before confirming.' });
-    }
-    await requireImportedDates(tx, row.invoiceId);
-    // From here the configured rates price each time line, not the file. With
-    // someone still to be matched, that waits until it's released to review.
-    const matched = draft.professionalId !== null && !(await hasUnmatchedTimekeepers(tx, row.invoiceId));
-    await priceLines(tx, row.invoiceId, {
-      billedProfessionalId: draft.professionalId,
-      unmatchedMeansBilled: true,
-      strict: matched,
-    });
-    if (matched) {
-      await enforceBillingRules(tx, row.invoiceId);
-    }
-    return resolveImport(tx, importId, row.documentId, CONFIRMED_IMPORT_STATUS_CODE, actor.userAccountId);
-  });
+  const storageReference = await db.transaction(async (tx) => confirmImportInTx(tx, actor, await lockOwnImport(tx, actor, importId)));
   if (storageReference) {
     await store.delete(storageReference);
   }
   return { invoiceImportId: importId };
+}
+
+// Confirms a locked import as `actor`, returning a file nothing needs any
+// more for the caller to delete after commit. An invoice entered in review
+// is confirmed this way by its reviewer (../billing/enterInReview.ts).
+export async function confirmImportInTx(
+  tx: Transaction,
+  actor: PortalActor,
+  row: { invoiceImportId: string; statusCode: string; invoiceId: string | null; documentId: string },
+): Promise<string | undefined> {
+  const importId = row.invoiceImportId;
+  if (row.statusCode !== 'extracted' || !row.invoiceId) {
+    throw new InvoiceStateError('Only an import that was read successfully and not yet resolved can be confirmed.');
+  }
+  const draft = await lockDraft(tx, row.invoiceId);
+  if (!draft) {
+    throw new NotAssignedToCaseError();
+  }
+  await authorizeBilling(tx, actor, draft.caseId, draft.professionalId);
+  // A file designated to one professional is all their work, lines the
+  // submitter added included.
+  const [designation] = await tx
+    .select({ professionalId: sql<string | null>`${invoiceImport.extractionResult} ->> 'designated_professional_id'` })
+    .from(invoiceImport)
+    .where(eq(invoiceImport.invoiceImportId, importId));
+  const designated = designation?.professionalId;
+  if (designated) {
+    await tx
+      .update(invoiceLine)
+      .set({ timekeeperProfessionalId: designated })
+      .where(and(eq(invoiceLine.invoiceId, row.invoiceId), isNull(invoiceLine.timekeeperProfessionalId)));
+  }
+  // Someone the file names but no one chose is left for staff to match,
+  // as if the submitter had named them as new.
+  await tx
+    .update(invoiceLine)
+    .set({ proposedTimekeeperName: invoiceLine.timekeeperLabel })
+    .where(
+      and(
+        eq(invoiceLine.invoiceId, row.invoiceId),
+        isNull(invoiceLine.timekeeperProfessionalId),
+        isNull(invoiceLine.proposedTimekeeperName),
+        isNotNull(invoiceLine.timekeeperLabel),
+      ),
+    );
+  const lines = await tx
+    .select({ timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId })
+    .from(invoiceLine)
+    .where(eq(invoiceLine.invoiceId, row.invoiceId));
+  if (designated && lines.some((line) => line.timekeeperProfessionalId !== designated)) {
+    throw new ValidationError({ lines: 'Every item in this file is the work of the professional it was imported for.' });
+  }
+  if (lines.length === 0) {
+    throw new ValidationError({ lines: 'Add at least one invoice item before confirming.' });
+  }
+  await requireImportedDates(tx, row.invoiceId);
+  // From here the configured rates price each time line, not the file. With
+  // someone still to be matched, that waits until it's released to review.
+  const matched = draft.professionalId !== null && !(await hasUnmatchedTimekeepers(tx, row.invoiceId));
+  await priceLines(tx, row.invoiceId, {
+    billedProfessionalId: draft.professionalId,
+    unmatchedMeansBilled: true,
+    strict: matched,
+  });
+  if (matched) {
+    await enforceBillingRules(tx, row.invoiceId);
+  }
+  return resolveImport(tx, importId, row.documentId, CONFIRMED_IMPORT_STATUS_CODE, actor.userAccountId);
 }
 
 // Allowed even if the uploader can no longer act for the case.

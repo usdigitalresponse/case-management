@@ -1,6 +1,7 @@
 // Deletes the submitter's draft or withdrawn request if no review decision
-// was ever recorded (model/workflows.yaml payment_request delete), with
-// everything that hangs off it.
+// was ever recorded, or an upload still being entered in review
+// (model/workflows.yaml payment_request delete), with everything that hangs
+// off it.
 import { z } from 'zod';
 import { and, eq, inArray, isNotNull, ne, notInArray, sql, type SQL } from 'drizzle-orm';
 import type { Database } from '../db/client';
@@ -13,6 +14,7 @@ import {
   invoiceEvent,
   invoiceImport,
   invoiceLine,
+  invoiceLineWorkingDecision,
   invoiceReviewAssignment,
   invoiceStatuses,
   supportingInvoice,
@@ -25,6 +27,7 @@ import type { PortalActor } from '../portal/portalActor';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { InvoiceStateError } from './invoiceLifecycle';
 import { UNSUBMITTED_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
+import { canDiscardEntry } from './enterInReview';
 
 const reviewStarted = sql`exists (
   select 1 from ${invoiceApprovalDecision}
@@ -69,14 +72,19 @@ export async function deleteUnsubmittedInvoice(
       .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
       .where(eq(invoice.invoiceId, invoiceId))
       .for('update', { of: invoice });
-    if (!locked || locked.submittedBy !== actor.userAccountId) {
+    if (!locked) {
       throw new InvoiceNotFoundError();
     }
-    if (!UNSUBMITTED_INVOICE_STATUS_CODES.includes(locked.statusCode)) {
-      throw new InvoiceStateError('Only a draft or withdrawn invoice can be deleted.');
-    }
-    if (locked.reviewStarted) {
-      throw new InvoiceStateError('This invoice has review decisions, so it is kept; withdraw it instead.');
+    if (!(await canDiscardEntry(tx, actor.userAccountId, invoiceId))) {
+      if (locked.submittedBy !== actor.userAccountId) {
+        throw new InvoiceNotFoundError();
+      }
+      if (!UNSUBMITTED_INVOICE_STATUS_CODES.includes(locked.statusCode)) {
+        throw new InvoiceStateError('Only a draft or withdrawn invoice can be deleted.');
+      }
+      if (locked.reviewStarted) {
+        throw new InvoiceStateError('This invoice has review decisions, so it is kept; withdraw it instead.');
+      }
     }
 
     const imports = await tx
@@ -96,14 +104,10 @@ export async function deleteUnsubmittedInvoice(
     await tx.delete(invoiceEvent).where(eq(invoiceEvent.invoiceId, invoiceId));
     // Who it was routed to while submitted, before it was recalled.
     await tx.delete(invoiceReviewAssignment).where(eq(invoiceReviewAssignment.invoiceId, invoiceId));
-    await tx
-      .delete(invoiceAttestation)
-      .where(
-        inArray(
-          invoiceAttestation.invoiceApprovalChainId,
-          tx.select({ id: invoiceApprovalChain.invoiceApprovalChainId }).from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId)),
-        ),
-      );
+    const chains = tx.select({ id: invoiceApprovalChain.invoiceApprovalChainId }).from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
+    await tx.delete(invoiceAttestation).where(inArray(invoiceAttestation.invoiceApprovalChainId, chains));
+    // An entry discarded while in review.
+    await tx.delete(invoiceLineWorkingDecision).where(inArray(invoiceLineWorkingDecision.invoiceApprovalChainId, chains));
     await tx.delete(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
     await tx.delete(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
     await tx.delete(trip).where(eq(trip.invoiceId, invoiceId));

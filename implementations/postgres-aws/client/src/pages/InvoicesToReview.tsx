@@ -1,8 +1,9 @@
 // The landing page: every invoice waiting for a decision, led by the person
 // who sent it, with the case number as typed.
 import { useMemo, useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router';
-import { listInvoiceIntake, listReviewQueue, type ReviewQueueItem } from '../api/client';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
+import { apiErrorMessage, enterInReview, listInvoiceIntake, listReviewQueue, type ReviewQueueItem } from '../api/client';
+import { reviewPath } from '../staffPaths';
 import { checkLinesPath } from '../portal/InvoiceSubmission';
 import { INTAKE_PATH } from '../portal/useShell';
 import { useAuth } from '../AuthContext';
@@ -16,7 +17,7 @@ import { CaseNumberCell, FlagNotes, FromCell, openInvoiceColumn, QuestionChips }
 import { AssignReviewer } from '../components/ReviewRouting';
 import { Toast, useToast } from '../components/Toast';
 import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
-import { formatDate, formatPeriod } from '../formatDateTime';
+import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
 
@@ -34,13 +35,40 @@ function sorted(rows: ReviewQueueItem[], sort: SortId): ReviewQueueItem[] {
   return rows;
 }
 
-// This staff member's unsent drafts, and, since Intake is off the sidebar,
-// anything held there.
-function YourDrafts({ userAccountId }: { userAccountId: string }) {
+// This staff member's unfinished work, and, since Intake is off the sidebar,
+// anything held there. For a reviewer: invoices they're still entering, and
+// any draft from before uploads went straight into review, continued the
+// same way. For other staff: their unsent drafts.
+function YourUnfinished({ userAccountId, entering }: { userAccountId: string; entering: ReviewQueueItem[] }) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const reviews = Boolean(user?.reviewPermissions?.reviewLines);
   const [version, setVersion] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const { data } = useApiResource(() => listInvoiceIntake().then((result) => result.items).catch(() => []), [version]);
   const drafts = (data ?? []).filter((item) => item.invoiceId && item.stage !== 'sent' && item.enteredByUserAccountId === userAccountId);
   const held = (data ?? []).filter((item) => item.stage === 'sent');
+
+  // Who it is from must be chosen first; that is on the check page.
+  async function continueDraft(invoiceId: string, hasSender: boolean) {
+    setError(null);
+    if (!hasSender) {
+      navigate(checkLinesPath(invoiceId, true));
+      return;
+    }
+    try {
+      await enterInReview(invoiceId);
+      navigate(reviewPath(invoiceId));
+    } catch (err) {
+      setError(apiErrorMessage(err, 'It could not be opened for review. Try again.'));
+    }
+  }
+
+  const continueLink = (
+    <>
+      Continue <span aria-hidden="true">→</span>
+    </>
+  );
   return (
     <>
       {held.length > 0 && (
@@ -49,10 +77,29 @@ function YourDrafts({ userAccountId }: { userAccountId: string }) {
           matched.
         </Notice>
       )}
-      {drafts.length > 0 && (
+      {(drafts.length > 0 || (reviews && entering.length > 0)) && (
         <section className="your-drafts" aria-labelledby="your-drafts-heading">
-          <h2 id="your-drafts-heading">Your drafts, not sent yet</h2>
+          <h2 id="your-drafts-heading">{reviews ? 'Your unfinished invoices' : 'Your drafts, not sent yet'}</h2>
+          {error && <Notice tone="danger">{error}</Notice>}
           <ul>
+            {reviews &&
+              entering.map((invoice) => (
+                <li key={invoice.invoiceId}>
+                  <span>
+                    {invoice.professionalDisplayName ?? 'Unknown sender'}
+                    <span className="cell-note">
+                      {formatPeriod(invoice.periodStart, invoice.periodEnd)}, {formatMoney(invoice.submittedTotal)}.{' '}
+                      Being entered, {invoice.decidedCount} of {invoice.lineCount} lines decided
+                      {invoice.linesChangedAt && `, last saved ${formatDateTime(invoice.linesChangedAt)}`}
+                    </span>
+                  </span>
+                  <span className="row-actions">
+                    <RouterLink className="row-action" to={reviewPath(invoice.invoiceId)}>
+                      {continueLink}
+                    </RouterLink>
+                  </span>
+                </li>
+              ))}
             {drafts.map((item) => (
               <li key={item.invoiceId}>
                 <span>
@@ -61,12 +108,23 @@ function YourDrafts({ userAccountId }: { userAccountId: string }) {
                     {formatPeriod(item.periodStart, item.periodEnd)}
                     {item.submittedTotal !== null && `, ${formatMoney(item.submittedTotal)}`}
                     {item.fileName && `, ${item.fileName}`}
+                    {reviews && '. Not started'}
                   </span>
                 </span>
                 <span className="row-actions">
-                  <RouterLink className="row-action" to={checkLinesPath(item.invoiceId!, true)}>
-                    Check the lines <span aria-hidden="true">→</span>
-                  </RouterLink>
+                  {reviews ? (
+                    <button
+                      type="button"
+                      className="link-button row-action"
+                      onClick={() => void continueDraft(item.invoiceId!, Boolean(item.professionalId))}
+                    >
+                      {continueLink}
+                    </button>
+                  ) : (
+                    <RouterLink className="row-action" to={checkLinesPath(item.invoiceId!, true)}>
+                      Check the lines <span aria-hidden="true">→</span>
+                    </RouterLink>
+                  )}
                   {/* Your own drafts, never sent, so always deletable. */}
                   <DeleteInvoiceButton compact invoiceId={item.invoiceId!} onDeleted={() => setVersion((v) => v + 1)} />
                 </span>
@@ -128,7 +186,10 @@ export default function InvoicesToReview() {
         }
       />
 
-      <YourDrafts userAccountId={userAccountId} />
+      <YourUnfinished
+        userAccountId={userAccountId}
+        entering={data.invoices.filter((invoice) => invoice.beingEntered && invoice.reviewer?.userAccountId === userAccountId)}
+      />
 
       {late.length > 0 && (
         <Notice

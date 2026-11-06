@@ -143,10 +143,10 @@ function SplitAssignment({
         rows={split.lines}
         rowKey={(line) => String(line.index)}
         emptyMessage="The file has no lines."
+        rowNote={(line) => line.description ?? '—'}
         columns={[
           { header: 'In the file', render: (line) => line.caseLabel ?? '—' },
           { header: 'Date', render: (line) => line.serviceDate ?? '—' },
-          { header: 'Description', render: (line) => line.description ?? '—' },
           {
             header: 'Hours / miles',
             render: (line) => (line.quantity === null ? '—' : `${line.quantity}${line.lineType === 'mileage' ? ' mi' : ''}`),

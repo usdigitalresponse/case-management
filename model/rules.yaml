@@ -92,6 +92,23 @@ rules:
       - Finishing a round requires a working decision on every line; it records them all as invoice_approval_decision rows at a new sequence_number with the finishing reviewer and time, clears the working decisions, records an invoice event and moves the request to awaiting sign-off.
       - Until the first sign-off decision after a round, the reviewer may reopen review; the next round starts from that round's decisions as working decisions and is recorded as a new round when finished. Recorded rounds are never changed.
 
+  enter_request_in_review:
+    description: Let a reviewing staff member enter an invoice they received and decide its lines in one pass, freezing the request when they finish the first round.
+    applies_to: invoice
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - A staff user with a line-reviewing role who uploads or types in a request, filed under the person it is from, takes it straight from draft to under review. They hold its line-review invoice_review_assignment and the default sign-off approvers are assigned, as on submission. It may be reassigned like any request in review.
+      - Until the first round is finished the entry is open. Only the user holding the line review may add, change or remove lines and set the case number as written on the request. A save, or a line decision, made from lines that changed since they were loaded (another window, or before a reassignment) is refused, and the latest lines are shown; nothing is overwritten or decided against unseen values. Losing the line-reviewing role ends the right to enter, as it does to decide. A reviewer's case number correction waits until the entry is closed.
+      - Anyone who can see the request sees that it is still being entered, by whom, and when its lines last changed. A change to a line's type, date, description, quantity, rate, amount or who did the work removes that line's working decision. A line with a review question can't be removed.
+      - The request is created in review in one step; if it can't be put in review, it isn't created.
+      - Lines are priced, and an unmatched line's worker filled in, on every save as submitting would, so freezing changes no decided amount; if it would, finishing is refused.
+      - Values read from a file are confirmed when the reviewer first tries to finish, by whoever holds the line review. Confirmation is kept even if finishing then fails; any decided line it changed loses its decision, and finishing is refused until that line is decided again.
+      - Finishing the first round requires what submitting does (the case number, who it is from, how and when it was received, a confirmed import, dated imported lines, billing rules), then freezes the request and its billing rule findings in the attempt's snapshot before recording the round. Reopening or a send-back changes decisions only, never lines.
+      - Billing rule findings are live while the entry is open, then as frozen.
+      - Before the first round is finished and before any question is asked, the user holding the line review may discard the request outright, as deleting a draft does.
+      - Approvers are told when whoever entered the request also finished its latest round. That is allowed; whether to require a different reviewer is an open decision.
+
   ask_review_question:
     description: Let the line reviewer ask the submitter a brief question about a line, hold review for the answer, and keep both on the request's record.
     applies_to: invoice_review_question

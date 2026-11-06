@@ -142,6 +142,20 @@ export async function assignOnSubmit(tx: Transaction, invoiceId: string, caseId:
   await assignSignOff(tx, invoiceId, settings.defaultSignOffUserAccountIds, null);
 }
 
+// A staff upload entered in review: whoever uploads it reviews it, with the
+// default sign-off approvers.
+export async function assignForEntry(tx: Transaction, invoiceId: string, reviewerUserAccountId: string): Promise<void> {
+  const settings = await getReviewSettings(tx);
+  await insertAssignment(tx, {
+    invoiceId,
+    stepCode: LINE_REVIEW_STEP_TYPE_CODE,
+    position: 1,
+    userAccountId: reviewerUserAccountId,
+    byUserAccountId: reviewerUserAccountId,
+  });
+  await assignSignOff(tx, invoiceId, settings.defaultSignOffUserAccountIds, null);
+}
+
 async function assignSignOff(tx: Transaction, invoiceId: string, userAccountIds: string[], byUserAccountId: string | null) {
   let position = 1;
   for (const userAccountId of userAccountIds) {

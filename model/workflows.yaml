@@ -41,6 +41,10 @@ workflows:
         from: awaiting_match
         to: submitted
         requires: [active_staff_user, case_and_provider_and_timekeepers_matched, validated_lines, frozen_review_attempt]
+      - action: enter_in_review
+        from: draft
+        to: under_review
+        requires: [reviewing_staff_uploader, own_new_upload, sender_chosen, uploader_assigned_as_reviewer]
       - action: review
         from: [submitted, under_review]
         to: under_review
@@ -56,7 +60,7 @@ workflows:
       - action: finish_review
         from: under_review
         to: awaiting_sign_off
-        requires: [current_assigned_reviewer, every_line_decided, reasons_for_partial_and_rejected_lines, immutable_round_of_decisions]
+        requires: [current_assigned_reviewer, every_line_decided, reasons_for_partial_and_rejected_lines, immutable_round_of_decisions, frozen_review_attempt_if_entered_in_review]
       - action: reopen_review
         from: awaiting_sign_off
         to: under_review
@@ -101,6 +105,10 @@ workflows:
         from: [draft, withdrawn]
         to: absent
         requires: [authorized_submitter, no_review_decision]
+      - action: discard_entry
+        from: [under_review, awaiting_answer]
+        to: absent
+        requires: [current_assigned_reviewer, entry_open, no_question_asked]
     requirements:
       - Configure reference status mappings and actor permissions before enabling transitions.
       - Reviewed timestamps and reviewers come from decisions; final approval cannot be asserted by editing status.
@@ -113,6 +121,7 @@ workflows:
       - An authorized submitter may be a configured delegate acting for professionals in their office (authorize_delegated_submission); represented professionals do not attest or approve.
       - Recall is not permitted once a review decision exists. Correction after external completion needs a product decision before implementation.
       - An invoice_import creates a draft through validate_invoice_import; time entries and expenses from its lines are created when that draft is submitted.
+      - A reviewing staff member's own upload enters review at once, assigned to them (enter_request_in_review). Until its first round is finished, its reviewer enters and corrects lines and decides them in the same pass; finishing that round first freezes the request as an ordinary submission would, then records the round. Its lines never change after that, including after reopening or a send-back.
       - A submitter whose case, provider or a line's timekeeper isn't listed sends it for matching with the details they know (match_invoice_to_case); it waits in invoice intake and is released to review once staff have matched it. Its attestation is the one given on sending.
   external_payment_completion:
     entity: invoice

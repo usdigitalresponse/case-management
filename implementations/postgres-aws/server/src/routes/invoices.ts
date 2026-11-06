@@ -14,6 +14,14 @@ import { isExportableStatus } from '../billing/invoiceAccess';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { InvoiceNotFoundError, repriceLines, reviewInvoiceLine, undoLineDecision } from '../billing/reviewInvoiceLine';
 import { finishReview, reopenReview, signOffInvoice } from '../billing/reviewRounds';
+import {
+  confirmEnteredImport,
+  enterDraftInReview,
+  measureEnteredTrips,
+  saveEnteredLines,
+  setEnteredCaseNumber,
+  setEnteredReceipt,
+} from '../billing/enterInReview';
 import { answerQuestionAsStaff, askQuestion } from '../billing/reviewQuestions';
 import { reassignReviewer, setSignOffApprovers, LINE_REVIEW_STEP_TYPE_CODE } from '../billing/reviewAssignment';
 import { listReviewPeople } from '../billing/reviewAccess';
@@ -149,7 +157,39 @@ router.get(
     const today = new Date().toISOString().slice(0, 10);
     const approvedRate = professionalId ? (rateOn(await listRates(db, [professionalId]), professionalId, today) ?? null) : null;
     const caseNumberMatches = (await sentCaseNumberMatches(db)).get(detail.invoice.invoiceId) ?? { same: 0, close: 0 };
-    res.json({ ...detail, preauthorization, approvedRate, caseNumberMatches });
+    // As canDiscardEntry decides, from what the detail already holds.
+    const discardable =
+      detail.entryOpen && detail.assignments?.reviewer?.userAccountId === actorId(req) && detail.questions.length === 0;
+    res.json({ ...detail, preauthorization, approvedRate, caseNumberMatches, discardable });
+  }),
+);
+
+// An upload entered in review (../billing/enterInReview.ts).
+router.post(
+  '/:id/enter-in-review',
+  asyncHandler(async (req, res) => {
+    res.json(await enterDraftInReview(db, actorId(req), req.params.id as string));
+  }),
+);
+
+router.put(
+  '/:id/entered-lines',
+  asyncHandler(async (req, res) => {
+    res.json(await saveEnteredLines(db, actorId(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/:id/entered-receipt',
+  asyncHandler(async (req, res) => {
+    res.json(await setEnteredReceipt(db, actorId(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/:id/entered-case-number',
+  asyncHandler(async (req, res) => {
+    res.json(await setEnteredCaseNumber(db, actorId(req), req.params.id as string, req.body));
   }),
 );
 
@@ -192,21 +232,25 @@ router.put(
 router.delete(
   '/:id/lines/:lineId/decision',
   asyncHandler(async (req, res) => {
-    res.json(await undoLineDecision(db, actorId(req), req.params.id as string, req.params.lineId as string));
+    res.json(await undoLineDecision(db, actorId(req), req.params.id as string, req.params.lineId as string, req.body));
   }),
 );
 
 router.post(
   '/:id/reprice',
   asyncHandler(async (req, res) => {
-    res.json(await repriceLines(db, actorId(req), req.params.id as string));
+    res.json(await repriceLines(db, actorId(req), req.params.id as string, req.body));
   }),
 );
 
 router.post(
   '/:id/finish',
   asyncHandler(async (req, res) => {
-    res.json(await finishReview(db, actorId(req), req.params.id as string));
+    // An invoice still being entered: its file's values are confirmed, and
+    // its trips measured, before the round is finished.
+    await confirmEnteredImport(db, documentStore, actorId(req), req.params.id as string);
+    await measureEnteredTrips(db, actorId(req), req.params.id as string);
+    res.json(await finishReview(db, actorId(req), req.params.id as string, req.body));
   }),
 );
 

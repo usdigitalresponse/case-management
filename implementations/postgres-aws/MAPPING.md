@@ -51,7 +51,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     who acts for others; otherwise it is the submitter's own). Each becomes
     a draft with no case, checked next (`portal/InvoiceSubmission.tsx`:
     staff at `/invoices/:id/check`, submitters at `/portal/invoices/:id`,
-    where any invoice not filed under a case is shown this way). The case
+    where any invoice not filed under a case is shown this way), except that
+    a reviewer's upload goes straight into their own review instead (see
+    "Entering in review" below). The case
     number sits in a box above the file and lines (`PUT
     /api/portal/invoices/:id/case-number`). When the file labels one ("Case
     No. …"), the PDF reader records that row's position
@@ -74,7 +76,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     hand" makes an empty draft filed the same way: a submitter's is their
     own, opened straight away; staff first choose or add who it is from
     and may give its case number and billing period (`ManualEntry`), then
-    add its lines on the check page. The typed number is `invoice.case_number_as_typed`
+    add its lines on the check page, or, if they review, on its review. The typed number is `invoice.case_number_as_typed`
     (migration `0020`), never checked against cases; close matches ignore
     case, spaces, dashes and leading zeros. Intake's own drop zone and
     manual entry still open the case-based upload
@@ -567,8 +569,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - Questions (`ask_review_question`; `src/billing/reviewQuestions.ts`,
     `client/src/components/ReviewQuestions.tsx`): `POST .../questions` (the
     reviewer, taking an unassigned invoice) asks the submitter a question of
-    up to 500 characters about one line ("Ask the submitter" under its
-    decision buttons), stored as `invoice_review_question`. The invoice
+    up to 500 characters about one line ("Ask [the submitter, or whom it is
+    from when staff entered it] about this line", under the line and its
+    questions, not with the decision buttons), stored as
+    `invoice_review_question`. While lines are being entered, a line opens
+    for editing when clicked (its number for keyboards), and removing it or
+    putting it back as read is in its edit form, so the last column holds
+    only Approve, Approve part and Reject. The invoice
     moves to `awaiting_answer`: lines can still be decided, but finishing
     is refused and recall isn't offered. The submitter, or the professional
     it bills for, answers on the portal invoice page
@@ -586,6 +593,87 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `openQuestionCount` and `answeredQuestionCount`, and the review page says
     when answers are in; the portal shows "Question for you". Exports and the
     billing record never include questions.
+  - Entering in review (`enter_request_in_review`; `src/billing/enterInReview.ts`,
+    `client/src/components/EntryLines.tsx`): on "+ Upload Invoices", a staff
+    member with a reviewing role makes each upload, or an invoice typed in by
+    hand, with `enterInReview` (`POST /api/portal/uploads/:id/draft` and
+    `POST /api/portal/invoices`). In the same transaction `enterInReviewInTx`
+    moves the new draft to `under_review` (`invoice.entered_in_review`,
+    migration `0029`) with a chain and no snapshot yet, the uploader as line
+    reviewer (`assignForEntry`) and the default approvers, and records
+    `review_started`; so an upload is in review or not made at all. Both
+    ways take the invoice number on the sender's invoice, kept as a
+    `supporting_invoice` (with no document when typed in). They then open
+    the review page instead of the check page ("Check and review the lines",
+    then "Finish the review"); several files are entered one
+    after another, as the check queue does. Staff without a reviewing role
+    keep the draft and check page. While the
+    chain has no snapshot, the review page shows its reviewer the check
+    page's editor beside the file (`portal/useLineEntry.ts`, shared with the
+    check page), each line with its decision buttons and questions, an
+    editable case number (`PUT .../entered-case-number`) and how and when it
+    was received (`PUT .../entered-receipt`), each saved as it changes, so
+    "Finish later" only leaves the page (for the upload's next invoice, else
+    To review); there is no separate draft, so it stays visible and assigned
+    meanwhile. For a reviewer, To review's top panel is "Your unfinished
+    invoices": what they are entering (decided so far, last saved), then any
+    draft of theirs from before, whose "Continue" moves it into their review
+    (`POST /api/invoices/:id/enter-in-review`) or, with no sender chosen,
+    opens the check page; other staff keep "Your drafts, not sent yet". The
+    queue's date column and the review page's date say "Submitted" for every
+    invoice; for one entered in review that is when entry began. Finishing one of an upload's invoices keeps its message and Undo
+    on the next, and Undo goes back to it. `PUT .../entered-lines` saves the whole set as a draft save
+    does, but lines keep their `invoice_line_id` (any draft save now updates
+    lines in place by id and inserts the rest, rather than deleting and
+    reinserting, and clearing the rates pricing sets), fills unmatched
+    workers and prices as submitting would, and removes the working
+    decision of any line whose type, date, description, quantity, stated or
+    billed rate, amount, billing codes, worker (or the unlisted one named),
+    linked time, time category or trip route changed. Removing a line with a
+    question is refused. Billing rule findings are live until the snapshot.
+    `POST .../finish` on such an invoice first confirms a file import still
+    unconfirmed (`confirmEnteredImport`, as its reviewer, whoever uploaded
+    it), committed on its own: a decided line that confirming changed loses
+    its decision and finishing is refused (`decisions_undone`) until it is
+    decided again. It then measures the trips, and `closeEntry` runs the submission checks (case
+    number, receipt, confirmed import, dated imported lines), creates time
+    entries for a case, prices strictly, applies trip distances and billing
+    rules and writes the snapshot (`freezeRequest`, shared with
+    `finishSubmission`), refusing if any decided line's values changed, and
+    then records the round. Reopening and send-backs never reopen entry.
+    Its reviewer may delete it (the portal delete) while entry is open and
+    no question has been asked; its events go with it, as a draft's do.
+    Each entry save, and each decision, undo or re-pricing while entry is
+    open (`requireCurrentEntryLines`), sends the `invoice.lines_version` its
+    page holds (migration `0030`); a different version is refused (409
+    `stale_lines`, naming who changed them, or "you … in another tab"), and
+    the page reloads to the latest lines. A save reports only the decided
+    lines whose decision it undid. Entry changes also need the reviewing
+    role, not just the assignment. A new line is given its id by the page
+    (`crypto.randomUUID`), which any line save keeps unless another line
+    already has it, so the next save finds the line; a kept line that didn't
+    change isn't rewritten. An entry filed under a case finishes like any
+    other: linking its time lines to new time entries doesn't count as a
+    change to a decided line, and it needs no typed case number. While
+    entry is open the queue's billing rule flags are worked out live. Saves and confirming bump it and record
+    `lines_changed_at` and `lines_changed_by_user_account_id`. While entry is
+    open, the review page shows a "Being entered by …" badge with the last
+    change (`EntryBadge`), to its reviewer and to anyone else, whose page
+    reloads every 30 seconds; staff lists show "Being entered"
+    (`beingEntered`, in `QuestionChips`). Case number corrections are
+    refused until it is finished, and the reviewer menu warns before taking
+    it over. Approvers see "Entered and decided by the same person" when the
+    uploader finished the latest round (`decidedByEnterer`); others see who
+    is still entering it. Its review page says who entered it (dates are
+    still labelled "Submitted"), credits the file to the person it is from and differences from the file
+    to whoever entered it, and asks questions of the person it is from. The
+    case number typed while entering replaces the one read from the file,
+    which the file viewer keeps; reviewers' later corrections go beside it as
+    usual. Gaps: whether a different reviewer must finish is
+    an open decision, so it is only flagged; the professional it is filed
+    under can read its lines in the portal while they are being entered;
+    other viewers' pages poll rather than update live, and the case number
+    and receipt aren't versioned (last save wins).
   - Routing: submission assigns line review to the case's
     `case_invoice_reviewer`, else the `invoice_review_setting` default,
     else no one, and sign-off to the default approvers. `PUT .../reviewer`
@@ -1153,12 +1241,16 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     with none, the hourly rate. Their time entries get the `travel` or
     `waiting` activity type: `time_entry` has no `trip_id` here, since
     trips are replaced on draft save (model gap).
-  - In review, any reviewer may "Change rate" on a time, travel time,
-    waiting time or mileage line: it is approved at that rate, higher or
-    lower, with no reason, and its amount may exceed the request. A changed
-    rate flags the queue row ("Reviewer changed the rate"), and the review
-    page lists changed rates above the sign-off panel. "Approve part" still
-    corrects hours or a rate downward with a reason. The review table, the
+  - In review, a line's only decision buttons are Approve, Approve part and
+    Reject. On a time, travel time, waiting time or mileage line, "Approve
+    part" corrects the hours or the rate: less than requested is approved
+    in part with a reason; the same hours at a higher rate are approved at
+    that rate with no reason, and the amount may exceed the request. A
+    changed rate flags the queue row ("Reviewer changed the rate"), and the
+    review page lists changed rates above the sign-off panel. The server
+    still accepts a lower rate approved with no reason
+    (`decide_invoice_lines`), but the page no longer offers it; a lower
+    rate needs a reason, such as the rate reason. The review table, the
     decision panel and the decision flag a billed or changed rate that
     differs from the line's `configured_rate`.
   - The travel time and distance rule (off/warn/require, average speed and
@@ -1544,7 +1636,9 @@ form relies on this being airtight.
   the hidden case pages and Intake's fallback. Each demo person has a
   synthetic firm they're paid through and a 555-01xx phone number; the
   investigator and expert have approved rates of their own, and the demo
-  partner's new invoices go to the first demo reviewer.
+  partner's new invoices go to the first demo reviewer. One emailed
+  invoice the demo sign-in uploaded is being entered in their own review,
+  its first line approved, as if put aside to finish later.
 
 - **Mileage demo trips** (`src/db/seed.ts` `seedDemoMileage`): street
   addresses of public landmarks in Washington, D.C. (the Library of Congress

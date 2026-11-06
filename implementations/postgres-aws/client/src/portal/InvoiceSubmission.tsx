@@ -2,7 +2,7 @@
 // as they change; once sent they lock, and it can be withdrawn until review
 // starts. Filed by person (any invoice without a case, unless told), its case
 // number sits at the top and is needed to send.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate, useParams } from 'react-router';
 import {
   answerQuestion,
@@ -10,32 +10,28 @@ import {
   attestationStatement,
   getMyInvoice,
   invoiceExportUrl,
-  listBillableProfessionals,
   resolveInvoiceImport,
   setDraftCaseNumber,
   transitionInvoice,
   updateDraftInvoice,
-  type FileLine,
   type PortalInvoice,
 } from '../api/client';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { useReceipt } from './ReceivedFields';
 import { useApiResource } from '../hooks/useApiResource';
 import { useAuth } from '../AuthContext';
-import { usePortalBillingRules } from '../components/BillingRules';
-import { lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { OriginalDocument } from '../components/OriginalDocument';
 import { RecordedDecision } from '../components/LineReview';
 import { StatusPill } from '../components/StatusPill';
 import { Toast, useToast } from '../components/Toast';
-import { changedFields, duplicateOf, rowsInFileOrder, tracksSource } from '../fileChanges';
 import { formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { CheckLinesTable } from './CheckLinesTable';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
-import { draftFromRead, priceOf, rowChanges, totalsNotice, valuesOf, type PricingContext } from './checkLines';
+import { useLineEntry } from './useLineEntry';
+import { countOf } from './importProgress';
 import { canWithdraw, formatSpan, submissionStatus } from './portalWording';
 import { SentBackNotice } from '../components/SentBackNotice';
 import { LineQuestions } from '../components/ReviewQuestions';
@@ -194,7 +190,20 @@ function Lines({
   const isSubmitter = invoice.submittedByUserAccountId === user?.userAccountId;
   const isDraft = invoice.statusCode === 'draft';
   const editable = isDraft && isSubmitter;
-  const [lines, setLines] = useState<LineDraft[]>(() => lineDraftsFrom(data.lines, { perLine: true }));
+  const { lines, rows, context, askingFor, duplicates, changes, notice, undatedRow, fileSays, error, setError, handlers } = useLineEntry({
+    serverLines: data.lines,
+    fileSource,
+    caseId: invoice.caseId,
+    professionalId: invoice.professionalId,
+    save: (next) =>
+      updateDraftInvoice(invoice.invoiceId, {
+        periodStart: invoice.periodStart ?? undefined,
+        periodEnd: invoice.periodEnd ?? undefined,
+        lines: next,
+      }),
+    setToast,
+    ownFile: !staff,
+  });
   const [typedCaseNumber, setTypedCaseNumber] = useState(invoice.caseNumberAsTyped ?? '');
   // Highlighted on the file while the box holds the number read from it.
   const fileCaseNumber = byPerson ? fileSource?.caseNumber : null;
@@ -204,7 +213,6 @@ function Lines({
   const [focus, setFocus] = useState<{ location: string } | undefined>(() =>
     caseNumberRegion.length > 0 ? { location: CASE_NUMBER_LOCATION } : undefined,
   );
-  const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -222,75 +230,6 @@ function Lines({
     }
     return false;
   };
-  const { mileageRates, timeCategoryRates } = usePortalBillingRules();
-  const { data: timekeepers } = useApiResource(
-    () => listBillableProfessionals(invoice.caseId).then((result) => result.professionals),
-    [invoice.caseId],
-  );
-  const ownMileageRates = timekeepers?.find((p) => p.professionalId === invoice.professionalId)?.mileageRates ?? [];
-  const context: PricingContext = {
-    timekeepers: timekeepers ?? [],
-    billedProfessionalId: invoice.professionalId ?? undefined,
-    mileageRates: ownMileageRates.length > 0 ? ownMileageRates : mileageRates,
-    timeCategoryRates,
-  };
-
-  const fileLines = fileSource && tracksSource(lines.map((line) => line.carried.sourceLocation)) ? fileSource.lines : [];
-  const rows = useMemo(() => rowsInFileOrder(fileLines, lines, (line) => line.carried.sourceLocation), [fileLines, lines]);
-  const totals = rows.map((row) => (row.kind === 'line' ? priceOf(row.line, context).total : 0));
-  const askingFor = totals.some((total) => total === null) ? null : totals.reduce<number>((sum, total) => sum + Math.round((total ?? 0) * 100), 0) / 100;
-  const duplicates = duplicateOf(rows, (line) => ({ ...valuesOf(line), total: priceOf(line, context).total }));
-  const changes = rowChanges(rows, (row) => Boolean(row.read) && changedFields(row.read!, valuesOf(row.line)).length > 0);
-  const warningRow = rows.find(
-    (row) => row.kind === 'line' && row.read && fileSource?.warnings.some((warning) => warning.location === row.read!.location),
-  );
-  const notice = totalsNotice({
-    source: fileSource,
-    askingFor,
-    ...changes,
-    duplicates,
-    warningLine:
-      warningRow && warningRow.kind === 'line'
-        ? {
-            number: warningRow.number,
-            message: fileSource!.warnings.find((warning) => warning.location === warningRow.read!.location)!.message,
-          }
-        : null,
-  });
-  // Only lines read from the file must have a date.
-  const undatedRow = rows.find((row) => row.kind === 'line' && row.read && !row.line.serviceDate);
-  const fileSays = fileSource ? (fileSource.statedTotal ?? fileLines.reduce((sum, line) => sum + (line.amount ?? 0), 0)) : null;
-
-  // Saves go one at a time, each the whole set of lines; on a failure the
-  // page goes back to the last set the server holds.
-  const saving = useRef<Promise<unknown>>(Promise.resolve());
-  const saved = useRef(lines);
-  function save(next: LineDraft[]): Promise<void> {
-    setLines(next);
-    const done = saving.current.then(async () => {
-      await updateDraftInvoice(invoice.invoiceId, {
-        periodStart: invoice.periodStart ?? undefined,
-        periodEnd: invoice.periodEnd ?? undefined,
-        lines: linesFromDrafts(next),
-      });
-      saved.current = next;
-    });
-    saving.current = done.catch(() => setLines(saved.current));
-    return done;
-  }
-
-  // With Undo back to the set before.
-  async function persist(next: LineDraft[], message: string) {
-    const previous = lines;
-    setError(null);
-    try {
-      await save(next);
-      setToast({ message, undo: () => save(previous) });
-    } catch (err) {
-      setError(apiErrorMessage(err, 'That change could not be saved. Try again.'));
-    }
-  }
-
   async function send() {
     setSendError(null);
     try {
@@ -425,7 +364,7 @@ function Lines({
               {invoice.professionalKindDisplayName && <span>{invoice.professionalKindDisplayName}</span>}
               {position !== null && checking!.total > 1 && (
                 <span>
-                  Invoice {position} of {checking!.total} uploaded
+                  Invoice {countOf(position, checking!.total)} uploaded
                 </span>
               )}
             </p>
@@ -557,42 +496,7 @@ function Lines({
             editable={editable}
             focus={focus?.location}
             onFocus={(location) => setFocus(location ? { location } : undefined)}
-            onSaveLine={(index, drafts, number) => {
-              const [draft] = drafts;
-              // A trip's lines share its date, so changing one changes them all.
-              const next =
-                index === null
-                  ? [...lines, ...drafts]
-                  : lines.map((line, at) =>
-                      at === index ? draft! : draft?.tripKey && line.tripKey === draft.tripKey ? { ...line, serviceDate: draft.serviceDate } : line,
-                    );
-              void persist(next, index === null ? (drafts.length > 1 ? 'Trip added.' : 'Line added.') : `Line ${number} changed.`);
-            }}
-            onRemoveLine={(index, number) => void persist(lines.filter((_, at) => at !== index), `Line ${number} removed.`)}
-            onTrip={(index, tripKey, number) => {
-              // Joining takes the trip's date and route, as the server would.
-              const trip = tripKey ? lines.find((line) => line.tripKey === tripKey) : undefined;
-              const next = lines.map((line, at) =>
-                at !== index
-                  ? line
-                  : trip
-                    ? { ...line, tripKey, serviceDate: trip.serviceDate, tripOrigin: trip.tripOrigin, tripDestination: trip.tripDestination, roundTrip: trip.roundTrip }
-                    : { ...line, tripKey: undefined },
-              );
-              void persist(next, tripKey ? `Line ${number} added to the trip.` : `Line ${number} taken off the trip.`);
-            }}
-            onPutBack={(read: FileLine, number) => {
-              // In its file place, which sets its saved position.
-              const restored = draftFromRead(read, invoice.professionalId ?? undefined);
-              const next = rows.flatMap((row) => (row.kind === 'line' ? [row.line] : row.read === read ? [restored] : []));
-              void persist(next, `Line ${number} put back.`);
-            }}
-            onUndoChange={(index, read, number) =>
-              void persist(
-                lines.map((line, at) => (at === index ? { ...draftFromRead(read, invoice.professionalId ?? undefined), invoiceLineId: line.invoiceLineId } : line)),
-                `Line ${number} put back as read.`,
-              )
-            }
+            {...handlers}
             extra={sent ? decisionFor : undefined}
             detail={sent ? questionsFor : undefined}
             addLabel={fileSource ? 'Add a line we missed' : 'Add a line'}

@@ -9,6 +9,7 @@ import { caseNumberInput, cleanCaseNumber } from './caseNumbers';
 import { requireReviewPermission } from './reviewAccess';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { UNSUBMITTED_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
+import { entryIsOpen } from './enterInReview';
 
 export async function correctCaseNumber(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   const parsed = z.object({ caseNumber: caseNumberInput }).safeParse(rawInput);
@@ -29,6 +30,10 @@ export async function correctCaseNumber(db: Database, actorUserAccountId: string
     }
     if (UNSUBMITTED_INVOICE_STATUS_CODES.includes(row.statusCode)) {
       throw new ConflictError('invalid_state', 'Only a sent invoice’s case number can be corrected.');
+    }
+    // Its reviewer is still entering it, case number included.
+    if (await entryIsOpen(tx, invoiceId)) {
+      throw new ConflictError('invalid_state', 'This invoice is still being entered. Correct its case number once its review is finished.');
     }
     const corrected = value === row.typed ? null : value;
     if (corrected !== row.corrected) {

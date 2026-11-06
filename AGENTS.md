@@ -245,7 +245,15 @@ common match, else the sender, so every sent invoice goes to review. A trip
 is one "Travel" row in the editor but separate lines (travel time, mileage,
 costs) linked by `trip`, each priced and decided on its own; never merge them
 into one travel line, and never group lines into a trip for the submitter.
-A reviewer's changed rate must stay flagged for sign-off. Staff and
+A reviewer's changed rate must stay flagged for sign-off. A reviewing staff
+member's upload goes straight into their own review (`enter_request_in_review`,
+`src/billing/enterInReview.ts`): they enter and decide its lines on the review
+page until the first finished round freezes them, and then lines never change,
+even after reopening or a send-back. Line saves keep each line's id, so a
+decision or question stays on its line; never go back to deleting and
+reinserting lines. Entry saves, and decisions while entry is open, carry
+`lines_version`; a stale one is refused, never merged or overwritten. New
+lines get their id from the page, which saves keep. Staff and
 external submitters share the new-invoice form (staff use it on Intake) and
 the import pages; links that differ
 between the two apps go through `client/src/portal/useShell.ts`. Design

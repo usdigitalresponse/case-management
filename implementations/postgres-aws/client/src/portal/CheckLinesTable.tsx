@@ -65,6 +65,8 @@ function EditPanel({
   onSave,
   onCancel,
   onRemove,
+  onUndoChange,
+  ownFile = true,
 }: {
   number: number;
   initial: LineDraft;
@@ -75,6 +77,9 @@ function EditPanel({
   onSave: (drafts: LineDraft[]) => void;
   onCancel: () => void;
   onRemove?: () => void;
+  // Back to the values read from the file.
+  onUndoChange?: () => void;
+  ownFile?: boolean;
 }) {
   const [draft, setDraft] = useState(initial);
   const set = (patch: Partial<LineDraft>) => setDraft((current) => ({ ...current, ...patch }));
@@ -189,7 +194,7 @@ function EditPanel({
       {read && (
         <p className="field-hint">
           We read {formatQuantity(read.lineType === 'time' ? 'time' : read.lineType === 'mileage' ? 'mileage' : 'other', read.quantity)}
-          {read.amount !== null ? `, ${formatMoney(read.amount)},` : ''} from your file.
+          {read.amount !== null ? `, ${formatMoney(read.amount)},` : ''} from {ownFile ? 'your' : 'the'} file.
           {fields.length > 0 ? ` ${changeSentence(read, valuesOf(draft), fields).replace('You changed', 'You are changing')}` : ''} No reason needed.
         </p>
       )}
@@ -208,6 +213,11 @@ function EditPanel({
         <button type="button" className="link-button" onClick={onCancel}>
           Cancel
         </button>
+        {onUndoChange && (
+          <button type="button" className="link-button" onClick={onUndoChange}>
+            Put it back as read
+          </button>
+        )}
         {onRemove && (
           <button type="button" className="link-button link-button--danger edit-line__remove" onClick={onRemove}>
             Remove this line
@@ -239,6 +249,16 @@ export interface CheckLinesTableProps {
   footer: ReactNode;
   // An invoice entered by hand has no file to have missed lines from.
   addLabel?: string;
+  // Decided as entered: a line opens for editing when clicked, and removing
+  // or putting it back is in its edit form.
+  editByClicking?: boolean;
+  // Shown with a line's description, such as its questions.
+  notes?: (index: number) => ReactNode;
+  // A bar under the description, such as asking about the line and
+  // deciding it; given, it takes the place of `extra`.
+  actions?: (index: number) => ReactNode;
+  // False for staff entering someone else's invoice.
+  ownFile?: boolean;
 }
 
 export function CheckLinesTable({
@@ -258,6 +278,10 @@ export function CheckLinesTable({
   detail,
   footer,
   addLabel = 'Add a line we missed',
+  editByClicking = false,
+  ownFile = true,
+  notes,
+  actions,
 }: CheckLinesTableProps) {
   const allLines = rows.flatMap((row) => (row.kind === 'line' ? [row.line] : []));
   const numberOf = (tripKey: string) => rows.find((row) => row.kind === 'line' && row.line.tripKey === tripKey && row.line.lineType === 'mileage')?.number;
@@ -277,7 +301,7 @@ export function CheckLinesTable({
             <th scope="col" className="amount">Qty</th>
             <th scope="col" className="amount">Rate</th>
             <th scope="col" className="amount">Amount</th>
-            <th scope="col"><span className="usa-sr-only">{extra ? 'Decision' : 'Actions'}</span></th>
+            <th scope="col"><span className="usa-sr-only">{extra && !actions ? 'Decision' : 'Actions'}</span></th>
           </tr>
         </thead>
         {rows.length === 0 && editing !== 'new' && (
@@ -339,10 +363,21 @@ export function CheckLinesTable({
                 flagged ? 'check-lines__row--flagged' : '',
                 focus && focus === location ? 'check-lines__row--focus' : '',
               ].join(' ')}
-              onClick={() => onFocus(location)}
+              onClick={() => {
+                onFocus(location);
+                if (editByClicking && editable && !isEditing) setEditing(number);
+              }}
             >
               <tr className="check-lines__summary">
-                <td>{number}</td>
+                <td>
+                  {editByClicking && editable ? (
+                    <button type="button" className="check-lines__number" aria-label={`Edit line ${number}`}>
+                      {number}
+                    </button>
+                  ) : (
+                    number
+                  )}
+                </td>
                 <td>
                   {editable && !line.serviceDate && !isEditing ? (
                     <DateToEnter number={number} onEnter={(serviceDate) => onSaveLine(index, [{ ...line, serviceDate }], number)} />
@@ -362,9 +397,13 @@ export function CheckLinesTable({
                 <td className="amount">
                   <strong>{price.total === null ? '—' : formatMoney(price.total)}</strong>
                 </td>
-                <td className="check-lines__actions" onClick={(event) => event.stopPropagation()}>
-                  {extra?.(index)}
+                <td
+                  className={`check-lines__actions${extra && !actions ? ' check-lines__actions--decide' : ''}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {!actions && extra?.(index)}
                   {editable &&
+                    !editByClicking &&
                     (isEditing ? (
                       <span className="muted">Editing</span>
                     ) : (
@@ -411,8 +450,17 @@ export function CheckLinesTable({
                       </button>
                     </span>
                   )}
+                  {notes && <div onClick={(event) => event.stopPropagation()}>{notes(index)}</div>}
                 </td>
               </tr>
+              {actions && (
+                <tr className="check-lines__bar" onClick={(event) => event.stopPropagation()}>
+                  <td />
+                  <td colSpan={columns - 1}>
+                    <div className="line-bar">{actions(index)}</div>
+                  </td>
+                </tr>
+              )}
               {lineDetail && (
                 <tr className="check-lines__detail-row" onClick={(event) => event.stopPropagation()}>
                   <td colSpan={columns}>{lineDetail}</td>
@@ -436,6 +484,15 @@ export function CheckLinesTable({
                         setEditing(null);
                         onRemoveLine(index, number);
                       }}
+                      onUndoChange={
+                        editByClicking && read && fields.length > 0
+                          ? () => {
+                              setEditing(null);
+                              onUndoChange(index, read, number);
+                            }
+                          : undefined
+                      }
+                      ownFile={ownFile}
                     />
                   </td>
                 </tr>

@@ -17,7 +17,7 @@ import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments } from './reviewAssignment'
 import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
 import { loadRateLimits, rateLimitFor } from './preauthorizations';
-import type { RuleFinding } from './billingRules';
+import { evaluateBillingRules, type RuleFinding } from './billingRules';
 import { currentCaseNumber, matchCaseNumbers, searchMatch } from './caseNumbers';
 import {
   APPROVED_INVOICE_STATUS_CODE,
@@ -170,8 +170,11 @@ export async function listReviewQueue(
       if (changedRates > 0) {
         flags.push({ kind: 'rate_changed', message: `Reviewer changed the rate on ${changedRates} ${changedRates === 1 ? 'line' : 'lines'}` });
       }
-      const findings =
-        (chain?.snapshot as { billing_rules?: { findings?: RuleFinding[] } } | null)?.billing_rules?.findings ?? [];
+      const beingEntered = header.enteredInReview && Boolean(chain) && chain?.snapshot === null;
+      // As submitted; live while its lines are still being entered.
+      const findings = beingEntered
+        ? await evaluateBillingRules(db, header.invoiceId)
+        : ((chain?.snapshot as { billing_rules?: { findings?: RuleFinding[] } } | null)?.billing_rules?.findings ?? []);
       if (findings.length > 0) {
         flags.push({ kind: 'rule', message: `${findings.length} billing rule ${findings.length === 1 ? 'finding' : 'findings'}` });
       }
@@ -196,6 +199,8 @@ export async function listReviewQueue(
                 .filter((decision) => decision.sequenceNumber === round && decision.stepCode === LINE_REVIEW_STEP_TYPE_CODE)
                 .reduce<Date | null>((latest, decision) => (latest && latest > decision.decidedAt ? latest : decision.decidedAt), null),
         reviewer: assignments.reviewer,
+        // Its reviewer is still entering its lines (./enterInReview.ts).
+        beingEntered,
         // Who must act now: the next approver while awaiting sign-off.
         holder: nextApprover ?? assignments.reviewer,
         // A staff-entered invoice waits from the day it was received.

@@ -7,7 +7,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 // Staff entering an invoice received outside the system say how and when it
 // came in; review waiting time counts from that date.
-function ReceivedFields({
+export function ReceivedFields({
   idPrefix,
   value,
   onChange,
