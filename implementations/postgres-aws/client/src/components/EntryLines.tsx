@@ -99,8 +99,11 @@ export function EntryLines({
   form,
   saveEdits,
   onEditing,
+  period,
 }: {
   data: InvoiceReview;
+  // As saved beside the lines (InvoiceDetailsFields), which carry it on each save.
+  period: MutableRefObject<{ periodStart: string | null; periodEnd: string | null }>;
   // After each save, with how many decisions it undid.
   onSaved: (undecided: number, linesVersion: number) => void;
   // A save refused because the lines changed elsewhere or the invoice was
@@ -139,8 +142,8 @@ export function EntryLines({
         const saved = await saveEnteredLines(
           invoice.invoiceId,
           {
-            periodStart: invoice.periodStart ?? undefined,
-            periodEnd: invoice.periodEnd ?? undefined,
+            periodStart: period.current.periodStart ?? undefined,
+            periodEnd: period.current.periodEnd ?? undefined,
             lines,
             linesVersion: version.current,
           },

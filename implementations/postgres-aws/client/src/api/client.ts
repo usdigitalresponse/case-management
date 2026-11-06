@@ -1025,6 +1025,28 @@ export function setDraftCounty(invoiceId: string, choice: CountyChoice): Promise
   return request(`/api/portal/invoices/${invoiceId}/county`, { method: 'PUT', body: JSON.stringify(choice) });
 }
 
+// Whom it is from, and for someone with no role a reviewer gives, theirs.
+export interface SenderChoice {
+  professionalId: string;
+  professionalKindId?: string;
+}
+
+// Filed by person: its lines priced at the sender's rates.
+export function setDraftSender(invoiceId: string, choice: SenderChoice): Promise<{ invoiceId: string }> {
+  return request(`/api/portal/invoices/${invoiceId}/sender`, { method: 'PUT', body: JSON.stringify(choice) });
+}
+
+// Null clears the period, both days together, or the invoice number.
+export interface InvoiceDetailsInput {
+  periodStart: string | null;
+  periodEnd: string | null;
+  invoiceNumber: string | null;
+}
+
+export function setDraftDetails(invoiceId: string, details: InvoiceDetailsInput): Promise<{ invoiceId: string }> {
+  return request(`/api/portal/invoices/${invoiceId}/details`, { method: 'PUT', body: JSON.stringify(details) });
+}
+
 export type InvoiceTransition = 'submit' | 'recall' | 'withdraw';
 
 export function transitionInvoice(
@@ -1421,6 +1443,8 @@ export interface QueuedInvoice {
   caseNumberAsTyped: string | null;
   // A reviewer's correction, shown in its place.
   caseNumberCorrected: string | null;
+  // The number on the sender's own invoice.
+  invoiceNumber: string | null;
   // Its own, else its case's.
   countyId: string | null;
   countyDisplayName: string | null;
@@ -1756,6 +1780,20 @@ export function setEnteredCaseNumber(invoiceId: string, caseNumber: string): Pro
 export function setEnteredCounty(invoiceId: string, choice: CountyChoice): Promise<{ invoiceId: string; county: SavedCounty | null }> {
   return request(`/api/invoices/${invoiceId}/entered-county`, { method: 'PUT', body: JSON.stringify(choice) });
 }
+
+// Reprices the lines, undoing the decision on each it changes, as a line save does.
+export function setEnteredSender(
+  invoiceId: string,
+  choice: SenderChoice,
+  linesVersion: number,
+): Promise<{ invoiceId: string; undecided: string[]; linesVersion: number }> {
+  return request(`/api/invoices/${invoiceId}/entered-sender`, { method: 'PUT', body: JSON.stringify({ ...choice, linesVersion }) });
+}
+
+export function setEnteredDetails(invoiceId: string, details: InvoiceDetailsInput): Promise<{ invoiceId: string }> {
+  return request(`/api/invoices/${invoiceId}/entered-details`, { method: 'PUT', body: JSON.stringify(details) });
+}
+
 export function reopenReview(invoiceId: string): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/reopen`, { method: 'POST' });
 }

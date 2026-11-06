@@ -13,6 +13,8 @@ import {
   resolveInvoiceImport,
   setDraftCaseNumber,
   setDraftCounty,
+  setDraftDetails,
+  setDraftSender,
   transitionInvoice,
   updateDraftInvoice,
   type PortalInvoice,
@@ -42,6 +44,7 @@ import { INTAKE_PATH, PORTAL_HOME_PATH, useShell } from './useShell';
 import { EnteredFlag } from '../components/NewEntryFields';
 import { Fact, FactsStrip } from '../components/FactsStrip';
 import { CaseNumberBox } from '../components/CaseNumberBox';
+import { InvoiceDetailsFields } from '../components/InvoiceDetailsFields';
 import { SavedCountyPicker } from '../components/CountyPicker';
 import { countyValueOf } from '../counties';
 
@@ -196,6 +199,9 @@ function Lines({
   const isSubmitter = invoice.submittedByUserAccountId === user?.userAccountId;
   const isDraft = invoice.statusCode === 'draft';
   const editable = isDraft && isSubmitter;
+  // As saved beside the lines, which carry it on each save.
+  const savedPeriod = useRef({ periodStart: invoice.periodStart, periodEnd: invoice.periodEnd });
+  const [senderMissing, setSenderMissing] = useState(false);
   const { lines, rows, context, askingFor, duplicates, changes, notice, undatedRow, fileSays, error, setError, handlers, edited, editLine, flush } = useLineEntry({
     serverLines: data.lines,
     fileSource,
@@ -205,8 +211,8 @@ function Lines({
       updateDraftInvoice(
         invoice.invoiceId,
         {
-          periodStart: invoice.periodStart ?? undefined,
-          periodEnd: invoice.periodEnd ?? undefined,
+          periodStart: savedPeriod.current.periodStart ?? undefined,
+          periodEnd: savedPeriod.current.periodEnd ?? undefined,
           lines: next,
         },
         options,
@@ -342,10 +348,10 @@ function Lines({
   const position = checking ? checking.total - checking.queue.length : null;
 
   async function startSending() {
-    if (byPerson && !typedCaseNumber.trim()) {
-      setCaseNumberMissing(true);
-      return;
-    }
+    const noSender = byPerson && !invoice.professionalId;
+    setSenderMissing(noSender);
+    if (byPerson && !typedCaseNumber.trim()) setCaseNumberMissing(true);
+    if (noSender || (byPerson && !typedCaseNumber.trim())) return;
     // Lines changed in place save now, and so does the case number box,
     // which otherwise saves on losing focus.
     if (!(await flush())) return;
@@ -413,7 +419,8 @@ function Lines({
               <button
                 type="button"
                 className="btn btn--primary"
-                disabled={askingFor === null || lines.length === 0 || Boolean(undatedRow)}
+                // Without a sender, its time can't be priced yet; sending says to choose one.
+                disabled={(askingFor === null && !(byPerson && !invoice.professionalId)) || lines.length === 0 || Boolean(undatedRow)}
                 onClick={() => void startSending()}
               >
                 Send for review
@@ -442,6 +449,23 @@ function Lines({
 
       {byPerson && (
         <>
+          {editable && (
+            <InvoiceDetailsFields
+              invoice={invoice}
+              missingSender={senderMissing && !invoice.professionalId}
+              action="send"
+              warnings={fileSource?.warnings ?? []}
+              saveSender={async (choice) => {
+                if (!(await flush())) throw new Error('Line changes not saved');
+                await setDraftSender(invoice.invoiceId, choice);
+                onChanged();
+              }}
+              saveDetails={(details) => setDraftDetails(invoice.invoiceId, details)}
+              onPeriodSaved={(saved) => {
+                savedPeriod.current = saved;
+              }}
+            />
+          )}
           {caseNumberMissing && !typedCaseNumber.trim() && (
             <Notice tone="warning">This invoice needs a case number before it can be sent. Type it in the box below.</Notice>
           )}

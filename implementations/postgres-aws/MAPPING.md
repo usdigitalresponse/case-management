@@ -44,12 +44,22 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - Filed by person (design G, G4–G10): the staff sidebar's "+ Upload
     Invoices" (`/upload`) and the portal's Upload invoices
     (`/portal/upload`) both open `client/src/pages/UploadInvoices.tsx`,
-    which reads each file, then asks its case number (read from the file
-    when labelled, by `server/src/billing/caseNumbers.ts`
-    `readCaseNumber`), billing period and invoice number, one file at a
-    time, and who it is from when there's a choice (staff, or a submitter
-    who acts for others; otherwise it is the submitter's own). Each becomes
-    a draft with no case, checked next (`portal/InvoiceSubmission.tsx`:
+    which reads each file and makes it a draft with no case as soon as it
+    is read, with what was read: its case number (read from the file when
+    labelled, by `server/src/billing/caseNumbers.ts` `readCaseNumber`),
+    county, billing period, invoice number and, when the file suggests one,
+    who it is from (a submitter who acts for no one else is always its
+    sender). Once every file is in, it goes straight on, unless one failed.
+    There is no separate details step: who it is from (when there's a
+    choice: staff, or a submitter who acts for others), the billing period
+    and the invoice number are edited above the lines with the case number
+    and county (`client/src/components/InvoiceDetailsFields.tsx`; `PUT
+    /api/portal/invoices/:id/sender` and `/details`, or
+    `/api/invoices/:id/entered-sender` and `/entered-details` while
+    entering in review; `server/src/billing/uploadDetails.ts`). Until a
+    sender is chosen the lines show as read and time can't be priced;
+    choosing one prices the lines at their rates and moves lines given to
+    an earlier choice to them. Each draft is checked next (`portal/InvoiceSubmission.tsx`:
     staff at `/invoices/:id/check`, submitters at `/portal/invoices/:id`,
     where any invoice not filed under a case is shown this way), except that
     a reviewer's upload goes straight into their own review instead (see
@@ -63,8 +73,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     (`filedByPerson` on submit). An invoice with a typed case number goes to
     review without a case, for submitters too (`needsMatching` in
     `server/src/billing/proposedDetails.ts`). Who it is from is required to
-    go on (staff choose or add someone; a submitter acting for others
-    chooses among them) and to send. Who did the work is still matched from
+    send or finish (staff choose or add someone, with their role; a
+    submitter acting for others chooses among them). Who did the work is still matched from
     the file's timekeeper names; a line matching no one falls back to the
     person most of the invoice's other lines matched, else the sender, when
     the draft is made and again on sending (`billing/timekeeperFallback.ts`).
@@ -73,10 +83,16 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     case number (`attestationStatement`), and the receipt email shows it.
     Several files are checked one after another, by staff and submitters
     alike. With no file, or when none could be read, "Enter an invoice by
-    hand" makes an empty draft filed the same way: a submitter's is their
-    own, opened straight away; staff first choose or add who it is from
-    and may give its case number and billing period (`ManualEntry`), then
-    add its lines on the check page, or, if they review, on its review. The typed number is `invoice.case_number_as_typed`
+    hand" makes an empty draft filed the same way and opens it straight
+    away: a submitter's is their own unless they act for others; staff
+    give who it is from and its details above the lines, on the check
+    page, or, if they review, on its review. Changing the sender re-runs
+    the file's duplicate checks for the new sender
+    (`server/src/imports/duplicateWarnings.ts`), shown in the panel; editing
+    the invoice number does not, as they compare numbers read from files.
+    A reviewer may give a sender who has no role theirs from the panel
+    (`professionalKindId` on the sender save), which prices the lines; only
+    administrators change a role once set. The typed number is `invoice.case_number_as_typed`
     (migration `0020`), never checked against cases; close matches ignore
     case, spaces, dashes and leading zeros. Intake's own drop zone and
     manual entry still open the case-based upload

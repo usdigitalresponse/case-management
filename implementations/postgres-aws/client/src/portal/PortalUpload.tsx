@@ -433,12 +433,15 @@ export function InvoiceNumberField({
   error,
   hint,
   onChange,
+  onSave,
 }: {
   label: string;
   value: string;
   error?: string;
   hint: string;
   onChange: (value: string) => void;
+  // On blur or Enter.
+  onSave?: () => void;
 }) {
   return (
     <div className="upload-details__field">
@@ -449,6 +452,10 @@ export function InvoiceNumberField({
         value={value}
         aria-describedby="upload-invoice-number-hint"
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onSave}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onSave?.();
+        }}
       />
       {error && <p className="field-error">{error}</p>}
       <p id="upload-invoice-number-hint" className="field-hint">{hint}</p>

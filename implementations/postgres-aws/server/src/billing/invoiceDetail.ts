@@ -21,6 +21,7 @@ import {
   person,
   professional,
   professionalKinds,
+  supportingInvoice,
   timeEntry,
   trip,
   userAccount,
@@ -65,6 +66,8 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
       proposedProvider: invoice.proposedProvider,
       caseNumberAsTyped: invoice.caseNumberAsTyped,
       caseNumberCorrected: invoice.caseNumberCorrected,
+      // The number on the sender's own invoice.
+      invoiceNumber: sql<string | null>`(select ${supportingInvoice.invoiceNumber} from ${supportingInvoice} where ${supportingInvoice.invoiceId} = ${invoice.invoiceId} limit 1)`,
       // Its own, else its case's.
       countyId: county.countyId,
       countyDisplayName: county.displayName,

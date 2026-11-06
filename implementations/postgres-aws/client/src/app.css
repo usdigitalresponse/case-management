@@ -210,6 +210,10 @@ button, input, select, textarea { font: inherit; }
 .submission__meta strong { color: var(--ink); }
 .submission__actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .submission__actions .btn { min-height: 2.4rem; }
+/* Whom it is from, its period and number, above the case number (components/InvoiceDetailsFields.tsx). */
+.invoice-details { margin-bottom: 1rem; padding: 1.1rem 1.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.invoice-details--missing #invoice-from { border: 2px solid var(--warning-line); background: var(--warning-tint); }
+.invoice-details--missing #invoice-from-hint { color: var(--warning); }
 /* The typed case number above the file and lines (filed by person). */
 .case-number-box { display: grid; grid-template-columns: minmax(14rem, 22rem) 1fr; gap: 1rem 2rem; align-items: start; margin-bottom: 1rem; padding: 1.1rem 1.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .case-number-box .usa-label { margin: 0 0 .4rem; font-size: .88rem; }

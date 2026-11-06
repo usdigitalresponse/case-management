@@ -50,7 +50,16 @@ import { createInvoice } from '../portal/createInvoice';
 import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
 import { loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail';
-import { recallInvoice, setDraftCaseNumber, setDraftCounty, submitInvoice, updateDraftInvoice, withdrawInvoice } from '../billing/invoiceLifecycle';
+import {
+  recallInvoice,
+  setDraftCaseNumber,
+  setDraftCounty,
+  setDraftDetails,
+  setDraftSender,
+  submitInvoice,
+  updateDraftInvoice,
+  withdrawInvoice,
+} from '../billing/invoiceLifecycle';
 import { listCounties } from '../cases/counties';
 import { listReceiptChannels } from '../billing/invoiceReceipt';
 import { InvoiceNotFoundError } from '../billing/reviewInvoiceLine';
@@ -214,6 +223,20 @@ router.put(
   '/invoices/:id/county',
   asyncHandler(async (req, res) => {
     res.json(await setDraftCounty(db, await sessionActor(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/invoices/:id/sender',
+  asyncHandler(async (req, res) => {
+    res.json(await setDraftSender(db, await sessionActor(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/invoices/:id/details',
+  asyncHandler(async (req, res) => {
+    res.json(await setDraftDetails(db, await sessionActor(req), req.params.id as string, req.body));
   }),
 );
 

@@ -38,6 +38,7 @@ import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { priceLines } from './priceLines';
 import { measureTrips } from './routeCheck';
 import { fillUnmatchedTimekeepers } from './timekeeperFallback';
+import { changeSenderInTx, parseDetails, parseSender, setDetailsInTx } from './uploadDetails';
 
 export class EntryClosedError extends ConflictError {
   constructor() {
@@ -75,9 +76,7 @@ export async function enterInReviewInTx(tx: Transaction, actorUserAccountId: str
   if (locked.statusId !== (await getReferenceId(tx, invoiceStatuses, DRAFT_INVOICE_STATUS_CODE))) {
     throw new InvoiceStateError('Only a new upload can be entered in review.');
   }
-  if (!locked.professionalId) {
-    throw new ValidationError({ professionalId: 'Choose who this invoice is from first.' });
-  }
+  // Whom it is from may be chosen while entering; finishing needs it (closeEntry).
   const startedAt = new Date();
   const statusId = await getReferenceId(tx, invoiceStatuses, UNDER_REVIEW_INVOICE_STATUS_CODE);
   await tx
@@ -277,6 +276,36 @@ export async function setEnteredCounty(db: Database, actorUserAccountId: string,
   });
 }
 
+// Repricing for a new sender undoes the decision on each line it changes, as
+// a line save does, so it carries the page's linesVersion too.
+export async function setEnteredSender(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
+  const choice = parseSender(rawInput);
+  const version = z.object({ linesVersion: z.number().int().nonnegative() }).safeParse(rawInput);
+  if (!version.success) {
+    throw new ValidationError({ linesVersion: 'Reload the invoice, then make your change again.' });
+  }
+  return db.transaction(async (tx) => {
+    const { row, chainId } = await lockOpenEntry(tx, actorUserAccountId, invoiceId);
+    await requireCurrentLines(tx, row, actorUserAccountId, version.data.linesVersion);
+    const before = await lineValues(tx, invoiceId);
+    await changeSenderInTx(tx, await resolvePortalActor(tx, actorUserAccountId), row, choice);
+    const after = await lineValues(tx, invoiceId);
+    const undecided = (await decidedLineIds(tx, chainId)).filter((id) => before.get(id) !== after.get(id));
+    await clearDecisions(tx, chainId, undecided);
+    const linesVersion = await markLinesChanged(tx, invoiceId, actorUserAccountId, row.linesVersion);
+    return { invoiceId, undecided, linesVersion };
+  });
+}
+
+export async function setEnteredDetails(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
+  const details = parseDetails(rawInput);
+  return db.transaction(async (tx) => {
+    await lockOpenEntry(tx, actorUserAccountId, invoiceId);
+    await setDetailsInTx(tx, invoiceId, details);
+    return { invoiceId };
+  });
+}
+
 // How and when it came in, saved as entered so the entry can be finished later.
 export async function setEnteredReceipt(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   const parsed = receiptInputSchema.safeParse(rawInput ?? {});
@@ -314,6 +343,9 @@ export async function closeEntry(tx: Transaction, actorUserAccountId: string, in
   // Filed by person, it is found by its case number; filed under a case, by the case.
   if (!row!.caseId && !row!.caseNumberAsTyped) {
     throw new ValidationError({ caseNumber: 'Add the case number before you finish.' });
+  }
+  if (!row!.professionalId) {
+    throw new ValidationError({ professionalId: 'Choose who this invoice is from before you finish.' });
   }
   const actor = await resolvePortalActor(tx, actorUserAccountId);
   await requireReceiptForStaffEntry(tx, actor, row!);
