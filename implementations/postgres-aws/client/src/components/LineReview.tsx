@@ -278,6 +278,7 @@ export function DecisionCell({
   inReview,
   canDecide,
   changing,
+  edited = false,
   openPanel,
   saving,
   onApprove,
@@ -290,6 +291,8 @@ export function DecisionCell({
   inReview: boolean;
   canDecide: boolean;
   changing: boolean;
+  // Changed and not saved yet: saving undoes its decision, so it is decided again.
+  edited?: boolean;
   openPanel: PanelMode | null;
   saving: boolean;
   onApprove: () => void;
@@ -297,7 +300,7 @@ export function DecisionCell({
   onChanging: (changing: boolean) => void;
   onUndoRejection: () => void;
 }) {
-  if (canDecide && (!decision || changing)) {
+  if (canDecide && (!decision || changing || edited)) {
     const toggle = (mode: PanelMode) => onPanel(openPanel === mode ? null : mode);
     return (
       <div className="decision-buttons">
@@ -323,10 +326,14 @@ export function DecisionCell({
           </button>
         </div>
         {openPanel && <span className="cell-note decision-hint">{openPanel === 'rejected' ? 'Give a reason below' : 'Correct it below'}</span>}
-        {decision && (
-          <button type="button" className="link-button" onClick={() => onChanging(false)}>
-            Keep {decision.outcomeDisplayName.toLowerCase()}
-          </button>
+        {decision && edited ? (
+          <span className="cell-note">Was {decision.outcomeDisplayName.toLowerCase()}. Decide it again.</span>
+        ) : (
+          decision && (
+            <button type="button" className="link-button" onClick={() => onChanging(false)}>
+              Keep {decision.outcomeDisplayName.toLowerCase()}
+            </button>
+          )
         )}
       </div>
     );

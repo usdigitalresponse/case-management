@@ -1,8 +1,9 @@
 // Entering an invoice's lines beside its file, on the check page and on an
 // invoice entered in review. Saves go one at a time, each the whole set of
-// lines; on a failure the page goes back to the last set the server holds.
+// lines; on a failure the page goes back to the last set the server holds,
+// keeping changes made in place.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { apiErrorMessage, listBillableProfessionals, type FileLine, type FileSource, type PortalInvoiceLine } from '../api/client';
+import { ApiError, apiErrorMessage, listBillableProfessionals, type FileLine, type FileSource, type PortalInvoiceLine } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { usePortalBillingRules } from '../components/BillingRules';
 import { lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
@@ -25,7 +26,8 @@ export function useLineEntry({
   fileSource: FileSource | null;
   caseId: string | null;
   professionalId: string | null;
-  save: (lines: ReturnType<typeof linesFromDrafts>) => Promise<unknown>;
+  // keepalive: sent as the page closes, so the save outlives it.
+  save: (lines: ReturnType<typeof linesFromDrafts>, options: { keepalive: boolean }) => Promise<unknown>;
   setToast: (toast: ToastMessage | null) => void;
   // False for staff entering someone else's invoice.
   ownFile: boolean;
@@ -35,9 +37,15 @@ export function useLineEntry({
   const saving = useRef<Promise<unknown>>(Promise.resolve());
   const saved = useRef(lines);
   const pending = useRef(0);
+  // Ids of lines changed in place and not saved yet; flush() saves them.
+  const [edited, setEdited] = useState<ReadonlySet<string>>(() => new Set());
+  const editedNow = useRef(edited);
+  editedNow.current = edited;
+  const latest = useRef(lines);
+  latest.current = lines;
 
   useEffect(() => {
-    if (pending.current > 0) return;
+    if (pending.current > 0 || editedNow.current.size > 0) return;
     const fresh = lineDraftsFrom(serverLines, { perLine: true });
     saved.current = fresh;
     setLines(fresh);
@@ -80,19 +88,45 @@ export function useLineEntry({
   const undatedRow = rows.find((row) => row.kind === 'line' && row.read && !row.line.serviceDate);
   const fileSays = fileSource ? (fileSource.statedTotal ?? fileLines.reduce((sum, line) => sum + (line.amount ?? 0), 0)) : null;
 
-  function save(changed: LineDraft[]): Promise<void> {
+  // Lines just saved are no longer unsaved, unless changed again meanwhile.
+  function markSaved(next: LineDraft[]) {
+    const byId = new Map(next.map((line) => [line.invoiceLineId, line]));
+    setEdited((current) => new Set([...current].filter((id) => latest.current.find((line) => line.invoiceLineId === id) !== byId.get(id))));
+  }
+
+  // A line saved without its hours or amount is dropped, which removes it,
+  // so one changed in place that can't be priced yet keeps its saved version.
+  function savable(next: LineDraft[]): LineDraft[] {
+    return next.flatMap((line) => {
+      if (!editedNow.current.has(line.invoiceLineId ?? '') || priceOf(line, context).total !== null) return [line];
+      const before = saved.current.find((was) => was.invoiceLineId === line.invoiceLineId);
+      return before ? [before] : [];
+    });
+  }
+
+  // Resolves to the lines as saved. A failed save goes back to them, keeping
+  // changes made in place.
+  function save(changed: LineDraft[], { rollback = true, keepalive = false } = {}): Promise<LineDraft[]> {
     // A new line gets its id now, which the server keeps, so the next save
     // finds it rather than making it again.
     const next = changed.map((line) => (line.invoiceLineId ? line : { ...line, invoiceLineId: crypto.randomUUID() }));
     setLines(next);
+    const payload = savable(next);
     pending.current += 1;
     const done = saving.current.then(async () => {
-      await saveLines(linesFromDrafts(next));
-      saved.current = next;
+      await saveLines(linesFromDrafts(payload), { keepalive });
+      saved.current = payload;
+      return payload;
     });
-    saving.current = done.catch(() => setLines(saved.current)).finally(() => {
-      pending.current -= 1;
-    });
+    saving.current = done
+      .catch(() => {
+        if (!rollback) return;
+        const kept = new Map(latest.current.filter((line) => editedNow.current.has(line.invoiceLineId ?? '')).map((line) => [line.invoiceLineId, line]));
+        setLines(saved.current.map((line) => kept.get(line.invoiceLineId) ?? line));
+      })
+      .finally(() => {
+        pending.current -= 1;
+      });
     return done;
   }
 
@@ -101,10 +135,64 @@ export function useLineEntry({
     const previous = lines;
     setError(null);
     try {
-      await save(next);
+      markSaved(await save(next));
       setToast({ message, undo: () => save(previous) });
     } catch (err) {
       setError(apiErrorMessage(err, 'That change could not be saved. Try again.'));
+    }
+  }
+
+  // A change in place, kept unsaved; a trip's lines share its date and route.
+  function editLine(index: number, patch: Partial<LineDraft>) {
+    const target = lines[index];
+    if (!target) return;
+    const shared = Object.fromEntries(
+      Object.entries(patch).filter(([field]) => ['serviceDate', 'tripOrigin', 'tripDestination', 'roundTrip'].includes(field)),
+    );
+    const next = lines.map((line, at) =>
+      at === index ? { ...line, ...patch } : target.tripKey && line.tripKey === target.tripKey ? { ...line, ...shared } : line,
+    );
+    setLines(next);
+    // Typed back to what is saved, a line is no longer changed.
+    const asSaved = (line: LineDraft | undefined) => JSON.stringify(line ? linesFromDrafts([line]) : null);
+    const differs = (line: LineDraft) => asSaved(line) !== asSaved(saved.current.find((was) => was.invoiceLineId === line.invoiceLineId));
+    const touched = next.filter((line, at) => line !== lines[at] && line.invoiceLineId);
+    setEdited((current) => {
+      const updated = new Set(current);
+      for (const line of touched) {
+        if (differs(line)) updated.add(line.invoiceLineId!);
+        else updated.delete(line.invoiceLineId!);
+      }
+      return updated;
+    });
+  }
+
+  // Saves what was changed in place; false if it can't be saved yet or failed.
+  // Leaving saves whatever it can, keeping the invoice unfinished.
+  async function flush({ leaving = false } = {}): Promise<boolean> {
+    if (editedNow.current.size === 0) return true;
+    const unpriced = rows.find(
+      (row) => row.kind === 'line' && editedNow.current.has(row.line.invoiceLineId ?? '') && priceOf(row.line, context).total === null,
+    );
+    if (unpriced?.kind === 'line' && !leaving) {
+      setError(`Line ${unpriced.number}: ${priceOf(unpriced.line, context).missing ?? 'finish it'}. Your changes are not saved yet.`);
+      return false;
+    }
+    setError(null);
+    const current = latest.current;
+    try {
+      markSaved(await save(current, { rollback: false, keepalive: leaving }));
+      return true;
+    } catch (err) {
+      // Changed elsewhere: show the lines as they are now rather than overwrite them.
+      if (err instanceof ApiError && err.status === 409) {
+        setLines(saved.current);
+        setEdited(new Set());
+        setError('These lines were changed elsewhere, so your unsaved changes were not kept.');
+      } else {
+        setError(apiErrorMessage(err, 'Your changes could not be saved. Try again.'));
+      }
+      return false;
     }
   }
 
@@ -147,5 +235,17 @@ export function useLineEntry({
       ),
   };
 
-  return { lines, rows, context, askingFor, duplicates, changes, notice, undatedRow, fileSays, error, setError, handlers };
+  // Leaving the page, or closing the tab, saves what was changed in place.
+  const flushNow = useRef(flush);
+  flushNow.current = flush;
+  useEffect(() => {
+    const leave = () => void flushNow.current({ leaving: true });
+    window.addEventListener('pagehide', leave);
+    return () => {
+      window.removeEventListener('pagehide', leave);
+      leave();
+    };
+  }, []);
+
+  return { lines, rows, context, askingFor, duplicates, changes, notice, undatedRow, fileSays, error, setError, handlers, edited, editLine, flush };
 }

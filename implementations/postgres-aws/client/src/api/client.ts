@@ -980,10 +980,16 @@ export function listMyInvoices(caseId?: string): Promise<{ invoices: InvoiceReco
   return request<{ invoices: InvoiceRecord[] }>(`/api/portal/invoices${query}`);
 }
 
-export function updateDraftInvoice(invoiceId: string, content: DraftInvoiceContent): Promise<{ invoiceId: string; submittedTotal: string }> {
+// keepalive: sent as the page closes, so the save outlives it.
+export function updateDraftInvoice(
+  invoiceId: string,
+  content: DraftInvoiceContent,
+  { keepalive = false } = {},
+): Promise<{ invoiceId: string; submittedTotal: string }> {
   return request<{ invoiceId: string; submittedTotal: string }>(`/api/portal/invoices/${invoiceId}`, {
     method: 'PUT',
     body: JSON.stringify(content),
+    keepalive,
   });
 }
 
@@ -1691,8 +1697,9 @@ export function finishReview(invoiceId: string): Promise<unknown> {
 export function saveEnteredLines(
   invoiceId: string,
   content: DraftInvoiceContent & { linesVersion: number },
+  { keepalive = false } = {},
 ): Promise<{ invoiceId: string; submittedTotal: string; undecided: string[]; linesVersion: number }> {
-  return request(`/api/invoices/${invoiceId}/entered-lines`, { method: 'PUT', body: JSON.stringify(content) });
+  return request(`/api/invoices/${invoiceId}/entered-lines`, { method: 'PUT', body: JSON.stringify(content), keepalive });
 }
 
 // A reviewer's own draft, continued in their review as an upload would be.

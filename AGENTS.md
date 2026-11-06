@@ -248,7 +248,10 @@ into one travel line, and never group lines into a trip for the submitter.
 A reviewer's changed rate must stay flagged for sign-off. A reviewing staff
 member's upload goes straight into their own review (`enter_request_in_review`,
 `src/billing/enterInReview.ts`): they enter and decide its lines on the review
-page until the first finished round freezes them, and then lines never change,
+page until the first finished round freezes them. There, and on the check
+page, lines are edited in place with no save button; the page's next action
+(deciding, sending, saving for later, finishing) saves them first, so nothing
+acts on unsaved values. After that freeze, lines never change,
 even after reopening or a send-back. Line saves keep each line's id, so a
 decision or question stays on its line; never go back to deleting and
 reinserting lines. Entry saves, and decisions while entry is open, carry

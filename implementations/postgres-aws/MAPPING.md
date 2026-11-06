@@ -572,10 +572,23 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     up to 500 characters about one line ("Ask [the submitter, or whom it is
     from when staff entered it] about this line", under the line and its
     questions, not with the decision buttons), stored as
-    `invoice_review_question`. While lines are being entered, a line opens
-    for editing when clicked (its number for keyboards), and removing it or
-    putting it back as read is in its edit form, so the last column holds
-    only Approve, Approve part and Reject. The invoice
+    `invoice_review_question`. While lines are being entered, each line's
+    date, hours or miles, hourly rate, amount (expenses and other items),
+    description and a trip's route are fields in its row, edited in place
+    with no save button (`client/src/portal/CheckLinesTable.tsx`,
+    `useLineEntry.ts`). Edits stay on the page, marked unsaved, until the
+    next action saves them all first: deciding any line, opening Approve part
+    or Reject, asking or answering, re-pricing or finishing; a line that
+    can't be priced stops these with what it needs. Leaving the page or
+    closing the tab saves them too, keeping the invoice unfinished, with any
+    line that can't be priced keeping its last saved version (as on the
+    check page). An edited line shows its decision buttons again, since
+    saving undoes its decision, and editing it closes its open Approve part
+    or Reject; typed back to its saved values it is no longer edited. A save refused as stale drops the unsaved
+    edits and shows the lines as they are. Adding, removing and putting back
+    a line still save at once. Its bar holds Remove (and "Put it back as
+    read" for a line changed from the file) on the left and Approve, Approve
+    part and Reject on the right. The invoice
     moves to `awaiting_answer`: lines can still be decided, but finishing
     is refused and recall isn't offered. The submitter, or the professional
     it bills for, answers on the portal invoice page
@@ -1071,10 +1084,18 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     so `src/imports/invoiceFile.ts` and `client/src/fileChanges.ts` work out
     what changed: a changed line shows what it was, a removed line (a file
     line with no current line) stays struck through with Put it back, and an
-    added line says so. Editing opens a panel under the line (date, hours or
-    miles, rate for time, words; mileage at the configured rate per mile)
-    with the new amount worked out as typed; Remove, Put it back, Undo change
-    and Add a line we missed each save at once with Undo. Lines a reading
+    added line says so. Each line is edited in place, in its row (date,
+    hours or miles, rate for time, amount for expenses and other items,
+    words, a trip's route; mileage at the configured rate per mile), with
+    the amount worked out as typed and no save button: edits stay on the
+    page, marked unsaved, until "Send for review" or "Save and finish later"
+    saves them, where a line that can't be priced stops them with what it
+    needs. Leaving the page or closing the tab saves them as a draft (a
+    keepalive request), a line that can't be priced keeping its last saved
+    version, since a line saved without its hours or amount would be
+    removed; every save follows that rule. Remove, Put it back as
+    read (in the line's bar), Put it back and Add a line we missed each save
+    at once with Undo. Lines a reading
     warning names are marked "Check this"; same date, words and amount as an
     earlier line is flagged as a possible duplicate. The notice compares the
     file's total with the lines': a misread file says by how much and where

@@ -1,7 +1,7 @@
 // An upload entered in review: its reviewer types or corrects its lines
 // beside the file and decides each as they go. The lines lock when the
 // first round is finished (server/src/billing/enterInReview.ts).
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import {
   ApiError,
   apiErrorMessage,
@@ -86,6 +86,8 @@ export function EntryLines({
   ask,
   decision,
   form,
+  saveEdits,
+  onEditing,
 }: {
   data: InvoiceReview;
   // After each save, with how many decisions it undid.
@@ -98,8 +100,14 @@ export function EntryLines({
   // it on the left and deciding it on the right; then whatever is open on it.
   questions: (line: InvoiceReviewLine) => ReactNode;
   ask: (line: InvoiceReviewLine) => ReactNode;
-  decision: (line: InvoiceReviewLine) => ReactNode;
+  // Edited lines show the decision buttons, since saving undoes a decision.
+  decision: (line: InvoiceReviewLine, edited: boolean) => ReactNode;
   form: (line: InvoiceReviewLine) => ReactNode;
+  // Set to save the changes made in place, which the page does before its
+  // next action, such as deciding a line or finishing.
+  saveEdits: MutableRefObject<() => Promise<boolean>>;
+  // A line changed in place.
+  onEditing: (invoiceLineId: string) => void;
 }) {
   const { invoice, fileSource } = data;
   const [focus, setFocus] = useState<{ location: string } | undefined>();
@@ -108,29 +116,48 @@ export function EntryLines({
   useEffect(() => {
     version.current = invoice.linesVersion;
   }, [invoice.linesVersion]);
-  const { lines, rows, context, askingFor, duplicates, notice, undatedRow, fileSays, error, handlers } = useLineEntry({
+  // Leaving saves what was changed, without telling a page that has moved on.
+  const mounted = useRef(true);
+  const { lines, rows, context, askingFor, duplicates, notice, undatedRow, fileSays, error, handlers, edited, editLine, flush } = useLineEntry({
     serverLines: data.lines,
     fileSource,
     caseId: invoice.caseId,
     professionalId: invoice.professionalId,
-    save: async (lines) => {
+    save: async (lines, options) => {
       try {
-        const saved = await saveEnteredLines(invoice.invoiceId, {
-          periodStart: invoice.periodStart ?? undefined,
-          periodEnd: invoice.periodEnd ?? undefined,
-          lines,
-          linesVersion: version.current,
-        });
+        const saved = await saveEnteredLines(
+          invoice.invoiceId,
+          {
+            periodStart: invoice.periodStart ?? undefined,
+            periodEnd: invoice.periodEnd ?? undefined,
+            lines,
+            linesVersion: version.current,
+          },
+          options,
+        );
         version.current = saved.linesVersion;
-        onSaved(saved.undecided.length, saved.linesVersion);
+        if (mounted.current) onSaved(saved.undecided.length, saved.linesVersion);
       } catch (err) {
-        if (err instanceof ApiError && err.status === 409) onRefused();
+        if (err instanceof ApiError && err.status === 409 && mounted.current) onRefused();
         throw err;
       }
     },
     setToast,
     ownFile: false,
   });
+  // One function for this page's life, so the one before it, unmounting
+  // after this renders, only clears what it set.
+  const latestFlush = useRef(flush);
+  latestFlush.current = flush;
+  const [ownSave] = useState(() => () => latestFlush.current());
+  saveEdits.current = ownSave;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (saveEdits.current === ownSave) saveEdits.current = async () => true;
+    };
+  }, [saveEdits, ownSave]);
   const reviewLine = new Map(data.lines.map((line) => [line.invoiceLineId, line]));
   // A line not saved yet has nothing to decide.
   const lineAt = (index: number) => {
@@ -167,6 +194,12 @@ export function EntryLines({
           focus={focus?.location}
           onFocus={(location) => setFocus(location ? { location } : undefined)}
           {...handlers}
+          onEditLine={(index, patch) => {
+            editLine(index, patch);
+            const id = lines[index]?.invoiceLineId;
+            if (id) onEditing(id);
+          }}
+          edited={(index) => edited.has(lines[index]?.invoiceLineId ?? '')}
           notes={(index) => {
             const line = lineAt(index);
             return line ? questions(line) : null;
@@ -176,7 +209,7 @@ export function EntryLines({
             return line ? (
               <>
                 <span className="line-bar__ask">{ask(line)}</span>
-                <span className="line-bar__decide">{decision(line)}</span>
+                <span className="line-bar__decide">{decision(line, edited.has(line.invoiceLineId))}</span>
               </>
             ) : null;
           }}
@@ -185,7 +218,6 @@ export function EntryLines({
             return line ? form(line) : null;
           }}
           addLabel={fileSource ? 'Add a line we missed' : 'Add a line'}
-          editByClicking
           ownFile={false}
           footer={
             <div className="check-lines__totals">
@@ -203,8 +235,8 @@ export function EntryLines({
           }
         />
         <p className="compact-hint">
-          Click a line to correct or remove it, and decide it on the right. Changing a decided line undoes its decision. The lines
-          lock when you finish the review.
+          Correct any line where it is, then decide it: your changes save when you do, or when you finish. Changing a decided
+          line undoes its decision. The lines lock when you finish the review.
         </p>
       </div>
     </div>

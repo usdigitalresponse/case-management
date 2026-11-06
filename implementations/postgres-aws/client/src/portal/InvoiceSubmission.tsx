@@ -190,17 +190,21 @@ function Lines({
   const isSubmitter = invoice.submittedByUserAccountId === user?.userAccountId;
   const isDraft = invoice.statusCode === 'draft';
   const editable = isDraft && isSubmitter;
-  const { lines, rows, context, askingFor, duplicates, changes, notice, undatedRow, fileSays, error, setError, handlers } = useLineEntry({
+  const { lines, rows, context, askingFor, duplicates, changes, notice, undatedRow, fileSays, error, setError, handlers, edited, editLine, flush } = useLineEntry({
     serverLines: data.lines,
     fileSource,
     caseId: invoice.caseId,
     professionalId: invoice.professionalId,
-    save: (next) =>
-      updateDraftInvoice(invoice.invoiceId, {
-        periodStart: invoice.periodStart ?? undefined,
-        periodEnd: invoice.periodEnd ?? undefined,
-        lines: next,
-      }),
+    save: (next, options) =>
+      updateDraftInvoice(
+        invoice.invoiceId,
+        {
+          periodStart: invoice.periodStart ?? undefined,
+          periodEnd: invoice.periodEnd ?? undefined,
+          lines: next,
+        },
+        options,
+      ),
     setToast,
     ownFile: !staff,
   });
@@ -232,6 +236,10 @@ function Lines({
   };
   async function send() {
     setSendError(null);
+    if (!(await flush())) {
+      setSending(false);
+      return;
+    }
     try {
       if (fileSource && fileSource.importStatusCode !== 'confirmed') {
         await resolveInvoiceImport(fileSource.invoiceImportId, 'confirm');
@@ -327,17 +335,25 @@ function Lines({
   const fromName = invoice.professionalDisplayName ?? 'whom it is from';
   const position = checking ? checking.total - checking.queue.length : null;
 
-  function startSending() {
+  async function startSending() {
     if (byPerson && !typedCaseNumber.trim()) {
       setCaseNumberMissing(true);
       return;
     }
-    // The box saves on losing focus; this makes sure it has before sending.
-    const ready = byPerson ? setDraftCaseNumber(invoice.invoiceId, typedCaseNumber) : Promise.resolve();
-    ready.then(
-      () => setSending(true),
-      (err: unknown) => setError(apiErrorMessage(err, 'The case number could not be saved. Try again.')),
-    );
+    // Lines changed in place save now, and so does the case number box,
+    // which otherwise saves on losing focus.
+    if (!(await flush())) return;
+    try {
+      if (byPerson) await setDraftCaseNumber(invoice.invoiceId, typedCaseNumber);
+      setSending(true);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'The case number could not be saved. Try again.'));
+    }
+  }
+
+  async function finishLater() {
+    if (!(await flush())) return;
+    if (!goOn()) navigate(byPerson && staff ? INTAKE_PATH : PORTAL_HOME_PATH);
   }
 
   return (
@@ -385,14 +401,15 @@ function Lines({
         <div className="submission__actions">
           {editable && (
             <>
-              <button
-                type="button"
-                className="btn btn--outline"
-                onClick={() => goOn() || navigate(byPerson && staff ? INTAKE_PATH : PORTAL_HOME_PATH)}
-              >
+              <button type="button" className="btn btn--outline" onClick={() => void finishLater()}>
                 Save and finish later
               </button>
-              <button type="button" className="btn btn--primary" disabled={askingFor === null || lines.length === 0 || Boolean(undatedRow)} onClick={startSending}>
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={askingFor === null || lines.length === 0 || Boolean(undatedRow)}
+                onClick={() => void startSending()}
+              >
                 Send for review
               </button>
             </>
@@ -497,6 +514,8 @@ function Lines({
             focus={focus?.location}
             onFocus={(location) => setFocus(location ? { location } : undefined)}
             {...handlers}
+            onEditLine={editLine}
+            edited={(index) => edited.has(lines[index]?.invoiceLineId ?? '')}
             extra={sent ? decisionFor : undefined}
             detail={sent ? questionsFor : undefined}
             addLabel={fileSource ? 'Add a line we missed' : 'Add a line'}
@@ -518,8 +537,8 @@ function Lines({
           <p className="compact-hint">
             {isDraft
               ? fileSource
-                ? 'Click a line to see where it is on your file. Changes save as you go.'
-                : 'Add each line of the invoice. Changes save as you go.'
+                ? 'Correct any line where it is; click it to see where it is on your file. Changes save when you send or save for later.'
+                : 'Add each line of the invoice, and correct any line where it is. Changes save when you send or save for later.'
               : invoice.statusCode === 'submitted' || awaiting
                 ? 'This invoice is with the billing office, so the lines are locked. Withdraw it if you need to change something.'
                 : 'The lines are locked while the billing office reviews them.'}
