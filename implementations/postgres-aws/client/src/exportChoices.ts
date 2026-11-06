@@ -5,7 +5,7 @@ export type ExportFieldGroup = 'summary' | 'lines' | 'travel';
 // What an invoice export may leave out, by the name the file shows it under,
 // as server/src/billing/exportInvoice.ts OMITTABLE_EXPORT_FIELDS allows.
 export const EXPORT_FIELDS: Record<ExportFieldGroup, readonly string[]> = {
-  summary: ['Case number', 'Court numbers', 'Client', 'Professional', 'Submitted by', 'Signed off'],
+  summary: ['Case number', 'Court numbers', 'County', 'Client', 'Professional', 'Submitted by', 'Signed off'],
   lines: ['Date', 'Type', 'Description', 'Timekeeper', 'Codes', 'Hours / qty', 'Rate', 'Requested', 'Decision', 'Approved', 'Reason', 'Reviewed by'],
   travel: ['Date', 'From', 'To', 'Round trip', 'Travel hours', 'Miles claimed', 'Driving route (mi)', 'Travel expenses', 'Requested'],
 };

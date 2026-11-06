@@ -11,6 +11,8 @@ import {
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { ReferenceSelect } from '../components/ReferenceSelect';
+import { CountyPicker } from '../components/CountyPicker';
+import type { CountyValue } from '../counties';
 import { PageHeader } from '../components/PageHeader';
 import { TypeAheadPicker } from '../components/TypeAheadPicker';
 import { Notice } from '../components/Notice';
@@ -36,7 +38,7 @@ export default function NewCaseIntake() {
   const [participantRoleId, setParticipantRoleId] = useState('');
   const [statusId, setStatusId] = useState('');
   const [effectiveAt, setEffectiveAt] = useState('');
-  const [countyId, setCountyId] = useState('');
+  const [county, setCounty] = useState<CountyValue | null>(null);
   const [caseCategoryId, setCaseCategoryId] = useState('');
   const [organizationId, setOrganizationId] = useState('');
   const [officeId, setOfficeId] = useState('');
@@ -73,7 +75,8 @@ export default function NewCaseIntake() {
         participantRoleId,
         statusId,
         effectiveAt: effectiveAt ? new Date(effectiveAt).toISOString() : '',
-        countyId: countyId || undefined,
+        countyId: county?.countyId ?? undefined,
+        countyName: county && !county.countyId ? county.displayName : undefined,
         caseCategoryId: caseCategoryId || undefined,
         organizationId: organizationId || undefined,
         officeId: officeId || undefined,
@@ -241,16 +244,12 @@ export default function NewCaseIntake() {
       <div className="form-card">
       <Fieldset legend="Optional context" legendStyle="large">
         <div className="form-grid">
-          <ReferenceSelect
+          <CountyPicker
             id="countyId"
-            label="County"
-            error={fieldErrors.countyId}
-            value={countyId}
-            onChange={setCountyId}
-            options={referenceData.counties.map((county) => ({
-              id: county.countyId as string,
-              label: county.displayName,
-            }))}
+            error={fieldErrors.countyId ?? fieldErrors.countyName}
+            value={county}
+            onChange={setCounty}
+            hint="Or post-conviction or prison, in place of a county."
           />
           <ReferenceSelect
             id="caseCategoryId"

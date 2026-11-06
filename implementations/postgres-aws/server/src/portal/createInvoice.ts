@@ -13,6 +13,7 @@ import { authorizeBilling, type PortalActor } from './portalActor';
 import { receiptInputSchema, recordReceipt } from '../billing/invoiceReceipt';
 import { proposedCaseSchema, proposedProviderSchema } from '../billing/proposedDetails';
 import { caseNumberInput, cleanCaseNumber } from '../billing/caseNumbers';
+import { countyChoice, resolveCounty } from '../cases/counties';
 
 export const createInvoiceInputSchema = draftContentSchema.extend({
   // Null: matched later, in invoice intake.
@@ -30,6 +31,7 @@ export const createInvoiceInputSchema = draftContentSchema.extend({
   attested: z.boolean().optional(),
   // Given, the invoice is filed by person and sent as such.
   caseNumber: caseNumberInput.optional(),
+  ...countyChoice,
   // The number on the sender's own invoice, kept as its supporting invoice.
   invoiceNumber: z.string().trim().max(100, 'Keep the invoice number under 100 characters.').optional(),
   // A reviewing staff member's draft goes straight into their own review
@@ -71,6 +73,10 @@ export async function createInvoice(
     const caseNumber = cleanCaseNumber(parsed.data.caseNumber);
     if (caseNumber) {
       await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
+    }
+    const countyId = await resolveCounty(tx, actor.userAccountId, parsed.data);
+    if (countyId) {
+      await tx.update(invoice).set({ countyId }).where(eq(invoice.invoiceId, invoiceId));
     }
     if (parsed.data.invoiceNumber) {
       await tx.insert(supportingInvoice).values({

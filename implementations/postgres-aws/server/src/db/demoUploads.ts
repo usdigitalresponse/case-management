@@ -12,6 +12,7 @@ import { submitInvoice, updateDraftInvoice } from '../billing/invoiceLifecycle';
 import { reviewInvoiceLine } from '../billing/reviewInvoiceLine';
 import { createInvoice } from '../portal/createInvoice';
 import type { PortalActor } from '../portal/portalActor';
+import type { ReadCounty } from '../cases/counties';
 
 interface Item {
   // Blank to show a date taken from the line before.
@@ -30,6 +31,9 @@ interface DemoFile {
   client: string;
   // Printed as "Case No. …" and read from the file; left out on one.
   caseNumber?: string;
+  // Printed under it, naming the county as invoices do; the county read from it.
+  courtLine?: string;
+  county?: string;
   items: Item[];
   // A total that doesn't match the lines, as on a misread file.
   statedTotal?: number;
@@ -52,6 +56,9 @@ function drawInvoice(file: DemoFile): Promise<Buffer> {
   doc.text(`Invoice Date: ${usDate(file.periodEnd)}`);
   doc.text(`Billing Period: ${usDate(file.periodStart)} - ${usDate(file.periodEnd)}`);
   doc.text(file.caseNumber ? `Re: State v. ${file.client}, Case No. ${file.caseNumber}` : `Client: ${file.client}`);
+  if (file.courtLine) {
+    doc.text(file.courtLine);
+  }
   doc.moveDown();
   doc.fontSize(9).table({
     columnStyles: (column) => ({ width: [62, 100, '*', 45, 60, 65][column] ?? '*' }),
@@ -80,8 +87,12 @@ function timeItem(timekeeper: string, rate: number, date: string, description: s
 }
 
 // PDFs are read in the background queue; the seed waits for each. Returns
-// the case number read from the file, as the upload page fills it in.
-async function upload(actor: PortalActor, fileName: string, bytes: Buffer): Promise<{ uploadReadId: string; caseNumber: string | null }> {
+// the case number and county read from the file, as the upload page fills them in.
+async function upload(
+  actor: PortalActor,
+  fileName: string,
+  bytes: Buffer,
+): Promise<{ uploadReadId: string; caseNumber: string | null; county: ReadCounty | null }> {
   const { uploadReadId } = await startUploadRead(db, documentStore, actor, { fileName, bytes });
   for (let waited = 0; waited < 120; waited += 1) {
     // eslint-disable-next-line no-await-in-loop
@@ -90,7 +101,7 @@ async function upload(actor: PortalActor, fileName: string, bytes: Buffer): Prom
       throw new Error(`Demo upload ${fileName} could not be read: ${read.failureMessage}`);
     }
     if (read.status === 'ready') {
-      return { uploadReadId, caseNumber: read.read.caseNumber };
+      return { uploadReadId, caseNumber: read.read.caseNumber, county: read.read.county };
     }
     // eslint-disable-next-line no-await-in-loop
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -101,11 +112,15 @@ async function upload(actor: PortalActor, fileName: string, bytes: Buffer): Prom
 // Filed by person: no case, whom it is from (null: chosen on Intake).
 // enterInReview: a reviewer's upload, straight into their own review.
 async function uploadDraft(actor: PortalActor, professionalId: string | null, file: DemoFile, fileName: string, enterInReview = false) {
-  const { uploadReadId, caseNumber } = await upload(actor, fileName, await drawInvoice(file));
+  const { uploadReadId, caseNumber, county } = await upload(actor, fileName, await drawInvoice(file));
   if (caseNumber !== (file.caseNumber ?? null)) {
     throw new Error(`Demo upload ${fileName} read case number ${caseNumber ?? 'none'}, not ${file.caseNumber ?? 'none'}.`);
   }
+  if ((county?.displayName ?? null) !== (file.county ?? null)) {
+    throw new Error(`Demo upload ${fileName} read county ${county?.displayName ?? 'none'}, not ${file.county ?? 'none'}.`);
+  }
   return createDraftFromUpload(db, actor, {
+    countyId: county?.countyId ?? undefined,
     uploadReadId,
     caseId: null,
     professionalId,
@@ -222,6 +237,8 @@ export async function seedDemoUploads(input: {
     periodEnd: '2026-09-30',
     client: secondClient,
     caseNumber: '26-CR-00214',
+    courtLine: 'Superior Court of County B',
+    county: 'County B',
     items: partnerItems('09'),
   };
   const changedDraft = await uploadDraft(partner, partner.professionalId, changed, fileNameFor(secondClient, 'Sep2026'));
@@ -252,6 +269,8 @@ export async function seedDemoUploads(input: {
     periodEnd: '2026-08-31',
     client: firstClient,
     caseNumber: '26-CR-00211',
+    courtLine: 'County: County A',
+    county: 'County A',
     items: partnerItems('08'),
   };
   const sentDraft = await uploadDraft(partner, partner.professionalId, sent, fileNameFor(firstClient, 'Aug2026'));
@@ -281,6 +300,8 @@ export async function seedDemoUploads(input: {
     periodEnd: '2026-10-31',
     client: 'Synthetic Client',
     caseNumber: '26-CR-00261',
+    courtLine: 'Post-conviction petition',
+    county: 'Post-conviction',
     items: partnerItems('10').slice(0, 4),
   };
   const entered = await uploadDraft(staff, partner.professionalId, held, 'Example_emailed_invoice_Oct2026.pdf', true);

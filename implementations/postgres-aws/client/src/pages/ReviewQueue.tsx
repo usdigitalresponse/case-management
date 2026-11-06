@@ -8,7 +8,8 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { RecordTable } from '../components/RecordTable';
-import { caseNumberColumn, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
+import { caseNumberColumn, countyOfInvoice, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
+import { useCountyControl } from '../components/CountyListControl';
 import { AssignReviewer } from '../components/ReviewRouting';
 import { Toast, useToast } from '../components/Toast';
 import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
@@ -54,12 +55,17 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
     [data, userAccountId],
   );
 
+  const county = useCountyControl(
+    (data?.invoices ?? []).filter((invoice) => matches(invoice, filter, userAccountId) && (!query || matchesQuery(invoice, query))),
+    countyOfInvoice,
+  );
+
   if (error || !data) {
     return <LoadState error={error} what="invoices" />;
   }
 
   const open = view === 'open';
-  const shown = data.invoices.filter((invoice) => matches(invoice, filter, userAccountId) && (!query || matchesQuery(invoice, query)));
+  const shown = county.shown;
   const isLate = (invoice: ReviewQueueItem) => invoice.workingDaysWaiting > data.waitingAlertWorkingDays;
   const late = open ? data.invoices.filter(isLate) : [];
   const setParam = (name: string, value: string | null) => {
@@ -95,36 +101,42 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
         </Notice>
       )}
 
-      {open && (
-        <div className="chip-filters" role="group" aria-label="Show">
-          {FILTERS.map(({ id, label }) => (
-            <button
-              key={id}
-              type="button"
-              className={`chip chip--filter${id === 'flagged' ? ' chip--warning' : ''}`}
-              aria-pressed={filter === id}
-              onClick={() => setParam('show', id)}
-            >
-              {label} <span className="chip-count">{counts[id]}</span>
-            </button>
-          ))}
-          {query && (
-            <span className="chip chip--neutral">
-              Matching “{query}”
-              <button type="button" className="link-button" onClick={() => setParam('q', null)}>
-                Clear
+      <div className="list-controls">
+        {open && (
+          <div className="chip-filters" role="group" aria-label="Show">
+            {FILTERS.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                className={`chip chip--filter${id === 'flagged' ? ' chip--warning' : ''}`}
+                aria-pressed={filter === id}
+                onClick={() => setParam('show', id)}
+              >
+                {label} <span className="chip-count">{counts[id]}</span>
               </button>
-            </span>
-          )}
-        </div>
-      )}
+            ))}
+            {query && (
+              <span className="chip chip--neutral">
+                Matching “{query}”
+                <button type="button" className="link-button" onClick={() => setParam('q', null)}>
+                  Clear
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+        {county.control}
+      </div>
 
       <RecordTable
         className="queue-table"
         rows={shown}
         rowKey={(invoice) => invoice.invoiceId}
         emptyMessage={
-          filter === 'mine' && open ? 'Nothing is waiting on you. See everyone’s invoices to pick one up.' : 'No invoices here.'
+          county.narrowed
+            ? 'No invoices here for that county.'
+            : filter === 'mine' && open
+              ? 'Nothing is waiting on you. See everyone’s invoices to pick one up.' : 'No invoices here.'
         }
         columns={[
           caseNumberColumn,

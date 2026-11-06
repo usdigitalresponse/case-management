@@ -237,7 +237,10 @@ date, and reviewers correct a case number beside the typed one, never over it.
 The earlier case-led queue and Intake (with the case-based upload) are off the
 sidebar but still work by address. Every case and
 person picker is `client/src/components/PickOrAdd.tsx` (first option adds
-one), except a submitter choosing among the people they bill for. In the
+one), except a submitter choosing among the people they bill for. Every
+county picker is `client/src/components/CountyPicker.tsx`: settings such as
+post-conviction (`county.is_county` false) first, and a typed county is
+matched by name before one is added (`server/src/cases/counties.ts`). In the
 case-based flow, never block the next step on an unchosen case or provider.
 Filed by person, the sender is required, since the invoice is filed under
 them, and a line whose worker isn't matched falls back to the invoice's most

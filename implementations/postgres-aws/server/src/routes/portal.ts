@@ -50,7 +50,8 @@ import { createInvoice } from '../portal/createInvoice';
 import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
 import { loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail';
-import { recallInvoice, setDraftCaseNumber, submitInvoice, updateDraftInvoice, withdrawInvoice } from '../billing/invoiceLifecycle';
+import { recallInvoice, setDraftCaseNumber, setDraftCounty, submitInvoice, updateDraftInvoice, withdrawInvoice } from '../billing/invoiceLifecycle';
+import { listCounties } from '../cases/counties';
 import { listReceiptChannels } from '../billing/invoiceReceipt';
 import { InvoiceNotFoundError } from '../billing/reviewInvoiceLine';
 import { answerQuestionAsSubmitter, mayAnswerAsSubmitter } from '../billing/reviewQuestions';
@@ -206,6 +207,21 @@ router.put(
   '/invoices/:id/case-number',
   asyncHandler(async (req, res) => {
     res.json(await setDraftCaseNumber(db, await sessionActor(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/invoices/:id/county',
+  asyncHandler(async (req, res) => {
+    res.json(await setDraftCounty(db, await sessionActor(req), req.params.id as string, req.body));
+  }),
+);
+
+// Settings such as post-conviction first, then counties; for every county picker.
+router.get(
+  '/counties',
+  asyncHandler(async (_req, res) => {
+    res.json({ counties: await listCounties(db) });
   }),
 );
 

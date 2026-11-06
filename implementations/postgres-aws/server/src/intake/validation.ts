@@ -32,6 +32,8 @@ export const createCaseInputSchema = z.object({
   // HTTP callers send an explicit instant; internal callers may pass a Date.
   effectiveAt: z.union([z.date(), z.iso.datetime({ offset: true })]).pipe(z.coerce.date()),
   countyId: z.string().uuid().optional(),
+  // A county not listed yet, added or matched by name (../cases/counties.ts).
+  countyName: z.string().trim().max(100, 'Keep the county under 100 characters.').optional(),
   caseCategoryId: z.string().uuid().optional(),
   organizationId: z.string().uuid().optional(),
   officeId: z.string().uuid().optional(),

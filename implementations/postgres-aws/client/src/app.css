@@ -982,6 +982,12 @@ form.compact-form { max-width: none; }
 .entered-details { margin: .4rem 0 .6rem; padding-left: 1.1rem; }
 .entered-details p { margin: .2rem 0; }
 .type-ahead__option--add { font-weight: 600; color: var(--primary); border-bottom: 1px solid var(--line); }
+/* County pickers (components/CountyPicker.tsx): settings such as
+   post-conviction above a line, counties below. */
+.type-ahead__option--first-county { border-top: 1px solid var(--line); }
+.county-picker .type-ahead { max-width: none; }
+.case-number-box .county-picker { margin-top: .9rem; }
+.county-list-control .usa-select { max-width: 16rem; }
 .entered-flag--compact { padding: 0 .45rem; font-size: .7rem; white-space: nowrap; vertical-align: middle; cursor: help; }
 .queue-table th[scope="row"] .muted { font-weight: 400; }
 .queue-table .row-actions a, .queue-table .row-actions .link-button { white-space: nowrap; }

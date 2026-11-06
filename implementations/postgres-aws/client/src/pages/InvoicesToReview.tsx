@@ -13,7 +13,8 @@ import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { RecordTable } from '../components/RecordTable';
-import { CaseNumberCell, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
+import { CaseNumberCell, countyOfInvoice, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
+import { useCountyControl } from '../components/CountyListControl';
 import { AssignReviewer } from '../components/ReviewRouting';
 import { Toast, useToast } from '../components/Toast';
 import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
@@ -156,16 +157,18 @@ export default function InvoicesToReview() {
     [data, userAccountId],
   );
 
+  const county = useCountyControl(
+    sorted((data?.invoices ?? []).filter((invoice) => matchesQueueFilter(invoice, filter, userAccountId)), sort),
+    countyOfInvoice,
+  );
+
   if (error || !data) {
     return <LoadState error={error} what="invoices" />;
   }
 
   const isLate = (invoice: ReviewQueueItem) => invoice.workingDaysWaiting > data.waitingAlertWorkingDays;
   const late = data.invoices.filter(isLate);
-  const shown = sorted(
-    data.invoices.filter((invoice) => matchesQueueFilter(invoice, filter, userAccountId)),
-    sort,
-  );
+  const shown = county.shown;
 
   return (
     <div>
@@ -173,16 +176,19 @@ export default function InvoicesToReview() {
         title="Invoices to review"
         description="Every invoice waiting for a decision. Each one belongs to the person who sent it. Case numbers are as they typed them."
         actions={
-          <label className="sort-select">
-            <span>Sort</span>
-            <select className="usa-select" value={sort} onChange={(event) => setSort(event.target.value as SortId)}>
-              {SORTS.map(({ id, label }) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <>
+            {county.control}
+            <label className="sort-select">
+              <span>Sort</span>
+              <select className="usa-select" value={sort} onChange={(event) => setSort(event.target.value as SortId)}>
+                {SORTS.map(({ id, label }) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
         }
       />
 
@@ -226,7 +232,7 @@ export default function InvoicesToReview() {
         className="queue-table"
         rows={shown}
         rowKey={(invoice) => invoice.invoiceId}
-        emptyMessage={filter === 'mine' ? 'Nothing is waiting on you. See everyone’s invoices to pick one up.' : 'No invoices here.'}
+        emptyMessage={county.narrowed ? 'No invoices here for that county.' : filter === 'mine' ? 'Nothing is waiting on you. See everyone’s invoices to pick one up.' : 'No invoices here.'}
         columns={[
           {
             header: 'From',

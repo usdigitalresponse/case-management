@@ -27,6 +27,7 @@ import { confirmImportInTx } from '../imports/invoiceImports';
 import type { DocumentStore } from '../imports/documentStore';
 import { requireImportedDates } from '../imports/undatedLines';
 import { caseNumberInput, cleanCaseNumber } from './caseNumbers';
+import { parseCountyChoice, resolveCountyChange, shownInvoiceCounty } from '../cases/counties';
 import { recordInvoiceEvent } from './invoiceEvents';
 import { freezeRequest, InvoiceStateError, MILEAGE_EXPENSE_TYPE_CODE, parseDraftContent, replaceLines } from './invoiceLifecycle';
 import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry, type ReceiptInput } from './invoiceReceipt';
@@ -263,6 +264,16 @@ export async function setEnteredCaseNumber(db: Database, actorUserAccountId: str
     const caseNumber = cleanCaseNumber(parsed.data.caseNumber);
     await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, caseNumber };
+  });
+}
+
+export async function setEnteredCounty(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
+  const choice = parseCountyChoice(rawInput);
+  return db.transaction(async (tx) => {
+    await lockOpenEntry(tx, actorUserAccountId, invoiceId);
+    const countyId = await resolveCountyChange(tx, actorUserAccountId, choice);
+    await tx.update(invoice).set({ countyId }).where(eq(invoice.invoiceId, invoiceId));
+    return { invoiceId, county: await shownInvoiceCounty(tx, invoiceId) };
   });
 }
 

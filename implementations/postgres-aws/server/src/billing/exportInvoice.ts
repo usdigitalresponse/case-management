@@ -23,7 +23,7 @@ const TRAVEL_COLUMNS = ['Date', 'From', 'To', 'Round trip', 'Travel hours', 'Mil
 // the name it's shown under; the totals and invoice ID always stay. Keys
 // are `group:name` (exportFieldKey), as the client's export dialog sends.
 export const OMITTABLE_EXPORT_FIELDS = {
-  summary: ['Case number', 'Court numbers', 'Client', 'Professional', 'Submitted by', 'Signed off'],
+  summary: ['Case number', 'Court numbers', 'County', 'Client', 'Professional', 'Submitted by', 'Signed off'],
   lines: LINE_COLUMNS,
   travel: TRAVEL_COLUMNS,
 } as const;
@@ -89,6 +89,7 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
     // Reviewed without a case: say so, as the warning on screen does.
     ['Case number', currentCaseNumber(invoice) ?? detail.caseNumber ?? invoice.caseExternalReference ?? invoice.caseId ?? NO_CASE_WARNING],
     ['Court numbers', detail.otherCaseNumbers.join(', ')],
+    ['County', invoice.countyDisplayName ?? ''],
     ['Client', invoice.caseClientDisplayName ?? ''],
     ['Professional', invoice.professionalDisplayName ?? ''],
     ['Submitted by', invoice.submittedByDisplayName ?? ''],

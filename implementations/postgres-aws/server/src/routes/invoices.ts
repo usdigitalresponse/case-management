@@ -20,8 +20,10 @@ import {
   measureEnteredTrips,
   saveEnteredLines,
   setEnteredCaseNumber,
+  setEnteredCounty,
   setEnteredReceipt,
 } from '../billing/enterInReview';
+import { changeInvoiceCounty } from '../billing/invoiceCounty';
 import { answerQuestionAsStaff, askQuestion } from '../billing/reviewQuestions';
 import { reassignReviewer, setSignOffApprovers, LINE_REVIEW_STEP_TYPE_CODE } from '../billing/reviewAssignment';
 import { listReviewPeople } from '../billing/reviewAccess';
@@ -193,6 +195,13 @@ router.put(
   }),
 );
 
+router.put(
+  '/:id/entered-county',
+  asyncHandler(async (req, res) => {
+    res.json(await setEnteredCounty(db, actorId(req), req.params.id as string, req.body));
+  }),
+);
+
 router.get(
   '/:id/export',
   asyncHandler(async (req, res) => {
@@ -294,6 +303,13 @@ router.put(
   '/:id/case-number',
   asyncHandler(async (req, res) => {
     res.json(await correctCaseNumber(db, actorId(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/:id/county',
+  asyncHandler(async (req, res) => {
+    res.json(await changeInvoiceCounty(db, actorId(req), req.params.id as string, req.body));
   }),
 );
 

@@ -1,5 +1,5 @@
-// An invoice's case number as typed, saved on blur or Enter, with why it
-// matters beside it.
+// An invoice's case number as typed, saved on blur or Enter, with its county
+// below and why it matters beside it.
 import type { ReactNode } from 'react';
 
 export function CaseNumberBox({
@@ -14,6 +14,7 @@ export function CaseNumberBox({
   onChange,
   onSave,
   onFocus,
+  county,
   children,
 }: {
   id: string;
@@ -27,6 +28,7 @@ export function CaseNumberBox({
   onChange: (value: string) => void;
   onSave: () => void;
   onFocus?: () => void;
+  county?: ReactNode;
   children?: ReactNode;
 }) {
   return (
@@ -49,6 +51,7 @@ export function CaseNumberBox({
           }}
         />
         <p id={`${id}-hint`} className={error || missing ? 'field-error' : 'field-hint'}>{error ?? hint}</p>
+        {county}
       </div>
       {children && <div className="case-number-box__why">{children}</div>}
     </section>

@@ -167,6 +167,11 @@ dotnet run --project implementations/dataverse/SetupTests/SetupTests.csproj
   rates, `trip`, `invoice_line.time_category` and the line, time entry and
   expense `trip_id` columns are not provisioned, so trips, travel and waiting
   time, mileage pricing and reviewer rate changes are not mapped.
+- Case counties (`record_case_county`): the review package carries
+  `county.is_county` from the model, but the 0.1 baseline's county table and
+  case form use the standard lookup, so settings such as post-conviction are not
+  listed first, adding a county by typing it needs the maker's own quick create,
+  and nothing matches names or suggests a county from a file.
 
 Next workflow work should implement these using supported Dataverse capabilities
 and Solution tooling, with shared scenarios and server-side checks. Avoid growing

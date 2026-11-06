@@ -1,11 +1,13 @@
 // A reviewer's correction beside the case number as typed, with how many
-// other invoices share it.
+// other invoices share it, and its county.
 import { useEffect, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
-import { apiErrorMessage, correctCaseNumber, type QueuedInvoice } from '../api/client';
+import { apiErrorMessage, changeInvoiceCounty, correctCaseNumber, type QueuedInvoice } from '../api/client';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { searchPath } from '../staffPaths';
+import { countyValueOf } from '../counties';
 import { CaseNumberBox } from './CaseNumberBox';
+import { SavedCountyPicker } from './CountyPicker';
 
 export function CaseNumberReview({
   invoice,
@@ -65,6 +67,18 @@ export function CaseNumberReview({
       error={error}
       onChange={setValue}
       onSave={save}
+      county={
+        canCorrect ? (
+          <SavedCountyPicker
+            id="review-county"
+            initial={countyValueOf(invoice)}
+            save={(choice) => changeInvoiceCounty(invoice.invoiceId, choice)}
+            hint="A change is recorded with the county it replaced."
+          />
+        ) : (
+          <p className="field-hint">County: {invoice.countyDisplayName ?? 'Not added'}</p>
+        )
+      }
     >
       {current && (
         <>

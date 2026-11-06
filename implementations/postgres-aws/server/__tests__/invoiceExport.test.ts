@@ -198,7 +198,7 @@ describe('invoice export', () => {
       Status: 'Waiting for review',
     });
     const csv = billingRecordCsv(rows).trimEnd().split('\r\n');
-    expect(csv[0]?.startsWith('Case number,Court numbers,Invoice number')).toBe(true);
+    expect(csv[0]?.startsWith('Case number,Court numbers,County,Invoice number')).toBe(true);
     expect(csv).toHaveLength(2);
   });
 

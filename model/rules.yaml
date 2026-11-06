@@ -1,4 +1,4 @@
-spec_version: "0.8.0"
+spec_version: "0.9.0"
 status: draft
 kind: business_rules
 
@@ -572,7 +572,20 @@ rules:
       - One row per submitted request, keyed by case number, with court or other case numbers, the request's own reference, the professional and their kind, who submitted it and how and when a staff-entered one was received, the billing period, submitted date, requested amount, status and the date it last changed, and the line reviewer.
       - The approved amount, the amount cut, the reasons used for cuts and rejections, and who signed off and when are filled once the request is signed off; a request still in review or awaiting sign-off shows none, since its numbers can still change.
       - Line detail stays in the system. Configured billing staff roles may download the record; any route to an external system reads from it.
-      - Unresolved: payment track, county, budget account code and budget month, and the external payment date and reference are not yet held, so the record omits them.
+      - Each row also carries the case's county, or the setting recorded in its place (record_case_county).
+      - Unresolved: payment track, budget account code and budget month, and the external payment date and reference are not yet held, so the record omits them.
+
+  record_case_county:
+    description: Record each case's county, or a setting such as post-conviction or prison in its place, from a list users can add to.
+    applies_to: county
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Wherever a county is chosen, the picker matches active counties as the user types, and lists settings that aren't counties (is_county false) before counties.
+      - A user who may set the county may add one that isn't listed by typing its name. A name matching an existing county, ignoring case, spacing, punctuation and the word "county", reuses that county rather than adding a duplicate; one that is no longer active is refused, not reactivated. Record the actor. Adding a county grants no access.
+      - Changing a county names the new one or clears it explicitly; a change saying neither is refused. A change after submission is recorded with the county it replaced.
+      - An import may suggest the county from the file (a labelled county, a setting the file names but none of its items mention, or a place named as a court's county), preferring an existing county; the user confirms or changes it, and a county named only in the file is added only when the user goes on with it.
+      - Unresolved: whether counties a submitter adds need staff review before others are offered them.
 
   authorize_invoice_review:
     description: Map configured system roles to review actions.

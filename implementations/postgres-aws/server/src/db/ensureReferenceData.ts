@@ -1,7 +1,7 @@
 // Idempotent seeding of the reference/config rows the app needs to
 // function at all (activity_types, including travel and waiting, the mileage expense
-// type, invoice statuses/line types/approval step types/outcomes/event types, invoice import formats/statuses, and the
-// fixed staff, administrator, assignment and delegate roles). Safe to run in every
+// type, invoice statuses/line types/approval step types/outcomes/event types, invoice import formats/statuses, the
+// fixed staff, administrator, assignment and delegate roles, and the settings recorded in place of a county). Safe to run in every
 // environment, including production, and is: ./migrate.ts calls it, and
 // ./fixtures.ts calls it after its reset, so there is one definition of
 // these rows.
@@ -32,9 +32,11 @@ import {
 import { INVOICE_DECISION_REASONS } from '../billing/decisionReasons';
 import { STAFF_ASSIGNMENT_ROLE_DISPLAY_NAME } from '../cases/staffAssignmentRole';
 import { DELEGATE_AFFILIATION_ROLE_DISPLAY_NAME } from '../professionals/delegateRole';
+import { ensureDefaultSettings } from '../cases/counties';
 
 export async function ensureReferenceData(db: Database): Promise<void> {
   await Promise.all([
+    ensureDefaultSettings(db),
     db
       .insert(activityTypes)
       .values([

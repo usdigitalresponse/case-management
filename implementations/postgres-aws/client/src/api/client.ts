@@ -555,6 +555,29 @@ export function getReferenceData(): Promise<ReferenceData> {
   return request<ReferenceData>('/api/reference-data');
 }
 
+// Settings recorded in a county's place (isCounty false) come first.
+export interface CountyOption {
+  countyId: string;
+  displayName: string;
+  isCounty: boolean;
+}
+
+export interface SavedCounty {
+  countyId: string;
+  displayName: string;
+}
+
+// countyId null clears it; countyName adds one not listed, or reuses one
+// with the same name.
+export interface CountyChoice {
+  countyId?: string | null;
+  countyName?: string;
+}
+
+export function listCounties(): Promise<{ counties: CountyOption[] }> {
+  return request('/api/portal/counties');
+}
+
 export interface CreateCaseIdentifierInput {
   identifierTypeId: string;
   issuer: string;
@@ -572,6 +595,7 @@ export interface CreateCaseInput {
   statusId: string;
   effectiveAt: string;
   countyId?: string;
+  countyName?: string;
   caseCategoryId?: string;
   organizationId?: string;
   officeId?: string;
@@ -881,7 +905,7 @@ export interface SubmitterChanges {
   addedCount: number;
 }
 
-export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt {
+export interface CreateInvoiceInput extends DraftInvoiceContent, InvoiceReceipt, CountyChoice {
   // Null: it waits on Intake for its case.
   caseId: string | null;
   // Whose work the invoice bills; defaults to the caller's own profile. Null:
@@ -996,6 +1020,10 @@ export function updateDraftInvoice(
 // The case number as typed, on a draft; empty clears it.
 export function setDraftCaseNumber(invoiceId: string, caseNumber: string): Promise<{ invoiceId: string; caseNumber: string | null }> {
   return request(`/api/portal/invoices/${invoiceId}/case-number`, { method: 'PUT', body: JSON.stringify({ caseNumber }) });
+}
+
+export function setDraftCounty(invoiceId: string, choice: CountyChoice): Promise<{ invoiceId: string; county: SavedCounty | null }> {
+  return request(`/api/portal/invoices/${invoiceId}/county`, { method: 'PUT', body: JSON.stringify(choice) });
 }
 
 export type InvoiceTransition = 'submit' | 'recall' | 'withdraw';
@@ -1227,6 +1255,8 @@ export type UploadRead =
         lineCount: number;
         invoiceNumber: string | null;
         caseNumber: string | null;
+        // countyId null: named in the file but not listed yet.
+        county: { countyId: string | null; displayName: string } | null;
         periodStart: string | null;
         periodEnd: string | null;
         statedTotal: number | null;
@@ -1275,7 +1305,7 @@ export function createUploadDraft(
     caseNumber?: string;
     // A reviewer's goes straight into their own review.
     enterInReview?: boolean;
-  },
+  } & CountyChoice,
 ): Promise<{ invoiceImportId: string; invoiceId: string }> {
   return request(`/api/portal/uploads/${uploadReadId}/draft`, { method: 'POST', body: JSON.stringify(details) });
 }
@@ -1392,6 +1422,9 @@ export interface QueuedInvoice {
   caseNumberAsTyped: string | null;
   // A reviewer's correction, shown in its place.
   caseNumberCorrected: string | null;
+  // Its own, else its case's.
+  countyId: string | null;
+  countyDisplayName: string | null;
   // A staff upload, under review from the start.
   enteredInReview: boolean;
   // While its lines are being entered: their version, sent back with each
@@ -1449,6 +1482,11 @@ export function listReviewQueue(
   if (options.q?.trim()) params.set('q', options.q.trim());
   if (options.day) params.set('day', options.day);
   return request(`/api/invoices?${params}`);
+}
+
+// Audited, with the county it replaced.
+export function changeInvoiceCounty(invoiceId: string, choice: CountyChoice): Promise<{ invoiceId: string; county: SavedCounty | null }> {
+  return request(`/api/invoices/${invoiceId}/county`, { method: 'PUT', body: JSON.stringify(choice) });
 }
 
 // The sender's typed number is kept beside it.
@@ -1714,6 +1752,10 @@ export function setEnteredReceipt(invoiceId: string, receipt: InvoiceReceipt): P
 
 export function setEnteredCaseNumber(invoiceId: string, caseNumber: string): Promise<{ invoiceId: string; caseNumber: string | null }> {
   return request(`/api/invoices/${invoiceId}/entered-case-number`, { method: 'PUT', body: JSON.stringify({ caseNumber }) });
+}
+
+export function setEnteredCounty(invoiceId: string, choice: CountyChoice): Promise<{ invoiceId: string; county: SavedCounty | null }> {
+  return request(`/api/invoices/${invoiceId}/entered-county`, { method: 'PUT', body: JSON.stringify(choice) });
 }
 export function reopenReview(invoiceId: string): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/reopen`, { method: 'POST' });

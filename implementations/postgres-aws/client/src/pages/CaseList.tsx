@@ -7,6 +7,7 @@ import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
 import { ResourceList } from '../components/ResourceList';
 import { caseDisplayLabel } from '../caseDisplayLabel';
+import { useCountyControl } from '../components/CountyListControl';
 import { stageLabel } from '../overviewStages';
 
 function matchesQuery(caseRecord: CaseRecord, query: string): boolean {
@@ -22,6 +23,11 @@ export default function CaseList() {
   // typo'd filter text.
   const [searchParams] = useSearchParams();
   const stageParam = searchParams.get('stage');
+  const stageCases = (cases ?? []).filter((caseRecord) => !stageParam || caseRecord.stage === stageParam);
+  const county = useCountyControl(
+    stageCases.filter((caseRecord) => matchesQuery(caseRecord, query)),
+    (caseRecord) => ({ countyId: caseRecord.countyId }),
+  );
 
   return (
     <ResourceList
@@ -38,9 +44,8 @@ export default function CaseList() {
       loadingMessage="Loading cases…"
       emptyMessage="No cases yet."
     >
-      {(cases) => {
-        const stageCases = stageParam ? cases.filter((caseRecord) => caseRecord.stage === stageParam) : cases;
-        const filtered = stageCases.filter((caseRecord) => matchesQuery(caseRecord, query));
+      {() => {
+        const filtered = county.shown;
         return (
           <>
             {stageParam && (
@@ -58,6 +63,7 @@ export default function CaseList() {
                 value={query}
                 onChange={setQuery}
               />
+              {county.control}
               <span className="list-count">
                 {filtered.length} of {stageCases.length} {stageCases.length === 1 ? 'case' : 'cases'}
               </span>
@@ -70,6 +76,7 @@ export default function CaseList() {
                     <th scope="col">Client</th>
                     <th scope="col">Status</th>
                     <th scope="col">Stage</th>
+                    <th scope="col">County</th>
                     <th scope="col">Opened</th>
                     <th scope="col">External reference</th>
                   </tr>
@@ -84,6 +91,7 @@ export default function CaseList() {
                       </th>
                       <td><span className="chip chip--neutral">{caseRecord.statusDisplayName}</span></td>
                       <td><span className="chip chip--neutral">{stageLabel(caseRecord.stage)}</span></td>
+                      <td>{county.nameOf(caseRecord.countyId) ?? '—'}</td>
                       <td>{caseRecord.openedOn ?? '—'}</td>
                       <td>{caseRecord.externalReference ?? '—'}</td>
                     </tr>
@@ -102,6 +110,7 @@ export default function CaseList() {
                     <span className="row-card-meta">
                       <span className="chip chip--neutral">{caseRecord.statusDisplayName}</span>
                       <span className="chip chip--neutral">{stageLabel(caseRecord.stage)}</span>
+                      {county.nameOf(caseRecord.countyId) && <span>{county.nameOf(caseRecord.countyId)}</span>}
                       <span>Opened {caseRecord.openedOn ?? '—'}</span>
                       {caseRecord.externalReference && <span>{caseRecord.externalReference}</span>}
                     </span>

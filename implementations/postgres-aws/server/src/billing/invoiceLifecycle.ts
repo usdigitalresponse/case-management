@@ -50,6 +50,7 @@ import { enforceBillingRules } from './billingRules';
 import { assignOnSubmit, endAllAssignments } from './reviewAssignment';
 import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry } from './invoiceReceipt';
 import { caseNumberInput, cleanCaseNumber } from './caseNumbers';
+import { parseCountyChoice, resolveCountyChange, shownInvoiceCounty } from '../cases/counties';
 import { fillUnmatchedTimekeepers } from './timekeeperFallback';
 import {
   AWAITING_MATCH_INVOICE_STATUS_CODE,
@@ -60,7 +61,7 @@ import {
 import { optionalEmail } from '../people/emails';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.8.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.9.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
 // Mileage is an expense line with the mileage expense type.
@@ -745,6 +746,19 @@ export async function setDraftCaseNumber(db: Database, actor: PortalActor, invoi
     const caseNumber = cleanCaseNumber(parsed.data.caseNumber);
     await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, caseNumber };
+  });
+}
+
+export async function setDraftCounty(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
+  const choice = parseCountyChoice(rawInput);
+  return db.transaction(async (tx) => {
+    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
+    if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
+      throw new InvoiceStateError('Only a draft can be edited.');
+    }
+    const countyId = await resolveCountyChange(tx, actor.userAccountId, choice);
+    await tx.update(invoice).set({ countyId }).where(eq(invoice.invoiceId, invoiceId));
+    return { invoiceId, county: await shownInvoiceCounty(tx, invoiceId) };
   });
 }
 

@@ -17,9 +17,18 @@ export const caseNumberColumn: RecordTableColumn<ReviewQueueItem> = {
     <>
       {invoice.caseNumber ?? '—'}
       {invoice.otherCaseNumbers.length > 0 && <span className="cell-note">{invoice.otherCaseNumbers.join(', ')}</span>}
+      <CountyNote invoice={invoice} />
     </>
   ),
 };
+
+// For each invoice list's county control (./CountyListControl.tsx).
+export const countyOfInvoice = (invoice: ReviewQueueItem) => ({ countyId: invoice.countyId, displayName: invoice.countyDisplayName });
+
+// Under the case number, whose county it is.
+function CountyNote({ invoice }: { invoice: ReviewQueueItem }) {
+  return invoice.countyDisplayName ? <span className="cell-note">{invoice.countyDisplayName}</span> : null;
+}
 
 export function FromCell({ invoice }: { invoice: ReviewQueueItem }) {
   return (
@@ -30,17 +39,23 @@ export function FromCell({ invoice }: { invoice: ReviewQueueItem }) {
   );
 }
 
-// As typed (or corrected), with how many other sent invoices share it,
-// linking to them all; or `note` in place of that.
+// As typed (or corrected), with its county and how many other sent invoices
+// share it, linking to them all; or `note` in place of that.
 export function CaseNumberCell({ invoice, note }: { invoice: ReviewQueueItem; note?: ReactNode }) {
   const number = shownCaseNumber(invoice);
   if (!number) {
-    return <span className="muted">Not added</span>;
+    return (
+      <>
+        <span className="muted">Not added</span>
+        <CountyNote invoice={invoice} />
+      </>
+    );
   }
   const matches = matchesNote(invoice.caseNumberMatches);
   return (
     <>
       <strong>{number}</strong>
+      <CountyNote invoice={invoice} />
       {note !== undefined ? (
         note && <span className="cell-note">{note}</span>
       ) : (

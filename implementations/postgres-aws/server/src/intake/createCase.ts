@@ -32,6 +32,7 @@ import {
   type CreateCaseInput,
 } from './validation';
 import { emailInUse } from '../people/emails';
+import { resolveCounty } from '../cases/counties';
 
 export type { CreateCaseInput, CreateCaseIdentifierInput } from './validation';
 
@@ -266,7 +267,7 @@ export async function createCase(
           .values({
             // Compatibility field; case_participant remains authoritative.
             clientId: personId,
-            countyId: input.countyId,
+            countyId: (await resolveCounty(tx, actor.userAccountId, input)) ?? undefined,
             caseCategoryId: input.caseCategoryId,
             statusId: input.statusId,
             openedOn: calendarDateInReportingTimeZone(input.effectiveAt),
