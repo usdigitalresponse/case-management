@@ -92,6 +92,17 @@ there is none; confirmation and submission require a date on every line read
 from the file (`validate_invoice_import`). Submission snapshot layout `0.7.0`
 records `position` on each line.
 
+Model files are now 0.8.0, additive: `invoice_review_question` records the
+line reviewer's brief questions to the submitter, each about one line, and
+their answers, each recorded once and never changed (`ask_review_question`).
+Asking moves the request to a new `awaiting_answer` status (`payment_request`
+`ask_question`); lines may still be decided but the round can't be finished
+until every question is answered (`answer_question`). The submitter or represented professional
+answers, or staff record an answer given another way. Questions and answers
+are visible to everyone who may read the request and kept in the system, but
+are never included in exports or the billing record. The snapshot layout is
+unchanged apart from `spec_version`.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

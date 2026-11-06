@@ -3,11 +3,11 @@ import type { ReactNode } from 'react';
 import type { ReviewQueueItem } from '../api/client';
 import { RecordTable, type RecordTableColumn } from './RecordTable';
 import { StatusPill } from './StatusPill';
-import { CaseNumberCell, FromCell, openInvoiceColumn } from './InvoiceCells';
+import { CaseNumberCell, FromCell, openInvoiceColumn, QuestionChips } from './InvoiceCells';
 import { formatDate, formatPeriod } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
-export const IN_REVIEW = ['submitted', 'under_review', 'awaiting_sign_off'];
+export const IN_REVIEW = ['submitted', 'under_review', 'awaiting_answer', 'awaiting_sign_off'];
 
 export function SentInvoicesTable({
   invoices,
@@ -36,7 +36,15 @@ export function SentInvoicesTable({
       align: 'right',
       render: (invoice) => (invoice.approvedTotal !== null ? formatMoney(invoice.approvedTotal) : <span className="muted">None yet</span>),
     },
-    { header: 'Status', render: (invoice) => <StatusPill code={invoice.statusCode} label={invoice.statusDisplayName} /> },
+    {
+      header: 'Status',
+      render: (invoice) => (
+        <>
+          <StatusPill code={invoice.statusCode} label={invoice.statusDisplayName} />
+          <QuestionChips invoice={invoice} />
+        </>
+      ),
+    },
     openInvoiceColumn((invoice) => (IN_REVIEW.includes(invoice.statusCode) ? 'Review' : 'View')),
   ];
   return <RecordTable className="queue-table" rows={invoices} rowKey={(invoice) => invoice.invoiceId} emptyMessage={emptyMessage} columns={columns} />;

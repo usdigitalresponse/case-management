@@ -20,6 +20,7 @@ import {
 import { recordInvoiceEvent } from './invoiceEvents';
 import {
   APPROVED_INVOICE_STATUS_CODE,
+  AWAITING_ANSWER_INVOICE_STATUS_CODE,
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
   UNDER_REVIEW_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
@@ -28,7 +29,7 @@ import { requireReviewPermission } from './reviewAccess';
 import { OTHER_REASON_CODE } from './decisionReasons';
 import { fromCents, toCents } from './money';
 
-async function currentChainId(db: DatabaseOrTransaction, invoiceId: string): Promise<string | undefined> {
+export async function currentChainId(db: DatabaseOrTransaction, invoiceId: string): Promise<string | undefined> {
   const [chain] = await db
     .select({ id: invoiceApprovalChain.invoiceApprovalChainId })
     .from(invoiceApprovalChain)
@@ -135,7 +136,7 @@ async function nextSequenceNumber(tx: Transaction, chainId: string): Promise<num
   return (row?.last ?? 0) + 1;
 }
 
-async function setStatus(
+export async function setStatus(
   tx: Transaction,
   invoiceId: string,
   code: string,
@@ -175,6 +176,9 @@ export async function finishReview(db: Database, actorUserAccountId: string, inv
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
   return db.transaction(async (tx) => {
     const locked = await lockInvoiceForReview(tx, invoiceId);
+    if (locked.statusCode === AWAITING_ANSWER_INVOICE_STATUS_CODE) {
+      throw new ConflictError('invalid_state', 'Review is waiting for an answer to a question.');
+    }
     if (locked.statusCode !== UNDER_REVIEW_INVOICE_STATUS_CODE) {
       throw new ConflictError('invalid_state', 'Decide every line before finishing the review.');
     }

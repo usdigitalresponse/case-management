@@ -12,7 +12,7 @@ import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { RecordTable } from '../components/RecordTable';
-import { CaseNumberCell, FlagNotes, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
+import { CaseNumberCell, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
 import { AssignReviewer } from '../components/ReviewRouting';
 import { Toast, useToast } from '../components/Toast';
 import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
@@ -188,6 +188,7 @@ export default function InvoicesToReview() {
                 <>
                   {invoice.holder.displayName}
                   {invoice.statusCode === 'awaiting_sign_off' && <span className="cell-note">To sign off</span>}
+                  <QuestionChips invoice={invoice} />
                 </>
               ) : (
                 <>

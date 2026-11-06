@@ -240,6 +240,7 @@ button, input, select, textarea { font: inherit; }
 .check-lines__summary td:nth-child(2) { white-space: nowrap; }
 .check-lines__summary .chip { margin-left: .4rem; }
 .check-lines__what td { padding-top: 0; }
+.check-lines__table .check-lines__detail-row td { padding: 0; }
 .check-lines__date { width: 9.5rem; margin-top: 0; padding: .3rem .4rem; }
 .check-lines__row--flagged td, .check-lines__row--flagged:hover td { background: var(--warning-tint); }
 .check-lines__row--flagged tr:not(.check-lines__edit-row) td:first-child { box-shadow: inset 3px 0 0 var(--warning-line); }
@@ -707,6 +708,21 @@ form.compact-form { max-width: none; }
 /* Approve, Approve part and Reject stay on one line. */
 .decision-button-row { display: flex; flex-wrap: nowrap; gap: .4rem; }
 .decision-button-row .btn { padding: .35rem .7rem; }
+.decision-panel__question { max-width: 36rem; margin-bottom: .5rem; }
+.decision-buttons > .link-button { font-size: .85rem; }
+/* A line's questions, in the full-width row under it. */
+.line-questions { display: grid; gap: .5rem; margin: 0; padding: .6rem 1.5rem .9rem; list-style: none; }
+.line-question { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .5rem 1.5rem; padding: .6rem .9rem; border-left: 3px solid var(--line-strong); border-radius: 0 6px 6px 0; background: var(--surface); }
+.line-question--open { border-left-color: var(--warning-line); background: var(--warning-tint); }
+.line-question__body { flex: 1 1 24rem; max-width: 48rem; }
+.line-question__body p { margin: 0; }
+.line-question__meta { font-size: .8rem; color: var(--ink-muted); }
+.line-question__meta strong { color: var(--ink); }
+.line-question__body .line-question__meta--answer { margin-top: .5rem; }
+.question-chips { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
+.line-question__answer { flex-basis: 100%; }
+.line-question__answer label { display: block; font-size: .85rem; color: var(--ink-muted); }
+.line-question__answer textarea { display: block; width: 100%; box-sizing: border-box; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); background: var(--surface); }
 .decision-hint { color: var(--primary); }
 .decision-summary__head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .decision-summary__why { margin: .3rem 0 0; font-size: .88rem; }

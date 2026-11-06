@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router';
 import {
+  answerQuestion,
   apiErrorMessage,
   getMyInvoice,
   listBillableProfessionals,
@@ -37,6 +38,7 @@ import { submittedByLabel } from '../reviewTotals';
 import { useAddedProviders } from '../components/AddProvider';
 import { SentBackNotice } from '../components/SentBackNotice';
 import { canWithdraw } from './portalWording';
+import { LineQuestions } from '../components/ReviewQuestions';
 
 function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onChanged: () => void; onDeleted: () => void }) {
   const { invoice } = data;
@@ -179,6 +181,8 @@ export default function PortalInvoiceDetail() {
   const { data, error } = useApiResource(() => getMyInvoice(invoiceId as string), [invoiceId, version]);
   const [recallError, setRecallError] = useState<string | null>(null);
   const [recalling, setRecalling] = useState(false);
+  const [answering, setAnswering] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
   const { user } = useAuth();
   const shell = useShell();
 
@@ -195,9 +199,25 @@ export default function PortalInvoiceDetail() {
     }
   }
 
+  async function answer(questionId: string, text: string) {
+    setAnswering(true);
+    setAnswerError(null);
+    try {
+      await answerQuestion(invoiceId as string, questionId, text, true);
+      setVersion((v) => v + 1);
+      return true;
+    } catch (err) {
+      setAnswerError(apiErrorMessage(err, 'The answer could not be sent.'));
+      return false;
+    } finally {
+      setAnswering(false);
+    }
+  }
+
   if (error || !data) {
     return <LoadState error={error} what="invoice" />;
   }
+  const { canAnswer } = data;
 
   const { invoice, lines } = data;
   // A professional viewing what a delegate submitted gets a read-only page.
@@ -283,6 +303,11 @@ export default function PortalInvoiceDetail() {
         <Notice tone="info">No one has reviewed this invoice yet, so you can recall it, change it and submit it again.</Notice>
       )}
       {recallError && <Notice tone="danger">{recallError}</Notice>}
+      {invoice.statusCode === 'awaiting_answer' && (
+        <Notice tone="warning" heading="The billing office has a question.">
+          Review is waiting for {canAnswer ? 'your' : 'an'} answer. Answer it on the line it's about, below.
+        </Notice>
+      )}
       {isDraft && <SentBackNotice reason={invoice.returnedReason} />}
 
       {isDraft && isSubmitter && importUnconfirmed && (
@@ -303,10 +328,17 @@ export default function PortalInvoiceDetail() {
               Approved {formatMoney(data.approvedTotal)} of {formatMoney(invoice.submittedTotal)}. Each line shows why.
             </p>
           )}
+          {answerError && <Notice tone="danger">{answerError}</Notice>}
           <InvoiceLinesTable
             lines={lines}
             rowClassName={(line) => lineRowClass(line.decision?.outcomeCode, false)}
             decision={submitted ? (line) => <RecordedDecision line={line} decision={line.decision} /> : undefined}
+            rowDetail={(line) => {
+              const questions = data.questions.filter((question) => question.invoiceLineId === line.invoiceLineId);
+              return questions.length === 0 ? null : (
+                <LineQuestions questions={questions} staff={false} canAnswer={canAnswer} saving={answering} onAnswer={answer} />
+              );
+            }}
           />
         </div>
       )}

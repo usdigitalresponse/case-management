@@ -29,6 +29,7 @@ import { Notice } from '../components/Notice';
 const BILLING_LABELS: Record<string, string> = {
   draft: 'On a draft',
   submitted: 'Submitted',
+  awaiting_answer: 'Question for you',
   approved: 'Approved',
   rejected: 'Rejected',
 };

@@ -291,6 +291,8 @@ export function DecisionCell({
   onPanel,
   onChanging,
   onUndoRejection,
+  asking,
+  onAsk,
 }: {
   line: InvoiceReviewLine;
   decision: LineDecision | null;
@@ -303,7 +305,15 @@ export function DecisionCell({
   onPanel: (mode: PanelMode | null) => void;
   onChanging: (changing: boolean) => void;
   onUndoRejection: () => void;
+  // Whether this line's question form is open, and toggling it.
+  asking: boolean;
+  onAsk: () => void;
 }) {
+  const askButton = (
+    <button type="button" className="link-button" aria-expanded={asking} onClick={onAsk}>
+      Ask the submitter
+    </button>
+  );
   if (canDecide && (!decision || changing)) {
     const toggle = (mode: PanelMode) => onPanel(openPanel === mode ? null : mode);
     return (
@@ -339,6 +349,7 @@ export function DecisionCell({
             Reject
           </button>
         </div>
+        {askButton}
         {openPanel && openPanel !== 'rate' && <span className="cell-note decision-hint">Give a reason below</span>}
         {decision && (
           <button type="button" className="link-button" onClick={() => onChanging(false)}>
@@ -368,6 +379,7 @@ export function DecisionCell({
             </button>
           )}
           <button type="button" className="link-button" onClick={() => onChanging(true)}>Change</button>
+          {askButton}
         </div>
       )}
     </RecordedDecision>

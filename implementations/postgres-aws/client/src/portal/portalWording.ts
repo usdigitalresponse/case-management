@@ -79,6 +79,8 @@ export function submissionStatus(invoice: StatusSource): SubmissionStatus {
       return { label: 'Sent: waiting for its case', tone: 'warning', note: 'The billing office will match it, then review it.' };
     case 'submitted':
       return { label: 'Waiting for review', tone: 'info', note: null };
+    case 'awaiting_answer':
+      return { label: 'Question for you', tone: 'warning', note: 'Review is waiting for your answer.' };
     case 'under_review':
     case 'awaiting_sign_off':
       return {

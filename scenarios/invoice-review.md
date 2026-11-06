@@ -98,6 +98,27 @@ and day counts are synthetic test values, not configuration defaults.
     They can be chosen for an intake request at once. Adding someone whose
     email is already in use is refused. When that professional later signs in
     with the same email, they see the requests billed to them.
+12. **Questions to the submitter:** The reviewer asks about line 2, "Which
+    hearing was this for?" (`ask_review_question`).
+    - The request is awaiting an answer, and lists of requests show that it
+      has an unanswered question. The reviewer can still decide lines, but
+      finishing the round is blocked, and the submitter cannot recall it.
+    - The submitter sees the question on the request without the reviewer's
+      name, and answers it. The request returns to under review, and the
+      question and answer stay on its record with who answered and when.
+    - With two questions open, answering one leaves the request awaiting an
+      answer; answering the second returns it to under review.
+    - Until the reviewer finishes the round, reviewers' lists show the request
+      has answered questions, and its review page says the answers are in.
+      After the round is finished, lists no longer call them out.
+    - A question that names no line is refused.
+    - The reviewer records an answer the submitter gave by phone; the record
+      names the reviewer as having recorded it.
+    - An answered question cannot be answered again or changed. A question or
+      answer longer than 500 characters is refused. Someone who neither sent
+      the request nor is the professional it bills for cannot answer.
+    - Exports and the billing record of the signed-off request include no
+      questions or answers; both remain on the request in the system.
 
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

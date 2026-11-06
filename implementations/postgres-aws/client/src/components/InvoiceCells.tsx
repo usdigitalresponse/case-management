@@ -5,6 +5,7 @@ import { submittedByLabel } from '../reviewTotals';
 import { matchesNote, shownCaseNumber } from '../caseNumbers';
 import { searchPath } from '../staffPaths';
 import type { RecordTableColumn } from './RecordTable';
+import { StatusPill } from './StatusPill';
 
 // Cells shared by the staff tables of invoices.
 
@@ -60,6 +61,21 @@ export function FlagNotes({ invoice }: { invoice: ReviewQueueItem }) {
         <span key={flag.kind} className="cell-flag">{flag.message}</span>
       ))}
     </>
+  );
+}
+
+// Questions to the submitter while the round isn't finished: unanswered ones
+// hold review, answered ones are back with the reviewer.
+export function QuestionChips({ invoice }: { invoice: ReviewQueueItem }) {
+  const { openQuestionCount: open, answeredQuestionCount: answered } = invoice;
+  if (open === 0 && answered === 0) {
+    return null;
+  }
+  return (
+    <span className="question-chips">
+      {open > 0 && <StatusPill tone="warning" label={open === 1 ? 'Question unanswered' : `${open} questions unanswered`} />}
+      {answered > 0 && <StatusPill tone="info" label={answered === 1 ? 'Question answered' : `${answered} questions answered`} />}
+    </span>
   );
 }
 

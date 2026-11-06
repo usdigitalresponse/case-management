@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router';
 import {
+  answerQuestion,
   apiErrorMessage,
+  askQuestion,
   decideInvoiceLine,
   finishReview,
   getInvoiceForReview,
@@ -24,6 +26,7 @@ import { StatusPill } from '../components/StatusPill';
 import { DecisionCell, DecisionPanel, decisionInput, rateChanged, type PanelMode } from '../components/LineReview';
 import { ReviewerPicker, SignOffApprovers } from '../components/ReviewRouting';
 import { RateCheckNotice, SignOffHistory, SignOffPanel, TotalsBar } from '../components/ReviewPanels';
+import { LineQuestions, QuestionForm } from '../components/ReviewQuestions';
 import { InvoiceLinesTable, lineRowClass } from '../components/InvoiceLinesTable';
 import { OriginalDocument } from '../components/OriginalDocument';
 import { ChangeNote, fileChangesFor, RemovedLines, WasNote, wasAmount, wasQuantity } from '../components/SubmitterChanges';
@@ -53,6 +56,8 @@ export default function InvoiceReview() {
 
   const [panel, setPanel] = useState<{ lineId: string; mode: PanelMode } | null>(null);
   const [changing, setChanging] = useState<string | null>(null);
+  // A line's id, or 'invoice' for a question about the whole invoice.
+  const [asking, setAsking] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useToast();
@@ -65,6 +70,7 @@ export default function InvoiceReview() {
     latestRequest.current += 1;
     setRefreshed(null);
     setPanel(null);
+    setAsking(null);
     setToast(null);
     setShowFile(null);
     setFileFocus(undefined);
@@ -85,6 +91,7 @@ export default function InvoiceReview() {
       const result = await action();
       setPanel(null);
       setChanging(null);
+      setAsking(null);
       setToast(typeof next === 'function' ? next(result) : (next ?? null));
       await refresh();
       return true;
@@ -103,7 +110,11 @@ export default function InvoiceReview() {
   const { invoice, lines, assignments } = data;
   const userId = user?.userAccountId ?? '';
   const status = invoice.statusCode;
-  const inReview = status === 'submitted' || status === 'under_review';
+  const awaitingAnswer = status === 'awaiting_answer';
+  const openQuestions = data.questions.filter((question) => !question.answeredAt).length;
+  const answeredQuestions = data.questions.length - openQuestions;
+  // Lines may still be decided while waiting for an answer; finishing waits.
+  const inReview = status === 'submitted' || status === 'under_review' || awaitingAnswer;
   const reviewer = assignments?.reviewer ?? null;
   const isReviewer = reviewer?.userAccountId === userId;
   // Deciding a line on an unassigned invoice takes it.
@@ -113,7 +124,7 @@ export default function InvoiceReview() {
   // While reviewing, the working decisions; afterwards, the recorded ones.
   const current = (line: InvoiceReviewLine): LineDecision | null => (inReview ? line.working : line.decision);
   const totals = reviewTotals(lines, current);
-  const everyLineDecided = inReview && lines.length > 0 && totals.decided === lines.length;
+  const everyLineDecided = inReview && !awaitingAnswer && lines.length > 0 && totals.decided === lines.length;
   const ruleFindings = data.ruleFindings ?? [];
   const mileageFindings = ruleFindings.filter((finding) => finding.rule === 'mileage_distance');
 
@@ -136,6 +147,20 @@ export default function InvoiceReview() {
   }
 
   const openPanel = (line: InvoiceReviewLine) => (panel?.lineId === line.invoiceLineId ? panel.mode : null);
+  const ask = (input: { question: string; invoiceLineId: string }) =>
+    act(() => askQuestion(invoice.invoiceId, input), { message: 'Question asked. Review waits for the answer.' });
+  const lineQuestions = (line: InvoiceReviewLine) => {
+    const questions = data.questions.filter((question) => question.invoiceLineId === line.invoiceLineId);
+    return questions.length === 0 ? null : (
+      <LineQuestions
+        questions={questions}
+        staff
+        canAnswer={Boolean(permissions?.reviewLines)}
+        saving={saving}
+        onAnswer={(questionId, answer) => act(() => answerQuestion(invoice.invoiceId, questionId, answer), { message: 'Answer recorded.' })}
+      />
+    );
+  };
 
   // The submitter's file and what they changed from it before sending.
   const { fileSource, submitterChanges } = data;
@@ -340,6 +365,20 @@ export default function InvoiceReview() {
         />
       )}
 
+      {awaitingAnswer && (
+        <Notice tone="warning" heading="Review is waiting for an answer.">
+          {openQuestions} {openQuestions === 1 ? 'question is' : 'questions are'} unanswered, shown on{' '}
+          {openQuestions === 1 ? 'its line' : 'their lines'}. You can keep deciding lines, but the review can't be finished until the submitter answers. If they answer another
+          way, record it on the line.
+        </Notice>
+      )}
+
+      {inReview && !awaitingAnswer && answeredQuestions > 0 && (
+        <Notice tone="info" heading={answeredQuestions === 1 ? 'Your question was answered.' : `${answeredQuestions} questions were answered.`}>
+          Read {answeredQuestions === 1 ? 'the answer on its line' : 'the answers on their lines'} before you finish the review.
+        </Notice>
+      )}
+
       {sentBack && (
         <Notice tone="info" heading={`Sent back by ${sentBack.displayName ?? 'the approver'} on ${formatDateTime(sentBack.decidedAt)}.`}>
           {sentBack.comment && <>“{sentBack.comment}” Only staff see this comment.</>}
@@ -436,19 +475,37 @@ export default function InvoiceReview() {
             openPanel={openPanel(line)}
             saving={saving}
             onApprove={() => void decide(line, { outcome: 'approved' }, 'approved')}
-            onPanel={(mode) => setPanel(mode ? { lineId: line.invoiceLineId, mode } : null)}
+            onPanel={(mode) => {
+              setAsking(null);
+              setPanel(mode ? { lineId: line.invoiceLineId, mode } : null);
+            }}
             onChanging={(on) => setChanging(on ? line.invoiceLineId : null)}
             onUndoRejection={() =>
               void act(() => undoInvoiceLineDecision(invoice.invoiceId, line.invoiceLineId), {
                 message: 'Rejection undone. The line is undecided.',
               })
             }
+            asking={asking === line.invoiceLineId}
+            onAsk={() => {
+              setPanel(null);
+              setAsking(asking === line.invoiceLineId ? null : line.invoiceLineId);
+            }}
           />
         )}
         rowDetail={(line) => {
           const mode = openPanel(line);
-          return (
-            mode && (
+          const questions = lineQuestions(line);
+          const form =
+            asking === line.invoiceLineId ? (
+              <QuestionForm
+                invoiceLineId={line.invoiceLineId}
+                lineNumber={lineNumber.get(line.invoiceLineId)}
+                saving={saving}
+                onAsk={ask}
+                onCancel={() => setAsking(null)}
+              />
+            ) : (
+              mode && (
               <DecisionPanel
                 line={line}
                 mode={mode}
@@ -465,8 +522,14 @@ export default function InvoiceReview() {
                   )
                 }
               />
-            )
-          );
+              )
+            );
+          return questions || form ? (
+            <>
+              {questions}
+              {form}
+            </>
+          ) : null;
         }}
       />
       <RemovedLines removed={fileChanges.removed} who={`the ${whoKind}`} />
@@ -480,7 +543,7 @@ export default function InvoiceReview() {
           totals={totals}
           lineCount={lines.length}
           inReview={inReview}
-          canFinish={isReviewer}
+          canFinish={isReviewer && !awaitingAnswer}
           approvers={approvers}
           saving={saving}
           onFinish={() =>

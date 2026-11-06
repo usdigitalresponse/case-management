@@ -3,6 +3,8 @@
 export const SUBMITTED_INVOICE_STATUS_CODE = 'submitted';
 export const UNDER_REVIEW_INVOICE_STATUS_CODE = 'under_review';
 export const AWAITING_SIGN_OFF_INVOICE_STATUS_CODE = 'awaiting_sign_off';
+// Review holds for the answer to a reviewer's question.
+export const AWAITING_ANSWER_INVOICE_STATUS_CODE = 'awaiting_answer';
 export const APPROVED_INVOICE_STATUS_CODE = 'approved';
 export const DRAFT_INVOICE_STATUS_CODE = 'draft';
 // Sent, but waiting in intake for its case, provider or timekeepers.
@@ -12,6 +14,10 @@ export const WITHDRAWN_INVOICE_STATUS_CODE = 'withdrawn';
 // The submitter's work in progress; hidden from staff and exports.
 export const UNSUBMITTED_INVOICE_STATUS_CODES = [DRAFT_INVOICE_STATUS_CODE, WITHDRAWN_INVOICE_STATUS_CODE];
 // Lines may be decided: before the round is finished and sent for sign-off.
-export const LINE_REVIEW_STATUS_CODES = [SUBMITTED_INVOICE_STATUS_CODE, UNDER_REVIEW_INVOICE_STATUS_CODE];
+export const LINE_REVIEW_STATUS_CODES = [
+  SUBMITTED_INVOICE_STATUS_CODE,
+  UNDER_REVIEW_INVOICE_STATUS_CODE,
+  AWAITING_ANSWER_INVOICE_STATUS_CODE,
+];
 // Waiting on staff: the review queue.
 export const IN_REVIEW_INVOICE_STATUS_CODES = [...LINE_REVIEW_STATUS_CODES, AWAITING_SIGN_OFF_INVOICE_STATUS_CODE];

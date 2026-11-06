@@ -4,6 +4,7 @@ const STATUS_TONE: Record<string, Tone> = {
   awaiting_match: 'warning',
   submitted: 'info',
   under_review: 'info',
+  awaiting_answer: 'warning',
   awaiting_sign_off: 'info',
   approved: 'success',
   every_line_decided: 'success',

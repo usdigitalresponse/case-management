@@ -17,7 +17,7 @@ import { Fact, FactsStrip } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { RecordTable } from '../components/RecordTable';
-import { FlagNotes, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
+import { FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
 import { ReviewerSelect, useReviewPeople } from '../components/ReviewRouting';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { formatDate } from '../formatDateTime';
@@ -182,7 +182,15 @@ export default function CaseDetail() {
               { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
               { header: 'Approved', align: 'right', render: (invoice) => formatMoney(invoice.approvedTotal ?? 0) },
               { header: 'Decided', render: (invoice) => `${invoice.decidedCount} of ${invoice.lineCount}` },
-              { header: 'Status', render: (invoice) => <StatusPill code={invoice.statusCode} label={invoice.statusDisplayName} /> },
+              {
+                header: 'Status',
+                render: (invoice) => (
+                  <>
+                    <StatusPill code={invoice.statusCode} label={invoice.statusDisplayName} />
+                    <QuestionChips invoice={invoice} />
+                  </>
+                ),
+              },
               { header: 'Reviewer', render: (invoice) => invoice.reviewer?.displayName ?? <span className="muted">Not assigned</span> },
               openInvoiceColumn((invoice) => (['approved', 'rejected'].includes(invoice.statusCode) ? 'View' : 'Review')),
             ]}
