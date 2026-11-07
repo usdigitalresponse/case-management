@@ -52,6 +52,7 @@ import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry } from '
 import { caseNumberInput, cleanCaseNumber } from './caseNumbers';
 import { parseCountyChoice, resolveCountyChange, shownInvoiceCounty } from '../cases/counties';
 import { fillUnmatchedTimekeepers } from './timekeeperFallback';
+import { changeSenderInTx, parseDetails, parseSender, setDetailsInTx } from './uploadDetails';
 import {
   AWAITING_MATCH_INVOICE_STATUS_CODE,
   DRAFT_INVOICE_STATUS_CODE,
@@ -759,6 +760,32 @@ export async function setDraftCounty(db: Database, actor: PortalActor, invoiceId
     const countyId = await resolveCountyChange(tx, actor.userAccountId, choice);
     await tx.update(invoice).set({ countyId }).where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, county: await shownInvoiceCounty(tx, invoiceId) };
+  });
+}
+
+async function lockOwnDraft(tx: Transaction, actor: PortalActor, invoiceId: string) {
+  const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
+  if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
+    throw new InvoiceStateError('Only a draft can be edited.');
+  }
+  return locked;
+}
+
+// Filed by person (./uploadDetails.ts).
+export async function setDraftSender(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
+  const choice = parseSender(rawInput);
+  return db.transaction(async (tx) => {
+    await changeSenderInTx(tx, actor, await lockOwnDraft(tx, actor, invoiceId), choice);
+    return { invoiceId };
+  });
+}
+
+export async function setDraftDetails(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
+  const details = parseDetails(rawInput);
+  return db.transaction(async (tx) => {
+    await lockOwnDraft(tx, actor, invoiceId);
+    await setDetailsInTx(tx, invoiceId, details);
+    return { invoiceId };
   });
 }
 

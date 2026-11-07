@@ -210,6 +210,18 @@ button, input, select, textarea { font: inherit; }
 .submission__meta strong { color: var(--ink); }
 .submission__actions { display: flex; flex-wrap: wrap; gap: .6rem; }
 .submission__actions .btn { min-height: 2.4rem; }
+/* Whom it is from, its period and number, above the case number (components/InvoiceDetailsFields.tsx). */
+.invoice-details { margin-bottom: 1rem; padding: 1.1rem 1.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.invoice-details--missing #invoice-from { border: 2px solid var(--warning-line); background: var(--warning-tint); }
+.invoice-details--missing #invoice-from-hint { color: var(--warning); }
+.upload-details__field:has(.add-sender) { grid-column: 1 / -1; }
+@media (min-width: 48rem) {
+  .upload-details__field:has(.add-sender) > .pick-or-add > .usa-select { max-width: calc((100% - 2rem) / 3); }
+}
+.add-sender { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .5rem; }
+.add-sender .usa-input { flex: 2 1 12rem; }
+.add-sender .usa-select { flex: 1 1 9rem; }
+.add-sender .field-error { flex-basis: 100%; margin: 0; }
 /* The typed case number above the file and lines (filed by person). */
 .case-number-box { display: grid; grid-template-columns: minmax(14rem, 22rem) 1fr; gap: 1rem 2rem; align-items: start; margin-bottom: 1rem; padding: 1.1rem 1.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .case-number-box .usa-label { margin: 0 0 .4rem; font-size: .88rem; }

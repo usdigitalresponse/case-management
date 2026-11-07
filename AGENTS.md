@@ -242,7 +242,10 @@ county picker is `client/src/components/CountyPicker.tsx`: settings such as
 post-conviction (`county.is_county` false) first, and a typed county is
 matched by name before one is added (`server/src/cases/counties.ts`). In the
 case-based flow, never block the next step on an unchosen case or provider.
-Filed by person, the sender is required, since the invoice is filed under
+Filed by person, the upload has no details step: each read file becomes its
+invoice at once, and its sender, case number, county, period and invoice
+number are edited above its lines (`client/src/components/InvoiceDetailsFields.tsx`).
+The sender is required to send or finish, since the invoice is filed under
 them, and a line whose worker isn't matched falls back to the invoice's most
 common match, else the sender, so every sent invoice goes to review. A trip
 is one "Travel" row in the editor but separate lines (travel time, mileage,

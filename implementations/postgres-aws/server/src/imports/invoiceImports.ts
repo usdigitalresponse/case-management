@@ -54,6 +54,7 @@ import { matchTimekeeperName } from './matchTimekeeper';
 import { DATE_FROM_PREVIOUS_WARNING, DATE_MISSING_WARNING, fillMissingDates, requireImportedDates } from './undatedLines';
 import { fallbackTimekeeper } from '../billing/timekeeperFallback';
 import { readCaseNumber } from '../billing/caseNumbers';
+import { duplicateWarnings } from './duplicateWarnings';
 
 export const IMPORT_EXPIRY_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -86,61 +87,6 @@ export function sha256(bytes: Buffer): string {
 function safeDisplayName(fileName: string | undefined): string {
   const cleaned = (fileName ?? '').replace(/[^\w .()-]/g, '_').trim().slice(0, 200);
   return cleaned || 'uploaded-invoice';
-}
-
-// Imports split from the same document don't count as duplicates.
-async function duplicateWarnings(
-  tx: Transaction,
-  importId: string,
-  documentId: string,
-  contentHash: string,
-  billedProfessionalId: string | null,
-  invoiceNumber: string | undefined,
-): Promise<ImportWarning[]> {
-  const warnings: ImportWarning[] = [];
-  // Duplicates are judged per professional; none is known yet.
-  if (!billedProfessionalId) {
-    return warnings;
-  }
-  const sameFile = await tx
-    .select({ invoiceImportId: invoiceImport.invoiceImportId })
-    .from(invoiceImport)
-    .innerJoin(document, eq(invoiceImport.documentId, document.documentId))
-    .innerJoin(invoice, eq(invoiceImport.invoiceId, invoice.invoiceId))
-    .where(
-      and(
-        eq(document.contentHash, contentHash),
-        eq(invoice.professionalId, billedProfessionalId),
-        ne(invoiceImport.invoiceImportId, importId),
-        ne(invoiceImport.documentId, documentId),
-      ),
-    )
-    .limit(1);
-  if (sameFile.length > 0) {
-    warnings.push({ code: 'duplicate_file', message: 'This exact file was uploaded before for the same professional.' });
-  }
-  if (invoiceNumber) {
-    const sameNumber = await tx
-      .select({ invoiceImportId: invoiceImport.invoiceImportId })
-      .from(invoiceImport)
-      .innerJoin(invoice, eq(invoiceImport.invoiceId, invoice.invoiceId))
-      .where(
-        and(
-          eq(invoice.professionalId, billedProfessionalId),
-          ne(invoiceImport.invoiceImportId, importId),
-          ne(invoiceImport.documentId, documentId),
-          sql`${invoiceImport.extractionResult} -> 'invoice' -> 'invoice_number' ->> 'value' = ${invoiceNumber}`,
-        ),
-      )
-      .limit(1);
-    if (sameNumber.length > 0) {
-      warnings.push({
-        code: 'duplicate_invoice_number',
-        message: `Invoice number ${invoiceNumber} was already imported for the same professional.`,
-      });
-    }
-  }
-  return warnings;
 }
 
 // Suggestions only: this payee's earlier match for the same label, else a

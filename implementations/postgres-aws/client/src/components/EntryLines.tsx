@@ -62,7 +62,7 @@ export function EnteredCaseNumber({ invoice }: { invoice: InvoiceReview['invoice
         />
       }
     >
-      <strong>This invoice is filed under {invoice.professionalDisplayName ?? 'whom it is from'}, not under a case.</strong>
+      {/* Whom it is filed under is chosen just above (InvoiceDetailsFields). */}
       <p>Reviewers use the case number to find the case in the {EXTERNAL_SYSTEM_NAME}.</p>
     </CaseNumberBox>
   );
@@ -99,8 +99,11 @@ export function EntryLines({
   form,
   saveEdits,
   onEditing,
+  period,
 }: {
   data: InvoiceReview;
+  // As saved beside the lines (InvoiceDetailsFields), which carry it on each save.
+  period: MutableRefObject<{ periodStart: string | null; periodEnd: string | null }>;
   // After each save, with how many decisions it undid.
   onSaved: (undecided: number, linesVersion: number) => void;
   // A save refused because the lines changed elsewhere or the invoice was
@@ -139,8 +142,8 @@ export function EntryLines({
         const saved = await saveEnteredLines(
           invoice.invoiceId,
           {
-            periodStart: invoice.periodStart ?? undefined,
-            periodEnd: invoice.periodEnd ?? undefined,
+            periodStart: period.current.periodStart ?? undefined,
+            periodEnd: period.current.periodEnd ?? undefined,
             lines,
             linesVersion: version.current,
           },

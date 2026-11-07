@@ -6,6 +6,7 @@ import { testDb, testPool } from './testDb';
 import { createStaff, giveRole } from './reviewHelpers';
 import { createCase } from '../src/intake/createCase';
 import { giveRate } from './rateHelpers';
+import { addKindRate, createKind } from '../src/billing/professionalRates';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { createInvoice } from '../src/portal/createInvoice';
@@ -17,8 +18,11 @@ import {
   enterDraftInReview,
   saveEnteredLines,
   setEnteredCaseNumber,
+  setEnteredDetails,
   setEnteredReceipt,
+  setEnteredSender,
 } from '../src/billing/enterInReview';
+import { setDraftDetails, setDraftSender } from '../src/billing/invoiceLifecycle';
 import { createDraftFromUpload, startUploadRead } from '../src/imports/splitByCase';
 import { correctCaseNumber } from '../src/billing/correctCaseNumber';
 import { listReviewQueue } from '../src/billing/reviewQueue';
@@ -64,11 +68,11 @@ afterAll(async () => {
   await testPool.end();
 });
 
-async function sender() {
+async function sender(rate = 100) {
   const email = `sender-${randomUUID()}@example.com`;
   const [account] = await testDb.insert(userAccount).values({ displayName: 'Sample Sender', email, active: true }).returning();
   const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, email);
-  await giveRate(testDb, fixtures.staffUserAccountId, professionalId, 100);
+  await giveRate(testDb, fixtures.staffUserAccountId, professionalId, rate);
   return professionalId;
 }
 
@@ -469,5 +473,144 @@ describe('entering an upload in review', () => {
     expect(detail.entryOpen).toBe(true);
     expect(detail.assignments?.reviewer?.userAccountId).toBe(reviewer);
     expect(detail.fileSource?.fileName).toBe('invoice.csv');
+  });
+
+  it('is entered with no one chosen yet, its lines priced once someone is, and needs them to finish', async () => {
+    const professionalId = await sender();
+    const { invoiceId } = await createInvoice(testDb, await resolvePortalActor(testDb, reviewer), {
+      caseId: null,
+      professionalId: null,
+      submit: false,
+      enterInReview: true,
+      caseNumber: '26-CR-00418',
+      lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
+    });
+    const [research] = await savedLines(invoiceId);
+    expect(research!.amount).toBe('0.00');
+    await decideLine(reviewer, invoiceId, research!.invoiceLineId, { outcome: 'approved' });
+    await expect(finishReview(testDb, reviewer, invoiceId, receipt)).rejects.toMatchObject({
+      fieldErrors: { professionalId: expect.any(String) },
+    });
+
+    await expect(
+      setEnteredSender(testDb, reviewer, invoiceId, { professionalId, linesVersion: (await linesVersion(invoiceId)) + 1 }),
+    ).rejects.toBeInstanceOf(ConflictError);
+    const result = await setEnteredSender(testDb, reviewer, invoiceId, { professionalId, linesVersion: await linesVersion(invoiceId) });
+    expect(result.undecided).toEqual([research!.invoiceLineId]);
+    expect((await savedLines(invoiceId))[0]!.amount).toBe('200.00');
+
+    await decideLine(reviewer, invoiceId, research!.invoiceLineId, { outcome: 'approved' });
+    await finishReview(testDb, reviewer, invoiceId, receipt);
+    const detail = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
+    expect(detail.invoice).toMatchObject({ statusCode: 'awaiting_sign_off', professionalId, submittedTotal: '200.00' });
+  });
+
+  it('moves lines given to the earlier sender to the one chosen instead, priced at their rates', async () => {
+    const first = await sender();
+    const { invoiceId } = await createInvoice(testDb, await resolvePortalActor(testDb, reviewer), {
+      caseId: null,
+      professionalId: first,
+      submit: false,
+      enterInReview: true,
+      caseNumber: '26-CR-00418',
+      lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
+    });
+    const chosen = await sender(150);
+    await setEnteredSender(testDb, reviewer, invoiceId, { professionalId: chosen, linesVersion: await linesVersion(invoiceId) });
+    const [line] = await testDb
+      .select({ timekeeper: invoiceLine.timekeeperProfessionalId, amount: invoiceLine.amount })
+      .from(invoiceLine)
+      .where(eq(invoiceLine.invoiceId, invoiceId));
+    expect(line).toEqual({ timekeeper: chosen, amount: '300.00' });
+  });
+
+  it('keeps the billing period and invoice number entered beside the lines', async () => {
+    const invoiceId = await upload([{ amount: 40, description: 'Copies' }]);
+    const details = { periodStart: '2026-02-01', periodEnd: '2026-02-28', invoiceNumber: 'SYN-0001' };
+    await setEnteredDetails(testDb, reviewer, invoiceId, details);
+    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.invoice).toMatchObject(details);
+    await expect(
+      setEnteredDetails(testDb, reviewer, invoiceId, { ...details, periodEnd: null }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(setEnteredDetails(testDb, approver, invoiceId, details)).rejects.toBeInstanceOf(ForbiddenError);
+
+    await setEnteredDetails(testDb, reviewer, invoiceId, { ...details, invoiceNumber: null });
+    expect(await testDb.select().from(supportingInvoice).where(eq(supportingInvoice.invoiceId, invoiceId))).toEqual([]);
+  });
+});
+
+describe('whom an entry is from', () => {
+  // Someone with no role, so their time can't be priced.
+  async function withoutRole() {
+    const email = `no-role-${randomUUID()}@example.com`;
+    const [account] = await testDb.insert(userAccount).values({ displayName: 'Sample Unrated', email, active: true }).returning();
+    return ensureProfessionalForUserAccount(testDb, account!.userAccountId, email);
+  }
+
+  it('lets a reviewer give a sender with no role theirs, pricing the lines, but never change one', async () => {
+    const professionalId = await withoutRole();
+    const { professionalKindId } = await createKind(testDb, { displayName: `Synthetic kind ${randomUUID()}` });
+    await addKindRate(testDb, fixtures.staffUserAccountId, professionalKindId, { hourlyRate: 120, effectiveFrom: '2025-01-01' });
+    const { invoiceId } = await createInvoice(testDb, await resolvePortalActor(testDb, reviewer), {
+      caseId: null,
+      professionalId,
+      submit: false,
+      enterInReview: true,
+      caseNumber: '26-CR-00418',
+      lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
+    });
+    expect((await savedLines(invoiceId))[0]!.amount).toBe('0.00');
+
+    await setEnteredSender(testDb, reviewer, invoiceId, { professionalId, professionalKindId, linesVersion: await linesVersion(invoiceId) });
+    expect((await savedLines(invoiceId))[0]!.amount).toBe('240.00');
+    await expect(
+      setEnteredSender(testDb, reviewer, invoiceId, { professionalId, professionalKindId, linesVersion: await linesVersion(invoiceId) }),
+    ).rejects.toMatchObject({ fieldErrors: { professionalKindId: expect.any(String) } });
+  });
+
+  it('gives a role only for a reviewer', async () => {
+    const professionalId = await withoutRole();
+    const { professionalKindId } = await createKind(testDb, { displayName: `Synthetic kind ${randomUUID()}` });
+    const actor = await resolvePortalActor(testDb, await createStaff('staff'));
+    const { invoiceId } = await createInvoice(testDb, actor, { caseId: null, professionalId: null, submit: false, lines: [] });
+    await expect(setDraftSender(testDb, actor, invoiceId, { professionalId, professionalKindId })).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('checks the file again for duplicates when whom it is from changes', async () => {
+    const actor = await resolvePortalActor(testDb, reviewer);
+    const [first, second] = [await sender(), await sender()];
+    const uploadAs = async (professionalId: string | null) => {
+      const { uploadReadId } = await startUploadRead(testDb, memoryStore(), actor, { fileName: 'invoice.csv', bytes: CSV });
+      await extractionsSettled();
+      return (await createDraftFromUpload(testDb, actor, { uploadReadId, caseId: null, professionalId, caseNumber: '26-CR-00418', enterInReview: true }))
+        .invoiceId;
+    };
+    const duplicates = async (invoiceId: string) =>
+      (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.fileSource!.warnings.filter((warning) => warning.code === 'duplicate_file');
+
+    await uploadAs(first);
+    const invoiceId = await uploadAs(null);
+    expect(await duplicates(invoiceId)).toEqual([]);
+    await setEnteredSender(testDb, reviewer, invoiceId, { professionalId: first, linesVersion: await linesVersion(invoiceId) });
+    expect(await duplicates(invoiceId)).toHaveLength(1);
+    await setEnteredSender(testDb, reviewer, invoiceId, { professionalId: second, linesVersion: await linesVersion(invoiceId) });
+    expect(await duplicates(invoiceId)).toEqual([]);
+  });
+});
+
+describe('a draft filed by person', () => {
+  it('is filed under whom it is chosen to be from, with its period and number, as it is checked', async () => {
+    const actor = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const professionalId = await sender();
+    const { invoiceId } = await createInvoice(testDb, actor, {
+      caseId: null,
+      professionalId: null,
+      submit: false,
+      lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
+    });
+    await setDraftSender(testDb, actor, invoiceId, { professionalId });
+    await setDraftDetails(testDb, actor, invoiceId, { periodStart: '2026-02-01', periodEnd: '2026-02-28', invoiceNumber: 'SYN-0002' });
+    const detail = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
+    expect(detail.invoice).toMatchObject({ professionalId, submittedTotal: '200.00', periodEnd: '2026-02-28', invoiceNumber: 'SYN-0002' });
   });
 });

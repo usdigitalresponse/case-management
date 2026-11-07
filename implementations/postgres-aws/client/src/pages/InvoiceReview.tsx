@@ -10,6 +10,8 @@ import {
   listDecisionReasons,
   reopenReview,
   repriceInvoice,
+  setEnteredDetails,
+  setEnteredSender,
   signOffInvoice,
   undoInvoiceLineDecision,
   type InvoiceReview as InvoiceReviewData,
@@ -43,6 +45,7 @@ import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { CaseNumberReview } from '../components/CaseNumberReview';
 import { EnteredCaseNumber, EntryLines, EntryReceipt } from '../components/EntryLines';
 import { EntryBadge } from '../components/EntryBadge';
+import { InvoiceDetailsFields } from '../components/InvoiceDetailsFields';
 import { countOf } from '../portal/importProgress';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import type { CheckQueue } from '../portal/InvoiceSubmission';
@@ -83,6 +86,8 @@ export default function InvoiceReview() {
   const keepToast = useRef(false);
   // While entering, saves lines changed in place; false if they can't be saved.
   const saveEdits = useRef<() => Promise<boolean>>(async () => true);
+  // While entering, the billing period saved beside the lines, for line saves to carry.
+  const period = useRef<{ invoiceId?: string; periodStart: string | null; periodEnd: string | null }>({ periodStart: null, periodEnd: null });
 
   useEffect(() => {
     latestRequest.current += 1;
@@ -179,6 +184,9 @@ export default function InvoiceReview() {
   // Its reviewer enters its lines and decides them in one pass.
   const entering = data.entryOpen && inReview && isReviewer;
   knownVersion.current = Math.max(knownVersion.current, invoice.linesVersion);
+  if (period.current.invoiceId !== invoice.invoiceId) {
+    period.current = { invoiceId: invoice.invoiceId, periodStart: invoice.periodStart, periodEnd: invoice.periodEnd };
+  }
   // Sent with a decision while lines are being entered, so one made on an
   // out-of-date page is refused.
   const linesVersion = () => (data.entryOpen ? knownVersion.current : undefined);
@@ -499,6 +507,35 @@ export default function InvoiceReview() {
         </Notice>
       )}
 
+      {entering && (
+        <InvoiceDetailsFields
+          // Not EntryLines' key: a sibling with the same one is kept twice.
+          key={`details-${invoice.invoiceId}`}
+          invoice={invoice}
+          // Only that is left before finishing.
+          missingSender={everyLineDecided && !invoice.professionalId}
+          action="finish"
+          warnings={data.fileSource?.warnings ?? []}
+          saveSender={async (choice) => {
+            if (!(await saveEdits.current())) throw new Error('Line changes not saved');
+            try {
+              const saved = await setEnteredSender(invoice.invoiceId, choice, knownVersion.current);
+              knownVersion.current = Math.max(knownVersion.current, saved.linesVersion);
+              if (saved.undecided.length > 0) {
+                const count = saved.undecided.length;
+                setToast({ message: `Priced at their rates, so ${count === 1 ? 'a decision was' : `${count} decisions were`} undone. Decide ${count === 1 ? 'it' : 'them'} again.` });
+              }
+            } finally {
+              // Refused as out of date, it shows the lines as they are now.
+              await refresh();
+            }
+          }}
+          saveDetails={(details) => setEnteredDetails(invoice.invoiceId, details)}
+          onPeriodSaved={(saved) => {
+            period.current = { invoiceId: invoice.invoiceId, ...saved };
+          }}
+        />
+      )}
       {entering && <EnteredCaseNumber invoice={invoice} />}
       {byPerson && !entering && (
         <CaseNumberReview
@@ -681,6 +718,7 @@ export default function InvoiceReview() {
           key={invoice.invoiceId}
           data={data}
           saveEdits={saveEdits}
+          period={period}
           setToast={setToast}
           questions={lineQuestions}
           ask={askLinkOf}
@@ -758,9 +796,11 @@ export default function InvoiceReview() {
           onFinish={() => void finish()}
           locksLines={entering}
           needs={
-            entering && !(invoice.receivedOn && invoice.receivedViaDisplayName)
-              ? 'Say how and when the invoice came in, at the top of the page, to finish the review.'
-              : null
+            entering && !invoice.professionalId
+              ? 'Choose who the invoice is from, at the top of the page, to finish the review.'
+              : entering && !(invoice.receivedOn && invoice.receivedViaDisplayName)
+                ? 'Say how and when the invoice came in, at the top of the page, to finish the review.'
+                : null
           }
         />
       )}
