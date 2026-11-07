@@ -62,7 +62,7 @@ export function EnteredCaseNumber({ invoice }: { invoice: InvoiceReview['invoice
         />
       }
     >
-      <strong>This invoice is filed under {invoice.professionalDisplayName ?? 'whom it is from'}, not under a case.</strong>
+      {/* Whom it is filed under is chosen just above (InvoiceDetailsFields). */}
       <p>Reviewers use the case number to find the case in the {EXTERNAL_SYSTEM_NAME}.</p>
     </CaseNumberBox>
   );

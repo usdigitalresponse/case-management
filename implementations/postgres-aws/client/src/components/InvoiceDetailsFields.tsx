@@ -5,6 +5,7 @@
 // a sender with no role theirs here.
 import { useRef, useState } from 'react';
 import {
+  addProfessional,
   apiErrorMessage,
   fieldErrorsOf,
   listBillableProfessionals,
@@ -20,7 +21,7 @@ import { useApiResource } from '../hooks/useApiResource';
 import { Notice } from './Notice';
 import { InvoiceNumberField, UploadPeriodField } from '../portal/PortalUpload';
 import { useShell } from '../portal/useShell';
-import { AddProvider } from './AddProvider';
+import type { AddedProvider } from './AddProvider';
 import { professionalLabel } from './InvoiceLinesEditor';
 import { ADD_NEW, PickOrAdd } from './PickOrAdd';
 
@@ -32,6 +33,7 @@ export function asksWho(staff: boolean, billable: BillableProfessional[] | null 
 export function SenderPicker({
   id,
   value,
+  savedValue,
   billable,
   error,
   hint,
@@ -40,6 +42,8 @@ export function SenderPicker({
 }: {
   id: string;
   value: string;
+  // Put back when adding someone is cancelled.
+  savedValue: string;
   billable: BillableProfessional[];
   error?: string;
   hint: string;
@@ -77,27 +81,86 @@ export function SenderPicker({
     );
   }
   return (
-    <PickOrAdd
-      id={id}
-      label="Who it is from"
-      value={value}
-      onChange={onChange}
-      addLabel="+ Add someone who isn’t listed"
-      placeholder="Choose who sent it"
-      options={people}
-      error={error}
-      hint={hint}
-      disabled={disabled}
-    >
-      <AddProvider
-        inline
-        idPrefix={`${id}-new`}
-        onAdded={(provider) => {
-          setAdded((current) => [...current, provider]);
-          onChange(provider.professionalId);
-        }}
+    <>
+      <PickOrAdd
+        id={id}
+        label="Who it is from"
+        value={value}
+        onChange={onChange}
+        addLabel="+ Add someone who isn’t listed"
+        placeholder="Choose who sent it"
+        options={people}
+        error={error}
+        hint={value === ADD_NEW ? undefined : hint}
+        disabled={disabled}
       />
-    </PickOrAdd>
+      {value === ADD_NEW && (
+        <AddSender
+          id={`${id}-new`}
+          onCancel={() => onChange(savedValue)}
+          onAdded={(provider) => {
+            setAdded((current) => [...current, provider]);
+            onChange(provider.professionalId);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// A name and role on one line; the rest is filled in later under People.
+function AddSender({ id, onAdded, onCancel }: { id: string; onAdded: (added: AddedProvider) => void; onCancel: () => void }) {
+  const { data: kinds } = useApiResource(() => listProfessionalKinds().then((result) => result.kinds.filter((kind) => kind.active)), []);
+  const [displayName, setDisplayName] = useState('');
+  const [professionalKindId, setKindId] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  async function add() {
+    setError(null);
+    setSaving(true);
+    try {
+      onAdded(await addProfessional({ displayName: displayName.trim(), professionalKindId }));
+    } catch (err) {
+      setError(apiErrorMessage(err, 'They could not be added.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <div className="add-sender">
+      <input
+        id={`${id}-name`}
+        className="usa-input"
+        aria-label="Their name"
+        placeholder="Their name"
+        value={displayName}
+        onChange={(event) => setDisplayName(event.target.value)}
+      />
+      <select
+        id={`${id}-role`}
+        className="usa-select"
+        aria-label="Their role"
+        value={professionalKindId}
+        onChange={(event) => setKindId(event.target.value)}
+      >
+        <option value="">Role</option>
+        {kinds?.map((kind) => (
+          <option key={kind.professionalKindId} value={kind.professionalKindId}>{kind.displayName}</option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className="btn btn--outline"
+        disabled={saving || displayName.trim().length < 2 || !professionalKindId}
+        onClick={() => void add()}
+      >
+        Add
+      </button>
+      <button type="button" className="link-button" disabled={saving} onClick={onCancel}>
+        Cancel
+      </button>
+      {error && <p className="field-error">{error}</p>}
+    </div>
   );
 }
 
@@ -205,6 +268,7 @@ export function InvoiceDetailsFields({
             <SenderPicker
               id="invoice-from"
               value={sender}
+              savedValue={invoice.professionalId ?? ''}
               billable={billable ?? []}
               error={errors.professionalId || undefined}
               hint={savingSender ? 'Saving, and pricing the lines at their rates…' : senderHint}

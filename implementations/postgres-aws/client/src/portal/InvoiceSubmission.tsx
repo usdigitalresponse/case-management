@@ -140,7 +140,8 @@ function TypedCaseNumber({
         </>
       ) : (
         <>
-          <strong>This invoice is filed under {fromName}, not under a case.</strong>
+          {/* While editable, whom it is filed under is chosen just above (InvoiceDetailsFields). */}
+          {!editable && <strong>This invoice is filed under {fromName}, not under a case.</strong>}
           <p>
             Reviewers use the case number to find the case in the {EXTERNAL_SYSTEM_NAME}. This tool does not check it
             against a list of cases.

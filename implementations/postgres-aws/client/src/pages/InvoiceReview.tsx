@@ -509,7 +509,8 @@ export default function InvoiceReview() {
 
       {entering && (
         <InvoiceDetailsFields
-          key={invoice.invoiceId}
+          // Not EntryLines' key: a sibling with the same one is kept twice.
+          key={`details-${invoice.invoiceId}`}
           invoice={invoice}
           // Only that is left before finishing.
           missingSender={everyLineDecided && !invoice.professionalId}
