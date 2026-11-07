@@ -167,7 +167,7 @@ export function NewInvoiceForm({
                 setBilledProfessionalId(value);
                 startAgain(value);
               }}
-              addLabel="+ Add a provider who isn’t listed"
+              addLabel="+ Add new person"
               placeholder="Choose who it’s from"
               hint="Leave it blank if it isn’t known yet; it’s matched on Intake."
               options={people.map((professional) => ({ value: professional.professionalId, label: professionalLabel(professional) }))}

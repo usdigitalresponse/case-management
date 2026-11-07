@@ -64,8 +64,8 @@ export async function changeSenderInTx(
   }
   await authorizeBilling(tx, actor, null, professionalId);
   if (professionalKindId) await giveMissingRole(tx, actor, professionalId, professionalKindId);
+  // Saved again unchanged, it is priced again, as after their role was corrected.
   const changed = row.professionalId !== professionalId;
-  if (!changed && !professionalKindId) return;
   const { invoiceId } = row;
   if (changed && row.professionalId) {
     // Lines given to the earlier sender were given through that choice.

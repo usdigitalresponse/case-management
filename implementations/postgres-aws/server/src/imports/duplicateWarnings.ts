@@ -65,7 +65,8 @@ export async function duplicateWarnings(
 
 // Replaces an invoice's duplicate warnings with those for its new sender,
 // judged by the file and the number read from it, as on reading.
-export async function recheckDuplicates(tx: Transaction, invoiceId: string, billedProfessionalId: string): Promise<void> {
+// With no sender, it has none.
+export async function recheckDuplicates(tx: Transaction, invoiceId: string, billedProfessionalId: string | null): Promise<void> {
   const [imported] = await tx
     .select({
       invoiceImportId: invoiceImport.invoiceImportId,

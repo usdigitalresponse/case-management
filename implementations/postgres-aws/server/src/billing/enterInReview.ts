@@ -125,7 +125,7 @@ async function lockOpenEntry(tx: Transaction, actorUserAccountId: string, invoic
 // Everything a line's decision was made against, its trip's included; a
 // change undoes the decision. Freezing links time lines to new time entries,
 // which changes nothing decided (withTimeEntry false).
-async function lineValues(tx: Transaction, invoiceId: string, withTimeEntry = true) {
+export async function lineValues(tx: Transaction, invoiceId: string, withTimeEntry = true) {
   const rows = await tx
     .select({
       invoiceLineId: invoiceLine.invoiceLineId,
@@ -160,7 +160,7 @@ async function lineValues(tx: Transaction, invoiceId: string, withTimeEntry = tr
   );
 }
 
-async function decidedLineIds(tx: Transaction, chainId: string): Promise<string[]> {
+export async function decidedLineIds(tx: Transaction, chainId: string): Promise<string[]> {
   const rows = await tx
     .select({ invoiceLineId: invoiceLineWorkingDecision.invoiceLineId })
     .from(invoiceLineWorkingDecision)
@@ -168,7 +168,7 @@ async function decidedLineIds(tx: Transaction, chainId: string): Promise<string[
   return rows.map((row) => row.invoiceLineId);
 }
 
-async function clearDecisions(tx: Transaction, chainId: string, invoiceLineIds: string[]) {
+export async function clearDecisions(tx: Transaction, chainId: string, invoiceLineIds: string[]) {
   if (invoiceLineIds.length === 0) return;
   await tx
     .delete(invoiceLineWorkingDecision)

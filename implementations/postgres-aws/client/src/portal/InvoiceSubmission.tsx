@@ -268,7 +268,7 @@ function Lines({
           sentAs !== 'awaiting_match'
             ? 'Invoice sent for review.'
             : byPerson
-              ? 'Invoice sent. Who it is from isn’t chosen, so it waits on Intake first.'
+              ? 'Invoice sent. Who billed it isn’t chosen, so it waits on Intake first.'
               : 'Invoice sent. The billing office will match its case, then review it.',
         undo: () => transitionInvoice(invoice.invoiceId, 'recall').then(onChanged),
       });
@@ -462,6 +462,7 @@ function Lines({
                 onChanged();
               }}
               saveDetails={(details) => setDraftDetails(invoice.invoiceId, details)}
+              onSenderRenamed={onChanged}
               onPeriodSaved={(saved) => {
                 savedPeriod.current = saved;
               }}

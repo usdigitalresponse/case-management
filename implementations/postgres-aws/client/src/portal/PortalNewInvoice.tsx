@@ -67,7 +67,7 @@ export function NewInvoiceStart({ onSaved }: { onSaved?: () => void }) {
             label="Case"
             value={caseId}
             onChange={(value) => setParams(value ? { case: value } : {})}
-            addLabel="+ Add a case that isn’t listed"
+            addLabel="+ Add new case"
             placeholder="Choose a case"
             hint="Leave it blank if it isn’t known yet; it’s matched on Intake."
             options={(cases ?? []).map((myCase) => ({

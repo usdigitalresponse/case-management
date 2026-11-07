@@ -308,6 +308,22 @@ export function editProfessional(
   });
 }
 
+// Administrators only: someone added by mistake. Refused once anything
+// lasting names them; unsent invoices naming them are left with no one chosen.
+export function removeProfessional(professionalId: string): Promise<{ professionalId: string; releasedInvoiceIds: string[] }> {
+  return request(`/api/professionals/${professionalId}`, { method: 'DELETE' });
+}
+
+// Whoever added someone may correct their name, email and role until anything
+// lasting names them. Name and email as they should now be (no email clears
+// it); their role only if given.
+export function correctProfessional(
+  professionalId: string,
+  details: { displayName: string; email?: string; professionalKindId?: string; givenName?: string; familyName?: string },
+): Promise<{ professionalId: string; displayName: string; email: string | null }> {
+  return request(`/api/professionals/${professionalId}/details`, { method: 'PUT', body: JSON.stringify(details) });
+}
+
 // Someone who can send invoices.
 export interface BillingPerson {
   professionalId: string;
@@ -797,6 +813,9 @@ export interface CreateInvoiceLineInput {
 export interface BillableProfessional {
   professionalId: string;
   displayName: string | null;
+  // Kept for some people; most have only displayName.
+  givenName?: string | null;
+  familyName?: string | null;
   isSelf: boolean;
   // Whose rates price their time, e.g. "Attorney"; null if none is set.
   kindDisplayName: string | null;
@@ -989,7 +1008,10 @@ export function matchInvoiceToCase(
 }
 
 // A provider who hasn't signed in; they get this profile if they do later.
-export function addProfessional(input: { displayName: string; email?: string; professionalKindId: string } & PersonDetailsInput) {
+// givenName and familyName: the name's parts, when entered separately.
+export function addProfessional(
+  input: { displayName: string; email?: string; professionalKindId: string; givenName?: string; familyName?: string } & PersonDetailsInput,
+) {
   return request<{ professionalId: string; displayName: string }>('/api/professionals', { method: 'POST', body: JSON.stringify(input) });
 }
 
@@ -1326,7 +1348,8 @@ export function createUploadDraft(
     caseNumber?: string;
     // A reviewer's goes straight into their own review.
     enterInReview?: boolean;
-  } & CountyChoice,
+  } & CountyChoice &
+    InvoiceReceipt,
 ): Promise<{ invoiceImportId: string; invoiceId: string }> {
   return request(`/api/portal/uploads/${uploadReadId}/draft`, { method: 'POST', body: JSON.stringify(details) });
 }

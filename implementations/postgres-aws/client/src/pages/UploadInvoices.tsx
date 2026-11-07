@@ -1,10 +1,13 @@
-// Upload filed by person, for staff and submitters: each file becomes a draft
-// as soon as it is read, or for staff an invoice under their own review, with
-// what was read from it. Its sender, case number, county, billing period and
-// invoice number are checked beside its lines on the next page.
+// Upload filed by person, for staff and submitters. Who billed it and, for
+// staff, how and when it came in are asked first, for every file in the
+// upload or for one entered by hand; a file may be from someone else. Each
+// then becomes a draft, or for staff an invoice under their own review, with
+// what was read from it; its billing period, invoice number, case number and
+// county are checked beside its lines.
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
+  addProfessional,
   apiErrorMessage,
   createInvoice,
   createUploadDraft,
@@ -12,13 +15,16 @@ import {
   discardUpload,
   invoiceTemplateUrl,
   listBillableProfessionals,
+  type InvoiceReceipt,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
-import { asksWho } from '../components/InvoiceDetailsFields';
+import { asksWho, BILLED_BY_HINT, SenderPicker, senderLabel, type PersonDraft } from '../components/InvoiceDetailsFields';
+import { ADD_NEW } from '../components/PickOrAdd';
 import { countyChoiceOf } from '../counties';
 import { DropZone, FileCard, Steps, useUploadEntries, type ReadyRead } from '../portal/PortalUpload';
+import { ReceivedFields } from '../portal/ReceivedFields';
 import { checkLinesPath, type CheckQueue } from '../portal/InvoiceSubmission';
 import { PORTAL_HOME_PATH, useShell } from '../portal/useShell';
 import { reviewPath } from '../staffPaths';
@@ -36,61 +42,81 @@ function readPeriod({ periodStart, periodEnd }: ReadyRead['read']) {
   return periodStart && periodEnd && periodEnd >= periodStart ? { periodStart, periodEnd } : {};
 }
 
+const chosen = (professionalId: string | undefined) => Boolean(professionalId && professionalId !== ADD_NEW);
+
 export default function UploadInvoices() {
   const navigate = useNavigate();
   const { staff } = useShell();
   const reviews = useReviewsOwnUploads();
   const home = staff ? { label: 'To review', to: '/' } : { label: 'Your invoices', to: PORTAL_HOME_PATH };
-  const { entries, update, addFiles, remove } = useUploadEntries(() => null);
+  // A file's own sender; '' is the one chosen above.
+  const { entries, update, addFiles, remove } = useUploadEntries(() => '');
   const { data: billable } = useApiResource(() => listBillableProfessionals(null).then((result) => result.professionals), []);
   const self = billable?.find((p) => p.isSelf);
+  const asks = asksWho(staff, billable);
+  const [sender, setSender] = useState('');
+  const [receipt, setReceipt] = useState<InvoiceReceipt>({});
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  // Files whose draft is being made, so each is made once.
-  const creating = useRef(new Set<string>());
-  const [pending, setPending] = useState(0);
+  // Set once going on was tried, so missing fields are marked where they are.
+  const [tried, setTried] = useState(false);
+  const [addRow, setAddRow] = useState<HTMLDivElement | null>(null);
+  // Someone new chosen above, added only on going on; once added, kept for a
+  // retry unless they were described differently since.
+  const [draft, setDraft] = useState<PersonDraft | null>(null);
+  const addedDraft = useRef<{ described: string; professionalId: string } | null>(null);
 
   const usable = entries.filter((entry) => !entry.error && entry.read?.status !== 'failed');
-  const drafts = usable.flatMap((entry) => (entry.created ? [entry.created.invoiceId] : []));
-  const settled = entries.length > 0 && pending === 0 && usable.every((entry) => entry.created);
-  const failed = entries.length - usable.length;
-  const many = entries.length > 1;
+  const ready = usable.flatMap((entry) => (entry.read?.status === 'ready' ? [{ entry, read: entry.read }] : []));
+  const reading = usable.length > ready.length;
+  const many = usable.length > 1;
   const position = (entry: (typeof entries)[number]) => usable.indexOf(entry) + 1;
   const canEnterByHand = staff || Boolean(self);
-  // No file could be read, so the lines are typed in instead.
-  const byHand = canEnterByHand && entries.length > 0 && usable.length === 0;
+  // Every file failed: it may still be entered by hand.
+  const allFailed = entries.length > 0 && usable.length === 0;
 
-  // Whom it bills: as suggested from the file, or the submitter when there's no choice.
-  function billedFor(read: ReadyRead) {
-    if (!asksWho(staff, billable)) return self?.professionalId ?? null;
-    return read.suggested?.professionalId ?? null;
-  }
-
+  // A file's suggested sender fills the choice above while it is empty, and
+  // is kept as that file's own when it differs.
+  const considered = useRef(new Set<string>());
   useEffect(() => {
-    if (!billable) return;
-    for (const entry of entries) {
-      const read = entry.read?.status === 'ready' ? entry.read : undefined;
-      if (!read || !entry.uploadReadId || entry.created || entry.error || creating.current.has(entry.key)) continue;
-      creating.current.add(entry.key);
-      setPending((count) => count + 1);
-      createUploadDraft(entry.uploadReadId, {
-        caseId: null,
-        professionalId: billedFor(read),
-        ...readPeriod(read.read),
-        invoiceNumber: read.read.invoiceNumber?.trim() || undefined,
-        caseNumber: read.read.caseNumber?.trim() || undefined,
-        ...countyChoiceOf(read.read.county),
-        // Reviewers enter and decide it in one pass, on its review.
-        enterInReview: reviews,
-      })
-        .then(
-          (created) => update(entry.key, { created }),
-          (err: unknown) => update(entry.key, { error: apiErrorMessage(err, 'This file could not be saved. Upload it again.') }),
-        )
-        .finally(() => setPending((count) => count - 1));
+    if (!asks) return;
+    let top = sender;
+    for (const { entry, read } of ready) {
+      if (considered.current.has(entry.key)) continue;
+      considered.current.add(entry.key);
+      const suggested = read.suggested?.professionalId;
+      if (!suggested) continue;
+      if (!top) {
+        top = suggested;
+        setSender(suggested);
+      } else if (suggested !== top) {
+        update(entry.key, { details: suggested });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, billable]);
+  }, [ready.length, asks]);
+
+  const topChosen = chosen(sender) || (sender === ADD_NEW && Boolean(draft));
+  const senderFor = (own: string | undefined, top: string) => (asks ? own || top : self?.professionalId);
+  // By hand, the one above; with files, only those without their own need it.
+  const senderMissing = (byHand: boolean) => asks && !topChosen && (byHand || ready.some(({ entry }) => !entry.details));
+  const fieldErrors = {
+    receivedVia: tried && staff && !receipt.receivedVia ? 'Choose how it arrived.' : undefined,
+    receivedOn: tried && staff && !receipt.receivedOn ? 'Enter the date it arrived.' : undefined,
+    sender: tried && asks && !topChosen ? (sender === ADD_NEW ? 'Give their first and last name, and their role.' : 'Choose whose work it is.') : undefined,
+  };
+  const complete = (byHand: boolean) => !(staff && !(receipt.receivedVia && receipt.receivedOn)) && !senderMissing(byHand);
+
+  // The one chosen above, adding someone new first.
+  async function topSender(): Promise<string> {
+    if (!asks || sender !== ADD_NEW || !draft) return sender;
+    const described = JSON.stringify(draft);
+    if (addedDraft.current?.described !== described) {
+      const added = await addProfessional(draft);
+      addedDraft.current = { described, professionalId: added.professionalId };
+    }
+    return addedDraft.current!.professionalId;
+  }
 
   // Every invoice from this upload is checked, one after another.
   function finish(invoiceIds: string[]) {
@@ -98,27 +124,52 @@ export default function UploadInvoices() {
     navigate(reviews ? reviewPath(first!) : checkLinesPath(first!, staff), { state: { queue, total: invoiceIds.length } satisfies CheckQueue });
   }
 
-  // Straight on once every file is in, unless one failed and should be seen first.
-  useEffect(() => {
-    if (settled && failed === 0 && drafts.length > 0) finish(drafts);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settled, failed]);
-
-  // An empty invoice, its lines and details added on the next page.
-  async function enterByHand() {
+  // Goes on if nothing is missing; otherwise marks what is, and stays.
+  async function goOn(byHand: boolean) {
+    if (busy) return;
+    if (!complete(byHand)) {
+      setTried(true);
+      return;
+    }
     setBusy(true);
     setMessage(null);
+    const received = staff ? receipt : {};
     try {
-      const created = await createInvoice({
-        caseId: null,
-        professionalId: asksWho(staff, billable) ? null : self?.professionalId,
-        submit: false,
-        enterInReview: reviews,
-        lines: [],
-      });
-      navigate(reviews ? reviewPath(created.invoiceId) : checkLinesPath(created.invoiceId, staff));
+      const top = await topSender();
+      if (byHand) {
+        const created = await createInvoice({
+          caseId: null,
+          professionalId: senderFor('', top),
+          submit: false,
+          enterInReview: reviews,
+          lines: [],
+          ...received,
+        });
+        finish([created.invoiceId]);
+        return;
+      }
+      const made: string[] = [];
+      for (const { entry, read } of ready) {
+        const created =
+          entry.created ??
+          // eslint-disable-next-line no-await-in-loop
+          (await createUploadDraft(entry.uploadReadId!, {
+            caseId: null,
+            professionalId: senderFor(entry.details, top) ?? null,
+            ...readPeriod(read.read),
+            invoiceNumber: read.read.invoiceNumber?.trim() || undefined,
+            caseNumber: read.read.caseNumber?.trim() || undefined,
+            ...countyChoiceOf(read.read.county),
+            // Reviewers enter and decide it in one pass, on its review.
+            enterInReview: reviews,
+            ...received,
+          }));
+        update(entry.key, { created });
+        made.push(created.invoiceId);
+      }
+      finish(made);
     } catch (err) {
-      setMessage(apiErrorMessage(err, 'The invoice could not be started. Try again.'));
+      setMessage(apiErrorMessage(err, 'The invoice could not be saved. Try again.'));
       setBusy(false);
     }
   }
@@ -138,17 +189,53 @@ export default function UploadInvoices() {
     navigate(home.to);
   }
 
-  const next = reviews ? 'Check and review the lines' : 'Check the lines';
+  const fromOptions = (billable ?? [])
+    .map((p) => ({ value: p.professionalId, label: senderLabel(p) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
   return (
     <div className="portal-narrow">
-      <PageHeader crumbs={[home, { label: many ? 'New invoices' : 'New invoice' }]} title={many ? 'Upload invoices' : 'Upload an invoice'} />
+      <PageHeader
+        crumbs={[home, { label: entries.length > 1 ? 'New invoices' : 'New invoice' }]}
+        title={entries.length > 1 ? 'Upload invoices' : 'Upload an invoice'}
+      />
       <Steps reviewing={reviews} />
       <div className="upload-card">
+        {(asks || staff) && (
+          <div className="upload-card__about">
+            <div className="upload-details">
+              {staff && (
+                <ReceivedFields
+                  plain
+                  idPrefix="upload"
+                  value={receipt}
+                  onChange={setReceipt}
+                  errors={{ receivedVia: fieldErrors.receivedVia, receivedOn: fieldErrors.receivedOn }}
+                />
+              )}
+              {asks && (
+                <div className="upload-details__field">
+                  <SenderPicker
+                    id="upload-from"
+                    value={sender}
+                    billable={billable ?? []}
+                    error={fieldErrors.sender}
+                    hint={many ? `${BILLED_BY_HINT} An invoice billed by someone else is set below.` : BILLED_BY_HINT}
+                    onChange={setSender}
+                    addRowIn={addRow}
+                    onDraft={setDraft}
+                  />
+                </div>
+              )}
+            </div>
+            {/* Adding someone opens here, under all three, so none of them moves. */}
+            <div ref={setAddRow} />
+          </div>
+        )}
         <DropZone hasFiles={entries.length > 0} onFiles={addFiles} />
         {entries.length === 0 && canEnterByHand && (
           <p className="manual-entry__offer">
             No file?{' '}
-            <button type="button" className="link-button" disabled={busy || !billable} onClick={() => void enterByHand()}>
+            <button type="button" className="link-button" disabled={busy} onClick={() => void goOn(true)}>
               Enter an invoice by hand
             </button>
           </p>
@@ -167,32 +254,47 @@ export default function UploadInvoices() {
             ))}
           </ul>
         )}
-        {entries.length > 0 && !settled && (
-          <p className="field-hint">
-            {many ? 'Each file is read, then you check its lines and details' : 'Once it is read, you check its lines and details'}{' '}
-            {reviews ? 'and review them ' : ''}on the next page.
-          </p>
+        {many && asks && ready.length > 0 && (
+          <ul className="file-senders" aria-label="Who billed each invoice">
+            {ready.map(({ entry }) => (
+              <li key={entry.key}>
+                <label htmlFor={`upload-from-${entry.key}`}>{entry.file.name}</label>
+                <select
+                  id={`upload-from-${entry.key}`}
+                  className="usa-select"
+                  value={entry.details ?? ''}
+                  disabled={Boolean(entry.created)}
+                  onChange={(event) => update(entry.key, { details: event.target.value })}
+                >
+                  <option value="">Same as above</option>
+                  {fromOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </li>
+            ))}
+          </ul>
         )}
-        {byHand && (
-          <p className="field-hint">
-            {many ? 'None of the files could be read.' : 'The file could not be read.'} You can type the invoice’s lines on the next step.
+        {allFailed && canEnterByHand && (
+          <p className="manual-entry__offer">
+            {entries.length > 1 ? 'None of the files could be read.' : 'The file could not be read.'}{' '}
+            <button type="button" className="link-button" disabled={busy} onClick={() => void goOn(true)}>
+              Enter it by hand instead
+            </button>
           </p>
         )}
         {message && <Notice tone="danger">{message}</Notice>}
         {entries.length > 0 && (
           <div className="upload-card__actions">
-            <button
-              type="button"
-              className="btn btn--primary"
-              disabled={busy || !(byHand || (settled && drafts.length > 0))}
-              onClick={() => (byHand ? void enterByHand() : finish(drafts))}
-            >
-              {byHand ? 'Enter it by hand' : next}
-            </button>
+            {!allFailed && (
+              <button type="button" className="btn btn--primary" disabled={busy || reading} onClick={() => void goOn(false)}>
+                {busy ? 'Saving…' : 'Continue'}
+              </button>
+            )}
             <button type="button" className="link-button" disabled={busy} onClick={() => void cancel()}>
               Cancel
             </button>
-            {many && <span className="field-hint">Cancel stops the whole upload. None of the {entries.length} files are kept.</span>}
+            {reading && !busy && <span className="field-hint">Waiting for the files to be read.</span>}
           </div>
         )}
       </div>

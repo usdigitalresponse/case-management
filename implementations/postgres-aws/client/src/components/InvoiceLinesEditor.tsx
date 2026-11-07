@@ -835,7 +835,7 @@ export function InvoiceLinesEditor({
                           suggestedTimekeeper: false,
                         })
                       }
-                      addLabel={onProviderAdded ? '+ Add a new provider' : '+ Someone not listed'}
+                      addLabel="+ Add new person"
                       placeholder={importReview ? '- Who did the work? -' : 'Billed professional'}
                       options={timekeepers.map((professional) => ({ value: professional.professionalId, label: professionalLabel(professional) }))}
                     >

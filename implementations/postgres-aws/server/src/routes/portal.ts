@@ -31,7 +31,7 @@ import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { z } from 'zod';
 import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { db } from '../db/client';
-import { timeEntry, invoice, professional, professionalKinds } from '../db/schema';
+import { timeEntry, invoice, person, professional, professionalKinds } from '../db/schema';
 import { getSessionUser, requireAuth } from '../auth/session';
 import { UnauthenticatedError } from '../errors';
 import { billableProfessionalIds, resolvePortalActor, timeReadableProfessionalIds, type PortalActor } from '../portal/portalActor';
@@ -171,9 +171,12 @@ router.get(
             .select({
               professionalId: professional.professionalId,
               displayName: professional.displayName,
+              givenName: person.givenName,
+              familyName: person.familyName,
               kindDisplayName: professionalKinds.displayName,
             })
             .from(professional)
+            .innerJoin(person, eq(professional.personId, person.personId))
             .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
             .where(inArray(professional.professionalId, ids));
     // Everyone who may bill for a professional sees their rates

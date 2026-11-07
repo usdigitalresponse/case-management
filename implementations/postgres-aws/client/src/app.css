@@ -197,6 +197,17 @@ button, input, select, textarea { font: inherit; }
 @media (min-width: 48rem) {
   .upload-details__field:has(.new-entry) > .pick-or-add > .usa-select { max-width: calc(50% - .5rem); }
 }
+/* Who it is from and how it came in, above the drop zone (pages/UploadInvoices.tsx). */
+.upload-card__about { margin-bottom: 1.5rem; }
+.upload-card__about > .upload-details { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+.upload-card__about .add-sender { margin-top: .75rem; }
+.file-senders { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: .5rem; }
+.file-senders li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 18rem); gap: .75rem; align-items: center; }
+.file-senders label { font-size: .88rem; overflow-wrap: anywhere; }
+.file-senders .usa-select { max-width: none; width: 100%; height: 2.5rem; margin: 0; }
+@media (max-width: 40em) {
+  .file-senders li { grid-template-columns: 1fr; gap: .25rem; }
+}
 .upload-period { display: flex; align-items: center; gap: .5rem; }
 .upload-period .usa-input { flex: 1 1 0; min-width: 0; }
 .upload-footnote { margin: 1rem 0 0; color: var(--ink-muted); font-size: .85rem; }
@@ -219,7 +230,7 @@ button, input, select, textarea { font: inherit; }
   .upload-details__field:has(.add-sender) > .pick-or-add > .usa-select { max-width: calc((100% - 2rem) / 3); }
 }
 .add-sender { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .5rem; }
-.add-sender .usa-input { flex: 2 1 12rem; }
+.add-sender .usa-input { flex: 1 1 8rem; }
 .add-sender .usa-select { flex: 1 1 9rem; }
 .add-sender .field-error { flex-basis: 100%; margin: 0; }
 /* The typed case number above the file and lines (filed by person). */

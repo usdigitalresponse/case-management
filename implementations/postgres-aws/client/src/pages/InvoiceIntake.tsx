@@ -143,7 +143,7 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
             label="Case"
             value={caseId}
             onChange={setCaseId}
-            addLabel="+ Add a new case"
+            addLabel="+ Add new case"
             placeholder={data ? 'Choose an open case' : 'Loading cases…'}
             options={(data ?? []).map((c) => ({ value: c.caseId, label: caseDisplayLabel([c.externalReference, c.clientDisplayName], undefined) }))}
             hint={caseId && caseId === item.suggestedCaseId ? <span className="line-row-suggested">Named in the file: check it</span> : undefined}
@@ -157,7 +157,7 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
             label="From"
             value={professionalId}
             onChange={setProfessionalId}
-            addLabel="+ Add a new provider"
+            addLabel="+ Add new person"
             placeholder={listed ? 'Choose who it’s from' : 'Loading…'}
             options={providers}
           >
@@ -171,7 +171,7 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
             label={`Who did “${line.description ?? 'this item'}”`}
             value={timekeepers[line.invoiceLineId] ?? ''}
             onChange={(value) => setTimekeepers((current) => ({ ...current, [line.invoiceLineId]: value }))}
-            addLabel="+ Add a new provider"
+            addLabel="+ Add new person"
             placeholder="Choose who did the work"
             options={providers}
             hint={

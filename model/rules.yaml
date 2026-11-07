@@ -544,11 +544,13 @@ rules:
     trigger: before_create
     outcome: blocking
     requirements:
-      - Any active staff user may add a professional with a name, a professional kind and optionally an email; this creates a person and a professional profile with no user account. Record the actor.
+      - Any active staff user may add a professional with a name (optionally as given and family name, kept on the person), a professional kind and optionally an email; this creates a person and a professional profile with no user account. Record the actor.
       - Refuse an email already used by a user account or another professional rather than creating a probable duplicate.
       - When someone later signs in with that email, they receive the existing profile instead of a new one.
       - Adding a professional assigns them to no case and grants no access.
       - An administrator may correct the professional's name, and add or change the email of one who hasn't signed in, refusing an email already used in the same way; once they sign in, their account's email stays. Record the actor and the values replaced.
+      - Whoever added a professional may correct their name (its given and family parts where entered separately), email and professional kind, on that same record rather than by adding them again, until removal would be refused as below, refusing an email already in use as above. Record the actor and the values replaced.
+      - An administrator may remove a professional added by mistake, such as a sender added while entering a request never finished, recording the actor and the values removed. Removal is refused once they have signed in, are assigned to a case, have recorded time or a pre-authorization, have a role on a case, signed a request, or are named on a request that was sent or whose first round was finished. A request naming them that was never sent (a draft, a withdrawn draft or an open entry) is left with no one chosen in their place, its lines matched and priced again as on any save, and an open entry's working decision removed from each line that changed. The removed values, including their own rates and the requests changed, are kept with the record of removal.
 
   authorize_payment_request_export:
     description: Export submitted requests only to users who may read them.

@@ -24,6 +24,7 @@ import { mileageRateOn, mileageRatesFor } from '../billing/mileageRates';
 import { caseNumberInput, cleanCaseNumber, readCaseNumber } from '../billing/caseNumbers';
 import { countyChoice, listCounties, readCounty, resolveCounty } from '../cases/counties';
 import { enterInReviewInTx } from '../billing/enterInReview';
+import { receiptInputSchema, recordReceipt } from '../billing/invoiceReceipt';
 
 export interface SplitCase {
   caseId: string;
@@ -410,6 +411,7 @@ const uploadDraftSchema = z
     // A reviewing staff member's draft goes straight into their own review
     // (../billing/enterInReview.ts).
     enterInReview: z.boolean().optional(),
+    ...receiptInputSchema.shape,
   })
   .refine((input) => Boolean(input.periodStart) === Boolean(input.periodEnd), {
     message: 'Enter both days of the billing period, or neither.',
@@ -473,6 +475,7 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
         proposedCase: input.proposedCase,
         proposedProvider: input.proposedProvider,
       });
+      await recordReceipt(tx, invoiceId, { receivedVia: input.receivedVia, receivedOn: input.receivedOn });
       const caseNumber = cleanCaseNumber(input.caseNumber);
       if (caseNumber) {
         await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));

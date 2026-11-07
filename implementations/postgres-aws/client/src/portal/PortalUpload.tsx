@@ -322,7 +322,7 @@ function DetailsForm({
           label="Case"
           value={details.caseOption}
           onChange={(caseOption) => set({ caseOption })}
-          addLabel="+ Add a case that isn’t listed"
+          addLabel="+ Add new case"
           placeholder="Choose the case"
           options={cases.map((row) => ({ value: optionValue(row), label: caseLabel(row, showWho) }))}
           error={errors.caseId}
@@ -346,7 +346,7 @@ function DetailsForm({
             label="From"
             value={details.fromProfessionalId}
             onChange={(fromProfessionalId) => set({ fromProfessionalId })}
-            addLabel="+ Add someone who isn’t listed"
+            addLabel="+ Add new person"
             placeholder="Choose who it’s from"
             options={from}
             error={errors.professionalId}
