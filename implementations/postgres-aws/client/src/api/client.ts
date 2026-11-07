@@ -308,15 +308,12 @@ export function editProfessional(
   });
 }
 
-// Administrators only: someone added by mistake. Refused once anything
-// lasting names them; unsent invoices naming them are left with no one chosen.
+// Administrators only; refused once anything lasting names them.
 export function removeProfessional(professionalId: string): Promise<{ professionalId: string; releasedInvoiceIds: string[] }> {
   return request(`/api/professionals/${professionalId}`, { method: 'DELETE' });
 }
 
-// Whoever added someone may correct their name, email and role until anything
-// lasting names them. Name and email as they should now be (no email clears
-// it); their role only if given.
+// By whoever added them, until anything lasting names them; no email clears it.
 export function correctProfessional(
   professionalId: string,
   details: { displayName: string; email?: string; professionalKindId?: string; givenName?: string; familyName?: string },

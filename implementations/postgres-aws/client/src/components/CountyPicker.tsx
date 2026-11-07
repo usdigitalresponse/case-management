@@ -1,5 +1,4 @@
-// Every county picker: matches as you type, settings first, and an option to
-// add a county not listed, which the caller saves (countyChoiceOf).
+// Every county picker; a county typed in is added when the caller saves it (countyChoiceOf).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useCombobox } from 'downshift';
 import { apiErrorMessage, listCounties, type CountyChoice, type CountyOption, type SavedCounty } from '../api/client';

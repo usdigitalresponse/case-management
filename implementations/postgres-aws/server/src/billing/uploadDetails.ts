@@ -1,8 +1,5 @@
-// What a filed-by-person invoice's lines page edits beside its lines, for a
-// draft or a reviewer's open entry: whom it is from, its billing period and
-// the number on the sender's own invoice. Its lines are shown as read until
-// a sender is chosen; sending or finishing needs one. A reviewer may give a
-// sender with no role their role here.
+// A filed-by-person draft's or open entry's sender, period and invoice number,
+// edited beside its lines.
 import { z } from 'zod';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { Transaction } from '../db/client';

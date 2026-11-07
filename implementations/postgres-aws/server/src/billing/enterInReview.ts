@@ -211,7 +211,7 @@ export async function requireCurrentEntryLines(tx: Transaction, invoiceId: strin
 }
 
 // A change to its lines, and who made it.
-async function markLinesChanged(tx: Transaction, invoiceId: string, actorUserAccountId: string, version: number): Promise<number> {
+export async function markLinesChanged(tx: Transaction, invoiceId: string, actorUserAccountId: string, version: number): Promise<number> {
   await tx
     .update(invoice)
     .set({ linesVersion: version + 1, linesChangedAt: new Date(), linesChangedByUserAccountId: actorUserAccountId })
@@ -219,18 +219,23 @@ async function markLinesChanged(tx: Transaction, invoiceId: string, actorUserAcc
   return version + 1;
 }
 
+function parseLinesVersion(rawInput: unknown): number {
+  const version = z.object({ linesVersion: z.number().int().nonnegative() }).safeParse(rawInput);
+  if (!version.success) {
+    throw new ValidationError({ linesVersion: 'Reload the invoice, then make your change again.' });
+  }
+  return version.data.linesVersion;
+}
+
 // Saves every line, as a draft save does, if the page saving them had the
 // latest (linesVersion). Returns the lines whose decision was undone because
 // they changed, and the new version.
 export async function saveEnteredLines(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   const content = parseDraftContent(rawInput);
-  const version = z.object({ linesVersion: z.number().int().nonnegative() }).safeParse(rawInput);
-  if (!version.success) {
-    throw new ValidationError({ linesVersion: 'Reload the invoice, then make your change again.' });
-  }
+  const linesVersion = parseLinesVersion(rawInput);
   return db.transaction(async (tx) => {
     const { row, chainId } = await lockOpenEntry(tx, actorUserAccountId, invoiceId);
-    await requireCurrentLines(tx, row, actorUserAccountId, version.data.linesVersion);
+    await requireCurrentLines(tx, row, actorUserAccountId, linesVersion);
     const before = await lineValues(tx, invoiceId);
     const imported = await findImportForInvoice(tx, invoiceId);
     const fillTimekeepers = !imported || imported.statusCode === CONFIRMED_IMPORT_STATUS_CODE;
@@ -248,8 +253,7 @@ export async function saveEnteredLines(db: Database, actorUserAccountId: string,
     // Only a decided line that changed has a decision to undo.
     const undecided = (await decidedLineIds(tx, chainId)).filter((id) => after.has(id) && before.get(id) !== after.get(id));
     await clearDecisions(tx, chainId, undecided);
-    const linesVersion = await markLinesChanged(tx, invoiceId, actorUserAccountId, row.linesVersion);
-    return { invoiceId, submittedTotal: total, undecided, linesVersion };
+    return { invoiceId, submittedTotal: total, undecided, linesVersion: await markLinesChanged(tx, invoiceId, actorUserAccountId, row.linesVersion) };
   });
 }
 
@@ -276,24 +280,19 @@ export async function setEnteredCounty(db: Database, actorUserAccountId: string,
   });
 }
 
-// Repricing for a new sender undoes the decision on each line it changes, as
-// a line save does, so it carries the page's linesVersion too.
+// Repricing undoes decisions as a line save does, so it carries linesVersion too.
 export async function setEnteredSender(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   const choice = parseSender(rawInput);
-  const version = z.object({ linesVersion: z.number().int().nonnegative() }).safeParse(rawInput);
-  if (!version.success) {
-    throw new ValidationError({ linesVersion: 'Reload the invoice, then make your change again.' });
-  }
+  const linesVersion = parseLinesVersion(rawInput);
   return db.transaction(async (tx) => {
     const { row, chainId } = await lockOpenEntry(tx, actorUserAccountId, invoiceId);
-    await requireCurrentLines(tx, row, actorUserAccountId, version.data.linesVersion);
+    await requireCurrentLines(tx, row, actorUserAccountId, linesVersion);
     const before = await lineValues(tx, invoiceId);
     await changeSenderInTx(tx, await resolvePortalActor(tx, actorUserAccountId), row, choice);
     const after = await lineValues(tx, invoiceId);
     const undecided = (await decidedLineIds(tx, chainId)).filter((id) => before.get(id) !== after.get(id));
     await clearDecisions(tx, chainId, undecided);
-    const linesVersion = await markLinesChanged(tx, invoiceId, actorUserAccountId, row.linesVersion);
-    return { invoiceId, undecided, linesVersion };
+    return { invoiceId, undecided, linesVersion: await markLinesChanged(tx, invoiceId, actorUserAccountId, row.linesVersion) };
   });
 }
 

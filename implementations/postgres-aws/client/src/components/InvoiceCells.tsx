@@ -37,8 +37,7 @@ export function FromCell({ invoice }: { invoice: ReviewQueueItem }) {
   );
 }
 
-// As typed (or corrected), with its county and how many other sent invoices
-// share it, linking to them all; or `note` in place of that.
+// As typed or corrected, with its county and a link to sent invoices sharing it (or `note`).
 export function CaseNumberCell({ invoice, note }: { invoice: ReviewQueueItem; note?: ReactNode }) {
   const number = shownCaseNumber(invoice);
   if (!number) {

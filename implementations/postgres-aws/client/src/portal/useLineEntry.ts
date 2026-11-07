@@ -94,8 +94,7 @@ export function useLineEntry({
     setEdited((current) => new Set([...current].filter((id) => latest.current.find((line) => line.invoiceLineId === id) !== byId.get(id))));
   }
 
-  // A line saved without its hours or amount is dropped, which removes it,
-  // so one changed in place that can't be priced yet keeps its saved version.
+  // Saving an unpriceable line would drop it, so its saved version goes instead.
   function savable(next: LineDraft[]): LineDraft[] {
     return next.flatMap((line) => {
       if (!editedNow.current.has(line.invoiceLineId ?? '') || priceOf(line, context).total !== null) return [line];
@@ -104,8 +103,7 @@ export function useLineEntry({
     });
   }
 
-  // Resolves to the lines as saved. A failed save goes back to them, keeping
-  // changes made in place.
+  // Resolves to the lines as saved; a failure rolls back to them, keeping edits in place.
   function save(changed: LineDraft[], { rollback = true, keepalive = false } = {}): Promise<LineDraft[]> {
     // A new line gets its id now, which the server keeps, so the next save
     // finds it rather than making it again.
@@ -167,8 +165,7 @@ export function useLineEntry({
     });
   }
 
-  // Saves what was changed in place; false if it can't be saved yet or failed.
-  // Leaving saves whatever it can, keeping the invoice unfinished.
+  // False if an edit can't be priced yet or the save failed; leaving saves what it can.
   async function flush({ leaving = false } = {}): Promise<boolean> {
     if (editedNow.current.size === 0) return true;
     const unpriced = rows.find(

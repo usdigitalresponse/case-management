@@ -1,5 +1,4 @@
-// One control on every list of cases or invoices to filter or group its rows
-// by county (../counties.ts).
+// Filters or groups any list of cases or invoices by county (../counties.ts).
 import { useState } from 'react';
 import { listCounties } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';

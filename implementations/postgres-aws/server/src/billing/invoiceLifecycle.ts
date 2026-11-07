@@ -719,10 +719,7 @@ async function finishSubmission(
 export async function updateDraftInvoice(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
   const content = parseDraftContent(rawInput);
   return db.transaction(async (tx) => {
-    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
-    if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
-      throw new InvoiceStateError('Only a draft can be edited.');
-    }
+    const locked = await lockOwnDraft(tx, actor, invoiceId);
     const imported = await findImportForInvoice(tx, invoiceId);
     const fillTimekeepers = !imported || imported.statusCode === CONFIRMED_IMPORT_STATUS_CODE;
     const total = await replaceLines(tx, actor, invoiceId, locked.caseId, locked.professionalId, content, fillTimekeepers);
@@ -740,10 +737,7 @@ export async function setDraftCaseNumber(db: Database, actor: PortalActor, invoi
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
   return db.transaction(async (tx) => {
-    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
-    if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
-      throw new InvoiceStateError('Only a draft can be edited.');
-    }
+    await lockOwnDraft(tx, actor, invoiceId);
     const caseNumber = cleanCaseNumber(parsed.data.caseNumber);
     await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, caseNumber };
@@ -753,10 +747,7 @@ export async function setDraftCaseNumber(db: Database, actor: PortalActor, invoi
 export async function setDraftCounty(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
   const choice = parseCountyChoice(rawInput);
   return db.transaction(async (tx) => {
-    const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
-    if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
-      throw new InvoiceStateError('Only a draft can be edited.');
-    }
+    await lockOwnDraft(tx, actor, invoiceId);
     const countyId = await resolveCountyChange(tx, actor.userAccountId, choice);
     await tx.update(invoice).set({ countyId }).where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, county: await shownInvoiceCounty(tx, invoiceId) };
@@ -771,7 +762,6 @@ async function lockOwnDraft(tx: Transaction, actor: PortalActor, invoiceId: stri
   return locked;
 }
 
-// Filed by person (./uploadDetails.ts).
 export async function setDraftSender(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
   const choice = parseSender(rawInput);
   return db.transaction(async (tx) => {

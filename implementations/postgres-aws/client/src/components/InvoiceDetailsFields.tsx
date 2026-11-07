@@ -1,8 +1,5 @@
-// A filed-by-person invoice's details, beside its lines on the check and
-// review pages: who billed it, its billing period and the number on the
-// sender's own invoice, each saved as it changes. Its lines show as read
-// until a sender is chosen; sending or finishing needs one. A reviewer gives
-// a sender with no role theirs here.
+// A filed-by-person invoice's sender, period and invoice number, saved as
+// they change beside its lines on the check and review pages.
 import { useRef, useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -31,8 +28,7 @@ export function asksWho(staff: boolean, billable: BillableProfessional[] | null 
   return staff || (billable?.length ?? 0) > 1;
 }
 
-// "Last, First: Role", from the name's parts where they are kept, else taking
-// the full name's last word as the last name.
+// "Last, First: Role"; without kept parts, the name's last word is the last name.
 export function senderLabel(p: {
   displayName: string | null;
   givenName?: string | null;
@@ -66,11 +62,9 @@ export function SenderPicker({
   addRowIn,
   onDraft,
 }: {
-  // Where the add row opens instead of under the picker, so the fields
-  // beside it stay where they are.
+  // Opens the add row there, so the fields beside the picker don't move.
   addRowIn?: HTMLElement | null;
-  // Given, someone new is only described here, and added by the page when it
-  // goes on; null until they have a name and role.
+  // Given, someone new is only described, for the page to add as it goes on.
   onDraft?: (draft: PersonDraft | null) => void;
   id: string;
   value: string;
@@ -87,8 +81,7 @@ export function SenderPicker({
 }) {
   const { staff } = useShell();
   const [added, setAdded] = useState<Added[]>([]);
-  // Someone added from the open row: the row stays, and the list leaves them
-  // out, until something else is chosen.
+  // Added from the open row, which stays open until something else is chosen.
   const [current, setCurrent] = useState<Added | null>(null);
   // A new row each time "add" is chosen again.
   const [round, setRound] = useState(0);
@@ -179,7 +172,6 @@ export function SenderPicker({
 export interface PersonDraft {
   givenName: string;
   familyName: string;
-  // The two joined.
   displayName: string;
   email?: string;
   professionalKindId: string;
@@ -192,9 +184,13 @@ function joinName(givenName: string, familyName: string) {
   return given && family ? { givenName: given, familyName: family, displayName: `${given} ${family}` } : null;
 }
 
+function useActiveKinds() {
+  return useApiResource(() => listProfessionalKinds().then((result) => result.kinds.filter((kind) => kind.active)), []).data;
+}
+
 // Someone new described on one line, to be added when the page goes on.
 function NewSenderFields({ id, onChange }: { id: string; onChange: (draft: PersonDraft | null) => void }) {
-  const { data: kinds } = useApiResource(() => listProfessionalKinds().then((result) => result.kinds.filter((kind) => kind.active)), []);
+  const kinds = useActiveKinds();
   const [draft, setDraft] = useState({ givenName: '', familyName: '', email: '', professionalKindId: '' });
   function set(patch: Partial<typeof draft>) {
     const next = { ...draft, ...patch };
@@ -245,9 +241,7 @@ function NewSenderFields({ id, onChange }: { id: string; onChange: (draft: Perso
   );
 }
 
-// A name, email and role on one line, added once a name and role are given;
-// the row stays, and then corrects the one added. The rest is filled in later
-// under People.
+// Adds them once a name and role are given, then corrects that same person.
 function AddSender({
   id,
   existing,
@@ -262,7 +256,7 @@ function AddSender({
   onRenamed: (professionalId: string, displayName: string) => void;
   onRoleChanged: (professionalId: string, kindDisplayName: string | undefined) => void;
 }) {
-  const { data: kinds } = useApiResource(() => listProfessionalKinds().then((result) => result.kinds.filter((kind) => kind.active)), []);
+  const kinds = useActiveKinds();
   const [givenName, setGivenName] = useState('');
   const [familyName, setFamilyName] = useState('');
   const [email, setEmail] = useState('');
@@ -347,9 +341,7 @@ function AddSender({
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         onBlur={save}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') save();
-        }}
+        onKeyDown={saveOnEnter}
       />
       <select
         id={`${id}-role`}
@@ -395,7 +387,7 @@ export function InvoiceDetailsFields({
   warnings,
   saveSender,
   saveDetails,
-  onPeriodSaved,
+  onPeriodChanged,
   onSenderRenamed,
 }: {
   invoice: QueuedInvoice;
@@ -404,14 +396,13 @@ export function InvoiceDetailsFields({
   // Asked to send or finish without one.
   missingSender: boolean;
   action: 'send' | 'finish';
-  // The file's warnings; those for the invoice as a whole, such as a
-  // duplicate for its sender, show here.
+  // The file's; only whole-invoice duplicates show here.
   warnings: ImportWarning[];
   // Saves any line edits first, then reloads the invoice once it is repriced.
   saveSender: (choice: SenderChoice) => Promise<void>;
   saveDetails: (details: InvoiceDetailsInput) => Promise<unknown>;
-  // Line saves carry the period, so they send the one saved here.
-  onPeriodSaved: (period: { periodStart: string | null; periodEnd: string | null }) => void;
+  // Line saves carry the period, so they send the latest one given here.
+  onPeriodChanged: (period: { periodStart: string | null; periodEnd: string | null }) => void;
 }) {
   const { staff } = useShell();
   const { user } = useAuth();
@@ -419,8 +410,7 @@ export function InvoiceDetailsFields({
   const invoiceWarnings = warnings.filter((warning) => !warning.location && warning.code.startsWith('duplicate_'));
   const { data: billable } = useApiResource(() => listBillableProfessionals(null).then((result) => result.professionals), []);
   const [sender, setSender] = useState(invoice.professionalId ?? '');
-  // Chosen on upload; asked here only of an invoice started without one, and
-  // kept for this page once chosen.
+  // Only for an invoice started without one; stays shown once chosen.
   const [asksSender] = useState(!invoice.professionalId);
   const [savingSender, setSavingSender] = useState(false);
   const [periodStart, setPeriodStart] = useState(invoice.periodStart ?? '');
@@ -431,6 +421,7 @@ export function InvoiceDetailsFields({
     periodEnd: invoice.periodEnd,
     invoiceNumber: invoice.invoiceNumber,
   });
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [names, setNames] = useState<Record<string, string>>({});
   const the = staff ? 'the' : 'your';
@@ -455,22 +446,21 @@ export function InvoiceDetailsFields({
     void saveChoice({ professionalId });
   }
 
+  // Recorded before it is sent, and sent in order, so no save carries older values.
   function save(change: Partial<InvoiceDetailsInput>) {
     const details = { ...saved.current, ...change };
+    saved.current = details;
+    onPeriodChanged(details);
     setErrors((current) => ({ ...current, periodStart: '', periodEnd: '', invoiceNumber: '' }));
-    saveDetails(details).then(
-      () => {
-        saved.current = details;
-        onPeriodSaved(details);
-      },
-      (err: unknown) => {
+    queue.current = queue.current
+      .then(() => saveDetails(details))
+      .catch((err: unknown) => {
         const fieldErrors = fieldErrorsOf(err);
         setErrors((current) => ({
           ...current,
           ...(Object.keys(fieldErrors).length > 0 ? fieldErrors : { invoiceNumber: apiErrorMessage(err, 'That could not be saved. Try again.') }),
         }));
-      },
-    );
+      });
   }
 
   // The saved sender's as loaded, so a role just given shows.
@@ -563,7 +553,7 @@ export function InvoiceDetailsFields({
 
 // A sender with no role can't have their time priced; a reviewer gives them one.
 function MissingRole({ disabled, error, onSave }: { disabled: boolean; error?: string; onSave: (professionalKindId: string) => void }) {
-  const { data: kinds } = useApiResource(() => listProfessionalKinds().then((result) => result.kinds.filter((kind) => kind.active)), []);
+  const kinds = useActiveKinds();
   const [kindId, setKindId] = useState('');
   return (
     <div className="upload-details__field">

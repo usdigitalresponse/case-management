@@ -86,8 +86,7 @@ export default function InvoiceReview() {
   const keepToast = useRef(false);
   // While entering, saves lines changed in place; false if they can't be saved.
   const saveEdits = useRef<() => Promise<boolean>>(async () => true);
-  // How it came in is given on upload; asked here only of an invoice started
-  // without it, and kept on the page once given.
+  // Asked only of an invoice started without it; stays shown once given.
   const receiptAsked = useRef<{ invoiceId?: string; ask: boolean }>({ ask: false });
   // While entering, the billing period saved beside the lines, for line saves to carry.
   const period = useRef<{ invoiceId?: string; periodStart: string | null; periodEnd: string | null }>({ periodStart: null, periodEnd: null });
@@ -149,8 +148,7 @@ export default function InvoiceReview() {
     }
   }
 
-  // Approve part or Reject on a line changed in place: saved and reloaded
-  // first, so the panel starts from the line's saved figures.
+  // For an edited line, so the panel starts from its saved figures.
   async function openAfterSaving(lineId: string, mode: PanelMode) {
     if (busy.current) return;
     busy.current = true;
@@ -514,7 +512,7 @@ export default function InvoiceReview() {
           // Not EntryLines' key: a sibling with the same one is kept twice.
           key={`details-${invoice.invoiceId}`}
           invoice={invoice}
-          // Only that is left before finishing.
+          // Flagged once the sender is all that finishing still needs.
           missingSender={everyLineDecided && !invoice.professionalId}
           action="finish"
           warnings={data.fileSource?.warnings ?? []}
@@ -534,7 +532,7 @@ export default function InvoiceReview() {
           }}
           saveDetails={(details) => setEnteredDetails(invoice.invoiceId, details)}
           onSenderRenamed={() => void refresh()}
-          onPeriodSaved={(saved) => {
+          onPeriodChanged={(saved) => {
             period.current = { invoiceId: invoice.invoiceId, ...saved };
           }}
         />

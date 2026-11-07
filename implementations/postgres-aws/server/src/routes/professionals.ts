@@ -106,8 +106,7 @@ router.patch(
   }),
 );
 
-// Whoever added them, until anything lasting names them
-// (../professionals/correctNewProfessional.ts).
+// By whoever added them (../professionals/correctNewProfessional.ts).
 router.put(
   '/:id/details',
   asyncHandler(async (req, res) => {
@@ -115,7 +114,6 @@ router.put(
   }),
 );
 
-// Administrators only (../professionals/removeProfessional.ts).
 router.delete(
   '/:id',
   requireAdmin,

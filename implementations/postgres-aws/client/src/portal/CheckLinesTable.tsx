@@ -274,9 +274,7 @@ export interface CheckLinesTableProps {
   footer: ReactNode;
   // An invoice entered by hand has no file to have missed lines from.
   addLabel?: string;
-  // Decided as entered: a line's cells are its fields, kept unsaved until
-  // whatever comes next saves them, and removing or putting it back is in
-  // its bar.
+  // Given, lines are edited in their cells and kept unsaved until the next action.
   onEditLine?: (index: number, patch: Partial<LineDraft>) => void;
   // Changed in place and not saved yet.
   edited?: (index: number) => boolean;
