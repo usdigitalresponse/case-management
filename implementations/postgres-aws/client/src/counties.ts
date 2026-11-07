@@ -1,5 +1,4 @@
-// County choices (model/rules.yaml record_case_county), as the picker
-// (components/CountyPicker.tsx) offers them.
+// County choices for the pickers and list controls (model/rules.yaml record_case_county).
 import type { CountyChoice, CountyOption } from './api/client';
 
 // countyId null: a county typed in, added when it is saved.
@@ -8,8 +7,7 @@ export interface CountyValue {
   displayName: string;
 }
 
-// As the server matches names: case, spacing, punctuation and the word
-// "county" don't count.
+// Matches server/src/cases/counties.ts countyKey.
 export function countyKey(name: string): string {
   return name
     .toLowerCase()
@@ -18,8 +16,7 @@ export function countyKey(name: string): string {
     .replace(/[^a-z0-9]+/g, '');
 }
 
-// Settings such as post-conviction first, then counties, each matching what
-// is typed; and the name to add when nothing listed has it.
+// Settings first; addName is offered when nothing listed has the typed name.
 export function countyMatches(options: CountyOption[], query: string): { matches: CountyOption[]; addName: string | null } {
   const typed = query.trim().replace(/\s+/g, ' ');
   const key = countyKey(typed);
@@ -32,8 +29,7 @@ export function countyMatches(options: CountyOption[], query: string): { matches
   };
 }
 
-// A list's county control (components/CountyListControl.tsx): every row,
-// every row grouped by county, only those with no county, or one county's.
+// The list control's choices besides one county's id.
 export const ALL_COUNTIES = 'all';
 export const GROUPED_BY_COUNTY = 'grouped';
 export const NO_COUNTY = 'none';
@@ -43,8 +39,7 @@ export interface CountyRow {
   displayName?: string | null;
 }
 
-// Grouped: settings, then counties as listed, then none, each group keeping
-// the list's order.
+// Grouped: settings, counties as listed, then none, each keeping the list's order.
 export function applyCountyControl<T>(rows: T[], countyOf: (row: T) => CountyRow, choice: string, options: CountyOption[]): T[] {
   if (choice === ALL_COUNTIES) return rows;
   if (choice === NO_COUNTY) return rows.filter((row) => !countyOf(row).countyId);
@@ -62,8 +57,7 @@ export function applyCountyControl<T>(rows: T[], countyOf: (row: T) => CountyRow
   return [...rows].sort((a, b) => rank(a) - rank(b));
 }
 
-// What the control offers: every setting, the counties the rows have, and
-// the one chosen even when no row has it now, each with how many rows have it.
+// Every setting, the rows' counties and the chosen one even with no rows, with counts.
 export function countyControlOptions<T>(
   rows: T[],
   countyOf: (row: T) => CountyRow,

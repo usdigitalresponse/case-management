@@ -350,11 +350,11 @@ function Lines({
 
   async function startSending() {
     const noSender = byPerson && !invoice.professionalId;
+    const noCaseNumber = byPerson && !typedCaseNumber.trim();
     setSenderMissing(noSender);
-    if (byPerson && !typedCaseNumber.trim()) setCaseNumberMissing(true);
-    if (noSender || (byPerson && !typedCaseNumber.trim())) return;
-    // Lines changed in place save now, and so does the case number box,
-    // which otherwise saves on losing focus.
+    if (noCaseNumber) setCaseNumberMissing(true);
+    if (noSender || noCaseNumber) return;
+    // The case number box otherwise saves only on losing focus.
     if (!(await flush())) return;
     try {
       if (byPerson) await setDraftCaseNumber(invoice.invoiceId, typedCaseNumber);
@@ -463,7 +463,7 @@ function Lines({
               }}
               saveDetails={(details) => setDraftDetails(invoice.invoiceId, details)}
               onSenderRenamed={onChanged}
-              onPeriodSaved={(saved) => {
+              onPeriodChanged={(saved) => {
                 savedPeriod.current = saved;
               }}
             />

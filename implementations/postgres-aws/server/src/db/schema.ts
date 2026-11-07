@@ -88,8 +88,7 @@ export const role = pgTable(
   ],
 );
 
-// Also settings recorded in a county's place, such as post-conviction
-// (../cases/counties.ts).
+// Also settings in a county's place, such as post-conviction (is_county false).
 export const county = pgTable('county', {
   countyId: uuid('county_id').primaryKey().defaultRandom(),
   displayName: text('display_name').notNull(),
@@ -456,8 +455,7 @@ export const invoice = pgTable(
     caseNumberAsTyped: text('case_number_as_typed'),
     // A reviewer's correction; the typed one is kept, and the change audited.
     caseNumberCorrected: text('case_number_corrected'),
-    // Filed by person, the case's county goes with its typed number; changes
-    // once sent are audited (../billing/invoiceCounty.ts).
+    // Overrides its case's county; changes once sent are audited (../billing/invoiceCounty.ts).
     countyId: uuid('county_id').references(() => county.countyId),
     // Staff upload, under review from the start; its lines stay editable
     // until the first round freezes them (model/rules.yaml enter_request_in_review).

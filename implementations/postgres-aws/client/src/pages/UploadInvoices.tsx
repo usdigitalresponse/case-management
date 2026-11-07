@@ -1,9 +1,5 @@
-// Upload filed by person, for staff and submitters. Who billed it and, for
-// staff, how and when it came in are asked first, for every file in the
-// upload or for one entered by hand; a file may be from someone else. Each
-// then becomes a draft, or for staff an invoice under their own review, with
-// what was read from it; its billing period, invoice number, case number and
-// county are checked beside its lines.
+// Upload filed by person: who billed it (and, of staff, how it arrived) is
+// asked once for every file, then each becomes a draft or a reviewer's entry.
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -61,8 +57,7 @@ export default function UploadInvoices() {
   // Set once going on was tried, so missing fields are marked where they are.
   const [tried, setTried] = useState(false);
   const [addRow, setAddRow] = useState<HTMLDivElement | null>(null);
-  // Someone new chosen above, added only on going on; once added, kept for a
-  // retry unless they were described differently since.
+  // Added only on going on, and reused on a retry unless edited since.
   const [draft, setDraft] = useState<PersonDraft | null>(null);
   const addedDraft = useRef<{ described: string; professionalId: string } | null>(null);
 
@@ -70,13 +65,14 @@ export default function UploadInvoices() {
   const ready = usable.flatMap((entry) => (entry.read?.status === 'ready' ? [{ entry, read: entry.read }] : []));
   const reading = usable.length > ready.length;
   const many = usable.length > 1;
+  // Also for one file, once it is billed by someone other than the choice above.
+  const perFile = many || ready.some(({ entry }) => entry.details);
   const position = (entry: (typeof entries)[number]) => usable.indexOf(entry) + 1;
   const canEnterByHand = staff || Boolean(self);
   // Every file failed: it may still be entered by hand.
   const allFailed = entries.length > 0 && usable.length === 0;
 
-  // A file's suggested sender fills the choice above while it is empty, and
-  // is kept as that file's own when it differs.
+  // A file's suggested sender fills an empty choice above, else becomes its own.
   const considered = useRef(new Set<string>());
   useEffect(() => {
     if (!asks) return;
@@ -94,7 +90,7 @@ export default function UploadInvoices() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready.length, asks]);
+  }, [ready.map(({ entry }) => entry.key).join(), asks]);
 
   const topChosen = chosen(sender) || (sender === ADD_NEW && Boolean(draft));
   const senderFor = (own: string | undefined, top: string) => (asks ? own || top : self?.professionalId);
@@ -219,7 +215,7 @@ export default function UploadInvoices() {
                     value={sender}
                     billable={billable ?? []}
                     error={fieldErrors.sender}
-                    hint={many ? `${BILLED_BY_HINT} An invoice billed by someone else is set below.` : BILLED_BY_HINT}
+                    hint={perFile ? `${BILLED_BY_HINT} An invoice billed by someone else is set below.` : BILLED_BY_HINT}
                     onChange={setSender}
                     addRowIn={addRow}
                     onDraft={setDraft}
@@ -254,7 +250,7 @@ export default function UploadInvoices() {
             ))}
           </ul>
         )}
-        {many && asks && ready.length > 0 && (
+        {asks && perFile && ready.length > 0 && (
           <ul className="file-senders" aria-label="Who billed each invoice">
             {ready.map(({ entry }) => (
               <li key={entry.key}>

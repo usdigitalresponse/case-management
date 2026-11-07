@@ -1,6 +1,4 @@
-// Whoever added someone may correct their name, email and role until
-// anything lasting names them, so details typed wrong or late while entering
-// an invoice are fixed on the one person added, never added again
+// Whoever added someone corrects them until anything lasting names them
 // (model/rules.yaml add_professional_without_login).
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -10,23 +8,10 @@ import { ForbiddenError, NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { emailInUse } from '../people/emails';
 import { nameParts, personDetailsSchema } from './addProfessional';
-import { keptBecause } from './removeProfessional';
+import { keptBecause, lockProfessional } from './removeProfessional';
 
 async function lockNew(tx: Transaction, actorUserAccountId: string, professionalId: string) {
-  if (!z.uuid().safeParse(professionalId).success) return undefined;
-  const [row] = await tx
-    .select({
-      professionalId: professional.professionalId,
-      personId: professional.personId,
-      userAccountId: professional.userAccountId,
-      displayName: professional.displayName,
-      professionalKindId: professional.professionalKindId,
-      email: person.email,
-    })
-    .from(professional)
-    .innerJoin(person, eq(professional.personId, person.personId))
-    .where(eq(professional.professionalId, professionalId))
-    .for('update', { of: professional });
+  const row = await lockProfessional(tx, professionalId);
   if (!row) return undefined;
   const [added] = await tx
     .select({ id: auditEvent.auditEventId })

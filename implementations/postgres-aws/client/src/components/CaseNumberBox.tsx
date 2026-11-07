@@ -1,5 +1,4 @@
-// An invoice's case number as typed, saved on blur or Enter, with its county
-// below and why it matters beside it.
+// An invoice's typed case number, saved on blur or Enter, with its county below.
 import type { ReactNode } from 'react';
 
 export function CaseNumberBox({

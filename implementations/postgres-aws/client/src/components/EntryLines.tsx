@@ -62,7 +62,6 @@ export function EnteredCaseNumber({ invoice }: { invoice: InvoiceReview['invoice
         />
       }
     >
-      {/* Whom it is filed under is chosen just above (InvoiceDetailsFields). */}
       <p>Reviewers use the case number to find the case in the {EXTERNAL_SYSTEM_NAME}.</p>
     </CaseNumberBox>
   );
@@ -117,8 +116,7 @@ export function EntryLines({
   // Edited lines show the decision buttons, since saving undoes a decision.
   decision: (line: InvoiceReviewLine, edited: boolean) => ReactNode;
   form: (line: InvoiceReviewLine) => ReactNode;
-  // Set to save the changes made in place, which the page does before its
-  // next action, such as deciding a line or finishing.
+  // Set here; the page calls it before its next action.
   saveEdits: MutableRefObject<() => Promise<boolean>>;
   // A line changed in place.
   onEditing: (invoiceLineId: string) => void;
@@ -159,8 +157,7 @@ export function EntryLines({
     setToast,
     ownFile: false,
   });
-  // One function for this page's life, so the one before it, unmounting
-  // after this renders, only clears what it set.
+  // Stable, so the previous invoice's EntryLines, unmounting later, clears only its own.
   const latestFlush = useRef(flush);
   latestFlush.current = flush;
   const [ownSave] = useState(() => () => latestFlush.current());

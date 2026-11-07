@@ -1,7 +1,5 @@
-// Administrators remove someone added by mistake, such as a sender added
-// while entering an invoice that was never finished. Refused once anything
-// lasting names them; an unsent draft or open entry that does is left with
-// no one chosen, its lines priced again and an entry's decisions undone.
+// Administrators remove someone added by mistake; unsent invoices naming them
+// are left with no one chosen (model/rules.yaml add_professional_without_login).
 import { and, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { getReferenceId } from '../db/referenceLookups';
 import { z } from 'zod';
@@ -29,7 +27,7 @@ import {
   userAccount,
 } from '../db/schema';
 import { ConflictError, NotFoundError } from '../errors';
-import { clearDecisions, decidedLineIds, entryIsOpen, lineValues } from '../billing/enterInReview';
+import { clearDecisions, decidedLineIds, entryIsOpen, lineValues, markLinesChanged } from '../billing/enterInReview';
 import { priceLines } from '../billing/priceLines';
 import { fillUnmatchedTimekeepers } from '../billing/timekeeperFallback';
 import { CONFIRMED_IMPORT_STATUS_CODE, findImportForInvoice } from '../imports/importedTimeEntries';
@@ -79,8 +77,7 @@ async function invoicesNaming(tx: Transaction, professionalId: string) {
     .for('update', { of: invoice });
 }
 
-// Sent at some point: submitted or sent for matching (a recall makes it a
-// draft again), or frozen by a finished first round.
+// Ever sent (a recalled one is a draft again) or frozen by a finished round.
 async function wasSent(tx: Transaction, invoiceId: string): Promise<boolean> {
   return (
     (await exists(
@@ -101,8 +98,7 @@ async function wasSent(tx: Transaction, invoiceId: string): Promise<boolean> {
   );
 }
 
-// No one chosen in their place: lines they did are matched as on any save,
-// else priced as read; an open entry's decisions on lines that changed are undone.
+// Repriced without them; an open entry's decisions on changed lines are undone.
 async function release(
   tx: Transaction,
   actorUserAccountId: string,
@@ -153,14 +149,10 @@ async function release(
     await clearDecisions(tx, chain.chainId, changed);
   }
   // A page holding the lines as they were must reload before saving.
-  await tx
-    .update(invoice)
-    .set({ linesVersion: found.linesVersion + 1, linesChangedAt: new Date(), linesChangedByUserAccountId: actorUserAccountId })
-    .where(eq(invoice.invoiceId, invoiceId));
+  await markLinesChanged(tx, invoiceId, actorUserAccountId, found.linesVersion);
 }
 
-// Why they must be kept as they are, if anything does, and the invoices
-// naming them; none means they may still be removed or have their name corrected.
+// No reasons: they may still be removed or corrected.
 export async function keptBecause(tx: Transaction, row: { professionalId: string; personId: string; userAccountId: string | null }) {
   const reasons = await whatKeepsThem(tx, row);
   const named = await invoicesNaming(tx, row.professionalId);
@@ -174,24 +166,27 @@ export async function keptBecause(tx: Transaction, row: { professionalId: string
   return { reasons, named };
 }
 
+export async function lockProfessional(tx: Transaction, professionalId: string) {
+  if (!z.uuid().safeParse(professionalId).success) return undefined;
+  const [row] = await tx
+    .select({
+      professionalId: professional.professionalId,
+      personId: professional.personId,
+      userAccountId: professional.userAccountId,
+      displayName: professional.displayName,
+      professionalKindId: professional.professionalKindId,
+      email: person.email,
+    })
+    .from(professional)
+    .innerJoin(person, eq(professional.personId, person.personId))
+    .where(eq(professional.professionalId, professionalId))
+    .for('update', { of: professional });
+  return row;
+}
+
 export async function removeProfessional(db: Database, actorUserAccountId: string, professionalId: string) {
-  if (!z.uuid().safeParse(professionalId).success) {
-    throw new NotFoundError('No such person.');
-  }
   return db.transaction(async (tx) => {
-    const [row] = await tx
-      .select({
-        professionalId: professional.professionalId,
-        personId: professional.personId,
-        userAccountId: professional.userAccountId,
-        displayName: professional.displayName,
-        professionalKindId: professional.professionalKindId,
-        email: person.email,
-      })
-      .from(professional)
-      .innerJoin(person, eq(professional.personId, person.personId))
-      .where(eq(professional.professionalId, professionalId))
-      .for('update', { of: professional });
+    const row = await lockProfessional(tx, professionalId);
     if (!row) {
       throw new NotFoundError('No such person.');
     }

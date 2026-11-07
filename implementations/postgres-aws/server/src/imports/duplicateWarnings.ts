@@ -1,6 +1,4 @@
-// Whether an imported file, or the number on it, was imported before for the
-// same professional: checked when the file is read, and again when whom it
-// is from changes (../billing/uploadDetails.ts).
+// A file, or its invoice number, imported before for the same professional.
 import { and, eq, ne, sql } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
 import { document, invoice, invoiceImport } from '../db/schema';
@@ -63,9 +61,7 @@ export async function duplicateWarnings(
   return warnings;
 }
 
-// Replaces an invoice's duplicate warnings with those for its new sender,
-// judged by the file and the number read from it, as on reading.
-// With no sender, it has none.
+// Replaces an invoice's duplicate warnings with those for its new sender.
 export async function recheckDuplicates(tx: Transaction, invoiceId: string, billedProfessionalId: string | null): Promise<void> {
   const [imported] = await tx
     .select({

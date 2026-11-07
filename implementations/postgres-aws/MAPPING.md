@@ -53,7 +53,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     name's parts where kept, else its last word as the last name). A
     file's suggested sender fills "Billed by" while it is empty; with
     several files each may be billed by someone else ("Same as above"
-    otherwise), and a file suggesting someone else starts on them. Continue
+    otherwise), and a file suggesting someone else starts on them, shown
+    there even when it is the only file. Continue
     goes on, and "Enter an invoice by hand" goes straight on; either marks
     a missing field where it is instead. Each file then becomes a draft
     with no case and what was read: its case number (read from the file
