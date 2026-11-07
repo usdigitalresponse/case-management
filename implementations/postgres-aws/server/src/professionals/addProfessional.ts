@@ -28,14 +28,20 @@ export const personDetailsSchema = z.object({
   ratePerMile: z.coerce.number().positive('Enter a mileage rate above zero.').max(100).optional(),
 });
 
-const inputSchema = personDetailsSchema.extend({ professionalKindId: z.uuid('Choose what kind of provider they are.') });
+// Their name's parts, kept beside the whole name when given separately.
+export const nameParts = {
+  givenName: optionalText,
+  familyName: optionalText,
+};
+
+const inputSchema = personDetailsSchema.extend({ professionalKindId: z.uuid('Choose what kind of provider they are.'), ...nameParts });
 
 export async function addProfessional(db: Database, actorUserAccountId: string, rawInput: unknown) {
   const parsed = inputSchema.safeParse(rawInput);
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
-  const { displayName, email, professionalKindId, phone, paidThrough, hourlyRate, ratePerMile } = parsed.data;
+  const { displayName, email, professionalKindId, phone, paidThrough, hourlyRate, ratePerMile, givenName, familyName } = parsed.data;
   const [kind] = await db.select({ id: professionalKinds.id }).from(professionalKinds).where(eq(professionalKinds.id, professionalKindId));
   if (!kind) {
     throw new ValidationError({ professionalKindId: 'Choose what kind of provider they are.' });
@@ -44,7 +50,7 @@ export async function addProfessional(db: Database, actorUserAccountId: string, 
     throw new ValidationError({ email: 'Someone with this email is already in the system. Find them in the list instead.' });
   }
   return db.transaction(async (tx) => {
-    const personRow = firstRow(await tx.insert(person).values({ displayName, email }).returning());
+    const personRow = firstRow(await tx.insert(person).values({ displayName, email, givenName, familyName }).returning());
     const row = firstRow(
       await tx
         .insert(professional)

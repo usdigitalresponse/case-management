@@ -104,7 +104,7 @@ function YourUnfinished({ userAccountId, entering }: { userAccountId: string; en
             {drafts.map((item) => (
               <li key={item.invoiceId}>
                 <span>
-                  {item.professionalDisplayName ?? 'Who it is from not chosen'}
+                  {item.professionalDisplayName ?? 'Who billed it isn’t chosen'}
                   <span className="cell-note">
                     {formatPeriod(item.periodStart, item.periodEnd)}
                     {item.submittedTotal !== null && `, ${formatMoney(item.submittedTotal)}`}

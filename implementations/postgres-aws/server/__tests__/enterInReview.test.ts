@@ -7,6 +7,9 @@ import { createStaff, giveRole } from './reviewHelpers';
 import { createCase } from '../src/intake/createCase';
 import { giveRate } from './rateHelpers';
 import { addKindRate, createKind } from '../src/billing/professionalRates';
+import { addProfessional } from '../src/professionals/addProfessional';
+import { removeProfessional } from '../src/professionals/removeProfessional';
+import { correctNewProfessional } from '../src/professionals/correctNewProfessional';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { createInvoice } from '../src/portal/createInvoice';
@@ -22,7 +25,7 @@ import {
   setEnteredReceipt,
   setEnteredSender,
 } from '../src/billing/enterInReview';
-import { setDraftDetails, setDraftSender } from '../src/billing/invoiceLifecycle';
+import { recallInvoice, setDraftDetails, setDraftSender } from '../src/billing/invoiceLifecycle';
 import { createDraftFromUpload, startUploadRead } from '../src/imports/splitByCase';
 import { correctCaseNumber } from '../src/billing/correctCaseNumber';
 import { listReviewQueue } from '../src/billing/reviewQueue';
@@ -37,12 +40,15 @@ import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { deleteUnsubmittedInvoice } from '../src/billing/deleteInvoice';
 import { ConflictError, ForbiddenError, ValidationError } from '../src/errors';
 import {
+  auditEvent,
   caseAssignment,
   invoice,
   invoiceApprovalChain,
   invoiceEvent,
   invoiceEventTypes,
   invoiceLine,
+  person,
+  professional,
   supportingInvoice,
   userAccount,
 } from '../src/db/schema';
@@ -467,9 +473,11 @@ describe('entering an upload in review', () => {
       professionalId,
       caseNumber: '26-CR-00418',
       enterInReview: true,
+      ...receipt,
     });
     const detail = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
     expect(detail.invoice.statusCode).toBe('under_review');
+    expect(detail.invoice.receivedOn).toBe(receipt.receivedOn);
     expect(detail.entryOpen).toBe(true);
     expect(detail.assignments?.reviewer?.userAccountId).toBe(reviewer);
     expect(detail.fileSource?.fileName).toBe('invoice.csv');
@@ -595,6 +603,99 @@ describe('whom an entry is from', () => {
     expect(await duplicates(invoiceId)).toHaveLength(1);
     await setEnteredSender(testDb, reviewer, invoiceId, { professionalId: second, linesVersion: await linesVersion(invoiceId) });
     expect(await duplicates(invoiceId)).toEqual([]);
+  });
+});
+
+describe('removing someone added by mistake', () => {
+  async function added() {
+    const { professionalKindId } = await createKind(testDb, { displayName: `Synthetic kind ${randomUUID()}` });
+    await addKindRate(testDb, fixtures.staffUserAccountId, professionalKindId, { hourlyRate: 100, effectiveFrom: '2025-01-01' });
+    return (await addProfessional(testDb, reviewer, { displayName: 'Sample Mistake', professionalKindId })).professionalId;
+  }
+
+  it('leaves an unfinished entry with no one chosen, its decisions undone, and records who removed them', async () => {
+    const professionalId = await added();
+    const { invoiceId } = await createInvoice(testDb, await resolvePortalActor(testDb, reviewer), {
+      caseId: null,
+      professionalId,
+      submit: false,
+      enterInReview: true,
+      caseNumber: '26-CR-00418',
+      lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
+    });
+    const [research] = await savedLines(invoiceId);
+    expect(research!.amount).toBe('200.00');
+    await decideLine(reviewer, invoiceId, research!.invoiceLineId, { outcome: 'approved' });
+    const version = await linesVersion(invoiceId);
+
+    await expect(removeProfessional(testDb, approver, professionalId)).resolves.toMatchObject({ releasedInvoiceIds: [invoiceId] });
+    const detail = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
+    expect(detail.invoice).toMatchObject({ professionalId: null, linesVersion: version + 1 });
+    expect(detail.lines[0]).toMatchObject({ amount: '0.00', timekeeperProfessionalId: null, working: null });
+    const events = await testDb.select().from(auditEvent).where(eq(auditEvent.entityId, professionalId));
+    expect(events.find((event) => event.eventType === 'professional_removed')).toMatchObject({ actorUserAccountId: approver });
+  });
+
+  it('keeps anyone on a sent invoice, or who has signed in', async () => {
+    const professionalId = await added();
+    const invoiceId = await upload([{ amount: 40, description: 'Copies' }]);
+    await setEnteredSender(testDb, reviewer, invoiceId, { professionalId, linesVersion: await linesVersion(invoiceId) });
+    const [copies] = await savedLines(invoiceId);
+    await decideLine(reviewer, invoiceId, copies!.invoiceLineId, { outcome: 'approved' });
+    await finishReview(testDb, reviewer, invoiceId, receipt);
+    await expect(removeProfessional(testDb, approver, professionalId)).rejects.toBeInstanceOf(ConflictError);
+    await expect(removeProfessional(testDb, approver, await sender())).rejects.toBeInstanceOf(ConflictError);
+  });
+
+  it('lets whoever added them correct their name and email, rather than adding them again, until the round is finished', async () => {
+    const professionalId = await added();
+    const invoiceId = await upload([{ amount: 40, description: 'Copies' }]);
+    await setEnteredSender(testDb, reviewer, invoiceId, { professionalId, linesVersion: await linesVersion(invoiceId) });
+
+    await correctNewProfessional(testDb, reviewer, professionalId, { displayName: 'Sample Corrected', email: 'Corrected@Example.com' });
+    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.invoice.professionalDisplayName).toBe('Sample Corrected');
+    const [row] = await testDb
+      .select({ email: person.email })
+      .from(professional)
+      .innerJoin(person, eq(professional.personId, person.personId))
+      .where(eq(professional.professionalId, professionalId));
+    expect(row?.email).toBe('corrected@example.com');
+    await expect(correctNewProfessional(testDb, approver, professionalId, { displayName: 'Other' })).rejects.toBeInstanceOf(ForbiddenError);
+
+    const [copies] = await savedLines(invoiceId);
+    await decideLine(reviewer, invoiceId, copies!.invoiceLineId, { outcome: 'approved' });
+    await finishReview(testDb, reviewer, invoiceId, receipt);
+    await expect(correctNewProfessional(testDb, reviewer, professionalId, { displayName: 'Too Late' })).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('keeps the first and last name of someone added with them, beside the whole name', async () => {
+    const { professionalKindId } = await createKind(testDb, { displayName: `Synthetic kind ${randomUUID()}` });
+    const { professionalId } = await addProfessional(testDb, reviewer, {
+      displayName: 'Sample Parted',
+      givenName: 'Sample',
+      familyName: 'Parted',
+      professionalKindId,
+    });
+    const [row] = await testDb
+      .select({ displayName: person.displayName, givenName: person.givenName, familyName: person.familyName })
+      .from(professional)
+      .innerJoin(person, eq(professional.personId, person.personId))
+      .where(eq(professional.professionalId, professionalId));
+    expect(row).toEqual({ displayName: 'Sample Parted', givenName: 'Sample', familyName: 'Parted' });
+  });
+
+  it('keeps anyone on an invoice that was sent, even after it was recalled to a draft', async () => {
+    const professionalId = await added();
+    const actor = await resolvePortalActor(testDb, await createStaff('staff'));
+    const { invoiceId } = await createInvoice(testDb, actor, {
+      caseId: null,
+      professionalId,
+      caseNumber: '26-CR-00418',
+      ...receipt,
+      lines: [{ lineType: 'expense', serviceDate: '2026-02-02', amount: 40, description: 'Copies' }],
+    });
+    await recallInvoice(testDb, actor, invoiceId);
+    await expect(removeProfessional(testDb, approver, professionalId)).rejects.toBeInstanceOf(ConflictError);
   });
 });
 

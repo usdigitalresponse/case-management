@@ -12,12 +12,18 @@ export function ReceivedFields({
   value,
   onChange,
   receivedViaDisplayName,
+  plain = false,
+  errors = {},
 }: {
+  // Shown under each plain field.
+  errors?: { receivedVia?: string; receivedOn?: string };
   idPrefix: string;
   value: InvoiceReceipt;
   onChange: (value: InvoiceReceipt) => void;
   // Already recorded on a draft, to start from.
   receivedViaDisplayName?: string | null;
+  // Two fields with hints, for a grid of fields (.upload-details), not a box of their own.
+  plain?: boolean;
 }) {
   const { data } = useApiResource(() => listReceiptChannels().then((result) => result.channels), []);
   const recorded = data?.find((channel) => channel.displayName === receivedViaDisplayName)?.code;
@@ -29,12 +35,49 @@ export function ReceivedFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recorded]);
 
+  if (plain) {
+    return (
+      <>
+        <div className="upload-details__field">
+          <label className="usa-label" htmlFor={`${idPrefix}-received-via`}>How it arrived</label>
+          <select
+            id={`${idPrefix}-received-via`}
+            className="usa-select"
+            value={value.receivedVia ?? ''}
+            aria-invalid={Boolean(errors.receivedVia) || undefined}
+            onChange={(event) => onChange({ ...value, receivedVia: event.target.value || undefined })}
+          >
+            <option value="">Choose how it arrived</option>
+            {data?.map((channel) => (
+              <option key={channel.code} value={channel.code}>{channel.displayName}</option>
+            ))}
+          </select>
+          {errors.receivedVia && <p className="field-error">{errors.receivedVia}</p>}
+        </div>
+        <div className="upload-details__field">
+          <label className="usa-label" htmlFor={`${idPrefix}-received-on`}>Date received</label>
+          <input
+            id={`${idPrefix}-received-on`}
+            className="usa-input"
+            type="date"
+            max={today()}
+            value={value.receivedOn ?? ''}
+            aria-describedby={`${idPrefix}-received-on-hint`}
+            aria-invalid={Boolean(errors.receivedOn) || undefined}
+            onChange={(event) => onChange({ ...value, receivedOn: event.target.value || undefined })}
+          />
+          {errors.receivedOn && <p className="field-error">{errors.receivedOn}</p>}
+          <p id={`${idPrefix}-received-on-hint`} className="field-hint">Review waiting time counts from this date.</p>
+        </div>
+      </>
+    );
+  }
   return (
     <fieldset className="received-fields">
       <legend>How this invoice reached you</legend>
       <div className="inline-fields received-fields__row">
         <div className="usa-form-group">
-          <label className="usa-label" htmlFor={`${idPrefix}-received-via`}>Received by</label>
+          <label className="usa-label" htmlFor={`${idPrefix}-received-via`}>How it arrived</label>
           <select
             id={`${idPrefix}-received-via`}
             className="usa-select"

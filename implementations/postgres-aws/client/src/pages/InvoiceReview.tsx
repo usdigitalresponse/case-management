@@ -86,6 +86,9 @@ export default function InvoiceReview() {
   const keepToast = useRef(false);
   // While entering, saves lines changed in place; false if they can't be saved.
   const saveEdits = useRef<() => Promise<boolean>>(async () => true);
+  // How it came in is given on upload; asked here only of an invoice started
+  // without it, and kept on the page once given.
+  const receiptAsked = useRef<{ invoiceId?: string; ask: boolean }>({ ask: false });
   // While entering, the billing period saved beside the lines, for line saves to carry.
   const period = useRef<{ invoiceId?: string; periodStart: string | null; periodEnd: string | null }>({ periodStart: null, periodEnd: null });
 
@@ -186,6 +189,9 @@ export default function InvoiceReview() {
   knownVersion.current = Math.max(knownVersion.current, invoice.linesVersion);
   if (period.current.invoiceId !== invoice.invoiceId) {
     period.current = { invoiceId: invoice.invoiceId, periodStart: invoice.periodStart, periodEnd: invoice.periodEnd };
+  }
+  if (receiptAsked.current.invoiceId !== invoice.invoiceId) {
+    receiptAsked.current = { invoiceId: invoice.invoiceId, ask: !(invoice.receivedOn && invoice.receivedViaDisplayName) };
   }
   // Sent with a decision while lines are being entered, so one made on an
   // out-of-date page is refused.
@@ -493,12 +499,8 @@ export default function InvoiceReview() {
           changedAt={invoice.linesChangedAt}
         />
       )}
-      {entering && (
-        <Notice tone="info" heading="You're entering this invoice.">
-          Check or type each line beside the file and decide it as you go. Everything saves as you go, so you can finish
-          later. Finishing the review locks the lines as you entered them, so say how it came in first.
-          <EntryReceipt invoice={invoice} onSaved={() => void refresh()} />
-        </Notice>
+      {entering && receiptAsked.current.ask && (
+        <EntryReceipt invoice={invoice} onSaved={() => void refresh()} />
       )}
       {data.entryOpen && !entering && (
         <Notice tone="info" heading={`${reviewer?.displayName ?? 'Someone'} is still entering this invoice.`}>
@@ -531,6 +533,7 @@ export default function InvoiceReview() {
             }
           }}
           saveDetails={(details) => setEnteredDetails(invoice.invoiceId, details)}
+          onSenderRenamed={() => void refresh()}
           onPeriodSaved={(saved) => {
             period.current = { invoiceId: invoice.invoiceId, ...saved };
           }}
@@ -797,7 +800,7 @@ export default function InvoiceReview() {
           locksLines={entering}
           needs={
             entering && !invoice.professionalId
-              ? 'Choose who the invoice is from, at the top of the page, to finish the review.'
+              ? 'Choose who billed the invoice, at the top of the page, to finish the review.'
               : entering && !(invoice.receivedOn && invoice.receivedViaDisplayName)
                 ? 'Say how and when the invoice came in, at the top of the page, to finish the review.'
                 : null

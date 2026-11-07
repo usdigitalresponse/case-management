@@ -84,7 +84,7 @@ function AssignAllTimekeepers({
         id="import-assign-all"
         value={professionalId}
         onChange={setProfessionalId}
-        addLabel={onProviderAdded ? '+ Add a new provider' : '+ Someone not listed'}
+        addLabel="+ Add new person"
         placeholder="- Choose -"
         options={timekeepers.map((professional) => ({ value: professional.professionalId, label: professionalLabel(professional) }))}
       >

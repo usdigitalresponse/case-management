@@ -1,8 +1,9 @@
 // A person's details, rates, this year's totals and every invoice they sent;
 // with ?day=, only those with an item on that date.
 import { useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router';
-import { getPerson, listReviewQueue } from '../api/client';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { apiErrorMessage, getPerson, listReviewQueue, removeProfessional } from '../api/client';
+import { ConfirmButton } from '../components/ConfirmButton';
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { PageHeader } from '../components/PageHeader';
@@ -41,6 +42,9 @@ export default function PersonPage() {
   // Invoices whose case number matches, closely or exactly; null for all.
   const [matching, setMatching] = useState<Set<string> | null>(null);
   const [editing, setEditing] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const navigate = useNavigate();
   const [toast, setToast] = useToast();
 
   useEffect(() => {
@@ -76,6 +80,19 @@ export default function PersonPage() {
   const shown = county.shown;
   const name = person.displayName ?? 'This person';
 
+  async function remove() {
+    if (removing) return;
+    setRemoving(true);
+    setRemoveError(null);
+    try {
+      await removeProfessional(professionalId as string);
+      navigate('/people');
+    } catch (err) {
+      setRemoveError(apiErrorMessage(err, 'They could not be removed.'));
+      setRemoving(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -95,6 +112,15 @@ export default function PersonPage() {
               <button type="button" className="btn btn--outline" onClick={() => setEditing(true)}>
                 Edit details
               </button>
+            )}
+            {user?.isAdmin && (
+              <ConfirmButton
+                label="Remove"
+                prompt={`Remove ${name}? Only someone added by mistake can be removed. Unsent invoices from them will have no one chosen.`}
+                confirmLabel="Yes, remove"
+                disabled={removing}
+                onConfirm={() => void remove()}
+              />
             )}
             <button
               type="button"
@@ -122,6 +148,7 @@ export default function PersonPage() {
           </>
         }
       />
+      {removeError && <Notice tone="danger">{removeError}</Notice>}
       <FactsStrip>
         <Fact label="Approved rate">
           <strong>{person.hourlyRate ? `${formatMoney(person.hourlyRate)} an hour` : 'None set'}</strong>

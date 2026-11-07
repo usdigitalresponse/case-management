@@ -18,6 +18,8 @@ import { db } from '../db/client';
 import { person, professional, professionalKinds, userAccount } from '../db/schema';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { addProfessional } from '../professionals/addProfessional';
+import { removeProfessional } from '../professionals/removeProfessional';
+import { correctNewProfessional } from '../professionals/correctNewProfessional';
 import { editProfessional } from '../professionals/editProfessional';
 import { requireAdmin } from '../auth/requireAdmin';
 import { listRates, setProfessionalKind } from '../billing/professionalRates';
@@ -101,6 +103,24 @@ router.patch(
   requireAdmin,
   asyncHandler(async (req, res) => {
     res.json(await editProfessional(db, getSessionUser(req)!.userAccountId, req.params.id as string, req.body));
+  }),
+);
+
+// Whoever added them, until anything lasting names them
+// (../professionals/correctNewProfessional.ts).
+router.put(
+  '/:id/details',
+  asyncHandler(async (req, res) => {
+    res.json(await correctNewProfessional(db, getSessionUser(req)!.userAccountId, req.params.id as string, req.body));
+  }),
+);
+
+// Administrators only (../professionals/removeProfessional.ts).
+router.delete(
+  '/:id',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.json(await removeProfessional(db, getSessionUser(req)!.userAccountId, req.params.id as string));
   }),
 );
 
