@@ -137,6 +137,7 @@ migrated-but-empty test database.
 npm run typecheck              # tsc --noEmit
 npm run verify-schema-mapping  # checks src/db/schema.ts against model/schema.yaml
 npm run demo-invoices          # read-only: writes ../demo-invoices/ files naming the seeded demo vendors
+npm run demo-time-logs         # read-only: writes ../demo-invoices/time-logs/ case time logs, with expected results, for seeded invoices
 npm run generate-sample-pdfs   # regenerates the synthetic PDFs and their expected values in scenarios/fixtures/invoices/
 npm run extraction-accuracy    # scores PDF extraction methods against those samples, field by field
 npm run extraction-accuracy -- --samples ../local-samples   # scores real files kept outside Git against their expected.json, figures only
@@ -147,7 +148,11 @@ npm run db:generate            # regenerate migrations/*.sql after editing src/d
 `demo-invoices` needs the demo seed. Its files name the seeded vendors, so
 uploading one under "Demo partner sign-in" shows timekeeper matching; the
 command prints which case to open. The files are regenerated rather than
-committed because the seed's Faker names change with the seed. Portable
+committed because the seed's Faker names change with the seed.
+`demo-time-logs` likewise writes one case's time log per file, in an
+external case management system's export layout, against fixed seeded
+invoices, with a `README.md` of what review should show for each; it fails
+if the seeded lines it targets have changed. Portable
 samples with expected results are in `scenarios/fixtures/invoices/`.
 
 Real invoices for local testing go in the gitignored `../local-samples/`,

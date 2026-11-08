@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit",
     "verify-schema-mapping": "tsx scripts/verify-schema-mapping.ts",
     "demo-invoices": "tsx scripts/demo-invoices.ts",
+    "demo-time-logs": "tsx scripts/demo-time-logs.ts",
     "generate-sample-pdfs": "tsx scripts/generate-sample-pdfs.ts",
     "extraction-accuracy": "tsx scripts/extraction-accuracy.ts",
     "extract-invoice": "tsx scripts/extract-invoice.ts"
