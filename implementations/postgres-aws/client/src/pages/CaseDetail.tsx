@@ -10,7 +10,7 @@ import {
 } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
-import { StatusPill } from '../components/StatusPill';
+import { DECIDED_STATUS_CODES, InvoiceStatus } from '../components/Completion';
 import { AddPersonToCase } from '../components/AddPersonToCase';
 import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip } from '../components/FactsStrip';
@@ -86,7 +86,11 @@ export default function CaseDetail() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey((key) => key + 1);
   const { data: detail, error } = useApiResource(() => getCase(caseId as string), [caseId, refreshKey]);
-  const { data: billing, error: billingError } = useApiResource(() => getCaseInvoices(caseId as string), [caseId, refreshKey]);
+  const {
+    data: billing,
+    error: billingError,
+    reload: reloadBilling,
+  } = useApiResource(() => getCaseInvoices(caseId as string), [caseId, refreshKey]);
 
   if (error || !detail) {
     return <LoadState error={error} what="case" />;
@@ -186,13 +190,13 @@ export default function CaseDetail() {
                 header: 'Status',
                 render: (invoice) => (
                   <>
-                    <StatusPill code={invoice.statusCode} label={invoice.statusDisplayName} />
+                    <InvoiceStatus invoice={invoice} onCompleted={reloadBilling} />
                     <QuestionChips invoice={invoice} />
                   </>
                 ),
               },
               { header: 'Reviewer', render: (invoice) => invoice.reviewer?.displayName ?? <span className="muted">Not assigned</span> },
-              openInvoiceColumn((invoice) => (['approved', 'rejected'].includes(invoice.statusCode) ? 'View' : 'Review')),
+              openInvoiceColumn((invoice) => (DECIDED_STATUS_CODES.includes(invoice.statusCode) ? 'View' : 'Review')),
             ]}
           />
         )}

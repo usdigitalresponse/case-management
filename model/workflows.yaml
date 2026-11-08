@@ -123,6 +123,19 @@ workflows:
       - An invoice_import creates a draft through validate_invoice_import; time entries and expenses from its lines are created when that draft is submitted.
       - A reviewing staff member's own upload enters review at once, assigned to them (enter_request_in_review). Until its first round is finished, its reviewer enters and corrects lines and decides them in the same pass; finishing that round first freezes the request as an ordinary submission would, then records the round. Its lines never change after that, including after reopening or a send-back.
       - A submitter whose case, provider or a line's timekeeper isn't listed sends it for matching with the details they know (match_invoice_to_case); it waits in invoice intake and is released to review once staff have matched it. Its attestation is the one given on sending.
+  requester_communication:
+    entity: invoice
+    history_entity: invoice_event
+    transitions:
+      - action: mark_communication_completed
+        from: communication_pending
+        to: communication_completed
+        requires: [approved_or_rejected_request, active_staff_user, effective_timestamp]
+    requirements:
+      - Communication completed records that staff have finished telling the person who requested billing about the decision. It is a label separate from invoice approval status, which stays approved or rejected, and from external payment completion.
+      - It is recorded once as an invoice event and never changed, and applies only while the request is approved or rejected. A later approval or rejection of the same request returns it to communication_pending.
+      - It is staff-only; submitters and exports do not show it.
+      - Undoing it needs a product decision before implementation.
   external_payment_completion:
     entity: invoice
     history_entity: payment

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { and, asc, eq, inArray, isNull, max } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { getReferenceId } from '../db/referenceLookups';
-import { ConflictError, ValidationError } from '../errors';
+import { ConflictError, ForbiddenError, ValidationError } from '../errors';
 import {
   invoice,
   invoiceApprovalChain,
@@ -17,15 +17,17 @@ import {
   invoiceLineWorkingDecision,
   invoiceStatuses,
 } from '../db/schema';
-import { recordInvoiceEvent } from './invoiceEvents';
+import { COMMUNICATION_COMPLETED_EVENT_CODE, completionMarkedAt, recordInvoiceEvent } from './invoiceEvents';
 import {
   APPROVED_INVOICE_STATUS_CODE,
   AWAITING_ANSWER_INVOICE_STATUS_CODE,
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
+  DECIDED_INVOICE_STATUS_CODES,
   UNDER_REVIEW_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
 import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments, lockInvoiceForReview, SIGN_OFF_STEP_TYPE_CODE } from './reviewAssignment';
 import { requireReviewPermission } from './reviewAccess';
+import { isStaffAccount } from '../portal/portalActor';
 import { OTHER_REASON_CODE } from './decisionReasons';
 import { fromCents, toCents } from './money';
 import { closeEntry, entryIsOpen } from './enterInReview';
@@ -339,5 +341,30 @@ export async function signOffInvoice(db: Database, actorUserAccountId: string, i
     }
     await setStatus(tx, invoiceId, AWAITING_SIGN_OFF_INVOICE_STATUS_CODE, { eventTypeCode: 'signed_off', actorUserAccountId, chainId });
     return { invoiceId, statusCode: AWAITING_SIGN_OFF_INVOICE_STATUS_CODE };
+  });
+}
+
+// Staff have finished telling the sender the decision; the status is unchanged.
+export async function markCompleted(db: Database, actorUserAccountId: string, invoiceId: string) {
+  if (!(await isStaffAccount(db, actorUserAccountId))) {
+    throw new ForbiddenError('forbidden', 'Only staff can mark an invoice completed.');
+  }
+  return db.transaction(async (tx) => {
+    const locked = await lockInvoiceForReview(tx, invoiceId);
+    if (!DECIDED_INVOICE_STATUS_CODES.includes(locked.statusCode)) {
+      throw new ConflictError('invalid_state', 'Only a decided invoice can be marked completed.');
+    }
+    const [current] = await tx.select({ at: completionMarkedAt }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    if (current?.at) {
+      return { invoiceId, completedAt: current.at };
+    }
+    const occurredAt = await recordInvoiceEvent(tx, {
+      invoiceId,
+      eventTypeCode: COMMUNICATION_COMPLETED_EVENT_CODE,
+      statusId: locked.statusId,
+      actorUserAccountId,
+      chainId: await currentChainId(tx, invoiceId),
+    });
+    return { invoiceId, completedAt: occurredAt };
   });
 }

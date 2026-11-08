@@ -8,6 +8,7 @@ import {
   finishReview,
   getInvoiceForReview,
   listDecisionReasons,
+  markInvoiceCompleted,
   reopenReview,
   repriceInvoice,
   setEnteredDetails,
@@ -36,6 +37,7 @@ import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip, Progress } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
+import { CompletionNotice, DECIDED_STATUS_CODES } from '../components/Completion';
 import { EnteredFlag, proposedCaseLabel } from '../components/NewEntryFields';
 import { Toast, useToast, type ToastMessage } from '../components/Toast';
 import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
@@ -851,6 +853,13 @@ export default function InvoiceReview() {
           Export the PDF or spreadsheet to send for payment. Check it for confidential information before you send it; this
           system does not remove it.
         </Notice>
+      )}
+      {DECIDED_STATUS_CODES.includes(status) && (
+        <CompletionNotice
+          completedAt={invoice.completedAt}
+          saving={saving}
+          onComplete={() => void act(() => markInvoiceCompleted(invoice.invoiceId), { message: 'Marked completed.' })}
+        />
       )}
 
       <SignOffHistory signOffs={data.signOffs} />

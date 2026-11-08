@@ -4,10 +4,11 @@
 // external case system (a direct write, a nightly file or a shared
 // spreadsheet) reads these rows; for now they download as CSV or a
 // spreadsheet.
-import { inArray, max } from 'drizzle-orm';
+import { and, eq, inArray, max, ne } from 'drizzle-orm';
 import writeXlsxFile, { type Row } from 'write-excel-file/node';
 import type { Database } from '../db/client';
-import { invoiceEvent } from '../db/schema';
+import { invoiceEvent, invoiceEventTypes } from '../db/schema';
+import { COMMUNICATION_COMPLETED_EVENT_CODE } from './invoiceEvents';
 import { loadInvoiceDetail } from './invoiceDetail';
 import { listReviewQueue } from './reviewQueue';
 import { currentCaseNumber } from './caseNumbers';
@@ -53,7 +54,9 @@ export async function loadBillingRecord(db: Database): Promise<BillingRecordRow[
     db
       .select({ invoiceId: invoiceEvent.invoiceId, occurredAt: max(invoiceEvent.occurredAt) })
       .from(invoiceEvent)
-      .where(inArray(invoiceEvent.invoiceId, invoiceIds))
+      .innerJoin(invoiceEventTypes, eq(invoiceEventTypes.id, invoiceEvent.eventTypeId))
+      // Marking communication completed doesn't change the status.
+      .where(and(inArray(invoiceEvent.invoiceId, invoiceIds), ne(invoiceEventTypes.code, COMMUNICATION_COMPLETED_EVENT_CODE)))
       .groupBy(invoiceEvent.invoiceId),
     Promise.all(invoiceIds.map((invoiceId) => loadInvoiceDetail(db, invoiceId, 'staff'))),
   ]);

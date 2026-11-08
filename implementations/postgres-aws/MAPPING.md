@@ -184,8 +184,18 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
       open decision); there is no screen to rename, hide or merge counties; the
       county isn't highlighted on the file as the case number is.
     - **Finished** (`/finished`, `pages/FinishedInvoices.tsx`, G20) leads with the person, with
-      chips for This month, Waiting for sign-off and Decided. The case-led version is at
+      chips for This month, Waiting for sign-off, Decided and Completed. The case-led version is at
       `/home-alternate/finished`.
+    - **Completed** (`model/workflows.yaml` `requester_communication`): once staff have told
+      the sender about the decision, any staff member marks a decided (approved or
+      rejected) invoice completed with "Mark completed", on the invoice page or in any staff
+      table's Status column (`components/Completion.tsx`; `POST /api/invoices/:id/complete`,
+      `markCompleted` in `billing/reviewRounds.ts`). It records a `communication_completed`
+      invoice event and leaves the status unchanged; `completedAt` is that event's time while
+      the invoice is approved or rejected. Submitters' views and exports never carry it, and
+      the billing record's "Status changed" ignores it. Gaps: there is no undo; who marked it
+      is recorded but not shown; nothing yet decides an invoice again, so a marking is never
+      reset to pending as the model requires.
     - **The attorney's decided invoice** (G13) shows asked for, approved and cut, the line
       counts, and "Download the decisions".
     - Gaps: reviewer names stay hidden from external users, against G13, until that rule

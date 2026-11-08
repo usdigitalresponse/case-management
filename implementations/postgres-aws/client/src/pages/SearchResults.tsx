@@ -18,7 +18,7 @@ import { submittedByLabel } from '../reviewTotals';
 export default function SearchResults() {
   const [params] = useSearchParams();
   const query = params.get('q')?.trim() ?? '';
-  const { data, error } = useApiResource(
+  const { data, error, reload } = useApiResource(
     () => (query ? listReviewQueue('all', { q: query }) : Promise.resolve({ invoices: [] as ReviewQueueItem[] })),
     [query],
   );
@@ -67,6 +67,7 @@ export default function SearchResults() {
         showFrom
         caseNumberNote={(invoice) => (close.includes(invoice) ? <span className="text-warning">Close match</span> : null)}
         emptyMessage={county.narrowed ? 'No matching invoices for that county.' : query ? 'No sent invoices match.' : 'Nothing searched yet.'}
+        onChanged={reload}
       />
       {found.length > 0 && (
         <div className="search-totals">

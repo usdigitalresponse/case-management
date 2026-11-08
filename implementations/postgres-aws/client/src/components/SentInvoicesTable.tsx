@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import type { ReviewQueueItem } from '../api/client';
 import { RecordTable, type RecordTableColumn } from './RecordTable';
-import { StatusPill } from './StatusPill';
+import { InvoiceStatus } from './Completion';
 import { CaseNumberCell, FromCell, openInvoiceColumn, QuestionChips } from './InvoiceCells';
 import { formatDate, formatPeriod } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
@@ -14,12 +14,14 @@ export function SentInvoicesTable({
   showFrom,
   caseNumberNote,
   emptyMessage,
+  onChanged,
 }: {
   invoices: ReviewQueueItem[];
   showFrom: boolean;
   // In place of how many others share the number.
   caseNumberNote?: (invoice: ReviewQueueItem) => ReactNode;
   emptyMessage: string;
+  onChanged: () => unknown;
 }) {
   const columns: Array<RecordTableColumn<ReviewQueueItem>> = [
     ...(showFrom ? [{ header: 'From', rowHeader: true, render: (invoice: ReviewQueueItem) => <FromCell invoice={invoice} /> }] : []),
@@ -40,7 +42,7 @@ export function SentInvoicesTable({
       header: 'Status',
       render: (invoice) => (
         <>
-          <StatusPill code={invoice.statusCode} label={invoice.statusDisplayName} />
+          <InvoiceStatus invoice={invoice} onCompleted={onChanged} />
           <QuestionChips invoice={invoice} />
         </>
       ),

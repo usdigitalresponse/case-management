@@ -150,6 +150,18 @@ and day counts are synthetic test values, not configuration defaults.
       being entered, by whom and when its lines last changed. Another
       reviewer can't correct its case number until it is finished, and is
       warned before taking it over.
+14. **Communication completed:** After the last approver signs off, a staff
+    user tells the submitter the decision and marks the request's
+    communication completed (`requester_communication`).
+    - Marking a request completed is blocked until it is approved or
+      rejected. Any active staff user may mark it, including staff without a
+      reviewing role; an external submitter cannot.
+    - The request stays approved; its record shows who marked it completed
+      and when, and marking it again changes nothing.
+    - Staff lists of decided requests show it as completed. The submitter
+      does not see that it was marked completed.
+    - Marking it completed is separate from external payment completion and
+      does not affect exports.
 
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

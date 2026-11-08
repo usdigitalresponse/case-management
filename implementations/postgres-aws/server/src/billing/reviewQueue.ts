@@ -20,12 +20,11 @@ import { loadRateLimits, rateLimitFor } from './preauthorizations';
 import { evaluateBillingRules, type RuleFinding } from './billingRules';
 import { currentCaseNumber, matchCaseNumbers, searchMatch } from './caseNumbers';
 import {
-  APPROVED_INVOICE_STATUS_CODE,
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
+  DECIDED_INVOICE_STATUS_CODES,
   DRAFT_INVOICE_STATUS_CODE,
   IN_REVIEW_INVOICE_STATUS_CODES,
   LINE_REVIEW_STATUS_CODES,
-  REJECTED_INVOICE_STATUS_CODE,
   WITHDRAWN_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
 
@@ -46,9 +45,12 @@ export async function listReviewQueue(
   options: { caseId?: string; professionalId?: string; q?: string; day?: string; now?: Date } = {},
 ) {
   const now = options.now ?? new Date();
-  const finished = [APPROVED_INVOICE_STATUS_CODE, REJECTED_INVOICE_STATUS_CODE];
   const statusCodes =
-    view === 'open' ? IN_REVIEW_INVOICE_STATUS_CODES : view === 'finished' ? finished : [...IN_REVIEW_INVOICE_STATUS_CODES, ...finished];
+    view === 'open'
+      ? IN_REVIEW_INVOICE_STATUS_CODES
+      : view === 'finished'
+        ? DECIDED_INVOICE_STATUS_CODES
+        : [...IN_REVIEW_INVOICE_STATUS_CODES, ...DECIDED_INVOICE_STATUS_CODES];
   const headers = await selectInvoiceHeaders(db).where(
     and(
       inArray(invoiceStatuses.code, statusCodes),

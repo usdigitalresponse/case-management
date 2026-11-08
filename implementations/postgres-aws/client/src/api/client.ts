@@ -1476,6 +1476,8 @@ export interface QueuedInvoice {
   linesChangedAt: string | null;
   linesChangedByUserAccountId: string | null;
   returnedReason: string | null;
+  // When staff finished telling the sender about the decision.
+  completedAt: string | null;
 }
 
 export interface AssignedPerson {
@@ -1820,6 +1822,10 @@ export function reopenReview(invoiceId: string): Promise<unknown> {
 
 export function signOffInvoice(invoiceId: string, input: { outcome: 'approved' | 'changes_requested'; comment?: string }): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/sign-off`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function markInvoiceCompleted(invoiceId: string): Promise<{ invoiceId: string; completedAt: string }> {
+  return request(`/api/invoices/${invoiceId}/complete`, { method: 'POST' });
 }
 
 export function askQuestion(
