@@ -107,6 +107,7 @@ export async function ensureReferenceData(db: Database): Promise<void> {
         { code: 'sent_for_matching', displayName: 'Sent for matching' },
         { code: 'released_to_review', displayName: 'Released to review' },
         { code: 'returned_to_submitter', displayName: 'Sent back for changes' },
+        { code: 'communication_completed', displayName: 'Completed' },
       ])
       .onConflictDoNothing({ target: invoiceEventTypes.code }),
     db

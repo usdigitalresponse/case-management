@@ -23,15 +23,8 @@ import { loadLineReviewerNames } from '../billing/reviewAssignment';
 import { approvedTotal, latestRoundNumber, loadRecordedDecisionsByChain, type RecordedDecision } from '../billing/reviewRounds';
 import { toCents } from '../billing/money';
 import { loadFileSources, submitterChanges } from '../imports/invoiceFile';
-import {
-  APPROVED_INVOICE_STATUS_CODE,
-  DRAFT_INVOICE_STATUS_CODE,
-  IN_REVIEW_INVOICE_STATUS_CODES,
-  REJECTED_INVOICE_STATUS_CODE,
-} from '../billing/invoiceStatusCodes';
+import { DECIDED_INVOICE_STATUS_CODES, DRAFT_INVOICE_STATUS_CODE, IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { returnedReason } from '../billing/invoiceEvents';
-
-const DECIDED_STATUS_CODES = [APPROVED_INVOICE_STATUS_CODE, REJECTED_INVOICE_STATUS_CODE];
 
 export async function listPortalInvoices(db: Database, reader: PortalActor, caseId?: string) {
   const conditions = [portalReadableInvoiceCondition(db, reader)];
@@ -71,7 +64,7 @@ export async function listPortalInvoices(db: Database, reader: PortalActor, case
 
   const ids = (codes: readonly string[]) => rows.filter((row) => codes.includes(row.statusCode)).map((row) => row.invoiceId);
   const draftIds = ids([DRAFT_INVOICE_STATUS_CODE]);
-  const decidedIds = ids(DECIDED_STATUS_CODES);
+  const decidedIds = ids(DECIDED_INVOICE_STATUS_CODES);
   const [caseNumbers, sources, reviewers, chains] = await Promise.all([
     loadCaseNumbers(db, [...new Set(rows.map((row) => row.caseId))]),
     loadFileSources(db, draftIds),

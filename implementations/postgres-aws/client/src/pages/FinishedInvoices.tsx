@@ -1,5 +1,5 @@
 // Every invoice with all its lines decided, newest first: waiting for
-// sign-off, or decided.
+// sign-off, decided, or completed once the sender has been told.
 import { useState } from 'react';
 import { listReviewQueue, type ReviewQueueItem } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
@@ -7,17 +7,20 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { StatusPill } from '../components/StatusPill';
+import { COMPLETED_EXPLAINER, DECIDED_STATUS_CODES, InvoiceStatus, isCompleted } from '../components/Completion';
+import { Toast, useToast } from '../components/Toast';
 import { CaseNumberCell, countyOfInvoice, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
 import { useCountyControl } from '../components/CountyListControl';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
-const FINISHED = ['awaiting_sign_off', 'approved', 'rejected'];
+const FINISHED = ['awaiting_sign_off', ...DECIDED_STATUS_CODES];
 
 const FILTERS = [
   { id: 'month', label: 'This month', tone: '' },
   { id: 'sign_off', label: 'Waiting for sign-off', tone: ' chip--warning' },
   { id: 'decided', label: 'Decided', tone: ' chip--success' },
+  { id: 'completed', label: 'Completed', tone: '' },
   { id: 'all', label: 'All', tone: '' },
 ] as const;
 type FilterId = (typeof FILTERS)[number]['id'];
@@ -29,15 +32,18 @@ function matches(invoice: ReviewQueueItem, filter: FilterId): boolean {
     case 'sign_off':
       return invoice.statusCode === 'awaiting_sign_off';
     case 'decided':
-      return invoice.statusCode !== 'awaiting_sign_off';
+      return invoice.statusCode !== 'awaiting_sign_off' && !isCompleted(invoice);
+    case 'completed':
+      return isCompleted(invoice);
     default:
       return true;
   }
 }
 
 export default function FinishedInvoices() {
-  const { data, error } = useApiResource(() => listReviewQueue('all'), []);
+  const { data, error, reload } = useApiResource(() => listReviewQueue('all'), []);
   const [filter, setFilter] = useState<FilterId>('month');
+  const [toast, setToast] = useToast();
   const finished = (data?.invoices ?? [])
     .filter((invoice) => FINISHED.includes(invoice.statusCode))
     .sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
@@ -58,6 +64,9 @@ export default function FinishedInvoices() {
         title="Finished invoices"
         description="Every line on these invoices is decided. Each one belongs to the person who sent it. Case numbers are as they typed them."
       />
+      <p className="compact-hint">
+        <strong>Decided</strong> invoices still need you to tell the person who sent them. {COMPLETED_EXPLAINER}
+      </p>
       <div className="list-controls">
         <div className="chip-filters" role="group" aria-label="Show">
           {FILTERS.map(({ id, label, tone }) => (
@@ -93,7 +102,14 @@ export default function FinishedInvoices() {
                   {invoice.holder && <span className="cell-note">{invoice.holder.displayName} signs off next.</span>}
                 </>
               ) : (
-                <StatusPill code={invoice.statusCode} label="Decided" />
+                <InvoiceStatus
+                  invoice={invoice}
+                  label="Decided"
+                  onCompleted={async () => {
+                    await reload();
+                    setToast({ message: filter === 'decided' ? 'Marked completed. It is under Completed now.' : 'Marked completed.' });
+                  }}
+                />
               ),
           },
           openInvoiceColumn(() => 'View'),
@@ -103,6 +119,7 @@ export default function FinishedInvoices() {
         Export any of these to a spreadsheet from the invoice. The case number in the export is the one on the invoice, as typed or as
         a reviewer corrected it.
       </p>
+      <Toast toast={toast} />
     </div>
   );
 }

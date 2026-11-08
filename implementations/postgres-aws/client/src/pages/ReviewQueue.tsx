@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router';
 import { listReviewQueue, type ReviewQueueItem } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
-import { StatusPill } from '../components/StatusPill';
+import { InvoiceStatus } from '../components/Completion';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
@@ -43,7 +43,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
   const filter: FilterId = view === 'open' ? ((params.get('show') as FilterId | null) ?? 'mine') : 'everyone';
   const query = params.get('q') ?? '';
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(() => listReviewQueue(view), [view, version]);
+  const { data, error, reload } = useApiResource(() => listReviewQueue(view), [view, version]);
   const [toast, setToast] = useToast();
   const canAssign = Boolean(user?.reviewPermissions?.reassign);
 
@@ -175,7 +175,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
                     <span className="muted">Not assigned</span>
                   ),
               }
-            : { header: 'Status', render: (invoice) => <StatusPill code={invoice.statusCode} label={invoice.statusDisplayName} /> },
+            : { header: 'Status', render: (invoice) => <InvoiceStatus invoice={invoice} onCompleted={reload} /> },
           ...(open
             ? [
                 {

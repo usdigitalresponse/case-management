@@ -13,16 +13,18 @@ import {
   InvoiceNotFoundError,
   InvoiceNotInReviewError,
 } from '../src/billing/reviewInvoiceLine';
-import { finishReview, reopenReview, signOffInvoice } from '../src/billing/reviewRounds';
+import { finishReview, markCompleted, reopenReview, signOffInvoice } from '../src/billing/reviewRounds';
 import { NotYourInvoiceError, reassignReviewer, setSignOffApprovers } from '../src/billing/reviewAssignment';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { listReviewQueue } from '../src/billing/reviewQueue';
+import { loadBillingRecord } from '../src/billing/billingRecord';
 import { ConflictError, ForbiddenError, ValidationError } from '../src/errors';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import {
   invoice,
   invoiceApprovalChain,
   invoiceApprovalDecision,
+  invoiceEvent,
   invoiceLine,
   invoiceLineTypes,
   invoiceStatuses,
@@ -354,6 +356,29 @@ describe('finishing and sign-off', () => {
     expect(await statusCode(invoiceId)).toBe('approved');
     const detail = (await loadInvoiceDetail(testDb, invoiceId))!;
     expect(detail.approvedTotal).toBe('50.00');
+  });
+
+  it('marks a decided invoice completed once, leaving it approved', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved' });
+    await setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [approver] });
+    await finishReview(testDb, reviewer, invoiceId);
+    await expect(markCompleted(testDb, reviewer, invoiceId)).rejects.toThrow(ConflictError);
+
+    await signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' });
+    await testDb.update(invoiceEvent).set({ occurredAt: new Date('2026-01-05T12:00:00Z') }).where(eq(invoiceEvent.invoiceId, invoiceId));
+    const submitter = await createProfessional();
+    await expect(markCompleted(testDb, submitter.userAccountId, invoiceId)).rejects.toThrow(ForbiddenError);
+    const { completedAt } = await markCompleted(testDb, await createStaff('staff', 'Staff One'), invoiceId);
+    expect(completedAt).toBeInstanceOf(Date);
+    expect((await markCompleted(testDb, reviewer, invoiceId)).completedAt).toEqual(completedAt);
+    expect(await statusCode(invoiceId)).toBe('approved');
+    const [row] = (await listReviewQueue(testDb, 'finished')).invoices;
+    expect(row?.completedAt).toEqual(completedAt);
+    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.invoice.completedAt).toEqual(completedAt);
+    expect((await loadInvoiceDetail(testDb, invoiceId))!.invoice.completedAt).toBeNull();
+    const [exported] = await loadBillingRecord(testDb);
+    expect(exported?.['Status changed']).toBe('2026-01-05');
   });
 
   it('needs someone to sign off before finishing', async () => {

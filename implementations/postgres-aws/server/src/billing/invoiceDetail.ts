@@ -33,7 +33,7 @@ import { approvedTotal, latestRoundNumber, loadRecordedDecisions, signOffProgres
 import { AWAITING_SIGN_OFF_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
 import { loadAssignments, SIGN_OFF_STEP_TYPE_CODE, type InvoiceAssignments } from './reviewAssignment';
 import { loadFileSource, submitterChanges, type FileSource } from '../imports/invoiceFile';
-import { returnedReason } from './invoiceEvents';
+import { completedAt, returnedReason } from './invoiceEvents';
 import { loadReviewQuestions, type ReviewQuestionView } from './reviewQuestions';
 
 export type Audience = 'staff' | 'submitter';
@@ -78,6 +78,7 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
       linesChangedByUserAccountId: invoice.linesChangedByUserAccountId,
       // Shown to the submitter until they send it again.
       returnedReason,
+      completedAt,
     })
     .from(invoice)
     .leftJoin(caseTable, eq(invoice.caseId, caseTable.caseId))
@@ -412,7 +413,8 @@ export async function loadInvoiceDetail(
   const progress = signOffProgress(recorded, round, assignments?.signOff ?? []);
   const awaitingSignOff = header.statusCode === AWAITING_SIGN_OFF_INVOICE_STATUS_CODE;
   return {
-    invoice: header,
+    // Submitters never see completion.
+    invoice: audience === 'staff' ? header : { ...header, completedAt: null },
     caseNumber: numbers?.caseNumber ?? null,
     otherCaseNumbers: numbers?.otherNumbers ?? [],
     lines,

@@ -36,7 +36,7 @@ export default function PersonPage() {
   const [searchParams] = useSearchParams();
   const dayParam = searchParams.get('day') ?? '';
   const day = /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : undefined;
-  const { data: queue, error: queueError } = useApiResource(() => listReviewQueue('all', { professionalId, day }), [professionalId, day]);
+  const { data: queue, error: queueError, reload: reloadQueue } = useApiResource(() => listReviewQueue('all', { professionalId, day }), [professionalId, day]);
   const [filter, setFilter] = useState<FilterId>('all');
   const [caseNumber, setCaseNumber] = useState('');
   // Invoices whose case number matches, closely or exactly; null for all.
@@ -182,7 +182,7 @@ export default function PersonPage() {
           <input className="usa-input" type="search" placeholder="Filter by case number" value={caseNumber} onChange={(event) => setCaseNumber(event.target.value)} />
         </label>
       </div>
-      <SentInvoicesTable invoices={shown} showFrom={false} emptyMessage={invoices.length === 0 ? 'No invoices sent yet.' : 'No invoices match.'} />
+      <SentInvoicesTable invoices={shown} showFrom={false} emptyMessage={invoices.length === 0 ? 'No invoices sent yet.' : 'No invoices match.'} onChanged={reloadQueue} />
       <p className="compact-hint">
         Showing {shown.length} of {invoices.length}. Every invoice is filed under {name}. Case numbers are as they were typed, and the
         tool does not check them against a list of cases.

@@ -13,7 +13,7 @@ import { loadInvoiceDetail } from '../billing/invoiceDetail';
 import { isExportableStatus } from '../billing/invoiceAccess';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { InvoiceNotFoundError, repriceLines, reviewInvoiceLine, undoLineDecision } from '../billing/reviewInvoiceLine';
-import { finishReview, reopenReview, signOffInvoice } from '../billing/reviewRounds';
+import { finishReview, markCompleted, reopenReview, signOffInvoice } from '../billing/reviewRounds';
 import {
   confirmEnteredImport,
   enterDraftInReview,
@@ -290,6 +290,13 @@ router.post(
   '/:id/sign-off',
   asyncHandler(async (req, res) => {
     res.json(await signOffInvoice(db, actorId(req), req.params.id as string, req.body));
+  }),
+);
+
+router.post(
+  '/:id/complete',
+  asyncHandler(async (req, res) => {
+    res.json(await markCompleted(db, actorId(req), req.params.id as string));
   }),
 );
 
