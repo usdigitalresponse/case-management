@@ -38,6 +38,8 @@ import { Fact, FactsStrip, Progress } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
 import { CompletionNotice, DECIDED_STATUS_CODES } from '../components/Completion';
+import { EmailAboutLine, EmailSender } from '../components/EmailSender';
+import { shownCaseNumber } from '../caseNumbers';
 import { EnteredFlag, proposedCaseLabel } from '../components/NewEntryFields';
 import { Toast, useToast, type ToastMessage } from '../components/Toast';
 import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
@@ -197,6 +199,7 @@ export default function InvoiceReview() {
   // out-of-date page is refused.
   const linesVersion = () => (data.entryOpen ? knownVersion.current : undefined);
   const lineNumber = new Map(lines.map((line, index) => [line.invoiceLineId, index + 1]));
+  const caseNumber = shownCaseNumber({ ...invoice, caseNumber: data.caseNumber });
 
   // While reviewing, the working decisions; afterwards, the recorded ones.
   const current = (line: InvoiceReviewLine): LineDecision | null => (inReview ? line.working : line.decision);
@@ -331,6 +334,14 @@ export default function InvoiceReview() {
           setPanel(null);
           setAsking(line.invoiceLineId);
         }}
+        email={
+          <EmailAboutLine
+            email={data.senderEmail}
+            invoice={invoice}
+            caseNumber={caseNumber}
+            line={{ line, number: lineNumber.get(line.invoiceLineId) }}
+          />
+        }
       />
     ) : null;
   // What is open on a line: the question being asked, or the decision being made.
@@ -397,6 +408,18 @@ export default function InvoiceReview() {
   const sender = invoice.professionalDisplayName ?? 'Unknown sender';
   const senderFirstName = sender.split(' ')[0];
   const senderPath = invoice.professionalId ? personPath(invoice.professionalId) : undefined;
+  const emailSender = <EmailSender email={data.senderEmail} invoice={invoice} caseNumber={caseNumber} />;
+  const emailOpenQuestions = (
+    <EmailSender
+      email={data.senderEmail}
+      invoice={invoice}
+      caseNumber={caseNumber}
+      lines={lines.flatMap((line) => {
+        const open = data.questions.filter((question) => question.invoiceLineId === line.invoiceLineId && !question.answeredAt);
+        return open.length > 0 ? [{ line, number: lineNumber.get(line.invoiceLineId), questions: open.map((question) => question.question) }] : [];
+      })}
+    />
+  );
 
   return (
     <div className="invoice-review">
@@ -486,6 +509,7 @@ export default function InvoiceReview() {
               </button>
             )}
             {entering && data.discardable && <DeleteInvoiceButton invoiceId={invoice.invoiceId} onDeleted={() => navigate('/')} />}
+            {emailSender}
             <InvoiceExportButton scope="staff" invoiceId={invoice.invoiceId} hasTrips={lines.some((line) => line.tripId)} />
           </>
         }
@@ -650,7 +674,7 @@ export default function InvoiceReview() {
       )}
 
       {awaitingAnswer && (
-        <Notice tone="warning" heading="Review is waiting for an answer.">
+        <Notice tone="warning" heading="Review is waiting for an answer." action={emailOpenQuestions}>
           {openQuestions} {openQuestions === 1 ? 'question is' : 'questions are'} unanswered, shown on{' '}
           {openQuestions === 1 ? 'its line' : 'their lines'}. You can keep deciding lines, but the review can't be finished until {askWhom} answers. If they answer another
           way, record it on the line.
@@ -859,6 +883,7 @@ export default function InvoiceReview() {
           completedAt={invoice.completedAt}
           saving={saving}
           onComplete={() => void act(() => markInvoiceCompleted(invoice.invoiceId), { message: 'Marked completed.' })}
+          emailSender={emailSender}
         />
       )}
 

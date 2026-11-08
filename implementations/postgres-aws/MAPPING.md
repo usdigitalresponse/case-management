@@ -196,6 +196,17 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
       the billing record's "Status changed" ignores it. Gaps: there is no undo; who marked it
       is recorded but not shown; nothing yet decides an invoice again, so a marking is never
       reset to pending as the model requires.
+    - **Email sender** (`components/EmailSender.tsx`) opens a draft in the staff member's own
+      mail app from the invoice page's actions, the waiting-for-an-answer notice and the
+      completion notice. It goes to the sender's account email, or for a staff upload to
+      whoever billed it (`loadSenderEmail` in `billing/invoiceDetail.ts`), else to no one.
+      Its subject carries the sender's invoice number, the case number shown on the page and
+      the period (else the date it was sent or received); its body repeats the case number.
+      From the waiting-for-an-answer notice the body adds each unanswered question under its
+      line's date, kind, description, quantity and amount; a mail icon beside "Ask … about
+      this line" drafts the same for that line, without a question. These are drafts the
+      staff member chooses to send, not exports. Nothing is sent or recorded by this system.
+      A person's page links their email the same way.
     - **The attorney's decided invoice** (G13) shows asked for, approved and cut, the line
       counts, and "Download the decisions".
     - Gaps: reviewer names stay hidden from external users, against G13, until that rule

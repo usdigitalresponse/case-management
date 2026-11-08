@@ -1726,6 +1726,8 @@ export interface InvoiceReview {
   discardable: boolean;
   // Whoever entered it also finished its latest round.
   decidedByEnterer: boolean;
+  // Whoever sent it, or for a staff upload, whoever billed it; null if unknown.
+  senderEmail: string | null;
 }
 
 export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {

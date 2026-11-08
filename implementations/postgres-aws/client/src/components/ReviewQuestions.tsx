@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { MAX_QUESTION_LENGTH, type ReviewQuestion } from '../api/client';
 import { formatDateTime } from '../formatDateTime';
 
@@ -64,12 +64,13 @@ export function LineQuestions({ questions, ...answer }: { questions: ReviewQuest
 }
 
 // Under a line, after its questions: opens the form to ask about it.
-export function AskLink({ askWhom, onAsk }: { askWhom: string; onAsk: () => void }) {
+export function AskLink({ askWhom, onAsk, email }: { askWhom: string; onAsk: () => void; email?: ReactNode }) {
   return (
     <p className="line-ask">
       <button type="button" className="link-button" onClick={onAsk}>
         Ask {askWhom} about this line
       </button>
+      {email}
     </p>
   );
 }

@@ -101,7 +101,7 @@ export default function PersonPage() {
         status={person.role && <span className="chip chip--neutral">{person.role}</span>}
         meta={
           <>
-            {person.email && <span>{person.email}</span>}
+            {person.email && <a href={`mailto:${person.email}`}>{person.email}</a>}
             {person.phone && <span>{person.phone}</span>}
             {person.paidThrough && <span>Paid to {person.paidThrough}</span>}
           </>

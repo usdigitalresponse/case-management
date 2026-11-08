@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { apiErrorMessage, markInvoiceCompleted } from '../api/client';
 import { Notice } from './Notice';
 import { StatusPill } from './StatusPill';
@@ -80,10 +80,12 @@ export function CompletionNotice({
   completedAt,
   saving,
   onComplete,
+  emailSender,
 }: {
   completedAt: string | null;
   saving: boolean;
   onComplete: () => void;
+  emailSender: ReactNode;
 }) {
   if (completedAt) {
     return (
@@ -97,9 +99,12 @@ export function CompletionNotice({
       tone="info"
       heading="Decided, not yet completed."
       action={
-        <button type="button" className="btn btn--outline" disabled={saving} onClick={onComplete}>
-          Mark completed
-        </button>
+        <>
+          {emailSender}
+          <button type="button" className="btn btn--outline" disabled={saving} onClick={onComplete}>
+            Mark completed
+          </button>
+        </>
       }
     >
       {COMPLETED_EXPLAINER}

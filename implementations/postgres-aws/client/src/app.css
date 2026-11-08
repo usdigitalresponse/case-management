@@ -714,7 +714,9 @@ form.compact-form { max-width: none; }
 .notice__body { flex: 1 1 20rem; min-width: 0; }
 .notice__heading { display: block; margin: 0 0 .2rem; font-size: .95rem; font-weight: 700; }
 .notice__body ul { margin: .2rem 0 0; padding-left: 1.2rem; }
+.notice__action { display: flex; flex-wrap: wrap; gap: .5rem; }
 .notice a { color: inherit; font-weight: 700; }
+.notice a.btn--outline { color: var(--primary); font-weight: 600; }
 .notice--warning { background: var(--warning-tint); border-color: var(--warning-line); color: var(--warning); }
 .notice--info { background: var(--info-tint); border-color: var(--primary); color: var(--info); }
 .notice--success { background: var(--success-tint); border-color: var(--success); color: var(--success); }
@@ -758,6 +760,7 @@ form.compact-form { max-width: none; }
 .decision-buttons > .link-button { font-size: .85rem; }
 /* Asking about a line, under its questions. */
 .line-ask { margin: 0; padding: 0 1.5rem .7rem; font-size: .85rem; }
+.icon-link { display: inline-flex; align-items: center; margin-left: .6rem; vertical-align: middle; color: var(--primary); }
 /* Entering: under a line's description, asking about it on the left and
    deciding it on the right, on one row (EntryLines). */
 .check-lines__table .check-lines__bar td { padding-top: .1rem; }
