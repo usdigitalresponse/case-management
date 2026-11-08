@@ -37,6 +37,7 @@ const IN_SCOPE_ENTITIES = [
   'invoice_approval_chain',
   'invoice_approval_decision',
   'invoice_line_working_decision',
+  'review_time_log',
   'invoice_review_question',
   'invoice_review_assignment',
   'case_invoice_reviewer',

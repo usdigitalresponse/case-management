@@ -14,18 +14,22 @@ export interface ReviewSettings {
   defaultSignOffUserAccountIds: string[];
   // Synthetic starting value; administrators change it.
   waitingAlertWorkingDays: number;
+  // Approving the billed hours of a line a time log flags needs a reason (./reviewTimeLog.ts).
+  timeLogBlocksApproval: boolean;
 }
 
 const DEFAULTS: ReviewSettings = {
   defaultReviewerUserAccountId: null,
   defaultSignOffUserAccountIds: [],
   waitingAlertWorkingDays: 10,
+  timeLogBlocksApproval: false,
 };
 
 const SETTING_CODES = {
   defaultReviewerUserAccountId: 'default_reviewer',
   defaultSignOffUserAccountIds: 'default_sign_off',
   waitingAlertWorkingDays: 'waiting_alert_working_days',
+  timeLogBlocksApproval: 'time_log_blocks_approval',
 } as const;
 
 export async function getReviewSettings(db: DatabaseOrTransaction): Promise<ReviewSettings> {
@@ -45,6 +49,7 @@ const settingsInputSchema = z.object({
   defaultReviewerUserAccountId: z.uuid().nullable().optional(),
   defaultSignOffUserAccountIds: z.array(z.uuid()).max(5).optional(),
   waitingAlertWorkingDays: z.coerce.number().int().min(1).max(60).optional(),
+  timeLogBlocksApproval: z.boolean().optional(),
 });
 
 export async function setReviewSettings(

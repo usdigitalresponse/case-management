@@ -11,6 +11,7 @@ const decision = (outcomeCode: LineDecision['outcomeCode'], approvedAmount: stri
   reasonCode: null,
   reasonDisplayName: null,
   note: null,
+  timeLogOverride: null,
   decidedByDisplayName: null,
   decidedAt: '2026-01-10T00:00:00Z',
 });

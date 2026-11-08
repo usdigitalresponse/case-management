@@ -19,6 +19,7 @@ export function InvoiceLinesTable<L extends PortalInvoiceLine>({
   note,
   hoursNote,
   amountNote,
+  timeLog,
 }: {
   lines: L[];
   decisionHeader?: string;
@@ -28,6 +29,8 @@ export function InvoiceLinesTable<L extends PortalInvoiceLine>({
   note?: (line: L) => ReactNode;
   hoursNote?: (line: L) => ReactNode;
   amountNote?: (line: L) => ReactNode;
+  // Each line's result against a time log, when one is being checked.
+  timeLog?: (line: L) => ReactNode;
 }) {
   return (
     <RecordTable
@@ -94,6 +97,7 @@ export function InvoiceLinesTable<L extends PortalInvoiceLine>({
             </>
           ),
         },
+        ...(timeLog ? [{ header: 'Time log', className: 'time-log-column', render: timeLog }] : []),
         ...(decision ? [{ header: decisionHeader ?? 'Decision', className: 'decision-cell', render: decision }] : []),
       ]}
     />

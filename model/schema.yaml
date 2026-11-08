@@ -1,4 +1,4 @@
-spec_version: "0.9.0"
+spec_version: "0.10.0"
 status: draft
 kind: domain_schema
 
@@ -822,6 +822,12 @@ entities:
         type: money
         required: false
         description: Rate the reviewer approved when approving in part by correcting it.
+      time_log_override:
+        type: string
+        required: false
+        description: Why the reviewer approved a line's billed hours although the case time log flagged it
+          (check_lines_against_time_log). Staff only, like an internal comment; never shown to submitters or
+          represented professionals, or exported.
 
   invoice_line_working_decision:
     display_name: Working Line Decision
@@ -862,11 +868,62 @@ entities:
       note:
         type: string
         required: false
+      time_log_override:
+        type: string
+        required: false
+        description: As on invoice_approval_decision; recorded with it when the round is finished.
       decided_by_user_account_id:
         type: uuid
         required: true
         references: user_account.user_account_id
       decided_at:
+        type: datetime
+        required: true
+
+  review_time_log:
+    display_name: Review Time Log
+    description: One case's time log, exported from another system, that the line reviewer compares the
+      request's time lines with (check_lines_against_time_log). A working aid, not history and not audited;
+      replaced or removed freely, and removed when the round is finished or the request leaves review. At most
+      one per request. Its cells are kept, never the file.
+    primary_key: review_time_log_id
+    fields:
+      review_time_log_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      file_name:
+        type: string
+        required: true
+      rows:
+        type: object
+        required: true
+        description: The file's cells by row, so other columns can be chosen without uploading it again.
+      header_row:
+        type: integer
+        required: true
+      columns:
+        type: object
+        required: true
+        description: Which column holds the date, who did the work and the time spent (in hours or minutes), and
+          optionally a description, entry number and start and stop times.
+      worker_matches:
+        type: object
+        required: true
+        description: Names in the log the reviewer has said are a person on the request, or not a person.
+      line_links:
+        type: object
+        required: true
+        description: Log entries, by row, the reviewer has said support each line.
+      uploaded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      uploaded_at:
         type: datetime
         required: true
 
@@ -992,7 +1049,8 @@ entities:
   invoice_review_setting:
     display_name: Invoice Review Setting
     description: One deployment-wide review setting, such as the default reviewer, the default sign-off
-      approvers or how many working days a request may wait before it is called out. Settings are added,
+      approvers, how many working days a request may wait before it is called out, or whether approving the
+      billed hours of lines a time log doesn't support needs a reason. Settings are added,
       never changed, from when they are recorded until a later setting of the same kind.
     primary_key: invoice_review_setting_id
     fields:
@@ -1007,7 +1065,7 @@ entities:
       parameters:
         type: object
         required: false
-        description: The setting's value, such as a user account, an ordered list of user accounts or a number of working days.
+        description: The setting's value, such as a user account, an ordered list of user accounts, a number of working days or a yes or no.
       recorded_by_user_account_id:
         type: uuid
         required: true

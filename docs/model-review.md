@@ -110,6 +110,17 @@ typing it, matched by name so it isn't duplicated, and imports suggest one from
 the file (`record_case_county`). The billing record carries the case's county.
 The snapshot layout is unchanged apart from `spec_version`.
 
+Model files are now 0.10.0, additive: `review_time_log` holds one case's time
+log, exported from another system, while a request is in review, so the line
+reviewer can compare its time lines by date, person and hours
+(`check_lines_against_time_log`). Lines the log doesn't support are always
+flagged; an `invoice_review_setting` decides whether approving their billed
+hours needs a reason, kept staff-only as `time_log_override` on the line's
+decision for sign-off. Names in the log are matched only exactly or once the
+reviewer confirms them. The log is a working aid removed when the round is
+finished, and never reaches submitters, exports or the billing record. The
+snapshot layout is unchanged apart from `spec_version`.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

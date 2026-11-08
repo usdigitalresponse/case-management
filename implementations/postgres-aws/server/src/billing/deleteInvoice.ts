@@ -28,6 +28,7 @@ import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { InvoiceStateError } from './invoiceLifecycle';
 import { UNSUBMITTED_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
 import { canDiscardEntry } from './enterInReview';
+import { removeTimeLog } from './reviewTimeLog';
 
 const reviewStarted = sql`exists (
   select 1 from ${invoiceApprovalDecision}
@@ -108,6 +109,7 @@ export async function deleteUnsubmittedInvoice(
     await tx.delete(invoiceAttestation).where(inArray(invoiceAttestation.invoiceApprovalChainId, chains));
     // An entry discarded while in review.
     await tx.delete(invoiceLineWorkingDecision).where(inArray(invoiceLineWorkingDecision.invoiceApprovalChainId, chains));
+    await removeTimeLog(tx, invoiceId);
     await tx.delete(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
     await tx.delete(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
     await tx.delete(trip).where(eq(trip.invoiceId, invoiceId));

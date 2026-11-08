@@ -266,7 +266,14 @@ even after reopening or a send-back. Line saves keep each line's id, so a
 decision or question stays on its line; never go back to deleting and
 reinserting lines. Entry saves, and decisions while entry is open, carry
 `lines_version`; a stale one is refused, never merged or overwritten. New
-lines get their id from the page, which saves keep. Staff and
+lines get their id from the page, which saves keep. A reviewer's case time log
+(`src/billing/reviewTimeLog.ts`) is a working aid: keep its cells, never the
+file, delete it when the round is finished or the request leaves review, and
+never show it to submitters or put it in exports. Its flags are always shown;
+only the review setting decides whether approving a flagged line's billed hours
+needs the reviewer's reason (`time_log_override`, staff-only, never exported),
+and a name in the log is never matched to a person without an exact match or
+the reviewer's confirmation. Staff and
 external submitters share the new-invoice form (staff use it on Intake) and
 the import pages; links that differ
 between the two apps go through `client/src/portal/useShell.ts`. Design

@@ -207,6 +207,30 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
       this line" drafts the same for that line, without a question. These are drafts the
       staff member chooses to send, not exports. Nothing is sent or recorded by this system.
       A person's page links their email the same way.
+    - **Time log check** (`model/rules.yaml` `check_lines_against_time_log`): "Check a time
+      log" on the invoice page takes one case's CSV or XLSX export from the external case
+      management system (`PUT /api/invoices/:id/time-log`, raw body as for uploads;
+      `billing/reviewTimeLog.ts`). `imports/readTimeLog.ts` finds the header row in the top 10
+      rows and the columns by header, scoring likely names; time spent may be hours or
+      minutes. The summary says which columns were used, and "Change columns" re-reads the
+      kept cells. `billing/timeLogCheck.ts` compares in memory on each page load, so edits
+      while entering are compared at once. Each line gets a "Time log" column; "Link entries"
+      saves the reviewer's choice by row; "Show the log" puts the entries beside the lines in
+      place of the file, also while entering, and a "The file | Time log" switch above the
+      panel flips between them. Settings' "Time log checks" (`invoice_review_setting`
+      `time_log_blocks_approval`, off by default) makes Approve on a flagged line, and
+      approving in part without cutting its hours, ask why; the reason is saved as
+      `time_log_override` on the working decision, recorded with the round, shown to staff
+      only and never exported. It is enforced in `reviewInvoiceLine` and `finishReview`, and
+      repricing every line leaves flagged lines undecided. `review_time_log` keeps the
+      cells, not the file, and is deleted on finishing, recall, deletion or "Remove it".
+      Gaps:
+      dates typed as text with slashes are read month first (`04/03/2026` is April 3), so in a
+      log written day first, days 1–12 are read with day and month swapped and later days
+      are unreadable; real date cells, ISO dates and written-out months are unaffected, and
+      neither detecting the order nor letting the reviewer choose it is built yet; the
+      column chooser can't pick a different header row; apart from override reasons, nothing
+      about the check is kept for approvers once the round is finished. Seeded test logs: `npm run demo-time-logs`.
     - **The attorney's decided invoice** (G13) shows asked for, approved and cut, the line
       counts, and "Download the decisions".
     - Gaps: reviewer names stay hidden from external users, against G13, until that rule
@@ -1650,7 +1674,7 @@ list/detail views are implemented as tables:
 `professional_kind_rate`, `mileage_rate`, `time_category_rate`,
 `billing_rule_setting`, `invoice`, `invoice_line`, `trip`,
 `invoice_approval_chain`,
-`invoice_approval_decision`, `invoice_line_working_decision`,
+`invoice_approval_decision`, `invoice_line_working_decision`, `review_time_log`,
 `invoice_review_question`, `invoice_review_assignment`, `case_invoice_reviewer`,
 `invoice_review_setting`, `preauthorization`, `preauthorization_decision`,
 `invoice_event`, `document`, `invoice_import`, `supporting_invoice`,

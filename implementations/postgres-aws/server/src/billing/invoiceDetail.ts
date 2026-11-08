@@ -193,6 +193,8 @@ export interface LineDecisionView {
   reasonCode: string | null;
   reasonDisplayName: string | null;
   note: string | null;
+  // Staff only.
+  timeLogOverride: string | null;
   decidedByDisplayName: string | null;
   decidedAt: Date;
 }
@@ -342,6 +344,7 @@ export async function loadInvoiceDetail(
             reasonCode: invoiceDecisionReasons.code,
             reasonDisplayName: invoiceDecisionReasons.displayName,
             note: invoiceLineWorkingDecision.note,
+            timeLogOverride: invoiceLineWorkingDecision.timeLogOverride,
             decidedByUserAccountId: invoiceLineWorkingDecision.decidedByUserAccountId,
             decidedAt: invoiceLineWorkingDecision.decidedAt,
           })
@@ -371,6 +374,7 @@ export async function loadInvoiceDetail(
       approvedRate: string | null;
       reasonCode: string | null;
       reasonDisplayName: string | null;
+      timeLogOverride: string | null;
       decidedByUserAccountId: string;
       decidedAt: Date;
     },
@@ -387,6 +391,7 @@ export async function loadInvoiceDetail(
       reasonCode: decision.reasonCode,
       reasonDisplayName: decision.reasonDisplayName,
       note,
+      timeLogOverride: audience === 'staff' ? decision.timeLogOverride : null,
       decidedByDisplayName: names.get(decision.decidedByUserAccountId) ?? null,
       decidedAt: decision.decidedAt,
     };

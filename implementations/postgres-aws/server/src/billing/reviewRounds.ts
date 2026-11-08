@@ -32,6 +32,7 @@ import { OTHER_REASON_CODE } from './decisionReasons';
 import { fromCents, toCents } from './money';
 import { closeEntry, entryIsOpen } from './enterInReview';
 import { receiptInputSchema } from './invoiceReceipt';
+import { keepsBilledHours, linesBlockedByTimeLog, removeTimeLog } from './reviewTimeLog';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 
 export async function currentChainId(db: DatabaseOrTransaction, invoiceId: string): Promise<string | undefined> {
@@ -54,6 +55,7 @@ export interface RecordedDecision {
   reasonDisplayName: string | null;
   reason: string | null;
   internalOnly: boolean;
+  timeLogOverride: string | null;
   decidedByUserAccountId: string;
   decidedAt: Date;
 }
@@ -73,6 +75,7 @@ function recordedDecisions(db: DatabaseOrTransaction, chainIds: string[]) {
       reasonDisplayName: invoiceDecisionReasons.displayName,
       reason: invoiceApprovalDecision.reason,
       internalOnly: invoiceApprovalDecision.internalOnly,
+      timeLogOverride: invoiceApprovalDecision.timeLogOverride,
       decidedByUserAccountId: invoiceApprovalDecision.decidedByUserAccountId,
       decidedAt: invoiceApprovalDecision.decidedAt,
     })
@@ -165,6 +168,7 @@ async function seedWorkingFromRound(tx: Transaction, chainId: string, round: num
       approvedRate: invoiceApprovalDecision.approvedRate,
       reasonCodeId: invoiceApprovalDecision.reasonCodeId,
       note: invoiceApprovalDecision.reason,
+      timeLogOverride: invoiceApprovalDecision.timeLogOverride,
       decidedByUserAccountId: invoiceApprovalDecision.decidedByUserAccountId,
       decidedAt: invoiceApprovalDecision.decidedAt,
     })
@@ -205,7 +209,7 @@ export async function finishReview(db: Database, actorUserAccountId: string, inv
       await closeEntry(tx, actorUserAccountId, invoiceId, chainId, receipt.data);
     }
     const [lines, working, otherReasonId] = await Promise.all([
-      tx.select({ invoiceLineId: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)),
+      tx.select({ invoiceLineId: invoiceLine.invoiceLineId, quantity: invoiceLine.quantity }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)),
       tx.select().from(invoiceLineWorkingDecision).where(eq(invoiceLineWorkingDecision.invoiceApprovalChainId, chainId)),
       getReferenceId(tx, invoiceDecisionReasons, OTHER_REASON_CODE),
     ]);
@@ -218,6 +222,25 @@ export async function finishReview(db: Database, actorUserAccountId: string, inv
     // Converted from before reasons existed: a rejection may lack one.
     if (working.some((decision) => decision.reasonCodeId === otherReasonId && !decision.note)) {
       throw new ValidationError({ lines: 'A line decided for another reason needs a note.' });
+    }
+    // Approved before the log was uploaded, or before a line changed.
+    const approvedId = await getReferenceId(tx, invoiceApprovalOutcomes, 'approved');
+    const billed = new Map(lines.map((line) => [line.invoiceLineId, line.quantity]));
+    const blocked = await linesBlockedByTimeLog(
+      tx,
+      invoiceId,
+      working
+        .filter(
+          (decision) =>
+            !decision.timeLogOverride &&
+            keepsBilledHours({ approved: decision.outcomeId === approvedId, ...decision }, billed.get(decision.invoiceLineId) ?? null),
+        )
+        .map((decision) => decision.invoiceLineId),
+    );
+    if (blocked.size > 0) {
+      throw new ValidationError({
+        lines: `${blocked.size} approved ${blocked.size === 1 ? "line isn't" : "lines aren't"} supported by the time log as billed. Decide ${blocked.size === 1 ? 'it' : 'them'} again.`,
+      });
     }
     const sequenceNumber = await nextSequenceNumber(tx, chainId);
     const stepTypeId = await getReferenceId(tx, invoiceApprovalStepTypes, LINE_REVIEW_STEP_TYPE_CODE);
@@ -236,9 +259,11 @@ export async function finishReview(db: Database, actorUserAccountId: string, inv
         approvedAmount: decision.approvedAmount,
         approvedQuantity: decision.approvedQuantity,
         approvedRate: decision.approvedRate,
+        timeLogOverride: decision.timeLogOverride,
       })),
     );
     await tx.delete(invoiceLineWorkingDecision).where(eq(invoiceLineWorkingDecision.invoiceApprovalChainId, chainId));
+    await removeTimeLog(tx, invoiceId);
     await setStatus(tx, invoiceId, AWAITING_SIGN_OFF_INVOICE_STATUS_CODE, {
       eventTypeCode: 'review_finished',
       actorUserAccountId,

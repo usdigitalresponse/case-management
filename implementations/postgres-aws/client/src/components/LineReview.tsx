@@ -37,6 +37,9 @@ export function DecisionSummary({
       {(decision.reasonDisplayName || decision.note) && (
         <p className="decision-summary__why">{[decision.reasonDisplayName, decision.note].filter(Boolean).join('. ')}</p>
       )}
+      {decision.timeLogOverride && (
+        <p className="line-rate-differs">Approved although the time log doesn't support it: {decision.timeLogOverride}</p>
+      )}
       {/* Submitters don't see who decided. */}
       <p className="cell-note">
         {[decision.decidedByDisplayName, formatDateTime(decision.decidedAt)].filter(Boolean).join(', ')}
@@ -62,7 +65,8 @@ export function DecisionHistory({ line }: { line: Pick<InvoiceReviewLine, 'histo
               Round {past.round}: {past.outcomeDisplayName}
               {past.outcomeCode === 'approved_in_part' ? `, ${formatMoney(past.approvedAmount)}` : ''}
               {past.reasonDisplayName ? `. ${past.reasonDisplayName}` : ''}
-              {past.note ? `. ${past.note}` : ''} ({[past.decidedByDisplayName, formatDateTime(past.decidedAt)].filter(Boolean).join(', ')})
+              {past.note ? `. ${past.note}` : ''}
+              {past.timeLogOverride ? `. Approved although the time log doesn't support it: ${past.timeLogOverride}` : ''} ({[past.decidedByDisplayName, formatDateTime(past.decidedAt)].filter(Boolean).join(', ')})
             </li>
           ))}
         </ol>
@@ -87,11 +91,14 @@ export function DecisionPanel({
   error,
   onSubmit,
   onCancel,
+  logBlocks = false,
 }: {
   line: InvoiceReviewLine;
   mode: PanelMode;
   reasons: DecisionReason[];
   initial: LineDecision | null;
+  // The time log flags it, and the setting asks why before approving its billed hours.
+  logBlocks?: boolean;
   saving: boolean;
   error: string | null;
   onSubmit: (input: LineDecisionInput) => void;
@@ -104,6 +111,7 @@ export function DecisionPanel({
   const [amount, setAmount] = useState(initial?.outcomeCode === 'approved_in_part' ? (initial.approvedAmount ?? '') : '');
   const [picked, setReasonCode] = useState(initial?.reasonCode ?? '');
   const [note, setNote] = useState(initial?.note ?? '');
+  const [override, setOverride] = useState(initial?.timeLogOverride ?? '');
   // Approving in part and rejecting have their own lists; a reason kept from
   // a decision on the other list doesn't carry over.
   const options = reasons.filter((reason) => reason.appliesTo === 'both' || reason.appliesTo === mode);
@@ -122,6 +130,11 @@ export function DecisionPanel({
     Number(rate) !== Number(line.billedRate) &&
     approvedCents >= requestedCents;
   const needsReason = mode === 'rejected' || (mode === 'approved_in_part' && !raised);
+  // Approving the billed hours, as billed or at another rate.
+  const keepsHours = mode === 'time_log' || (mode === 'approved_in_part' && byHours && Number(hours) >= Number(line.quantity));
+  const needsOverride = logBlocks && keepsHours;
+  // Editing a note keeps the reason already given.
+  const timeLogOverride = (needsOverride || mode === 'note') && override.trim() ? override.trim() : undefined;
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -131,14 +144,18 @@ export function DecisionPanel({
         initial?.outcomeCode === 'approved' && initial.approvedRate
           ? { approvedRate: Number(initial.approvedRate), approvedQuantity: initial.approvedQuantity ? Number(initial.approvedQuantity) : undefined }
           : {};
-      onSubmit({ outcome: 'approved', ...kept, note: note.trim() || undefined });
+      onSubmit({ outcome: 'approved', ...kept, note: note.trim() || undefined, timeLogOverride });
+      return;
+    }
+    if (mode === 'time_log') {
+      onSubmit({ outcome: 'approved', note: note.trim() || undefined, timeLogOverride });
       return;
     }
     if (raised) {
-      onSubmit({ outcome: 'approved', approvedRate: Number(rate), note: note.trim() || undefined });
+      onSubmit({ outcome: 'approved', approvedRate: Number(rate), note: note.trim() || undefined, timeLogOverride });
       return;
     }
-    const base = { reasonCode, note: note.trim() || undefined };
+    const base = { reasonCode, note: note.trim() || undefined, timeLogOverride };
     if (mode === 'rejected') {
       onSubmit({ outcome: 'rejected', ...base });
       return;
@@ -153,7 +170,9 @@ export function DecisionPanel({
   const title =
     mode === 'note'
       ? 'Add a note to this approval'
-      : mode === 'rejected'
+      : mode === 'time_log'
+        ? `Approve the ${formatMoney(line.amount)} on this line although the time log doesn't support it`
+        : mode === 'rejected'
         ? `Reject the ${formatMoney(line.amount)} on this line`
         : byHours
           ? `Approve part of the ${formatMoney(line.amount)} on this line, or change its rate`
@@ -230,6 +249,13 @@ export function DecisionPanel({
             ))}
           </fieldset>
         )}
+        {needsOverride && (
+          <label className="decision-panel__note">
+            Why approve its {miles ? 'miles' : 'hours'} although the time log doesn't support them?
+            <textarea rows={3} value={override} onChange={(e) => setOverride(e.target.value)} />
+            <span className="cell-note">Only staff see this. Sign-off sees it with the line.</span>
+          </label>
+        )}
         <label className="decision-panel__note">
           Note for the record{reasonCode === 'other' ? '' : ' (optional)'}
           <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
@@ -245,12 +271,15 @@ export function DecisionPanel({
             saving ||
             (needsReason && !reasonCode) ||
             (mode === 'approved_in_part' && !validAmount && !raised) ||
-            (reasonCode === 'other' && !note.trim())
+            (reasonCode === 'other' && !note.trim()) ||
+            (needsOverride && !override.trim())
           }
         >
           {mode === 'note'
             ? 'Save note'
-            : mode === 'rejected'
+            : mode === 'time_log'
+              ? `Approve ${formatMoney(line.amount)}`
+              : mode === 'rejected'
               ? 'Reject line'
               : validAmount || raised
                 ? `Approve ${formatMoney(approvedCents / 100)}`
@@ -258,12 +287,13 @@ export function DecisionPanel({
         </button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
         {needsReason && !reasonCode && <span className="cell-note">Choose a reason first.</span>}
+        {!(needsReason && !reasonCode) && needsOverride && !override.trim() && <span className="cell-note">Say why first.</span>}
       </div>
     </form>
   );
 }
 
-export type PanelMode = 'approved_in_part' | 'rejected' | 'note';
+export type PanelMode = 'approved_in_part' | 'rejected' | 'note' | 'time_log';
 
 // Approved at a rate other than the one billed.
 export function rateChanged(line: Pick<InvoiceReviewLine, 'billedRate'>, decision: LineDecision | null): boolean {
@@ -285,6 +315,7 @@ export function DecisionCell({
   onPanel,
   onChanging,
   onUndoRejection,
+  approveBlocked = null,
 }: {
   line: InvoiceReviewLine;
   decision: LineDecision | null;
@@ -293,6 +324,8 @@ export function DecisionCell({
   changing: boolean;
   // Changed and not saved yet: saving undoes its decision, so it is decided again.
   edited?: boolean;
+  // Why approving it as billed needs a reason, if it does.
+  approveBlocked?: string | null;
   openPanel: PanelMode | null;
   saving: boolean;
   onApprove: () => void;
@@ -305,7 +338,13 @@ export function DecisionCell({
     return (
       <div className="decision-buttons">
         <div className="decision-button-row">
-          <button type="button" className="btn btn--outline" disabled={saving} onClick={onApprove}>
+          <button
+            type="button"
+            className={`btn ${openPanel === 'time_log' ? 'btn--primary' : 'btn--outline'}`}
+            disabled={saving}
+            aria-expanded={approveBlocked ? openPanel === 'time_log' : undefined}
+            onClick={approveBlocked ? () => toggle('time_log') : onApprove}
+          >
             Approve
           </button>
           <button
@@ -325,7 +364,12 @@ export function DecisionCell({
             Reject
           </button>
         </div>
-        {openPanel && <span className="cell-note decision-hint">{openPanel === 'rejected' ? 'Give a reason below' : 'Correct it below'}</span>}
+        {openPanel && (
+          <span className="cell-note decision-hint">
+            {openPanel === 'rejected' || openPanel === 'time_log' ? 'Give a reason below' : 'Correct it below'}
+          </span>
+        )}
+        {approveBlocked && !openPanel && <span className="cell-note line-rate-differs">{approveBlocked}</span>}
         {decision && edited ? (
           <span className="cell-note">Was {decision.outcomeDisplayName.toLowerCase()}. Decide it again.</span>
         ) : (
@@ -397,5 +441,6 @@ export function decisionInput(previous: LineDecision): LineDecisionInput {
     approvedRate: previous.approvedRate ? Number(previous.approvedRate) : undefined,
     reasonCode: previous.reasonCode ?? undefined,
     note: previous.note ?? undefined,
+    timeLogOverride: previous.timeLogOverride ?? undefined,
   };
 }

@@ -1,6 +1,6 @@
 // Staff invoice review: the queue, one invoice's lines and decisions, line
 // review, finishing, sign-off, routing and export.
-import { Router, type Request } from 'express';
+import express, { Router, type Request } from 'express';
 import { z } from 'zod';
 import { and, count, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/client';
@@ -35,6 +35,8 @@ import { correctCaseNumber } from '../billing/correctCaseNumber';
 import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { readFileForInvoice } from '../imports/invoiceFile';
+import { MAX_UPLOAD_BYTES } from '../imports/detectFormat';
+import { discardTimeLog, linkTimeLogEntries, loadTimeLogView, setTimeLogColumns, setTimeLogWorker, uploadTimeLog } from '../billing/reviewTimeLog';
 import { documentStore } from '../imports/documentStore';
 import { sendFileDownload, sendFilePreview } from './sendUploadedFile';
 import { asyncHandler } from './asyncHandler';
@@ -165,7 +167,61 @@ router.get(
     // As canDiscardEntry decides, from what the detail already holds.
     const discardable =
       detail.entryOpen && detail.assignments?.reviewer?.userAccountId === actorId(req) && detail.questions.length === 0;
-    res.json({ ...detail, preauthorization, approvedRate, caseNumberMatches, discardable, senderEmail });
+    const timeLog = await loadTimeLogView(db, detail.invoice.invoiceId);
+    res.json({ ...detail, preauthorization, approvedRate, caseNumberMatches, discardable, senderEmail, timeLog });
+  }),
+);
+
+// Malformed percent-encoding keeps the name as sent.
+function decodedFileName(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+// The raw body is the file; X-File-Name tells CSV from XLSX.
+router.put(
+  '/:id/time-log',
+  express.raw({ type: () => true, limit: MAX_UPLOAD_BYTES }),
+  asyncHandler(async (req, res) => {
+    const fileName = req.get('X-File-Name');
+    res.json(
+      await uploadTimeLog(db, actorId(req), req.params.id as string, {
+        fileName: fileName ? decodedFileName(fileName) : undefined,
+        bytes: Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
+        columns: typeof req.query.columns === 'string' ? req.query.columns : undefined,
+      }),
+    );
+  }),
+);
+
+router.delete(
+  '/:id/time-log',
+  asyncHandler(async (req, res) => {
+    res.json(await discardTimeLog(db, actorId(req), req.params.id as string));
+  }),
+);
+
+router.put(
+  '/:id/time-log/columns',
+  asyncHandler(async (req, res) => {
+    res.json(await setTimeLogColumns(db, actorId(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/:id/time-log/worker',
+  asyncHandler(async (req, res) => {
+    res.json(await setTimeLogWorker(db, actorId(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/:id/time-log/lines/:lineId',
+  asyncHandler(async (req, res) => {
+    res.json(await linkTimeLogEntries(db, actorId(req), req.params.id as string, req.params.lineId as string, req.body));
   }),
 );
 
