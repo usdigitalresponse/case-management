@@ -272,6 +272,28 @@ export interface InvoiceDetail {
   decidedByEnterer: boolean;
 }
 
+// Who staff email about an invoice: whoever sent it, or for a staff upload,
+// whoever billed it.
+export async function loadSenderEmail(db: DatabaseOrTransaction, header: InvoiceHeader): Promise<string | null> {
+  if (!header.enteredInReview) {
+    const [account] = await db
+      .select({ email: userAccount.email })
+      .from(userAccount)
+      .where(eq(userAccount.userAccountId, header.submittedByUserAccountId));
+    return account?.email ?? null;
+  }
+  if (!header.professionalId) {
+    return null;
+  }
+  const [billedBy] = await db
+    .select({ email: sql<string | null>`coalesce(${userAccount.email}, ${person.email})` })
+    .from(professional)
+    .innerJoin(person, eq(professional.personId, person.personId))
+    .leftJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
+    .where(eq(professional.professionalId, header.professionalId));
+  return billedBy?.email ?? null;
+}
+
 async function displayNames(db: DatabaseOrTransaction, ids: string[]): Promise<Map<string, string>> {
   if (ids.length === 0) {
     return new Map();

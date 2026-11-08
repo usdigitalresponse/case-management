@@ -36,7 +36,7 @@ import { finishReview, reopenReview } from '../src/billing/reviewRounds';
 import { reassignReviewer } from '../src/billing/reviewAssignment';
 import { askQuestion } from '../src/billing/reviewQuestions';
 import { setReviewSettings } from '../src/billing/reviewSettings';
-import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
+import { loadInvoiceDetail, loadSenderEmail } from '../src/billing/invoiceDetail';
 import { deleteUnsubmittedInvoice } from '../src/billing/deleteInvoice';
 import { ConflictError, ForbiddenError, ValidationError } from '../src/errors';
 import {
@@ -713,5 +713,18 @@ describe('a draft filed by person', () => {
     await setDraftDetails(testDb, actor, invoiceId, { periodStart: '2026-02-01', periodEnd: '2026-02-28', invoiceNumber: 'SYN-0002' });
     const detail = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
     expect(detail.invoice).toMatchObject({ professionalId, submittedTotal: '200.00', periodEnd: '2026-02-28', invoiceNumber: 'SYN-0002' });
+  });
+});
+
+describe('who staff email about an upload', () => {
+  it('is whoever billed it, not the staff member who entered it', async () => {
+    const invoiceId = await upload([{ amount: 40, description: 'Filing fee' }]);
+    const { invoice: header } = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
+    const [billedBy] = await testDb
+      .select({ email: userAccount.email })
+      .from(professional)
+      .innerJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
+      .where(eq(professional.professionalId, header.professionalId!));
+    expect(await loadSenderEmail(testDb, header)).toBe(billedBy!.email);
   });
 });

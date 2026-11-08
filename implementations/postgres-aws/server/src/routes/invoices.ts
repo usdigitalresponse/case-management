@@ -9,7 +9,7 @@ import { listDecisionReasons } from '../billing/decisionReasons';
 import { billingRecordCsv, billingRecordXlsx, loadBillingRecord } from '../billing/billingRecord';
 import { listInvoiceIntake, matchInvoiceToCase, returnToSubmitter } from '../billing/invoiceIntake';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
-import { loadInvoiceDetail } from '../billing/invoiceDetail';
+import { loadInvoiceDetail, loadSenderEmail } from '../billing/invoiceDetail';
 import { isExportableStatus } from '../billing/invoiceAccess';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { InvoiceNotFoundError, repriceLines, reviewInvoiceLine, undoLineDecision } from '../billing/reviewInvoiceLine';
@@ -161,10 +161,11 @@ router.get(
     const today = new Date().toISOString().slice(0, 10);
     const approvedRate = professionalId ? (rateOn(await listRates(db, [professionalId]), professionalId, today) ?? null) : null;
     const caseNumberMatches = (await sentCaseNumberMatches(db)).get(detail.invoice.invoiceId) ?? { same: 0, close: 0 };
+    const senderEmail = await loadSenderEmail(db, detail.invoice);
     // As canDiscardEntry decides, from what the detail already holds.
     const discardable =
       detail.entryOpen && detail.assignments?.reviewer?.userAccountId === actorId(req) && detail.questions.length === 0;
-    res.json({ ...detail, preauthorization, approvedRate, caseNumberMatches, discardable });
+    res.json({ ...detail, preauthorization, approvedRate, caseNumberMatches, discardable, senderEmail });
   }),
 );
 
