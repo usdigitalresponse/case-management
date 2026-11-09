@@ -7,6 +7,100 @@ entry when a decision materially changes.
 
 ## Current Decisions
 
+### Design I: cases, case rates and one staff role
+
+- **Status:** Decided; not built
+- **Decided:** 2026-11-09
+
+Design I brings cases back to the invoice review tool. Features in the
+Postgres/AWS prototype that design I doesn't show stay, unless they conflict
+with a decision below: county on invoices and county filters, the staff side of
+questions, the time log check, entering an invoice in review, "Mark completed",
+"Email sender" and the line that doesn't add up.
+
+**Cases**
+- New cases come from invoices. A submitter can name a case that isn't listed.
+  It stays proposed details on the invoice (see "Adding what isn't listed"
+  below). A staff member creates the case while reviewing, and the existing
+  duplicate and close-match checks run first.
+- Any staff member can enter a case's pre-authorized amount.
+- An invoice that takes a case over its pre-authorized amount is flagged.
+  Reviewers can still approve or reject it.
+- Client names are stored. Exports include them unless the person exporting
+  chooses to redact them.
+
+**Rates**
+- A submitter may bill any rate. Lines are never repriced automatically.
+  Reviewers reprice lines themselves, and review flags a line whose rate is
+  higher or lower than the case's default.
+- A case's default rate is the one set for that case, else the configured
+  rate (the person's own, else their kind's). A reviewer sets a case's
+  default rate while uploading or reviewing its invoices, or changes the rate
+  on single lines only. Defaults are often negotiated in advance for a new
+  case or provider, but this system only records a case rate when a reviewer
+  sets one during review, and the reviewer decides whether it applies.
+- Staff can see a case's default rates on its invoices.
+- Travel time has its own hourly rate. Travel time and mileage rates follow
+  the same order as other rates: a line's rate, then the case's default, then
+  the configured rate.
+- Rate changes are checked by the second person in review (see below).
+
+**Travel**
+- A trip stays separate lines for travel time, mileage and costs. The reviewer
+  cuts the mileage, the travel time or both.
+- A trip has one start and one end, even with stops in between. A reviewer can
+  dismiss a mileage warning caused by stops.
+- Exports show every detail the invoice has for each trip. Trips have no caps.
+
+**Staff roles**
+- Every staff member can upload invoices, decide lines, approve or reject a
+  whole invoice, and sign off. Administrators also keep Settings, the
+  configured rates, removing people and the demo reset. Staff change roles
+  often, so this replaces the billing reviewer and sign-off approver roles.
+- At least two different staff members take part in reviewing each invoice.
+  It doesn't matter which part each one does.
+- Any staff member can finish a review assigned to someone else. The page
+  makes it clear that the review is assigned to someone else.
+- Approving or rejecting a whole invoice sits where sign-off is now, and takes
+  an optional comment. Whether that comment can reach the submitter is not yet
+  decided.
+- Giving more staff more abilities must not lose any audit information. Every
+  decision, sign-off and finished review records who made it, including when
+  it was someone other than the assigned reviewer.
+
+**How case rates are stored and audited**
+- Case rates are dated rows that are only ever added, as kind and person rates
+  are. Each row names the case, either one person or one kind of provider, the
+  type of rate (hourly, travel time, waiting time or mileage), the rate, the
+  date of work it applies from, who set it and when, a reason, and the invoice
+  it was set on. Rows are never edited or deleted. A mistake is fixed by a new
+  row that points at the one it corrects, and a row can return the case to the
+  configured rate.
+- A line's default comes from, in order: the case's rate for that person, the
+  case's rate for their kind, the person's own configured rate, then their
+  kind's. Each line records which one applied.
+- Rates are frozen on each invoice when it is sent and when a review round is
+  finished. A later case rate never changes an invoice already decided. Open
+  invoices on the case are flagged when the default changes after they were
+  sent, and reviewers reprice them only if they choose to.
+- Reviewers set case rates from the Rate decision on the review page. A rate
+  change applies to this line only, the matching lines on this invoice, or the
+  case's default for this person or kind from a date the reviewer chooses. That
+  date defaults to the earliest work on the invoice and may be earlier.
+  Reviewers can't set case rates anywhere else.
+- A case default needs a reason from a list administrators manage, with "Other"
+  and a note. A rate changed on single lines may have one. These reasons follow
+  the same sharing rules as all other review feedback.
+- The second person in review sees any case default set or changed on that
+  invoice: the old and new rates, who set it and the reason.
+- The case page shows every case rate in date order, with who set it, the
+  reason and the invoice it came from, and the rates in force now. It is
+  read-only.
+- If two staff members change the same case rate at the same time, the second
+  change is refused and the latest value is shown.
+- Before this is built, the model needs a case rate entity and an update to the
+  `apply_professional_rates` rule.
+
 ### Invoice review beside an external case management system
 
 - **Status:** Active; being built in the Postgres/AWS prototype
@@ -37,7 +131,8 @@ The external submitter portal keeps its sign-in and is restyled to match.
 - A time line is requested at the rate the submitter stated.
 - A rate above the pre-authorized rate is flagged (decided 2026-10-26); with no
   pre-authorized rate, the configured rate is the limit. A re-price action
-  approves those lines in part at the limit.
+  approves those lines in part at the limit. From 2026-11-09, review flags a
+  rate higher or lower than the case's default rate (see "Design I" above).
 
 **Reasons** (decided 2026-10-26)
 - Approving part of a line and rejecting it have separate reason lists, which
@@ -56,7 +151,8 @@ The external submitter portal keeps its sign-in and is restyled to match.
   is planned.
 - The working-day threshold for calling out late invoices is a setting.
 - Roles: billing reviewer, sign-off approver, general staff (duties to be
-  defined) and administrator.
+  defined) and administrator. Replaced by one staff role and administrators
+  on 2026-11-09 (see "Design I" above).
 
 **Exports**
 - After sign-off, staff export the documentation for payment.
@@ -321,7 +417,8 @@ still has one. Travel time is a time line on a trip, and waiting time a
 third category of time; each is priced at a rate administrators set from a
 date: the professional's hourly rate, a percent of it or one flat rate, so the
 model fixes no policy. A flat rate is general, not per person; reviewers may
-change any line's rate instead. Imports never group lines into a trip; while
+change any line's rate instead. From 2026-11-09, travel time has its own hourly
+rate, and a case can set its own default for it (see "Design I" above). Imports never group lines into a trip; while
 checking a request the submitter may put a same-day time or expense line on a
 trip, and is never made to. An optional billing rule compares travel hours
 with the trip's distance at an average speed. Reviewers see when the same
