@@ -389,7 +389,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   secondary button, `.chip` its tag, `.notice` its alert and
   `.choice-toggle` its segmented control. Gaps: the joined decision bar
   (Approve, Part, Rate, Reject) and alert icons are not built yet. The gold
-  focus color is under 3:1 against white.
+  used for focus rings and for missing or flagged markers is under 3:1
+  against white, short of the non-text contrast minimum; it stays as
+  specified until the design changes it.
 - **Overview home** (hidden; reachable at `/overview`): shows four stage columns (Needs assignment,
   Represented, Billing, Closing); `/cases` retains the full list, now
   with its own Stage column. Every column buckets real cases by their
