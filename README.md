@@ -51,7 +51,9 @@ load the synthetic relationships into the existing app; runtime workflows remain
 implementation work.
 
 See [deployment instructions](docs/deployment.md) and the
-[Power Platform architecture assessment](docs/architecture-assessment.md).
+[Power Platform architecture assessment](docs/architecture-assessment.md). The
+[Microsoft platform plan](docs/microsoft-platform-plan.md) covers hosting the
+postgres-aws app on Azure or on Dataverse, and the questions to answer first.
 
 
 ## Developing Locally
