@@ -48,6 +48,7 @@ import { applyTripDistances, measureTrips } from './routeCheck';
 import { requireImportedDates } from '../imports/undatedLines';
 import { enforceBillingRules } from './billingRules';
 import { assignOnSubmit, endAllAssignments } from './reviewAssignment';
+import { removeTimeLog } from './reviewTimeLog';
 import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry } from './invoiceReceipt';
 import { caseNumberInput, cleanCaseNumber } from './caseNumbers';
 import { parseCountyChoice, resolveCountyChange, shownInvoiceCounty } from '../cases/counties';
@@ -62,7 +63,7 @@ import {
 import { optionalEmail } from '../people/emails';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.9.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.10.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
 // Mileage is an expense line with the mileage expense type.
@@ -896,6 +897,7 @@ export async function recallInvoice(db: Database, actor: PortalActor, invoiceId:
         .where(eq(invoiceApprovalChain.invoiceApprovalChainId, chain.invoiceApprovalChainId));
     }
     await endAllAssignments(tx, invoiceId, actor.userAccountId);
+    await removeTimeLog(tx, invoiceId);
     const draftStatusId = await statusId(tx, DRAFT_INVOICE_STATUS_CODE);
     await tx.update(invoice).set({ statusId: draftStatusId, submittedAt: null }).where(eq(invoice.invoiceId, invoiceId));
     await recordInvoiceEvent(tx, {

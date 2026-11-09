@@ -1,4 +1,4 @@
-spec_version: "0.9.0"
+spec_version: "0.10.0"
 status: draft
 kind: business_rules
 
@@ -91,6 +91,23 @@ rules:
       - Re-pricing applies approve-in-part decisions at the line's rate limit (apply_professional_rates), with the rate reason, to every undecided time line whose billed_rate is above it.
       - Finishing a round requires a working decision on every line; it records them all as invoice_approval_decision rows at a new sequence_number with the finishing reviewer and time, clears the working decisions, records an invoice event and moves the request to awaiting sign-off.
       - Until the first sign-off decision after a round, the reviewer may reopen review; the next round starts from that round's decisions as working decisions and is recorded as a new round when finished. Recorded rounds are never changed.
+
+  check_lines_against_time_log:
+    description: Let the line reviewer compare a request's time lines with one case's time log exported from another system, flag every line it doesn't support, and optionally require a staff-only reason before approving those lines' billed hours.
+    applies_to: review_time_log
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Only the user holding the active line-review invoice_review_assignment, or any line reviewer while the request has none, may upload, replace or remove the log, choose its columns, say who a name is, or link entries, and only while the request is submitted, under review or awaiting an answer. Uploading does not take the request.
+      - A log is CSV or a spreadsheet with a header row, which may sit below title rows. Its columns are found by their headers, preferring the date of the work and the worker over other dates and names; time spent may be in hours (decimal, h:mm or words) or minutes. The reviewer sees which columns were used and may choose others at any time without uploading again; a log whose date, worker and time spent can't be found is not kept until they are chosen.
+      - The log covers one case. Only entries in the request's billing period, or between its lines' first and last dates when it has none, are compared; the rest are listed as outside it. Entries without a readable date or time are counted, not compared.
+      - A name in the log is used for a person on the request only if it matches their name exactly, or once the reviewer confirms it. A likely variant, such as last name first or a first initial, is suggested, never assumed. The reviewer may mark a name as not a person, such as an office or shared account.
+      - Each time line with a date and hours matches an entry with the same date, person and hours, pairing equal entries and lines in order. Every other time line is flagged, with the nearest explanation - more than one entry could match, the day's entries add up to it, the hours differ, the same hours fall a day apart, the day's time is only under another name, or nothing - and the entries it is about. Lines that aren't time are not checked.
+      - The reviewer may link entries to a line, moving them from any other line. A linked line is flagged while its entries' hours differ from the line's. Changing a line's values keeps its links and compares it again.
+      - Entries used by no line are listed as not billed, and days whose billed and logged hours differ for a person are listed.
+      - A deployment setting decides whether approving a flagged line's billed hours needs a reason. When it does, any approval that keeps the billed hours - as billed, at a changed rate, cut by rate alone, or by repricing every line - is refused unless the reviewer says why (time_log_override); repricing leaves those lines undecided. Cutting the hours and rejecting need no such reason. Finishing the round is refused while such an approval without a reason stands on a line the log flags, such as one approved before the log was uploaded.
+      - The reason is recorded with the line's decision when the round is finished, shown to staff and sign-off approvers, and never to the submitter, exports or the billing record.
+      - The log is a working aid, not history. It is removed when the round is finished, when the request is recalled or deleted, or by the reviewer; a reopened review starts without one. Nothing from it reaches the submitter, exports or the billing record.
 
   enter_request_in_review:
     description: Let a reviewing staff member enter an invoice they received and decide its lines in one pass, freezing the request when they finish the first round.

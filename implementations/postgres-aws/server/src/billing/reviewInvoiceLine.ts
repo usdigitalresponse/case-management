@@ -30,6 +30,7 @@ import { requireReviewPermission } from './reviewAccess';
 import { OTHER_REASON_CODE, RATE_REASON_CODE, reasonAppliesTo } from './decisionReasons';
 import { loadRateLimits, rateLimitFor } from './preauthorizations';
 import { requireCurrentEntryLines } from './enterInReview';
+import { keepsBilledHours, linesBlockedByTimeLog, TIME_LOG_BLOCKS_MESSAGE } from './reviewTimeLog';
 
 export const reviewOutcomeSchema = z.enum(['approved', 'approved_in_part', 'rejected']);
 export type ReviewOutcome = z.infer<typeof reviewOutcomeSchema>;
@@ -43,6 +44,8 @@ export const reviewInvoiceLineInputSchema = z.object({
   approvedAmount: z.coerce.number().positive().optional(),
   reasonCode: z.string().trim().min(1).optional(),
   note: z.string().trim().max(2000).optional(),
+  // Why the billed hours stand although the time log flags the line.
+  timeLogOverride: z.string().trim().max(2000).optional(),
   // While lines are still being entered: the version the deciding page showed.
   linesVersion: z.number().int().nonnegative().optional(),
 });
@@ -209,6 +212,11 @@ export async function reviewInvoiceLine(
       }
     }
 
+    const keepsHours = keepsBilledHours({ approved: decision.outcomeCode === 'approved', ...decision }, line.quantity);
+    const timeLogOverride = keepsHours ? input.timeLogOverride || null : null;
+    if (keepsHours && !timeLogOverride && (await linesBlockedByTimeLog(tx, invoiceId, [invoiceLineId])).size > 0) {
+      throw new ValidationError({ timeLogOverride: TIME_LOG_BLOCKS_MESSAGE });
+    }
     const outcomeId = await getReferenceId(tx, invoiceApprovalOutcomes, decision.outcomeCode);
     const values = {
       outcomeId,
@@ -217,6 +225,7 @@ export async function reviewInvoiceLine(
       approvedRate: decision.approvedRate ?? null,
       reasonCodeId: decision.reasonCodeId ?? null,
       note: input.note || null,
+      timeLogOverride,
       decidedByUserAccountId: actorUserAccountId,
       decidedAt: new Date(),
     };
@@ -281,7 +290,7 @@ export async function repriceLines(db: Database, actorUserAccountId: string, inv
       )
       .where(eq(invoiceLine.invoiceId, invoiceId));
     const lines = rows.map((line) => ({ ...line, limit: rateLimitFor(line, header!.professionalId, limits)?.rate ?? null }));
-    const flagged = lines.filter(
+    const overLimit = lines.filter(
       (line) =>
         !line.decided &&
         line.limit !== null &&
@@ -289,6 +298,9 @@ export async function repriceLines(db: Database, actorUserAccountId: string, inv
         line.quantity !== null &&
         Number(line.billedRate) > Number(line.limit),
     );
+    // Repricing keeps the billed hours, so lines the time log blocks are left to decide one by one.
+    const blocked = await linesBlockedByTimeLog(tx, invoiceId, overLimit.map((line) => line.invoiceLineId));
+    const flagged = overLimit.filter((line) => !blocked.has(line.invoiceLineId));
     if (flagged.length === 0) {
       return { invoiceId, repriced: 0 };
     }

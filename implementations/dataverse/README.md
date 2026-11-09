@@ -172,6 +172,9 @@ dotnet run --project implementations/dataverse/SetupTests/SetupTests.csproj
   case form use the standard lookup, so settings such as post-conviction are not
   listed first, adding a county by typing it needs the maker's own quick create,
   and nothing matches names or suggests a county from a file.
+- Time log checks (`check_lines_against_time_log`): nothing reads a case's time
+  log or compares it with a request's lines, and the setting that blocks
+  approving flagged lines is not provisioned.
 
 Next workflow work should implement these using supported Dataverse capabilities
 and Solution tooling, with shared scenarios and server-side checks. Avoid growing

@@ -693,6 +693,8 @@ export const invoiceApprovalDecision = pgTable(
     approvedAmount: numeric('approved_amount', { precision: 12, scale: 2 }),
     approvedQuantity: numeric('approved_quantity', { precision: 10, scale: 2 }),
     approvedRate: numeric('approved_rate', { precision: 12, scale: 3 }),
+    // Staff only: why the billed hours were approved although the time log flagged them.
+    timeLogOverride: text('time_log_override'),
   },
   (table) => [
     uniqueIndex('invoice_approval_decision_line_uidx').on(
@@ -725,6 +727,7 @@ export const invoiceLineWorkingDecision = pgTable(
     approvedRate: numeric('approved_rate', { precision: 12, scale: 3 }),
     reasonCodeId: uuid('reason_code_id').references(() => invoiceDecisionReasons.id),
     note: text('note'),
+    timeLogOverride: text('time_log_override'),
     decidedByUserAccountId: uuid('decided_by_user_account_id')
       .notNull()
       .references(() => userAccount.userAccountId),
@@ -732,6 +735,23 @@ export const invoiceLineWorkingDecision = pgTable(
   },
   (table) => [uniqueIndex('invoice_line_working_decision_line_uidx').on(table.invoiceApprovalChainId, table.invoiceLineId)],
 );
+
+// Kept only until the round is finished (model/rules.yaml check_lines_against_time_log).
+export const reviewTimeLog = pgTable('review_time_log', {
+  reviewTimeLogId: uuid('review_time_log_id').primaryKey().defaultRandom(),
+  invoiceId: uuid('invoice_id').notNull().unique().references(() => invoice.invoiceId),
+  fileName: text('file_name').notNull(),
+  // The file's cells, so the reviewer can choose other columns without uploading it again.
+  rows: jsonb('rows').notNull().$type<Array<Array<string | number | null>>>(),
+  headerRow: integer('header_row').notNull(),
+  columns: jsonb('columns').notNull().$type<Record<string, number>>(),
+  workerMatches: jsonb('worker_matches').notNull().$type<Record<string, string>>(),
+  lineLinks: jsonb('line_links').notNull().$type<Record<string, string[]>>(),
+  uploadedByUserAccountId: uuid('uploaded_by_user_account_id')
+    .notNull()
+    .references(() => userAccount.userAccountId),
+  uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull(),
+});
 
 // The reviewer's questions to the submitter and their answers, never changed
 // once recorded (model/rules.yaml ask_review_question).

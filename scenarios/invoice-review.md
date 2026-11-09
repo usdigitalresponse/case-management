@@ -163,5 +163,34 @@ and day counts are synthetic test values, not configuration defaults.
     - Marking it completed is separate from external payment completion and
       does not affect exports.
 
+15. **Checking a time log:** The request bills 2 hours on the 3rd, 3.5 on
+    the 10th and 1 on the 12th of the billing period. The reviewer uploads the
+    case's time log, with a title row above its headers and time spent in
+    minutes (`check_lines_against_time_log`).
+    - The header row and columns are found; the page says which columns were
+      used. Entries from before the billing period are listed as outside it.
+    - The log has 120 minutes on the 3rd under the person's first name and
+      last initial. That name is suggested, not used: line 1 is flagged as
+      only under another name until the reviewer confirms it, then matches.
+    - The log has 180 minutes on the 10th: line 2 is flagged, log 3 hours.
+      The reviewer links that entry; the line stays flagged because the hours
+      differ. Line 3 is flagged as not in the log. An entry on the 20th is
+      listed as not billed.
+    - A log whose date, worker or time spent can't be found by header is not
+      kept until the reviewer chooses those columns. Choosing other columns
+      later compares again and keeps the reviewer's links.
+    - With the deployment setting off, the reviewer approves line 2 as
+      billed. Turning it on, approving line 3 as billed, at a changed rate or
+      cut by rate alone is refused without a reason, and repricing every line
+      leaves lines 2 and 3 undecided. Finishing is refused until line 2 is
+      decided again; approving it in part at 3 hours needs no reason.
+    - The reviewer approves line 3 as billed, saying it was logged under an
+      office account. Once the round is finished, the approver sees that
+      reason with the line; the submitter doesn't.
+    - Another reviewer can't upload a log to a request someone else holds.
+    - Finishing the round removes the log; reopening starts without one. The
+      submitter never sees it, and exports and the billing record don't
+      mention it. Recalling or deleting the request also removes it.
+
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

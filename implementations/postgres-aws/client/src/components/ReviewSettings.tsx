@@ -95,6 +95,22 @@ export function ReviewRoutingSettings({ isAdmin }: { isAdmin: boolean }) {
           onChange={(event) => setDraft({ ...draft, waitingAlertWorkingDays: Number(event.target.value) })}
         />
       </label>
+      <fieldset className="settings-field">
+        <legend>Time log checks</legend>
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            disabled={!isAdmin}
+            checked={draft.timeLogBlocksApproval}
+            onChange={(event) => setDraft({ ...draft, timeLogBlocksApproval: event.target.checked })}
+          />
+          Ask reviewers why before they approve the billed hours of a line the time log doesn't support
+        </label>
+        <p className="cell-note">
+          Reviewers can upload a case's time log to compare with its lines. Lines it doesn't support are always flagged; with
+          this on, approving one's billed hours needs a reason, which only staff see and sign-off sees with the line.
+        </p>
+      </fieldset>
       <div className="settings-field">
         <span>Holiday calendar</span>
         <p className="cell-note">Working days skip weekends. Uploading a holiday calendar so holidays are skipped too is planned.</p>

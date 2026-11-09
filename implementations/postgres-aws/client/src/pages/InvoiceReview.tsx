@@ -52,6 +52,7 @@ import { EntryBadge } from '../components/EntryBadge';
 import { InvoiceDetailsFields } from '../components/InvoiceDetailsFields';
 import { countOf } from '../portal/importProgress';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
+import { SidePanelSwitch, TimeLogEntries, TimeLogLineCell, TimeLogLinkForm, TimeLogSummary, TimeLogUpload } from '../components/TimeLogCheck';
 import type { CheckQueue } from '../portal/InvoiceSubmission';
 import { personPath, reviewPath } from '../staffPaths';
 
@@ -77,6 +78,11 @@ export default function InvoiceReview() {
   const [showFile, setShowFile] = useState<boolean | null>(null);
   // A new object on every click, so the same line scrolls the file back to it.
   const [fileFocus, setFileFocus] = useState<{ location: string } | undefined>();
+  // Time log: uploading, shown, the entries in focus, and the line being linked.
+  const [uploadingLog, setUploadingLog] = useState(false);
+  const [logShown, setLogShown] = useState(false);
+  const [logFocus, setLogFocus] = useState<string[] | undefined>();
+  const [linking, setLinking] = useState<string | null>(null);
   const navigate = useNavigate();
   // The rest of an upload, entered one after another.
   const checking = useLocation().state as CheckQueue | null;
@@ -105,6 +111,10 @@ export default function InvoiceReview() {
     keepToast.current = false;
     setShowFile(null);
     setFileFocus(undefined);
+    setUploadingLog(false);
+    setLogShown(false);
+    setLogFocus(undefined);
+    setLinking(null);
   }, [invoiceId, setToast]);
 
   function refresh() {
@@ -259,6 +269,46 @@ export default function InvoiceReview() {
     }
   }
 
+  const timeLog = data.timeLog;
+  // As deciding: its reviewer, or anyone reviewing while it has none.
+  const canCheckLog = canDecide;
+  const logCheckOf = (line: InvoiceReviewLine) => timeLog?.lines.find((check) => check.invoiceLineId === line.invoiceLineId);
+  const logPeople = [
+    ...new Map(
+      [
+        ...lines.flatMap((line) =>
+          line.timekeeperProfessionalId && line.timekeeperDisplayName ? [[line.timekeeperProfessionalId, line.timekeeperDisplayName] as const] : [],
+        ),
+        ...(invoice.professionalId && invoice.professionalDisplayName ? [[invoice.professionalId, invoice.professionalDisplayName] as const] : []),
+      ],
+    ),
+  ].map(([professionalId, displayName]) => ({ professionalId, displayName }));
+  const onLogChanged = (message?: string) => {
+    if (message) setToast({ message });
+    return refresh();
+  };
+  const showLogFor = (line: InvoiceReviewLine) => {
+    setShowFile(false);
+    setLogShown(true);
+    setLogFocus([...(logCheckOf(line)?.entryKeys ?? [])]);
+  };
+  const logCellOf = (line: InvoiceReviewLine) =>
+    timeLog ? (
+      <TimeLogLineCell
+        check={logCheckOf(line)}
+        log={timeLog}
+        canLink={canCheckLog}
+        onShow={() => showLogFor(line)}
+        onLink={() => {
+          setPanel(null);
+          setAsking(null);
+          setLinking(linking === line.invoiceLineId ? null : line.invoiceLineId);
+        }}
+      />
+    ) : null;
+  const approveBlocked = (line: InvoiceReviewLine) =>
+    timeLog?.blocksApproval && logCheckOf(line)?.flagged ? "The time log doesn't support it as billed. Approve asks why." : null;
+
   const openPanel = (line: InvoiceReviewLine) => (panel?.lineId === line.invoiceLineId ? panel.mode : null);
   const ask = (input: { question: string; invoiceLineId: string }) =>
     act(() => askQuestion(invoice.invoiceId, input), { message: 'Question asked. Review waits for the answer.' });
@@ -279,7 +329,19 @@ export default function InvoiceReview() {
   const { fileSource, submitterChanges } = data;
   const fileChanges = fileChangesFor(fileSource, lines);
   const changedCount = submitterChanges ? submitterChanges.changedCount + submitterChanges.removedCount + submitterChanges.addedCount : 0;
-  const fileShown = Boolean(fileSource?.fileAvailable) && (showFile ?? changedCount > 0);
+  const fileShown = Boolean(fileSource?.fileAvailable) && !logShown && (showFile ?? changedCount > 0);
+  const logBeside = logShown && data.timeLog ? data.timeLog : null;
+  const logPanel = logBeside ? <TimeLogEntries log={logBeside} focusKeys={logFocus} lineNumber={(lineId) => lineNumber.get(lineId)} /> : null;
+  const sideSwitch =
+    fileSource?.fileAvailable && timeLog ? (
+      <SidePanelSwitch
+        logShown={Boolean(logBeside)}
+        onShowLog={(shown) => {
+          setLogShown(shown);
+          setShowFile(!shown);
+        }}
+      />
+    ) : null;
   const who = invoice.submittedByDisplayName ?? invoice.professionalDisplayName ?? 'the submitter';
   const whoKind = (invoice.professionalKindDisplayName ?? 'submitter').toLowerCase();
   // Entered in review by staff: the file is the sender's, the changes from it
@@ -311,9 +373,12 @@ export default function InvoiceReview() {
       edited={edited}
       openPanel={openPanel(line)}
       saving={saving}
+      // An edited line is compared again once saved; the server checks it then.
+      approveBlocked={edited ? null : approveBlocked(line)}
       onApprove={() => void decide(line, { outcome: 'approved' }, 'approved', edited)}
       onPanel={(mode) => {
         setAsking(null);
+        setLinking(null);
         if (mode && edited) void openAfterSaving(line.invoiceLineId, mode);
         else setPanel(mode ? { lineId: line.invoiceLineId, mode } : null);
       }}
@@ -332,6 +397,7 @@ export default function InvoiceReview() {
         askWhom={askWhom}
         onAsk={() => {
           setPanel(null);
+          setLinking(null);
           setAsking(line.invoiceLineId);
         }}
         email={
@@ -347,6 +413,22 @@ export default function InvoiceReview() {
   // What is open on a line: the question being asked, or the decision being made.
   const lineFormOf = (line: InvoiceReviewLine) => {
     const mode = openPanel(line);
+    const check = logCheckOf(line);
+    if (linking === line.invoiceLineId && timeLog && check) {
+      return (
+        <TimeLogLinkForm
+          invoiceId={invoice.invoiceId}
+          line={line}
+          check={check}
+          log={timeLog}
+          onCancel={() => setLinking(null)}
+          onSaved={(message) => {
+            setLinking(null);
+            void onLogChanged(message);
+          }}
+        />
+      );
+    }
     if (asking === line.invoiceLineId) {
       return (
         <QuestionForm
@@ -368,6 +450,7 @@ export default function InvoiceReview() {
           mode={mode}
           reasons={reasonData?.reasons ?? []}
           initial={line.working}
+          logBlocks={Boolean(approveBlocked(line))}
           saving={saving}
           error={actionError}
           onCancel={() => setPanel(null)}
@@ -381,7 +464,9 @@ export default function InvoiceReview() {
                   ? 'approved in part'
                   : input.approvedRate !== undefined
                     ? 'approved at a changed rate'
-                    : 'approved, with a note',
+                    : mode === 'time_log'
+                      ? 'approved, with your reason'
+                      : 'approved, with a note',
             )
           }
         />
@@ -497,8 +582,21 @@ export default function InvoiceReview() {
               beingEntered={data.entryOpen}
             />
             {fileSource?.fileAvailable && !entering && (
-              <button type="button" className="btn btn--outline" aria-pressed={fileShown} onClick={() => setShowFile(!fileShown)}>
+              <button
+                type="button"
+                className="btn btn--outline"
+                aria-pressed={fileShown}
+                onClick={() => {
+                  setShowFile(!fileShown);
+                  setLogShown(false);
+                }}
+              >
                 {fileShown ? 'Hide the file' : 'Show the file'}
+              </button>
+            )}
+            {canCheckLog && !timeLog && (
+              <button type="button" className="btn btn--outline" aria-expanded={uploadingLog} onClick={() => setUploadingLog(!uploadingLog)}>
+                Check a time log
               </button>
             )}
             {/* A wrong upload, before its lines are frozen. */}
@@ -514,6 +612,42 @@ export default function InvoiceReview() {
           </>
         }
       />
+
+      {/* Under the header, beside the button that opens it. */}
+      {timeLog ? (
+        <TimeLogSummary
+          invoiceId={invoice.invoiceId}
+          log={timeLog}
+          people={logPeople}
+          canChange={canCheckLog}
+          logShown={Boolean(logBeside)}
+          onShowLog={(shown) => {
+            setLogShown(shown);
+            if (shown) setShowFile(false);
+          }}
+          onChanged={(message) => void onLogChanged(message)}
+        />
+      ) : (
+        uploadingLog &&
+        canCheckLog && (
+          <section className="time-log-summary" aria-labelledby="time-log-heading">
+            <h2 id="time-log-heading">Check a time log</h2>
+            <p className="cell-note">
+              Upload this case's time log, exported from your {EXTERNAL_SYSTEM_NAME} as .xlsx or .csv. Each time line is compared with
+              it by date, person and hours. The log is kept only until you finish the review.
+            </p>
+            <TimeLogUpload
+              invoiceId={invoice.invoiceId}
+              replacing={false}
+              onCancel={() => setUploadingLog(false)}
+              onUploaded={() => {
+                setUploadingLog(false);
+                void onLogChanged('Time log uploaded. Each time line shows what the log says.');
+              }}
+            />
+          </section>
+        )
+      )}
 
       {data.entryOpen && (
         <EntryBadge
@@ -747,7 +881,17 @@ export default function InvoiceReview() {
           saveEdits={saveEdits}
           period={period}
           setToast={setToast}
-          questions={lineQuestions}
+          // While entering, a line's time log result sits under its description.
+          questions={
+            timeLog
+              ? (line) => (
+                  <>
+                    {logCellOf(line)}
+                    {lineQuestions(line)}
+                  </>
+                )
+              : lineQuestions
+          }
           ask={askLinkOf}
           decision={decisionCell}
           form={lineFormOf}
@@ -763,17 +907,25 @@ export default function InvoiceReview() {
           // Its open Approve part or Reject would decide on the old figures.
           onEditing={(lineId) => setPanel((open) => (open?.lineId === lineId ? null : open))}
           onRefused={() => void refresh()}
+          log={logPanel}
+          sideSwitch={sideSwitch}
         />
       ) : (
-      <div className={fileShown ? 'review-file-layout' : undefined}>
-        {fileShown && fileSource && (
-          <OriginalDocument
-            invoiceId={invoice.invoiceId}
-            fileName={fileSource.fileName}
-            heading={`${fileOwner}'s file, as uploaded`}
-            focus={fileFocus}
-            regions={fileSource.lines}
-          />
+      <div className={fileShown || logBeside ? 'review-file-layout' : undefined}>
+        {(fileShown || logBeside) && (
+          <div className="side-panel">
+            {sideSwitch}
+            {logPanel}
+            {fileShown && fileSource && (
+              <OriginalDocument
+                invoiceId={invoice.invoiceId}
+                fileName={fileSource.fileName}
+                heading={`${fileOwner}'s file, as uploaded`}
+                focus={fileFocus}
+                regions={fileSource.lines}
+              />
+            )}
+          </div>
         )}
         <div className="review-file-layout__lines">
       <InvoiceLinesTable
@@ -800,6 +952,7 @@ export default function InvoiceReview() {
         }
         hoursNote={(line) => <WasNote value={wasQuantity(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
         amountNote={(line) => <WasNote value={wasAmount(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
+        timeLog={timeLog ? logCellOf : undefined}
         decisionHeader={inReview ? 'Your decision' : 'Decision'}
         rowClassName={(line) => lineRowClass(current(line)?.outcomeCode, Boolean(openPanel(line)))}
         decision={decisionCell}

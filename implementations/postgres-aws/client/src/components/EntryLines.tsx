@@ -99,8 +99,13 @@ export function EntryLines({
   saveEdits,
   onEditing,
   period,
+  log,
+  sideSwitch,
 }: {
   data: InvoiceReview;
+  // A time log shown in place of the file, which stays open underneath.
+  log?: ReactNode;
+  sideSwitch?: ReactNode;
   // As saved beside the lines (InvoiceDetailsFields), which carry it on each save.
   period: MutableRefObject<{ periodStart: string | null; periodEnd: string | null }>;
   // After each save, with how many decisions it undid.
@@ -177,21 +182,30 @@ export function EntryLines({
   };
 
   return (
-    <div className={fileSource ? 'submission__layout' : undefined}>
-      {fileSource &&
-        (fileSource.fileAvailable ? (
-          <OriginalDocument
-            invoiceId={invoice.invoiceId}
-            fileName={fileSource.fileName}
-            heading="The file, as uploaded"
-            focus={focus}
-            regions={fileSource.lines}
-          />
-        ) : (
-          <section className="original-document original-document--gone">
-            <p>The uploaded file {fileSource.fileName} is no longer kept.</p>
-          </section>
-        ))}
+    <div className={fileSource || log ? 'submission__layout' : undefined}>
+      {(fileSource || log) && (
+        <div className="side-panel">
+          {sideSwitch}
+          {log}
+          {fileSource && (
+            <div hidden={Boolean(log)}>
+              {fileSource.fileAvailable ? (
+                <OriginalDocument
+                  invoiceId={invoice.invoiceId}
+                  fileName={fileSource.fileName}
+                  heading="The file, as uploaded"
+                  focus={focus}
+                  regions={fileSource.lines}
+                />
+              ) : (
+                <section className="original-document original-document--gone">
+                  <p>The uploaded file {fileSource.fileName} is no longer kept.</p>
+                </section>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       <div className="submission__lines">
         {error && <Notice tone="danger">{error}</Notice>}
         {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}

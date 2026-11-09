@@ -55,7 +55,7 @@ const nameVariants = (name: string) => {
 };
 
 const EXPERT_MARCH: Target = { caseNumber: '26-CR-00245', periodStart: '2026-03-01', billed: [['2026-03-03', 2], ['2026-03-10', 3.5], ['2026-03-12', 1]] };
-const BLOCKING = 'With blocking on, a flagged line cannot be approved as billed; with it off, it can, and the flag stays on the line.';
+const BLOCKING = "With the time log setting on, approving a flagged line's billed hours asks why; with it off, it doesn't, and the flag stays on the line.";
 
 const CASES: TestCase[] = [
   {
