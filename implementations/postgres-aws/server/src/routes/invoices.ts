@@ -6,7 +6,7 @@ import { and, count, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/client';
 import { invoiceApprovalStepTypes, invoiceReviewAssignment, invoice, invoiceStatuses } from '../db/schema';
 import { listDecisionReasons } from '../billing/decisionReasons';
-import { billingRecordCsv, billingRecordXlsx, loadBillingRecord } from '../billing/billingRecord';
+import { billingRecordCsv, billingRecordXlsx, loadBillingRecord, OMITTABLE_BILLING_RECORD_COLUMNS } from '../billing/billingRecord';
 import { listInvoiceIntake, matchInvoiceToCase, returnToSubmitter } from '../billing/invoiceIntake';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { loadInvoiceDetail, loadSenderEmail } from '../billing/invoiceDetail';
@@ -40,6 +40,7 @@ import { discardTimeLog, linkTimeLogEntries, loadTimeLogView, setTimeLogColumns,
 import { documentStore } from '../imports/documentStore';
 import { sendFileDownload, sendFilePreview } from './sendUploadedFile';
 import { asyncHandler } from './asyncHandler';
+import { ValidationError } from '../errors';
 import { parseExportFormat, parseExportOmit, sendInvoiceExport } from './sendInvoiceExport';
 
 const router = Router();
@@ -85,18 +86,48 @@ router.post(
   }),
 );
 
-// Every submitted invoice, one row each, for reports outside the tool.
+const billingRecordQuery = z
+  .object({
+    county: z.uuid().optional(),
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+    status: z.literal('signed-off').optional(),
+    // One comma-separated value, as for one invoice's export.
+    omit: z
+      .string()
+      .optional()
+      .transform((raw) => new Set(raw ? raw.split(',') : []))
+      .refine((omit) => [...omit].every((column) => (OMITTABLE_BILLING_RECORD_COLUMNS as readonly string[]).includes(column)), {
+        message: 'That column cannot be left out of the billing record.',
+      }),
+  })
+  .refine(({ from, to }) => !from || !to || from <= to, { path: ['to'], message: 'The end date must be on or after the start date.' });
+
+// One row per submitted invoice; the query narrows the rows and leaves columns out.
 router.get(
   '/billing-record',
   asyncHandler(async (req, res) => {
-    const rows = await loadBillingRecord(db);
-    const stamp = new Date().toISOString().slice(0, 10);
+    const parsed = billingRecordQuery.safeParse(req.query);
+    if (!parsed.success) {
+      throw new ValidationError(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0] ?? 'query'), issue.message])));
+    }
+    const { county, from, to, status, omit } = parsed.data;
+    const rows = await loadBillingRecord(db, { countyId: county, periodFrom: from, periodTo: to, signedOffOnly: status === 'signed-off' });
+    const name = [
+      status === 'signed-off' ? 'signed-off' : 'billing-record',
+      from && `from-${from}`,
+      to && `to-${to}`,
+      new Date().toISOString().slice(0, 10),
+      omit.size > 0 && 'redacted',
+    ]
+      .filter(Boolean)
+      .join('-');
     res.set('Cache-Control', 'no-store');
     if (req.query.format === 'xlsx') {
-      res.type(INVOICE_EXPORT_MEDIA_TYPES.xlsx).attachment(`billing-record-${stamp}.xlsx`).send(await billingRecordXlsx(rows));
+      res.type(INVOICE_EXPORT_MEDIA_TYPES.xlsx).attachment(`${name}.xlsx`).send(await billingRecordXlsx(rows, omit));
       return;
     }
-    res.type('text/csv').attachment(`billing-record-${stamp}.csv`).send(billingRecordCsv(rows));
+    res.type('text/csv').attachment(`${name}.csv`).send(billingRecordCsv(rows, omit));
   }),
 );
 

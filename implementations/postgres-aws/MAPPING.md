@@ -860,8 +860,22 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - Billing record (`src/billing/billingRecord.ts`,
     `GET /api/invoices/billing-record?format=csv|xlsx`, on the Exports page):
     one row per submitted invoice (`model/rules.yaml`
-    `report_billing_results`). Not yet held, so not in it: payment track,
-    county, budget account code and month, and payment date and reference.
+    `report_billing_results`), with the case's client. `county`, `from`,
+    `to` and `status=signed-off` narrow it, keeping invoices whose billing
+    period overlaps the dates (none without a period). `omit` (one
+    comma-separated value of column names) leaves columns out, never the
+    invoice number or amounts (`OMITTABLE_BILLING_RECORD_COLUMNS`). The
+    Exports page's one "Export billing record" button
+    (`client/src/components/BillingRecordExportButton.tsx`) opens a dialog
+    with county, billing period, signed off only (the default) or every sent
+    invoice, format and "Redact some columns"; all but county and period are
+    remembered per person in the browser (`client/src/exportChoices.ts`).
+    A redacted spreadsheet starts with a "Redacted copy. Left out: …" row; a
+    redacted CSV keeps one header row and is marked only by its
+    `-redacted` file name. CSV text starting with `=`, `+`, `-` or `@` is
+    prefixed with `'` so spreadsheets don't run it as a formula. Not yet
+    held, so not in it: payment track,
+    budget account code and month, and payment date and reference.
     Nothing is sent to an external system.
   - The approved total is the latest complete round's approved amounts,
     not stored. Migration `0008` carried invoices part-way through the old

@@ -62,6 +62,12 @@ and day counts are synthetic test values, not configuration defaults.
    - The billing record has one row per submitted request. A request awaiting
      sign-off shows no approved amount; once signed off its row shows the
      approved amount, the cut, the reasons used and who signed off.
+   - Staff can download only the signed-off requests for one county whose
+     billing period overlaps chosen dates. A signed-off request for 20 Feb to
+     5 Mar is included for March; one with no billing period is not.
+   - Each row shows the client. The person downloading may leave out the
+     client or other columns, but never the request's reference or amounts;
+     a file with columns left out is marked as a redacted copy.
 9. **Staff entry:** A staff user with no office affiliation enters a request
    that an assigned professional emailed in on a Monday, by typing its items
    or importing the file (`authorize_staff_invoice_entry`).

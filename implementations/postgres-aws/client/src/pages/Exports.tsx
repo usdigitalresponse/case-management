@@ -1,5 +1,6 @@
-import { billingRecordUrl, listReviewQueue } from '../api/client';
+import { listReviewQueue } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { BillingRecordExportButton } from '../components/BillingRecordExportButton';
 import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
@@ -25,19 +26,15 @@ export default function Exports() {
       <PageHeader
         title="Exports"
         description="Signed-off invoices, with every decision and reason, to send for payment."
-        actions={
-          <>
-            <a className="btn btn--outline" href={billingRecordUrl('csv')} download>Billing record (CSV)</a>
-            <a className="btn btn--outline" href={billingRecordUrl('xlsx')} download>Billing record (spreadsheet)</a>
-          </>
-        }
+        actions={<BillingRecordExportButton />}
       />
       <p className="compact-hint">
-        The billing record has one row per submitted invoice: case number, provider, amounts requested and approved, the
-        cut and its reasons, status and who signed off. Use it for reports outside this tool.
+        The billing record has one row per invoice: case number, client, provider, amounts requested and approved, the cut and
+        its reasons, status and who signed off. Export it for one county or billing period, and redact columns, for reports
+        outside this tool.
       </p>
       <Notice tone="info">
-        Export Invoice lets you redact details such as the client's name before you send a file on. Check each PDF or spreadsheet for confidential information first; reasons are free text.
+        Both exports let you redact details such as the client's name before you send a file on. Check each PDF or spreadsheet for confidential information first; reasons are free text.
       </Notice>
       <div className="list-controls">{county.control}</div>
       <RecordTable

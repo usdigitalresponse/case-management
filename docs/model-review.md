@@ -121,6 +121,12 @@ reviewer confirms them. The log is a working aid removed when the round is
 finished, and never reaches submitters, exports or the billing record. The
 snapshot layout is unchanged apart from `spec_version`.
 
+Model files are now 0.11.0, additive: the billing record can be narrowed to
+signed-off requests in one county whose billing period overlaps chosen dates,
+carries the case's client, and can leave out any column but the request's
+reference and amounts, labelled as a redacted copy (`report_billing_results`).
+The snapshot layout is unchanged apart from `spec_version`.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

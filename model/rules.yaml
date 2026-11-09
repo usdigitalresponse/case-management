@@ -1,4 +1,4 @@
-spec_version: "0.10.0"
+spec_version: "0.11.0"
 status: draft
 kind: business_rules
 
@@ -592,6 +592,8 @@ rules:
       - The approved amount, the amount cut, the reasons used for cuts and rejections, and who signed off and when are filled once the request is signed off; a request still in review or awaiting sign-off shows none, since its numbers can still change.
       - Line detail stays in the system. Configured billing staff roles may download the record; any route to an external system reads from it.
       - Each row also carries the case's county, or the setting recorded in its place (record_case_county).
+      - The record can be narrowed to signed-off requests in one county whose billing period overlaps chosen dates. A request with no billing period is left out of a narrowed record.
+      - Each row carries the case's client. Before downloading, anyone may leave out any column other than the request's reference and amounts; nothing is left out by default, and each person's last choice is offered again. A spreadsheet with columns left out is labelled as a redacted copy naming them, and a redacted file's name says so.
       - Unresolved: payment track, budget account code and budget month, and the external payment date and reference are not yet held, so the record omits them.
 
   record_case_county:

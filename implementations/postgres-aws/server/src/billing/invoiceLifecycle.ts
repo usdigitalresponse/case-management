@@ -63,7 +63,7 @@ import {
 import { optionalEmail } from '../people/emails';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.10.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.11.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
 // Mileage is an expense line with the mileage expense type.

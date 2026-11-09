@@ -1584,9 +1584,24 @@ export function updateDecisionReason(
   return request(`/api/settings/decision-reasons/${reasonId}`, { method: 'PUT', body: JSON.stringify(input) });
 }
 
+export interface BillingRecordFilter {
+  countyId?: string;
+  from?: string;
+  to?: string;
+  signedOffOnly?: boolean;
+  // Column names to leave out.
+  omit?: string[];
+}
+
 // One row per submitted invoice, for reports outside the tool.
-export function billingRecordUrl(format: 'csv' | 'xlsx'): string {
-  return `/api/invoices/billing-record?format=${format}`;
+export function billingRecordUrl(format: 'csv' | 'xlsx', filter: BillingRecordFilter = {}): string {
+  const params = new URLSearchParams({ format });
+  if (filter.countyId) params.set('county', filter.countyId);
+  if (filter.from) params.set('from', filter.from);
+  if (filter.to) params.set('to', filter.to);
+  if (filter.signedOffOnly) params.set('status', 'signed-off');
+  if (filter.omit?.length) params.set('omit', filter.omit.join(','));
+  return `/api/invoices/billing-record?${params}`;
 }
 
 export function listDecisionReasons(): Promise<{ reasons: DecisionReason[] }> {

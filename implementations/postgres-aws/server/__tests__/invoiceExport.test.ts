@@ -10,10 +10,16 @@ import { canPortalReaderReadInvoice, isExportableStatus, portalReadableInvoiceCo
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { exportFieldKey, invoiceExportContent, OMITTABLE_EXPORT_FIELDS, renderInvoicePdf, renderInvoiceXlsx, type ExportFieldGroup } from '../src/billing/exportInvoice';
 import { addMileageRate } from '../src/billing/mileageRates';
-import { billingRecordCsv, loadBillingRecord } from '../src/billing/billingRecord';
-import { caseAssignment, invoice, invoiceLine, invoiceStatuses, userAccount } from '../src/db/schema';
+import {
+  billingRecordCsv,
+  billingRecordRedactionNote,
+  billingRecordXlsx,
+  loadBillingRecord,
+  OMITTABLE_BILLING_RECORD_COLUMNS,
+} from '../src/billing/billingRecord';
+import { caseAssignment, county, invoice, invoiceLine, invoiceStatuses, userAccount } from '../src/db/schema';
 import { getReferenceId } from '../src/db/referenceLookups';
-import { DRAFT_INVOICE_STATUS_CODE } from '../src/billing/invoiceStatusCodes';
+import { APPROVED_INVOICE_STATUS_CODE, DRAFT_INVOICE_STATUS_CODE } from '../src/billing/invoiceStatusCodes';
 import type { Request } from 'express';
 import { parseExportOmit } from '../src/routes/sendInvoiceExport';
 
@@ -197,9 +203,70 @@ describe('invoice export', () => {
       'Amount approved': null,
       Status: 'Waiting for review',
     });
+    expect(rows[0]?.Client).toBe(detail.invoice.caseClientDisplayName);
     const csv = billingRecordCsv(rows).trimEnd().split('\r\n');
-    expect(csv[0]?.startsWith('Case number,Court numbers,County,Invoice number')).toBe(true);
+    expect(csv[0]?.startsWith('Case number,Court numbers,County,Client,Invoice number')).toBe(true);
     expect(csv).toHaveLength(2);
+  });
+
+  it('leaves chosen columns out of the billing record, but never the reference or amounts', async () => {
+    await exportFixture();
+    const rows = await loadBillingRecord(testDb);
+    const omit = new Set(['Client', 'Provider']);
+    const [header] = billingRecordCsv(rows, omit).split('\r\n');
+    expect(header?.split(',')).not.toContain('Client');
+    expect(header?.split(',')).not.toContain('Provider');
+    expect(header?.split(',')).toEqual(expect.arrayContaining(['Invoice number', 'Amount requested', 'Amount approved', 'Amount cut']));
+    expect(OMITTABLE_BILLING_RECORD_COLUMNS).not.toContain('Invoice number');
+    expect(OMITTABLE_BILLING_RECORD_COLUMNS).not.toContain('Amount requested');
+    expect(billingRecordRedactionNote(omit)).toBe('Redacted copy. Left out: Client, Provider.');
+    expect(billingRecordRedactionNote(new Set())).toBeNull();
+    expect((await billingRecordXlsx(rows, omit)).subarray(0, 2).toString()).toBe('PK');
+  });
+
+  it('keeps text in the billing record CSV from running as a formula', async () => {
+    await exportFixture();
+    const [row] = await loadBillingRecord(testDb);
+    const csv = billingRecordCsv([{ ...row!, Client: '=HYPERLINK("x")', Provider: '@sum' }]);
+    expect(csv).toContain(`"'=HYPERLINK(""x"")"`);
+    expect(csv).toContain(",'@sum,");
+    expect(csv).toContain(',175.00,');
+  });
+
+  it('narrows the billing record to signed-off invoices in one county whose billing period overlaps the dates', async () => {
+    const submitter = await createProfessional('by-county@example.com');
+    const caseId = await createAssignedCase([submitter.professionalId]);
+    const [otherCounty] = await testDb.insert(county).values({ displayName: 'Other Sample', isCounty: true }).returning();
+    const approvedId = await getReferenceId(testDb, invoiceStatuses, APPROVED_INVOICE_STATUS_CODE);
+    async function sent(period: [string, string] | null, countyId: string, signedOff: boolean) {
+      const { invoiceId } = await createInvoice(testDb, submitter, {
+        attested: true,
+        caseId,
+        ...(period && { periodStart: period[0], periodEnd: period[1] }),
+        lines: [{ amount: 10 }],
+      });
+      await testDb
+        .update(invoice)
+        .set({ countyId, ...(signedOff && { statusId: approvedId }) })
+        .where(eq(invoice.invoiceId, invoiceId));
+      return invoiceId.slice(0, 8);
+    }
+    const march = await sent(['2026-03-01', '2026-03-31'], fixtures.countyId, true);
+    const lateFebruary = await sent(['2026-02-20', '2026-03-05'], fixtures.countyId, true);
+    await sent(['2026-03-01', '2026-03-31'], fixtures.countyId, false);
+    await sent(['2026-03-01', '2026-03-31'], otherCounty!.countyId, true);
+    await sent(['2026-04-01', '2026-04-30'], fixtures.countyId, true);
+    await sent(null, fixtures.countyId, true);
+
+    const rows = await loadBillingRecord(testDb, {
+      countyId: fixtures.countyId,
+      periodFrom: '2026-03-01',
+      periodTo: '2026-03-31',
+      signedOffOnly: true,
+    });
+    expect(rows.map((row) => row['Invoice number']).sort()).toEqual([march, lateFebruary].sort());
+    expect((await loadBillingRecord(testDb, { signedOffOnly: true })).length).toBe(5);
+    expect((await loadBillingRecord(testDb)).length).toBe(6);
   });
 
   it('adds a travel log for mileage, in both formats', async () => {
