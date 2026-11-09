@@ -58,7 +58,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     goes on, and "Enter an invoice by hand" goes straight on; either marks
     a missing field where it is instead. Each file then becomes a draft
     with no case and what was read: its case number (read from the file
-    when labelled, by `server/src/billing/caseNumbers.ts`
+    when labeled, by `server/src/billing/caseNumbers.ts`
     `readCaseNumber`), county, billing period and invoice number. Those are
     edited above the lines (`client/src/components/InvoiceDetailsFields.tsx`;
     `PUT /api/portal/invoices/:id/details`, or
@@ -162,7 +162,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
       rather than reactivated, and each addition is an `audit_event` (`county_added`).
       `ensureReferenceData` also makes a county typed as "Prison" or "Post-conviction"
       before then a setting. Uploads suggest one from the file (`readCounty`): a
-      labelled "County:" (up to four words, stopping at a wider gap) first, then a
+      labeled "County:" (up to four words, stopping at a wider gap) first, then a
       setting the file names that no item mentions (so a prison visit on one line
       doesn't count), then a listed county, then a new one only where a court is named
       with it ("Court of X County", "X County … Court") or "County of X", so a client's
@@ -379,6 +379,17 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     status waits on external completion records, which aren't built. Staff
     open portal invoice pages from Intake in their own shell, where the
     older draft editor (`PortalInvoiceDetail.tsx`) still applies.
+- **Design system** (`client/src/app.css`): color roles, spacing,
+  elevation and type follow the team's Figma design system, itself built on
+  a Keystone-style role scheme (`--color-primary`, `--color-on-*-container`
+  and so on, named as in Figma). The older short names (`--primary`,
+  `--danger`…) alias those roles. IBM Plex Sans and Serif are self-hosted
+  through Fontsource, so no font request leaves the app. Body text is 13px.
+  Existing classes take the design's components: `.btn--outline` is its
+  secondary button, `.chip` its tag, `.notice` its alert and
+  `.choice-toggle` its segmented control. Gaps: the joined decision bar
+  (Approve, Part, Rate, Reject) and alert icons are not built yet. The gold
+  focus color is under 3:1 against white.
 - **Overview home** (hidden; reachable at `/overview`): shows four stage columns (Needs assignment,
   Represented, Billing, Closing); `/cases` retains the full list, now
   with its own Stage column. Every column buckets real cases by their
@@ -792,7 +803,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     it over. Approvers see "Entered and decided by the same person" when the
     uploader finished the latest round (`decidedByEnterer`); others see who
     is still entering it. Its review page says who entered it (dates are
-    still labelled "Submitted"), credits the file to the person it is from and differences from the file
+    still labeled "Submitted"), credits the file to the person it is from and differences from the file
     to whoever entered it, and asks questions of the person it is from. The
     case number typed while entering replaces the one read from the file,
     which the file viewer keeps; reviewers' later corrections go beside it as
@@ -924,7 +935,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     and an attached time sheet's total isn't taken for an amount; its
     hours by date are compared with the invoice's time lines, and dates
     that differ are listed (warning `time_sheet_mismatch`) without
-    changing any line. The invoice number is the first labelled value
+    changing any line. The invoice number is the first labeled value
     ("Invoice No.", "Invoice #", "Voucher No.") with a digit in it, beside
     its label or, when the label heads a column, under it; so "N/A", a
     misread scribble or the next heading ("Invoice # | Date") isn't one. Outside tables, items written as sentences, as in a letter
@@ -948,7 +959,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     heading over hours with the rate stacked under them ("Hrs/Rate",
     "90.00/hr" on the item's next line) fills both, and an undated row
     whose amount is all of two or more items above it is their total,
-    labelled or not.
+    labeled or not.
     In a packet, pages titled as requests for pre-authorization or
     authorization summaries are skipped, as is a payment-request cover
     form whose own table (accounting lines) would otherwise be read before
@@ -966,10 +977,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     Telling these apart reads each page's drawing operators, not its
     pixels, so digital PDFs stay fast. `ocr.ts` renders each page at
     300 DPI (PDF.js with its optional `@napi-rs/canvas`, and its JBIG2 and
-    JPEG 2000 decoders, which office scanners use), whitens coloured bands
+    JPEG 2000 decoders, which office scanners use), whitens colored bands
     such as a table's heading row and darkens whatever text is on them,
-    fades highlighter (removing pen ink by colour was tried and dropped:
-    it also removed coloured print), erases table rules, and recognizes it
+    fades highlighter (removing pen ink by color was tried and dropped:
+    it also removed colored print), erases table rules, and recognizes it
     in-process with tesseract.js and its bundled English data (nothing is downloaded at run time); the words feed the
     same table reader. The result warns `read_by_ocr`, flags items whose
     figures were recognized with low confidence (`low_confidence`, e.g.
