@@ -3,7 +3,7 @@
 // lazy create-on-first-use, so each row has one provisioning mechanism. A
 // missing row is a deployment problem, reported as a ConfigurationError.
 import { and, eq, getTableName } from 'drizzle-orm';
-import type { Database, DatabaseOrTransaction } from './client';
+import type { DatabaseOrTransaction } from './client';
 import { role, type ReferenceTable } from './schema';
 import { ConfigurationError } from '../errors';
 

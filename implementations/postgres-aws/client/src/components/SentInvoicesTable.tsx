@@ -4,7 +4,7 @@ import type { ReviewQueueItem } from '../api/client';
 import { RecordTable, type RecordTableColumn } from './RecordTable';
 import { InvoiceStatus } from './Completion';
 import { CaseNumberCell, FromCell, openInvoiceColumn, QuestionChips } from './InvoiceCells';
-import { formatDate, formatPeriod } from '../formatDateTime';
+import { formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
 export const IN_REVIEW = ['submitted', 'under_review', 'awaiting_answer', 'awaiting_sign_off'];
@@ -26,12 +26,12 @@ export function SentInvoicesTable({
   const columns: Array<RecordTableColumn<ReviewQueueItem>> = [
     ...(showFrom ? [{ header: 'From', rowHeader: true, render: (invoice: ReviewQueueItem) => <FromCell invoice={invoice} /> }] : []),
     {
-      header: 'Case number, as typed',
+      header: 'Case number',
       className: 'case-number-cell',
       render: (invoice) => <CaseNumberCell invoice={invoice} note={caseNumberNote?.(invoice)} />,
     },
     { header: 'Billing period', render: (invoice) => formatPeriod(invoice.periodStart, invoice.periodEnd) },
-    { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDate(invoice.submittedAt.slice(0, 10)) : '—') },
+    { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDay(invoice.submittedAt) : '—') },
     { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
     {
       header: 'Approved',

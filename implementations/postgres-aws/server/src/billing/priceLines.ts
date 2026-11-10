@@ -1,16 +1,14 @@
-// Prices an invoice's time lines at their stated rate, or the professional's
-// configured rate when none is stated (for travel or waiting time, that
-// category's rate), and its mileage lines from mileage rates (model/rules.yaml
+// Prices an invoice's time and mileage lines at their stated rate, or their
+// default rate when none is stated (./defaultRates.ts; model/rules.yaml
 // apply_professional_rates, apply_time_category_rates, apply_mileage_rates),
-// and refreshes its total. A linked time entry's date and hours govern;
-// before one exists, the line's own.
+// records where each default came from, and refreshes its total. A linked
+// time entry's date and hours govern; before one exists, the line's own.
 import { and, eq } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
 import { expenseTypes, invoice, invoiceLine, invoiceLineTypes, timeEntry } from '../db/schema';
 import { ValidationError } from '../errors';
-import { listRates, professionalRateLabels, rateOn } from './professionalRates';
-import { mileageRateOn, mileageRatesFor } from './mileageRates';
-import { categoryRateOn, listTimeCategoryRates, type TimeCategory } from './timeCategoryRates';
+import { professionalRateLabels } from './professionalRates';
+import { loadDefaultRates, rateTypeOf, type DefaultRate } from './defaultRates';
 import { fromCents, toCents } from './money';
 
 export interface PriceOptions {
@@ -64,35 +62,37 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
     };
   });
   const professionalIds = [...new Set(priced.flatMap((line) => (line.professionalId ? [line.professionalId] : [])))];
-  const rates = await listRates(tx, professionalIds);
-  const labels = await professionalRateLabels(tx, professionalIds);
-  const categoryOf = (line: { tripId: string | null; timeCategory: string | null }): TimeCategory | undefined =>
-    line.tripId ? 'travel' : line.timeCategory === 'waiting' ? 'waiting' : undefined;
-  const categoryRates = lines.some((line) => line.lineTypeCode === 'time' && categoryOf(line)) ? await listTimeCategoryRates(tx) : [];
-  const mileageRates = lines.some((line) => line.expenseTypeCode === 'mileage') ? await mileageRatesFor(tx, options.billedProfessionalId) : [];
+  const [header] = await tx.select({ caseId: invoice.caseId }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+  const [{ resolve }, labels] = await Promise.all([
+    loadDefaultRates(tx, header?.caseId ?? null, [...professionalIds, ...(options.billedProfessionalId ? [options.billedProfessionalId] : [])]),
+    professionalRateLabels(tx, professionalIds),
+  ]);
   const missingRate = (professionalId: string, date: string) => {
     const label = labels.get(professionalId);
     return label?.kind
       ? `No ${label.kind} rate is set for ${date}, so ${label.name}'s time can't be priced. Ask an administrator to set one.`
       : `${label?.name ?? 'This professional'} has no professional kind, so their time can't be priced. Ask an administrator to set one.`;
   };
-  const setPrice = (
-    invoiceLineId: string,
-    cents: number,
-    rate: string,
-    changes: { serviceDate?: string; quantity?: string; configuredRate?: string } = {},
-  ) =>
+  // The default is kept so review can flag a rate that differs from it.
+  const setPrice = (invoiceLineId: string, cents: number, rate: string, byDefault: DefaultRate, changes: { serviceDate?: string; quantity?: string } = {}) =>
     tx
       .update(invoiceLine)
-      .set({ amount: fromCents(cents), billedRate: rate, ...changes })
+      .set({
+        amount: fromCents(cents),
+        billedRate: rate,
+        configuredRate: byDefault.rate,
+        rateSource: byDefault.source,
+        caseRateId: byDefault.caseRateId,
+        ...changes,
+      })
       .where(and(eq(invoiceLine.invoiceLineId, invoiceLineId), eq(invoiceLine.invoiceId, invoiceId)));
 
   let totalCents = 0;
   for (const line of priced) {
     if (line.expenseTypeCode === 'mileage') {
       const miles = Number(line.quantity ?? 0);
-      const rate = line.serviceDate ? mileageRateOn(mileageRates, line.serviceDate) : undefined;
-      if (!line.serviceDate || miles <= 0 || rate === undefined) {
+      const byDefault = line.serviceDate ? resolve(options.billedProfessionalId, 'mileage', line.serviceDate) : undefined;
+      if (!line.serviceDate || miles <= 0 || byDefault === undefined) {
         if (options.strict) {
           const item = line.description ? `The mileage "${line.description}"` : 'A mileage item';
           throw new ValidationError({
@@ -105,24 +105,22 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
         totalCents += toCents(line.amount);
         continue;
       }
-      const cents = Math.round(miles * Number(rate) * 100);
+      const cents = Math.round(miles * Number(byDefault.rate) * 100);
       totalCents += cents;
-      // Kept as the default a reviewer's corrected rate is flagged against.
       // eslint-disable-next-line no-await-in-loop
-      await setPrice(line.invoiceLineId, cents, rate, { configuredRate: rate });
+      await setPrice(line.invoiceLineId, cents, byDefault.rate, byDefault);
       continue;
     }
     if (line.lineTypeCode !== 'time') {
       totalCents += toCents(line.amount);
       continue;
     }
-    const hourly = line.professionalId && line.date ? rateOn(rates, line.professionalId, line.date) : undefined;
-    const category = categoryOf(line);
-    const rate = category && line.date ? categoryRateOn(categoryRates, category, line.date, hourly) : hourly;
+    const rateType = rateTypeOf(line)!;
+    const byDefault = line.professionalId && line.date ? resolve(line.professionalId, rateType, line.date) : undefined;
     const hours = line.hours === undefined ? 0 : Number(line.hours);
-    if (!line.professionalId || !line.date || hours <= 0 || rate === undefined) {
+    if (!line.professionalId || !line.date || hours <= 0 || byDefault === undefined) {
       if (options.strict) {
-        const item = line.description ? `The time item "${line.description}"` : category ? `A ${category} time item` : 'A time item';
+        const item = line.description ? `The time item "${line.description}"` : rateType !== 'hourly' ? `A ${rateType} time item` : 'A time item';
         const missing = !line.date && hours <= 0 ? 'a date and hours' : !line.date ? 'a date' : 'hours';
         throw new ValidationError({
           lines: !line.professionalId
@@ -135,17 +133,12 @@ export async function priceLines(tx: Transaction, invoiceId: string, options: Pr
       totalCents += toCents(line.amount);
       continue;
     }
-    // A rate stated on the supporting invoice is what was requested; review
-    // flags it when it differs from the configured rate.
-    const billedRate = line.unitRate !== null && Number(line.unitRate) > 0 ? line.unitRate : rate;
+    // A rate stated on the supporting invoice is what was requested.
+    const billedRate = line.unitRate !== null && Number(line.unitRate) > 0 ? line.unitRate : byDefault.rate;
     const cents = Math.round(hours * Number(billedRate) * 100);
     totalCents += cents;
     // eslint-disable-next-line no-await-in-loop
-    await setPrice(line.invoiceLineId, cents, billedRate, {
-      serviceDate: line.date,
-      quantity: String(hours),
-      configuredRate: rate,
-    });
+    await setPrice(line.invoiceLineId, cents, billedRate, byDefault, { serviceDate: line.date, quantity: String(hours) });
   }
   const total = fromCents(totalCents);
   await tx.update(invoice).set({ submittedTotal: total }).where(eq(invoice.invoiceId, invoiceId));

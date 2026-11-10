@@ -3,16 +3,12 @@ import { eq } from 'drizzle-orm';
 import { testDb } from './testDb';
 import { userAccount } from '../src/db/schema';
 import { getSeededRoleId } from '../src/db/referenceLookups';
-import {
-  ADMIN_ACCOUNT_ROLE_DISPLAY_NAME,
-  BILLING_REVIEWER_ROLE_DISPLAY_NAME,
-  SIGN_OFF_APPROVER_ROLE_DISPLAY_NAME,
-  STAFF_ACCOUNT_ROLE_DISPLAY_NAME,
-} from '../src/auth/staffAccountRole';
+import { ADMIN_ACCOUNT_ROLE_DISPLAY_NAME, STAFF_ACCOUNT_ROLE_DISPLAY_NAME } from '../src/auth/staffAccountRole';
 
+// reviewer and approver name what a test has them do; every staff member may do both.
 const ROLE_NAMES = {
-  reviewer: BILLING_REVIEWER_ROLE_DISPLAY_NAME,
-  approver: SIGN_OFF_APPROVER_ROLE_DISPLAY_NAME,
+  reviewer: STAFF_ACCOUNT_ROLE_DISPLAY_NAME,
+  approver: STAFF_ACCOUNT_ROLE_DISPLAY_NAME,
   staff: STAFF_ACCOUNT_ROLE_DISPLAY_NAME,
   admin: ADMIN_ACCOUNT_ROLE_DISPLAY_NAME,
 };

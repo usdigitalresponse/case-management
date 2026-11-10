@@ -57,3 +57,16 @@ export function fieldErrorsFromZodIssues(issues: z.ZodIssue[]): Record<string, s
   }
   return fieldErrors;
 }
+
+// Both days of a billing period or neither, in order.
+export function withBillingPeriod<T extends z.ZodType<{ periodStart?: string | null; periodEnd?: string | null }>>(schema: T) {
+  return schema
+    .refine((input) => Boolean(input.periodStart) === Boolean(input.periodEnd), {
+      message: 'Enter both days of the billing period, or neither.',
+      path: ['periodEnd'],
+    })
+    .refine((input) => !input.periodStart || !input.periodEnd || input.periodEnd >= input.periodStart, {
+      message: 'The billing period must end on or after its first day.',
+      path: ['periodEnd'],
+    });
+}

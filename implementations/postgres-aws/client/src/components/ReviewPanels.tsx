@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import type { AssignedPerson, InvoiceReviewLine, SignOff } from '../api/client';
+import type { AssignedPerson, InvoiceReviewLine, SignOff, SignOffOutcome } from '../api/client';
 import { formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import type { ReviewTotals } from '../reviewTotals';
+import { ConfirmButton } from './ConfirmButton';
 import { Notice } from './Notice';
 
-// Rate check: time lines billed above the pre-authorized rate (or, with no
-// pre-authorization, the person's approved rate), shown once above the
+// Rate check: time lines billed above the case rate a reviewer set, else the
+// pre-authorized rate, else the person's approved rate, shown once above the
 // table rather than on every line.
 export function rateCheck(lines: InvoiceReviewLine[]) {
   const above = lines.filter(
@@ -20,7 +21,7 @@ export function rateCheck(lines: InvoiceReviewLine[]) {
     above,
     billed: sample.billedRate as string,
     limit: sample.rateLimit as string,
-    limitName: sample.rateLimitSource === 'preauthorized' ? 'pre-authorized rate' : 'approved rate',
+    limitName: { case: "case's rate", preauthorized: 'pre-authorized rate', configured: 'approved rate' }[sample.rateLimitSource ?? 'configured'],
   };
 }
 
@@ -146,16 +147,16 @@ export function TotalsBar({
   );
 }
 
-// Waiting for sign-off: the approver signs off the whole invoice or sends it
-// back with a comment only staff see; the reviewer can reopen until then.
+// Waiting for sign-off: the approver signs off or rejects the whole invoice,
+// with a comment shared like line notes, or sends it back with one only staff
+// see; staff can reopen until then.
 export function SignOffPanel({
   nextApprover,
   approvedCents,
   canSignOff,
   canReopen,
   saving,
-  onSignOff,
-  onSendBack,
+  onDecide,
   onReopen,
 }: {
   nextApprover: AssignedPerson | null;
@@ -163,29 +164,49 @@ export function SignOffPanel({
   canSignOff: boolean;
   canReopen: boolean;
   saving: boolean;
-  onSignOff: () => void;
-  // Resolves true once sent.
-  onSendBack: (comment: string) => Promise<boolean>;
+  // Resolves true once recorded.
+  onDecide: (outcome: SignOffOutcome, comment: string) => Promise<boolean>;
   onReopen: () => void;
 }) {
-  const [sendingBack, setSendingBack] = useState(false);
   const [comment, setComment] = useState('');
+  const decide = (outcome: SignOffOutcome) =>
+    void onDecide(outcome, comment.trim()).then((done) => {
+      if (done) setComment('');
+    });
 
   return (
     <section className="sign-off-panel" aria-labelledby="sign-off-heading">
       <h2 id="sign-off-heading">Sign-off</h2>
       <p>
-        {nextApprover ? `Waiting for ${nextApprover.displayName} to sign off.` : 'Waiting for sign-off.'} Approvers sign off the
+        {nextApprover ? `Waiting for ${nextApprover.displayName} to sign off.` : 'Waiting for sign-off.'} Approvers decide the
         whole invoice, not line by line.
       </p>
-      {!sendingBack && (canSignOff || canReopen) && (
+      {canSignOff && (
+        <label className="send-back-form">
+          Comment (needed to send it back)
+          <textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} />
+          <span className="cell-note">
+            Signing off or rejecting, everyone who sees the invoice sees it, as with line notes. Sending it back, only staff do.
+          </span>
+        </label>
+      )}
+      {(canSignOff || canReopen) && (
         <div className="button-row">
           {canSignOff && (
             <>
-              <button type="button" className="btn btn--primary" disabled={saving} onClick={onSignOff}>
+              <button type="button" className="btn btn--primary" disabled={saving} onClick={() => decide('approved')}>
                 Sign off {formatMoney(approvedCents / 100)}
               </button>
-              <button type="button" className="btn btn--outline" onClick={() => setSendingBack(true)}>Send back to the reviewer</button>
+              <ConfirmButton
+                label="Reject invoice"
+                prompt="Reject the whole invoice? Nothing on it will be approved."
+                confirmLabel="Reject it"
+                disabled={saving}
+                onConfirm={() => decide('rejected')}
+              />
+              <button type="button" className="btn btn--outline" disabled={saving || !comment.trim()} onClick={() => decide('changes_requested')}>
+                Send back to the reviewer
+              </button>
             </>
           )}
           {canReopen && (
@@ -195,33 +216,11 @@ export function SignOffPanel({
           )}
         </div>
       )}
-      {canSignOff && sendingBack && (
-        <form
-          className="send-back-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void onSendBack(comment).then((sent) => {
-              if (sent) {
-                setSendingBack(false);
-                setComment('');
-              }
-            });
-          }}
-        >
-          <label>
-            What should the reviewer change?
-            <textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} />
-            <span className="cell-note">Only staff see this comment. The submitter does not.</span>
-          </label>
-          <div className="button-row">
-            <button type="submit" className="btn btn--primary" disabled={!comment.trim() || saving}>Send back</button>
-            <button type="button" className="link-button" onClick={() => setSendingBack(false)}>Cancel</button>
-          </div>
-        </form>
-      )}
     </section>
   );
 }
+
+const SIGN_OFF_WORDS: Record<string, string> = { approved: 'signed off', rejected: 'rejected the invoice', changes_requested: 'sent it back' };
 
 export function SignOffHistory({ signOffs }: { signOffs: SignOff[] }) {
   if (signOffs.length === 0) {
@@ -233,7 +232,7 @@ export function SignOffHistory({ signOffs }: { signOffs: SignOff[] }) {
       <ul className="history-list">
         {signOffs.map((signOff, index) => (
           <li key={index}>
-            {signOff.displayName ?? 'Someone'} {signOff.outcomeCode === 'approved' ? 'signed off' : 'sent it back'} on{' '}
+            {signOff.displayName ?? 'Someone'} {SIGN_OFF_WORDS[signOff.outcomeCode] ?? 'decided'} on{' '}
             {formatDateTime(signOff.decidedAt)}
             {signOff.comment && <span className="cell-note">“{signOff.comment}” (staff only)</span>}
           </li>

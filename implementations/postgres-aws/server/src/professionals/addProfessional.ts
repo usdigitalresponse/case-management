@@ -26,6 +26,7 @@ export const personDetailsSchema = z.object({
   paidThrough: optionalText,
   hourlyRate: z.coerce.number().positive('Enter an hourly rate above zero.').max(100000).optional(),
   ratePerMile: z.coerce.number().positive('Enter a mileage rate above zero.').max(100).optional(),
+  travelHourlyRate: z.coerce.number().positive('Enter a travel time rate above zero.').max(100000).optional(),
 });
 
 // Their name's parts, kept beside the whole name when given separately.
@@ -41,7 +42,7 @@ export async function addProfessional(db: Database, actorUserAccountId: string, 
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
-  const { displayName, email, professionalKindId, phone, paidThrough, hourlyRate, ratePerMile, givenName, familyName } = parsed.data;
+  const { displayName, email, professionalKindId, phone, paidThrough, hourlyRate, ratePerMile, travelHourlyRate, givenName, familyName } = parsed.data;
   const [kind] = await db.select({ id: professionalKinds.id }).from(professionalKinds).where(eq(professionalKinds.id, professionalKindId));
   if (!kind) {
     throw new ValidationError({ professionalKindId: 'Choose what kind of provider they are.' });
@@ -58,8 +59,8 @@ export async function addProfessional(db: Database, actorUserAccountId: string, 
         .returning(),
     );
     // A new person's first rates cover all their work, however far back.
-    if (hourlyRate !== undefined || ratePerMile !== undefined) {
-      await addOwnRates(tx, actorUserAccountId, row.professionalId, { hourlyRate, ratePerMile, effectiveFrom: '2000-01-01' });
+    if (hourlyRate !== undefined || ratePerMile !== undefined || travelHourlyRate !== undefined) {
+      await addOwnRates(tx, actorUserAccountId, row.professionalId, { hourlyRate, ratePerMile, travelHourlyRate, effectiveFrom: '2000-01-01' });
     }
     // A new record has no prior values; who added it is the point.
     await tx.insert(auditEvent).values({

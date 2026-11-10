@@ -6,13 +6,17 @@ import { and, count, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/client';
 import { invoiceApprovalStepTypes, invoiceReviewAssignment, invoice, invoiceStatuses } from '../db/schema';
 import { listDecisionReasons } from '../billing/decisionReasons';
-import { billingRecordCsv, billingRecordXlsx, loadBillingRecord } from '../billing/billingRecord';
+import { billingRecordCsv, billingRecordXlsx, loadBillingRecord, OMITTABLE_BILLING_RECORD_COLUMNS } from '../billing/billingRecord';
 import { listInvoiceIntake, matchInvoiceToCase, returnToSubmitter } from '../billing/invoiceIntake';
+import { findCasesByNumber } from '../cases/casesByNumber';
+import { currentCaseNumber } from '../billing/caseNumbers';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { loadInvoiceDetail, loadSenderEmail } from '../billing/invoiceDetail';
 import { isExportableStatus } from '../billing/invoiceAccess';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { InvoiceNotFoundError, repriceLines, reviewInvoiceLine, undoLineDecision } from '../billing/reviewInvoiceLine';
+import { applyLineRate } from '../billing/caseRates';
+import { setMileageWarning } from '../billing/mileageWarnings';
 import { finishReview, markCompleted, reopenReview, signOffInvoice } from '../billing/reviewRounds';
 import {
   confirmEnteredImport,
@@ -29,10 +33,12 @@ import { changeInvoiceCounty } from '../billing/invoiceCounty';
 import { answerQuestionAsStaff, askQuestion } from '../billing/reviewQuestions';
 import { reassignReviewer, setSignOffApprovers, LINE_REVIEW_STEP_TYPE_CODE } from '../billing/reviewAssignment';
 import { listReviewPeople } from '../billing/reviewAccess';
+import { allowedToSignOff, getReviewSettings } from '../billing/reviewSettings';
+import { shownRoleName } from '../auth/staffAccountRole';
 import { listReviewQueue, sentCaseNumberMatches } from '../billing/reviewQueue';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { correctCaseNumber } from '../billing/correctCaseNumber';
-import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
+import { loadPreauthorizationSummaries, overPreauthorization } from '../billing/preauthorizations';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { readFileForInvoice } from '../imports/invoiceFile';
 import { MAX_UPLOAD_BYTES } from '../imports/detectFormat';
@@ -40,6 +46,7 @@ import { discardTimeLog, linkTimeLogEntries, loadTimeLogView, setTimeLogColumns,
 import { documentStore } from '../imports/documentStore';
 import { sendFileDownload, sendFilePreview } from './sendUploadedFile';
 import { asyncHandler } from './asyncHandler';
+import { ValidationError } from '../errors';
 import { parseExportFormat, parseExportOmit, sendInvoiceExport } from './sendInvoiceExport';
 
 const router = Router();
@@ -85,18 +92,48 @@ router.post(
   }),
 );
 
-// Every submitted invoice, one row each, for reports outside the tool.
+const billingRecordQuery = z
+  .object({
+    county: z.uuid().optional(),
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+    status: z.literal('signed-off').optional(),
+    // One comma-separated value, as for one invoice's export.
+    omit: z
+      .string()
+      .optional()
+      .transform((raw) => new Set(raw ? raw.split(',') : []))
+      .refine((omit) => [...omit].every((column) => (OMITTABLE_BILLING_RECORD_COLUMNS as readonly string[]).includes(column)), {
+        message: 'That column cannot be left out of the billing record.',
+      }),
+  })
+  .refine(({ from, to }) => !from || !to || from <= to, { path: ['to'], message: 'The end date must be on or after the start date.' });
+
+// One row per submitted invoice; the query narrows the rows and leaves columns out.
 router.get(
   '/billing-record',
   asyncHandler(async (req, res) => {
-    const rows = await loadBillingRecord(db);
-    const stamp = new Date().toISOString().slice(0, 10);
+    const parsed = billingRecordQuery.safeParse(req.query);
+    if (!parsed.success) {
+      throw new ValidationError(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0] ?? 'query'), issue.message])));
+    }
+    const { county, from, to, status, omit } = parsed.data;
+    const rows = await loadBillingRecord(db, { countyId: county, periodFrom: from, periodTo: to, signedOffOnly: status === 'signed-off' });
+    const name = [
+      status === 'signed-off' ? 'signed-off' : 'billing-record',
+      from && `from-${from}`,
+      to && `to-${to}`,
+      new Date().toISOString().slice(0, 10),
+      omit.size > 0 && 'redacted',
+    ]
+      .filter(Boolean)
+      .join('-');
     res.set('Cache-Control', 'no-store');
     if (req.query.format === 'xlsx') {
-      res.type(INVOICE_EXPORT_MEDIA_TYPES.xlsx).attachment(`billing-record-${stamp}.xlsx`).send(await billingRecordXlsx(rows));
+      res.type(INVOICE_EXPORT_MEDIA_TYPES.xlsx).attachment(`${name}.xlsx`).send(await billingRecordXlsx(rows, omit));
       return;
     }
-    res.type('text/csv').attachment(`billing-record-${stamp}.csv`).send(billingRecordCsv(rows));
+    res.type('text/csv').attachment(`${name}.csv`).send(billingRecordCsv(rows, omit));
   }),
 );
 
@@ -113,7 +150,10 @@ router.get(
 router.get(
   '/reviewers',
   asyncHandler(async (_req, res) => {
-    const people = (await listReviewPeople(db)).filter((person) => person.permissions.reviewLines || person.permissions.signOff);
+    const [people, settings] = await Promise.all([
+      listReviewPeople(db).then((all) => all.filter((person) => person.permissions.reviewLines || person.permissions.signOff)),
+      getReviewSettings(db),
+    ]);
     const waiting = await db
       .select({ userAccountId: invoiceReviewAssignment.assignedUserAccountId, waiting: count() })
       .from(invoiceReviewAssignment)
@@ -132,9 +172,9 @@ router.get(
       people: people.map((person) => ({
         userAccountId: person.userAccountId,
         displayName: person.displayName,
-        roleName: person.roleName,
+        roleName: shownRoleName(person.roleName),
         reviewsLines: person.permissions.reviewLines,
-        signsOff: person.permissions.signOff,
+        signsOff: person.permissions.signOff && allowedToSignOff(settings, person.userAccountId),
         waiting: waiting.find((row) => row.userAccountId === person.userAccountId)?.waiting ?? 0,
       })),
     });
@@ -148,6 +188,15 @@ async function loadOrThrow(invoiceId: string) {
   }
   return detail;
 }
+
+// Cases with the number this invoice gives, to match it to one.
+router.get(
+  '/:id/case-matches',
+  asyncHandler(async (req, res) => {
+    const detail = await loadOrThrow(req.params.id as string);
+    res.json({ cases: await findCasesByNumber(db, currentCaseNumber(detail.invoice)) });
+  }),
+);
 
 router.get(
   '/:id',
@@ -168,7 +217,11 @@ router.get(
     const discardable =
       detail.entryOpen && detail.assignments?.reviewer?.userAccountId === actorId(req) && detail.questions.length === 0;
     const timeLog = await loadTimeLogView(db, detail.invoice.invoiceId);
-    res.json({ ...detail, preauthorization, approvedRate, caseNumberMatches, discardable, senderEmail, timeLog });
+    // Signed off, it is already in what was approved so far; rejected, it adds nothing.
+    const overPreauthorized =
+      detail.invoice.statusCode !== 'rejected' &&
+      overPreauthorization(preauthorization, detail.invoice.submittedTotal, detail.invoice.statusCode === 'approved');
+    res.json({ ...detail, preauthorization, overPreauthorized, approvedRate, caseNumberMatches, discardable, senderEmail, timeLog });
   }),
 );
 
@@ -315,6 +368,22 @@ router.delete(
   '/:id/lines/:lineId/decision',
   asyncHandler(async (req, res) => {
     res.json(await undoLineDecision(db, actorId(req), req.params.id as string, req.params.lineId as string, req.body));
+  }),
+);
+
+// A mileage warning set aside for stops on the way, or put back (../billing/mileageWarnings.ts).
+router.put(
+  '/:id/lines/:lineId/mileage-warning',
+  asyncHandler(async (req, res) => {
+    res.json(await setMileageWarning(db, actorId(req), req.params.id as string, req.params.lineId as string, req.body));
+  }),
+);
+
+// A changed rate on the matching lines, or as the case's default (../billing/caseRates.ts).
+router.post(
+  '/:id/lines/:lineId/rate',
+  asyncHandler(async (req, res) => {
+    res.json(await applyLineRate(db, actorId(req), req.params.id as string, req.params.lineId as string, req.body));
   }),
 );
 

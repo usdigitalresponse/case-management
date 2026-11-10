@@ -5,7 +5,7 @@
 // from the presence/absence of a professional row. reviewPermissions maps
 // each role to review actions (model/rules.yaml authorize_invoice_review).
 import { z } from 'zod';
-import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import { getSeededRoleId } from '../db/referenceLookups';
 import { firstRow } from '../db/rowHelpers';
@@ -13,18 +13,20 @@ import { auditEvent, role, userAccount } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 
-// General staff: reads the review queue; their other work is not yet defined.
-export const STAFF_ACCOUNT_ROLE_DISPLAY_NAME = 'Intake Staff';
+// Every staff member reviews, signs off and uploads; administrators also
+// change settings.
+export const STAFF_ACCOUNT_ROLE_DISPLAY_NAME = 'Staff';
 export const ADMIN_ACCOUNT_ROLE_DISPLAY_NAME = 'Administrator';
-export const BILLING_REVIEWER_ROLE_DISPLAY_NAME = 'Billing Reviewer';
-export const SIGN_OFF_APPROVER_ROLE_DISPLAY_NAME = 'Sign-off Approver';
+// Retired by migration 0034, kept so accounts that still have them stay staff
+// and their history stays readable; never offered.
+export const RETIRED_STAFF_ROLE_DISPLAY_NAMES = ['Intake Staff', 'Billing Reviewer', 'Sign-off Approver'];
 
-const STAFF_ROLE_DISPLAY_NAMES = [
-  STAFF_ACCOUNT_ROLE_DISPLAY_NAME,
-  BILLING_REVIEWER_ROLE_DISPLAY_NAME,
-  SIGN_OFF_APPROVER_ROLE_DISPLAY_NAME,
-  ADMIN_ACCOUNT_ROLE_DISPLAY_NAME,
-];
+const OFFERED_STAFF_ROLE_DISPLAY_NAMES = [STAFF_ACCOUNT_ROLE_DISPLAY_NAME, ADMIN_ACCOUNT_ROLE_DISPLAY_NAME];
+
+export function shownRoleName(roleDisplayName: string): string {
+  return RETIRED_STAFF_ROLE_DISPLAY_NAMES.includes(roleDisplayName) ? STAFF_ACCOUNT_ROLE_DISPLAY_NAME : roleDisplayName;
+}
+const STAFF_ROLE_DISPLAY_NAMES = [...OFFERED_STAFF_ROLE_DISPLAY_NAMES, ...RETIRED_STAFF_ROLE_DISPLAY_NAMES];
 
 export interface ReviewPermissions {
   reviewLines: boolean;
@@ -34,34 +36,24 @@ export interface ReviewPermissions {
 }
 
 const NO_PERMISSIONS: ReviewPermissions = { reviewLines: false, signOff: false, reassign: false, changeSettings: false };
+const STAFF_PERMISSIONS: ReviewPermissions = { reviewLines: true, signOff: true, reassign: true, changeSettings: false };
 
 const PERMISSIONS_BY_ROLE: Record<string, ReviewPermissions> = {
-  [STAFF_ACCOUNT_ROLE_DISPLAY_NAME]: NO_PERMISSIONS,
-  [BILLING_REVIEWER_ROLE_DISPLAY_NAME]: { reviewLines: true, signOff: false, reassign: true, changeSettings: false },
-  [SIGN_OFF_APPROVER_ROLE_DISPLAY_NAME]: { reviewLines: false, signOff: true, reassign: true, changeSettings: false },
-  [ADMIN_ACCOUNT_ROLE_DISPLAY_NAME]: { reviewLines: true, signOff: true, reassign: true, changeSettings: true },
+  ...Object.fromEntries([STAFF_ACCOUNT_ROLE_DISPLAY_NAME, ...RETIRED_STAFF_ROLE_DISPLAY_NAMES].map((name) => [name, STAFF_PERMISSIONS])),
+  [ADMIN_ACCOUNT_ROLE_DISPLAY_NAME]: { ...STAFF_PERMISSIONS, changeSettings: true },
 };
 
 export function reviewPermissionsForRole(roleDisplayName: string | null | undefined): ReviewPermissions {
   return (roleDisplayName && PERMISSIONS_BY_ROLE[roleDisplayName]) || NO_PERMISSIONS;
 }
 
-// General staff; the intended role for new SSO accounts, which for now are
-// administrators (./oidcProviders.ts).
+// The intended role for new SSO accounts, which for now are administrators (./oidcProviders.ts).
 export function getStaffAccountRoleId(db: DatabaseOrTransaction): Promise<string> {
   return getSeededRoleId(db, STAFF_ACCOUNT_ROLE_DISPLAY_NAME, 'user_account');
 }
 
 export function getAdminAccountRoleId(db: DatabaseOrTransaction): Promise<string> {
   return getSeededRoleId(db, ADMIN_ACCOUNT_ROLE_DISPLAY_NAME, 'user_account');
-}
-
-export function getBillingReviewerRoleId(db: DatabaseOrTransaction): Promise<string> {
-  return getSeededRoleId(db, BILLING_REVIEWER_ROLE_DISPLAY_NAME, 'user_account');
-}
-
-export function getSignOffApproverRoleId(db: DatabaseOrTransaction): Promise<string> {
-  return getSeededRoleId(db, SIGN_OFF_APPROVER_ROLE_DISPLAY_NAME, 'user_account');
 }
 
 // Every role that makes an account staff.
@@ -97,7 +89,7 @@ async function changeStaffRole(
     throw new ValidationError({ roleId: 'Choose a role.' });
   }
   const staffRoleIds = await getStaffAccountRoleIds(db);
-  if (!staffRoleIds.includes(parsed.data.roleId)) {
+  if (!(await offeredRoleIds(db)).includes(parsed.data.roleId)) {
     throw new ValidationError({ roleId: 'Choose a staff role.' });
   }
   return db.transaction(async (tx) => {
@@ -143,7 +135,7 @@ export async function addStaffAccount(db: Database, adminUserAccountId: string, 
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
   const { displayName, email, roleId } = parsed.data;
-  if (!(await getStaffAccountRoleIds(db)).includes(roleId)) {
+  if (!(await offeredRoleIds(db)).includes(roleId)) {
     throw new ValidationError({ roleId: 'Choose a staff role.' });
   }
   return db.transaction(async (tx) => {
@@ -201,25 +193,36 @@ export async function setStaffActive(db: Database, adminUserAccountId: string, u
   });
 }
 
-// Every staff account, deactivated ones too, for Settings.
+// Every staff account, deactivated ones too, for Settings; a retired role shows as Staff.
 export async function listStaffAccounts(db: DatabaseOrTransaction) {
-  return db
-    .select({
-      userAccountId: userAccount.userAccountId,
-      displayName: userAccount.displayName,
-      email: userAccount.email,
-      active: userAccount.active,
-      roleId: userAccount.systemRoleId,
-    })
-    .from(userAccount)
-    .where(inArray(userAccount.systemRoleId, await getStaffAccountRoleIds(db)))
-    .orderBy(desc(userAccount.active), asc(userAccount.displayName));
+  const [rows, staffRoleId] = await Promise.all([
+    db
+      .select({
+        userAccountId: userAccount.userAccountId,
+        displayName: userAccount.displayName,
+        email: userAccount.email,
+        active: userAccount.active,
+        roleId: userAccount.systemRoleId,
+        roleName: role.displayName,
+      })
+      .from(userAccount)
+      .innerJoin(role, eq(userAccount.systemRoleId, role.roleId))
+      .where(inArray(userAccount.systemRoleId, await getStaffAccountRoleIds(db)))
+      .orderBy(desc(userAccount.active), asc(userAccount.displayName)),
+    getStaffAccountRoleId(db),
+  ]);
+  return rows.map(({ roleName, ...row }) => ({ ...row, roleId: RETIRED_STAFF_ROLE_DISPLAY_NAMES.includes(roleName) ? staffRoleId : row.roleId }));
 }
 
+// The roles an administrator may give: Staff and Administrator.
 export async function listStaffRoles(db: DatabaseOrTransaction) {
   const rows = await db
     .select({ roleId: role.roleId, displayName: role.displayName })
     .from(role)
-    .where(inArray(role.displayName, STAFF_ROLE_DISPLAY_NAMES));
-  return STAFF_ROLE_DISPLAY_NAMES.flatMap((name) => rows.filter((row) => row.displayName === name));
+    .where(and(inArray(role.displayName, OFFERED_STAFF_ROLE_DISPLAY_NAMES), eq(role.roleContext, 'user_account')));
+  return OFFERED_STAFF_ROLE_DISPLAY_NAMES.flatMap((name) => rows.filter((row) => row.displayName === name));
+}
+
+async function offeredRoleIds(db: DatabaseOrTransaction): Promise<string[]> {
+  return (await listStaffRoles(db)).map((row) => row.roleId);
 }

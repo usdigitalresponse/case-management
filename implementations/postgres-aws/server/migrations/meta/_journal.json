@@ -239,6 +239,27 @@
       "when": 1794178785705,
       "tag": "0033_time_log_override",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794268800000,
+      "tag": "0034_one_staff_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794269870243,
+      "tag": "0035_case_rates",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794282937966,
+      "tag": "0036_travel_rate_and_stops",
+      "breakpoints": true
     }
   ]
 }

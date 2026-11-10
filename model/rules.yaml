@@ -1,4 +1,4 @@
-spec_version: "0.10.0"
+spec_version: "0.11.0"
 status: draft
 kind: business_rules
 
@@ -65,32 +65,35 @@ rules:
       - Reject decisions for superseded chains.
       - Require a positive sequence_number, unique within the chain for invoice-level decisions and per line for line decisions.
       - Include invoice pre-approval decisions before line-review decisions when required by configured policy.
-      - Require the deciding user to be an active user authorized for that step_type and holding the active invoice_review_assignment for it; a user other than the invoice submitter for pre-approval and sign-off.
+      - Require the deciding user to be an active staff user. Sign-off decisions are by the assigned approver whose turn it is, who must be allowed to sign off under the review settings (anyone on staff, or only the named sign-off approvers); a user other than the invoice submitter for pre-approval and sign-off.
+      - At least two different staff members take part in each round - by deciding its lines, finishing it or signing it off - before it is approved or rejected. Finishing is refused when the people deciding, finishing and assigned to sign off are one person.
       - For invoice pre-approval and sign-off, omit invoice_line_id and allow one decision per sequence_number.
-      - For line review, require invoice_line_id and allow one decision per line per sequence_number. A round of line review is recorded at one sequence_number, for every line at once, when the reviewer finishes it (decide_invoice_lines).
+      - For line review, require invoice_line_id and allow one decision per line per sequence_number. A round of line review is recorded at one sequence_number, for every line at once, when it is finished (decide_invoice_lines).
       - Require the reviewed line to belong to the invoice referenced by the chain.
       - A line-review round is complete when every line has a decision; a rejected line counts as decided with nothing approved and does not block the request.
       - Sign-off decisions follow the latest complete line-review round, one per assigned approver in position order.
       - A sign-off send-back (changes requested) requires an internal_only comment and opens a new line-review round in the same chain; it does not return the request to the submitter.
+      - A sign-off approver may instead reject the whole request, with an optional comment. The request is rejected and nothing on it is approved. Approving also takes an optional comment. Both are shared like line decision notes, not internal_only.
       - Denial or a request for changes from the submitter requires a reason and blocks advancement.
       - Record the actual deciding user and decision timestamp.
       - Apply record_approved_request_amounts to every decision and final allocation draw.
 
   decide_invoice_lines:
-    description: Let the assigned reviewer decide each line, change their mind freely, and record the round only when they finish it.
+    description: Let staff decide each line, change their minds freely, and record the round only when it is finished.
     applies_to: invoice_line_working_decision
     trigger: before_change
     outcome: blocking
     requirements:
-      - Only the user holding the active line-review invoice_review_assignment may record, change or undo working decisions, and only while the request is under review.
+      - Any active staff user may record, change or undo working decisions, and only while the request is under review. Deciding a line on an unassigned request assigns line review to them; on a request someone else reviews, the assignment stays and the decision records who made it. Staff see when the request they are deciding is assigned to someone else.
       - Each line has at most one working decision; changing or undoing it replaces or removes it without history.
       - Approve takes the requested amount and needs no reason. Approve in part needs a reason code and an approved amount above zero and below the requested amount; on a line with hours the reviewer corrects the hours or the rate and the amount is their product rounded to cents, otherwise the reviewer corrects the amount. A reviewer may approve a line that states no hours.
       - Any reviewer may instead approve a line with hours or miles (time, travel time, waiting time or mileage) at a changed rate, higher or lower than billed, with no reason code; the amount is its quantity times that rate, rounded to cents, and may exceed the requested amount. A changed rate is flagged to the sign-off approvers before they sign off, with the billed rate and the line's configured_rate.
       - Reject needs a reason code and approves nothing. Any decision may carry a note; the reason code for another reason requires one.
-      - Approving in part and rejecting each draw from their own list of reason codes (invoice_decision_reasons.applies_to); a reason may be on both. A reason not on the list for the outcome is refused. Administrators maintain the lists without a code release; a retired reason stays on decisions that used it.
-      - Re-pricing applies approve-in-part decisions at the line's rate limit (apply_professional_rates), with the rate reason, to every undecided time line whose billed_rate is above it.
-      - Finishing a round requires a working decision on every line; it records them all as invoice_approval_decision rows at a new sequence_number with the finishing reviewer and time, clears the working decisions, records an invoice event and moves the request to awaiting sign-off.
-      - Until the first sign-off decision after a round, the reviewer may reopen review; the next round starts from that round's decisions as working decisions and is recorded as a new round when finished. Recorded rounds are never changed.
+      - Approving in part and rejecting each draw from their own list of reason codes (invoice_decision_reasons.applies_to); a reason may be on both. Setting a case rate has a third list; the reason for another reason is on every list. A reason not on the list for the outcome is refused. Administrators maintain the lists without a code release; a retired reason stays on decisions that used it.
+      - Review flags a request that takes its professional, or the case, over the pre-authorized amount: what is approved on the case so far plus the request's total, above the latest ceiling. Reviewers may still approve or reject it.
+      - Re-pricing applies approve-in-part decisions at the line's rate limit (apply_professional_rates), with the rate reason, to every undecided time line whose billed_rate is above it. A changed rate may also go to the matching lines or the case's default (set_case_rate).
+      - Any active staff user may finish a round. It requires a working decision on every line; it records them all as invoice_approval_decision rows at a new sequence_number, each with the staff member who made that decision and when, clears the working decisions, records an invoice event with who finished it and moves the request to awaiting sign-off.
+      - Until the first sign-off decision after a round, any staff user may reopen review; the next round starts from that round's decisions as working decisions and is recorded as a new round when finished. Recorded rounds are never changed.
 
   check_lines_against_time_log:
     description: Let the line reviewer compare a request's time lines with one case's time log exported from another system, flag every line it doesn't support, and optionally require a staff-only reason before approving those lines' billed hours.
@@ -98,7 +101,7 @@ rules:
     trigger: before_change
     outcome: blocking
     requirements:
-      - Only the user holding the active line-review invoice_review_assignment, or any line reviewer while the request has none, may upload, replace or remove the log, choose its columns, say who a name is, or link entries, and only while the request is submitted, under review or awaiting an answer. Uploading does not take the request.
+      - Any active staff user may upload, replace or remove the log, choose its columns, say who a name is, or link entries, and only while the request is submitted, under review or awaiting an answer. Uploading does not take the request.
       - A log is CSV or a spreadsheet with a header row, which may sit below title rows. Its columns are found by their headers, preferring the date of the work and the worker over other dates and names; time spent may be in hours (decimal, h:mm or words) or minutes. The reviewer sees which columns were used and may choose others at any time without uploading again; a log whose date, worker and time spent can't be found is not kept until they are chosen.
       - The log covers one case. Only entries in the request's billing period, or between its lines' first and last dates when it has none, are compared; the rest are listed as outside it. Entries without a readable date or time are counted, not compared.
       - A name in the log is used for a person on the request only if it matches their name exactly, or once the reviewer confirms it. A likely variant, such as last name first or a first initial, is suggested, never assumed. The reviewer may mark a name as not a person, such as an office or shared account.
@@ -115,16 +118,16 @@ rules:
     trigger: before_change
     outcome: blocking
     requirements:
-      - A staff user with a line-reviewing role who uploads or types in a request, filed under the person it is from, takes it straight from draft to under review. They hold its line-review invoice_review_assignment and the default sign-off approvers are assigned, as on submission. It may be reassigned like any request in review.
-      - Until the first round is finished the entry is open. Only the user holding the line review may add, change or remove lines and set the case number as written on the request, its billing period, the number on the supplier's own invoice, and who it is from. Who it is from may be unknown when the entry starts; its lines show as read until it is chosen. Choosing or changing it prices the lines at that person's rates, moves lines attributed to the earlier choice to them, and removes the working decision on any line whose values change. A save, or a line decision, made from lines that changed since they were loaded (another window, or before a reassignment) is refused, and the latest lines are shown; nothing is overwritten or decided against unseen values. Losing the line-reviewing role ends the right to enter, as it does to decide. A reviewer's case number correction waits until the entry is closed.
+      - An active staff user who uploads or types in a request, filed under the person it is from, takes it straight from draft to under review. They hold its line-review invoice_review_assignment and the default sign-off approvers are assigned, as on submission. It may be reassigned like any request in review.
+      - Until the first round is finished the entry is open. Any active staff user may add, change or remove lines and set the case number as written on the request, its billing period, the number on the supplier's own invoice, and who it is from. Who it is from may be unknown when the entry starts; its lines show as read until it is chosen. Choosing or changing it prices the lines at that person's rates, moves lines attributed to the earlier choice to them, and removes the working decision on any line whose values change. A save, or a line decision, made from lines that changed since they were loaded (another window, or before a reassignment) is refused, and the latest lines are shown; nothing is overwritten or decided against unseen values. A deactivated account can no longer enter, as it can no longer decide. A reviewer's case number correction waits until the entry is closed.
       - Anyone who can see the request sees that it is still being entered, by whom, and when its lines last changed. A change to a line's type, date, description, quantity, rate, amount or who did the work removes that line's working decision. A line with a review question can't be removed.
       - The request is created in review in one step; if it can't be put in review, it isn't created.
       - Lines are priced, and an unmatched line's worker filled in, on every save as submitting would, so freezing changes no decided amount; if it would, finishing is refused.
-      - Values read from a file are confirmed when the reviewer first tries to finish, by whoever holds the line review. Confirmation is kept even if finishing then fails; any decided line it changed loses its decision, and finishing is refused until that line is decided again.
+      - Values read from a file are confirmed when someone first tries to finish, by whoever is finishing. Confirmation is kept even if finishing then fails; any decided line it changed loses its decision, and finishing is refused until that line is decided again.
       - Finishing the first round requires what submitting does (the case number, who it is from, how and when it was received, a confirmed import, dated imported lines, billing rules), then freezes the request and its billing rule findings in the attempt's snapshot before recording the round. Reopening or a send-back changes decisions only, never lines.
       - Billing rule findings are live while the entry is open, then as frozen.
       - Before the first round is finished and before any question is asked, the user holding the line review may discard the request outright, as deleting a draft does.
-      - Approvers are told when whoever entered the request also finished its latest round. That is allowed; whether to require a different reviewer is an open decision.
+      - Approvers are told when whoever entered the request also decided lines in its latest round. That is allowed; the two-person rule (enforce_invoice_approval_sequence) still applies.
 
   ask_review_question:
     description: Let the line reviewer ask the submitter a brief question about a line, hold review for the answer, and keep both on the request's record.
@@ -132,10 +135,10 @@ rules:
     trigger: before_change
     outcome: blocking
     requirements:
-      - Only the user holding the active line-review invoice_review_assignment may ask, taking an unassigned request as deciding a line does, while the request is submitted, under review or awaiting an answer.
+      - Any active staff user may ask, taking an unassigned request as deciding a line does, while the request is submitted, under review or awaiting an answer.
       - Every question is about one line of the request. A question and an answer are each brief, at most 500 characters.
       - Asking moves the request to awaiting an answer. While awaiting an answer, the reviewer may keep deciding lines but may not finish the round, and the submitter may not recall the request.
-      - The submitter or the represented professional answers. A staff user with a reviewing role may instead record an answer received another way, and is recorded as answering; this is also how review continues without a reply.
+      - The submitter or the represented professional answers. A staff user may instead record an answer received another way, and is recorded as answering; this is also how review continues without a reply.
       - Each question is answered once. Questions and answers are never changed or deleted.
       - Answering the last unanswered question returns the request to under review.
       - Until the round is finished, lists of requests show reviewers which have unanswered questions and which have answered ones, and the submitter which have questions for them.
@@ -149,9 +152,9 @@ rules:
     outcome: blocking
     requirements:
       - On submission, assign line review to the case's active case_invoice_reviewer, else the configured default reviewer, else leave it unassigned. Assign sign-off to the configured default sign-off approvers in order.
-      - Any user with a reviewing system role may reassign line review on any request, ending the current assignment and recording who reassigned it; the same action may set the new reviewer as the case's reviewer for future requests.
-      - The line reviewer may change the request's sign-off approvers, their order or number, until the round is finished.
-      - Assignees must be active users whose system role allows the step.
+      - Any active staff user may reassign line review on any request, ending the current assignment and recording who reassigned it; the same action may set the new reviewer as the case's reviewer for future requests.
+      - Any staff user may change the request's sign-off approvers, their order or number, until the round is finished.
+      - Assignees must be active staff users. Sign-off assignees, defaults included, must be allowed to sign off under the review settings: an administrator chooses whether anyone on staff may sign off or only the sign-off approvers they name.
       - Every reviewer can see every request under review; their own work is shown first.
 
   measure_review_waiting:
@@ -169,7 +172,7 @@ rules:
     trigger: on_read
     outcome: blocking
     requirements:
-      - Line decision reasons and notes are visible to everyone who may read the request, including its submitter and represented professionals.
+      - Line decision reasons and notes are visible to everyone who may read the request, including its submitter and represented professionals. So is a comment on approving or rejecting the whole request at sign-off, without who made it.
       - internal_only comments are visible only to staff users and never appear in submitter views or exports sent outside the review team.
 
   require_completed_invoice_approval:
@@ -319,13 +322,28 @@ rules:
     outcome: blocking
     requirements:
       - Administrators, a configured system role, maintain the professional_kinds vocabulary, each professional's kind (a line reviewer may give a kind to an invoice's sender who has none, never change one), and each kind's hourly rate as a professional_kind_rate with an effective date; a new rate is added from a date, never by changing an earlier one. Further rate rules may be added later as configuration, not code.
-      - The rate for a professional on a date is their kind's rate with the latest effective_from on or before it. Staff and anyone who may bill for that professional can see it.
-      - configured_rate records that rate for the professional whose work it is on the service date. A time line's amount is its time entry's hours, or before one exists the line's hours, times its billed_rate, rounded to cents. billed_rate is the rate stated on the imported supporting invoice (unit_rate) when there is one, otherwise configured_rate; a submitter entering time directly cannot set a rate.
+      - The configured rate for a professional on a date is their own approved rate, else their kind's, each the one with the latest effective_from on or before it. Staff and anyone who may bill for that professional can see it.
+      - A line's default rate on its service date is, in order, the request case's case_rate for the professional whose work it is, the case's case_rate for their kind, then the configured rate (set_case_rate). Travel and waiting time with no case rate of their type take their category's rate from that hourly default (apply_time_category_rates); mileage with none takes the professional's own rate per mile, else the mileage_rate. configured_rate records the default, rate_source where it came from and case_rate_id any case rate it came from. A time line's amount is its time entry's hours, or before one exists the line's hours, times its billed_rate, rounded to cents. billed_rate is the rate stated on the imported supporting invoice (unit_rate) when there is one, otherwise configured_rate; a submitter entering time directly cannot set a rate.
       - A draft may be saved with time lines not yet priceable, but a time line without a service date, positive hours, a professional kind or an effective configured rate cannot be confirmed from an import or submitted; the error says which is missing, for whom and for which date.
       - Amounts stated on an imported supporting invoice stay as evidence (stated_amount) and in the import's extraction result.
-      - A time line's rate limit is the approved_hourly_rate of the latest decision on an approved preauthorization for the professional whose work it is on the request case (or for the whole case), else its configured_rate.
+      - A time line's rate limit is its configured_rate when that came from a case rate; else the approved_hourly_rate of the latest decision on an approved preauthorization for the professional whose work it is on the request case (or for the whole case); else its configured_rate.
       - Review flags a time line whose billed_rate is above its rate limit, and a line whose stated amount differs from its quantity times its stated rate; neither blocks submission. Reviewers may re-price flagged lines (decide_invoice_lines), and any reviewer may correct the rate of any time, travel time or mileage line when approving it in part. Review flags a billed or corrected rate that differs from the line's configured_rate, its default.
-      - Submission prices lines again, so the frozen snapshot carries the rates applied; a later rate change never alters a submitted attempt.
+      - Submission prices lines again, so the frozen snapshot carries the rates applied; a later rate change never alters a submitted attempt, except a case rate set while reviewing that request (set_case_rate).
+
+  set_case_rate:
+    description: Let a reviewer apply a changed rate to the matching lines of a request, or set the case's default rate for a person or kind of professional, only from the line decision while reviewing.
+    applies_to: case_rate
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Any active staff user who may decide the request's lines (decide_invoice_lines) may, from the decision on a dated line with hours or miles, apply a changed rate to this line only, to the undecided lines on the request by the same professional at the same type of rate, or to the case's default for that professional or their kind from a date. Case rates are set nowhere else.
+      - The matching lines and the lines a case default governs are approved at that rate with their own hours or miles. Lines already decided keep their decisions; lines the time log blocks are left undecided (check_lines_against_time_log), except the chosen line, which needs the override reason.
+      - A case default needs a request with a case, a reason from the case rate list (invoice_decision_reasons.applies_to case_rate, with another reason needing a note), and a date of work on or before the chosen line's. The date defaults to the earliest matching line and may be earlier.
+      - Each case default is a new case_rate row recording the case, the person or kind, the type of rate, the rate, the default it replaced on the chosen line, the date, the reason, the request, the staff user and when. Rows are never changed or deleted. A row from the same date as the latest for that person or kind and type records the one it corrects. A row with no rate returns the case to the configured rate from its date; it is refused when the case has no rate of its own for them.
+      - A case rate changes the default (configured_rate, rate_source, case_rate_id) only on the lines of this request it governs. Every other request keeps the defaults it was sent with; an open request on the case whose lines a later case rate would now govern is flagged as changed since it was sent, and its reviewer reprices lines only if they choose to.
+      - A case rate for the person comes before one for their kind; setting one for the kind is refused on a line the person's own case rate governs.
+      - Setting a case rate states the latest row for that person or kind and type the page showed; if another has been recorded since, it is refused and the page shows the latest.
+      - The reason and note are shared like other review feedback on the lines decided at that rate. Before signing off, approvers see every case rate set on the request, with the old and new rates, who set it and why. Staff see a case's rates on its requests and on the case, in date order with the ones in force now; submitters and exports never see case rates as such.
 
   apply_mileage_rates:
     description: Price mileage from an administrator-configured rate per mile rather than payee-stated amounts.
@@ -348,12 +366,22 @@ rules:
       - A trip groups lines on one request; every line on it shares its date, which is required to confirm an import or submit. A trip has at most one time line, its travel time, at most one mileage line, any number of expense lines for its other costs (such as parking, tolls, fares or lodging), and no other lines. A trip with no lines is removed.
       - Each line on a trip is requested, reviewed, decided, allocated and exported on its own; the trip changes none of those rules. Removing a trip removes its lines.
       - A mileage line entered or imported without a trip is given one of its own, from its date and route.
-      - Time falls in one of three categories - work, travel (a time line on a trip) or waiting (a time line off a trip with time_category waiting). Travel and waiting time are priced like work (apply_professional_rates), except that the configured_rate is their category's rate on the date. Administrators add a time_category_rate for a category from an effective date, never by changing an earlier one, with one basis - the professional's hourly rate, a percent of it, or one flat hourly rate - and the rate for a category on a date is its setting with the latest effective_from on or before it. With none in force, that time is priced at the hourly rate. A percent of an hourly rate is rounded to cents.
+      - Time falls in one of three categories - work, travel (a time line on a trip) or waiting (a time line off a trip with time_category waiting). Travel and waiting time are priced like work (apply_professional_rates), except that the configured_rate is their category's rate on the date. Travel time has its own hourly rate: a professional's own travel time rate in force on the date, set by administrators from a date like their other rates, comes before the category's rate; a case rate for travel time comes before both (set_case_rate). Administrators add a time_category_rate for a category from an effective date, never by changing an earlier one, with one basis - the professional's hourly rate, a percent of it, or one flat hourly rate - and the rate for a category on a date is its setting with the latest effective_from on or before it. With none in force, that time is priced at the hourly rate. A percent of an hourly rate is rounded to cents.
       - A rate stated on an imported supporting invoice still becomes billed_rate, and review flags it when it differs from the category's rate. Reviewers may change it (decide_invoice_lines).
       - Time billing rules (billing codes, time increment, daily hour cap, long entry) apply to travel and waiting time as to other time.
       - Anyone entering or reviewing requests can see the travel and waiting time rates in force.
       - Imports never put lines on a shared trip. While checking a request, before submitting, the submitter or staff may put a time or expense line onto a trip with a mileage line on the same date, or take it off again; doing so is offered, never required. Each imported mileage line stays its own trip until they do.
       - Reviewers are shown, for each date a request claims travel, how many of the same professional's other submitted requests on another case also claim travel that day, with a way to open all of that professional's requests with an item on that date beside the review.
+
+  dismiss_mileage_warning:
+    description: Let a reviewer set aside a mileage line's distance warning that stops on the way explain.
+    applies_to: mileage_warning_dismissal
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - A trip has one start and one end, even with stops in between, so the mileage distance rule may warn about a trip that made stops.
+      - Any active staff user who may decide the request's lines may set aside the warning on a mileage line while its lines are reviewed, saying what the stops were, or put it back. Each is recorded with the staff user and when; the latest stands.
+      - The warning as submitted is never changed or removed from the snapshot. A set-aside warning no longer counts among the request's open mileage warnings; staff, sign-off included, see who set it aside and why. Submitters and exports don't see it.
 
   apply_billing_rules:
     description: Apply the deployment's configured billing rules to payment requests.
@@ -415,6 +443,7 @@ rules:
       - Ceilings are replacement amounts, not additive approvals; the latest effective decision determines the ceiling.
       - Denial cannot revoke a ceiling with committed draws; resolve commitments under explicit policy first.
       - Reject a reduction below effective committed approved draws. Preserve decisions immutably and serialize ceiling changes with draw approvals.
+      - Any active staff user may enter a case's pre-authorized amount for one professional or the whole case, as an approved preauthorization with its first decision, or change it with a revised decision that keeps its hourly rate.
       - Configured status and outcome mappings distinguish pending, approved and denied; external preauthorization is separate from invoice-chain pre-approval.
 
   validate_payment_confirmation:
@@ -546,10 +575,11 @@ rules:
     outcome: blocking
     requirements:
       - A staff-entered draft request with no case is listed in invoice intake, with imports still being read or confirmed whose case is not known.
-      - Matching is manual. Any active staff user may match a draft request to an open case, setting the case on the request and all its lines; a submitted request is not rematched. When an imported file clearly names one case (and, if several professionals share it, one of them), that case and professional may be offered first; staff still choose, and an offered case that has since closed is not offered.
+      - Matching is manual. Any active staff user may match a draft request to an open case, setting the case on the request and all its lines; a submitted request is not rematched. A request filed by person with no case may be matched to an open case while its lines are reviewed, listing cases whose number matches the one the request gives exactly or closely; its prices and default rates stay as sent, and case rates that would now apply are flagged (set_case_rate). Staff may add the case from the request's number instead, refusing a duplicate case number or a probable duplicate client. When an imported file clearly names one case (and, if several professionals share it, one of them), that case and professional may be offered first; staff still choose, and an offered case that has since closed is not offered.
       - A request saved without its provider gets one on matching, chosen from active professionals, and its time with no one named is then priced as theirs; until then it cannot be submitted, even without a case.
       - Every professional the request relies on must be assigned to the case on matching; on request, matching assigns any who are not, as an external submitter. Record a matched_to_case request event with the actor.
       - Staff may instead add the case first and match the request to it in the same step.
+      - A submitter filing a draft by person may instead put it under a case the professional whose work it is is assigned to and they may bill for, or take it off again; its case number becomes the case's, its lines are priced again, and on sending it goes to review with that case. A submitter's case list shows the open cases of the professionals they bill for, with each one's own pre-authorized amount and never the whole case's, whose approved total includes other professionals' requests.
       - A submitter who can't find the case, provider or a line's timekeeper may enter what they know instead (proposed_case, proposed_provider, proposed_timekeeper_name), or leave it unchosen; this never creates a case, person or professional. They may then send the request for matching (send_for_matching) with the attestation, and it waits in invoice intake. Staff match each entry to an existing record or create one prefilled from it, refusing a probable duplicate rather than creating it; then the request is released to review (release_to_review) and handled as if just submitted. Until then the submitter may recall it to draft, and any active staff user may send it back to their drafts (return_to_submitter) with a reason. Unlike sign-off comments, that reason is for the submitter: it is shown with the request, which is marked as needing changes and listed first among theirs, until they send it again. Anything staff already matched stays matched.
       - Entered details are kept after matching, and wherever the request is shown for intake or review it is clearly marked which case, provider or timekeeper the submitter entered rather than chose.
       - The submitter may submit a request with no case only by choosing to review it without one. It is then reviewed and signed off like any other, with no assignment, pre-authorization or case-based rate checks, and warnings that this system did not check its case, its professional's assignment or any pre-authorization.
@@ -592,6 +622,8 @@ rules:
       - The approved amount, the amount cut, the reasons used for cuts and rejections, and who signed off and when are filled once the request is signed off; a request still in review or awaiting sign-off shows none, since its numbers can still change.
       - Line detail stays in the system. Configured billing staff roles may download the record; any route to an external system reads from it.
       - Each row also carries the case's county, or the setting recorded in its place (record_case_county).
+      - The record can be narrowed to signed-off requests in one county whose billing period overlaps chosen dates. A request with no billing period is left out of a narrowed record.
+      - Each row carries the case's client. Before downloading, anyone may leave out any column other than the request's reference and amounts; nothing is left out by default, and each person's last choice is offered again. A spreadsheet with columns left out is labelled as a redacted copy naming them, and a redacted file's name says so.
       - Unresolved: payment track, budget account code and budget month, and the external payment date and reference are not yet held, so the record omits them.
 
   record_case_county:
@@ -612,7 +644,7 @@ rules:
     trigger: before_create
     outcome: blocking
     requirements:
-      - Configured system roles decide who may review lines, sign off, reassign, change review settings and read the review queue. A reference configuration has a billing reviewer (review lines, reassign), a sign-off approver (sign off or send back, reassign), general staff (read only, until their work is defined) and an administrator (settings).
+      - Every active staff user may upload, review lines, finish, reassign and sign off, since staff change duties often; administrators also change settings. Who may sign off can be narrowed to named sign-off approvers in the review settings (assign_invoice_review). Earlier reviewer-only and approver-only roles are retired; accounts that still have them act as staff, and their history is kept.
       - Review access is by role, not by case assignment; submitter access stays as authorize_payment_request_export and authorize_delegated_submission describe.
 
   recommend_configured_resources:

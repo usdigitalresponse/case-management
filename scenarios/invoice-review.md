@@ -1,17 +1,16 @@
 # Invoice review and sign-off
 
 A payment request (`invoice`) is reviewed line by line, then signed off. Cases
-may be managed in an external case management system. Use synthetic users with
-configured reviewer, sign-off approver, staff and administrator roles. Amounts
-and day counts are synthetic test values, not configuration defaults.
+may be managed in an external case management system. Use synthetic staff and
+administrator users. Amounts and day counts are synthetic test values, not
+configuration defaults.
 
 1. **Routing:** With no defaults configured, a submitted request is
    unassigned. With a default reviewer set, the next request goes to that
    reviewer. Setting a reviewer for a case sends that case's later requests to
-   them instead. Any reviewer may reassign a request, and the earlier
-   assignment remains in history. Every reviewer sees every request, with their
-   own work shown first. Staff without a reviewing role can read the queue but
-   cannot decide or reassign.
+   them instead. Any staff member may reassign a request, and the earlier
+   assignment remains in history. Every staff member sees every request, with
+   their own work shown first. A deactivated account can't decide or reassign.
 2. **Waiting:** A request submitted on a Friday has waited one working day on
    the following Monday. A request waiting longer than the configured number of
    working days is called out.
@@ -36,25 +35,37 @@ and day counts are synthetic test values, not configuration defaults.
      An administrator adds a reason to the reject list and retires another;
      reviewers see the change at once, and decisions that used the retired
      reason keep it.
-   - Only the assigned reviewer can decide lines.
+   - Another staff member decides a line on a request assigned to someone
+     else. The page tells them whose review it is; the request stays assigned
+     to its reviewer, and the line shows who decided it.
 5. **Undo and change:** Undoing or changing a decision before the round is
    finished leaves no history. Finishing with an undecided line is blocked.
-   Finishing records one round of immutable decisions, and the request then
-   awaits sign-off. Reopening before sign-off and finishing again records a
+   Finishing records one round of immutable decisions, each with whoever made
+   it, and the request then awaits sign-off. A staff member who isn't the
+   assigned reviewer may finish, and is recorded as finishing. Reopening before sign-off and finishing again records a
    second round; both rounds are kept, and the latest round's amounts are the
    approved amounts.
 6. **Rejected lines:** A round with one rejected line still goes to sign-off.
    The approved total excludes that line.
 7. **Sign-off:**
-   - The reviewer may change the sign-off approvers before finishing.
+   - Any staff member may change the sign-off approvers before finishing.
+   - A reviewer who decided every line alone and chose only themselves to sign
+     off can't finish: at least two people take part. With a colleague who
+     decided one line, they can.
+   - With Settings set to named sign-off approvers only, choosing anyone else
+     to sign off is refused, and someone taken off the list can no longer sign.
    - Each approver signs off in order, and the request is approved after the
      last one.
+   - An approver rejects the whole request, with an optional comment. It is
+     rejected and nothing on it is approved.
    - An approver sends a request back with a comment. The request returns to
      its reviewer for another round in the same chain.
    - The comment is visible to staff, but not to the submitter or in exports.
    - Approvers do not decide individual lines.
 8. **Visibility and export:**
-   - The submitter sees each line's latest decision, reason and note.
+   - The submitter sees each line's latest decision, reason and note, and
+     an approver's comment on approving or rejecting the whole request, but
+     never a send-back comment.
    - An export of the approved request shows the case number, the court
      numbers and each line's latest decision, reason and note. Earlier recorded
      rounds are not exported.
@@ -62,6 +73,12 @@ and day counts are synthetic test values, not configuration defaults.
    - The billing record has one row per submitted request. A request awaiting
      sign-off shows no approved amount; once signed off its row shows the
      approved amount, the cut, the reasons used and who signed off.
+   - Staff can download only the signed-off requests for one county whose
+     billing period overlaps chosen dates. A signed-off request for 20 Feb to
+     5 Mar is included for March; one with no billing period is not.
+   - Each row shows the client. The person downloading may leave out the
+     client or other columns, but never the request's reference or amounts;
+     a file with columns left out is marked as a redacted copy.
 9. **Staff entry:** A staff user with no office affiliation enters a request
    that an assigned professional emailed in on a Monday, by typing its items
    or importing the file (`authorize_staff_invoice_entry`).
@@ -123,8 +140,7 @@ and day counts are synthetic test values, not configuration defaults.
     professional emailed in, with two lines read from the file
     (`enter_request_in_review`).
     - It is under review at once, assigned to the reviewer, with the default
-      sign-off approvers. Staff without a reviewing role upload as a draft and
-      submit it as before. A request typed in by hand, with its invoice
+      sign-off approvers. A request typed in by hand, with its invoice
       number, goes into review the same way.
     - The reviewer approves both lines, then corrects the second line's
       amount. The first keeps its decision; the second is undecided again. A
@@ -191,6 +207,76 @@ and day counts are synthetic test values, not configuration defaults.
     - Finishing the round removes the log; reopening starts without one. The
       submitter never sees it, and exports and the billing record don't
       mention it. Recalling or deleting the request also removes it.
+
+16. **Case rates:** The professional's kind is configured at 100 an hour. A
+    request on their case bills 2 hours on the 2nd and 1 hour on the 10th at
+    100 (`set_case_rate`).
+    - The reviewer approves line 1 at 90 for the matching lines on this
+      request. Both lines are approved at 90 with no reason; no case rate is
+      recorded.
+    - Instead, the reviewer sets the case's default for this person to 125
+      from the 2nd. A reason from the case rate list is required; a reason
+      from the cut list is refused, and a start after line 1's date is
+      refused. The case rate records 125, the 100 it replaced, the date, the
+      reason, the reviewer and the request. Both lines now show a default of
+      125 from the case and are approved at 125, with the reason.
+    - A second staff member, whose page still shows no case rate, sets 130.
+      It is refused and the page shows the latest. Set again from 125, the
+      new rate replaces the one from the same date.
+    - Another request on the case, sent before the case rate was set, keeps
+      its default of 100 and is flagged as changed since it was sent. A
+      request sent afterwards is priced with a default of 125.
+    - A case rate for the person's kind applies to everyone of that kind on
+      the case, unless the person has a case rate of their own.
+    - A case rate with no rate returns the case to the configured rate from
+      its date.
+    - With a pre-authorized rate of 110, lines are checked against it until
+      a case rate is set; then they are checked against the case rate.
+    - The approver sees the case rate set on the request, with the old and
+      new rates, who set it and why, before signing off. The case page lists
+      every case rate in date order and the ones in force now, read-only.
+
+17. **Cases on review:** A request filed by person gives the case number
+    26-CR-00211 and has no case (`match_invoice_to_case`).
+    - While it is reviewed, the page lists the case with that number and one
+      whose number differs only in dashes and leading zeros, marked as a
+      close match. Matching it to the first sets the case on the request and
+      its lines, adds its professional to the case, records who matched it,
+      and keeps its prices. Matching it again to another case is refused.
+    - With no case listed, staff add one from the request's number and go
+      back to it matched. A case number already in the system, or a client
+      with the same name not confirmed as someone else, is refused.
+    - Matched, the page is led by the case: its client, its numbers, the
+      number the request gave, and the pre-authorized amount with what is
+      approved on the case so far.
+    - Any staff member enters a pre-authorized amount of 150 for the
+      professional. The request, for 200, is flagged as taking them over it,
+      on the page and in the queue, and can still be approved or rejected.
+      Changing the amount to 250 keeps the first decision and clears the
+      flag. An amount below what is already approved is refused.
+
+18. **A sender's cases:** The professional is on case 26-CR-00211, with a
+    pre-authorized amount of 500 for them and 5,000 for the whole case.
+    - Their case list shows the case with 500, never the 5,000.
+    - A draft filed by person, typed 26cr211, is put under that case: its
+      case number becomes 26-CR-00211 and its lines are priced with the
+      case's rate. Sent, it goes straight to review on the case. Taken off
+      the case again before sending, it keeps the number.
+    - Putting a draft under a case they aren't on is refused.
+
+19. **Travel time and stops:** Travel time is set at half the hourly rate of
+    100, and mileage at 0.50 a mile (`apply_time_category_rates`,
+    `dismiss_mileage_warning`).
+    - A trip's 2 hours of travel time are priced at 50. After the
+      professional is given their own travel time rate of 70, the next is
+      priced at 70; once a case rate of 80 is set for their travel time, at
+      80.
+    - A round trip claims 30 miles where the route is 11.2 there and back,
+      and is warned about. The reviewer sets the warning aside, saying the
+      trip stopped at the jail on the way; with no reason it is refused, and
+      a travel time line has no warning to set aside. Staff see who set it
+      aside and why; the submitter doesn't. Put back, the warning counts
+      again.
 
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

@@ -33,8 +33,6 @@ export const closeCaseInputSchema = z.object({
   reasonDetail: z.string().trim().min(1),
 });
 
-export type CloseCaseInput = z.infer<typeof closeCaseInputSchema>;
-
 export interface CloseCaseResult {
   caseId: string;
   caseLifecycleEventId: string;

@@ -12,13 +12,16 @@ import {
   professional,
   person,
   caseStatuses,
+  county,
   role,
 } from '../db/schema';
 import { listReviewQueue } from '../billing/reviewQueue';
-import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
+import { loadPreauthorizationSummaries, setPreauthorizedAmount } from '../billing/preauthorizations';
+import { loadCaseRateViews } from '../billing/caseRates';
 import { loadCaseReviewer, setCaseReviewer } from '../billing/reviewAssignment';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { createCase } from '../intake/createCase';
+import { loadCaseListExtras, loadRecentCaseChanges } from '../cases/caseSummaries';
 import { caseStageExpression } from '../cases/caseStage';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { assignExternalSubmitterToCase } from '../cases/assignExternalSubmitterToCase';
@@ -41,6 +44,7 @@ const caseColumnsWithClientName = {
   clientId: caseTable.clientId,
   clientDisplayName: person.displayName,
   countyId: caseTable.countyId,
+  countyDisplayName: county.displayName,
   externalReference: caseTable.externalReference,
   caseCategoryId: caseTable.caseCategoryId,
   statusId: caseTable.statusId,
@@ -87,8 +91,18 @@ router.get(
       .from(caseTable)
       .leftJoin(person, eq(caseTable.clientId, person.personId))
       .leftJoin(caseStatuses, eq(caseTable.statusId, caseStatuses.id))
+      .leftJoin(county, eq(caseTable.countyId, county.countyId))
       .where(filters.length > 0 ? and(...filters) : undefined);
-    res.json({ cases: rows });
+    const extras = await loadCaseListExtras(db, rows.map((row) => row.caseId));
+    res.json({ cases: rows.map((row) => ({ ...row, ...extras.get(row.caseId)! })) });
+  }),
+);
+
+// The latest changes across cases, for the case overview.
+router.get(
+  '/recent-changes',
+  asyncHandler(async (_req, res) => {
+    res.json({ changes: await loadRecentCaseChanges(db) });
   }),
 );
 
@@ -103,6 +117,7 @@ router.get(
       .from(caseTable)
       .leftJoin(person, eq(caseTable.clientId, person.personId))
       .leftJoin(caseStatuses, eq(caseTable.statusId, caseStatuses.id))
+      .leftJoin(county, eq(caseTable.countyId, county.countyId))
       .where(eq(caseTable.caseId, caseId));
     if (!caseRow) {
       res.status(404).json({ error: 'not_found' });
@@ -214,8 +229,8 @@ router.post(
 );
 
 // The case's submitted invoices, with who has each and what was approved,
-// and its pre-authorizations and invoice reviewer. Review itself happens on
-// the invoice page (../routes/invoices.ts).
+// and its pre-authorizations, case rates and invoice reviewer. Review itself
+// happens on the invoice page (../routes/invoices.ts).
 router.get(
   '/:id/invoices',
   asyncHandler(async (req, res) => {
@@ -224,9 +239,10 @@ router.get(
       res.status(404).json({ error: 'not_found' });
       return;
     }
-    const [{ invoices: rows }, preauthorizations, reviewer, numbers] = await Promise.all([
+    const [{ invoices: rows }, preauthorizations, caseRates, reviewer, numbers] = await Promise.all([
       listReviewQueue(db, 'all', { caseId }),
       loadPreauthorizationSummaries(db, caseId),
+      loadCaseRateViews(db, caseId),
       loadCaseReviewer(db, caseId),
       loadCaseNumbers(db, [caseId]),
     ]);
@@ -234,10 +250,20 @@ router.get(
     res.json({
       invoices: rows,
       preauthorizations,
+      caseRates,
       reviewer,
       caseNumber: numbers.get(caseId)?.caseNumber ?? null,
       otherCaseNumbers: numbers.get(caseId)?.otherNumbers ?? [],
     });
+  }),
+);
+
+// Any staff member enters or changes a pre-authorized amount.
+router.post(
+  '/:id/preauthorizations',
+  asyncHandler(async (req, res) => {
+    const actor = getSessionUser(req)!;
+    res.status(201).json(await setPreauthorizedAmount(db, actor.userAccountId, req.params.id as string, req.body));
   }),
 );
 

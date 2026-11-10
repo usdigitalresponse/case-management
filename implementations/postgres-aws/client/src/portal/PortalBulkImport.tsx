@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
-import { Checkbox, Form, Label, Select } from '@trussworks/react-uswds';
+import { Checkbox, Form, Select } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
   deleteInvoice,
@@ -27,7 +27,7 @@ import { RecordTable } from '../components/RecordTable';
 import { AttestationCheckbox } from '../components/AttestationCheckbox';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { caseDisplayLabel } from '../caseDisplayLabel';
-import { formatMoney, formatRate } from '../formatMoney';
+import { formatMoney, formatRate, sumMoney } from '../formatMoney';
 import {
   caseChoiceGroups,
   currentStep,
@@ -47,6 +47,7 @@ import {
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { useReceipt } from './ReceivedFields';
+import { DropZone } from './PortalUpload';
 import { LATER, useShell } from './useShell';
 
 interface StagedFile {
@@ -111,8 +112,8 @@ function SplitAssignment({
   const [error, setError] = useState<string | null>(null);
   const unassigned = caseIds.filter((caseId) => !caseId).length;
   const draftCount = new Set(caseIds.filter(Boolean)).size;
-  const statedTotal = split.lines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0) / 100;
-  const billedTotal = split.lines.reduce((sum, line) => sum + Math.round((line.billedAmount ?? 0) * 100), 0) / 100;
+  const statedTotal = sumMoney(split.lines.map((line) => line.amount));
+  const billedTotal = sumMoney(split.lines.map((line) => line.billedAmount));
   const allPriced = split.lines.every((line) => line.billedAmount !== null);
 
   async function create() {
@@ -246,8 +247,8 @@ function StagedFiles({
   useEffect(() => onStagedCount(staged.length), [staged.length, onStagedCount]);
   useEffect(() => onUploading(uploading || splitsCreating > 0), [uploading, splitsCreating, onUploading]);
 
-  function add(files: FileList | null) {
-    const added = [...(files ?? [])].map((file) => ({
+  function add(files: File[]) {
+    const added = files.map((file) => ({
       key: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
       file,
       choice: suggestChoice(file.name, cases) ?? '',
@@ -309,23 +310,8 @@ function StagedFiles({
   return (
     <Form className="compact-form compact-card" onSubmit={(event) => void uploadAll(event)}>
       <h2>1. Add files</h2>
-      <div className="usa-form-group">
-        <Label htmlFor="bulk-files">Invoice files</Label>
-        <input
-          id="bulk-files"
-          name="bulkFiles"
-          type="file"
-          multiple
-          className="compact-file"
-          accept=".pdf,.txt,.ledes,.csv,.xlsx"
-          aria-describedby="bulk-files-hint"
-          onChange={(event) => {
-            add(event.target.files);
-            event.target.value = '';
-          }}
-        />
-      </div>
-      <p className="compact-hint" id="bulk-files-hint">
+      <DropZone hasFiles={staged.length > 0} onFiles={add} />
+      <p className="compact-hint">
         PDFs, LEDES 1998B files or the template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}
         <a href={invoiceTemplateUrl('csv')} download>CSV</a>), up to 10 MB each. Then choose each file's case.
       </p>
@@ -449,8 +435,8 @@ function totalWithFile(row: ImportInProgress) {
 function StepHeader({ step, toReview, ready }: { step: BulkStep; toReview: number; ready: number }) {
   const steps: Array<[BulkStep, string]> = [
     [1, 'Add files'],
-    [2, toReview > 0 ? `Review each (${toReview} left)` : 'Review each'],
-    [3, ready > 0 ? `Submit (${ready} ready)` : 'Submit'],
+    [2, toReview > 0 ? `Check each (${toReview} left)` : 'Check each'],
+    [3, ready > 0 ? `Send (${ready} ready)` : 'Send'],
   ];
   return (
     <ol className="bulk-steps" aria-label="Import steps">
@@ -480,7 +466,7 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
   );
   return (
     <section className="bulk-step-section" id="review">
-      <h2>2. Review each file</h2>
+      <h2>2. Check each file</h2>
       <p className="compact-hint">
         Check what was read from each file against the original, then confirm it. Each file stays with its draft until
         you send, discard or delete it.
@@ -488,7 +474,7 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
       {next && (
         <div className="invoice-actions">
           <RouterLink className="btn btn--primary" to={reviewUrl(next)}>
-            Review next: {next.fileName}
+            Check next: {next.fileName}
           </RouterLink>
         </div>
       )}
@@ -522,10 +508,10 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
             columns={[
               { header: 'File', render: (row) => row.fileName },
               { header: 'Case', render: caseOf },
-              { header: 'Billing for', render: (row) => row.professionalDisplayName ?? '—' },
+              { header: 'Billed for', render: (row) => row.professionalDisplayName ?? '—' },
               { header: 'Total', render: totalWithFile },
               {
-                header: "What's left",
+                header: 'Still to do',
                 render: (row) => {
                   const notes = outstanding(row);
                   return notes.length > 0 ? notes.join(' · ') : 'Check and confirm';
@@ -586,7 +572,7 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<{ submitted: ImportInProgress[]; errors: string[] } | null>(null);
   const chosen = ready.filter((row) => !excluded.has(row.invoiceImportId));
-  const chosenTotal = chosen.reduce((sum, row) => sum + Math.round(Number(row.submittedTotal ?? 0) * 100), 0) / 100;
+  const chosenTotal = sumMoney(chosen.map((row) => row.submittedTotal));
   // Staff say once how and when this batch was received.
   const receipt = useReceipt('bulk');
 
@@ -624,7 +610,7 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
 
   return (
     <section className="bulk-step-section" id="submit">
-      <h2>3. Submit</h2>
+      <h2>3. Send</h2>
       {results && results.submitted.length > 0 && (
         <Notice tone="success">
           Submitted {results.submitted.length} {results.submitted.length === 1 ? 'invoice' : 'invoices'}:{' '}
@@ -669,7 +655,7 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
                 ),
               },
               { header: 'Case', render: caseOf },
-              { header: 'Billing for', render: (row) => row.professionalDisplayName ?? '—' },
+              { header: 'Billed for', render: (row) => row.professionalDisplayName ?? '—' },
               { header: 'File', render: (row) => row.fileName },
               { header: 'Total', render: totalWithFile },
               {
@@ -688,8 +674,8 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
               onClick={() => void submitChosen()}
             >
               {submitting
-                ? 'Submitting…'
-                : `Submit ${chosen.length} ${chosen.length === 1 ? 'invoice' : 'invoices'} · ${formatMoney(chosenTotal.toFixed(2))}`}
+                ? 'Sending…'
+                : `Send ${chosen.length} ${chosen.length === 1 ? 'invoice' : 'invoices'} for review · ${formatMoney(chosenTotal.toFixed(2))}`}
             </button>
           </div>
         </>
@@ -794,7 +780,7 @@ export default function PortalBulkImport() {
       <PageHeader
         crumbs={[{ label: newInvoiceLabel, to: newInvoicePath }, { label: 'Import invoices' }]}
         title="Import invoices"
-        description="Upload several invoice files at once, review and correct what was read from each, then submit them together."
+        description="Upload several invoice files at once, check what was read from each, then send them together."
         actions={
           (stagedCount > 0 || batchInProgress.length > 0) &&
           !confirmingCancel &&
@@ -829,7 +815,7 @@ export default function PortalBulkImport() {
       {uploadedCount > 0 && stagedCount === 0 && queue.length > 0 && (
         <Notice tone="success">
           {uploadedCount} {uploadedCount === 1 ? 'file' : 'files'} uploaded. Next, check what was read from each.{' '}
-          <RouterLink to={reviewUrl(queue[0]!)}>Review next: {queue[0]!.fileName}</RouterLink>
+          <RouterLink to={reviewUrl(queue[0]!)}>Check next: {queue[0]!.fileName}</RouterLink>
         </Notice>
       )}
       {Boolean(casesError) && <Notice tone="danger">Failed to load your cases.</Notice>}

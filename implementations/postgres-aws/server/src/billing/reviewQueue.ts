@@ -16,7 +16,7 @@ import { formatMoney, toCents } from './money';
 import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments } from './reviewAssignment';
 import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
-import { loadRateLimits, rateLimitFor } from './preauthorizations';
+import { loadPreauthorizationSummaries, loadRateLimits, overPreauthorization, rateLimitFor, type RateLimit } from './preauthorizations';
 import { evaluateBillingRules, type RuleFinding } from './billingRules';
 import { currentCaseNumber, matchCaseNumbers, searchMatch } from './caseNumbers';
 import {
@@ -32,8 +32,14 @@ import {
 // all: every submitted invoice (one case's list).
 export type QueueView = 'open' | 'finished' | 'all';
 
+const RATE_LIMIT_NAMES: Record<RateLimit['source'], string> = {
+  case: 'case rate',
+  preauthorized: 'pre-authorized',
+  configured: 'approved rate',
+};
+
 export interface QueueFlag {
-  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case';
+  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case' | 'preauthorization';
   message: string;
 }
 
@@ -80,6 +86,7 @@ export async function listReviewQueue(
         statedAmount: invoiceLine.statedAmount,
         billedRate: invoiceLine.billedRate,
         configuredRate: invoiceLine.configuredRate,
+        rateSource: invoiceLine.rateSource,
         expenseTypeId: invoiceLine.expenseTypeId,
         timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       })
@@ -97,7 +104,7 @@ export async function listReviewQueue(
     getReviewSettings(db),
   ]);
   const caseIds = [...new Set(headers.map((header) => header.caseId))];
-  const [working, rateLimits, questions] = await Promise.all([
+  const [working, rateLimits, questions, preauthorizations] = await Promise.all([
     db
       .select({ chainId: invoiceLineWorkingDecision.invoiceApprovalChainId })
       .from(invoiceLineWorkingDecision)
@@ -107,6 +114,9 @@ export async function listReviewQueue(
       .select({ invoiceId: invoiceReviewQuestion.invoiceId, answeredAt: invoiceReviewQuestion.answeredAt })
       .from(invoiceReviewQuestion)
       .where(inArray(invoiceReviewQuestion.invoiceId, invoiceIds)),
+    Promise.all(
+      caseIds.flatMap((caseId) => (caseId ? [caseId] : [])).map(async (caseId) => [caseId, await loadPreauthorizationSummaries(db, caseId)] as const),
+    ).then((pairs) => new Map(pairs)),
   ]);
   const linesFor = new Map<string, typeof lines>();
   for (const line of lines) {
@@ -146,7 +156,7 @@ export async function listReviewQueue(
       if (overRate?.limit) {
         flags.push({
           kind: 'rate',
-          message: `Rate check: bills ${formatMoney(overRate.line.billedRate as string)} an hour, ${overRate.limit.source === 'preauthorized' ? 'pre-authorized' : 'approved rate'} ${formatMoney(overRate.limit.rate)}`,
+          message: `Rate check: bills ${formatMoney(overRate.line.billedRate as string)} an hour, ${RATE_LIMIT_NAMES[overRate.limit.source]} ${formatMoney(overRate.limit.rate)}`,
         });
       }
       const mismatch = own.find(
@@ -169,6 +179,18 @@ export async function listReviewQueue(
           decision.approvedRate !== null &&
           Number(decision.approvedRate) !== Number(own.find((line) => line.invoiceLineId === decision.invoiceLineId)?.billedRate),
       ).length;
+      const preauthorized = header.caseId
+        ? (preauthorizations.get(header.caseId) ?? []).find(
+            (summary) => summary.professionalId === null || summary.professionalId === header.professionalId,
+          )
+        : undefined;
+      if (
+        preauthorized &&
+        !DECIDED_INVOICE_STATUS_CODES.includes(header.statusCode ?? '') &&
+        overPreauthorization(preauthorized, header.submittedTotal, false)
+      ) {
+        flags.push({ kind: 'preauthorization', message: `Over the pre-authorized ${formatMoney(preauthorized.ceiling)}` });
+      }
       if (changedRates > 0) {
         flags.push({ kind: 'rate_changed', message: `Reviewer changed the rate on ${changedRates} ${changedRates === 1 ? 'line' : 'lines'}` });
       }

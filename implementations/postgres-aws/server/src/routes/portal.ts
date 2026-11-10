@@ -31,7 +31,7 @@ import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { z } from 'zod';
 import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { db } from '../db/client';
-import { timeEntry, invoice, person, professional, professionalKinds } from '../db/schema';
+import { timeEntry, person, professional, professionalKinds } from '../db/schema';
 import { getSessionUser, requireAuth } from '../auth/session';
 import { UnauthenticatedError } from '../errors';
 import { billableProfessionalIds, resolvePortalActor, timeReadableProfessionalIds, type PortalActor } from '../portal/portalActor';
@@ -42,16 +42,17 @@ import {
   timeEntryLockedReason,
   updateTimeEntry,
 } from '../portal/changeTimeEntry';
-import { listOwnMileageRates, listRates, ownFirst } from '../billing/professionalRates';
+import { listOwnMileageRates, listOwnTravelRates, listRates, ownFirst } from '../billing/professionalRates';
 import { getBillingRules, listBillingCodes } from '../billing/billingRules';
 import { listMileageRates } from '../billing/mileageRates';
 import { listTimeCategoryRates } from '../billing/timeCategoryRates';
 import { createInvoice } from '../portal/createInvoice';
 import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
-import { loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail';
+import { decisionCommentsOf, loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail';
 import {
   recallInvoice,
+  setDraftCase,
   setDraftCaseNumber,
   setDraftCounty,
   setDraftDetails,
@@ -182,7 +183,7 @@ router.get(
     // Everyone who may bill for a professional sees their rates
     // (model/rules.yaml apply_professional_rates).
     const rates = await listRates(db, ids);
-    const [generalMileage, ownMileage] = await Promise.all([listMileageRates(db), listOwnMileageRates(db, ids)]);
+    const [generalMileage, ownMileage, ownTravel] = await Promise.all([listMileageRates(db), listOwnMileageRates(db, ids), listOwnTravelRates(db, ids)]);
     res.json({
       professionals: rows.map((row) => {
         const own = ownMileage.get(row.professionalId);
@@ -194,6 +195,8 @@ router.get(
             .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
           // Only for someone with their own; the general rates otherwise.
           mileageRates: own ? ownFirst(generalMileage, own, () => '') : [],
+          // Their own travel time rates; the travel time setting otherwise.
+          travelRates: (ownTravel.get(row.professionalId) ?? []).map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
         };
       }),
     });
@@ -219,6 +222,13 @@ router.put(
   '/invoices/:id/case-number',
   asyncHandler(async (req, res) => {
     res.json(await setDraftCaseNumber(db, await sessionActor(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/invoices/:id/case',
+  asyncHandler(async (req, res) => {
+    res.json(await setDraftCase(db, await sessionActor(req), req.params.id as string, req.body));
   }),
 );
 
@@ -315,6 +325,7 @@ function withoutReviewer(detail: InvoiceDetail) {
     fileSource: detail.fileSource,
     submitterChanges: detail.submitterChanges,
     questions: detail.questions,
+    decisionComments: decisionCommentsOf(detail.signOffs),
     lines: detail.lines.map(({ decidedByDisplayName: _reviewer, decision, history, ...line }) => ({
       ...line,
       decision: decision ? anonymous(decision) : null,

@@ -2,7 +2,7 @@
 // signs off in turn or sends it back (model/rules.yaml decide_invoice_lines,
 // enforce_invoice_approval_sequence; model/workflows.yaml payment_request).
 import { z } from 'zod';
-import { and, asc, eq, inArray, isNull, max } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, max } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { getReferenceId } from '../db/referenceLookups';
 import { ConflictError, ForbiddenError, ValidationError } from '../errors';
@@ -13,6 +13,8 @@ import {
   invoiceApprovalOutcomes,
   invoiceApprovalStepTypes,
   invoiceDecisionReasons,
+  invoiceEvent,
+  invoiceEventTypes,
   invoiceLine,
   invoiceLineWorkingDecision,
   invoiceStatuses,
@@ -23,8 +25,10 @@ import {
   AWAITING_ANSWER_INVOICE_STATUS_CODE,
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
   DECIDED_INVOICE_STATUS_CODES,
+  REJECTED_INVOICE_STATUS_CODE,
   UNDER_REVIEW_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
+import { canSignOff } from './reviewSettings';
 import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments, lockInvoiceForReview, SIGN_OFF_STEP_TYPE_CODE } from './reviewAssignment';
 import { requireReviewPermission } from './reviewAccess';
 import { isStaffAccount } from '../portal/portalActor';
@@ -34,6 +38,8 @@ import { closeEntry, entryIsOpen } from './enterInReview';
 import { receiptInputSchema } from './invoiceReceipt';
 import { keepsBilledHours, linesBlockedByTimeLog, removeTimeLog } from './reviewTimeLog';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
+
+const SECOND_PERSON_MESSAGE = 'At least two people take part in reviewing each invoice.';
 
 export async function currentChainId(db: DatabaseOrTransaction, invoiceId: string): Promise<string | undefined> {
   const [chain] = await db
@@ -113,9 +119,13 @@ export function latestRoundNumber(decisions: RecordedDecision[], lineCount: numb
   return complete.length === 0 ? null : Math.max(...complete.map(([sequence]) => sequence));
 }
 
-// What the latest finished round approved; null until a round is finished.
+// What the latest finished round approved; null until a round is finished,
+// nothing once the invoice was rejected at sign-off.
 export function approvedTotal(decisions: RecordedDecision[], round: number | null): string | null {
   if (round === null) return null;
+  if (decisions.some((decision) => decision.stepCode === SIGN_OFF_STEP_TYPE_CODE && decision.sequenceNumber > round && decision.outcomeCode === 'rejected')) {
+    return fromCents(0);
+  }
   const cents = decisions
     .filter((decision) => decision.sequenceNumber === round && decision.invoiceLineId)
     .reduce((sum, decision) => sum + toCents(decision.approvedAmount), 0);
@@ -198,9 +208,6 @@ export async function finishReview(db: Database, actorUserAccountId: string, inv
       throw new ConflictError('invalid_state', 'Decide every line before finishing the review.');
     }
     const assignments = await loadAssignments(tx, invoiceId);
-    if (assignments.reviewer?.userAccountId !== actorUserAccountId) {
-      throw new ConflictError('not_assigned', "Only the invoice's reviewer can finish the review.");
-    }
     if (assignments.signOff.length === 0) {
       throw new ValidationError({ signOff: 'Choose who signs off before finishing the review.' });
     }
@@ -242,6 +249,10 @@ export async function finishReview(db: Database, actorUserAccountId: string, inv
         lines: `${blocked.size} approved ${blocked.size === 1 ? "line isn't" : "lines aren't"} supported by the time log as billed. Decide ${blocked.size === 1 ? 'it' : 'them'} again.`,
       });
     }
+    const takingPart = new Set([actorUserAccountId, ...working.map((decision) => decision.decidedByUserAccountId), ...assignments.signOff.map((person) => person.userAccountId)]);
+    if (takingPart.size < 2) {
+      throw new ValidationError({ signOff: `${SECOND_PERSON_MESSAGE} Choose someone else to sign off.` });
+    }
     const sequenceNumber = await nextSequenceNumber(tx, chainId);
     const stepTypeId = await getReferenceId(tx, invoiceApprovalStepTypes, LINE_REVIEW_STEP_TYPE_CODE);
     await tx.insert(invoiceApprovalDecision).values(
@@ -251,9 +262,9 @@ export async function finishReview(db: Database, actorUserAccountId: string, inv
         stepTypeId,
         invoiceLineId: decision.invoiceLineId,
         outcomeId: decision.outcomeId,
-        // Finishing is the decision; the reviewer is the one who finishes.
-        decidedByUserAccountId: actorUserAccountId,
-        decidedAt: new Date(),
+        // Each line keeps who decided it; the review_finished event records who finished.
+        decidedByUserAccountId: decision.decidedByUserAccountId,
+        decidedAt: decision.decidedAt,
         reason: decision.note,
         reasonCodeId: decision.reasonCodeId,
         approvedAmount: decision.approvedAmount,
@@ -294,10 +305,6 @@ export async function reopenReview(db: Database, actorUserAccountId: string, inv
     if (locked.statusCode !== AWAITING_SIGN_OFF_INVOICE_STATUS_CODE) {
       throw new ConflictError('invalid_state', 'Only a finished review waiting for sign-off can be reopened.');
     }
-    const { reviewer } = await loadAssignments(tx, invoiceId);
-    if (reviewer?.userAccountId !== actorUserAccountId) {
-      throw new ConflictError('not_assigned', "Only the invoice's reviewer can reopen the review.");
-    }
     const chainId = (await currentChainId(tx, invoiceId)) as string;
     const { round, signOffs } = await loadRoundState(tx, invoiceId, chainId);
     if (signOffs.length > 0 || round === null) {
@@ -313,21 +320,47 @@ export async function reopenReview(db: Database, actorUserAccountId: string, inv
   });
 }
 
+// Who decided the latest round's lines, who finished it and who has signed off since.
+async function roundParticipants(tx: Transaction, invoiceId: string, decisions: RecordedDecision[], round: number | null): Promise<Set<string>> {
+  const people = new Set(
+    decisions
+      .filter(
+        (decision) =>
+          round !== null &&
+          (decision.sequenceNumber === round ||
+            (decision.stepCode === SIGN_OFF_STEP_TYPE_CODE && decision.sequenceNumber > round && decision.outcomeCode === 'approved')),
+      )
+      .map((decision) => decision.decidedByUserAccountId),
+  );
+  const [finished] = await tx
+    .select({ actorUserAccountId: invoiceEvent.actorUserAccountId })
+    .from(invoiceEvent)
+    .innerJoin(invoiceEventTypes, eq(invoiceEventTypes.id, invoiceEvent.eventTypeId))
+    .where(and(eq(invoiceEvent.invoiceId, invoiceId), eq(invoiceEventTypes.code, 'review_finished')))
+    .orderBy(desc(invoiceEvent.sequenceNumber))
+    .limit(1);
+  if (finished?.actorUserAccountId) people.add(finished.actorUserAccountId);
+  return people;
+}
+
 const signOffInputSchema = z.object({
-  outcome: z.enum(['approved', 'changes_requested']),
+  outcome: z.enum(['approved', 'rejected', 'changes_requested']),
   comment: z.string().trim().max(2000).optional(),
 });
 
+// The next approver signs off, sends it back, or rejects the whole invoice.
 export async function signOffInvoice(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   const parsed = signOffInputSchema.safeParse(rawInput);
   if (!parsed.success) {
-    throw new ValidationError({ outcome: 'Sign off or send it back.' });
+    throw new ValidationError({ outcome: 'Sign off, reject or send it back.' });
   }
   const input = parsed.data;
   if (input.outcome === 'changes_requested' && !input.comment) {
     throw new ValidationError({ comment: 'Say what the reviewer should change.' });
   }
-  await requireReviewPermission(db, actorUserAccountId, 'signOff');
+  if (!(await canSignOff(db, actorUserAccountId))) {
+    throw new ForbiddenError('forbidden', 'Only sign-off approvers named in Settings can sign off invoices.');
+  }
   return db.transaction(async (tx) => {
     const locked = await lockInvoiceForReview(tx, invoiceId);
     if (locked.statusCode !== AWAITING_SIGN_OFF_INVOICE_STATUS_CODE) {
@@ -343,6 +376,11 @@ export async function signOffInvoice(db: Database, actorUserAccountId: string, i
         next ? `${next.displayName} signs off next.` : 'Everyone assigned has already signed off.',
       );
     }
+    const last = signOff.at(-1)?.userAccountId === actorUserAccountId;
+    const decides = input.outcome === 'rejected' || (input.outcome === 'approved' && last);
+    if (decides && (await roundParticipants(tx, invoiceId, decisions, round)).add(actorUserAccountId).size < 2) {
+      throw new ConflictError('second_person_needed', `${SECOND_PERSON_MESSAGE} Someone else needs to sign off.`);
+    }
     await tx.insert(invoiceApprovalDecision).values({
       invoiceApprovalChainId: chainId,
       sequenceNumber: await nextSequenceNumber(tx, chainId),
@@ -351,15 +389,19 @@ export async function signOffInvoice(db: Database, actorUserAccountId: string, i
       decidedByUserAccountId: actorUserAccountId,
       decidedAt: new Date(),
       reason: input.comment || null,
-      // Sign-off comments are for staff (limit_review_comment_visibility).
-      internalOnly: Boolean(input.comment),
+      // A send-back is for the reviewer; approving or rejecting the whole
+      // invoice is shared like line notes (limit_review_comment_visibility).
+      internalOnly: input.outcome === 'changes_requested' && Boolean(input.comment),
     });
     if (input.outcome === 'changes_requested') {
       await seedWorkingFromRound(tx, chainId, round as number);
       await setStatus(tx, invoiceId, UNDER_REVIEW_INVOICE_STATUS_CODE, { eventTypeCode: 'sent_back', actorUserAccountId, chainId });
       return { invoiceId, statusCode: UNDER_REVIEW_INVOICE_STATUS_CODE };
     }
-    const last = signOff.at(-1)?.userAccountId === actorUserAccountId;
+    if (input.outcome === 'rejected') {
+      await setStatus(tx, invoiceId, REJECTED_INVOICE_STATUS_CODE, { eventTypeCode: 'rejected', actorUserAccountId, chainId });
+      return { invoiceId, statusCode: REJECTED_INVOICE_STATUS_CODE };
+    }
     if (last) {
       await setStatus(tx, invoiceId, APPROVED_INVOICE_STATUS_CODE, { eventTypeCode: 'approved', actorUserAccountId, chainId });
       return { invoiceId, statusCode: APPROVED_INVOICE_STATUS_CODE };

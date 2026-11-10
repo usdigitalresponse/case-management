@@ -20,6 +20,7 @@ interface Fields {
   paidThrough: string;
   hourlyRate: string;
   ratePerMile: string;
+  travelHourlyRate: string;
 }
 
 const number = (value: string) => (value.trim() === '' ? undefined : Number(value.replace(/[$,\s]/g, '')));
@@ -43,6 +44,7 @@ export function PersonDialog({
     paidThrough: person?.paidThrough ?? '',
     hourlyRate: person?.hourlyRate ?? '',
     ratePerMile: person?.ratePerMile ?? '',
+    travelHourlyRate: person?.travelHourlyRate ?? '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -62,6 +64,7 @@ export function PersonDialog({
       paidThrough: fields.paidThrough,
       hourlyRate: number(fields.hourlyRate),
       ratePerMile: number(fields.ratePerMile),
+      travelHourlyRate: number(fields.travelHourlyRate),
     };
     try {
       if (person) {
@@ -136,6 +139,7 @@ export function PersonDialog({
           {field('hourlyRate', 'Approved rate, an hour', person ? 'A change applies from today.' : undefined)}
           {field('ratePerMile', 'Mileage rate, a mile', person ? undefined : 'Leave blank to use the general mileage rate.')}
         </div>
+        {field('travelHourlyRate', 'Travel time rate, an hour', 'Leave blank to use the travel time setting.')}
         {message && <p className="field-error" role="alert">{message}</p>}
         <div className="dialog__actions">
           <button type="submit" className="btn btn--primary" disabled={busy || !name || !fields.professionalKindId}>

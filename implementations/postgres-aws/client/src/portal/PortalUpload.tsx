@@ -223,6 +223,8 @@ export type ReadyRead = Extract<UploadRead, { status: 'ready' }>;
 export function useUploadEntries<D>(detailsFrom: (read: ReadyRead) => D) {
   const [entries, setEntries] = useState<Array<Entry<D>>>([]);
   const counter = useRef(0);
+  // Removed or cancelled; an upload still in flight is discarded when it lands.
+  const gone = useRef(new Set<string>());
 
   const update = useCallback((key: string, patch: Partial<Entry<D>>) => {
     setEntries((current) => current.map((entry) => (entry.key === key ? { ...entry, ...patch } : entry)));
@@ -248,6 +250,10 @@ export function useUploadEntries<D>(detailsFrom: (read: ReadyRead) => D) {
       setEntries((current) => [...current, { key, file }]);
       startUpload(file).then(
         ({ uploadReadId }) => {
+          if (gone.current.has(key)) {
+            void discardUpload(uploadReadId).catch(() => undefined);
+            return;
+          }
           update(key, { uploadReadId });
           void refresh(key, uploadReadId);
         },
@@ -270,13 +276,28 @@ export function useUploadEntries<D>(detailsFrom: (read: ReadyRead) => D) {
   }, [readingKey]);
 
   async function remove(entry: Entry<D>) {
+    gone.current.add(entry.key);
     setEntries((list) => list.filter((row) => row.key !== entry.key));
     if (entry.uploadReadId && !entry.created) {
       await discardUpload(entry.uploadReadId).catch(() => undefined);
     }
   }
 
-  return { entries, update, addFiles, remove };
+  // Keeps none of the files: unread ones are discarded, drafts deleted.
+  async function discardAll() {
+    for (const entry of entries) gone.current.add(entry.key);
+    await Promise.all(
+      entries.map((entry) =>
+        entry.created
+          ? deleteInvoice(entry.created.invoiceId).catch(() => undefined)
+          : entry.uploadReadId
+            ? discardUpload(entry.uploadReadId).catch(() => undefined)
+            : undefined,
+      ),
+    );
+  }
+
+  return { entries, update, addFiles, remove, discardAll };
 }
 
 // Who the user may bill with no case chosen: staff, any active provider; a
@@ -575,7 +596,7 @@ export default function PortalUpload() {
   const navigate = useNavigate();
   // Staff come from and go back to Intake; submitters to their invoices.
   const { staff, invoicesPath, invoicesLabel } = useShell();
-  const { entries, update, addFiles, remove } = useUploadEntries(detailsFrom);
+  const { entries, update, addFiles, remove, discardAll } = useUploadEntries(detailsFrom);
   const { data: billable } = useBillable();
   const [manual, setManual] = useState(false);
   const location = useLocation();
@@ -643,18 +664,9 @@ export default function PortalUpload() {
     }
   }
 
-  // Keeps none of the files: unread ones are discarded, drafts deleted.
   async function cancel() {
     setBusy(true);
-    await Promise.all(
-      entries.map((entry) =>
-        entry.created
-          ? deleteInvoice(entry.created.invoiceId).catch(() => undefined)
-          : entry.uploadReadId
-            ? discardUpload(entry.uploadReadId).catch(() => undefined)
-            : undefined,
-      ),
-    );
+    await discardAll();
     navigate(invoicesPath);
   }
 

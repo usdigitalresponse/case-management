@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { asc, eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
-import { createStaff, giveRole } from './reviewHelpers';
+import { createStaff } from './reviewHelpers';
 import { createCase } from '../src/intake/createCase';
 import { giveRate } from './rateHelpers';
 import { addKindRate, createKind } from '../src/billing/professionalRates';
@@ -185,16 +185,16 @@ describe('entering an upload in review', () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
-  it('keeps how and when it came in as entered, so it can be finished later', async () => {
+  it('keeps how and when it came in as entered, by anyone on staff, so it can be finished later', async () => {
     const invoiceId = await upload([{ amount: 40, description: 'Copies' }]);
     const [copies] = await savedLines(invoiceId);
     await setEnteredReceipt(testDb, reviewer, invoiceId, { receivedVia: 'email' });
     await setEnteredReceipt(testDb, reviewer, invoiceId, { receivedOn: '2026-02-03' });
-    await expect(setEnteredReceipt(testDb, approver, invoiceId, { receivedOn: '2026-02-04' })).rejects.toBeInstanceOf(ForbiddenError);
+    await setEnteredReceipt(testDb, approver, invoiceId, { receivedOn: '2026-02-04' });
     await decideLine(reviewer, invoiceId, copies!.invoiceLineId, { outcome: 'approved' });
     await finishReview(testDb, reviewer, invoiceId);
     const { invoice: header } = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
-    expect(header).toMatchObject({ receivedOn: '2026-02-03', statusCode: 'awaiting_sign_off' });
+    expect(header).toMatchObject({ receivedOn: '2026-02-04', statusCode: 'awaiting_sign_off' });
   });
 
   it('needs the case number to finish', async () => {
@@ -216,7 +216,6 @@ describe('entering an upload in review', () => {
     const lines = { lines: [{ invoiceLineId: copies!.invoiceLineId, lineType: 'expense', amount: 45, description: 'Copies', serviceDate: '2026-02-02' }] };
 
     await reassignReviewer(testDb, reviewer, invoiceId, { userAccountId: other });
-    await expect(save(reviewer, invoiceId, lines)).rejects.toBeInstanceOf(ConflictError);
     await save(other, invoiceId, lines);
     await decideLine(other, invoiceId, copies!.invoiceLineId, { outcome: 'approved' });
     await finishReview(testDb, other, invoiceId, receipt);
@@ -262,10 +261,9 @@ describe('entering an upload in review', () => {
     expect(await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId))).toEqual([]);
   });
 
-  it('is entered by hand only by staff who review, and otherwise not made at all', async () => {
+  it('is entered by hand by staff, and otherwise not made at all', async () => {
     const professionalId = await sender();
     const typed = { caseId: null, professionalId, submit: false, enterInReview: true, invoiceNumber: 'INV-0042', lines: [] };
-    await expect(createInvoice(testDb, await resolvePortalActor(testDb, approver), typed)).rejects.toBeInstanceOf(ForbiddenError);
     await expect(createInvoice(testDb, await resolvePortalActor(testDb, reviewer), { ...typed, submit: true })).rejects.toBeInstanceOf(
       ValidationError,
     );
@@ -408,9 +406,9 @@ describe('entering an upload in review', () => {
     await decideLine(reviewer, invoiceId, copies!.invoiceLineId, { outcome: 'approved' });
   });
 
-  it('stops entering for someone whose reviewing role was taken away', async () => {
+  it('stops entering for someone whose account was deactivated', async () => {
     const invoiceId = await upload([{ amount: 40, description: 'Copies' }]);
-    await giveRole(reviewer, 'staff');
+    await testDb.update(userAccount).set({ active: false }).where(eq(userAccount.userAccountId, reviewer));
     await expect(setEnteredCaseNumber(testDb, reviewer, invoiceId, { caseNumber: '26-CR-00999' })).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -540,9 +538,8 @@ describe('entering an upload in review', () => {
     await expect(
       setEnteredDetails(testDb, reviewer, invoiceId, { ...details, periodEnd: null }),
     ).rejects.toBeInstanceOf(ValidationError);
-    await expect(setEnteredDetails(testDb, approver, invoiceId, details)).rejects.toBeInstanceOf(ForbiddenError);
 
-    await setEnteredDetails(testDb, reviewer, invoiceId, { ...details, invoiceNumber: null });
+    await setEnteredDetails(testDb, approver, invoiceId, { ...details, invoiceNumber: null });
     expect(await testDb.select().from(supportingInvoice).where(eq(supportingInvoice.invoiceId, invoiceId))).toEqual([]);
   });
 });
@@ -576,12 +573,16 @@ describe('whom an entry is from', () => {
     ).rejects.toMatchObject({ fieldErrors: { professionalKindId: expect.any(String) } });
   });
 
-  it('gives a role only for a reviewer', async () => {
+  it('gives a role for any staff member, but not a deactivated one', async () => {
     const professionalId = await withoutRole();
     const { professionalKindId } = await createKind(testDb, { displayName: `Synthetic kind ${randomUUID()}` });
-    const actor = await resolvePortalActor(testDb, await createStaff('staff'));
+    const staffMember = await createStaff('staff');
+    const actor = await resolvePortalActor(testDb, staffMember);
     const { invoiceId } = await createInvoice(testDb, actor, { caseId: null, professionalId: null, submit: false, lines: [] });
+    await testDb.update(userAccount).set({ active: false }).where(eq(userAccount.userAccountId, staffMember));
     await expect(setDraftSender(testDb, actor, invoiceId, { professionalId, professionalKindId })).rejects.toBeInstanceOf(ForbiddenError);
+    await testDb.update(userAccount).set({ active: true }).where(eq(userAccount.userAccountId, staffMember));
+    await setDraftSender(testDb, actor, invoiceId, { professionalId, professionalKindId });
   });
 
   it('checks the file again for duplicates when whom it is from changes', async () => {

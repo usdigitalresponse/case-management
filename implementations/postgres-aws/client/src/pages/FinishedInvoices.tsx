@@ -11,7 +11,7 @@ import { COMPLETED_EXPLAINER, DECIDED_STATUS_CODES, InvoiceStatus, isCompleted }
 import { Toast, useToast } from '../components/Toast';
 import { CaseNumberCell, countyOfInvoice, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
 import { useCountyControl } from '../components/CountyListControl';
-import { formatDate } from '../formatDateTime';
+import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
 const FINISHED = ['awaiting_sign_off', ...DECIDED_STATUS_CODES];
@@ -56,7 +56,7 @@ export default function FinishedInvoices() {
     return <LoadState error={error} what="invoices" />;
   }
   const shown = county.shown;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatDay(new Date().toISOString());
 
   return (
     <div>
@@ -84,11 +84,11 @@ export default function FinishedInvoices() {
         emptyMessage={county.narrowed ? 'No invoices here for that county.' : filter === 'month' ? 'Nothing finished this month yet.' : 'No invoices here.'}
         columns={[
           { header: 'From', rowHeader: true, render: (invoice) => <FromCell invoice={invoice} /> },
-          { header: 'Case number, as typed', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },
+          { header: 'Case number', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },
           {
             header: 'Finished',
             render: (invoice) =>
-              invoice.finishedAt ? (invoice.finishedAt.slice(0, 10) === today ? 'Today' : formatDate(invoice.finishedAt.slice(0, 10))) : '—',
+              invoice.finishedAt ? (formatDay(invoice.finishedAt) === today ? 'Today' : formatDay(invoice.finishedAt)) : '—',
           },
           { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
           { header: 'Approved', align: 'right', render: (invoice) => (invoice.approvedTotal !== null ? formatMoney(invoice.approvedTotal) : '—') },

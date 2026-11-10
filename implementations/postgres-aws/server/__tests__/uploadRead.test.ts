@@ -232,7 +232,10 @@ describe('uploading an invoice before choosing its case', () => {
     );
     await expect(
       createDraftFromUpload(testDb, actor, { uploadReadId, caseId, professionalId, periodStart: '2026-01-01' }),
-    ).rejects.toBeInstanceOf(ValidationError);
+    ).rejects.toMatchObject({ fieldErrors: { periodEnd: 'Enter both days of the billing period, or neither.' } });
+    await expect(
+      createDraftFromUpload(testDb, actor, { uploadReadId, caseId, professionalId, periodStart: '2026-01-31', periodEnd: '2026-01-01' }),
+    ).rejects.toMatchObject({ fieldErrors: { periodEnd: 'The billing period must end on or after its first day.' } });
     // Still there to try again.
     expect((await getUploadRead(testDb, actor, uploadReadId)).status).toBe('ready');
   });

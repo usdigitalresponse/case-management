@@ -4,7 +4,9 @@ import {
   answerQuestion,
   apiErrorMessage,
   askQuestion,
+  applyLineRate,
   decideInvoiceLine,
+  setMileageWarning,
   finishReview,
   getInvoiceForReview,
   listDecisionReasons,
@@ -24,11 +26,13 @@ import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { RuleFindings } from '../components/BillingRules';
-import { TravelLog } from '../components/TravelLog';
+import { overRouteNote, TravelLog } from '../components/TravelLog';
 import { StatusPill } from '../components/StatusPill';
-import { DecisionCell, DecisionPanel, decisionInput, rateChanged, type PanelMode } from '../components/LineReview';
+import { DecisionCell, DecisionPanel, decisionInput, rateChanged, type PanelMode, type RateScope } from '../components/LineReview';
 import { ReviewerPicker, SignOffApprovers } from '../components/ReviewRouting';
 import { RateCheckNotice, SignOffHistory, SignOffPanel, TotalsBar } from '../components/ReviewPanels';
+import { InvoiceCaseRates } from '../components/CaseRates';
+import { CaseCard, CaseMatch } from '../components/CaseCard';
 import { AskLink, LineQuestions, QuestionForm } from '../components/ReviewQuestions';
 import { InvoiceLinesTable, lineRowClass } from '../components/InvoiceLinesTable';
 import { OriginalDocument } from '../components/OriginalDocument';
@@ -42,9 +46,9 @@ import { EmailAboutLine, EmailSender } from '../components/EmailSender';
 import { shownCaseNumber } from '../caseNumbers';
 import { EnteredFlag, proposedCaseLabel } from '../components/NewEntryFields';
 import { Toast, useToast, type ToastMessage } from '../components/Toast';
-import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
+import { formatDate, formatDateTime, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
-import { reviewTotals, submittedByLabel } from '../reviewTotals';
+import { reviewTotals } from '../reviewTotals';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { CaseNumberReview } from '../components/CaseNumberReview';
 import { EnteredCaseNumber, EntryLines, EntryReceipt } from '../components/EntryLines';
@@ -193,11 +197,11 @@ export default function InvoiceReview() {
   // Lines may still be decided while waiting for an answer; finishing waits.
   const inReview = status === 'submitted' || status === 'under_review' || awaitingAnswer;
   const reviewer = assignments?.reviewer ?? null;
-  const isReviewer = reviewer?.userAccountId === userId;
-  // Deciding a line on an unassigned invoice takes it.
-  const canDecide = inReview && Boolean(permissions?.reviewLines) && (!reviewer || isReviewer);
-  // Its reviewer enters its lines and decides them in one pass.
-  const entering = data.entryOpen && inReview && isReviewer;
+  // Anyone on staff decides lines; deciding one on an unassigned invoice takes it.
+  const canDecide = inReview && Boolean(permissions?.reviewLines);
+  const someoneElses = canDecide && reviewer !== null && reviewer.userAccountId !== userId;
+  // Lines are entered and decided in one pass.
+  const entering = data.entryOpen && canDecide;
   knownVersion.current = Math.max(knownVersion.current, invoice.linesVersion);
   if (period.current.invoiceId !== invoice.invoiceId) {
     period.current = { invoiceId: invoice.invoiceId, periodStart: invoice.periodStart, periodEnd: invoice.periodEnd };
@@ -216,7 +220,13 @@ export default function InvoiceReview() {
   const totals = reviewTotals(lines, current);
   const everyLineDecided = inReview && !awaitingAnswer && lines.length > 0 && totals.decided === lines.length;
   const ruleFindings = data.ruleFindings ?? [];
-  const mileageFindings = ruleFindings.filter((finding) => finding.rule === 'mileage_distance');
+  // Less any set aside for stops on the way.
+  const mileageFindings = ruleFindings.filter(
+    (finding) =>
+      finding.rule === 'mileage_distance' && !data.mileageDismissals.some((row) => row.invoiceLineId === finding.invoiceLineId),
+  );
+  const stopsSetAside = data.mileageDismissals.length;
+  const overRoute = new Set(mileageFindings.map((finding) => finding.invoiceLineId));
 
   const approvers = assignments?.signOff ?? [];
   const sentBack = status === 'under_review' ? data.signOffs.filter((s) => s.outcomeCode === 'changes_requested').at(-1) : undefined;
@@ -410,6 +420,34 @@ export default function InvoiceReview() {
         }
       />
     ) : null;
+  const rateScopeOf = (line: InvoiceReviewLine): RateScope | null => {
+    const matching = lines.filter(
+      (other) =>
+        other.rateType === line.rateType &&
+        other.rateProfessionalId === line.rateProfessionalId &&
+        Number(other.quantity) > 0 &&
+        other.billedRate !== null &&
+        other.serviceDate !== null &&
+        (other === line || !other.working),
+    );
+    return {
+      personName: (line.rateType !== 'mileage' ? line.timekeeperDisplayName : null) ?? invoice.professionalDisplayName ?? 'this person',
+      matching,
+      hasCase: invoice.caseId !== null,
+      caseRates: data.caseRates,
+      onApply: (input) =>
+        void (async () => {
+          const done = await act(() => applyLineRate(invoice.invoiceId, line.invoiceLineId, input, linesVersion()), (result) => ({
+            message:
+              input.scope === 'case'
+                ? `Case rate set. ${result.decided} ${result.decided === 1 ? 'line' : 'lines'} approved at it.`
+                : `${result.decided} ${result.decided === 1 ? 'line' : 'lines'} approved at the new rate.`,
+          }));
+          // Refused because the case rate or lines changed elsewhere: show them as they are now.
+          if (!done) void refresh();
+        })(),
+    };
+  };
   // What is open on a line: the question being asked, or the decision being made.
   const lineFormOf = (line: InvoiceReviewLine) => {
     const mode = openPanel(line);
@@ -451,6 +489,7 @@ export default function InvoiceReview() {
           reasons={reasonData?.reasons ?? []}
           initial={line.working}
           logBlocks={Boolean(approveBlocked(line))}
+          rateScope={rateScopeOf(line)}
           saving={saving}
           error={actionError}
           onCancel={() => setPanel(null)}
@@ -488,7 +527,7 @@ export default function InvoiceReview() {
     ) : null;
   };
 
-  // Filed by person: led by who sent it, not a case.
+  // Filed by person, with no case matched yet.
   const byPerson = invoice.caseId === null;
   const sender = invoice.professionalDisplayName ?? 'Unknown sender';
   const senderFirstName = sender.split(' ')[0];
@@ -509,16 +548,8 @@ export default function InvoiceReview() {
   return (
     <div className="invoice-review">
       <PageHeader
-        crumbs={
-          byPerson
-            ? [{ label: 'To review', to: '/' }, { label: sender, to: senderPath }, { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` }]
-            : [
-                { label: 'Invoices', to: '/' },
-                { label: invoice.caseClientDisplayName ?? 'Case', to: `/cases/${invoice.caseId}` },
-                { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` },
-              ]
-        }
-        title={byPerson ? sender : (invoice.caseClientDisplayName ?? 'Unknown client')}
+        crumbs={[{ label: 'To review', to: '/' }, { label: sender, to: senderPath }, { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` }]}
+        title={sender}
         status={
           <StatusPill
             code={everyLineDecided ? 'every_line_decided' : status}
@@ -526,48 +557,30 @@ export default function InvoiceReview() {
           />
         }
         meta={
-          byPerson ? (
-            <>
-              <strong>{invoice.professionalKindDisplayName ?? 'Professional'}</strong>
+          <>
+            <strong>{invoice.professionalKindDisplayName ?? 'Professional'}</strong>
+            <span>
+              Invoice for {formatPeriod(invoice.periodStart, invoice.periodEnd)}
+              {invoice.submittedAt && `, submitted ${formatDay(invoice.submittedAt)}`}
+            </span>
+            {invoice.submittedByDisplayName && invoice.submittedByDisplayName !== invoice.professionalDisplayName && (
               <span>
-                Invoice for {formatPeriod(invoice.periodStart, invoice.periodEnd)}
-                {invoice.submittedAt && `, submitted ${formatDate(invoice.submittedAt.slice(0, 10))}`}
+                {entered ? 'Entered' : 'Sent'} by {invoice.submittedByDisplayName}
               </span>
-              {invoice.submittedByDisplayName && invoice.submittedByDisplayName !== invoice.professionalDisplayName && (
-                <span>
-                  {entered ? 'Entered' : 'Sent'} by {invoice.submittedByDisplayName}
-                </span>
-              )}
-              {invoice.receivedOn && (
-                <span>
-                  Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
-                  {formatDate(invoice.receivedOn)}
-                </span>
-              )}
-              {senderPath && <RouterLink to={senderPath}>See all of their invoices</RouterLink>}
-              {entering && checking && checking.total > 1 && (
-                <span>
-                  Invoice {countOf(checking.total - checking.queue.length, checking.total)} uploaded
-                </span>
-              )}
-            </>
-          ) : (
-            <>
-              <strong>Case {data.caseNumber ?? '—'}</strong>
+            )}
+            {invoice.receivedOn && (
               <span>
-                {invoice.professionalKindDisplayName ?? 'Professional'} invoice from {submittedByLabel(invoice)}
+                Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
+                {formatDate(invoice.receivedOn)}
               </span>
-              {invoice.receivedOn && (
-                <span>
-                  Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
-                  {formatDate(invoice.receivedOn)}
-                </span>
-              )}
-              <button type="button" className="link-button" disabled title="Not connected yet">
-                Open the case in your {EXTERNAL_SYSTEM_NAME} ↗
-              </button>
-            </>
-          )
+            )}
+            {senderPath && <RouterLink to={senderPath}>See all of their invoices</RouterLink>}
+            {entering && checking && checking.total > 1 && (
+              <span>
+                Invoice {countOf(checking.total - checking.queue.length, checking.total)} uploaded
+              </span>
+            )}
+          </>
         }
         actions={
           <>
@@ -698,6 +711,15 @@ export default function InvoiceReview() {
         />
       )}
       {entering && <EnteredCaseNumber invoice={invoice} />}
+      {!byPerson && (
+        <CaseCard
+          invoice={invoice}
+          caseNumber={data.caseNumber}
+          otherNumbers={data.otherCaseNumbers}
+          preauthorization={data.preauthorization}
+          overPreauthorized={data.overPreauthorized}
+        />
+      )}
       {byPerson && !entering && (
         <CaseNumberReview
           invoice={invoice}
@@ -709,13 +731,17 @@ export default function InvoiceReview() {
           }}
         />
       )}
+      {byPerson && inReview && !data.entryOpen && Boolean(permissions?.reviewLines) && (
+        <CaseMatch
+          invoice={invoice}
+          onMatched={(message) => {
+            setToast({ message });
+            void refresh();
+          }}
+        />
+      )}
 
       <FactsStrip>
-        {!byPerson && (
-          <Fact label="Case number" note={data.otherCaseNumbers.join(', ') || undefined}>
-            <strong>{data.caseNumber ?? '—'}</strong>
-          </Fact>
-        )}
         <Fact label="Submitted">
           <strong>{invoice.submittedAt ? formatDateTime(invoice.submittedAt) : '—'}</strong>
         </Fact>
@@ -739,21 +765,9 @@ export default function InvoiceReview() {
         <Fact label="Approved so far" note={totals.cut > 0 ? `${formatMoney(totals.cut / 100)} cut` : undefined}>
           {formatMoney(totals.approved / 100)}
         </Fact>
-        {byPerson ? (
-          <Fact label={`${senderFirstName}'s approved rate`} note="Set on their page under People">
-            <strong>{data.approvedRate ? `${formatMoney(data.approvedRate)} an hour` : 'None set'}</strong>
-          </Fact>
-        ) : (
-          <Fact
-            label="Pre-authorized"
-            note={
-              data.preauthorization &&
-              `${formatMoney(data.preauthorization.approvedSoFar)} approved, ${formatMoney(data.preauthorization.waiting)} waiting`
-            }
-          >
-            {data.preauthorization ? <strong>{formatMoney(data.preauthorization.ceiling)}</strong> : 'None'}
-          </Fact>
-        )}
+        <Fact label={`${senderFirstName}'s approved rate`} note="Set on their page under People">
+          <strong>{data.approvedRate ? `${formatMoney(data.approvedRate)} an hour` : 'None set'}</strong>
+        </Fact>
         <Fact label="Lines decided">
           <Progress done={totals.decided} total={lines.length} />
         </Fact>
@@ -798,11 +812,17 @@ export default function InvoiceReview() {
         </Notice>
       )}
 
+      {someoneElses && (
+        <Notice tone="info" heading={`${reviewer!.displayName} is reviewing this invoice.`}>
+          You can still decide lines and finish the review. Each decision records who made it.
+        </Notice>
+      )}
+
       {inReview && (
         <SignOffApprovers
           invoiceId={invoice.invoiceId}
           approvers={approvers}
-          canChange={isReviewer || Boolean(permissions?.changeSettings) || (!reviewer && Boolean(permissions?.reviewLines))}
+          canChange={Boolean(permissions?.reassign)}
           onChanged={onRoutingChanged}
         />
       )}
@@ -827,6 +847,12 @@ export default function InvoiceReview() {
         </Notice>
       )}
 
+      <InvoiceCaseRates
+        invoiceId={invoice.invoiceId}
+        caseRates={data.caseRates}
+        changedSinceSent={inReview ? data.caseRatesChangedSinceSent : []}
+        awaitingSignOff={status === 'awaiting_sign_off'}
+      />
       <RateCheckNotice
         lines={lines}
         canReprice={canDecide}
@@ -848,7 +874,13 @@ export default function InvoiceReview() {
       {mileageFindings.length > 0 && (
         <Notice tone="warning">
           Mileage: {mileageFindings.length} {mileageFindings.length === 1 ? 'trip is' : 'trips are'} longer than the driving route
-          allows. <a href="#travel-log">See the travel log</a>.
+          allows. <a href="#travel-log">See the travel log</a>, where a warning caused by stops on the way can be set aside.
+        </Notice>
+      )}
+      {stopsSetAside > 0 && (
+        <Notice tone="info">
+          {stopsSetAside} mileage {stopsSetAside === 1 ? 'warning was' : 'warnings were'} set aside for stops on the way.{' '}
+          <a href="#travel-log">See why in the travel log</a>.
         </Notice>
       )}
       {invoice.professionalId && data.sameDayTravel.length > 0 && (
@@ -930,9 +962,10 @@ export default function InvoiceReview() {
         <div className="review-file-layout__lines">
       <InvoiceLinesTable
         lines={lines}
-        note={
-          fileSource && fileChanges.tracking
-            ? (line) => (
+        note={(line) => (
+          <>
+            {overRoute.has(line.invoiceLineId) && <span className="cell-note line-rate-differs">{overRouteNote(line)}</span>}
+            {fileSource && fileChanges.tracking && (
                 <ChangeNote
                   line={line}
                   read={fileChanges.readOf(line)}
@@ -947,14 +980,14 @@ export default function InvoiceReview() {
                       : undefined
                   }
                 />
-              )
-            : undefined
-        }
-        hoursNote={(line) => <WasNote value={wasQuantity(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
+            )}
+          </>
+        )}
+        hoursNote={(line) => <WasNote value={wasQuantity(fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
         amountNote={(line) => <WasNote value={wasAmount(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
         timeLog={timeLog ? logCellOf : undefined}
         decisionHeader={inReview ? 'Your decision' : 'Decision'}
-        rowClassName={(line) => lineRowClass(current(line)?.outcomeCode, Boolean(openPanel(line)))}
+        rowClassName={(line) => lineRowClass(current(line)?.outcomeCode, Boolean(openPanel(line))) ?? (overRoute.has(line.invoiceLineId) ? 'is-flagged' : undefined)}
         decision={decisionCell}
         rowDetail={lineDetail}
       />
@@ -970,7 +1003,7 @@ export default function InvoiceReview() {
           totals={totals}
           lineCount={lines.length}
           inReview={inReview}
-          canFinish={isReviewer && !awaitingAnswer}
+          canFinish={Boolean(permissions?.reviewLines) && !awaitingAnswer}
           approvers={approvers}
           saving={saving}
           onFinish={() => void finish()}
@@ -1013,18 +1046,22 @@ export default function InvoiceReview() {
           nextApprover={data.nextSignOff}
           approvedCents={totals.approved}
           canSignOff={Boolean(permissions?.signOff) && data.nextSignOff?.userAccountId === userId}
-          canReopen={isReviewer && !data.signOffStarted}
+          canReopen={Boolean(permissions?.reviewLines) && !data.signOffStarted}
           saving={saving}
-          onSignOff={() => void act(() => signOffInvoice(invoice.invoiceId, { outcome: 'approved' }), { message: 'Signed off.' })}
-          onSendBack={(comment) =>
-            act(() => signOffInvoice(invoice.invoiceId, { outcome: 'changes_requested', comment }), {
-              message: 'Sent back to the reviewer.',
+          onDecide={(outcome, comment) =>
+            act(() => signOffInvoice(invoice.invoiceId, { outcome, comment: comment || undefined }), {
+              message: { approved: 'Signed off.', rejected: 'Invoice rejected.', changes_requested: 'Sent back to the reviewer.' }[outcome],
             })
           }
           onReopen={() => void act(() => reopenReview(invoice.invoiceId), { message: 'Review reopened.' })}
         />
       )}
 
+      {status === 'rejected' && (
+        <Notice tone="warning" heading="Rejected at sign-off.">
+          Nothing on this invoice is approved. The sign-off history says who rejected it.
+        </Notice>
+      )}
       {status === 'approved' && (
         <Notice tone="success" heading="Signed off.">
           Export the PDF or spreadsheet to send for payment. Check it for confidential information before you send it; this
@@ -1043,7 +1080,21 @@ export default function InvoiceReview() {
       <SignOffHistory signOffs={data.signOffs} />
 
       <div id="travel-log">
-        <TravelLog lines={lines} findings={ruleFindings} />
+        <TravelLog
+          lines={lines}
+          findings={ruleFindings}
+          stops={{
+            dismissals: data.mileageDismissals,
+            canChange: canDecide && !data.entryOpen,
+            onDismiss: (lineId, reason) =>
+              act(() => setMileageWarning(invoice.invoiceId, lineId, { dismissed: true, reason }), {
+                message: 'Mileage warning set aside for stops on the way.',
+                undo: () => setMileageWarning(invoice.invoiceId, lineId, { dismissed: false }),
+              }),
+            onRestore: (lineId) =>
+              void act(() => setMileageWarning(invoice.invoiceId, lineId, { dismissed: false }), { message: 'Mileage warning put back.' }),
+          }}
+        />
       </div>
 
       <Toast toast={toast} onUndo={(undo) => void act(undo, { message: 'Undone.' })} />

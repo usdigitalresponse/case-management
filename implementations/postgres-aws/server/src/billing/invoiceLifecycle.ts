@@ -18,6 +18,7 @@ import {
   invoiceAttestation,
   invoiceEvent,
   invoiceEventTypes,
+  invoiceImport,
   invoiceLine,
   invoiceLineTypes,
   invoiceLineWorkingDecision,
@@ -51,6 +52,7 @@ import { assignOnSubmit, endAllAssignments } from './reviewAssignment';
 import { removeTimeLog } from './reviewTimeLog';
 import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry } from './invoiceReceipt';
 import { caseNumberInput, cleanCaseNumber } from './caseNumbers';
+import { loadCaseNumbers } from './invoiceDetail';
 import { parseCountyChoice, resolveCountyChange, shownInvoiceCounty } from '../cases/counties';
 import { fillUnmatchedTimekeepers } from './timekeeperFallback';
 import { changeSenderInTx, parseDetails, parseSender, setDetailsInTx } from './uploadDetails';
@@ -63,7 +65,7 @@ import {
 import { optionalEmail } from '../people/emails';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.10.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.11.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
 // Mileage is an expense line with the mileage expense type.
@@ -742,6 +744,40 @@ export async function setDraftCaseNumber(db: Database, actor: PortalActor, invoi
     const caseNumber = cleanCaseNumber(parsed.data.caseNumber);
     await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, caseNumber };
+  });
+}
+
+// A draft filed by person, put under one of its sender's cases or taken off it
+// again (null): with a case, its number is the case's and it goes straight to
+// review when sent. Its lines are priced again, so case rates apply.
+export async function setDraftCase(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
+  const parsed = z.object({ caseId: z.uuid().nullable() }).safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ValidationError({ caseId: 'Choose a case, or say it isn’t listed.' });
+  }
+  const { caseId } = parsed.data;
+  return db.transaction(async (tx) => {
+    const locked = await lockOwnDraft(tx, actor, invoiceId);
+    let caseNumber = locked.caseNumberAsTyped;
+    if (caseId) {
+      if (!locked.professionalId) {
+        throw new ValidationError({ caseId: 'Choose whose work it is first.' });
+      }
+      const [target] = await tx.select({ closedOn: caseTable.closedOn }).from(caseTable).where(eq(caseTable.caseId, caseId));
+      if (!target || target.closedOn) {
+        throw new ValidationError({ caseId: 'Choose an open case.' });
+      }
+      // Only a case the person whose work it is is on, and that the sender bills for.
+      await authorizeBilling(tx, actor, caseId, locked.professionalId);
+      caseNumber = (await loadCaseNumbers(tx, [caseId])).get(caseId)?.caseNumber ?? caseNumber;
+    }
+    await tx.update(invoice).set({ caseId, caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
+    await tx.update(invoiceLine).set({ caseId }).where(eq(invoiceLine.invoiceId, invoiceId));
+    await tx.update(invoiceImport).set({ caseId }).where(eq(invoiceImport.invoiceId, invoiceId));
+    if (locked.professionalId) {
+      await priceLines(tx, invoiceId, { billedProfessionalId: locked.professionalId, unmatchedMeansBilled: true, strict: false });
+    }
+    return { invoiceId, caseId, caseNumber };
   });
 }
 

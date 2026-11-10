@@ -30,7 +30,7 @@ import { getReferenceId } from '../db/referenceLookups';
 import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
 import { priceLines } from './priceLines';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
-import { AWAITING_MATCH_INVOICE_STATUS_CODE, DRAFT_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
+import { AWAITING_MATCH_INVOICE_STATUS_CODE, DRAFT_INVOICE_STATUS_CODE, LINE_REVIEW_STATUS_CODES } from './invoiceStatusCodes';
 import { releaseToReviewInTx } from './invoiceLifecycle';
 import { unmatchedTimekeeper } from './proposedDetails';
 
@@ -257,7 +257,8 @@ export async function returnToSubmitter(db: Database, actorUserAccountId: string
 
 // Matches a request held in intake or sent for matching to its case,
 // provider and timekeepers; one sent for matching then goes to review
-// (release_to_review). Returns whether it did.
+// (release_to_review). Returns whether it did. A request filed by person may
+// also be matched while it is reviewed; its sent prices stay as they are.
 export async function matchInvoiceToCase(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   await requireStaff(db, actorUserAccountId);
   if (!z.uuid().safeParse(invoiceId).success) {
@@ -277,8 +278,9 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
     throw new InvoiceNotFoundError();
   }
   const awaiting = row.statusCode === AWAITING_MATCH_INVOICE_STATUS_CODE;
-  if (!(awaiting || (row.statusCode === DRAFT_INVOICE_STATUS_CODE && row.caseId === null))) {
-    throw new ValidationError({ caseId: 'Only an invoice still in intake can be matched to a case.' });
+  const inReview = LINE_REVIEW_STATUS_CODES.includes(row.statusCode) && row.caseId === null;
+  if (!(awaiting || inReview || (row.statusCode === DRAFT_INVOICE_STATUS_CODE && row.caseId === null))) {
+    throw new ValidationError({ caseId: 'Only an invoice in intake, or one being reviewed without a case, can be matched to a case.' });
   }
   if (row.caseId !== null && row.caseId !== caseId) {
     throw new ValidationError({ caseId: 'This invoice already has its case.' });
@@ -348,7 +350,9 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
       await tx.update(invoiceLine).set({ timekeeperProfessionalId: professionalId }).where(eq(invoiceLine.invoiceLineId, invoiceLineId));
     }
     // Time with no one named is now the chosen professional's, at their rate.
-    await priceLines(tx, invoiceId, { billedProfessionalId, unmatchedMeansBilled: true, strict: false });
+    if (!inReview) {
+      await priceLines(tx, invoiceId, { billedProfessionalId, unmatchedMeansBilled: true, strict: false });
+    }
     await recordInvoiceEvent(tx, {
       invoiceId,
       eventTypeCode: 'matched_to_case',

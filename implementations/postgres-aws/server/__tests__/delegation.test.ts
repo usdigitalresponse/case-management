@@ -20,7 +20,9 @@ import {
 import { recallInvoice } from '../src/billing/invoiceLifecycle';
 import { canPortalReaderReadInvoice } from '../src/billing/invoiceAccess';
 import { listPortalCases } from '../src/portal/listPortalCases';
+import { loadProviderOffices } from '../src/professionals/providerOffices';
 import { giveRate } from './rateHelpers';
+import { createKind, setProfessionalKind } from '../src/billing/professionalRates';
 import { ValidationError } from '../src/errors';
 import { caseAssignment, invoice, invoiceEvent, invoiceLine, person, personAffiliation, professional, timeEntry, userAccount } from '../src/db/schema';
 
@@ -203,6 +205,8 @@ describe('delegated submission', () => {
     const ownCase = await createCaseAssignedTo([self.professionalId]);
     const sharedCase = await createCaseAssignedTo([first.professionalId, second.professionalId]);
     const outsiderCase = await createCaseAssignedTo([outsider.professionalId]);
+    const { professionalKindId } = await createKind(testDb, { displayName: 'Investigator' });
+    await setProfessionalKind(testDb, first.professionalId, { professionalKindId });
 
     const { professionals, cases } = await listPortalCases(testDb, self.userAccountId);
 
@@ -213,6 +217,8 @@ describe('delegated submission', () => {
     expect(others.map((p) => p.professionalId).sort()).toEqual(
       [first.professionalId, second.professionalId, idle.professionalId].sort(),
     );
+    // Each with their kind, for "Name, investigator" headings.
+    expect(others.find((p) => p.professionalId === first.professionalId)).toMatchObject({ kindDisplayName: 'Investigator' });
     const names = others.map((p) => p.displayName ?? '');
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
     const byCase = new Map(cases.map((c) => [c.caseId, c.assignedProfessionalIds.sort()]));
@@ -286,5 +292,20 @@ describe('delegated submission', () => {
     await updateTimeEntry(testDb, delegate, timeEntryId, { ...entry, durationHours: 2 });
     await expect(deleteTimeEntry(testDb, officeUser, timeEntryId)).rejects.toThrow(TimeEntryNotFoundError);
     await deleteTimeEntry(testDb, delegate, timeEntryId);
+  });
+});
+
+describe('the Providers page', () => {
+  it('shows each provider’s office, the delegates who can send their invoices, and whom a delegate sends for', async () => {
+    const colleague = await createProfessional('colleague@example.com', true);
+    const loner = await createProfessional('loner@example.com', false);
+    const delegate = await createDelegateProfessional('delegate@example.com');
+
+    const offices = await loadProviderOffices(testDb, [colleague.professionalId, loner.professionalId, delegate.professionalId]);
+
+    expect(offices.get(colleague.professionalId)).toMatchObject({ sentByDisplayNames: ['delegate@example.com'], sendsForCount: 0 });
+    expect(offices.get(colleague.professionalId)!.officeDisplayName).not.toBeNull();
+    expect(offices.get(loner.professionalId)).toEqual({ officeDisplayName: null, sentByDisplayNames: [], sendsForCount: 0 });
+    expect(offices.get(delegate.professionalId)).toMatchObject({ sentByDisplayNames: [], sendsForCount: 1 });
   });
 });

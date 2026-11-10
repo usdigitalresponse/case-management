@@ -32,6 +32,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+// A file as the raw request body, its name in a header.
+async function sendFile<T>(path: string, file: File): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+    body: file,
+  });
+  const body = await response.json().catch(() => undefined);
+  if (!response.ok) {
+    throw new ApiError(response.status, body);
+  }
+  return body as T;
+}
+
 export interface AuthenticatedUser {
   userAccountId: string;
   email: string;
@@ -125,6 +140,7 @@ export interface CaseRecord {
   clientId: string | null;
   clientDisplayName: string | null;
   countyId: string | null;
+  countyDisplayName: string | null;
   externalReference: string | null;
   caseCategoryId: string | null;
   statusId: string;
@@ -138,8 +154,30 @@ export interface CaseRecord {
   stage: CaseStage | null;
 }
 
-export function listCases(): Promise<{ cases: CaseRecord[] }> {
-  return request<{ cases: CaseRecord[] }>('/api/cases');
+// As listed: with its number, who works on it, what is pre-authorized and what is waiting.
+export interface CaseListRecord extends CaseRecord {
+  caseNumber: string | null;
+  workers: string[];
+  // Every pre-authorization on the case added up; null with none.
+  preauthorized: string | null;
+  waiting: { count: number; total: string };
+}
+
+export function listCases(): Promise<{ cases: CaseListRecord[] }> {
+  return request<{ cases: CaseListRecord[] }>('/api/cases');
+}
+
+export interface CaseChange {
+  caseId: string;
+  clientDisplayName: string | null;
+  caseNumber: string | null;
+  what: string;
+  when: string;
+  by: string | null;
+}
+
+export function listRecentCaseChanges(): Promise<{ changes: CaseChange[] }> {
+  return request('/api/cases/recent-changes');
 }
 
 export interface CaseParticipant {
@@ -210,9 +248,35 @@ export interface PreauthorizationSummary {
   waiting: string;
 }
 
+export type RateType = 'hourly' | 'travel' | 'waiting' | 'mileage';
+export type RateSource = 'case_person' | 'case_kind' | 'person' | 'kind' | 'general';
+
+// A reviewer's default rate for one person or kind on a case. Staff only.
+export interface CaseRate {
+  caseRateId: string;
+  professionalId: string | null;
+  professionalDisplayName: string | null;
+  professionalKindId: string | null;
+  kindDisplayName: string | null;
+  rateType: RateType;
+  // Null: back to the configured rate.
+  rate: string | null;
+  replacedRate: string | null;
+  effectiveFrom: string;
+  reasonDisplayName: string;
+  note: string | null;
+  invoiceId: string;
+  invoiceNumber: string | null;
+  correctsCaseRateId: string | null;
+  recordedByDisplayName: string;
+  recordedAt: string;
+  inForce: boolean;
+}
+
 export interface CaseInvoices {
   invoices: ReviewQueueItem[];
   preauthorizations: PreauthorizationSummary[];
+  caseRates: CaseRate[];
   // Where this case's new invoices go, ahead of the default.
   reviewer: AssignedPerson | null;
   caseNumber: string | null;
@@ -221,6 +285,29 @@ export interface CaseInvoices {
 
 export function getCaseInvoices(caseId: string): Promise<CaseInvoices> {
   return request<CaseInvoices>(`/api/cases/${caseId}/invoices`);
+}
+
+// Any staff member enters or changes a pre-authorized amount; null professionalId: the whole case.
+export function setPreauthorizedAmount(
+  caseId: string,
+  input: { professionalId: string | null; amount: number; authorizationNumber?: string },
+): Promise<{ preauthorizationId: string }> {
+  return request(`/api/cases/${caseId}/preauthorizations`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export interface CaseByNumber {
+  caseId: string;
+  caseNumber: string | null;
+  otherNumbers: string[];
+  clientDisplayName: string | null;
+  countyDisplayName: string | null;
+  closed: boolean;
+  match: 'exact' | 'close';
+}
+
+// Cases with the number an invoice filed by person gives.
+export function findCaseMatches(invoiceId: string): Promise<{ cases: CaseByNumber[] }> {
+  return request(`/api/invoices/${invoiceId}/case-matches`);
 }
 
 export function setCaseReviewer(caseId: string, userAccountId: string): Promise<AssignedPerson | null> {
@@ -263,19 +350,6 @@ export function searchPeople(query: string): Promise<{ people: PersonRecord[] }>
   return request<{ people: PersonRecord[] }>(`/api/people?q=${encodeURIComponent(query)}`);
 }
 
-// People who hold the "Client" role on at least one case — the sidebar's
-// Clients directory, distinct from searchPeople above (any existing
-// person, used to pick one for a new case participant).
-export interface ClientRecord {
-  personId: string;
-  displayName: string;
-  email: string | null;
-}
-
-export function listClients(query: string): Promise<{ clients: ClientRecord[] }> {
-  return request<{ clients: ClientRecord[] }>(`/api/clients?q=${encodeURIComponent(query)}`);
-}
-
 // Providers (attorneys, experts and vendors): the sidebar's Providers list.
 export interface VendorRecord {
   professionalId: string;
@@ -288,6 +362,11 @@ export interface VendorRecord {
   professionalKindDisplayName: string | null;
   // Their kind's rates, oldest first.
   rates: ProfessionalRate[];
+  officeDisplayName: string | null;
+  // Billing delegates at their office, other than themselves.
+  sentByDisplayNames: string[];
+  // How many others they send invoices for, as a delegate.
+  sendsForCount: number;
 }
 
 export interface PersonDetailsInput {
@@ -295,6 +374,7 @@ export interface PersonDetailsInput {
   paidThrough?: string;
   hourlyRate?: number;
   ratePerMile?: number;
+  travelHourlyRate?: number;
 }
 
 // Administrators only. A changed rate applies from today.
@@ -335,6 +415,8 @@ export interface BillingPerson {
   // Today's, their own or else their role's and the general mileage rate.
   hourlyRate: string | null;
   ratePerMile: string | null;
+  // Their own; null means the travel time setting applies.
+  travelHourlyRate: string | null;
   waiting: { count: number; total: string };
   lastInvoiceAt: string | null;
 }
@@ -666,11 +748,14 @@ export interface MyCaseRecord {
   unsubmittedTimeProfessionalIds: string[];
   // Draft or withdrawn invoices you can read, by whom they bill.
   unsubmittedInvoiceProfessionalIds: string[];
+  // For the people listed.
+  preauthorizations: PreauthorizationSummary[];
 }
 
 export interface MyCaseProfessional {
   professionalId: string;
   displayName: string | null;
+  kindDisplayName: string | null;
   isSelf: boolean;
 }
 
@@ -822,6 +907,8 @@ export interface BillableProfessional {
   // With rates of their own, their mileage rates in place of the general
   // ones; empty otherwise.
   mileageRates?: MileageRate[];
+  // Their own travel time rates, in place of the travel time setting.
+  travelRates?: ProfessionalRate[];
 }
 
 export interface ProfessionalRate {
@@ -1036,6 +1123,11 @@ export function updateDraftInvoice(
 }
 
 // The case number as typed, on a draft; empty clears it.
+// A draft filed by person, put under one of its sender's cases, or taken off it (null).
+export function setDraftCase(invoiceId: string, caseId: string | null): Promise<{ caseId: string | null; caseNumber: string | null }> {
+  return request(`/api/portal/invoices/${invoiceId}/case`, { method: 'PUT', body: JSON.stringify({ caseId }) });
+}
+
 export function setDraftCaseNumber(invoiceId: string, caseNumber: string): Promise<{ invoiceId: string; caseNumber: string | null }> {
   return request(`/api/portal/invoices/${invoiceId}/case-number`, { method: 'PUT', body: JSON.stringify({ caseNumber }) });
 }
@@ -1084,6 +1176,8 @@ export type PortalInvoiceLine = Omit<InvoiceReviewLine, 'decidedByDisplayName'>;
 
 export interface PortalInvoice {
   invoice: QueuedInvoice;
+  // Comments on approving or rejecting the whole invoice, as line notes are shared.
+  decisionComments: Array<{ outcomeCode: string; comment: string; decidedAt: string }>;
   caseNumber: string | null;
   otherCaseNumbers: string[];
   submissionAttempt: { invoiceApprovalChainId: string; submittedAt: string } | null;
@@ -1173,23 +1267,13 @@ export interface InvoiceImportDetail {
 
 // The file goes as the raw body; the server identifies it from its content.
 // No case: the file waits on Intake until it is matched.
-export async function uploadInvoiceFile(
+export function uploadInvoiceFile(
   caseId: string | null,
   file: File,
   professionalId?: string,
 ): Promise<{ invoiceImportId: string; status: string; invoiceId: string | null }> {
   const query = new URLSearchParams({ ...(caseId ? { caseId } : {}), ...(professionalId ? { professionalId } : {}) });
-  const response = await fetch(`/api/portal/invoice-imports?${query.toString()}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
-    body: file,
-  });
-  const body = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    throw new ApiError(response.status, body);
-  }
-  return body as { invoiceImportId: string; status: string; invoiceId: string | null };
+  return sendFile(`/api/portal/invoice-imports?${query.toString()}`, file);
 }
 
 export function getInvoiceImport(importId: string): Promise<InvoiceImportDetail> {
@@ -1249,19 +1333,9 @@ export interface CaseSplitPreview {
 }
 
 // The file is read in the background, like an upload; poll its read.
-export async function startCaseSplit(file: File, professionalId: string): Promise<{ splitReadId: string }> {
+export function startCaseSplit(file: File, professionalId: string): Promise<{ splitReadId: string }> {
   const query = new URLSearchParams({ professionalId });
-  const response = await fetch(`/api/portal/invoice-imports/case-split/reads?${query.toString()}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
-    body: file,
-  });
-  const body = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    throw new ApiError(response.status, body);
-  }
-  return body as { splitReadId: string };
+  return sendFile<{ splitReadId: string }>(`/api/portal/invoice-imports/case-split/reads?${query.toString()}`, file);
 }
 
 export type CaseSplitRead =
@@ -1305,18 +1379,8 @@ export type UploadRead =
       suggested: { caseId: string; professionalId: string } | null;
     };
 
-export async function startUpload(file: File): Promise<{ uploadReadId: string }> {
-  const response = await fetch('/api/portal/uploads', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
-    body: file,
-  });
-  const body = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    throw new ApiError(response.status, body);
-  }
-  return body as { uploadReadId: string };
+export function startUpload(file: File): Promise<{ uploadReadId: string }> {
+  return sendFile<{ uploadReadId: string }>('/api/portal/uploads', file);
 }
 
 export function listUploadCases(): Promise<{ cases: UploadCase[] }> {
@@ -1486,7 +1550,7 @@ export interface AssignedPerson {
 }
 
 export interface QueueFlag {
-  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case';
+  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case' | 'preauthorization';
   message: string;
 }
 
@@ -1555,8 +1619,8 @@ export function listReviewPeople(): Promise<{ people: ReviewPerson[] }> {
   return request('/api/invoices/reviewers');
 }
 
-// Which list a reason is on: approving in part, rejecting, or both.
-export type ReasonAppliesTo = 'approved_in_part' | 'rejected' | 'both';
+// Which list a reason is on: approving in part, rejecting, both, or setting a case rate.
+export type ReasonAppliesTo = 'approved_in_part' | 'rejected' | 'both' | 'case_rate';
 
 export interface DecisionReason {
   code: string;
@@ -1584,9 +1648,24 @@ export function updateDecisionReason(
   return request(`/api/settings/decision-reasons/${reasonId}`, { method: 'PUT', body: JSON.stringify(input) });
 }
 
+export interface BillingRecordFilter {
+  countyId?: string;
+  from?: string;
+  to?: string;
+  signedOffOnly?: boolean;
+  // Column names to leave out.
+  omit?: string[];
+}
+
 // One row per submitted invoice, for reports outside the tool.
-export function billingRecordUrl(format: 'csv' | 'xlsx'): string {
-  return `/api/invoices/billing-record?format=${format}`;
+export function billingRecordUrl(format: 'csv' | 'xlsx', filter: BillingRecordFilter = {}): string {
+  const params = new URLSearchParams({ format });
+  if (filter.countyId) params.set('county', filter.countyId);
+  if (filter.from) params.set('from', filter.from);
+  if (filter.to) params.set('to', filter.to);
+  if (filter.signedOffOnly) params.set('status', 'signed-off');
+  if (filter.omit?.length) params.set('omit', filter.omit.join(','));
+  return `/api/invoices/billing-record?${params}`;
 }
 
 export function listDecisionReasons(): Promise<{ reasons: DecisionReason[] }> {
@@ -1626,12 +1705,19 @@ export interface InvoiceReviewLine {
   statedAmount: string | null;
   // The rate a time or mileage line is billed at.
   billedRate: string | null;
-  // Time lines: the configured rate for the professional's kind.
+  // Time and mileage lines: the default rate, and where it came from.
   configuredRate: string | null;
-  // Time lines: what the rate check compares to, the pre-authorized rate
-  // when the case has one, else the configured rate.
+  rateSource: RateSource | null;
+  caseRateId: string | null;
+  rateType: RateType | null;
+  // Whose rate prices it.
+  rateProfessionalId: string | null;
+  rateKindId: string | null;
+  rateKindDisplayName: string | null;
+  // Time lines: what the rate check compares to, a case rate a reviewer set,
+  // else the pre-authorized rate when the case has one, else the configured rate.
   rateLimit: string | null;
-  rateLimitSource: 'preauthorized' | 'configured' | null;
+  rateLimitSource: 'case' | 'preauthorized' | 'configured' | null;
   // 'mileage' on a mileage line; its quantity is the miles claimed.
   expenseTypeCode: string | null;
   // Its trip, shared by that trip's lines, with the trip's route; a time
@@ -1700,6 +1786,8 @@ export interface InvoiceReview {
   invoice: QueuedInvoice;
   // This professional's pre-authorization on the case, if there is one.
   preauthorization: PreauthorizationSummary | null;
+  // This invoice takes its person, or the case, over the pre-authorized amount.
+  overPreauthorized: boolean;
   caseNumber: string | null;
   otherCaseNumbers: string[];
   lines: InvoiceReviewLine[];
@@ -1732,6 +1820,23 @@ export interface InvoiceReview {
   senderEmail: string | null;
   // The case time log the reviewer is checking the lines against.
   timeLog: TimeLogCheck | null;
+  // Staff only: the case's rates, and those set since this invoice was sent
+  // that would now give its lines another default.
+  caseRates: CaseRate[];
+  caseRatesChangedSinceSent: string[];
+  // Staff only: mileage warnings set aside for stops on the way.
+  mileageDismissals: MileageDismissal[];
+}
+
+export interface MileageDismissal {
+  invoiceLineId: string;
+  reason: string;
+  dismissedByDisplayName: string;
+  dismissedAt: string;
+}
+
+export function setMileageWarning(invoiceId: string, invoiceLineId: string, input: { dismissed: boolean; reason?: string }): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/mileage-warning`, { method: 'PUT', body: JSON.stringify(input) });
 }
 
 export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {
@@ -1856,6 +1961,30 @@ export function undoInvoiceLineDecision(invoiceId: string, invoiceLineId: string
   return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/decision`, { method: 'DELETE', body: JSON.stringify({ linesVersion }) });
 }
 
+export interface LineRateInput {
+  // Null with the case scope: back to the configured rate.
+  rate: number | null;
+  // The matching lines on this invoice, or the case's default from a date.
+  scope: 'matching' | 'case';
+  target?: 'person' | 'kind';
+  effectiveFrom?: string;
+  reasonCode?: string;
+  note?: string;
+  timeLogOverride?: string;
+  // The latest case rate for this person or kind the page showed; a change
+  // since is refused (409 case_rate_changed).
+  basedOnCaseRateId?: string | null;
+}
+
+export function applyLineRate(
+  invoiceId: string,
+  invoiceLineId: string,
+  input: LineRateInput,
+  linesVersion?: number,
+): Promise<{ decided: number; caseRateId: string | null }> {
+  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/rate`, { method: 'POST', body: JSON.stringify({ ...input, linesVersion }) });
+}
+
 export function repriceInvoice(invoiceId: string, linesVersion?: number): Promise<{ repriced: number }> {
   return request(`/api/invoices/${invoiceId}/reprice`, { method: 'POST', body: JSON.stringify({ linesVersion }) });
 }
@@ -1911,7 +2040,9 @@ export function reopenReview(invoiceId: string): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/reopen`, { method: 'POST' });
 }
 
-export function signOffInvoice(invoiceId: string, input: { outcome: 'approved' | 'changes_requested'; comment?: string }): Promise<unknown> {
+export type SignOffOutcome = 'approved' | 'rejected' | 'changes_requested';
+
+export function signOffInvoice(invoiceId: string, input: { outcome: SignOffOutcome; comment?: string }): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/sign-off`, { method: 'POST', body: JSON.stringify(input) });
 }
 
@@ -1950,6 +2081,8 @@ export function setSignOffApprovers(invoiceId: string, userAccountIds: string[])
 export interface ReviewSettings {
   defaultReviewerUserAccountId: string | null;
   defaultSignOffUserAccountIds: string[];
+  signOffBy: 'anyone' | 'approvers';
+  signOffApproverUserAccountIds: string[];
   waitingAlertWorkingDays: number;
   timeLogBlocksApproval: boolean;
 }

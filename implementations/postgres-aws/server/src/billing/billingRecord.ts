@@ -19,6 +19,7 @@ export const BILLING_RECORD_COLUMNS = [
   'Case number',
   'Court numbers',
   'County',
+  'Client',
   'Invoice number',
   'Provider',
   'Provider role',
@@ -39,13 +40,47 @@ export const BILLING_RECORD_COLUMNS = [
   'Signed off on',
 ] as const;
 
-export type BillingRecordRow = Record<(typeof BILLING_RECORD_COLUMNS)[number], string | number | null>;
+export type BillingRecordColumn = (typeof BILLING_RECORD_COLUMNS)[number];
+export type BillingRecordRow = Record<BillingRecordColumn, string | number | null>;
+
+// As with one invoice's export, the reference and amounts are always kept.
+const ALWAYS_KEPT = new Set<BillingRecordColumn>(['Invoice number', 'Amount requested', 'Amount approved', 'Amount cut']);
+export const OMITTABLE_BILLING_RECORD_COLUMNS = BILLING_RECORD_COLUMNS.filter((column) => !ALWAYS_KEPT.has(column));
+
+function keptColumns(omit: ReadonlySet<string>): BillingRecordColumn[] {
+  return BILLING_RECORD_COLUMNS.filter((column) => !omit.has(column));
+}
+
+export function billingRecordRedactionNote(omit: ReadonlySet<string>): string | null {
+  const leftOut = BILLING_RECORD_COLUMNS.filter((column) => omit.has(column));
+  return leftOut.length === 0 ? null : `Redacted copy. Left out: ${leftOut.join(', ')}.`;
+}
 
 const day = (value: Date | string | null | undefined) =>
   value ? (typeof value === 'string' ? value.slice(0, 10) : value.toISOString().slice(0, 10)) : null;
 
-export async function loadBillingRecord(db: Database): Promise<BillingRecordRow[]> {
-  const { invoices } = await listReviewQueue(db, 'all');
+// YYYY-MM-DD; a period keeps overlapping billing periods, never invoices without one.
+export interface BillingRecordFilter {
+  countyId?: string;
+  periodFrom?: string;
+  periodTo?: string;
+  signedOffOnly?: boolean;
+}
+
+function overlapsPeriod(start: string | null, end: string | null, { periodFrom, periodTo }: BillingRecordFilter): boolean {
+  if (!periodFrom && !periodTo) return true;
+  const first = start ?? end;
+  const last = end ?? start;
+  if (!first || !last) return false;
+  return (!periodTo || first <= periodTo) && (!periodFrom || last >= periodFrom);
+}
+
+export async function loadBillingRecord(db: Database, filter: BillingRecordFilter = {}): Promise<BillingRecordRow[]> {
+  const invoices = (await listReviewQueue(db, 'all')).invoices.filter(
+    (row) =>
+      (!filter.signedOffOnly || row.statusCode === APPROVED_INVOICE_STATUS_CODE) &&
+      overlapsPeriod(row.periodStart, row.periodEnd, filter),
+  );
   if (invoices.length === 0) {
     return [];
   }
@@ -64,7 +99,7 @@ export async function loadBillingRecord(db: Database): Promise<BillingRecordRow[
   const rows: BillingRecordRow[] = [];
   for (const [index, queued] of invoices.entries()) {
     const detail = details[index];
-    if (!detail) continue;
+    if (!detail || (filter.countyId && detail.invoice.countyId !== filter.countyId)) continue;
     const signedOff = queued.statusCode === APPROVED_INVOICE_STATUS_CODE;
     const signOff = detail.signOffs.filter((entry) => entry.outcomeCode === 'approved').at(-1);
     const approved = signedOff ? Number(queued.approvedTotal ?? 0) : null;
@@ -81,6 +116,7 @@ export async function loadBillingRecord(db: Database): Promise<BillingRecordRow[
         currentCaseNumber(queued) ?? (queued.caseId === null ? 'Not linked to a case' : (queued.caseNumber ?? queued.caseExternalReference)),
       'Court numbers': queued.otherCaseNumbers.join(', ') || null,
       County: detail.invoice.countyDisplayName,
+      Client: detail.invoice.caseClientDisplayName,
       'Invoice number': queued.invoiceId.slice(0, 8),
       Provider: queued.professionalDisplayName,
       'Provider role': queued.professionalKindDisplayName,
@@ -104,26 +140,32 @@ export async function loadBillingRecord(db: Database): Promise<BillingRecordRow[
   return rows;
 }
 
-// Amounts to cents; blank for none.
+// Amounts to cents; blank for none; text that a spreadsheet would run as a formula is quoted with '.
 function cell(value: string | number | null): string {
   if (value === null) return '';
-  return csvCell(typeof value === 'number' ? value.toFixed(2) : value);
+  if (typeof value === 'number') return csvCell(value.toFixed(2));
+  return csvCell(/^[=+\-@\t\r]/.test(value) ? `'${value}` : value);
 }
 
-export function billingRecordCsv(rows: BillingRecordRow[]): string {
-  const lines = [BILLING_RECORD_COLUMNS.join(','), ...rows.map((row) => BILLING_RECORD_COLUMNS.map((column) => cell(row[column])).join(','))];
+// A redacted CSV is labelled only by its file name, so it stays one header row and data.
+export function billingRecordCsv(rows: BillingRecordRow[], omit: ReadonlySet<string> = new Set()): string {
+  const columns = keptColumns(omit);
+  const lines = [columns.join(','), ...rows.map((row) => columns.map((column) => cell(row[column])).join(','))];
   return `${lines.join('\r\n')}\r\n`;
 }
 
-export function billingRecordXlsx(rows: BillingRecordRow[]): Promise<Buffer> {
+export function billingRecordXlsx(rows: BillingRecordRow[], omit: ReadonlySet<string> = new Set()): Promise<Buffer> {
+  const columns = keptColumns(omit);
+  const note = billingRecordRedactionNote(omit);
   const sheet: Row[] = [
-    BILLING_RECORD_COLUMNS.map((column) => ({ value: column, fontWeight: 'bold' as const })),
+    ...(note ? [[{ value: note, fontWeight: 'bold' as const }], []] : []),
+    columns.map((column) => ({ value: column, fontWeight: 'bold' as const })),
     ...rows.map((row): Row =>
-      BILLING_RECORD_COLUMNS.map((column) => {
+      columns.map((column) => {
         const value = row[column];
         return typeof value === 'number' ? { value, type: Number, format: '#,##0.00' } : { value: value ?? undefined };
       }),
     ),
   ];
-  return writeXlsxFile(sheet, { sheet: 'Billing record', columns: BILLING_RECORD_COLUMNS.map(() => ({ width: 18 })) }).toBuffer();
+  return writeXlsxFile(sheet, { sheet: 'Billing record', columns: columns.map(() => ({ width: 18 })) }).toBuffer();
 }

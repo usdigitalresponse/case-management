@@ -9,7 +9,7 @@ entry when a decision materially changes.
 
 ### Design I: cases, case rates and one staff role
 
-- **Status:** Decided; not built
+- **Status:** Built in the Postgres/AWS prototype, apart from the gaps its MAPPING.md lists
 - **Decided:** 2026-11-09
 
 Design I brings cases back to the invoice review tool. Features in the
@@ -29,6 +29,14 @@ questions, the time log check, entering an invoice in review, "Mark completed",
 - Client names are stored. Exports include them unless the person exporting
   chooses to redact them.
 
+**Sender pages** (decided 2026-11-09)
+- To avoid copying the external case management system, the sender side
+  stays thin. Senders don't log time in this tool; it stays in the external
+  system. Their case list shows only cases staff matched their invoices to
+  or assigned them to, so nothing is entered for it alone. They may put an
+  invoice under one of those cases, or type the case number of one that
+  isn't listed.
+
 **Rates**
 - A submitter may bill any rate. Lines are never repriced automatically.
   Reviewers reprice lines themselves, and review flags a line whose rate is
@@ -42,14 +50,16 @@ questions, the time log check, entering an invoice in review, "Mark completed",
 - Staff can see a case's default rates on its invoices.
 - Travel time has its own hourly rate. Travel time and mileage rates follow
   the same order as other rates: a line's rate, then the case's default, then
-  the configured rate.
+  the configured rate. Built in the Postgres/AWS prototype as a person's own travel
+  time rate, before the travel time setting.
 - Rate changes are checked by the second person in review (see below).
 
 **Travel**
 - A trip stays separate lines for travel time, mileage and costs. The reviewer
   cuts the mileage, the travel time or both.
 - A trip has one start and one end, even with stops in between. A reviewer can
-  dismiss a mileage warning caused by stops.
+  dismiss a mileage warning caused by stops. Built: the reviewer says what the stops were,
+  and sign-off sees it.
 - Exports show every detail the invoice has for each trip. Trips have no caps.
 
 **Staff roles**
@@ -57,13 +67,18 @@ questions, the time log check, entering an invoice in review, "Mark completed",
   whole invoice, and sign off. Administrators also keep Settings, the
   configured rates, removing people and the demo reset. Staff change roles
   often, so this replaces the billing reviewer and sign-off approver roles.
+  Built in the Postgres/AWS prototype.
+- An administrator chooses in Settings whether the second reviewer, who signs
+  off, can be anyone on staff or must be one of the sign-off approvers they
+  name (decided 2026-11-09).
 - At least two different staff members take part in reviewing each invoice.
   It doesn't matter which part each one does.
 - Any staff member can finish a review assigned to someone else. The page
   makes it clear that the review is assigned to someone else.
 - Approving or rejecting a whole invoice sits where sign-off is now, and takes
-  an optional comment. Whether that comment can reach the submitter is not yet
-  decided.
+  an optional comment. It is shared like line notes: the submitter sees it
+  and exports include it (decided 2026-11-09). A send-back comment to the
+  reviewer stays internal.
 - Giving more staff more abilities must not lose any audit information. Every
   decision, sign-off and finished review records who made it, including when
   it was someone other than the assigned reviewer.
@@ -98,8 +113,10 @@ questions, the time log check, entering an invoice in review, "Mark completed",
   read-only.
 - If two staff members change the same case rate at the same time, the second
   change is refused and the latest value is shown.
-- Before this is built, the model needs a case rate entity and an update to the
-  `apply_professional_rates` rule.
+- Once a case rate is set, the rate check and re-pricing use it instead of a
+  pre-authorized rate (decided 2026-11-09).
+- Built in the Postgres/AWS prototype with the model's `case_rate` and
+  `set_case_rate`.
 
 ### Invoice review beside an external case management system
 
@@ -152,7 +169,8 @@ The external submitter portal keeps its sign-in and is restyled to match.
 - The working-day threshold for calling out late invoices is a setting.
 - Roles: billing reviewer, sign-off approver, general staff (duties to be
   defined) and administrator. Replaced by one staff role and administrators
-  on 2026-11-09 (see "Design I" above).
+  on 2026-11-09, with an optional list of named sign-off approvers (see
+  "Design I" above).
 
 **Exports**
 - After sign-off, staff export the documentation for payment.

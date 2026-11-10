@@ -15,6 +15,7 @@ export interface RateRow {
   professionalId: string;
   hourlyRate: string;
   effectiveFrom: string;
+  source: 'person' | 'kind';
 }
 
 // Each professional's hourly rates, oldest first.
@@ -43,7 +44,11 @@ export async function listRates(db: DatabaseOrTransaction, professionalIds: stri
       .where(inArray(professional.professionalId, professionalIds))
       .orderBy(asc(professionalKindRate.effectiveFrom), asc(professionalKindRate.recordedAt)),
   ]);
-  return ownFirst(kinds, own as RateRow[], (rate) => rate.professionalId);
+  return ownFirst<RateRow>(
+    kinds.map((rate) => ({ ...rate, source: 'kind' as const })),
+    own.map((rate) => ({ ...rate, hourlyRate: rate.hourlyRate!, source: 'person' as const })),
+    (rate) => rate.professionalId,
+  );
 }
 
 // General rates until each key's own first takes effect, then its own; oldest first.
@@ -76,17 +81,35 @@ export async function listOwnMileageRates(db: DatabaseOrTransaction, professiona
   return byPerson;
 }
 
+// People's own travel time rates, oldest first, by person; none for those on the travel time setting.
+export async function listOwnTravelRates(db: DatabaseOrTransaction, professionalIds: string[]): Promise<Map<string, RateRow[]>> {
+  const rows =
+    professionalIds.length === 0
+      ? []
+      : await db
+          .select({ professionalId: professionalRate.professionalId, hourlyRate: professionalRate.travelHourlyRate, effectiveFrom: professionalRate.effectiveFrom })
+          .from(professionalRate)
+          .where(and(inArray(professionalRate.professionalId, professionalIds), isNotNull(professionalRate.travelHourlyRate)))
+          .orderBy(asc(professionalRate.effectiveFrom), asc(professionalRate.recordedAt));
+  const byPerson = new Map<string, RateRow[]>();
+  for (const row of rows) {
+    byPerson.set(row.professionalId, [...(byPerson.get(row.professionalId) ?? []), { ...row, hourlyRate: row.hourlyRate!, source: 'person' }]);
+  }
+  return byPerson;
+}
+
 // From today unless dated; earlier rates stay for earlier work.
 export async function addOwnRates(
   db: DatabaseOrTransaction,
   actorUserAccountId: string,
   professionalId: string,
-  input: { hourlyRate?: number; ratePerMile?: number; effectiveFrom?: string },
+  input: { hourlyRate?: number; ratePerMile?: number; travelHourlyRate?: number; effectiveFrom?: string },
 ): Promise<void> {
   await db.insert(professionalRate).values({
     professionalId,
     hourlyRate: input.hourlyRate?.toFixed(2),
     ratePerMile: input.ratePerMile?.toFixed(3),
+    travelHourlyRate: input.travelHourlyRate?.toFixed(2),
     effectiveFrom: input.effectiveFrom ?? new Date().toISOString().slice(0, 10),
     recordedByUserAccountId: actorUserAccountId,
     recordedAt: new Date(),
@@ -95,10 +118,14 @@ export async function addOwnRates(
 
 // A later row for the same date replaces an earlier one, as recorded.
 export function rateOn(rates: RateRow[], professionalId: string, date: string): string | undefined {
-  let found: string | undefined;
+  return rateRowOn(rates, professionalId, date)?.hourlyRate;
+}
+
+export function rateRowOn(rates: RateRow[], professionalId: string, date: string): RateRow | undefined {
+  let found: RateRow | undefined;
   for (const rate of rates) {
     if (rate.professionalId === professionalId && rate.effectiveFrom <= date) {
-      found = rate.hourlyRate;
+      found = rate;
     }
   }
   return found;

@@ -6,13 +6,14 @@ import { invoiceDecisionReasons } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 
 // Starting reasons for approving a line in part or rejecting it
-// (model/rules.yaml decide_invoice_lines). Configurable reference data:
-// administrators add, rename and retire them in Settings. Each applies to
-// approving in part, rejecting, or both.
+// (model/rules.yaml decide_invoice_lines), and for setting a case rate
+// (set_case_rate). Configurable reference data: administrators add, rename
+// and retire them in Settings. "Other" is on every list.
 export const RATE_REASON_CODE = 'rate_above_configured';
 export const OTHER_REASON_CODE = 'other';
 
-export type ReasonAppliesTo = 'approved_in_part' | 'rejected' | 'both';
+export type ReasonAppliesTo = 'approved_in_part' | 'rejected' | 'both' | 'case_rate';
+export type ReasonList = 'approved_in_part' | 'rejected' | 'case_rate';
 
 export const INVOICE_DECISION_REASONS: Array<{ code: string; displayName: string; appliesTo: ReasonAppliesTo }> = [
   { code: RATE_REASON_CODE, displayName: 'Rate is higher than the approved rate', appliesTo: 'approved_in_part' },
@@ -22,16 +23,22 @@ export const INVOICE_DECISION_REASONS: Array<{ code: string; displayName: string
   { code: 'not_provider_service', displayName: 'Not an investigator or expert service', appliesTo: 'rejected' },
   { code: 'no_backup', displayName: 'No back-up attached: receipt, map, or breakdown', appliesTo: 'rejected' },
   { code: 'duplicate', displayName: 'Duplicate of another entry', appliesTo: 'both' },
+  { code: 'case_rate_agreed', displayName: 'Agreed in advance for this case', appliesTo: 'case_rate' },
+  { code: 'case_rate_correction', displayName: 'Corrects an earlier case rate', appliesTo: 'case_rate' },
   { code: OTHER_REASON_CODE, displayName: 'Another reason. See the note.', appliesTo: 'both' },
 ];
 
-export function reasonAppliesTo(appliesTo: string, outcome: 'approved_in_part' | 'rejected'): boolean {
-  return appliesTo === 'both' || appliesTo === outcome;
+export function reasonAppliesTo(reason: { code: string; appliesTo: string }, list: ReasonList): boolean {
+  return (
+    reason.code === OTHER_REASON_CODE ||
+    reason.appliesTo === list ||
+    (reason.appliesTo === 'both' && list !== 'case_rate')
+  );
 }
 
 // --- administration (Settings) ------------------------------------------------
 
-const appliesToSchema = z.enum(['approved_in_part', 'rejected', 'both']);
+const appliesToSchema = z.enum(['approved_in_part', 'rejected', 'both', 'case_rate']);
 
 // Every reason, retired ones too, in list order: "other" last.
 export async function listDecisionReasons(db: DatabaseOrTransaction, options: { activeOnly?: boolean } = {}) {
@@ -85,7 +92,7 @@ export async function updateDecisionReason(db: DatabaseOrTransaction, reasonId: 
     throw new NotFoundError('Reason not found.');
   }
   if (existing.code === OTHER_REASON_CODE && (input.data.active === false || (input.data.appliesTo && input.data.appliesTo !== 'both'))) {
-    throw new ValidationError({ active: '"Another reason" stays on both lists.' });
+    throw new ValidationError({ active: '"Another reason" stays on every list.' });
   }
   const [row] = await db.update(invoiceDecisionReasons).set(input.data).where(eq(invoiceDecisionReasons.id, reasonId)).returning();
   return row;

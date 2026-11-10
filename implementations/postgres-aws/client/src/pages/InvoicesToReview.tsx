@@ -18,7 +18,7 @@ import { useCountyControl } from '../components/CountyListControl';
 import { AssignReviewer } from '../components/ReviewRouting';
 import { Toast, useToast } from '../components/Toast';
 import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
-import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
+import { formatDateTime, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
 
@@ -244,8 +244,8 @@ export default function InvoicesToReview() {
               </>
             ),
           },
-          { header: 'Case number, as typed', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },
-          { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDate(invoice.submittedAt.slice(0, 10)) : '—') },
+          { header: 'Case number', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },
+          { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDay(invoice.submittedAt) : '—') },
           { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
           { header: 'Decided', render: (invoice) => `${invoice.decidedCount} of ${invoice.lineCount}` },
           {

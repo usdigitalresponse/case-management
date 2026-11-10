@@ -2,10 +2,11 @@ import { Link as RouterLink } from 'react-router';
 import { listMyCases, type MyCaseProfessional, type MyCaseRecord, type MyCasesResult } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { RecordTable } from '../components/RecordTable';
-import { formatDate } from '../formatDateTime';
+import { formatDay } from '../formatDateTime';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
-import { NEW_INVOICE_PATH } from './useShell';
+import { formatMoney } from '../formatMoney';
+import { UPLOAD_PATH } from './useShell';
 
 interface CaseSection {
   professional: MyCaseProfessional;
@@ -29,24 +30,33 @@ function CaseTable({ professionalId, cases, label }: { professionalId: string; c
       rows={cases}
       rowKey={(caseRecord) => caseRecord.caseId}
       columns={[
-        { header: 'Client', width: '24%', rowHeader: true, render: (c) => c.clientDisplayName ?? 'Unknown client' },
+        { header: 'Client', width: '22%', rowHeader: true, render: (c) => c.clientDisplayName ?? 'Unknown client' },
         { header: 'Case', width: '15%', render: (c) => c.caseNumber ?? '—' },
-        { header: 'Status', width: '10%', render: (c) => <span className="chip chip--neutral">{c.statusDisplayName}</span> },
-        { header: 'Assigned', width: '14%', render: (c) => formatDate(c.assignedAt.slice(0, 10)) },
+        { header: 'Since', width: '13%', render: (c) => formatDay(c.assignedAt) },
         {
-          header: 'Still to bill',
-          width: '27%',
+          header: 'Pre-authorized',
+          width: '22%',
           render: (c) => {
-            const time = c.unsubmittedTimeProfessionalIds.includes(professionalId);
-            const draft = c.unsubmittedInvoiceProfessionalIds.includes(professionalId);
-            return (
+            const own = c.preauthorizations.find((summary) => summary.professionalId === professionalId);
+            return own ? (
               <>
-                {time && <span className="chip chip--warning">Time not on an invoice</span>}{' '}
-                {draft && <span className="chip chip--warning">Draft invoice</span>}
-                {!time && !draft && <span className="muted">Nothing</span>}
+                {formatMoney(own.ceiling)}
+                <span className="cell-note">{formatMoney(own.approvedSoFar)} approved so far</span>
               </>
+            ) : (
+              <span className="muted">None</span>
             );
           },
+        },
+        {
+          header: 'Drafts',
+          width: '18%',
+          render: (c) =>
+            c.unsubmittedInvoiceProfessionalIds.includes(professionalId) ? (
+              <span className="chip chip--warning">Draft invoice</span>
+            ) : (
+              <span className="muted">None</span>
+            ),
         },
         {
           header: 'Open',
@@ -65,6 +75,16 @@ function CaseTable({ professionalId, cases, label }: { professionalId: string; c
   );
 }
 
+function SendsFor({ others }: { others: CaseSection[] }) {
+  const names = others.map((section) => section.professional.displayName ?? 'an unnamed professional');
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+  return (
+    <Notice tone="info">
+      You also send invoices for {names.length === 1 ? 'one person' : `${names.length} people`}: {list}. The billing office set this up.
+    </Notice>
+  );
+}
+
 export default function PortalCaseList() {
   const { data, error } = useApiResource(() => listMyCases().then(caseSections), []);
   const isDelegate = data?.some((section) => !section.professional.isSelf) ?? false;
@@ -73,15 +93,21 @@ export default function PortalCaseList() {
     <div>
       <PageHeader
         title="Your cases"
-        description={`${isDelegate ? 'Cases for you and the people you bill for.' : 'Cases assigned to you.'} Record time and see each case's invoices from its page.`}
-        actions={<RouterLink className="btn btn--primary" to={NEW_INVOICE_PATH}>New invoice</RouterLink>}
+        description={`${isDelegate ? 'Cases for you and the people you bill for' : 'Your cases'}, as the billing office matched your invoices to them. A case you don't see here can still be billed: type its number when you send the invoice.`}
+        actions={<RouterLink className="btn btn--primary" to={UPLOAD_PATH}>New invoice</RouterLink>}
       />
       {Boolean(error) && <Notice tone="danger">Failed to load your cases.</Notice>}
       {!data && !error && <p role="status">Loading your cases…</p>}
+      {data && isDelegate && <SendsFor others={data.filter((section) => !section.professional.isSelf)} />}
       {data &&
         (isDelegate ? (
           data.map(({ professional, cases }) => {
-            const heading = professional.isSelf ? 'Assigned to you' : `Assigned to ${professional.displayName ?? 'an unnamed professional'}`;
+            const name = professional.displayName ?? 'An unnamed professional';
+            const heading = professional.isSelf
+              ? 'Assigned to you'
+              : professional.kindDisplayName
+                ? `${name}, ${professional.kindDisplayName.toLowerCase()}`
+                : name;
             return (
               <section key={professional.professionalId} className="detail-section">
                 <h2>{heading}</h2>
@@ -96,7 +122,7 @@ export default function PortalCaseList() {
         ) : data[0] && data[0].cases.length > 0 ? (
           <CaseTable professionalId={data[0].professional.professionalId} cases={data[0].cases} label="Your cases" />
         ) : (
-          <p className="empty-note">You aren't assigned to any cases yet.</p>
+          <p className="empty-note">No cases yet. They appear here once the billing office matches your invoices to them.</p>
         ))}
     </div>
   );

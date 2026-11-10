@@ -3,9 +3,16 @@
 // this by hand without it. Approximation (../../MAPPING.md): "approved so
 // far" sums signed-off invoices for that professional on the case, not
 // invoice_authorization_allocation draws, which are not built.
+import { z } from 'zod';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
-import type { DatabaseOrTransaction } from '../db/client';
+import type { Database, DatabaseOrTransaction } from '../db/client';
+import { firstRow } from '../db/rowHelpers';
+import { getReferenceId } from '../db/referenceLookups';
+import { NotFoundError, ValidationError } from '../errors';
+import { fieldErrorsFromZodIssues } from '../intake/validation';
+import { requireReviewPermission } from './reviewAccess';
 import {
+  caseTable,
   invoice,
   invoiceApprovalChain,
   invoiceLine,
@@ -78,16 +85,20 @@ export async function loadRateLimits(db: DatabaseOrTransaction, caseId: string |
 
 export interface RateLimit {
   rate: string;
-  source: 'preauthorized' | 'configured';
+  source: 'case' | 'preauthorized' | 'configured';
 }
 
-// The rate a time line is checked against: the pre-authorized rate for the
-// professional whose work it is, else the case's, else the configured rate.
+// The rate a time line is checked against: a case rate a reviewer set, else
+// the pre-authorized rate for the professional whose work it is, else the
+// case's, else the configured rate.
 export function rateLimitFor(
-  line: { timekeeperProfessionalId: string | null; configuredRate: string | null },
+  line: { timekeeperProfessionalId: string | null; configuredRate: string | null; rateSource: string | null },
   invoiceProfessionalId: string | null,
   limits: Map<string | null, string>,
 ): RateLimit | null {
+  if (line.configuredRate !== null && (line.rateSource === 'case_person' || line.rateSource === 'case_kind')) {
+    return { rate: line.configuredRate, source: 'case' };
+  }
   const professionalId = line.timekeeperProfessionalId ?? invoiceProfessionalId;
   const preauthorized = (professionalId ? limits.get(professionalId) : undefined) ?? limits.get(null);
   if (preauthorized) return { rate: preauthorized, source: 'preauthorized' };
@@ -158,4 +169,104 @@ export async function loadPreauthorizationSummaries(db: DatabaseOrTransaction, c
     summary.waiting = money(own.filter((r) => r.statusCode !== APPROVED_INVOICE_STATUS_CODE).reduce((sum, r) => sum + toCents(r.submittedTotal), 0));
   }
   return [...byProfessional.values()];
+}
+
+const preauthorizedAmountSchema = z.object({
+  // Null: for the whole case.
+  professionalId: z.uuid().nullable(),
+  amount: z.coerce.number().positive('Enter an amount above zero.').max(10_000_000),
+  // Kept with the first amount only.
+  authorizationNumber: z.string().trim().max(100).optional(),
+});
+
+// Any staff member enters or changes a case's pre-authorized amount, for one
+// person or the whole case (model/rules.yaml preserve_authorization_decisions):
+// the first is an approved pre-authorization, a change a new revised
+// decision keeping its hourly rate. Earlier decisions stay.
+export async function setPreauthorizedAmount(db: Database, actorUserAccountId: string, caseId: string, rawInput: unknown) {
+  if (!z.uuid().safeParse(caseId).success) {
+    throw new NotFoundError('Case not found.');
+  }
+  const parsed = preauthorizedAmountSchema.safeParse(rawInput);
+  if (!parsed.success) {
+    throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
+  }
+  const input = parsed.data;
+  await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
+  return db.transaction(async (tx) => {
+    const [locked] = await tx.select({ caseId: caseTable.caseId }).from(caseTable).where(eq(caseTable.caseId, caseId)).for('update');
+    if (!locked) {
+      throw new NotFoundError('Case not found.');
+    }
+    // Approximation of committed draws (see the header): what is signed off so far.
+    const current = (await loadPreauthorizationSummaries(tx, caseId)).find((summary) => summary.professionalId === input.professionalId);
+    if (current && toCents(current.approvedSoFar) > toCents(input.amount.toFixed(2))) {
+      throw new ValidationError({ amount: `${money(toCents(current.approvedSoFar))} is already approved. Enter at least that.` });
+    }
+    const approvedStatusId = await getReferenceId(tx, preauthorizationStatuses, 'approved');
+    const [existing] = await tx
+      .select({ preauthorizationId: preauthorization.preauthorizationId })
+      .from(preauthorization)
+      .where(
+        and(
+          eq(preauthorization.caseId, caseId),
+          eq(preauthorization.statusId, approvedStatusId),
+          input.professionalId ? eq(preauthorization.professionalId, input.professionalId) : isNull(preauthorization.professionalId),
+        ),
+      )
+      .orderBy(desc(preauthorization.requestedAt))
+      .limit(1);
+    const now = new Date();
+    const amount = input.amount.toFixed(2);
+    if (!existing) {
+      const created = firstRow(
+        await tx
+          .insert(preauthorization)
+          .values({
+            caseId,
+            professionalId: input.professionalId,
+            statusId: approvedStatusId,
+            requestedAmount: amount,
+            requestedAt: now,
+            authorizationNumber: input.authorizationNumber || null,
+          })
+          .returning({ preauthorizationId: preauthorization.preauthorizationId }),
+      );
+      await tx.insert(preauthorizationDecision).values({
+        preauthorizationId: created.preauthorizationId,
+        sequenceNumber: 1,
+        outcomeId: await getReferenceId(tx, preauthorizationOutcomes, 'approved'),
+        approvedAmount: amount,
+        effectiveAt: now,
+        decidedAt: now,
+        decidedByUserAccountId: actorUserAccountId,
+      });
+      return { preauthorizationId: created.preauthorizationId };
+    }
+    const [latest] = await tx
+      .select({ sequenceNumber: preauthorizationDecision.sequenceNumber, approvedHourlyRate: preauthorizationDecision.approvedHourlyRate })
+      .from(preauthorizationDecision)
+      .where(eq(preauthorizationDecision.preauthorizationId, existing.preauthorizationId))
+      .orderBy(desc(preauthorizationDecision.sequenceNumber))
+      .limit(1);
+    await tx.insert(preauthorizationDecision).values({
+      preauthorizationId: existing.preauthorizationId,
+      sequenceNumber: (latest?.sequenceNumber ?? 0) + 1,
+      outcomeId: await getReferenceId(tx, preauthorizationOutcomes, 'revised'),
+      approvedAmount: amount,
+      approvedHourlyRate: latest?.approvedHourlyRate ?? null,
+      effectiveAt: now,
+      decidedAt: now,
+      decidedByUserAccountId: actorUserAccountId,
+    });
+    return { preauthorizationId: existing.preauthorizationId };
+  });
+}
+
+// Whether this invoice takes its person (or the case) over the pre-authorized
+// amount: what is approved so far plus this invoice's request, while it isn't
+// signed off yet. Reviewers may still approve or reject it.
+export function overPreauthorization(summary: PreauthorizationSummary | null, invoiceTotal: string, alreadyCounted: boolean): boolean {
+  if (!summary) return false;
+  return toCents(summary.approvedSoFar) + (alreadyCounted ? 0 : toCents(invoiceTotal)) > toCents(summary.ceiling);
 }

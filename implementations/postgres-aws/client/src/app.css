@@ -128,29 +128,21 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .app-main h1, .portal-page h1 { font-family: var(--font-serif); font-size: 32px; font-weight: 600; letter-spacing: -.5px; margin: 0 0 .7rem; line-height: 1.2; }
 .page-heading { margin-bottom: 1.5rem; }
 
-.case-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-.case-heading-row .page-heading { flex: 1; }
 .close-case-form { display: flex; flex-direction: column; gap: .5rem; min-width: 240px; }
 .close-case-form .usa-input { margin: 0; }
 .close-case-buttons { display: flex; gap: .5rem; }
 .eyebrow { color: var(--ink-faint); text-transform: uppercase; font-size: 11px; font-weight: 600; letter-spacing: .6px; margin: 0 0 .65rem; }
 .page-description { margin: 0; color: var(--ink-faint); font-size: .85rem; }
-.stage-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
-.stage-column { display: flex; flex-direction: column; min-width: 0; }
-.stage-heading { min-height: 110px; }
-.stage-title { display: flex; align-items: flex-start; justify-content: space-between; gap: .35rem; }
-.stage-title h2 { font-size: 1rem; margin: 0; line-height: 1.4; }
-.stage-count { border-radius: 20px; background: var(--primary-tint); padding: .2rem .7rem; font-size: .8rem; color: var(--primary); }
-.stage-heading p { font-size: .85rem; line-height: 1.45; color: var(--ink-faint); margin: .65rem 0 1.2rem; }
-.stage-content { flex: 1; min-height: 410px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); padding: .8rem; }
-.case-cards { list-style: none; padding: 0; margin: 0; }
-.case-cards li + li { margin-top: .8rem; }
-/* Overview's stage-board cards are a .row-card (see below) plus this one
-   modifier — equal-height cards keep the grid's columns aligned. */
-.case-card { min-height: 106px; }
-.view-all { display: inline-block; font-size: .85rem; font-weight: 700; text-decoration: none; margin: 1.5rem .2rem .5rem; }
-.stage-empty { padding: 2rem .3rem; text-align: center; color: var(--ink-faint); font-size: .85rem; }
-.empty-mark { color: var(--line-strong); font-size: 1.5rem; }
+/* Case overview (design I47): a card per stage with its count. */
+.stage-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
+.stage-card { min-width: 0; padding: 1rem 1.1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.stage-card h2 { margin: 0; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-muted); }
+.stage-card__count { margin: .4rem 0 0; font-family: var(--font-serif); font-size: 2rem; font-weight: 600; line-height: 1; }
+.stage-card__what { margin: .5rem 0 .9rem; font-size: .8rem; color: var(--ink-faint); }
+.stage-card ul { list-style: none; margin: 0; padding: 0; }
+.stage-card li { display: grid; margin-bottom: .6rem; }
+.stage-card li a { font-weight: 600; }
+.view-all { display: inline-block; font-size: .85rem; font-weight: 600; text-decoration: none; }
 /* Sign-in: a title, then two equal cards on the sidebar gray. Demo
    sign-ins sit quietly at the foot of each card. */
 .login-page { min-height: 100vh; box-sizing: border-box; padding: 5rem 1.5rem 3rem; background: var(--sidebar); }
@@ -159,14 +151,10 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .login-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1.25rem; max-width: 52rem; margin: 0 auto; }
 .login-panel { display: flex; flex-direction: column; gap: .75rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.6rem; box-shadow: var(--elevation-1); }
 .login-panel h1, .login-panel h2 { margin: 0; font-size: 1.1rem; }
-.login-panel--single { max-width: 26rem; margin: 0 auto; }
 .login-panel > p { margin: -.4rem 0 .25rem; color: var(--ink-muted); font-size: .92rem; }
 /* Sign-in buttons span the panel; the demo row's sits beside its select. */
-.login-panel > .btn, .login-form .btn { width: 100%; }
+.login-panel > .btn { width: 100%; }
 .login-panel .btn { min-height: 2.5rem; }
-.login-form { display: flex; flex-direction: column; gap: .75rem; max-width: none; }
-.login-form .usa-label { margin: 0; }
-.login-form .usa-input { max-width: none; height: 2.5rem; margin-top: .3rem; }
 .login-panel .notice { margin: 0; }
 .login-demo { display: flex; flex-direction: column; gap: .4rem; margin-top: auto; padding-top: .9rem; border-top: 1px solid var(--line); font-size: .85rem; }
 .login-demo > label { color: var(--ink-faint); }
@@ -194,6 +182,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .portal-header { gap: .75rem; }
 .portal-header .user-name { max-width: 24rem; }
 .portal-badge { padding: .15rem .55rem; border-left: 1px solid var(--color-inverse-primary); color: var(--color-on-inverse-surface); font-size: 13px; white-space: nowrap; }
+.portal-tabs { display: flex; align-self: stretch; gap: .25rem; margin-left: 1.5rem; }
+.portal-tabs a { display: flex; align-items: center; padding: 0 .8rem; color: var(--color-on-inverse-surface); text-decoration: none; font-size: .92rem; border-bottom: 3px solid transparent; }
+.portal-tabs a:hover { border-bottom-color: var(--color-inverse-primary); }
+.portal-tabs a.active { font-weight: 600; border-bottom-color: var(--color-inverse-primary); }
+@media (max-width: 52rem) { .portal-tabs { order: 3; flex-basis: 100%; margin: 0; overflow-x: auto; } .portal-header { flex-wrap: wrap; } }
 .portal-page { min-height: calc(100vh - 57px); box-sizing: border-box; background: var(--sidebar); }
 .portal-sign-in { min-height: calc(100vh - 57px); box-sizing: border-box; padding: 6rem 1rem 3rem; background: var(--sidebar); }
 .portal-sign-in:focus { outline: none; }
@@ -337,7 +330,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
    the table past the file beside it. */
 .check-lines__actions--decide { white-space: normal; min-width: 12rem; }
 .check-lines__actions--decide .decision-buttons { align-items: flex-end; }
-.check-lines__actions--decide .decision-button-row { flex-wrap: wrap; justify-content: flex-end; }
+.check-lines__actions--decide .decision-bar { flex-wrap: wrap; justify-content: flex-end; }
 /* Edited in place while entered: compact fields in the cells. */
 .check-lines__input { width: 100%; min-width: 4rem; max-width: none; height: auto; margin-top: 0; padding: .3rem .4rem; font-size: .9rem; }
 .check-lines__table .amount .check-lines__input { width: 4.5rem; min-width: 0; text-align: right; }
@@ -405,6 +398,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 /* Invoice export */
 .export-format { margin: 0 0 1rem; }
 .export-format .usa-select { max-width: none; width: 100%; margin: .35rem 0 0; }
+.export-choice-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 .75rem; }
 .export-redact { margin: 0 0 1rem; }
 .export-redact > summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .export-fields { margin: .8rem 0 0; padding: 0; border: 0; min-width: 0; }
@@ -431,8 +425,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .list-count { color: var(--ink-faint); font-size: .85rem; white-space: nowrap; }
 
 /* The single place a table gets its box: rounded/clipped corners, full
-   width, and horizontal scroll on overflow. .row-cards renders the same
-   rows as a mobile fallback below 760px — CSS picks one. */
+   width, and horizontal scroll on overflow. */
 .data-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow-x: auto; overflow-y: hidden; }
 .data-card .usa-table { margin: 0; width: 100%; }
 /* USWDS's base .usa-table styles every cell with a 1px var(--ink) border and
@@ -446,22 +439,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .data-card table tbody tr:hover { background: var(--row-open); }
 .data-card table th[scope="row"] a { color: var(--ink); font-weight: 700; text-decoration: none; }
 .data-card table th[scope="row"] a:hover, .data-card table th[scope="row"] a:focus { text-decoration: underline; }
-/* Cases list: Status, Stage and Opened shrink to their one-line content;
-   Client and External reference share the rest. */
-.case-table th:nth-child(2), .case-table td:nth-child(2),
-.case-table th:nth-child(3), .case-table td:nth-child(3),
-.case-table th:nth-child(4), .case-table td:nth-child(4) { width: 1%; white-space: nowrap; }
-/* Line pill-column headers up with the pill text, not the pill edge. */
-.case-table thead th:nth-child(2), .case-table thead th:nth-child(3) { padding-left: calc(1.1rem + .6rem); }
-.case-table th:nth-child(1), .case-table td:nth-child(1),
-.case-table th:nth-child(5), .case-table td:nth-child(5) { overflow-wrap: anywhere; }
-/* Case detail: visually separates "this case's own facts" (.fact-grid,
-   below) from "related records" (.data-card tables). */
 .detail-section { margin-top: 2.2rem; }
 .detail-section h2 { font-size: 1.1rem; margin: 0 0 .85rem; }
-.fact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1.2rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.2rem 1.4rem; }
-.fact dt { margin: 0 0 .3rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); }
-.fact dd { margin: 0; font-size: .95rem; }
 
 .type-ahead { position: relative; max-width: 30rem; }
 .clearable { position: relative; }
@@ -478,21 +457,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .assign-staff-row .type-ahead { flex: 1; max-width: 400px; }
 .assign-staff-row .clearable__input { margin-top: 0; }
 
-
-.row-cards { display: none; list-style: none; margin: 0; padding: 0; }
-.row-card { display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.1rem; text-decoration: none; color: inherit; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow-wrap: anywhere; }
-.row-card:hover { border-color: var(--primary); background: var(--row-open); }
-.row-card + .row-card { margin-top: .75rem; }
-.row-card-title { font-weight: 700; font-size: .95rem; }
-.row-card-meta { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: var(--ink-faint); font-size: .82rem; }
-@media (max-width: 760px) {
-  /* Only a .data-card paired with a .row-cards fallback (Cases list) hides
-     below this breakpoint — a bare .data-card (RecordTable) has no card
-     equivalent to fall back to, so it just scrolls horizontally instead
-     (.data-card's own overflow-x handles that). */
-  .data-card:has(+ .row-cards) { display: none; }
-  .row-cards { display: block; }
-}
 
 /* Form layout: each Fieldset in its own card, short-field sections in a responsive 2-column grid. */
 /* react-uswds's <Form> applies .usa-form, which caps max-width at 20rem —
@@ -511,14 +475,12 @@ form.case-intake-form { max-width: 52rem; }
   .form-grid { grid-template-columns: 1fr; }
 }
 
-/* Portal's case list: same .row-card as Cases/Overview, arranged as a grid. */
-.portal-case-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
-.portal-case-section + .portal-case-section { margin-top: 2rem; }
 @media (max-width: 1250px) {
   .app-layout { grid-template-columns: 195px minmax(0, 1fr); }
   .app-main { padding: 2rem 1.2rem; }
-  .stage-board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .stage-content { min-height: 280px; }
+}
+@media (max-width: 900px) {
+  .stage-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
   .app-header { padding: 1rem; }
@@ -529,12 +491,9 @@ form.case-intake-form { max-width: 52rem; }
   .nav-group, .nav-group + .nav-group { display: flex; flex-wrap: wrap; gap: .2rem; margin: 0; }
   .app-sidebar .nav-group a:not(.btn) { width: auto; gap: .4rem; }
   .nav-group h2, .nav-group button { display: none; }
-  .stage-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 480px) {
-  .stage-board { grid-template-columns: 1fr; }
-  .stage-heading { min-height: 0; }
-  .stage-content { min-height: 130px; }
+  .stage-cards { grid-template-columns: 1fr; }
   .app-main h1, .portal-page h1 { font-size: 1.7rem; }
 }
 .invoice-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .9rem; }
@@ -546,7 +505,6 @@ form.case-intake-form { max-width: 52rem; }
 
 /* Compact portal forms: fields side by side, overriding USWDS's
    single-column sizing. */
-.back-link { display: inline-block; margin-bottom: .6rem; font-size: .9rem; }
 .portal-main section { margin-top: 1.6rem; }
 .portal-main section > h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
 form.compact-form { max-width: none; }
@@ -569,9 +527,6 @@ form.compact-form { max-width: none; }
 .period-fields { grid-template-columns: 12rem 12rem; margin-bottom: .8rem; }
 .confirm-inline { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .confirm-inline__prompt { font-weight: 700; }
-.queue-filter { display: flex; align-items: end; gap: .75rem; margin: 0 0 1rem; }
-.queue-filter .usa-select { margin: 0; width: auto; min-width: 12rem; height: 2.25rem; padding: .25rem .5rem; }
-.queue-filter .usa-label { margin: 0 0 .2rem; font-size: .85rem; }
 /* Import review: the original beside the items, or above them when narrow. */
 .import-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1.2rem; align-items: start; margin-top: .8rem; }
 .import-review-items { min-width: 0; }
@@ -672,18 +627,55 @@ form.compact-form { max-width: none; }
 .unbilled-time-row { display: inline-flex; flex-wrap: wrap; gap: .2rem 1rem; }
 .unbilled-time-description { color: var(--ink-muted); }
 .rate-note { margin: 0 0 .8rem; font-size: .85rem; color: var(--ink-muted); }
-.line-stated { display: block; font-size: .78rem; color: var(--danger); white-space: nowrap; }
 .trip-note { display: block; margin-top: .15rem; font-size: .78rem; line-height: 1.3; color: var(--ink-faint); }
 .trip-note--flagged { color: var(--danger); font-weight: 600; }
-/* Settings: one card per kind of professional. */
-.settings-kind { margin-bottom: 1rem; }
+.stops-form { display: grid; gap: .4rem; margin-top: .4rem; font-size: .85rem; }
+.stops-form input { display: block; width: 100%; box-sizing: border-box; margin-top: .2rem; padding: .35rem .5rem; border: 1px solid var(--line-strong); border-radius: 6px; }
+/* Settings (design I): an index of its sections, then cards. */
+.page-index { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .4rem 0 1rem; font-size: .85rem; color: var(--ink-muted); }
+.page-index a { padding: .3rem .8rem; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--primary); font-weight: 600; text-decoration: none; }
+.page-index a.is-current { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.settings-section { margin-bottom: 2.5rem; scroll-margin-top: 1rem; }
+.settings-section > h2 { margin: 1.2rem 0 .3rem; }
+.settings-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 1rem; align-items: start; }
+.settings-columns .compact-card { margin-top: 0; }
+.settings-columns .settings-form { max-width: none; }
+.settings-columns .settings-form select { max-width: none; width: 100%; }
+.settings-columns table th[scope="row"] { font-weight: 400; }
+.settings-columns .segmented__option { padding: .35rem .55rem; font-size: .8rem; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 1rem; align-items: start; }
+.settings-grid .compact-card { margin-top: 0; min-width: 0; }
+.settings-grid .rate-fields { grid-template-columns: minmax(3.5rem, .7fr) minmax(8.75rem, 1.3fr) auto; gap: .5rem; }
+.settings-grid .rate-fields .usa-input { min-width: 0; }
+.settings-grid .rate-fields .usa-label { font-size: .8rem; }
 .settings-kind h3 { margin: 0 0 .3rem; }
-.rate-fields { grid-template-columns: minmax(8rem, 12rem) minmax(9rem, 11rem) auto; margin-top: .8rem; }
-.settings-section { margin-bottom: 2.5rem; }
-.settings-section > h2 { margin: 0 0 .3rem; }
-.settings-rule h3 { margin: 0 0 .2rem; }
-.rule-fields { grid-template-columns: repeat(auto-fit, minmax(9rem, 12rem)); align-items: end; }
-.rule-fields .btn { justify-self: start; }
+.rate-fields { grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 1fr) auto; align-items: end; margin-top: .8rem; }
+.settings-basis { margin: .8rem 0 0; padding: 0; border: 0; }
+.settings-basis legend { font-weight: 600; font-size: .85rem; margin-bottom: .2rem; }
+.role-summary { display: grid; grid-template-columns: 10rem 1fr; gap: .4rem 1rem; margin: .5rem 0 0; font-size: .92rem; }
+.role-summary dt { font-weight: 600; }
+.role-summary dd { margin: 0; color: var(--ink-muted); }
+.settings-rules { padding: 0; }
+.settings-rule-row { display: grid; grid-template-columns: minmax(14rem, 1.4fr) 12rem minmax(10rem, 1fr) auto; gap: .6rem 1.2rem; align-items: center; padding: .8rem 1.1rem; border-top: 1px solid var(--line); }
+.settings-rule-row:first-child { border-top: 0; }
+.settings-rule-row h3 { margin: 0; font-size: .95rem; }
+.settings-rule-row .compact-hint { margin: .15rem 0 0; }
+.settings-rule-row__fields { display: flex; flex-wrap: wrap; align-items: end; gap: .6rem; }
+.settings-rule-row__fields .usa-form-group { margin: 0; }
+.settings-rule-row__fields .usa-input { width: 6rem; margin-top: .2rem; }
+.settings-codes { margin-top: 1.5rem; }
+.settings-codes > h2 { margin: 0 0 .3rem; }
+@media (max-width: 64rem) {
+  .settings-columns { grid-template-columns: 1fr; }
+  .settings-rule-row { grid-template-columns: 1fr; }
+}
+/* Joined buttons for one choice of a few. */
+.segmented { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 6px; overflow: hidden; }
+.segmented__option { padding: .4rem .75rem; border: 0; border-left: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-size: .85rem; cursor: pointer; white-space: nowrap; }
+.segmented__option:first-child { border-left: 0; }
+.segmented__option.is-chosen { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; }
+.segmented__option:disabled { cursor: default; }
+.segmented__option:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .rule-findings ul { margin: .3rem 0 0; padding-left: 1.2rem; }
 .kind-cell { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .75rem; }
 /* Bulk import: three steps, the current one marked. */
@@ -719,7 +711,7 @@ form.compact-form { max-width: none; }
 .list-toggle { margin: 0 0 .5rem; }
 .list-toggle .usa-checkbox__label { margin-top: 0; font-size: .9rem; }
 /* Compact selects keep USWDS's right padding clear of the arrow. */
-.inline-fields .usa-select, .queue-filter .usa-select, .assign-all .usa-select { padding-right: 2rem; }
+.inline-fields .usa-select, .assign-all .usa-select { padding-right: 2rem; }
 
 /* --- Invoice review design ------------------------------------------------ */
 .muted { color: var(--ink-faint); }
@@ -743,8 +735,6 @@ form.compact-form { max-width: none; }
 .btn--danger { background: var(--surface); color: var(--color-error); border-color: var(--color-error); }
 .btn--danger:hover:not(:disabled) { background: var(--color-error-container); color: var(--color-on-error-container); }
 .link-button--danger { color: var(--danger); }
-.btn--danger-solid { background: var(--color-error); color: var(--color-on-error); }
-.btn--danger-solid:hover:not(:disabled) { background: var(--color-on-error-container); }
 .btn--select { color: var(--ink); font-weight: 600; }
 .btn--select .muted { font-weight: 400; }
 
@@ -808,8 +798,10 @@ form.compact-form { max-width: none; }
 
 /* Review table */
 .review-table td { vertical-align: top; }
+.review-table td.line-date-cell { white-space: nowrap; }
 .review-table tr.is-rejected td:not(.decision-cell) { opacity: .6; }
 .review-table tr.is-open, .review-table tr.detail-row { background: var(--row-open); }
+.review-table tr.is-flagged { background: var(--warning-tint); }
 .data-card table.review-table tbody tr.detail-row:hover { background: var(--row-open); }
 .data-card table tr.detail-row td { padding: 0; }
 /* A row and the full-width note under it read as one (RecordTable rowNote). */
@@ -819,8 +811,15 @@ form.compact-form { max-width: none; }
 .decision-cell { min-width: 18.5rem; }
 .decision-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
 /* Approve, Approve part and Reject stay on one line. */
-.decision-button-row { display: flex; flex-wrap: nowrap; gap: .4rem; }
-.decision-button-row .btn { padding: .35rem .7rem; }
+.decision-bar { display: inline-flex; flex-wrap: nowrap; }
+.decision-bar button { margin: 0 0 0 -1px; padding: .4rem .8rem; border: 1px solid var(--color-primary); background: var(--surface); color: var(--color-primary); font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; }
+.decision-bar button:first-child { margin-left: 0; border-radius: 6px 0 0 6px; }
+.decision-bar button:last-child { border-radius: 0 6px 6px 0; }
+.decision-bar button:hover:not(:disabled) { background: var(--row-open); }
+.decision-bar button.is-active { position: relative; background: var(--color-primary); color: var(--surface); }
+.decision-bar .decision-bar__reject { color: var(--color-error); }
+.decision-bar .decision-bar__reject.is-active { background: var(--color-error); border-color: var(--color-error); }
+.decision-bar button:disabled { opacity: .6; cursor: default; }
 .decision-panel__question { max-width: 36rem; margin-bottom: .5rem; }
 .decision-buttons > .link-button { font-size: .85rem; }
 /* Asking about a line, under its questions. */
@@ -833,7 +832,6 @@ form.compact-form { max-width: none; }
 .line-bar .line-ask { padding: 0; }
 .line-bar__decide { margin-left: auto; }
 .line-bar__decide .decision-buttons { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .4rem .75rem; }
-.line-bar__decide .decision-button-row .btn { padding: .3rem .75rem; }
 /* A decided line: its decision, why, who and the links to change it, across the bar. */
 .line-bar__decide { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .3rem .9rem; }
 .line-bar__decide .decision-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .75rem; }
@@ -877,6 +875,14 @@ form.compact-form { max-width: none; }
 .decision-panel__result strong { display: block; font-size: 1.1rem; color: var(--ink); }
 .radio-row, .checkbox-row { display: flex; align-items: center; gap: .5rem; margin: .3rem 0; color: var(--ink); font-size: .9rem; cursor: pointer; }
 .decision-panel__note { display: block; }
+.decision-panel__rate-result { margin: .6rem 0 0; font-size: .85rem; font-weight: 600; color: var(--ink); }
+.decision-panel__rate-reason { display: block; max-width: 24rem; margin-top: .8rem; }
+.decision-panel--rate input[type="number"] { max-width: 10rem; }
+.decision-panel__case-rate { margin: .6rem 0 0 1.6rem; display: grid; gap: .6rem; }
+.decision-panel__case-rate .inline-pair { grid-template-columns: 1fr 1fr; max-width: 26rem; }
+.decision-panel select, .decision-panel input[type="date"] { display: block; width: 100%; box-sizing: border-box; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); background: var(--surface); }
+.case-rates { margin: 1rem 0; }
+.case-rates summary { cursor: pointer; font-size: .9rem; color: var(--ink-muted); }
 
 /* Totals and sign-off */
 .totals-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem 2rem; margin-top: 1rem; padding: 1rem 1.5rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
@@ -912,8 +918,35 @@ form.compact-form { max-width: none; }
 .toast__undo { border: 0; background: none; color: var(--link-on-dark); font-weight: 700; cursor: pointer; padding: 0; }
 
 /* Case page */
-.preauth-line { display: flex; flex-wrap: wrap; gap: .3rem 2rem; margin: .8rem 0 0; font-size: .88rem; color: var(--ink-muted); }
-.preauth-line strong { color: var(--ink); }
+.case-list-table td, .case-list-table th { white-space: nowrap; }
+.sender-choices { margin: 0; padding: 0; border: 0; }
+.sender-choices .radio-row { display: inline-flex; margin-right: 1.5rem; }
+/* A case's page (design I49). */
+.case-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.case-columns .compact-card h2, .compact-card > h2 { margin: 0 0 .6rem; font-size: 1.05rem; }
+.preauth-billed + .preauth-billed { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.preauth-billed dl { margin: 0; }
+.preauth-billed dl div { display: flex; justify-content: space-between; gap: 1rem; padding: .2rem 0; font-size: .9rem; }
+.preauth-billed dt { color: var(--ink-muted); }
+.preauth-billed dd { margin: 0; font-weight: 600; }
+.preauth-bar { display: flex; height: 8px; margin: .6rem 0 .3rem; border-radius: 4px; background: var(--line); overflow: hidden; }
+.preauth-bar__approved { background: var(--success); }
+.preauth-bar__waiting { background: var(--primary); opacity: .45; }
+@media (max-width: 64rem) { .case-columns { grid-template-columns: 1fr; } }
+
+/* Case card and matching on the review page */
+.invoice-case-card { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 2rem; align-items: start; margin: 0 0 1rem; padding: 1rem 1.25rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.invoice-case-card p { margin: .25rem 0 0; }
+.invoice-case-card__eyebrow { margin: 0 0 .25rem; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
+.invoice-case-card__client { font-family: var(--font-serif); font-size: 1.25rem; font-weight: 700; text-decoration: none; }
+.invoice-case-card__links { display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; margin-top: .5rem; }
+@media (max-width: 52rem) { .invoice-case-card { grid-template-columns: 1fr; } }
+.case-match { margin: 0 0 1rem; padding: .9rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.case-match h2 { margin: 0 0 .5rem; font-size: 1rem; }
+.case-match ul { margin: 0 0 .5rem; padding: 0; list-style: none; }
+.case-match li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .4rem 0; border-top: 1px solid var(--line); }
+.case-match p { margin: .4rem 0 0; }
+.preauth-form { margin-top: .8rem; align-items: end; }
 .section-heading-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin-bottom: .85rem; }
 .section-heading-row h2 { margin: 0; }
 .add-person { flex-basis: 100%; max-width: 36rem; }
@@ -996,8 +1029,7 @@ form.compact-form { max-width: none; }
 .line-rate-differs { color: var(--warning); }
 .import-review-items h2 { font-size: 1.05rem; }
 /* Older cards and fact grids take the same tokens. */
-.fact-grid, .compact-card, .form-card, .data-card { border-color: var(--line); border-radius: var(--radius); }
-.fact dt { font-size: .68rem; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
+.compact-card, .form-card, .data-card { border-color: var(--line); border-radius: var(--radius); }
 /* Table headers: Title/Small. */
 .data-card table thead th { background: var(--table-head); font-size: 11px; letter-spacing: .6px; color: var(--ink-muted); font-weight: 600; }
 .data-card table td, .data-card table th { border-bottom-color: var(--line); }
@@ -1053,7 +1085,7 @@ form.compact-form { max-width: none; }
 .settings-field .choice-list { max-width: 24rem; font-weight: 400; }
 .settings-number { max-width: 6rem; margin-top: .3rem; }
 .settings-role { margin: 0; max-width: 14rem; height: 2.25rem; padding: .25rem 2rem .25rem .5rem; }
-.reason-fields { grid-template-columns: minmax(0, 1fr) 11rem auto; margin-top: .9rem; }
+.reason-fields { grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; margin-top: .9rem; }
 .data-card table tr.is-retired th, .data-card table tr.is-retired td { color: var(--ink-faint); }
 /* Intake */
 .intake-match { grid-template-columns: minmax(0, 24rem) auto; margin-bottom: .6rem; }

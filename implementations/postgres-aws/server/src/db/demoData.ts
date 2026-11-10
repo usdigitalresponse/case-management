@@ -30,6 +30,7 @@ import { finishReview, signOffInvoice } from '../billing/reviewRounds';
 import { setReviewSettings } from '../billing/reviewSettings';
 import { getDelegateAffiliationRoleId } from '../professionals/delegateRole';
 import { createCase } from '../intake/createCase';
+import { applyLineRate } from '../billing/caseRates';
 import { createTimeEntry } from '../portal/createTimeEntry';
 import { createInvoice } from '../portal/createInvoice';
 import { ensureUserAccountForEmail } from '../auth/userAccounts';
@@ -41,7 +42,7 @@ import { addMileageRate } from '../billing/mileageRates';
 import { addTimeCategoryRate } from '../billing/timeCategoryRates';
 import { addBillingCode, setBillingRule } from '../billing/billingRules';
 import { pairKey } from '../billing/routeCheck';
-import { getAdminAccountRoleId, getBillingReviewerRoleId, getSignOffApproverRoleId } from '../auth/staffAccountRole';
+import { getAdminAccountRoleId, getStaffAccountRoleId } from '../auth/staffAccountRole';
 import { firstRow } from './rowHelpers';
 import { seedDemoUploads } from './demoUploads';
 
@@ -50,7 +51,7 @@ import { seedDemoUploads } from './demoUploads';
 // assert zero pre-existing cases).
 const DEMO_CASE_COUNT = 10;
 const DEMO_PROFESSIONAL_COUNT = 4;
-// Two become billing reviewers and one a sign-off approver (seedDemoReviewers).
+// All three are staff; the third is the Director, the only one who signs off (seedDemoReviewers).
 const DEMO_STAFF_COUNT = 3;
 // How many demo cases get an external-submitter assignment; the rest stay unassigned.
 const ASSIGNED_CASE_COUNT = 6;
@@ -310,10 +311,7 @@ const DEMO_TIME_DESCRIPTIONS: Record<string, string[]> = {
 
 // Logs time on every assignment's case, and an invoice filed by person for
 // most (one left un-invoiced, one a draft), so status varies.
-async function seedDemoTimeEntriesAndInvoices(
-  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
-  assignments: DemoAssignment[],
-): Promise<void> {
+async function seedDemoTimeEntriesAndInvoices(assignments: DemoAssignment[]): Promise<void> {
   for (const [index, assignment] of assignments.entries()) {
     const actor = { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId };
     const descriptions = DEMO_TIME_DESCRIPTIONS[DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!]!;
@@ -459,21 +457,27 @@ async function seedStaffAssignment(
   await assignStaffToCase(db, fixtures.staffUserAccountId, caseId, { userAccountId: staffUserAccountId });
 }
 
-// Two reviewers, an approver and a sign-off default. Before any invoice is
-// submitted, so each is routed to the sign-off default.
+// Three staff members; the third, the agency Director, is the only one who
+// signs off. Before any invoice is submitted, so each is routed to them.
 async function seedDemoReviewers(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   staffUserAccountIds: string[],
 ): Promise<void> {
-  const [firstReviewer, secondReviewer, approver] = staffUserAccountIds;
-  if (!firstReviewer || !secondReviewer || !approver) {
+  const [firstReviewer, secondReviewer, director] = staffUserAccountIds;
+  if (!firstReviewer || !secondReviewer || !director) {
     throw new Error('Expected three demo staff accounts.');
   }
-  await giveRole(firstReviewer, await getBillingReviewerRoleId(db));
-  await giveRole(secondReviewer, await getBillingReviewerRoleId(db));
-  await giveRole(approver, await getSignOffApproverRoleId(db));
+  const staffRoleId = await getStaffAccountRoleId(db);
+  for (const userAccountId of [firstReviewer, secondReviewer, director]) {
+    // eslint-disable-next-line no-await-in-loop
+    await giveRole(userAccountId, staffRoleId);
+  }
   // No default reviewer, so new invoices wait to be taken.
-  await setReviewSettings(db, fixtures.staffUserAccountId, { defaultSignOffUserAccountIds: [approver] });
+  await setReviewSettings(db, fixtures.staffUserAccountId, {
+    signOffBy: 'approvers',
+    signOffApproverUserAccountIds: [director],
+    defaultSignOffUserAccountIds: [director],
+  });
 }
 
 // Review demo data: case and court numbers and pre-authorizations on the
@@ -487,7 +491,7 @@ async function seedDemoReview(
   assignments: DemoAssignment[],
   staffUserAccountIds: string[],
 ): Promise<void> {
-  const [firstReviewer, secondReviewer, approver] = staffUserAccountIds as [string, string, string];
+  const [firstReviewer, secondReviewer, director] = staffUserAccountIds as [string, string, string];
 
   for (const [index, caseId] of caseIds.entries()) {
     const number = String(index + 101).padStart(5, '0');
@@ -496,6 +500,18 @@ async function seedDemoReview(
       { caseId, identifierTypeId: fixtures.identifierTypeSampleId, issuer: 'Demo office', value: `DEMO-26-${number}`, isPrimary: true },
       { caseId, identifierTypeId: fixtures.identifierTypeSampleId, issuer: 'Demo court', value: `COURT-${number}` },
     ]);
+  }
+
+  // The expert's case also has the number their sender types, so the
+  // invoice they filed by person can be matched to it while it is reviewed.
+  const expertCase = assignments[3]?.caseId;
+  if (expertCase) {
+    await db.insert(caseIdentifier).values({
+      caseId: expertCase,
+      identifierTypeId: fixtures.identifierTypeSampleId,
+      issuer: 'Demo court',
+      value: '26-CR-00245',
+    });
   }
 
   const [approvedStatusId, approvedOutcomeId] = await Promise.all([
@@ -583,15 +599,19 @@ async function seedDemoReview(
     }
   };
   const [signedOff, awaiting, inProgress, , mileage] = submitted.map((row) => row.invoiceId);
-  // Signed off and ready to export.
+  // Signed off by the Director and ready to export.
   if (signedOff) {
     await approveAll(firstReviewer, signedOff);
     await finishReview(db, firstReviewer, signedOff);
-    await signOffInvoice(db, approver, signedOff, { outcome: 'approved' });
+    await signOffInvoice(db, director, signedOff, { outcome: 'approved', comment: 'Checked against the pre-authorization.' });
   }
-  // Finished and waiting for sign-off.
+  // Waiting for the Director; both reviewers decided lines, so each line shows who.
   if (awaiting) {
     await approveAll(secondReviewer, awaiting);
+    const [first] = await lineIds(awaiting);
+    if (first) {
+      await reviewInvoiceLine(db, firstReviewer, awaiting, first, { outcome: 'approved' });
+    }
     await finishReview(db, secondReviewer, awaiting);
   }
   // Part way through by the demo sign-in, with one line cut and a question
@@ -612,21 +632,28 @@ async function seedDemoReview(
       });
     }
   }
-  // Given to a reviewer, not started; they get the sender's new invoices too.
+  // Given to the first reviewer, who gets the sender's new invoices too; the
+  // second has decided a line on it, as anyone on staff may.
   if (mileage) {
     await reassignReviewer(db, firstReviewer, mileage, { userAccountId: firstReviewer, forPerson: true });
+    const [first] = await lineIds(mileage);
+    if (first) {
+      await reviewInvoiceLine(db, secondReviewer, mileage, first, { outcome: 'approved' });
+    }
   }
 
-  await seedDemoSignInReview(fixtures, assignments, secondReviewer, lineIds);
+  await seedDemoSignInReview(fixtures, assignments, secondReviewer, director, lineIds);
 }
 
-// Two invoices for the demo sign-in: one just submitted and given to them
-// to review, billed above the configured rate; and one another reviewer
-// finished, with an answered question and a changed rate, for them to sign off.
+// One invoice just submitted and given to the demo sign-in to review, billed
+// above the configured rate; two on a case with a case rate; one another
+// reviewer finished, with an answered question and a changed rate, for the
+// Director to sign off; and one the Director rejected whole.
 async function seedDemoSignInReview(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   assignments: DemoAssignment[],
   reviewer: string,
+  director: string,
   lineIds: (invoiceId: string) => Promise<string[]>,
 ): Promise<void> {
   const signIn = fixtures.staffUserAccountId;
@@ -649,6 +676,51 @@ async function seedDemoSignInReview(
     ],
   });
   await reassignReviewer(db, signIn, toReview.invoiceId, { userAccountId: signIn });
+
+  // On the expert's case: one sent first and given to the demo sign-in, then
+  // one on which a reviewer set the case's rate, waiting for the Director.
+  // The first is flagged, since its default changed after it was sent.
+  const expertActor = { userAccountId: expert.userAccountId, professionalId: expert.professionalId };
+  const sentEarlier = await createInvoice(db, expertActor, {
+    caseId: expert.caseId,
+    attested: true,
+    periodStart: '2026-04-01',
+    periodEnd: '2026-04-30',
+    lines: [
+      { lineType: 'time', serviceDate: '2026-04-06', quantity: 2, unitRate: 170, description: 'Examined the evidence' },
+      { lineType: 'time', serviceDate: '2026-04-13', quantity: 1.5, unitRate: 170, description: 'Called counsel about the findings' },
+      { lineType: 'time', serviceDate: '2026-04-20', quantity: 4, unitRate: 170, description: 'Prepared to testify' },
+    ],
+  });
+  await reassignReviewer(db, signIn, sentEarlier.invoiceId, { userAccountId: signIn });
+  const caseRateSet = await createInvoice(db, expertActor, {
+    caseId: expert.caseId,
+    attested: true,
+    periodStart: '2026-05-01',
+    periodEnd: '2026-05-31',
+    lines: [
+      { lineType: 'time', serviceDate: '2026-05-04', quantity: 3, unitRate: 170, description: 'Drafted the expert report' },
+      { lineType: 'time', serviceDate: '2026-05-11', quantity: 2.5, unitRate: 170, description: 'Testified at trial' },
+    ],
+  });
+  const [report] = await lineIds(caseRateSet.invoiceId);
+  if (!report) {
+    throw new Error('Expected lines on the case rate demo invoice.');
+  }
+  const { caseRateId } = await applyLineRate(db, reviewer, caseRateSet.invoiceId, report, {
+    rate: 165,
+    scope: 'case',
+    target: 'person',
+    effectiveFrom: '2026-04-01',
+    reasonCode: 'case_rate_agreed',
+    note: 'Agreed with counsel when the expert was retained.',
+    basedOnCaseRateId: null,
+  });
+  if (!caseRateId) {
+    throw new Error('Expected the demo case rate to be set.');
+  }
+  await setSignOffApprovers(db, reviewer, caseRateSet.invoiceId, { userAccountIds: [director] });
+  await finishReview(db, reviewer, caseRateSet.invoiceId);
 
   const attorneyActor = { userAccountId: attorney.userAccountId, professionalId: attorney.professionalId };
   const toSignOff = await createInvoice(db, attorneyActor, {
@@ -681,8 +753,30 @@ async function seedDemoSignInReview(
   });
   await reviewInvoiceLine(db, reviewer, toSignOff.invoiceId, motion, { outcome: 'approved', approvedRate: 110 });
   await reviewInvoiceLine(db, reviewer, toSignOff.invoiceId, hearing, { outcome: 'approved' });
-  await setSignOffApprovers(db, reviewer, toSignOff.invoiceId, { userAccountIds: [signIn] });
+  await setSignOffApprovers(db, reviewer, toSignOff.invoiceId, { userAccountIds: [director] });
   await finishReview(db, reviewer, toSignOff.invoiceId);
+
+  // Billed under another case's number; the Director rejected it whole.
+  const rejected = await createInvoice(db, attorneyActor, {
+    caseId: null,
+    caseNumber: '26-CR-00214',
+    attested: true,
+    periodStart: '2026-02-01',
+    periodEnd: '2026-02-28',
+    lines: [
+      { lineType: 'time', serviceDate: '2026-02-05', quantity: 1, description: 'Reviewed discovery' },
+      { lineType: 'time', serviceDate: '2026-02-19', quantity: 0.75, description: 'Call with the prosecutor' },
+    ],
+  });
+  for (const lineId of await lineIds(rejected.invoiceId)) {
+    // eslint-disable-next-line no-await-in-loop
+    await reviewInvoiceLine(db, reviewer, rejected.invoiceId, lineId, { outcome: 'approved' });
+  }
+  await finishReview(db, reviewer, rejected.invoiceId);
+  await signOffInvoice(db, director, rejected.invoiceId, {
+    outcome: 'rejected',
+    comment: 'This work was for a different case. Ask the attorney to send it again under the right case number.',
+  });
 }
 
 async function giveRole(userAccountId: string, systemRoleId: string): Promise<void> {
@@ -707,7 +801,7 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
   const staffUserAccountIds = await seedDemoStaff(fixtures);
   await seedDemoReviewers(fixtures, staffUserAccountIds);
   const assignments = await seedDemoAssignments(fixtures, caseIds, professionals);
-  await seedDemoTimeEntriesAndInvoices(fixtures, assignments);
+  await seedDemoTimeEntriesAndInvoices(assignments);
   await seedDemoMileage(fixtures, assignments);
   await seedClosedCase(fixtures, caseIds);
   await seedStaffAssignment(fixtures, caseIds, staffUserAccountIds);

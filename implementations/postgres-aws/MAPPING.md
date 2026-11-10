@@ -118,8 +118,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     (`client/src/portal/PortalUpload.tsx`).
   - The rest of design G (G13, G15–G24):
     - **Sidebar**, as G: To review, Assigned to you, Finished; People, Exports; the external
-      system link. It keeps "+ Upload Invoices" and, for administrators, Settings. Intake,
-      Cases, Providers and the case-led queue are off it but work by address. A staff
+      system link. It keeps "+ Upload Invoices" and, for administrators, Settings. Design I
+      adds a Cases group (Case overview, All cases with the open count) and Providers, Clients
+      and Organizations; Intake and the case-led queue are off it but work by address. A staff
       member's unsent drafts lead To review (from `GET /api/invoices/intake`), with a notice
       linking to Intake if anything is ever held there.
     - **People** (`/people`, `client/src/pages/People.tsx`) replaces Cases and Providers in the
@@ -146,6 +147,28 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
       correction. Beside it are an inert "Search your [external system]" link, the match
       counts and "See all invoices with this case number". The facts show the person's
       approved rate.
+    - **Cases on review** (design I; `match_invoice_to_case`): below the case number box,
+      "Match it to a case" lists cases whose number, or any other number they have, matches
+      the invoice's exactly or closely (`GET /api/invoices/:id/case-matches`,
+      `server/src/cases/casesByNumber.ts`; `client/src/components/CaseCard.tsx`). Matching
+      uses the intake match (`POST /api/invoices/intake/:id/case`), which now also takes an
+      invoice filed by person while its lines are reviewed: it sets the case, adds the
+      sender to it and records `matched_to_case`, but doesn't price lines again. "Add a case
+      for [number]" opens the new case page with that number, then matches the invoice and
+      returns to it. Every review page is titled with the sender, as in I15; a matched
+      invoice then has a case card: "Client · case number", the number the invoice gave,
+      one line with the pre-authorized amount and what's approved so far, and "Open the
+      case". A mileage line over the driving route is highlighted in the line table with
+      the route and the miles over, as in the travel log (I20). Case rates that would now apply are flagged as
+      changed since it was sent (`caseRatesChangedSince`).
+    - **Pre-authorized amounts**: any staff member sets one on the case page, for a person
+      or the whole case (`POST /api/cases/:id/preauthorizations`,
+      `setPreauthorizedAmount` in `billing/preauthorizations.ts`): the first is an approved
+      `preauthorization` with its first decision, a change a `revised` decision keeping its
+      hourly rate. An amount below what is signed off so far is refused. An invoice whose
+      total, with what is approved so far, goes over it is flagged on its page and in the
+      queue (`overPreauthorization`). Gap: "approved so far" sums signed-off invoices, as
+      before, not authorization draws.
     - **Search** (`/search`, `pages/SearchResults.tsx`, G24): the header search covers every
       sent invoice by name or case number, with exact and close matches listed and totalled
       apart, and an export to CSV. The queue no longer filters in place.
@@ -354,8 +377,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     which passes because assignment is checked as of now, not on each
     line's service date (as for delegates, below).
   - The external portal follows the invoice submission design: one top
-    bar (the brand, the signed-in email and Sign out; `PortalTopBar.tsx`),
-    no sidebar, opening on "Your invoices" (`/portal/invoices`, which `/`
+    bar (the brand, design I's tabs Your invoices, Your cases and Import
+    invoices, which opens the several-files import at `/portal/imports`,
+    the signed-in email and Sign out; `PortalTopBar.tsx`), no
+    sidebar, opening on "Your invoices" (`/portal/invoices`, which `/`
     redirects to; `PortalInvoiceList.tsx`). Drafts and sent invoices share
     one list, in the review side's words: "Draft, not sent" (with "Lines
     not checked yet." while its import is unconfirmed), "Waiting for
@@ -371,8 +396,30 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     upload (`/portal/upload`, see "Structured invoice import"). Pages
     outside the design are out of navigation but still reachable:
     "New invoice" (`/new-invoice`, `PortalNewInvoice.tsx`: the bulk import
-    page or the case page's new-invoice form, `portal/NewInvoiceForm.tsx`),
-    "Your cases" (`/portal/cases`) and bulk import (`/portal/imports`).
+    page or the case page's new-invoice form, `portal/NewInvoiceForm.tsx`).
+    The import page (`PortalBulkImport.tsx`, I44) uses the upload's drop
+    zone and design I's words (Add files, Check each file, Send). The upload
+    asks a sender who bills for a few people "Whose work is it?" as choices
+    (I43), a dropdown past six, and points to Import invoices for several
+    files.
+  - "Your cases" (`/portal/cases`, design I) lists the open cases of the
+    people the sender bills for, grouped by person for a delegate ("Name,
+    kind", under a note naming whom they send for), with
+    each one's own pre-authorized amount and approved so far (never a
+    whole-case amount, whose approved total includes other providers') and
+    any draft. Its cases are those staff matched their invoices to, which
+    adds them to the case, or assigned them to; nothing is entered for
+    the list alone. A case's page lists its invoices. Senders don't log
+    time here: it is kept in the external system, so the time section and
+    the case page's new-invoice form are hidden (`SENDERS_LOG_TIME` in
+    `PortalCaseDetail.tsx`), not deleted.
+  - On the check page, "Which case is it?" offers the cases of the person
+    whose work it is, or "Not listed" to type the number as before
+    (`CaseChoice` in `InvoiceSubmission.tsx`). Choosing one
+    (`PUT /api/portal/invoices/:id/case`, `setDraftCase` in
+    `billing/invoiceLifecycle.ts`) sets the draft's case and its number to
+    the case's and prices its lines again, so case rates apply; it is still
+    sent as filed by person and goes straight to review with its case.
     An invoice opens on its own page (see "Checking the lines" and
     "Sending" under "Structured invoice import"); a draft's row says what
     the submitter changed from the file so far. Gap: the design's "Paid"
@@ -387,8 +434,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   through Fontsource, so no font request leaves the app. Body text is 13px.
   Existing classes take the design's components: `.btn--outline` is its
   secondary button, `.chip` its tag, `.notice` its alert and
-  `.choice-toggle` its segmented control. Gaps: the joined decision bar
-  (Approve, Part, Rate, Reject) and alert icons are not built yet. The gold
+  `.choice-toggle` its segmented control, and `.decision-bar` its joined
+  Approve, Part, Rate, Reject buttons. Gap: alert icons are not built yet. The gold
   used for focus rings and for missing or flagged markers is under 3:1
   against white, short of the non-text contrast minimum; it stays as
   specified until the design changes it.
@@ -420,21 +467,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   feature).
 - **Lookup directories**: the sidebar's People (`/people`), Clients
   (`/clients`), Providers (`/vendors`; attorneys, experts and vendors), and
-  Organizations (`/organizations`)
-  all share one component, `client/src/components/SearchDirectory.tsx`
-  (search box + results table), each wired to a different fetch:
-  - People/Clients/Vendors hit a server search endpoint
-    (`GET /api/people`, `/api/clients`, `/api/professionals` — all
-    `requireFullUser`). People and Clients require a query first (the
-    person table could be large); Vendors loads everything up front
-    (a small table).
-  - `GET /api/clients` (`src/routes/clients.ts`) is new: people who hold
-    the "Client" `case_participant`-context role on at least one case,
-    distinct, optionally filtered by name/email. The role name is a
-    server-selected synthetic lookup (`'Client'`), the same
-    simplification as `OPENING_EVENT_TYPE_CODE` — `case_participant`
-    roles are organization-configurable, only seeded by `src/db/fixtures.ts`
-    (test/dev), not `src/db/ensureReferenceData.ts`.
+  Organizations (`/organizations`). People and Providers share
+  `client/src/components/SearchDirectory.tsx` (search box + results table):
+  - People and Providers hit a server search endpoint (`GET /api/people`,
+    `/api/professionals`, both `requireFullUser`); Clients and
+    Organizations are built from `GET /api/cases` and reference data (see
+    Look-up pages below). People requires a query first (the person table
+    could be large); Providers loads everything up front (a small table).
   - `GET /api/professionals` (`src/routes/professionals.ts`) used to
     return `[]` without a query and was otherwise unused by the client;
     it now also backs the Providers list, listing everyone when no query is
@@ -516,6 +555,33 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   office must belong to that organization.
 - **Demo seeding**: `npm run seed` explicitly resets all application data; normal
   Docker Compose startup only migrates and starts the server, preserving records.
+- **Settings layout** (design I, I36–I39; `client/src/pages/Settings.tsx`,
+  `components/ReviewSettings.tsx`, `components/SegmentedChoice.tsx`): an "On
+  this page" index of Invoice review (routing beside the reason lists, whose
+  list is a segmented Approving part / Rejecting / Both / Case rate choice),
+  People who use this tool (what each role can do, then staff), Rates (a card
+  per kind, mileage, travel and waiting time) and Billing rules and codes (one
+  row per rule with an Off / Warn / Require choice); Demo comes last. Design
+  I37's three staff roles are replaced by Staff and Administrator, as decided.
+- **Case pages** (design I, I47–I49; `client/src/pages/Overview.tsx`,
+  `CaseList.tsx`, `CaseDetail.tsx`; `server/src/cases/caseSummaries.ts`):
+  `GET /api/cases` adds each case's number, the people working on it, its
+  pre-authorized amounts added up and the invoices waiting (`loadCaseListExtras`).
+  Case overview has a card per stage with its count and a "Recently changed"
+  table (`GET /api/cases/recent-changes`: the latest invoice events on cases,
+  as words, and case openings and closings, with who). All cases has All /
+  Open / Closed chips, the county filter and a search, with design I's
+  columns. A case's page has its facts, a "Pre-authorized and billed" card
+  per pre-authorization (approved, waiting, what would be left, and a bar)
+  beside the people on it, then its invoices and case rates.
+- **Look-up pages** (design I, I51–I53): Providers (`/vendors`) lists each
+  provider with their kind (changed inline by administrators), today's rate,
+  their office and who can send their invoices: themselves once they can sign
+  in, and their office's billing delegates (`GET /api/professionals` with
+  `src/professionals/providerOffices.ts`). Clients lists every case's client
+  with its case, county, opened date and status (from `GET /api/cases`).
+  Organizations adds how many cases each has. Gap: organizations can't be
+  edited here, so I53's Edit isn't built.
 - **Demo tools** (Settings, "Demo"): only while the staff demo sign-in is on
   (`src/auth/demoSettings.ts`; otherwise the routes are 404s, and `/auth/me`
   reports `demoMode`). Every staff member then sees Settings, and
@@ -643,7 +709,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     (`src/auth/oidcProviders.ts`) on any account that has no role yet —
     including one first created by an emailed-code sign-in — and never replaced once
     set. For now that first role is "Administrator", so testers can try
-    every view; "Intake Staff" is the intended default. Emailed-code login never sets it, which is how the
+    every view; "Staff" is the intended default. Emailed-code login never sets it, which is how the
     two populations stay distinguishable in the same `user_account`
     table. Emails are lowercased (`normalizeEmail` in
     `src/auth/emailLists.ts`) before being stored or matched.
@@ -682,15 +748,46 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `invoice_decision_reasons` code, and "other" a note. Working decisions
     are not audited. The first one moves the invoice to `under_review`,
     which ends recall. `POST .../reprice` approves in part, at the
-    configured rate, every undecided time line billed above it.
-  - `POST .../finish` needs a decision on every line and at least one
-    sign-off approver; it records the round as `invoice_approval_decision`
-    rows at the next sequence number and moves the invoice to
-    `awaiting_sign_off`. `POST .../reopen` (the reviewer, before any
-    sign-off) copies the round back into working decisions.
-    `POST .../sign-off` takes `approved` or `changes_requested` with a
-    comment, stored `internal_only`; approvers sign in position order and
-    the last one approves the invoice. A send-back reopens review for the
+    rate limit (a case rate, else the pre-authorized rate, else the
+    configured rate), every undecided time line billed above it.
+  - Case rates (`set_case_rate`; `src/billing/caseRates.ts`,
+    `defaultRates.ts`, migration `0035`): `POST .../lines/:lineId/rate`
+    approves the undecided matching lines (same person, same type of rate)
+    at a changed rate, or adds a `case_rate` row for the person or their
+    kind from a date and approves the lines on this invoice it governs.
+    The Rate panel offers both once the rate changed
+    (`client/src/components/LineReview.tsx`), and "Return to the configured
+    rate instead" stores a row with no rate. Pricing (`priceLines.ts`) takes
+    each line's default from `defaultRates.ts` and records
+    `invoice_line.rate_source` and `case_rate_id`. A case rate changes only
+    the invoice it was set on; others on the case list it under
+    `caseRatesChangedSinceSent`. Concurrent changes are refused when the
+    page's `basedOnCaseRateId` isn't the latest, under a row lock on the
+    case. The invoice shows the case's rates and, for sign-off, those set
+    on it; the case page lists them all (`client/src/components/CaseRates.tsx`).
+    Case rate reasons are `invoice_decision_reasons` with `applies_to`
+    `case_rate` ("other" is on every list); the model's
+    `case_rate.reason_code_id` is `reason_id` here. Gaps: case rates can
+    only be set on invoices with a case, which demo invoices filed by person
+    don't have; and "the matching lines" are worked out on the page and
+    again on the server, so the page's total can differ if lines changed.
+  - `POST .../finish` (any staff member) needs a decision on every line and
+    at least one sign-off approver; it records the round as
+    `invoice_approval_decision` rows at the next sequence number, each line
+    under whoever decided it (the `review_finished` event records who
+    finished), and moves the invoice to `awaiting_sign_off`. It is refused
+    when the deciders, the finisher and the sign-off approvers are one
+    person; the last sign-off or a rejection checks the same again
+    (`roundParticipants` in `src/billing/reviewRounds.ts`).
+    `POST .../reopen` (any staff member, before any sign-off) copies the
+    round back into working decisions. `POST .../sign-off` takes
+    `approved`, `rejected` or `changes_requested` (which needs one) with a
+    comment. Only a send-back's is `internal_only`; an approval's or
+    rejection's is shown to the submitter on the portal invoice page, as
+    line notes are (without who made it), and exported as "Decision
+    comment". Comments recorded before this change stay internal; approvers sign in position order and
+    the last one approves the invoice, while a rejection rejects it at once
+    with nothing approved (`approvedTotal` is zero). A send-back reopens review for the
     same reviewer in the same chain. A rejected line counts as decided
     with nothing approved; it no longer rejects the invoice.
   - Questions (`ask_review_question`; `src/billing/reviewQuestions.ts`,
@@ -704,13 +801,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     description and a trip's route are fields in its row, edited in place
     with no save button (`client/src/portal/CheckLinesTable.tsx`,
     `useLineEntry.ts`). Edits stay on the page, marked unsaved, until the
-    next action saves them all first: deciding any line, opening Approve part
+    next action saves them all first: deciding any line, opening Part, Rate
     or Reject, asking or answering, re-pricing or finishing; a line that
     can't be priced stops these with what it needs. Leaving the page or
     closing the tab saves them too, keeping the invoice unfinished, with any
     line that can't be priced keeping its last saved version (as on the
     check page). An edited line shows its decision buttons again, since
-    saving undoes its decision, and editing it closes its open Approve part
+    saving undoes its decision, and editing it closes its open Part, Rate
     or Reject; typed back to its saved values it is no longer edited. A save refused as stale drops the unsaved
     edits and shows the lines as they are. Adding, removing and putting back
     a line still save at once. Its bar holds Remove (and "Put it back as
@@ -817,17 +914,23 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - Routing: submission assigns line review to the case's
     `case_invoice_reviewer`, else the `invoice_review_setting` default,
     else no one, and sign-off to the default approvers. `PUT .../reviewer`
-    (any reviewer or approver) reassigns, optionally for the case's future
-    invoices; `PUT .../sign-off-approvers` (the reviewer, or an
-    administrator) changes approvers before finishing. Deciding a line or
-    choosing approvers on an unassigned invoice takes it. Recall ends the
+    (any staff member) reassigns, optionally for the case's future
+    invoices; `PUT .../sign-off-approvers` (any staff member) changes
+    approvers before finishing. Deciding a line, asking a question or
+    choosing approvers on an unassigned invoice takes it; on one someone
+    else reviews, it stays theirs and the review page says whose it is. Recall ends the
     invoice's assignments; delete removes them with the invoice.
   - Roles (`src/auth/staffAccountRole.ts` `reviewPermissionsForRole`):
-    Billing Reviewer decides lines and reassigns; Sign-off Approver signs
-    off and reassigns; Intake Staff (general staff) only reads;
-    Administrator does all of these and changes settings. One system role
-    per account, set in Settings (`PUT /api/settings/staff-roles/:id`,
-    audited as `system_role_changed`).
+    Staff upload, decide lines, reassign, finish and sign off;
+    Administrator also changes settings. One system role per account, set
+    in Settings (`PUT /api/settings/staff-roles/:id`, audited as
+    `system_role_changed`). Migration `0034` renamed "Intake Staff" to
+    "Staff" and retired "Billing Reviewer" and "Sign-off Approver" without
+    moving accounts, since `audit_event` needs an actor: accounts that
+    still have one act and show as Staff until an administrator changes
+    their role. Review settings `sign_off_by` (`anyone` or `approvers`) and
+    `sign_off_approvers` (`src/billing/reviewSettings.ts` `canSignOff`)
+    decide who may be chosen to sign off and who may sign.
   - Staff accounts: created on first SSO sign-in from an allowed domain
     (`*_ALLOWED_DOMAINS`), or added first by an administrator in Settings
     with a name, work email and role (`POST /api/settings/staff`, audited
@@ -860,8 +963,22 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - Billing record (`src/billing/billingRecord.ts`,
     `GET /api/invoices/billing-record?format=csv|xlsx`, on the Exports page):
     one row per submitted invoice (`model/rules.yaml`
-    `report_billing_results`). Not yet held, so not in it: payment track,
-    county, budget account code and month, and payment date and reference.
+    `report_billing_results`), with the case's client. `county`, `from`,
+    `to` and `status=signed-off` narrow it, keeping invoices whose billing
+    period overlaps the dates (none without a period). `omit` (one
+    comma-separated value of column names) leaves columns out, never the
+    invoice number or amounts (`OMITTABLE_BILLING_RECORD_COLUMNS`). The
+    Exports page's one "Export billing record" button
+    (`client/src/components/BillingRecordExportButton.tsx`) opens a dialog
+    with county, billing period, signed off only (the default) or every sent
+    invoice, format and "Redact some columns"; all but county and period are
+    remembered per person in the browser (`client/src/exportChoices.ts`).
+    A redacted spreadsheet starts with a "Redacted copy. Left out: …" row; a
+    redacted CSV keeps one header row and is marked only by its
+    `-redacted` file name. CSV text starting with `=`, `+`, `-` or `@` is
+    prefixed with `'` so spreadsheets don't run it as a formula. Not yet
+    held, so not in it: payment track,
+    budget account code and month, and payment date and reference.
     Nothing is sent to an external system.
   - The approved total is the latest complete round's approved amounts,
     not stored. Migration `0008` carried invoices part-way through the old
@@ -1389,11 +1506,14 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     with none, the hourly rate. Their time entries get the `travel` or
     `waiting` activity type: `time_entry` has no `trip_id` here, since
     trips are replaced on draft save (model gap).
-  - In review, a line's only decision buttons are Approve, Approve part and
-    Reject. On a time, travel time, waiting time or mileage line, "Approve
-    part" corrects the hours or the rate: less than requested is approved
-    in part with a reason; the same hours at a higher rate are approved at
-    that rate with no reason, and the amount may exceed the request. A
+  - In review, a line's decision bar is Approve, Part, Rate and Reject
+    (design I; Rate only on time, travel time, waiting time and mileage
+    lines). Part corrects the hours or the rate, or an expense's amount;
+    less than requested is approved in part with a reason. Rate keeps the
+    hours and takes a new rate: a higher one is approved at that rate with
+    no reason, and the amount may exceed the request; a lower one asks for
+    a reason from a short list under the rate. Each line's description,
+    kind and person share a "What was done" column, as in I15. A
     changed rate flags the queue row ("Reviewer changed the rate"), and the
     review page lists changed rates above the sign-off panel. The server
     still accepts a lower rate approved with no reason
@@ -1431,9 +1551,24 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     costs, total and a directions link that opens in the viewer's own
     browser); review lines say "Travel time" or "Travel expense"; exports add
     a travel log table, one row per trip.
+  - Stops (`dismiss_mileage_warning`; `src/billing/mileageWarnings.ts`,
+    migration `0036`): on review, a trip the mileage rule flagged offers
+    "Stops on the way?" in the travel log. The reviewer says what the stops
+    were and the warning is set aside (`PUT .../lines/:lineId/mileage-warning`,
+    a `mileage_warning_dismissal` row), or put back; the latest row stands.
+    Set-aside warnings drop out of the page's mileage warning and are
+    listed with who set them aside and why. Refused while an invoice is
+    still being entered. Submitters, exports and the queue's rule count
+    don't change.
+  - Travel time rate (design I): a person's own travel time rate
+    (`professional_rate.travel_hourly_rate`, migration `0036`), set like
+    their other rates on Add a person and their page, comes before the
+    travel time setting and after a case rate (`defaultRates.ts`); the
+    portal's price preview uses it too.
   - Gaps: no address autocomplete (it would cost calls per keystroke); one
     trip can't be split across cases; no other expense types are priced;
-    a flat travel or waiting rate is general, not per person.
+    a flat travel or waiting rate is general, though a person may have
+    their own travel time rate; a kind has no travel time rate of its own.
 - **Rates and billing from time** (`src/billing/professionalRates.ts`,
   `priceLines.ts`, `invoiceLifecycle.ts`; `src/routes/settings.ts`;
   `client/src/pages/Settings.tsx`, `components/UnbilledTimePicker.tsx`;
@@ -1603,7 +1738,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 `src/db/ensureReferenceData.ts` idempotently seeds the reference/config
 rows the app needs to function at all (`activity_types`,
 `invoice_statuses`, `invoice_line_types`, `invoice_approval_step_types`,
-`invoice_approval_outcomes`, and the "Intake Staff", "External Submitter"
+`invoice_approval_outcomes`, and the "Staff", "External Submitter"
 and "Assigned Staff" roles) via `insert ... on conflict do nothing`,
 keyed by each table's unique `code` column (or, for `role`, a unique
 index on `(display_name, role_context)`). The settings recorded in place
@@ -1764,8 +1899,12 @@ form relies on this being airtight.
 ### Synthetic seed data provenance
 
 - **Review demo data** (`src/db/seed.ts` `seedDemoReviewers`,
-  `seedDemoReview`): two demo staff become billing reviewers and one a
-  sign-off approver; cases get synthetic `DEMO-26-…` numbers and `COURT-…`
+  `seedDemoReview`): three demo staff; the third plays the agency Director,
+  the only named sign-off approver ("Who may sign off" is set to named
+  approvers), and the demo sign-in list shows them as "Director, signs off".
+  The Director has signed off one invoice and rejected another whole; one
+  waits for them with lines decided by both reviewers; one assigned to the
+  first reviewer has a line the second decided. Cases get synthetic `DEMO-26-…` numbers and `COURT-…`
   identifiers; four assignments get a $2,500 pre-authorization; an
   investigator invoice states a $175 rate against the $75 configured one;
   and invoices are left signed off, awaiting sign-off, part-decided,

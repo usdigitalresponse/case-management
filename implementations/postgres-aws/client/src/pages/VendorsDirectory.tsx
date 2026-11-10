@@ -14,20 +14,27 @@ import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { SearchDirectory } from '../components/SearchDirectory';
 import { AddProvider } from '../components/AddProvider';
+import { Notice } from '../components/Notice';
 import { Toast, useToast } from '../components/Toast';
 import { formatMoney } from '../formatMoney';
 
 function rateText(rates: ProfessionalKind['rates']): string {
   const rate = rateOn(rates, new Date().toISOString().slice(0, 10));
-  return rate ? `${formatMoney(rate)}/h` : 'no rate set';
+  return rate ? `${formatMoney(rate)}/h` : 'No rate set';
+}
+
+// Who can send their invoices: themselves once they can sign in, and their office's billing delegates.
+function sentBy(vendor: VendorRecord): string {
+  const own = vendor.signedIn ? ['Themselves'] : [];
+  const names = [...own, ...vendor.sentByDisplayNames];
+  const who = names.length === 0 ? 'Staff, for them' : names.join(' or ');
+  return vendor.sendsForCount > 0 ? `${who}. Also sends for ${vendor.sendsForCount} ${vendor.sendsForCount === 1 ? 'other' : 'others'}.` : who;
 }
 
 // The kind whose rates price this provider's time; administrators change it.
-function KindAndRate({ vendor, kinds, editable }: { vendor: VendorRecord; kinds: ProfessionalKind[] | null; editable: boolean }) {
+function Kind({ vendor, kinds, editable, onChanged }: { vendor: VendorRecord; kinds: ProfessionalKind[] | null; editable: boolean; onChanged: (rates: ProfessionalKind['rates']) => void }) {
   const [kindId, setKindId] = useState(vendor.professionalKindId ?? '');
   const [error, setError] = useState<string | null>(null);
-  const kind = kinds?.find((candidate) => candidate.professionalKindId === kindId);
-  const rates = kind ? kind.rates : kindId === (vendor.professionalKindId ?? '') ? vendor.rates : [];
 
   async function change(next: string) {
     const previous = kindId;
@@ -35,6 +42,7 @@ function KindAndRate({ vendor, kinds, editable }: { vendor: VendorRecord; kinds:
     setError(null);
     try {
       await setProfessionalKind(vendor.professionalId, next || null);
+      onChanged(kinds?.find((candidate) => candidate.professionalKindId === next)?.rates ?? []);
     } catch (err) {
       setKindId(previous);
       setError(apiErrorMessage(err, 'The kind could not be changed.'));
@@ -42,12 +50,7 @@ function KindAndRate({ vendor, kinds, editable }: { vendor: VendorRecord; kinds:
   }
 
   if (!editable || !kinds) {
-    return (
-      <span>
-        {vendor.professionalKindDisplayName ?? 'No kind'}
-        {vendor.professionalKindId && ` · ${rateText(vendor.rates)}`}
-      </span>
-    );
+    return <span>{vendor.professionalKindDisplayName ?? 'No kind'}</span>;
   }
   return (
     <span className="kind-cell">
@@ -65,7 +68,6 @@ function KindAndRate({ vendor, kinds, editable }: { vendor: VendorRecord; kinds:
           </option>
         ))}
       </Select>
-      {kindId && <span>{rateText(rates)}</span>}
       {error && <span className="line-row-error">{error}</span>}
     </span>
   );
@@ -120,11 +122,13 @@ export default function VendorsDirectory() {
   };
   const [version, setVersion] = useState(0);
   const [toast, setToast] = useToast();
+  // A kind just changed here prices their time at its rates.
+  const [changedRates, setChangedRates] = useState<Record<string, ProfessionalKind['rates']>>({});
   return (
     <SearchDirectory
       eyebrow="Look something up"
       title={DIRECTORY_TITLE}
-      description="Attorneys, experts and vendors who can be assigned to a case and bill for their work. Each one's kind sets the hourly rate their time is invoiced at."
+      description="Attorneys, experts and investigators who can be assigned to a case and bill for their work. Each one's kind sets the hourly rate their time is billed at."
       searchLabel="Search providers by name or email"
       searchPlaceholder="Search by name or email"
       loadInitially
@@ -138,7 +142,7 @@ export default function VendorsDirectory() {
             setAdding(true);
           }}
         >
-          Add
+          Add provider
         </button>
       }
       fetchFn={(query) => listVendors(query).then((r) => r.professionals)}
@@ -160,36 +164,56 @@ export default function VendorsDirectory() {
                 onChange={(event) => setEditing({ ...edit, displayName: event.target.value })}
               />
             ) : (
-              (vendor.displayName ?? 'Unknown')
-            );
-          },
-        },
-        {
-          header: 'Email',
-          render: (vendor) => {
-            const edit = editingRow(vendor);
-            if (!edit) return vendor.email ?? <span className="muted">None yet</span>;
-            return vendor.signedIn ? (
               <>
-                {vendor.email}
-                <span className="cell-note">They sign in with it, so it can’t be changed here.</span>
+                <strong>{vendor.displayName ?? 'Unknown'}</strong>
+                <span className="cell-note">{vendor.email ?? 'No email yet'}</span>
               </>
-            ) : (
-              <input
-                className="usa-input row-edit__input"
-                size={1}
-                type="email"
-                aria-label="Email (optional)"
-                autoComplete="off"
-                placeholder="Email (optional)"
-                value={edit.email}
-                onKeyDown={keys(edit)}
-                onChange={(event) => setEditing({ ...edit, email: event.target.value })}
-              />
             );
           },
         },
-        { header: 'Kind and rate', render: (vendor) => <KindAndRate vendor={vendor} kinds={kinds} editable={isAdmin} /> },
+        ...(editing
+          ? [
+              {
+                header: 'Email',
+                render: (vendor: VendorRecord) => {
+                  const edit = editingRow(vendor);
+                  if (!edit) return vendor.email ?? <span className="muted">None yet</span>;
+                  return vendor.signedIn ? (
+                    <>
+                      {vendor.email}
+                      <span className="cell-note">They sign in with it, so it can’t be changed here.</span>
+                    </>
+                  ) : (
+                    <input
+                      className="usa-input row-edit__input"
+                      size={1}
+                      type="email"
+                      aria-label="Email (optional)"
+                      autoComplete="off"
+                      placeholder="Email (optional)"
+                      value={edit.email}
+                      onKeyDown={keys(edit)}
+                      onChange={(event) => setEditing({ ...edit, email: event.target.value })}
+                    />
+                  );
+                },
+              },
+            ]
+          : []),
+        {
+          header: 'Kind',
+          render: (vendor) => (
+            <Kind
+              vendor={vendor}
+              kinds={kinds}
+              editable={isAdmin}
+              onChanged={(rates) => setChangedRates((current) => ({ ...current, [vendor.professionalId]: rates }))}
+            />
+          ),
+        },
+        { header: 'Rate today', render: (vendor) => rateText(changedRates[vendor.professionalId] ?? vendor.rates) },
+        { header: 'Office', render: (vendor) => vendor.officeDisplayName ?? <span className="muted">None</span> },
+        { header: 'Who can send their invoices', render: (vendor) => sentBy(vendor) },
         { header: 'Active', render: (vendor) => (vendor.active ? 'Yes' : 'No') },
         ...(isAdmin
           ? [
@@ -244,6 +268,10 @@ export default function VendorsDirectory() {
           }}
         />
       )}
+      <Notice tone="info">
+        Rates for each kind are set in Settings, under Rates. A person's own approved rate on their People page can differ
+        from their kind's rate.
+      </Notice>
       <Toast toast={toast} />
     </SearchDirectory>
   );

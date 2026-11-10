@@ -1,7 +1,9 @@
-import type { PortalInvoiceLine, RuleFinding } from '../api/client';
+import { useState } from 'react';
+import type { MileageDismissal, PortalInvoiceLine, RuleFinding } from '../api/client';
+import { formatDateTime } from '../formatDateTime';
 import { RecordTable } from './RecordTable';
 import { directionsUrl, isMileage, lineDate } from '../invoiceLineDisplay';
-import { formatMoney } from '../formatMoney';
+import { formatMoney, sumMoney } from '../formatMoney';
 
 interface Trip {
   tripId: string;
@@ -21,7 +23,7 @@ export function tripsOf(lines: PortalInvoiceLine[]): Trip[] {
     if (isMileage(line)) trip.mileage = line;
     else if (line.lineTypeCode === 'time') trip.travel = line;
     else trip.costs.push(line);
-    trip.total = (Math.round(trip.total * 100) + Math.round(Number(line.amount) * 100)) / 100;
+    trip.total = sumMoney([trip.total, line.amount]);
     trips.set(line.tripId, trip);
   }
   return [...trips.values()];
@@ -32,9 +34,75 @@ function routeMiles(line: PortalInvoiceLine): number | undefined {
   return line.routeDistance === null ? undefined : Number(line.routeDistance) * (line.roundTrip ? 2 : 1);
 }
 
+// Under a flagged mileage line: "Driving route is 14.6 mi. 15.4 mi more claimed, over tolerance."
+export function overRouteNote(line: PortalInvoiceLine): string | null {
+  const route = routeMiles(line);
+  if (route === undefined) return null;
+  const over = Number(line.quantity ?? 0) - route;
+  return `Driving route is ${Number(route.toFixed(1))} mi. ${Number(over.toFixed(1))} mi more claimed, over tolerance.`;
+}
+
+// Staff only: set a flagged trip's warning aside for stops on the way, or put it back.
+export interface StopsDismissal {
+  dismissals: MileageDismissal[];
+  canChange: boolean;
+  onDismiss: (invoiceLineId: string, reason: string) => Promise<boolean>;
+  onRestore: (invoiceLineId: string) => void;
+}
+
+function StopsNote({ lineId, stops }: { lineId: string; stops: StopsDismissal }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const dismissal = stops.dismissals.find((row) => row.invoiceLineId === lineId);
+  if (dismissal) {
+    return (
+      <span className="trip-note">
+        Set aside for stops: {dismissal.reason} ({dismissal.dismissedByDisplayName}, {formatDateTime(dismissal.dismissedAt)})
+        {stops.canChange && (
+          <button type="button" className="link-button" onClick={() => stops.onRestore(lineId)}>
+            Put the warning back
+          </button>
+        )}
+      </span>
+    );
+  }
+  if (!stops.canChange) return null;
+  if (!open) {
+    return (
+      <button type="button" className="link-button trip-note" onClick={() => setOpen(true)}>
+        Stops on the way?
+      </button>
+    );
+  }
+  return (
+    <form
+      className="stops-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void stops.onDismiss(lineId, reason.trim()).then((done) => done && setOpen(false));
+      }}
+    >
+      <label>
+        What were the stops?
+        <input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} />
+      </label>
+      <button type="submit" className="btn btn--outline" disabled={!reason.trim()}>Set the warning aside</button>
+      <button type="button" className="link-button" onClick={() => setOpen(false)}>Cancel</button>
+    </form>
+  );
+}
+
 // Each trip with its travel time, miles and costs, in place of a printed
 // map. Trips the billing rules flagged are marked.
-export function TravelLog({ lines, findings = [] }: { lines: PortalInvoiceLine[]; findings?: RuleFinding[] }) {
+export function TravelLog({
+  lines,
+  findings = [],
+  stops = null,
+}: {
+  lines: PortalInvoiceLine[];
+  findings?: RuleFinding[];
+  stops?: StopsDismissal | null;
+}) {
   const trips = tripsOf(lines);
   const flagged = new Set(
     findings.filter((finding) => finding.rule === 'mileage_distance').map((finding) => finding.invoiceLineId),
@@ -94,6 +162,7 @@ export function TravelLog({ lines, findings = [] }: { lines: PortalInvoiceLine[]
                       {Number(over.toFixed(1))} mi more claimed{isFlagged ? ', over tolerance' : ''}
                     </span>
                   )}
+                  {isFlagged && stops && <StopsNote lineId={mileage.invoiceLineId} stops={stops} />}
                 </>
               );
             },

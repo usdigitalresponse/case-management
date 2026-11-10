@@ -1,14 +1,12 @@
 // Upload filed by person: who billed it (and, of staff, how it arrived) is
 // asked once for every file, then each becomes a draft or a reviewer's entry.
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link as RouterLink, useNavigate } from 'react-router';
 import {
   addProfessional,
   apiErrorMessage,
   createInvoice,
   createUploadDraft,
-  deleteInvoice,
-  discardUpload,
   invoiceTemplateUrl,
   listBillableProfessionals,
   type InvoiceReceipt,
@@ -46,7 +44,7 @@ export default function UploadInvoices() {
   const reviews = useReviewsOwnUploads();
   const home = staff ? { label: 'To review', to: '/' } : { label: 'Your invoices', to: PORTAL_HOME_PATH };
   // A file's own sender; '' is the one chosen above.
-  const { entries, update, addFiles, remove } = useUploadEntries(() => '');
+  const { entries, update, addFiles, remove, discardAll } = useUploadEntries(() => '');
   const { data: billable } = useApiResource(() => listBillableProfessionals(null).then((result) => result.professionals), []);
   const self = billable?.find((p) => p.isSelf);
   const asks = asksWho(staff, billable);
@@ -170,18 +168,9 @@ export default function UploadInvoices() {
     }
   }
 
-  // Keeps none of the files: unread ones are discarded, drafts deleted.
   async function cancel() {
     setBusy(true);
-    await Promise.all(
-      entries.map((entry) =>
-        entry.created
-          ? deleteInvoice(entry.created.invoiceId).catch(() => undefined)
-          : entry.uploadReadId
-            ? discardUpload(entry.uploadReadId).catch(() => undefined)
-            : undefined,
-      ),
-    );
+    await discardAll();
     navigate(home.to);
   }
 
@@ -235,6 +224,12 @@ export default function UploadInvoices() {
               Enter an invoice by hand
             </button>
           </p>
+        )}
+        {!staff && entries.length === 0 && (
+          <Notice tone="info">
+            Several files, or one spreadsheet that covers several cases? Use{' '}
+            <RouterLink to="/portal/imports">Import invoices</RouterLink>, so you can check each one and send them together.
+          </Notice>
         )}
         {entries.length > 0 && (
           <ul className="file-cards">

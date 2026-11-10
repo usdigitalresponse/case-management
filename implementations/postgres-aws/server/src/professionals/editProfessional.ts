@@ -8,7 +8,7 @@ import { auditEvent, person, professional, professionalKinds } from '../db/schem
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { emailInUse } from '../people/emails';
-import { addOwnRates, listOwnMileageRates, listRates, rateOn } from '../billing/professionalRates';
+import { addOwnRates, listOwnMileageRates, listOwnTravelRates, listRates, rateOn } from '../billing/professionalRates';
 import { mileageRateOn } from '../billing/mileageRates';
 import { personDetailsSchema } from './addProfessional';
 
@@ -23,7 +23,7 @@ export async function editProfessional(db: Database, actorUserAccountId: string,
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
-  const { displayName, email, professionalKindId, phone, paidThrough, hourlyRate, ratePerMile } = parsed.data;
+  const { displayName, email, professionalKindId, phone, paidThrough, hourlyRate, ratePerMile, travelHourlyRate } = parsed.data;
   return db.transaction(async (tx) => {
     const [row] = await tx
       .select({
@@ -75,8 +75,15 @@ export async function editProfessional(db: Database, actorUserAccountId: string,
     const currentMileage = mileageRateOn((await listOwnMileageRates(tx, [professionalId])).get(professionalId) ?? [], today);
     const newHourly = hourlyRate !== undefined && Number(currentHourly) !== hourlyRate ? hourlyRate : undefined;
     const newMileage = ratePerMile !== undefined && Number(currentMileage) !== ratePerMile ? ratePerMile : undefined;
-    if (newHourly !== undefined || newMileage !== undefined) {
-      await addOwnRates(tx, actorUserAccountId, professionalId, { hourlyRate: newHourly, ratePerMile: newMileage, effectiveFrom: today });
+    const currentTravel = rateOn((await listOwnTravelRates(tx, [professionalId])).get(professionalId) ?? [], professionalId, today);
+    const newTravel = travelHourlyRate !== undefined && Number(currentTravel) !== travelHourlyRate ? travelHourlyRate : undefined;
+    if (newHourly !== undefined || newMileage !== undefined || newTravel !== undefined) {
+      await addOwnRates(tx, actorUserAccountId, professionalId, {
+        hourlyRate: newHourly,
+        ratePerMile: newMileage,
+        travelHourlyRate: newTravel,
+        effectiveFrom: today,
+      });
     }
 
     await tx.insert(auditEvent).values({
@@ -93,6 +100,7 @@ export async function editProfessional(db: Database, actorUserAccountId: string,
         paidThrough: row.paidThrough,
         hourlyRate: newHourly !== undefined ? (currentHourly ?? null) : undefined,
         ratePerMile: newMileage !== undefined ? (currentMileage ?? null) : undefined,
+        travelHourlyRate: newTravel !== undefined ? (currentTravel ?? null) : undefined,
       },
     });
     return { professionalId, displayName, email: emailChanged ? (email ?? null) : row.email };

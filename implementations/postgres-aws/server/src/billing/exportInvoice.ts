@@ -23,7 +23,7 @@ const TRAVEL_COLUMNS = ['Date', 'From', 'To', 'Round trip', 'Travel hours', 'Mil
 // the name it's shown under; the totals and invoice ID always stay. Keys
 // are `group:name` (exportFieldKey), as the client's export dialog sends.
 export const OMITTABLE_EXPORT_FIELDS = {
-  summary: ['Case number', 'Court numbers', 'County', 'Client', 'Professional', 'Submitted by', 'Signed off'],
+  summary: ['Case number', 'Court numbers', 'County', 'Client', 'Professional', 'Submitted by', 'Signed off', 'Decision comment'],
   lines: LINE_COLUMNS,
   travel: TRAVEL_COLUMNS,
 } as const;
@@ -100,10 +100,13 @@ export function invoiceExportContent(detail: InvoiceDetail, options: InvoiceExpo
     ['Currency', invoice.currencyCode],
     ['Requested total', invoice.submittedTotal],
     ['Approved total', detail.approvedTotal ?? '0.00'],
-    // Sign-off comments are internal and never exported.
     ...detail.signOffs
       .filter((signOff) => signOff.outcomeCode === 'approved')
       .map((signOff): [string, string] => ['Signed off', `${signOff.displayName ?? ''} ${formatInstant(signOff.decidedAt)}`.trim()]),
+    // Shared like line notes; a send-back comment is internal and never exported.
+    ...detail.signOffs
+      .filter((signOff) => signOff.outcomeCode !== 'changes_requested' && signOff.comment && !signOff.internalOnly)
+      .map((signOff): [string, string] => ['Decision comment', signOff.comment!]),
     ['Exported', formatInstant(options.exportedAt)],
   ];
 

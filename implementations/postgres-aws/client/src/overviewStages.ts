@@ -1,28 +1,17 @@
 import type { CaseStage } from './api/client';
 
-// Each stage's destination: Billing has its own queue; the rest have no
-// page of their own, so they land on the case list pre-filtered via
-// ?stage=<id> (./pages/CaseList.tsx reads it).
+// Each stage lands on the case list pre-filtered via ?stage=<id>
+// (./pages/CaseList.tsx reads it).
 export const overviewStages: { id: CaseStage; label: string; description: string; route: string }[] = [
   {
     id: 'needs-assignment',
     label: 'Needs assignment',
-    description: 'Cases waiting for their next step.',
+    description: 'Cases waiting for someone to be assigned.',
     route: '/cases?stage=needs-assignment',
   },
-  {
-    id: 'represented',
-    label: 'Represented',
-    description: 'Follow active case work and upcoming activity.',
-    route: '/cases?stage=represented',
-  },
-  { id: 'billing', label: 'Billing', description: 'Track payment requests and their review.', route: '/?show=everyone' },
-  {
-    id: 'closing',
-    label: 'Closing',
-    description: 'Complete the final steps before closing a case.',
-    route: '/cases?stage=closing',
-  },
+  { id: 'represented', label: 'Represented', description: 'Active work, no invoice waiting.', route: '/cases?stage=represented' },
+  { id: 'billing', label: 'Billing', description: 'An invoice is waiting for review or sign-off.', route: '/cases?stage=billing' },
+  { id: 'closing', label: 'Closing', description: 'Final steps before the case closes.', route: '/cases?stage=closing' },
 ];
 
 // A closed case (stage: null) has left the working board entirely — see

@@ -121,6 +121,33 @@ reviewer confirms them. The log is a working aid removed when the round is
 finished, and never reaches submitters, exports or the billing record. The
 snapshot layout is unchanged apart from `spec_version`.
 
+Model files are now 0.11.0, additive: the billing record can be narrowed to
+signed-off requests in one county whose billing period overlaps chosen dates,
+carries the case's client, and can leave out any column but the request's
+reference and amounts, labelled as a redacted copy (`report_billing_results`).
+Review roles collapse to staff and administrators (`authorize_invoice_review`):
+any staff member decides lines, finishes, reopens and reassigns, each line
+keeping who decided it; at least two people take part in each round; an
+approver may reject the whole request; and a review setting decides whether
+anyone on staff or only named sign-off approvers may sign off. The workflow
+gains `reject_at_sign_off`. The snapshot layout is unchanged apart from
+`spec_version`.
+Also under 0.11.0: `case_rate` holds a reviewer's default rate for one person
+or kind of professional on a case, from a date, added only while reviewing a
+request and never changed (`set_case_rate`). A line's default comes from the
+case's rate for the person, then for their kind, then the configured rates,
+and `invoice_line.rate_source` and `case_rate_id` record which. A case rate
+changes only the request it was set on; other open requests on the case are
+flagged, not repriced. A case rate also comes before a pre-authorized rate in
+the rate check. A request filed by person may be matched to a case while it
+is reviewed, keeping its prices (`match_invoice_to_case`); any staff member
+enters a case's pre-authorized amount, and review flags a request that goes
+over it. A submitter filing by person may put a draft under one of the
+cases they are on, and sees only their own pre-authorized amounts. Travel time
+has its own hourly rate per professional, before the travel time setting,
+and `mileage_warning_dismissal` lets a reviewer set aside a mileage warning
+that stops on the way explain (`dismiss_mileage_warning`).
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

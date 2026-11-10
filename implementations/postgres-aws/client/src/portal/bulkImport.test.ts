@@ -91,12 +91,12 @@ describe('after upload: review each, then submit', () => {
   });
 });
 
-const caseFields = { statusId: 's', statusDisplayName: 'Open', caseNumber: null, assignedAt: '2026-01-01T00:00:00Z', unsubmittedTimeProfessionalIds: [], unsubmittedInvoiceProfessionalIds: [] };
+const caseFields = { statusId: 's', statusDisplayName: 'Open', caseNumber: null, assignedAt: '2026-01-01T00:00:00Z', unsubmittedTimeProfessionalIds: [], unsubmittedInvoiceProfessionalIds: [], preauthorizations: [] };
 
 const result: MyCasesResult = {
   professionals: [
-    { professionalId: 'me', displayName: 'Pat Self', isSelf: true },
-    { professionalId: 'colleague', displayName: 'Sam Colleague', isSelf: false },
+    { professionalId: 'me', displayName: 'Pat Self', kindDisplayName: 'Attorney', isSelf: true },
+    { professionalId: 'colleague', displayName: 'Sam Colleague', kindDisplayName: 'Attorney', isSelf: false },
   ],
   cases: [
     { ...caseFields, caseId: 'mine', externalReference: 'CR-2026-0042', clientDisplayName: 'Jordan Rivera', assignedProfessionalIds: ['me'] },

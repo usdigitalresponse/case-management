@@ -14,8 +14,10 @@ import {
   InvoiceNotInReviewError,
 } from '../src/billing/reviewInvoiceLine';
 import { finishReview, markCompleted, reopenReview, signOffInvoice } from '../src/billing/reviewRounds';
-import { NotYourInvoiceError, reassignReviewer, setSignOffApprovers } from '../src/billing/reviewAssignment';
-import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
+import { reassignReviewer, setSignOffApprovers } from '../src/billing/reviewAssignment';
+import { setReviewSettings } from '../src/billing/reviewSettings';
+import { decisionCommentsOf, loadInvoiceDetail } from '../src/billing/invoiceDetail';
+import { invoiceExportContent } from '../src/billing/exportInvoice';
 import { listReviewQueue } from '../src/billing/reviewQueue';
 import { loadBillingRecord } from '../src/billing/billingRecord';
 import { ConflictError, ForbiddenError, ValidationError } from '../src/errors';
@@ -219,20 +221,22 @@ describe('line decisions', () => {
     expect(await recordedCount(invoiceId)).toBe(0);
   });
 
-  it('only lets reviewers decide, and only the assigned one', async () => {
+  it('lets any active staff member decide, keeping the invoice with its reviewer', async () => {
     const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
-    await expect(reviewInvoiceLine(testDb, fixtures.staffUserAccountId, invoiceId, lineIds[0]!, { outcome: 'approved' })).rejects.toThrow(
-      ForbiddenError,
-    );
-    await expect(reviewInvoiceLine(testDb, approver, invoiceId, lineIds[0]!, { outcome: 'approved' })).rejects.toThrow(ForbiddenError);
+    const deactivated = await createStaff('staff');
+    await testDb.update(userAccount).set({ active: false }).where(eq(userAccount.userAccountId, deactivated));
+    await expect(reviewInvoiceLine(testDb, deactivated, invoiceId, lineIds[0]!, { outcome: 'approved' })).rejects.toThrow(ForbiddenError);
 
     await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved' });
-    const other = await createStaff('reviewer');
-    await expect(reviewInvoiceLine(testDb, other, invoiceId, lineIds[0]!, { outcome: 'approved' })).rejects.toThrow(NotYourInvoiceError);
-
-    // Any reviewer may give it to themselves, keeping the decisions made.
-    await reassignReviewer(testDb, other, invoiceId, { userAccountId: other });
+    // Anyone on staff may decide a line on an invoice someone else reviews; it stays theirs.
+    const other = await createStaff('staff');
     await reviewInvoiceLine(testDb, other, invoiceId, lineIds[0]!, { outcome: 'rejected', reasonCode: 'duplicate' });
+    const detail = await loadInvoiceDetail(testDb, invoiceId, 'staff');
+    expect(detail?.assignments?.reviewer?.userAccountId).toBe(reviewer);
+
+    // Any staff member may give it to themselves, keeping the decisions made.
+    await reassignReviewer(testDb, other, invoiceId, { userAccountId: other });
+    await reviewInvoiceLine(testDb, other, invoiceId, lineIds[0]!, { outcome: 'approved' });
   });
 
   it('rejects drafts, other invoices’ lines and unknown ids', async () => {
@@ -445,6 +449,91 @@ describe('finishing and sign-off', () => {
     ]);
   });
 
+  it('lets anyone on staff finish, keeping who decided each line and who finished', async () => {
+    const other = await createStaff('staff', 'Staff Two');
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved' });
+    await reviewInvoiceLine(testDb, other, invoiceId, lineIds[1]!, { outcome: 'approved' });
+    // Two people decided lines, so the reviewer may sign off.
+    await setSignOffApprovers(testDb, other, invoiceId, { userAccountIds: [reviewer] });
+    await finishReview(testDb, other, invoiceId);
+
+    const recorded = await testDb
+      .select({ invoiceLineId: invoiceApprovalDecision.invoiceLineId, by: invoiceApprovalDecision.decidedByUserAccountId })
+      .from(invoiceApprovalDecision)
+      .innerJoin(invoiceApprovalChain, eq(invoiceApprovalChain.invoiceApprovalChainId, invoiceApprovalDecision.invoiceApprovalChainId))
+      .where(eq(invoiceApprovalChain.invoiceId, invoiceId));
+    expect(Object.fromEntries(recorded.map((row) => [row.invoiceLineId, row.by]))).toEqual({ [lineIds[0]!]: reviewer, [lineIds[1]!]: other });
+    const finished = await testDb
+      .select({ actor: invoiceEvent.actorUserAccountId })
+      .from(invoiceEvent)
+      .where(eq(invoiceEvent.invoiceId, invoiceId));
+    expect(finished.at(-1)?.actor).toBe(other);
+
+    await signOffInvoice(testDb, reviewer, invoiceId, { outcome: 'approved' });
+    expect(await statusCode(invoiceId)).toBe('approved');
+  });
+
+  it('needs at least two people to take part', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved' });
+    await setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [reviewer] });
+    await expect(finishReview(testDb, reviewer, invoiceId)).rejects.toMatchObject({
+      fieldErrors: { signOff: expect.stringContaining('two people') },
+    });
+    await setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [approver] });
+    await finishReview(testDb, reviewer, invoiceId);
+  });
+
+  it('rejects a whole invoice at sign-off, approving nothing, with a comment shared like line notes', async () => {
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
+    await setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [approver] });
+    await decideAll(invoiceId, lineIds);
+    await finishReview(testDb, reviewer, invoiceId);
+    await signOffInvoice(testDb, approver, invoiceId, { outcome: 'rejected', comment: 'Not billable to this office.' });
+
+    expect(await statusCode(invoiceId)).toBe('rejected');
+    const staffView = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
+    expect(staffView.approvedTotal).toBe('0.00');
+    expect(staffView.signOffs.at(-1)).toMatchObject({ outcomeCode: 'rejected', comment: 'Not billable to this office.' });
+    const submitterView = (await loadInvoiceDetail(testDb, invoiceId))!;
+    expect(submitterView.signOffs.at(-1)).toMatchObject({ comment: 'Not billable to this office.', internalOnly: false });
+    expect(invoiceExportContent(submitterView, { includeReviewer: false, exportedAt: new Date() }).summary).toContainEqual([
+      'Decision comment',
+      'Not billable to this office.',
+    ]);
+  });
+
+  it('lets only the named approvers sign off when Settings says so', async () => {
+    await expect(setReviewSettings(testDb, fixtures.staffUserAccountId, { signOffBy: 'approvers' })).rejects.toThrow(ValidationError);
+    await setReviewSettings(testDb, fixtures.staffUserAccountId, { signOffBy: 'approvers', signOffApproverUserAccountIds: [approver] });
+    const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00']);
+    await reviewInvoiceLine(testDb, reviewer, invoiceId, lineIds[0]!, { outcome: 'approved' });
+    await expect(setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [reviewer] })).rejects.toThrow(ValidationError);
+    await setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [approver] });
+    await finishReview(testDb, reviewer, invoiceId);
+
+    // Taken off the list after being chosen, they can't sign until it allows anyone again.
+    await setReviewSettings(testDb, fixtures.staffUserAccountId, { signOffApproverUserAccountIds: [reviewer] });
+    await expect(signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' })).rejects.toThrow(ForbiddenError);
+    await setReviewSettings(testDb, fixtures.staffUserAccountId, { signOffBy: 'anyone' });
+    await signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' });
+    expect(await statusCode(invoiceId)).toBe('approved');
+  });
+
+  it('keeps saving other settings after a named approver is deactivated', async () => {
+    const admin = fixtures.staffUserAccountId;
+    const saved = await setReviewSettings(testDb, admin, {
+      signOffBy: 'approvers',
+      signOffApproverUserAccountIds: [approver, reviewer],
+      defaultSignOffUserAccountIds: [approver],
+    });
+    await testDb.update(userAccount).set({ active: false }).where(eq(userAccount.userAccountId, reviewer));
+    // The page sends every setting back.
+    expect((await setReviewSettings(testDb, admin, { ...saved, waitingAlertWorkingDays: 12 })).waitingAlertWorkingDays).toBe(12);
+    await expect(setReviewSettings(testDb, admin, { defaultSignOffUserAccountIds: [approver, reviewer] })).rejects.toThrow(ValidationError);
+  });
+
   it('signs off in order and sends back to the reviewer with an internal comment', async () => {
     const second = await createStaff('approver', 'Approver Two');
     const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
@@ -466,11 +555,18 @@ describe('finishing and sign-off', () => {
     expect(staffView.lines.every((line) => line.working !== null)).toBe(true);
     const submitterView = (await loadInvoiceDetail(testDb, invoiceId))!;
     expect(submitterView.signOffs.every((signOff) => signOff.comment === null)).toBe(true);
+    const exported = invoiceExportContent(staffView, { includeReviewer: true, exportedAt: new Date() }).summary;
+    expect(exported.map(([name]) => name)).not.toContain('Decision comment');
 
     // The next round needs both sign-offs again.
     await finishReview(testDb, reviewer, invoiceId);
     await signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' });
-    await signOffInvoice(testDb, second, invoiceId, { outcome: 'approved' });
+    await signOffInvoice(testDb, second, invoiceId, { outcome: 'approved', comment: 'Approved after the check.' });
     expect(await statusCode(invoiceId)).toBe('approved');
+
+    // The submitter sees the approval's comment, never the send-back's.
+    const sent = decisionCommentsOf((await loadInvoiceDetail(testDb, invoiceId))!.signOffs);
+    expect(sent).toEqual([expect.objectContaining({ outcomeCode: 'approved', comment: 'Approved after the check.' })]);
+    expect(decisionCommentsOf(staffView.signOffs)).toEqual([]);
   });
 });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { getReferenceData, type NamedOption } from '../api/client';
+import { getReferenceData, listCases, type NamedOption } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
@@ -12,6 +12,7 @@ import { Notice } from '../components/Notice';
 // round trip per keystroke.
 export default function OrganizationsDirectory() {
   const { data, error } = useApiResource(getReferenceData, []);
+  const { data: cases } = useApiResource(listCases, []);
   const [query, setQuery] = useState('');
 
   if (error) return <Notice tone="danger">Failed to load organizations.</Notice>;
@@ -19,10 +20,16 @@ export default function OrganizationsDirectory() {
 
   const filtered = data.organizations.filter((org: NamedOption) =>
     org.displayName.toLowerCase().includes(query.toLowerCase()));
+  const caseCount = (organizationId: string | undefined) =>
+    cases ? cases.cases.filter((record) => record.organizationId === organizationId).length : null;
 
   return (
     <>
-      <PageHeading eyebrow="Look something up" title="Organizations" description="Organizations tracked in the system." />
+      <PageHeading
+        eyebrow="Look something up"
+        title="Organizations"
+        description="Organizations tracked in the system, such as the offices that represent clients."
+      />
       <div className="list-toolbar">
         <SearchInput
           id="organization-filter"
@@ -42,6 +49,7 @@ export default function OrganizationsDirectory() {
         emptyMessage="No organizations found."
         columns={[
           { header: 'Name', render: (org) => org.displayName },
+          { header: 'Cases', render: (org) => caseCount(org.organizationId) ?? '…' },
           { header: 'Active', render: (org) => (org.active ? 'Yes' : 'No') },
         ]}
       />

@@ -88,7 +88,7 @@ export function WasNote({ value }: { value: string | null }) {
   return value === null ? null : <span className="cell-note">was {value}</span>;
 }
 
-export function wasQuantity(line: InvoiceReviewLine, read: FileLine | undefined, fields: string[]): string | null {
+export function wasQuantity(read: FileLine | undefined, fields: string[]): string | null {
   return read && fields.includes('quantity') ? String(read.quantity ?? 0) : null;
 }
 

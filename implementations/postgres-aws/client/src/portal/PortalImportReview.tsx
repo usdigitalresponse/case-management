@@ -34,7 +34,7 @@ import {
   type LineDraft,
 } from '../components/InvoiceLinesEditor';
 import { formatDateTime } from '../formatDateTime';
-import { formatMoney } from '../formatMoney';
+import { formatMoney, sumMoney } from '../formatMoney';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { OriginalDocument } from '../components/OriginalDocument';
 import { nextInQueue, reviewQueue, reviewUrl } from './bulkImport';
@@ -111,7 +111,7 @@ function AssignAllTimekeepers({
 // The file's own total beside what configured rates bill, so a gap shows
 // before confirming.
 function FileTotalComparison({ lines, timekeepers }: { lines: LineDraft[]; timekeepers: BillableProfessional[] }) {
-  const stated = lines.reduce((sum, line) => sum + Math.round((line.carried.statedAmount ?? 0) * 100), 0) / 100;
+  const stated = sumMoney(lines.map((line) => line.carried.statedAmount));
   const billed = invoiceTotalPreview(lines, timekeepers, undefined);
   if (stated === 0 || !billed.complete || Math.abs(stated - billed.total) < 0.005) {
     return null;

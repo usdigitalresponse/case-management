@@ -30,7 +30,9 @@ import { timeCategoryRateLabel } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
 import { useAuth } from '../AuthContext';
 import { PageHeading } from '../components/PageHeading';
-import { DecisionReasonSettings, ReviewRoutingSettings, StaffRoleSettings } from '../components/ReviewSettings';
+import { useLocation } from 'react-router';
+import { DecisionReasonSettings, ReviewRoutingSettings, RoleSummary, StaffRoleSettings } from '../components/ReviewSettings';
+import { SegmentedChoice } from '../components/SegmentedChoice';
 import { RecordTable } from '../components/RecordTable';
 import { formatDate } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
@@ -92,7 +94,7 @@ function AddRateForm({ kind, onAdded }: { kind: ProfessionalKind; onAdded: () =>
             onChange={(event) => setEffectiveFrom(event.target.value)}
           />
         </FormGroup>
-        <button type="submit" className="btn btn--primary"disabled={saving || !(Number(hourlyRate) > 0) || !effectiveFrom}>
+        <button type="submit" className="btn btn--outline" disabled={saving || !(Number(hourlyRate) > 0) || !effectiveFrom}>
           {saving ? 'Saving…' : 'Add rate'}
         </button>
       </div>
@@ -157,7 +159,7 @@ function AddKindForm({ onAdded }: { onAdded: () => void }) {
             onChange={(event) => setDisplayName(event.target.value)}
           />
         </FormGroup>
-        <button type="submit" className="btn btn--primary"disabled={saving || !displayName.trim()}>
+        <button type="submit" className="btn btn--outline" disabled={saving || !displayName.trim()}>
           {saving ? 'Adding…' : 'Add kind'}
         </button>
       </div>
@@ -174,38 +176,71 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   return (
     <div>
       <PageHeading eyebrow="Administration" title="Settings" />
-      {demoMode && <DemoSettings isAdmin={isAdmin} />}
-      {!isAdmin && <Notice tone="info">Only administrators can change settings.</Notice>}
-      <section className="settings-section">
+      <PageIndex sections={SECTIONS.filter((section) => section.id !== 'settings-demo' || demoMode)} />
+      <Notice tone="info">Only administrators can change settings. Everyone on staff can read this page.</Notice>
+      <section className="settings-section" id="settings-review">
         <h2>Invoice review</h2>
-        <ReviewRoutingSettings isAdmin={isAdmin} />
-        <DecisionReasonSettings isAdmin={isAdmin} />
+        <div className="settings-columns">
+          <ReviewRoutingSettings isAdmin={isAdmin} />
+          <DecisionReasonSettings isAdmin={isAdmin} />
+        </div>
+      </section>
+      <section className="settings-section" id="settings-people">
+        <h2>People who use this tool</h2>
+        <RoleSummary />
         {isAdmin && <StaffRoleSettings />}
       </section>
-      <section className="settings-section">
+      <section className="settings-section" id="settings-rates">
         <h2>Rates</h2>
         <p className="compact-hint">
-          Time is invoiced at the hourly rate for each professional's kind on the date of the work, travel and waiting
-          time at their settings below, and mileage at the rate per mile on the date of the trip. Give each provider a
-          kind on the Providers page.
+          Time is invoiced at the hourly rate for each kind of professional on the date of the work. Travel and waiting
+          time use their settings below, and mileage uses the rate per mile on the date of the trip. A rate set on a
+          person's page takes the place of these for that person.
         </p>
         {Boolean(error) && <Notice tone="danger">Failed to load rates.</Notice>}
         {data && data.length === 0 && <p>No kinds of professional yet.</p>}
-        {data?.map((kind) => <KindCard key={kind.professionalKindId} kind={kind} isAdmin={isAdmin} onChanged={refresh} />)}
+        <div className="settings-grid">
+          {data?.map((kind) => <KindCard key={kind.professionalKindId} kind={kind} isAdmin={isAdmin} onChanged={refresh} />)}
+          <MileageRates isAdmin={isAdmin} />
+          <TimeCategoryRates category="travel" isAdmin={isAdmin} />
+          <TimeCategoryRates category="waiting" isAdmin={isAdmin} />
+        </div>
         {isAdmin && <AddKindForm onAdded={refresh} />}
-        <MileageRates isAdmin={isAdmin} />
-        <TimeCategoryRates category="travel" isAdmin={isAdmin} />
-        <TimeCategoryRates category="waiting" isAdmin={isAdmin} />
       </section>
       <BillingRulesSettings isAdmin={isAdmin} />
+      {demoMode && <DemoSettings isAdmin={isAdmin} />}
     </div>
+  );
+}
+
+const SECTIONS = [
+  { id: 'settings-review', label: 'Invoice review' },
+  { id: 'settings-people', label: 'People who use this tool' },
+  { id: 'settings-rates', label: 'Rates' },
+  { id: 'settings-rules', label: 'Billing rules and codes' },
+  { id: 'settings-demo', label: 'Demo' },
+];
+
+// Links to each section; the one last chosen is shown as current.
+function PageIndex({ sections }: { sections: typeof SECTIONS }) {
+  const { hash } = useLocation();
+  const current = hash.slice(1) || sections[0]?.id;
+  return (
+    <nav className="page-index" aria-label="On this page">
+      <span>On this page:</span>
+      {sections.map((section) => (
+        <a key={section.id} href={`#${section.id}`} className={section.id === current ? 'is-current' : undefined} aria-current={section.id === current ? 'location' : undefined}>
+          {section.label}
+        </a>
+      ))}
+    </nav>
   );
 }
 
 // Only on servers with the staff demo sign-in.
 function DemoSettings({ isAdmin }: { isAdmin: boolean }) {
   return (
-    <section className="settings-section">
+    <section className="settings-section" id="settings-demo">
       <h2>Demo</h2>
       <OwnRoleCard />
       {isAdmin && <DemoDataReset />}
@@ -240,8 +275,7 @@ function OwnRoleCard() {
     <section className="compact-card">
       <h3>Your role</h3>
       <p className="compact-hint">
-        Switch roles to try each view. Reviewers decide lines, approvers sign off, administrators do both and change
-        settings.
+        Switch roles to try each view. Staff review and sign off; administrators also change settings.
       </p>
       {Boolean(loadError) && <Notice tone="danger">Failed to load your role.</Notice>}
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
@@ -379,7 +413,7 @@ function MileageRates({ isAdmin }: { isAdmin: boolean }) {
                 onChange={(event) => setEffectiveFrom(event.target.value)}
               />
             </FormGroup>
-            <button type="submit" className="btn btn--primary"disabled={saving || !(Number(ratePerMile) > 0) || !effectiveFrom}>
+            <button type="submit" className="btn btn--outline" disabled={saving || !(Number(ratePerMile) > 0) || !effectiveFrom}>
               {saving ? 'Saving…' : 'Add rate'}
             </button>
           </div>
@@ -447,15 +481,22 @@ function TimeCategoryRates({ category, isAdmin }: { category: TimeCategory; isAd
       {isAdmin && (
         <Form className="compact-form" onSubmit={(event) => void submit(event)}>
           {error && <Notice tone="danger">{error}</Notice>}
+          <fieldset className="settings-basis">
+            <legend>Invoice {name.toLowerCase()} at</legend>
+            {(
+              [
+                ['hourly_rate', 'The hourly rate'],
+                ['percent_of_hourly_rate', 'A percent of the hourly rate'],
+                ['flat_rate', 'One rate per hour for everyone'],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className="radio-row">
+                <input type="radio" name={id('basis')} checked={basis === value} onChange={() => setBasis(value)} />
+                {label}
+              </label>
+            ))}
+          </fieldset>
           <div className="inline-fields rate-fields">
-            <FormGroup>
-              <Label htmlFor={id('basis')}>Invoice {name.toLowerCase()} at</Label>
-              <Select id={id('basis')} name="basis" value={basis} onChange={(event) => setBasis(event.target.value as TimeCategoryBasis)}>
-                <option value="hourly_rate">The hourly rate</option>
-                <option value="percent_of_hourly_rate">A percent of the hourly rate</option>
-                <option value="flat_rate">One rate per hour for everyone</option>
-              </Select>
-            </FormGroup>
             {needsAmount && (
               <FormGroup>
                 <Label htmlFor={id('amount')}>{basis === 'flat_rate' ? 'Rate per hour ($)' : 'Percent of hourly rate'}</Label>
@@ -484,7 +525,7 @@ function TimeCategoryRates({ category, isAdmin }: { category: TimeCategory; isAd
                 onChange={(event) => setEffectiveFrom(event.target.value)}
               />
             </FormGroup>
-            <button type="submit" className="btn btn--primary" disabled={saving || (needsAmount && !(Number(amount) > 0)) || !effectiveFrom}>
+            <button type="submit" className="btn btn--outline" disabled={saving || (needsAmount && !(Number(amount) > 0)) || !effectiveFrom}>
               {saving ? 'Saving…' : 'Add setting'}
             </button>
           </div>
@@ -535,25 +576,24 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
   );
 
   return (
-    <Form className="compact-form compact-card settings-rule" onSubmit={(event) => void save(event)}>
-      <h3>{rule.label}</h3>
-      <p className="compact-hint">{rule.description}</p>
-      {message && <Notice tone={message.tone}>{message.text}</Notice>}
-      <div className="inline-fields rule-fields">
-        <FormGroup>
-          <Label htmlFor={id('enforcement')}>Applies as</Label>
-          <Select
-            id={id('enforcement')}
-            name="enforcement"
-            disabled={!isAdmin}
-            value={enforcement}
-            onChange={(event) => setEnforcement(event.target.value as RuleEnforcement)}
-          >
-            <option value="off">Off</option>
-            <option value="warn">Warn</option>
-            {!rule.warnOnly && <option value="require">Require</option>}
-          </Select>
-        </FormGroup>
+    <form className="settings-rule-row" onSubmit={(event) => void save(event)}>
+      <div className="settings-rule-row__what">
+        <h3>{rule.label}</h3>
+        <p className="compact-hint">{rule.description}</p>
+        {message && <Notice tone={message.tone}>{message.text}</Notice>}
+      </div>
+      <SegmentedChoice<RuleEnforcement>
+        label={`${rule.label} applies as`}
+        disabled={!isAdmin}
+        options={[
+          { value: 'off', label: 'Off' },
+          { value: 'warn', label: 'Warn' },
+          ...(rule.warnOnly ? [] : [{ value: 'require' as const, label: 'Require' }]),
+        ]}
+        value={enforcement}
+        onChange={setEnforcement}
+      />
+      <div className="settings-rule-row__fields">
         {rule.code === 'time_increment' && numberField('increment', 'Increment (hours)', '0.01')}
         {(rule.code === 'daily_hour_cap' || rule.code === 'long_entry') && numberField('hours', 'Hours', '0.5')}
         {rule.code === 'mileage_distance' && numberField('tolerancePercent', 'Tolerance (%)', '1', '0')}
@@ -573,13 +613,13 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
             onChange={(event) => setParameters({ ...parameters, withinMonth: event.target.checked })}
           />
         )}
-        {isAdmin && (
-          <button type="submit" className="btn btn--primary"disabled={saving || !changed}>
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        )}
       </div>
-    </Form>
+      {isAdmin && (
+        <button type="submit" className="btn btn--outline" disabled={saving || !changed}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+      )}
+    </form>
   );
 }
 
@@ -612,10 +652,10 @@ function BillingCodes({ codes, isAdmin, onChanged }: { codes: BillingCode[]; isA
   }
 
   return (
-    <section className="compact-card">
-      <h3>Billing codes</h3>
+    <section className="settings-codes">
+      <h2>Billing codes</h2>
       <p className="compact-hint">
-        The task codes firms choose from when the billing codes rule is on, such as a standard legal billing code set.
+        The task codes people choose from when the billing codes rule is on, such as a standard legal billing code set.
         Retired codes stay on invoices that used them.
       </p>
       {error && <Notice tone="danger">{error}</Notice>}
@@ -658,7 +698,7 @@ function BillingCodes({ codes, isAdmin, onChanged }: { codes: BillingCode[]; isA
                 onChange={(event) => setDisplayName(event.target.value)}
               />
             </FormGroup>
-            <button type="submit" className="btn btn--primary"disabled={!code.trim() || !displayName.trim()}>
+            <button type="submit" className="btn btn--outline" disabled={!code.trim() || !displayName.trim()}>
               Add code
             </button>
           </div>
@@ -673,16 +713,20 @@ function BillingRulesSettings({ isAdmin }: { isAdmin: boolean }) {
   const { data, error } = useApiResource(() => getBillingRuleSettings(), [version]);
   const refresh = () => setVersion((v) => v + 1);
   return (
-    <section className="settings-section">
+    <section className="settings-section" id="settings-rules">
       <h2>Billing rules</h2>
       <p className="compact-hint">
-        Each rule is off unless turned on. Warn shows the finding to firms and reviewers; require also blocks import
-        confirmation and submission until it's fixed. Submitted invoices keep the rules they were checked against.
+        Each rule is off unless turned on. Warn shows the finding to the people sending invoices and to reviewers.
+        Require also stops an invoice being sent until it is fixed. Sent invoices keep the rules they were checked against.
       </p>
       {Boolean(error) && <Notice tone="danger">Failed to load billing rules.</Notice>}
-      {data?.rules.map((rule) => (
-        <RuleCard key={rule.code} rule={rule} isAdmin={isAdmin} onSaved={refresh} />
-      ))}
+      {data && (
+        <div className="compact-card settings-rules">
+          {data.rules.map((rule) => (
+            <RuleCard key={rule.code} rule={rule} isAdmin={isAdmin} onSaved={refresh} />
+          ))}
+        </div>
+      )}
       {data && <BillingCodes codes={data.codes} isAdmin={isAdmin} onChanged={refresh} />}
     </section>
   );

@@ -7,7 +7,7 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { PersonDialog } from '../components/PersonDialog';
-import { formatDate } from '../formatDateTime';
+import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { personPath } from '../staffPaths';
 
@@ -88,7 +88,7 @@ export default function People() {
                 <span className="muted">None</span>
               ),
           },
-          { header: 'Last invoice', render: (person) => (person.lastInvoiceAt ? formatDate(person.lastInvoiceAt.slice(0, 10)) : '—') },
+          { header: 'Last invoice', render: (person) => (person.lastInvoiceAt ? formatDay(person.lastInvoiceAt) : '—') },
           {
             header: 'Open',
             hiddenHeader: true,

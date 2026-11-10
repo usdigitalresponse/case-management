@@ -18,7 +18,7 @@ import { ConflictError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { loadReviewPermissions, requireReviewPermission } from './reviewAccess';
-import { getReviewSettings } from './reviewSettings';
+import { canSignOff, getReviewSettings } from './reviewSettings';
 import { LINE_REVIEW_STATUS_CODES } from './invoiceStatusCodes';
 
 export const LINE_REVIEW_STEP_TYPE_CODE = 'line_review';
@@ -157,10 +157,11 @@ export async function assignForEntry(tx: Transaction, invoiceId: string, reviewe
 }
 
 async function assignSignOff(tx: Transaction, invoiceId: string, userAccountIds: string[], byUserAccountId: string | null) {
+  const settings = await getReviewSettings(tx);
   let position = 1;
   for (const userAccountId of userAccountIds) {
     // eslint-disable-next-line no-await-in-loop
-    if (!(await loadReviewPermissions(tx, userAccountId)).signOff) {
+    if (!(await canSignOff(tx, userAccountId, settings))) {
       continue;
     }
     // eslint-disable-next-line no-await-in-loop
@@ -191,16 +192,10 @@ export async function lockInvoiceForReview(tx: Transaction, invoiceId: string) {
   return locked;
 }
 
-export class NotYourInvoiceError extends ConflictError {
-  constructor(holder: string) {
-    super('not_assigned', `${holder} is reviewing this invoice. Give it to yourself first.`);
-  }
-}
-
-// Deciding a line on an unassigned invoice takes it.
+// Deciding a line on an unassigned invoice takes it; anyone on staff may
+// decide lines on an invoice someone else reviews.
 export async function claimLineReview(tx: Transaction, invoiceId: string, actorUserAccountId: string): Promise<void> {
-  const { reviewer } = await loadAssignments(tx, invoiceId);
-  if (!reviewer) {
+  if (!(await loadAssignments(tx, invoiceId)).reviewer) {
     await insertAssignment(tx, {
       invoiceId,
       stepCode: LINE_REVIEW_STEP_TYPE_CODE,
@@ -208,10 +203,6 @@ export async function claimLineReview(tx: Transaction, invoiceId: string, actorU
       userAccountId: actorUserAccountId,
       byUserAccountId: actorUserAccountId,
     });
-    return;
-  }
-  if (reviewer.userAccountId !== actorUserAccountId) {
-    throw new NotYourInvoiceError(reviewer.displayName);
   }
 }
 
@@ -230,7 +221,7 @@ async function requireReviewerAssignment(db: Database, actorUserAccountId: strin
     loadReviewPermissions(db, reviewerUserAccountId),
   ]);
   if (!reviewer.reviewLines) {
-    throw new ValidationError({ userAccountId: 'Choose someone who reviews invoices.' });
+    throw new ValidationError({ userAccountId: 'Choose a staff member.' });
   }
 }
 
@@ -317,7 +308,7 @@ async function setCaseReviewerInTx(tx: Transaction, caseId: string, reviewerUser
 export async function setCaseReviewer(db: Database, actorUserAccountId: string, caseId: string, rawInput: unknown) {
   const parsed = z.object({ userAccountId: z.uuid() }).safeParse(rawInput);
   if (!parsed.success || !z.uuid().safeParse(caseId).success) {
-    throw new ValidationError({ userAccountId: 'Choose someone who reviews invoices.' });
+    throw new ValidationError({ userAccountId: 'Choose a staff member.' });
   }
   await requireReviewerAssignment(db, actorUserAccountId, parsed.data.userAccountId);
   await db.transaction((tx) => setCaseReviewerInTx(tx, caseId, parsed.data.userAccountId, actorUserAccountId));
@@ -335,8 +326,7 @@ export async function loadCaseReviewer(db: DatabaseOrTransaction, caseId: string
 
 const signOffInputSchema = z.object({ userAccountIds: z.array(z.uuid()).min(1).max(5) });
 
-// The line reviewer (or an administrator) chooses who signs off, until the
-// round is finished.
+// Any staff member chooses who signs off, until the round is finished.
 export async function setSignOffApprovers(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   const parsed = signOffInputSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -346,26 +336,23 @@ export async function setSignOffApprovers(db: Database, actorUserAccountId: stri
   if (new Set(userAccountIds).size !== userAccountIds.length) {
     throw new ValidationError({ userAccountIds: 'List each person once.' });
   }
+  await requireReviewPermission(db, actorUserAccountId, 'reassign');
+  const settings = await getReviewSettings(db);
   for (const id of userAccountIds) {
     // eslint-disable-next-line no-await-in-loop
-    if (!(await loadReviewPermissions(db, id)).signOff) {
-      throw new ValidationError({ userAccountIds: 'Choose people who sign off invoices.' });
+    if (!(await canSignOff(db, id, settings))) {
+      throw new ValidationError({
+        userAccountIds: settings.signOffBy === 'approvers' ? 'Choose sign-off approvers named in Settings.' : 'Choose staff members.',
+      });
     }
   }
-  const actorPermissions = await loadReviewPermissions(db, actorUserAccountId);
   return db.transaction(async (tx) => {
     const locked = await lockInvoiceForReview(tx, invoiceId);
     if (!LINE_REVIEW_STATUS_CODES.includes(locked.statusCode)) {
       throw new ConflictError('invalid_state', 'Who signs off can only change before the review is finished.');
     }
     // Like deciding a line, choosing approvers takes an unassigned invoice.
-    if (actorPermissions.reviewLines && !(await loadAssignments(tx, invoiceId)).reviewer) {
-      await claimLineReview(tx, invoiceId, actorUserAccountId);
-    }
-    const { reviewer } = await loadAssignments(tx, invoiceId);
-    if (reviewer?.userAccountId !== actorUserAccountId && !actorPermissions.changeSettings) {
-      throw new ConflictError('not_assigned', "Only the invoice's reviewer can change who signs off.");
-    }
+    await claimLineReview(tx, invoiceId, actorUserAccountId);
     await endAssignments(tx, invoiceId, SIGN_OFF_STEP_TYPE_CODE, actorUserAccountId);
     await assignSignOff(tx, invoiceId, userAccountIds, actorUserAccountId);
     return loadAssignments(tx, invoiceId);

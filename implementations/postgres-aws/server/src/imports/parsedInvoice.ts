@@ -2,6 +2,7 @@
 // from, before matching to this system's records.
 import { ValidationError } from '../errors';
 import type { LineType } from '../billing/invoiceLifecycle';
+import { toCents } from '../billing/money';
 
 // invoice_import_formats codes; 'document' is a PDF.
 export type ImportFormat = 'ledes_1998b' | 'spreadsheet' | 'document';
@@ -62,9 +63,7 @@ export class UnreadableInvoiceFileError extends ValidationError {
   }
 }
 
-export const cents = (value: number) => Math.round(value * 100);
-
-export const lineTotalCents = (lines: Array<Pick<ParsedLine, 'amount'>>) => lines.reduce((sum, line) => sum + cents(line.amount), 0);
+export const lineTotalCents = (lines: Array<Pick<ParsedLine, 'amount'>>) => lines.reduce((sum, line) => sum + toCents(line.amount), 0);
 
 export function parseAmount(raw: string | number | null | undefined, location: string, field: string): number | undefined {
   if (raw === null || raw === undefined || raw === '') {
@@ -114,14 +113,14 @@ export interface ImportWarning {
 export function reconciliationWarnings(parsed: ParsedInvoice): ImportWarning[] {
   const warnings: ImportWarning[] = [...(parsed.warnings ?? [])];
   const lineTotal = lineTotalCents(parsed.lines);
-  if (parsed.statedTotal !== undefined && cents(parsed.statedTotal) !== lineTotal) {
+  if (parsed.statedTotal !== undefined && toCents(parsed.statedTotal) !== lineTotal) {
     warnings.push({
       code: 'stated_total_mismatch',
       message: `The file states a total of ${parsed.statedTotal.toFixed(2)}, but its items add up to ${(lineTotal / 100).toFixed(2)}. The invoice total is calculated from the items.`,
     });
   }
   for (const line of parsed.lines) {
-    if (line.quantity !== undefined && line.unitRate !== undefined && cents(line.quantity * line.unitRate) !== cents(line.amount)) {
+    if (line.quantity !== undefined && line.unitRate !== undefined && toCents(line.quantity * line.unitRate) !== toCents(line.amount)) {
       warnings.push({
         code: 'rate_mismatch',
         location: line.location,

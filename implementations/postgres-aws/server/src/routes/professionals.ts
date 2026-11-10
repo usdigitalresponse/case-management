@@ -25,6 +25,7 @@ import { requireAdmin } from '../auth/requireAdmin';
 import { listRates, setProfessionalKind } from '../billing/professionalRates';
 import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
 import { getPerson, listPeople } from '../professionals/peopleDirectory';
+import { loadProviderOffices } from '../professionals/providerOffices';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -60,13 +61,12 @@ router.get(
       .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
       .where(and(...filters))
       .limit(50);
-    const rates = await listRates(
-      db,
-      matches.map((match) => match.professionalId),
-    );
+    const ids = matches.map((match) => match.professionalId);
+    const [rates, offices] = await Promise.all([listRates(db, ids), loadProviderOffices(db, ids)]);
     res.json({
       professionals: matches.map((match) => ({
         ...match,
+        ...offices.get(match.professionalId)!,
         rates: rates
           .filter((rate) => rate.professionalId === match.professionalId)
           .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),

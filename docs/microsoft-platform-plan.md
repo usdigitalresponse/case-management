@@ -76,7 +76,7 @@ The browser never calls Dataverse directly.
 Phases:
 
 1. **Schema catch-up.** The captured Solution reflects about model 0.2; the
-   model is at 0.10.0 and 12 entities are not provisioned (trip, the three
+   model is at 0.11.0 and 12 entities are not provisioned (trip, the three
    rate tables, billing_rule_setting, invoice_import,
    invoice_line_working_decision, review_time_log, invoice_review_question,
    invoice_review_assignment, case_invoice_reviewer, invoice_review_setting).
