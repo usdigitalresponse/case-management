@@ -5,245 +5,137 @@ https://policies.usdigitalresponse.org/data-and-software-guidelines
 
 # Invoice Review and Case Management Prototype
 
-This project's working prototype is an invoice review tool for public-sector
-organizations that pay attorneys and other providers. It sits beside an
-existing case management system: providers send invoices, staff review them
-line by line, approvers sign them off, and the approved result is exported for
-payment elsewhere.
+An invoice review tool for public-sector organizations that pay attorneys and
+other providers. It sits beside an existing case management system: providers
+send invoices, staff review them line by line, approvers sign them off, and
+the approved result is exported for payment elsewhere.
 
-The prototype is built on a broader, implementation-neutral specification for
-case management and billing, covering case data, assignments, time and
-expenses, vendor services, reporting and audit history. Those wider
-capabilities are later scope. The specification can be used to evaluate
-prototypes built with different technology stacks.
+The tool is built on a broader, implementation-neutral specification for case
+management and billing, covering case data, assignments, time and expenses,
+vendor services, reporting and audit history. Those wider capabilities are
+later scope.
 
 
 ## Project Status
 
-This repository is a prototype, not production-ready software. The
-[Postgres/AWS prototype](implementations/postgres-aws/README.md) implements
-invoice review; the [Dataverse prototype](implementations/dataverse/README.md)
-is a schema review. No production technology stack has been chosen. See
-[the product definition](docs/PRODUCT.md#current-focus) for what is in and out
-of the current focus.
+This is a prototype, not production-ready software.
+
+- The [Postgres/AWS prototype](implementations/postgres-aws/README.md)
+  implements invoice review and is the most complete implementation.
+- The [Dataverse prototype](implementations/dataverse/README.md) is much less
+  developed. It loads the shared schema and synthetic records into a
+  read-only model-driven app so people can review the schema. It enforces no
+  workflows, approvals or permissions.
+- No production technology stack has been chosen.
+
+See [the product definition](docs/PRODUCT.md#current-focus) for what is in and
+out of the current focus.
 
 
-## Project Principles
+## Where to Start
 
-- Keep the initial domain model independent of a particular implementation.
-- Treat shared specifications and acceptance scenarios as the basis for
-  comparing prototypes.
-- Make business rules and workflow transitions explicit.
-- Preserve auditability for important case, assignment, and financial changes.
-- Document platform-specific compromises and limitations.
-- Keep organization-specific information and private source research out of the
-  repository.
-
-
-## Adopting and Customizing This Project
-
-This is a prototype, not production-ready software. If your organization is
-considering using or adapting it, we recommend the following.
-
-1. **Start from the shared specification, not an implementation.** Read
-   [the product definition](docs/PRODUCT.md), the [model](model/README.md) and
-   the [acceptance scenarios](scenarios/). Walk through your current process
-   against the scenarios. Where your process differs, write a new synthetic
-   scenario first, so the difference is recorded before any code changes.
-2. **Use the Postgres/AWS prototype as the starting point for a working
-   system.** The [Postgres/AWS prototype](implementations/postgres-aws/README.md)
-   is the most complete implementation. It covers invoice upload and import,
-   line-by-line review with questions and sign-off, rates, pre-authorizations,
-   case matching and an external submitter portal. The
-   [Microsoft platform plan](docs/microsoft-platform-plan.md) covers
-   organizations that use Microsoft services. Running the app as it is on
-   Azure needs the fewest changes. Moving its data into Dataverse is a larger
-   change, worth it only if the data must live there (for example, to share it
-   with other Power Platform apps).
-
-   The [Dataverse prototype](implementations/dataverse/README.md) is much less
-   developed. It loads the shared schema and synthetic records into a
-   model-driven app so people can review the schema. Its forms are read-only
-   and it enforces no workflows, approvals or permissions. Use it to judge how
-   the data model fits Power Platform, not as a working application.
-3. **Answer the organizational and technical questions before you build.**
-   Work through the [organizational questions](#questions-for-your-organization)
-   with program, billing and records staff, and the
-   [technical questions](#technical-questions) with your IT team. Their answers
-   set the configuration, the hosting choice and the cost estimate your
-   organization will need to approve.
-4. **Customize through configuration, not code.** Most policy differences are
-   meant to be reference data or settings rather than code changes. In the
-   Postgres/AWS prototype these include rates by role and by person, counties
-   and other settings, pre-authorization thresholds, review settings such as
-   time log checks, review reason lists and named sign-off approvers. If a
-   requirement can't be expressed that way, add it to the model as a general,
-   configurable rule. Don't hard-code one organization's policy.
-5. **Keep the specification authoritative.** When behavior changes, update the
-   model, the scenarios and the affected implementation's mapping together.
-   Record each decision in [DECISIONS.md](docs/DECISIONS.md). Document every
-   platform compromise in that implementation's notes. [AGENTS.md](AGENTS.md)
-   describes these rules in detail.
-6. **Keep your organization's details out of the shared repository.** Real
-   names, jurisdictions, codes, thresholds, invoices and research notes belong
-   in your own deployment configuration and database, never in fixtures,
-   documentation or commit history.
-7. **Pilot in stages.** Start with the synthetic demo data, then try a small
-   group of real users and invoices in a separate environment. Keep demo
-   sign-in and demo reset turned off anywhere real data is stored, because
-   reseeding deletes application data.
-8. **Contribute generic improvements back.** Fixes and capabilities that would
-   help other organizations are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).
-   Strip out anything specific to your organization first.
+| If you are… | Start with |
+| --- | --- |
+| Program or billing staff deciding whether this fits your work | [The product definition](docs/PRODUCT.md), the [acceptance scenarios](scenarios/), then the [questions for your organization](docs/adopting.md#questions-for-your-organization) |
+| An IT team deciding where and how it would run | The [technical questions](docs/adopting.md#technical-questions) and, if you use Microsoft services, [the Microsoft platform plan](docs/microsoft-platform-plan.md) |
+| Trying the prototype | [Trying the Prototype](#trying-the-prototype) |
+| An organization planning to adopt or adapt it | [The adoption guide](docs/adopting.md) |
+| Running it beside your case management system, or building these features into one | [The integration guide](docs/integration.md) |
+| A developer contributing changes | [Developing](#developing) |
 
 
-## Questions for Your Organization
+## What's in This Repository
 
-These are policy and process decisions that the software can't make for you.
-Many become configuration. Others decide whether the prototype fits your work
-at all.
+| Location | Contents |
+| --- | --- |
+| [`docs/`](docs/) | The [product definition](docs/PRODUCT.md), [decisions](docs/DECISIONS.md), the [domain model review](docs/model-review.md), the adoption and integration guides, and platform plans |
+| [`model/`](model/README.md) | The platform-neutral specification: schema, rules, workflows and forms |
+| [`scenarios/`](scenarios/) | Platform-neutral acceptance scenarios and [synthetic sample records](scenarios/fixtures/README.md) |
+| [`tests/`](tests/README.md) | Offline checks of the specification against the sample records |
+| [`implementations/postgres-aws/`](implementations/postgres-aws/README.md) | The working invoice review prototype, with its documented gaps in [MAPPING.md](implementations/postgres-aws/MAPPING.md) |
+| [`implementations/dataverse/`](implementations/dataverse/README.md) | The Dataverse schema review and its provisioning tool, with `setup.command` and `setup.cmd` at the root for guided setup |
 
-**Process fit**
-
-- Do the [acceptance scenarios](scenarios/) match how invoices arrive, how
-  they're reviewed and how they're approved? Where do they differ?
-- Which system is the source of truth for cases and people: this one or your
-  existing case management system? Will staff keep recording time in the
-  existing system?
-- Should invoices be filed by the person whose work they bill, with the case
-  number as typed and matched to a case during review, or under a known case
-  from the start?
-- Who reviews invoices and who signs them off? Can anyone on staff sign off,
-  or only named approvers? Must someone other than the person who entered a
-  request finish its review, and above what amount?
-- How will payment completion be recorded here, given that payments are made
-  in another system?
-
-**Billing policy**
-
-- What are the rates by role, and which people have their own rates? From
-  what date does each rate apply?
-- How are travel time, waiting time, mileage and travel costs billed? Should
-  claimed mileage be checked against driving distance?
-- Is pre-authorization required, and for which kinds of service? What
-  thresholds apply in each county, and how should overruns be handled?
-- Can one supplier invoice be split across requests or cases?
-
-**Roles and access**
-
-- Which roles exist, and what can each one see and do? Who can see sensitive
-  notes?
-- Who can submit on someone else's behalf, for example office support staff?
-- Who can add people, providers, organizations and counties?
-
-**Records and accountability**
-
-- Which statuses do you use? Who can correct a record, and can dates be
-  backdated? Which time zone do reports use?
-- What text must submitters attest to, and what level of signature assurance
-  is required?
-- How long must each kind of record be kept? Must finished invoices go to a
-  records or document management system?
-- Which funding sources, programs and reports does the system need to
-  support?
-
-**Ownership**
-
-- Who owns the product and its configuration after launch? Who trains users
-  and supports them?
-
-The full list of open product decisions is in
-[the model review](docs/model-review.md#product-decisions-still-required).
+The specification is the authoritative source. Each implementation documents
+how it maps to it and where it falls short.
 
 
-## Technical Questions
-
-Ask your IT team. Their answers decide where and how the system runs and what
-it costs.
-
-**Hosting and cost**
-
-- Which cloud providers and accounts can the project use, including
-  government clouds? Who pays for them and who operates them?
-- Are there data residency, encryption or authorization-to-operate
-  requirements?
-- What will it cost each month, including per-request services?
-- If you use Microsoft services: can the existing app be hosted on Azure
-  (Azure Government for a government tenant), or must the data be stored in
-  Dataverse? Hosting on Azure is the smaller change.
-- Only if the data must be in Dataverse: which Power Platform licenses and how
-  much Dataverse capacity would be needed? See
-  [the Microsoft platform plan](docs/microsoft-platform-plan.md#questions-to-answer-before-building).
-
-**Identity and email**
-
-- Which identity provider will staff sign in with?
-- How should external submitters sign in? The app's own emailed codes are one
-  option; an external identity service is another.
-- Which service will send sign-in codes and notification emails?
-
-**Integrations**
-
-- How will the system exchange cases, people and approved invoices with your
-  case management, finance and document management systems? Will that be
-  through exports, APIs or by hand?
-- Should the mileage check call a mapping service? It is billed per request.
-- Reading uploaded PDFs currently runs inside the server. Is that enough, or
-  does adding a separate extraction service justify its cost?
-
-**Operations and assurance**
-
-- Which environments are needed (for example development, testing and
-  production), and who promotes changes between them?
-- Who handles backups, restores, monitoring, updates and incidents?
-- Which security review and accessibility standard (such as WCAG 2.1 AA) must
-  the system pass before launch?
-
-
-## Setup & Installation
-
-The shared model is platform-neutral, and neither prototype selects a
-production technology stack. The [domain model review](docs/model-review.md)
-records each model revision.
+## Trying the Prototype
 
 ### Postgres/AWS invoice review prototype
 
-The most complete implementation runs locally with Docker:
-`docker compose up` in `implementations/postgres-aws/`, then load the
-synthetic demo data once. See [its README](implementations/postgres-aws/README.md)
-for setup, tests and the single-host demo deployment, and
-[MAPPING.md](implementations/postgres-aws/MAPPING.md) for its documented gaps.
-The [Microsoft platform plan](docs/microsoft-platform-plan.md) covers hosting
-it on Azure or on Dataverse, and the questions to answer first.
+You need Docker. In `implementations/postgres-aws/`:
+
+```sh
+docker compose up
+docker compose exec server npm run seed   # in a second terminal, once
+```
+
+Then open http://localhost:5173 and choose "Demo sign-in" for the staff app or
+"Demo partner sign-in" for the external submitter portal. All demo data is
+synthetic. The seed command deletes all application data, so run it only to
+set up or reset the demo. See [its README](implementations/postgres-aws/README.md)
+for configuration, tests and the single-host demo deployment.
 
 ### Dataverse schema review
 
-For guided setup, double-click **setup.command** on Mac or **setup.cmd** on
-Windows in this repository's folder. The wizard explains where to find your
-Power Apps environment information; no shell-variable commands are required.
-See [guided setup](docs/deployment.md#guided-setup-recommended) for prerequisites.
-
-The Dataverse prototype began as a small case intake app. Its
+You need a Power Apps environment. Double-click **setup.command** on Mac or
+**setup.cmd** on Windows in this repository's folder. The wizard explains
+where to find your environment's details. See
+[guided setup](docs/deployment.md#guided-setup-recommended) for prerequisites
+and the [Dataverse README](implementations/dataverse/README.md) for the
 [schema-review commands](implementations/dataverse/README.md#prepare-check-deploy-and-seed)
-load the synthetic relationships into that app for review; runtime workflows
-remain implementation work. See
-[its setup and documented gaps](implementations/dataverse/README.md),
-[deployment instructions](docs/deployment.md) and the
-[Power Platform architecture assessment](docs/architecture-assessment.md).
+and documented gaps. The
+[Power Platform architecture assessment](docs/architecture-assessment.md)
+explains that track's history.
 
 
-## Developing Locally
+## Adopting and Integrating
 
-The repository contains the shared model, the
-[Postgres/AWS prototype](implementations/postgres-aws/README.md) and a Dataverse
-provisioning tool. Before
-contributing, read [AGENTS.md](./AGENTS.md) for the source-of-truth, privacy,
-working-practice, and Git guidance that applies to this project.
+If your organization is considering this project, read
+[the adoption guide](docs/adopting.md). It has:
+
+- recommended steps, from checking the scenarios against your process to
+  piloting with real users;
+- questions for program, billing and records staff;
+- technical questions for your IT team.
+
+To combine invoice review with a case management system, read
+[the integration guide](docs/integration.md). It covers two approaches:
+
+- running this tool beside your case management system and connecting the two;
+- building these features into a case management system you develop.
+
+It lists which prototype features stop being needed once case data is
+available.
 
 
-The [offline test guide](tests/README.md) explains how to validate the shared
-specification against [synthetic sample records](scenarios/fixtures/README.md)
-before updating a platform implementation.
+## Developing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). AGENTS.md
+is written for coding agents but applies to everyone: it covers which files
+are authoritative, privacy, working practices and Git.
+
+**Principles**
+
+- Keep the domain model independent of any implementation.
+- Use the shared specification and scenarios to compare implementations.
+- Make business rules and workflow transitions explicit.
+- Preserve audit history for important case, assignment and financial changes.
+- Document each platform's compromises and gaps.
+- Keep organization-specific information and private research out of the
+  repository.
+
+**Checking changes**
+
+- Specification: `python3 -B -m unittest discover -s tests -v` from the
+  repository root (see the [test guide](tests/README.md)).
+- Postgres/AWS prototype: type checks and tests are in
+  [its README](implementations/postgres-aws/README.md).
+- Dataverse provisioning tool: build and offline checks are in
+  [its README](implementations/dataverse/README.md).
+
+The [domain model review](docs/model-review.md) records each model revision.
+
 
 ## Code of Conduct
 
