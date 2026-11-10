@@ -325,6 +325,10 @@ function withoutReviewer(detail: InvoiceDetail) {
     fileSource: detail.fileSource,
     submitterChanges: detail.submitterChanges,
     questions: detail.questions,
+    // Comments on approving or rejecting the whole invoice, shared like line notes.
+    decisionComments: detail.signOffs.flatMap(({ outcomeCode, comment, decidedAt }) =>
+      comment && outcomeCode !== 'changes_requested' ? [{ outcomeCode, comment, decidedAt }] : [],
+    ),
     lines: detail.lines.map(({ decidedByDisplayName: _reviewer, decision, history, ...line }) => ({
       ...line,
       decision: decision ? anonymous(decision) : null,

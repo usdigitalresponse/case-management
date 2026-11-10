@@ -148,7 +148,8 @@ export function TotalsBar({
 }
 
 // Waiting for sign-off: the approver signs off or rejects the whole invoice,
-// or sends it back, with a comment only staff see; staff can reopen until then.
+// with a comment shared like line notes, or sends it back with one only staff
+// see; staff can reopen until then.
 export function SignOffPanel({
   nextApprover,
   approvedCents,
@@ -184,7 +185,9 @@ export function SignOffPanel({
         <label className="send-back-form">
           Comment (needed to send it back)
           <textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} />
-          <span className="cell-note">Only staff see this comment. The submitter does not.</span>
+          <span className="cell-note">
+            Signing off or rejecting, everyone who sees the invoice sees it, as with line notes. Sending it back, only staff do.
+          </span>
         </label>
       )}
       {(canSignOff || canReopen) && (

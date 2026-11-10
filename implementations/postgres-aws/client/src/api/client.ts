@@ -1145,6 +1145,8 @@ export type PortalInvoiceLine = Omit<InvoiceReviewLine, 'decidedByDisplayName'>;
 
 export interface PortalInvoice {
   invoice: QueuedInvoice;
+  // Comments on approving or rejecting the whole invoice, as line notes are shared.
+  decisionComments: Array<{ outcomeCode: string; comment: string; decidedAt: string }>;
   caseNumber: string | null;
   otherCaseNumbers: string[];
   submissionAttempt: { invoiceApprovalChainId: string; submittedAt: string } | null;

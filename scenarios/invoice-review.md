@@ -63,7 +63,9 @@ configuration defaults.
    - The comment is visible to staff, but not to the submitter or in exports.
    - Approvers do not decide individual lines.
 8. **Visibility and export:**
-   - The submitter sees each line's latest decision, reason and note.
+   - The submitter sees each line's latest decision, reason and note, and
+     an approver's comment on approving or rejecting the whole request, but
+     never a send-back comment.
    - An export of the approved request shows the case number, the court
      numbers and each line's latest decision, reason and note. Earlier recorded
      rounds are not exported.

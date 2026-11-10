@@ -73,7 +73,7 @@ rules:
       - A line-review round is complete when every line has a decision; a rejected line counts as decided with nothing approved and does not block the request.
       - Sign-off decisions follow the latest complete line-review round, one per assigned approver in position order.
       - A sign-off send-back (changes requested) requires an internal_only comment and opens a new line-review round in the same chain; it does not return the request to the submitter.
-      - A sign-off approver may instead reject the whole request, with an optional internal_only comment. The request is rejected and nothing on it is approved. Approving also takes an optional internal_only comment. Whether such comments may ever reach the submitter is unresolved.
+      - A sign-off approver may instead reject the whole request, with an optional comment. The request is rejected and nothing on it is approved. Approving also takes an optional comment. Both are shared like line decision notes, not internal_only.
       - Denial or a request for changes from the submitter requires a reason and blocks advancement.
       - Record the actual deciding user and decision timestamp.
       - Apply record_approved_request_amounts to every decision and final allocation draw.
@@ -172,7 +172,7 @@ rules:
     trigger: on_read
     outcome: blocking
     requirements:
-      - Line decision reasons and notes are visible to everyone who may read the request, including its submitter and represented professionals.
+      - Line decision reasons and notes are visible to everyone who may read the request, including its submitter and represented professionals. So is a comment on approving or rejecting the whole request at sign-off, without who made it.
       - internal_only comments are visible only to staff users and never appear in submitter views or exports sent outside the review team.
 
   require_completed_invoice_approval:

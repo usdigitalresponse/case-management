@@ -76,8 +76,9 @@ questions, the time log check, entering an invoice in review, "Mark completed",
 - Any staff member can finish a review assigned to someone else. The page
   makes it clear that the review is assigned to someone else.
 - Approving or rejecting a whole invoice sits where sign-off is now, and takes
-  an optional comment. Whether that comment can reach the submitter is not yet
-  decided.
+  an optional comment. It is shared like line notes: the submitter sees it
+  and exports include it (decided 2026-11-09). A send-back comment to the
+  reviewer stays internal.
 - Giving more staff more abilities must not lose any audit information. Every
   decision, sign-off and finished review records who made it, including when
   it was someone other than the assigned reviewer.

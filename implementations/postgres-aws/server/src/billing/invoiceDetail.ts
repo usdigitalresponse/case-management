@@ -237,8 +237,9 @@ export type InvoiceDetailLine = LineRow & {
 export interface SignOffView {
   displayName: string | null;
   outcomeCode: string;
-  // Staff only (internal_only).
+  // Submitters see it unless it is internal: a send-back to the reviewer.
   comment: string | null;
+  internalOnly: boolean;
   decidedAt: Date;
 }
 
@@ -469,6 +470,7 @@ export async function loadInvoiceDetail(
       displayName: names.get(decision.decidedByUserAccountId) ?? null,
       outcomeCode: decision.outcomeCode,
       comment: audience === 'staff' || !decision.internalOnly ? decision.reason : null,
+      internalOnly: decision.internalOnly,
       decidedAt: decision.decidedAt,
     }));
   const numbers = caseNumbers.get(header.caseId);

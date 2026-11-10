@@ -389,8 +389,9 @@ export async function signOffInvoice(db: Database, actorUserAccountId: string, i
       decidedByUserAccountId: actorUserAccountId,
       decidedAt: new Date(),
       reason: input.comment || null,
-      // Sign-off comments are for staff (limit_review_comment_visibility).
-      internalOnly: Boolean(input.comment),
+      // A send-back is for the reviewer; approving or rejecting the whole
+      // invoice is shared like line notes (limit_review_comment_visibility).
+      internalOnly: input.outcome === 'changes_requested' && Boolean(input.comment),
     });
     if (input.outcome === 'changes_requested') {
       await seedWorkingFromRound(tx, chainId, round as number);

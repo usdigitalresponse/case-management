@@ -17,6 +17,7 @@ import { finishReview, markCompleted, reopenReview, signOffInvoice } from '../sr
 import { reassignReviewer, setSignOffApprovers } from '../src/billing/reviewAssignment';
 import { setReviewSettings } from '../src/billing/reviewSettings';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
+import { invoiceExportContent } from '../src/billing/exportInvoice';
 import { listReviewQueue } from '../src/billing/reviewQueue';
 import { loadBillingRecord } from '../src/billing/billingRecord';
 import { ConflictError, ForbiddenError, ValidationError } from '../src/errors';
@@ -484,7 +485,7 @@ describe('finishing and sign-off', () => {
     await finishReview(testDb, reviewer, invoiceId);
   });
 
-  it('rejects a whole invoice at sign-off, approving nothing, with an internal comment', async () => {
+  it('rejects a whole invoice at sign-off, approving nothing, with a comment shared like line notes', async () => {
     const { invoiceId, lineIds } = await createInvoiceWithLines(['70.00', '50.00']);
     await setSignOffApprovers(testDb, reviewer, invoiceId, { userAccountIds: [approver] });
     await decideAll(invoiceId, lineIds);
@@ -495,7 +496,12 @@ describe('finishing and sign-off', () => {
     const staffView = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
     expect(staffView.approvedTotal).toBe('0.00');
     expect(staffView.signOffs.at(-1)).toMatchObject({ outcomeCode: 'rejected', comment: 'Not billable to this office.' });
-    expect((await loadInvoiceDetail(testDb, invoiceId))!.signOffs.every((signOff) => signOff.comment === null)).toBe(true);
+    const submitterView = (await loadInvoiceDetail(testDb, invoiceId))!;
+    expect(submitterView.signOffs.at(-1)).toMatchObject({ comment: 'Not billable to this office.', internalOnly: false });
+    expect(invoiceExportContent(submitterView, { includeReviewer: false, exportedAt: new Date() }).summary).toContainEqual([
+      'Decision comment',
+      'Not billable to this office.',
+    ]);
   });
 
   it('lets only the named approvers sign off when Settings says so', async () => {
@@ -549,6 +555,8 @@ describe('finishing and sign-off', () => {
     expect(staffView.lines.every((line) => line.working !== null)).toBe(true);
     const submitterView = (await loadInvoiceDetail(testDb, invoiceId))!;
     expect(submitterView.signOffs.every((signOff) => signOff.comment === null)).toBe(true);
+    const exported = invoiceExportContent(staffView, { includeReviewer: true, exportedAt: new Date() }).summary;
+    expect(exported.map(([name]) => name)).not.toContain('Decision comment');
 
     // The next round needs both sign-offs again.
     await finishReview(testDb, reviewer, invoiceId);

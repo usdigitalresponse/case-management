@@ -577,6 +577,16 @@ function Lines({
             }
           />
           {decided && data.approvedTotal !== null && <DecisionTotals data={data} />}
+          {decided &&
+            (data.decisionComments ?? []).map((entry) => (
+              <Notice
+                key={entry.decidedAt}
+                tone={entry.outcomeCode === 'rejected' ? 'warning' : 'info'}
+                heading={entry.outcomeCode === 'rejected' ? 'Why the invoice was rejected' : 'A comment on the invoice'}
+              >
+                {entry.comment}
+              </Notice>
+            ))}
         </>
       )}
 

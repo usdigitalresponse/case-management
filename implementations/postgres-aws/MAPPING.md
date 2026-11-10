@@ -755,7 +755,10 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `POST .../reopen` (any staff member, before any sign-off) copies the
     round back into working decisions. `POST .../sign-off` takes
     `approved`, `rejected` or `changes_requested` (which needs one) with a
-    comment, stored `internal_only`; approvers sign in position order and
+    comment. Only a send-back's is `internal_only`; an approval's or
+    rejection's is shown to the submitter on the portal invoice page, as
+    line notes are (without who made it), and exported as "Decision
+    comment". Comments recorded before this change stay internal; approvers sign in position order and
     the last one approves the invoice, while a rejection rejects it at once
     with nothing approved (`approvedTotal` is zero). A send-back reopens review for the
     same reviewer in the same chain. A rejected line counts as decided

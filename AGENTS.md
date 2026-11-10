@@ -101,8 +101,10 @@ generic requirement in the repository.
   request, never a record; staff match or create records on Intake, and the
   details stay flagged through review.
 - Invoice line decisions are working decisions until the reviewer finishes a
-  round; only finished rounds are recorded and never changed. Sign-off
-  comments are internal-only and never reach submitters or exports.
+  round; only finished rounds are recorded and never changed. A sign-off
+  send-back comment is internal-only and never reaches submitters or
+  exports; a comment on approving or rejecting the whole request is shared
+  like line notes.
 - A reviewer's question to the submitter is about one line; it and its answer
   are each recorded once and never changed, and never exported. While any
   question is unanswered, the request is `awaiting_answer` and its round
