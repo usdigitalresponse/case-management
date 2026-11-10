@@ -13,6 +13,7 @@ import { loadInvoiceDetail, loadSenderEmail } from '../billing/invoiceDetail';
 import { isExportableStatus } from '../billing/invoiceAccess';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { InvoiceNotFoundError, repriceLines, reviewInvoiceLine, undoLineDecision } from '../billing/reviewInvoiceLine';
+import { applyLineRate } from '../billing/caseRates';
 import { finishReview, markCompleted, reopenReview, signOffInvoice } from '../billing/reviewRounds';
 import {
   confirmEnteredImport,
@@ -351,6 +352,14 @@ router.delete(
   '/:id/lines/:lineId/decision',
   asyncHandler(async (req, res) => {
     res.json(await undoLineDecision(db, actorId(req), req.params.id as string, req.params.lineId as string, req.body));
+  }),
+);
+
+// A changed rate on the matching lines, or as the case's default (../billing/caseRates.ts).
+router.post(
+  '/:id/lines/:lineId/rate',
+  asyncHandler(async (req, res) => {
+    res.json(await applyLineRate(db, actorId(req), req.params.id as string, req.params.lineId as string, req.body));
   }),
 );
 

@@ -45,12 +45,7 @@ export function categoryRateOn(
   date: string,
   hourlyRate: string | undefined,
 ): string | undefined {
-  let setting: TimeCategoryRateRow | undefined;
-  for (const candidate of settings) {
-    if (candidate.category === category && candidate.effectiveFrom <= date) {
-      setting = candidate;
-    }
-  }
+  const setting = categorySettingOn(settings, category, date);
   if (setting?.basis === 'flat_rate') {
     return setting.hourlyRate ?? undefined;
   }
@@ -61,6 +56,16 @@ export function categoryRateOn(
     return (Math.round(Number(hourlyRate) * Number(setting.percent)) / 100).toFixed(2);
   }
   return hourlyRate;
+}
+
+export function categorySettingOn(settings: TimeCategoryRateRow[], category: TimeCategory, date: string): TimeCategoryRateRow | undefined {
+  let setting: TimeCategoryRateRow | undefined;
+  for (const candidate of settings) {
+    if (candidate.category === category && candidate.effectiveFrom <= date) {
+      setting = candidate;
+    }
+  }
+  return setting;
 }
 
 const category = z.enum(TIME_CATEGORIES);

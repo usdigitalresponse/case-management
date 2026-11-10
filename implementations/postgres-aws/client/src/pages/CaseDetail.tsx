@@ -12,6 +12,7 @@ import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { DECIDED_STATUS_CODES, InvoiceStatus } from '../components/Completion';
 import { AddPersonToCase } from '../components/AddPersonToCase';
+import { CaseRateTable } from '../components/CaseRates';
 import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
@@ -207,6 +208,12 @@ export default function CaseDetail() {
             name={summary.professionalId ? (professionalNames.get(summary.professionalId) ?? null) : null}
           />
         ))}
+      </section>
+
+      <section className="detail-section">
+        <h2>Case rates</h2>
+        <p className="compact-hint">Reviewers set these while reviewing the case's invoices. A new rate is added; earlier ones stay.</p>
+        {billing && <CaseRateTable rows={billing.caseRates} label="Case rates" />}
       </section>
 
       <section className="detail-section">

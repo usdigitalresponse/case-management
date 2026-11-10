@@ -27,7 +27,7 @@ import { fromCents as money, toCents } from './money';
 import { recordInvoiceEvent } from './invoiceEvents';
 import { claimLineReview, lockInvoiceForReview } from './reviewAssignment';
 import { requireReviewPermission } from './reviewAccess';
-import { OTHER_REASON_CODE, RATE_REASON_CODE, reasonAppliesTo } from './decisionReasons';
+import { OTHER_REASON_CODE, RATE_REASON_CODE, reasonAppliesTo, type ReasonList } from './decisionReasons';
 import { loadRateLimits, rateLimitFor } from './preauthorizations';
 import { requireCurrentEntryLines } from './enterInReview';
 import { keepsBilledHours, linesBlockedByTimeLog, TIME_LOG_BLOCKS_MESSAGE } from './reviewTimeLog';
@@ -50,7 +50,7 @@ export const reviewInvoiceLineInputSchema = z.object({
   linesVersion: z.number().int().nonnegative().optional(),
 });
 
-const linesVersionOf = (raw: unknown): number | undefined => {
+export const linesVersionOf = (raw: unknown): number | undefined => {
   const parsed = z.object({ linesVersion: z.number().int().nonnegative() }).safeParse(raw);
   return parsed.success ? parsed.data.linesVersion : undefined;
 };
@@ -76,7 +76,7 @@ export class InvoiceNotInReviewError extends ConflictError {
 // Locks the invoice, checks it is reviewable by this actor (taking it if
 // unassigned), and while its lines are being entered that the deciding page
 // showed the latest of them; returns its current chain.
-async function beginLineChange(tx: Transaction, actorUserAccountId: string, invoiceId: string, linesVersion: number | undefined) {
+export async function beginLineChange(tx: Transaction, actorUserAccountId: string, invoiceId: string, linesVersion: number | undefined) {
   const locked = await lockInvoiceForReview(tx, invoiceId);
   if (!LINE_REVIEW_STATUS_CODES.includes(locked.statusCode)) {
     throw new InvoiceNotInReviewError();
@@ -102,7 +102,7 @@ async function beginLineChange(tx: Transaction, actorUserAccountId: string, invo
 
 // The first decision moves the invoice from waiting to being reviewed, which
 // also ends the submitter's chance to recall it.
-async function markUnderReview(tx: Transaction, invoiceId: string, statusCode: string, actorUserAccountId: string, chainId: string) {
+export async function markUnderReview(tx: Transaction, invoiceId: string, statusCode: string, actorUserAccountId: string, chainId: string) {
   if (statusCode !== SUBMITTED_INVOICE_STATUS_CODE) {
     return;
   }
@@ -111,15 +111,15 @@ async function markUnderReview(tx: Transaction, invoiceId: string, statusCode: s
   await recordInvoiceEvent(tx, { invoiceId, eventTypeCode: 'review_started', statusId, actorUserAccountId, chainId });
 }
 
-// An active reason on the list for this outcome.
-async function activeReasonId(tx: Transaction, code: string | undefined, outcome: 'approved_in_part' | 'rejected'): Promise<string> {
+// An active reason on this list.
+export async function activeReasonId(tx: Transaction, code: string | undefined, list: ReasonList): Promise<string> {
   const [row] = code
     ? await tx
-        .select({ id: invoiceDecisionReasons.id, appliesTo: invoiceDecisionReasons.appliesTo })
+        .select({ id: invoiceDecisionReasons.id, code: invoiceDecisionReasons.code, appliesTo: invoiceDecisionReasons.appliesTo })
         .from(invoiceDecisionReasons)
         .where(and(eq(invoiceDecisionReasons.code, code), eq(invoiceDecisionReasons.active, true)))
     : [];
-  if (!row || !reasonAppliesTo(row.appliesTo, outcome)) {
+  if (!row || !reasonAppliesTo(row, list)) {
     throw new ValidationError({ reasonCode: 'Choose a reason first.' });
   }
   return row.id;
@@ -258,7 +258,7 @@ export async function undoLineDecision(db: Database, actorUserAccountId: string,
   });
 }
 
-// Approves in part, at the pre-authorized rate (else the configured one),
+// Approves in part, at its rate limit (./preauthorizations.ts rateLimitFor),
 // every undecided time line billed above it.
 export async function repriceLines(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown = {}) {
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
@@ -276,6 +276,7 @@ export async function repriceLines(db: Database, actorUserAccountId: string, inv
         quantity: invoiceLine.quantity,
         billedRate: invoiceLine.billedRate,
         configuredRate: invoiceLine.configuredRate,
+        rateSource: invoiceLine.rateSource,
         timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
         decided: invoiceLineWorkingDecision.invoiceLineWorkingDecisionId,
       })

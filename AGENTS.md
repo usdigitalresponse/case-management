@@ -255,7 +255,11 @@ common match, else the sender, so every sent invoice goes to review. A trip
 is one "Travel" row in the editor but separate lines (travel time, mileage,
 costs) linked by `trip`, each priced and decided on its own; never merge them
 into one travel line, and never group lines into a trip for the submitter.
-A reviewer's changed rate must stay flagged for sign-off. A reviewing staff
+A reviewer's changed rate must stay flagged for sign-off. Case rates are set
+only from a line's rate decision while reviewing, are added and never
+changed, and change only the invoice they were set on (others on the case
+are flagged, never repriced); every line's default comes from
+`src/billing/defaultRates.ts`. A reviewing staff
 member's upload goes straight into their own review (`enter_request_in_review`,
 `src/billing/enterInReview.ts`): they enter and decide its lines on the review
 page until the first finished round freezes them. There, and on the check

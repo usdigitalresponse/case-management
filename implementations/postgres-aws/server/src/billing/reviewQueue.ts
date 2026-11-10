@@ -16,7 +16,7 @@ import { formatMoney, toCents } from './money';
 import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments } from './reviewAssignment';
 import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
-import { loadRateLimits, rateLimitFor } from './preauthorizations';
+import { loadRateLimits, rateLimitFor, type RateLimit } from './preauthorizations';
 import { evaluateBillingRules, type RuleFinding } from './billingRules';
 import { currentCaseNumber, matchCaseNumbers, searchMatch } from './caseNumbers';
 import {
@@ -31,6 +31,12 @@ import {
 // open: waiting on review or sign-off; finished: approved or rejected;
 // all: every submitted invoice (one case's list).
 export type QueueView = 'open' | 'finished' | 'all';
+
+const RATE_LIMIT_NAMES: Record<RateLimit['source'], string> = {
+  case: 'case rate',
+  preauthorized: 'pre-authorized',
+  configured: 'approved rate',
+};
 
 export interface QueueFlag {
   kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case';
@@ -80,6 +86,7 @@ export async function listReviewQueue(
         statedAmount: invoiceLine.statedAmount,
         billedRate: invoiceLine.billedRate,
         configuredRate: invoiceLine.configuredRate,
+        rateSource: invoiceLine.rateSource,
         expenseTypeId: invoiceLine.expenseTypeId,
         timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       })
@@ -146,7 +153,7 @@ export async function listReviewQueue(
       if (overRate?.limit) {
         flags.push({
           kind: 'rate',
-          message: `Rate check: bills ${formatMoney(overRate.line.billedRate as string)} an hour, ${overRate.limit.source === 'preauthorized' ? 'pre-authorized' : 'approved rate'} ${formatMoney(overRate.limit.rate)}`,
+          message: `Rate check: bills ${formatMoney(overRate.line.billedRate as string)} an hour, ${RATE_LIMIT_NAMES[overRate.limit.source]} ${formatMoney(overRate.limit.rate)}`,
         });
       }
       const mismatch = own.find(

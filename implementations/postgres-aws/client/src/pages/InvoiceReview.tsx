@@ -4,6 +4,7 @@ import {
   answerQuestion,
   apiErrorMessage,
   askQuestion,
+  applyLineRate,
   decideInvoiceLine,
   finishReview,
   getInvoiceForReview,
@@ -26,9 +27,10 @@ import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { RuleFindings } from '../components/BillingRules';
 import { TravelLog } from '../components/TravelLog';
 import { StatusPill } from '../components/StatusPill';
-import { DecisionCell, DecisionPanel, decisionInput, rateChanged, type PanelMode } from '../components/LineReview';
+import { DecisionCell, DecisionPanel, decisionInput, rateChanged, type PanelMode, type RateScope } from '../components/LineReview';
 import { ReviewerPicker, SignOffApprovers } from '../components/ReviewRouting';
 import { RateCheckNotice, SignOffHistory, SignOffPanel, TotalsBar } from '../components/ReviewPanels';
+import { InvoiceCaseRates } from '../components/CaseRates';
 import { AskLink, LineQuestions, QuestionForm } from '../components/ReviewQuestions';
 import { InvoiceLinesTable, lineRowClass } from '../components/InvoiceLinesTable';
 import { OriginalDocument } from '../components/OriginalDocument';
@@ -410,6 +412,34 @@ export default function InvoiceReview() {
         }
       />
     ) : null;
+  const rateScopeOf = (line: InvoiceReviewLine): RateScope | null => {
+    const matching = lines.filter(
+      (other) =>
+        other.rateType === line.rateType &&
+        other.rateProfessionalId === line.rateProfessionalId &&
+        Number(other.quantity) > 0 &&
+        other.billedRate !== null &&
+        other.serviceDate !== null &&
+        (other === line || !other.working),
+    );
+    return {
+      personName: (line.rateType !== 'mileage' ? line.timekeeperDisplayName : null) ?? invoice.professionalDisplayName ?? 'this person',
+      matching,
+      hasCase: invoice.caseId !== null,
+      caseRates: data.caseRates,
+      onApply: (input) =>
+        void (async () => {
+          const done = await act(() => applyLineRate(invoice.invoiceId, line.invoiceLineId, input, linesVersion()), (result) => ({
+            message:
+              input.scope === 'case'
+                ? `Case rate set. ${result.decided} ${result.decided === 1 ? 'line' : 'lines'} approved at it.`
+                : `${result.decided} ${result.decided === 1 ? 'line' : 'lines'} approved at the new rate.`,
+          }));
+          // Refused because the case rate or lines changed elsewhere: show them as they are now.
+          if (!done) void refresh();
+        })(),
+    };
+  };
   // What is open on a line: the question being asked, or the decision being made.
   const lineFormOf = (line: InvoiceReviewLine) => {
     const mode = openPanel(line);
@@ -451,6 +481,7 @@ export default function InvoiceReview() {
           reasons={reasonData?.reasons ?? []}
           initial={line.working}
           logBlocks={Boolean(approveBlocked(line))}
+          rateScope={rateScopeOf(line)}
           saving={saving}
           error={actionError}
           onCancel={() => setPanel(null)}
@@ -833,6 +864,12 @@ export default function InvoiceReview() {
         </Notice>
       )}
 
+      <InvoiceCaseRates
+        invoiceId={invoice.invoiceId}
+        caseRates={data.caseRates}
+        changedSinceSent={inReview ? data.caseRatesChangedSinceSent : []}
+        awaitingSignOff={status === 'awaiting_sign_off'}
+      />
       <RateCheckNotice
         lines={lines}
         canReprice={canDecide}

@@ -35,6 +35,8 @@ import { loadAssignments, SIGN_OFF_STEP_TYPE_CODE, type InvoiceAssignments } fro
 import { loadFileSource, submitterChanges, type FileSource } from '../imports/invoiceFile';
 import { completedAt, returnedReason } from './invoiceEvents';
 import { loadReviewQuestions, type ReviewQuestionView } from './reviewQuestions';
+import { caseRatesChangedSince, loadCaseRateViews, rateProfessionalId, type CaseRateView } from './caseRates';
+import { rateTypeOf, type RateType } from './defaultRates';
 
 export type Audience = 'staff' | 'submitter';
 
@@ -136,6 +138,8 @@ async function selectLines(db: DatabaseOrTransaction, invoiceId: string) {
       statedAmount: invoiceLine.statedAmount,
       billedRate: invoiceLine.billedRate,
       configuredRate: invoiceLine.configuredRate,
+      rateSource: invoiceLine.rateSource,
+      caseRateId: invoiceLine.caseRateId,
       timekeeperLabel: invoiceLine.timekeeperLabel,
       proposedTimekeeperName: invoiceLine.proposedTimekeeperName,
       proposedTimekeeperEmail: invoiceLine.proposedTimekeeperEmail,
@@ -206,6 +210,11 @@ export interface PastDecisionView extends LineDecisionView {
 type LineRow = Awaited<ReturnType<typeof selectLines>>[number];
 
 export type InvoiceDetailLine = LineRow & {
+  // Whose rate prices it, and which kind of rate (./defaultRates.ts).
+  rateType: RateType | null;
+  rateProfessionalId: string | null;
+  rateKindId: string | null;
+  rateKindDisplayName: string | null;
   // The rate check's limit for a time line: the pre-authorized rate, else
   // the configured one (./preauthorizations.ts rateLimitFor).
   rateLimit: string | null;
@@ -272,6 +281,10 @@ export interface InvoiceDetail {
   // Staff only: whoever entered it also decided lines in its latest round,
   // shown to the approvers (model/rules.yaml enter_request_in_review).
   decidedByEnterer: boolean;
+  // Staff only: the case's rates, and those set on other invoices since this
+  // one was sent that would now give its lines another default.
+  caseRates: CaseRateView[];
+  caseRatesChangedSinceSent: string[];
 }
 
 // Who staff email about an invoice: whoever sent it, or for a staff upload,
@@ -316,7 +329,7 @@ export async function loadInvoiceDetail(
   if (!header) {
     return undefined;
   }
-  const [lineRows, [attempt], caseNumbers, rateLimits, assignments, fileSource] = await Promise.all([
+  const [lineRows, [attempt], caseNumbers, rateLimits, assignments, fileSource, caseRates] = await Promise.all([
     selectLines(db, invoiceId),
     db
       .select({
@@ -330,7 +343,20 @@ export async function loadInvoiceDetail(
     loadRateLimits(db, header.caseId),
     audience === 'staff' ? loadAssignments(db, invoiceId) : null,
     loadFileSource(db, invoiceId),
+    audience === 'staff' ? loadCaseRateViews(db, header.caseId) : [],
   ]);
+  const rateProfessionalIds = [
+    ...new Set(lineRows.flatMap((line) => rateProfessionalId(line, header.professionalId) ?? [])),
+  ];
+  const kinds =
+    rateProfessionalIds.length === 0
+      ? []
+      : await db
+          .select({ professionalId: professional.professionalId, kindId: professional.professionalKindId, kindDisplayName: professionalKinds.displayName })
+          .from(professional)
+          .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
+          .where(inArray(professional.professionalId, rateProfessionalIds));
+  const kindOf = new Map(kinds.map((row) => [row.professionalId, row]));
   const [recorded, working, ruleFindings, questions] = await Promise.all([
     attempt ? loadRecordedDecisions(db, attempt.invoiceApprovalChainId) : ([] as RecordedDecision[]),
     attempt && audience === 'staff'
@@ -412,8 +438,13 @@ export async function loadInvoiceDetail(
       .map((past) => ({ ...view(past, past.reason, line.amount), round: past.sequenceNumber }));
     const own = workingFor.get(line.invoiceLineId);
     const limit = line.lineTypeCode === 'time' ? rateLimitFor(line, header.professionalId, rateLimits) : null;
+    const ratePerson = rateProfessionalId(line, header.professionalId);
     return {
       ...line,
+      rateType: rateTypeOf(line),
+      rateProfessionalId: ratePerson,
+      rateKindId: (ratePerson && kindOf.get(ratePerson)?.kindId) ?? null,
+      rateKindDisplayName: (ratePerson && kindOf.get(ratePerson)?.kindDisplayName) ?? null,
       rateLimit: limit?.rate ?? null,
       rateLimitSource: limit?.source ?? null,
       decisionOutcomeCode: decision?.outcomeCode ?? null,
@@ -465,5 +496,12 @@ export async function loadInvoiceDetail(
       recorded.some(
         (decision) => decision.sequenceNumber === round && decision.decidedByUserAccountId === header.submittedByUserAccountId,
       ),
+    caseRates,
+    caseRatesChangedSinceSent: caseRatesChangedSince(
+      caseRates,
+      invoiceId,
+      attempt?.submittedAt ?? null,
+      lines.map((line) => ({ professionalId: line.rateProfessionalId, kindId: line.rateKindId, rateType: line.rateType, serviceDate: line.serviceDate })),
+    ).map((view) => view.caseRateId),
   };
 }

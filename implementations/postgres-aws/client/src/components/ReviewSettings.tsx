@@ -182,11 +182,12 @@ const LIST_LABELS: Record<ReasonAppliesTo, string> = {
   approved_in_part: 'Approving part',
   rejected: 'Rejecting',
   both: 'Both',
+  case_rate: "Setting a case's default rate",
 };
 
-// The reasons reviewers choose from when they approve part of a line or
-// reject it. Administrators keep the lists current without a code release;
-// a retired reason stays on decisions that used it.
+// The reasons reviewers choose from when they approve part of a line, reject
+// it or set a case's default rate. Administrators keep the lists current
+// without a code release; a retired reason stays where it was used.
 export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => listDecisionReasonSettings(), [version]);
@@ -211,10 +212,10 @@ export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <section className="compact-card">
-      <h3>Reasons for cutting or rejecting a line</h3>
+      <h3>Reasons for review decisions</h3>
       <p className="compact-hint">
-        Approving part of a line and rejecting it each have their own list. Reviewers must pick one, and "Another
-        reason" needs a note.
+        Approving part of a line, rejecting it and setting a case's default rate each have their own list. Reviewers
+        must pick one, and "Another reason", on every list, needs a note.
       </p>
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
       <RecordTable
@@ -241,7 +242,7 @@ export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
                   ))}
                 </select>
               ) : (
-                LIST_LABELS[reason.appliesTo]
+                reason.code === 'other' ? 'Every list' : LIST_LABELS[reason.appliesTo]
               ),
           },
           {

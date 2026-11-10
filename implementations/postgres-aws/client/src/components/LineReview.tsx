@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react';
-import type { DecisionReason, InvoiceReviewLine, LineDecision, LineDecisionInput } from '../api/client';
-import { formatDateTime } from '../formatDateTime';
+import type { CaseRate, DecisionReason, InvoiceReviewLine, LineDecision, LineDecisionInput, LineRateInput, RateType } from '../api/client';
+import { formatDate, formatDateTime } from '../formatDateTime';
 import { cents, formatMoney, formatRate } from '../formatMoney';
 import { isMileage } from '../invoiceLineDisplay';
 import { StatusPill } from './StatusPill';
@@ -80,6 +80,34 @@ function hasHours(line: InvoiceReviewLine): boolean {
   return line.quantity !== null && Number(line.quantity) > 0 && line.billedRate !== null;
 }
 
+export const RATE_TYPE_LABELS: Record<RateType, string> = {
+  hourly: 'hourly',
+  travel: 'travel time',
+  waiting: 'waiting time',
+  mileage: 'mileage',
+};
+
+// Where else a changed rate may go: the matching lines on this invoice, or
+// the case's default (model/rules.yaml set_case_rate).
+export interface RateScope {
+  personName: string;
+  // Undecided lines by the same person at the same kind of rate, this one included.
+  matching: InvoiceReviewLine[];
+  hasCase: boolean;
+  caseRates: CaseRate[];
+  onApply: (input: LineRateInput) => void;
+}
+
+// The latest case rate for this person or kind, which a new one must follow.
+export function latestCaseRate(caseRates: CaseRate[], line: InvoiceReviewLine, target: 'person' | 'kind'): CaseRate | null {
+  const own = caseRates.filter(
+    (row) =>
+      row.rateType === line.rateType &&
+      (target === 'person' ? row.professionalId === line.rateProfessionalId : row.professionalKindId === line.rateKindId),
+  );
+  return own.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt)).at(-1) ?? null;
+}
+
 // Approve part (corrected hours or rate, or the amount) or reject: both ask
 // why. The note is seen by everyone who can see the invoice.
 export function DecisionPanel({
@@ -92,11 +120,13 @@ export function DecisionPanel({
   onSubmit,
   onCancel,
   logBlocks = false,
+  rateScope = null,
 }: {
   line: InvoiceReviewLine;
   mode: PanelMode;
   reasons: DecisionReason[];
   initial: LineDecision | null;
+  rateScope?: RateScope | null;
   // The time log flags it, and the setting asks why before approving its billed hours.
   logBlocks?: boolean;
   saving: boolean;
@@ -112,10 +142,37 @@ export function DecisionPanel({
   const [picked, setReasonCode] = useState(initial?.reasonCode ?? '');
   const [note, setNote] = useState(initial?.note ?? '');
   const [override, setOverride] = useState(initial?.timeLogOverride ?? '');
+  const [scope, setScope] = useState<'line' | 'matching' | 'case'>('line');
+  const [target, setTarget] = useState<'person' | 'kind'>('person');
+  const matching = rateScope?.matching ?? [];
+  const [from, setFrom] = useState(matching.map((other) => other.serviceDate ?? '').sort()[0] || (line.serviceDate ?? ''));
+  const [caseReason, setCaseReason] = useState('');
+  const [toConfigured, setToConfigured] = useState(false);
   // Approving in part and rejecting have their own lists; a reason kept from
   // a decision on the other list doesn't carry over.
-  const options = reasons.filter((reason) => reason.appliesTo === 'both' || reason.appliesTo === mode);
+  const options = reasons.filter((reason) => reason.code === 'other' || reason.appliesTo === 'both' || reason.appliesTo === mode);
   const reasonCode = options.some((reason) => reason.code === picked) ? picked : '';
+  const caseReasons = reasons.filter((reason) => reason.code === 'other' || reason.appliesTo === 'case_rate');
+
+  // Only the rate changed: it may also go to other lines or the case. A case
+  // rate in force may also be returned to the configured rate.
+  const hoursKept = mode === 'approved_in_part' && byHours && Number(hours) === Number(line.quantity);
+  const rateOnly = hoursKept && Number(rate) > 0 && Number(rate) !== Number(line.billedRate);
+  const canSetCase = Boolean(rateScope?.hasCase && line.rateProfessionalId && line.rateType && line.serviceDate);
+  const fromCase = line.rateSource === 'case_person' || line.rateSource === 'case_kind';
+  const offerScope = Boolean(
+    rateScope && line.rateType && hoursKept && ((rateOnly && (matching.length > 1 || canSetCase)) || (canSetCase && fromCase)),
+  );
+  const shownScope = offerScope ? scope : 'line';
+  const latest = rateScope ? latestCaseRate(rateScope.caseRates, line, target) : null;
+  const returning = shownScope === 'case' && toConfigured && latest?.rate != null;
+  const caseInvalid =
+    shownScope === 'case' &&
+    (!caseReason || (caseReason === 'other' && !note.trim()) || !from || from > (line.serviceDate ?? '') || (!rateOnly && !returning));
+  // The lines a rate beyond this one decides, as far as the page can tell.
+  const scopeLines = shownScope === 'matching' ? matching : shownScope === 'case' ? matching.filter((other) => (other.serviceDate ?? '') >= from) : [];
+  const scopeCents = scopeLines.reduce((sum, other) => sum + cents(Number(other.quantity) * Number(rate)), 0);
+  const scopeRequestedCents = scopeLines.reduce((sum, other) => sum + cents(other.amount), 0);
 
   const requestedCents = cents(line.amount);
   const approvedCents = byHours ? cents(Number(hours) * Number(rate)) : cents(Number(amount));
@@ -129,7 +186,7 @@ export function DecisionPanel({
     Number(rate) > 0 &&
     Number(rate) !== Number(line.billedRate) &&
     approvedCents >= requestedCents;
-  const needsReason = mode === 'rejected' || (mode === 'approved_in_part' && !raised);
+  const needsReason = mode === 'rejected' || (mode === 'approved_in_part' && !raised && shownScope === 'line');
   // Approving the billed hours, as billed or at another rate.
   const keepsHours = mode === 'time_log' || (mode === 'approved_in_part' && byHours && Number(hours) >= Number(line.quantity));
   const needsOverride = logBlocks && keepsHours;
@@ -149,6 +206,18 @@ export function DecisionPanel({
     }
     if (mode === 'time_log') {
       onSubmit({ outcome: 'approved', note: note.trim() || undefined, timeLogOverride });
+      return;
+    }
+    if (shownScope !== 'line' && rateScope) {
+      rateScope.onApply({
+        rate: returning ? null : Number(rate),
+        scope: shownScope,
+        ...(shownScope === 'case'
+          ? { target, effectiveFrom: from, reasonCode: caseReason, basedOnCaseRateId: latest?.caseRateId ?? null }
+          : {}),
+        note: note.trim() || undefined,
+        timeLogOverride,
+      });
       return;
     }
     if (raised) {
@@ -207,7 +276,24 @@ export function DecisionPanel({
                 <input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} />
               </label>
             )}
-            {raised ? (
+            {shownScope !== 'line' ? (
+              <p className="decision-panel__result">
+                {returning ? (
+                  <strong>
+                    {scopeLines.length} {scopeLines.length === 1 ? 'line' : 'lines'} approved at the configured rate
+                  </strong>
+                ) : (
+                  <>
+                    <strong>
+                      You approve {formatMoney(scopeCents / 100)} on {scopeLines.length} {scopeLines.length === 1 ? 'line' : 'lines'}
+                    </strong>
+                    <span className="cell-note">
+                      {formatMoney(scopeRequestedCents / 100)} was requested. No reason needed; sign-off sees the changed rates flagged.
+                    </span>
+                  </>
+                )}
+              </p>
+            ) : raised ? (
               <p className="decision-panel__result">
                 <strong>You approve {formatMoney(approvedCents / 100)}</strong>
                 <span className="cell-note">
@@ -229,6 +315,72 @@ export function DecisionPanel({
                   ? `Approve less than ${formatMoney(line.amount)}, or keep the ${miles ? 'miles' : 'hours'} and raise the rate.`
                   : `Approve more than nothing and less than ${formatMoney(line.amount)}.`}
               </p>
+            )}
+          </fieldset>
+        )}
+        {offerScope && rateScope && (
+          <fieldset className="decision-panel__scope">
+            <legend>{rateOnly ? `Use ${formatRate(rate)} for` : 'Change the rate for'}</legend>
+            <label className="radio-row">
+              <input type="radio" name={`${prefix}-scope`} checked={scope === 'line'} onChange={() => setScope('line')} />
+              This line only
+            </label>
+            {rateOnly && matching.length > 1 && (
+              <label className="radio-row">
+                <input type="radio" name={`${prefix}-scope`} checked={scope === 'matching'} onChange={() => setScope('matching')} />
+                The {matching.length} undecided {RATE_TYPE_LABELS[line.rateType!]} lines by {rateScope.personName} on this invoice
+              </label>
+            )}
+            {canSetCase && (
+              <label className="radio-row">
+                <input type="radio" name={`${prefix}-scope`} checked={scope === 'case'} onChange={() => setScope('case')} />
+                The case's default {RATE_TYPE_LABELS[line.rateType!]} rate, and the lines it covers here
+              </label>
+            )}
+            {shownScope === 'case' && (
+              <div className="decision-panel__case-rate">
+                <div className="inline-pair">
+                  <label>
+                    For
+                    <select value={target} onChange={(e) => setTarget(e.target.value as 'person' | 'kind')}>
+                      <option value="person">{rateScope.personName}</option>
+                      {line.rateKindId && <option value="kind">Every {line.rateKindDisplayName ?? 'person of their kind'} on this case</option>}
+                    </select>
+                  </label>
+                  <label>
+                    From work on
+                    <input type="date" value={from} max={line.serviceDate ?? undefined} onChange={(e) => setFrom(e.target.value)} />
+                  </label>
+                </div>
+                {latest && (
+                  <p className="cell-note">
+                    Now {latest.rate === null ? 'the configured rate' : formatRate(latest.rate)} from {formatDate(latest.effectiveFrom)}, set by{' '}
+                    {latest.recordedByDisplayName}.
+                  </p>
+                )}
+                {latest?.rate != null && (
+                  <label className="checkbox-row">
+                    <input type="checkbox" checked={toConfigured} onChange={(e) => setToConfigured(e.target.checked)} />
+                    Return to the configured rate instead
+                  </label>
+                )}
+                <fieldset>
+                  <legend>Why are you setting it?</legend>
+                  {caseReasons.map((reason) => (
+                    <label key={reason.code} className="radio-row">
+                      <input
+                        type="radio"
+                        name={`${prefix}-case-reason`}
+                        value={reason.code}
+                        checked={caseReason === reason.code}
+                        onChange={() => setCaseReason(reason.code)}
+                      />
+                      {reason.displayName}
+                    </label>
+                  ))}
+                </fieldset>
+                <p className="cell-note">Invoices already sent keep their defaults; open ones on this case are flagged.</p>
+              </div>
             )}
           </fieldset>
         )}
@@ -257,7 +409,7 @@ export function DecisionPanel({
           </label>
         )}
         <label className="decision-panel__note">
-          Note for the record{reasonCode === 'other' ? '' : ' (optional)'}
+          Note for the record{reasonCode === 'other' || (shownScope === 'case' && caseReason === 'other') ? '' : ' (optional)'}
           <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
           <span className="cell-note">Everyone who sees the invoice sees this note.</span>
         </label>
@@ -270,7 +422,8 @@ export function DecisionPanel({
           disabled={
             saving ||
             (needsReason && !reasonCode) ||
-            (mode === 'approved_in_part' && !validAmount && !raised) ||
+            (mode === 'approved_in_part' && !validAmount && !raised && shownScope === 'line') ||
+            caseInvalid ||
             (reasonCode === 'other' && !note.trim()) ||
             (needsOverride && !override.trim())
           }
@@ -281,7 +434,13 @@ export function DecisionPanel({
               ? `Approve ${formatMoney(line.amount)}`
               : mode === 'rejected'
               ? 'Reject line'
-              : validAmount || raised
+              : returning
+                ? 'Return to the configured rate and approve'
+                : shownScope === 'case'
+                ? 'Set the case rate and approve'
+                : shownScope === 'matching'
+                  ? `Approve ${matching.length} lines at ${formatRate(rate)}`
+                  : validAmount || raised
                 ? `Approve ${formatMoney(approvedCents / 100)}`
                 : 'Approve part'}
         </button>

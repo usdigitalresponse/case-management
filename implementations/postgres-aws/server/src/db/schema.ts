@@ -5,6 +5,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   date,
   index,
   integer,
@@ -47,9 +48,9 @@ export const expenseTypes = referenceTable('expense_types');
 export const invoiceApprovalStepTypes = referenceTable('invoice_approval_step_types');
 export const invoiceApprovalOutcomes = referenceTable('invoice_approval_outcomes');
 export const invoiceEventTypes = referenceTable('invoice_event_types');
-// Why a line was approved in part or rejected (model/rules.yaml decide_invoice_lines).
-// applies_to: which outcome lists a reason, 'approved_in_part', 'rejected'
-// or 'both' (model/rules.yaml decide_invoice_lines).
+// Why a line was approved in part or rejected (model/rules.yaml decide_invoice_lines),
+// or a case rate set. applies_to: which list a reason is on, 'approved_in_part',
+// 'rejected', 'both' or 'case_rate'.
 export const invoiceDecisionReasons = pgTable('invoice_decision_reasons', {
   id: uuid('id').primaryKey().defaultRandom(),
   code: text('code').notNull().unique(),
@@ -510,9 +511,11 @@ export const invoiceLine = pgTable(
     statedAmount: numeric('stated_amount', { precision: 12, scale: 2 }),
     // Three places for a per-mile rate.
     billedRate: numeric('billed_rate', { precision: 12, scale: 3 }),
-    // The default rate on the service date: a time line's from its kind (or
-    // travel time rate), a mileage line's per mile. Review flags rates that differ.
+    // The default rate on the service date (../billing/defaultRates.ts). Review flags rates that differ.
     configuredRate: numeric('configured_rate', { precision: 12, scale: 3 }),
+    // Where the default came from: case_person, case_kind, person, kind or general.
+    rateSource: text('rate_source'),
+    caseRateId: uuid('case_rate_id').references((): AnyPgColumn => caseRate.caseRateId),
     timekeeperLabel: text('timekeeper_label'),
     // Whom the submitter matched the label to.
     timekeeperProfessionalId: uuid('timekeeper_professional_id').references(
@@ -534,6 +537,43 @@ export const invoiceLine = pgTable(
     sourceLocation: text('source_location'),
   },
   (table) => [index('invoice_line_invoice_id_idx').on(table.invoiceId)],
+);
+
+// Insert-only: a reviewer's default rate for one person or one kind on one
+// case, set while reviewing an invoice (model/rules.yaml set_case_rate;
+// ../billing/caseRates.ts). A null rate returns to the configured rate.
+export const caseRate = pgTable(
+  'case_rate',
+  {
+    caseRateId: uuid('case_rate_id').primaryKey().defaultRandom(),
+    caseId: uuid('case_id')
+      .notNull()
+      .references(() => caseTable.caseId),
+    professionalId: uuid('professional_id').references(() => professional.professionalId),
+    professionalKindId: uuid('professional_kind_id').references(() => professionalKinds.id),
+    // hourly, travel, waiting or mileage.
+    rateType: text('rate_type').notNull(),
+    rate: numeric('rate', { precision: 12, scale: 3 }),
+    // The default it replaced on the line it was set from.
+    replacedRate: numeric('replaced_rate', { precision: 12, scale: 3 }),
+    effectiveFrom: date('effective_from').notNull(),
+    reasonId: uuid('reason_id')
+      .notNull()
+      .references(() => invoiceDecisionReasons.id),
+    note: text('note'),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoice.invoiceId),
+    correctsCaseRateId: uuid('corrects_case_rate_id').references((): AnyPgColumn => caseRate.caseRateId),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('case_rate_case_idx').on(table.caseId, table.effectiveFrom),
+    check('case_rate_one_target', sql`num_nonnulls(${table.professionalId}, ${table.professionalKindId}) = 1`),
+  ],
 );
 
 // Immutable request history (model/rules.yaml validate_payment_request).

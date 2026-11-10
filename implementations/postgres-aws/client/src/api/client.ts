@@ -210,9 +210,35 @@ export interface PreauthorizationSummary {
   waiting: string;
 }
 
+export type RateType = 'hourly' | 'travel' | 'waiting' | 'mileage';
+export type RateSource = 'case_person' | 'case_kind' | 'person' | 'kind' | 'general';
+
+// A reviewer's default rate for one person or kind on a case. Staff only.
+export interface CaseRate {
+  caseRateId: string;
+  professionalId: string | null;
+  professionalDisplayName: string | null;
+  professionalKindId: string | null;
+  kindDisplayName: string | null;
+  rateType: RateType;
+  // Null: back to the configured rate.
+  rate: string | null;
+  replacedRate: string | null;
+  effectiveFrom: string;
+  reasonDisplayName: string;
+  note: string | null;
+  invoiceId: string;
+  invoiceNumber: string | null;
+  correctsCaseRateId: string | null;
+  recordedByDisplayName: string;
+  recordedAt: string;
+  inForce: boolean;
+}
+
 export interface CaseInvoices {
   invoices: ReviewQueueItem[];
   preauthorizations: PreauthorizationSummary[];
+  caseRates: CaseRate[];
   // Where this case's new invoices go, ahead of the default.
   reviewer: AssignedPerson | null;
   caseNumber: string | null;
@@ -1555,8 +1581,8 @@ export function listReviewPeople(): Promise<{ people: ReviewPerson[] }> {
   return request('/api/invoices/reviewers');
 }
 
-// Which list a reason is on: approving in part, rejecting, or both.
-export type ReasonAppliesTo = 'approved_in_part' | 'rejected' | 'both';
+// Which list a reason is on: approving in part, rejecting, both, or setting a case rate.
+export type ReasonAppliesTo = 'approved_in_part' | 'rejected' | 'both' | 'case_rate';
 
 export interface DecisionReason {
   code: string;
@@ -1641,12 +1667,19 @@ export interface InvoiceReviewLine {
   statedAmount: string | null;
   // The rate a time or mileage line is billed at.
   billedRate: string | null;
-  // Time lines: the configured rate for the professional's kind.
+  // Time and mileage lines: the default rate, and where it came from.
   configuredRate: string | null;
-  // Time lines: what the rate check compares to, the pre-authorized rate
-  // when the case has one, else the configured rate.
+  rateSource: RateSource | null;
+  caseRateId: string | null;
+  rateType: RateType | null;
+  // Whose rate prices it.
+  rateProfessionalId: string | null;
+  rateKindId: string | null;
+  rateKindDisplayName: string | null;
+  // Time lines: what the rate check compares to, a case rate a reviewer set,
+  // else the pre-authorized rate when the case has one, else the configured rate.
   rateLimit: string | null;
-  rateLimitSource: 'preauthorized' | 'configured' | null;
+  rateLimitSource: 'case' | 'preauthorized' | 'configured' | null;
   // 'mileage' on a mileage line; its quantity is the miles claimed.
   expenseTypeCode: string | null;
   // Its trip, shared by that trip's lines, with the trip's route; a time
@@ -1747,6 +1780,10 @@ export interface InvoiceReview {
   senderEmail: string | null;
   // The case time log the reviewer is checking the lines against.
   timeLog: TimeLogCheck | null;
+  // Staff only: the case's rates, and those set since this invoice was sent
+  // that would now give its lines another default.
+  caseRates: CaseRate[];
+  caseRatesChangedSinceSent: string[];
 }
 
 export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {
@@ -1869,6 +1906,30 @@ export function decideInvoiceLine(invoiceId: string, invoiceLineId: string, inpu
 
 export function undoInvoiceLineDecision(invoiceId: string, invoiceLineId: string, linesVersion?: number): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/decision`, { method: 'DELETE', body: JSON.stringify({ linesVersion }) });
+}
+
+export interface LineRateInput {
+  // Null with the case scope: back to the configured rate.
+  rate: number | null;
+  // The matching lines on this invoice, or the case's default from a date.
+  scope: 'matching' | 'case';
+  target?: 'person' | 'kind';
+  effectiveFrom?: string;
+  reasonCode?: string;
+  note?: string;
+  timeLogOverride?: string;
+  // The latest case rate for this person or kind the page showed; a change
+  // since is refused (409 case_rate_changed).
+  basedOnCaseRateId?: string | null;
+}
+
+export function applyLineRate(
+  invoiceId: string,
+  invoiceLineId: string,
+  input: LineRateInput,
+  linesVersion?: number,
+): Promise<{ decided: number; caseRateId: string | null }> {
+  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/rate`, { method: 'POST', body: JSON.stringify({ ...input, linesVersion }) });
 }
 
 export function repriceInvoice(invoiceId: string, linesVersion?: number): Promise<{ repriced: number }> {

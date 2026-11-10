@@ -878,6 +878,11 @@ form.compact-form { max-width: none; }
 .decision-panel__result strong { display: block; font-size: 1.1rem; color: var(--ink); }
 .radio-row, .checkbox-row { display: flex; align-items: center; gap: .5rem; margin: .3rem 0; color: var(--ink); font-size: .9rem; cursor: pointer; }
 .decision-panel__note { display: block; }
+.decision-panel__case-rate { margin: .6rem 0 0 1.6rem; display: grid; gap: .6rem; }
+.decision-panel__case-rate .inline-pair { grid-template-columns: 1fr 1fr; max-width: 26rem; }
+.decision-panel select, .decision-panel input[type="date"] { display: block; width: 100%; box-sizing: border-box; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); background: var(--surface); }
+.case-rates { margin: 1rem 0; }
+.case-rates summary { cursor: pointer; font-size: .9rem; color: var(--ink-muted); }
 
 /* Totals and sign-off */
 .totals-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem 2rem; margin-top: 1rem; padding: 1rem 1.5rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }

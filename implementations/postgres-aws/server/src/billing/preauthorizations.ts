@@ -78,16 +78,20 @@ export async function loadRateLimits(db: DatabaseOrTransaction, caseId: string |
 
 export interface RateLimit {
   rate: string;
-  source: 'preauthorized' | 'configured';
+  source: 'case' | 'preauthorized' | 'configured';
 }
 
-// The rate a time line is checked against: the pre-authorized rate for the
-// professional whose work it is, else the case's, else the configured rate.
+// The rate a time line is checked against: a case rate a reviewer set, else
+// the pre-authorized rate for the professional whose work it is, else the
+// case's, else the configured rate.
 export function rateLimitFor(
-  line: { timekeeperProfessionalId: string | null; configuredRate: string | null },
+  line: { timekeeperProfessionalId: string | null; configuredRate: string | null; rateSource: string | null },
   invoiceProfessionalId: string | null,
   limits: Map<string | null, string>,
 ): RateLimit | null {
+  if (line.configuredRate !== null && (line.rateSource === 'case_person' || line.rateSource === 'case_kind')) {
+    return { rate: line.configuredRate, source: 'case' };
+  }
   const professionalId = line.timekeeperProfessionalId ?? invoiceProfessionalId;
   const preauthorized = (professionalId ? limits.get(professionalId) : undefined) ?? limits.get(null);
   if (preauthorized) return { rate: preauthorized, source: 'preauthorized' };

@@ -30,6 +30,7 @@ import { finishReview, signOffInvoice } from '../billing/reviewRounds';
 import { setReviewSettings } from '../billing/reviewSettings';
 import { getDelegateAffiliationRoleId } from '../professionals/delegateRole';
 import { createCase } from '../intake/createCase';
+import { applyLineRate } from '../billing/caseRates';
 import { createTimeEntry } from '../portal/createTimeEntry';
 import { createInvoice } from '../portal/createInvoice';
 import { ensureUserAccountForEmail } from '../auth/userAccounts';
@@ -636,9 +637,9 @@ async function seedDemoReview(
 }
 
 // One invoice just submitted and given to the demo sign-in to review, billed
-// above the configured rate; one another reviewer finished, with an answered
-// question and a changed rate, for the Director to sign off; and one the
-// Director rejected whole.
+// above the configured rate; two on a case with a case rate; one another
+// reviewer finished, with an answered question and a changed rate, for the
+// Director to sign off; and one the Director rejected whole.
 async function seedDemoSignInReview(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   assignments: DemoAssignment[],
@@ -666,6 +667,51 @@ async function seedDemoSignInReview(
     ],
   });
   await reassignReviewer(db, signIn, toReview.invoiceId, { userAccountId: signIn });
+
+  // On the expert's case: one sent first and given to the demo sign-in, then
+  // one on which a reviewer set the case's rate, waiting for the Director.
+  // The first is flagged, since its default changed after it was sent.
+  const expertActor = { userAccountId: expert.userAccountId, professionalId: expert.professionalId };
+  const sentEarlier = await createInvoice(db, expertActor, {
+    caseId: expert.caseId,
+    attested: true,
+    periodStart: '2026-04-01',
+    periodEnd: '2026-04-30',
+    lines: [
+      { lineType: 'time', serviceDate: '2026-04-06', quantity: 2, unitRate: 170, description: 'Examined the evidence' },
+      { lineType: 'time', serviceDate: '2026-04-13', quantity: 1.5, unitRate: 170, description: 'Called counsel about the findings' },
+      { lineType: 'time', serviceDate: '2026-04-20', quantity: 4, unitRate: 170, description: 'Prepared to testify' },
+    ],
+  });
+  await reassignReviewer(db, signIn, sentEarlier.invoiceId, { userAccountId: signIn });
+  const caseRateSet = await createInvoice(db, expertActor, {
+    caseId: expert.caseId,
+    attested: true,
+    periodStart: '2026-05-01',
+    periodEnd: '2026-05-31',
+    lines: [
+      { lineType: 'time', serviceDate: '2026-05-04', quantity: 3, unitRate: 170, description: 'Drafted the expert report' },
+      { lineType: 'time', serviceDate: '2026-05-11', quantity: 2.5, unitRate: 170, description: 'Testified at trial' },
+    ],
+  });
+  const [report] = await lineIds(caseRateSet.invoiceId);
+  if (!report) {
+    throw new Error('Expected lines on the case rate demo invoice.');
+  }
+  const { caseRateId } = await applyLineRate(db, reviewer, caseRateSet.invoiceId, report, {
+    rate: 165,
+    scope: 'case',
+    target: 'person',
+    effectiveFrom: '2026-04-01',
+    reasonCode: 'case_rate_agreed',
+    note: 'Agreed with counsel when the expert was retained.',
+    basedOnCaseRateId: null,
+  });
+  if (!caseRateId) {
+    throw new Error('Expected the demo case rate to be set.');
+  }
+  await setSignOffApprovers(db, reviewer, caseRateSet.invoiceId, { userAccountIds: [director] });
+  await finishReview(db, reviewer, caseRateSet.invoiceId);
 
   const attorneyActor = { userAccountId: attorney.userAccountId, professionalId: attorney.professionalId };
   const toSignOff = await createInvoice(db, attorneyActor, {

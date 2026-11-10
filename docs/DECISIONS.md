@@ -9,7 +9,7 @@ entry when a decision materially changes.
 
 ### Design I: cases, case rates and one staff role
 
-- **Status:** Decided; not built
+- **Status:** Decided; staff roles and case rates built in the Postgres/AWS prototype
 - **Decided:** 2026-11-09
 
 Design I brings cases back to the invoice review tool. Features in the
@@ -102,8 +102,10 @@ questions, the time log check, entering an invoice in review, "Mark completed",
   read-only.
 - If two staff members change the same case rate at the same time, the second
   change is refused and the latest value is shown.
-- Before this is built, the model needs a case rate entity and an update to the
-  `apply_professional_rates` rule.
+- Once a case rate is set, the rate check and re-pricing use it instead of a
+  pre-authorized rate (decided 2026-11-09).
+- Built in the Postgres/AWS prototype with the model's `case_rate` and
+  `set_case_rate`.
 
 ### Invoice review beside an external case management system
 

@@ -682,7 +682,29 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `invoice_decision_reasons` code, and "other" a note. Working decisions
     are not audited. The first one moves the invoice to `under_review`,
     which ends recall. `POST .../reprice` approves in part, at the
-    configured rate, every undecided time line billed above it.
+    rate limit (a case rate, else the pre-authorized rate, else the
+    configured rate), every undecided time line billed above it.
+  - Case rates (`set_case_rate`; `src/billing/caseRates.ts`,
+    `defaultRates.ts`, migration `0035`): `POST .../lines/:lineId/rate`
+    approves the undecided matching lines (same person, same type of rate)
+    at a changed rate, or adds a `case_rate` row for the person or their
+    kind from a date and approves the lines on this invoice it governs.
+    "Approve part" offers both once only the rate changed
+    (`client/src/components/LineReview.tsx`), and "Return to the configured
+    rate instead" stores a row with no rate. Pricing (`priceLines.ts`) takes
+    each line's default from `defaultRates.ts` and records
+    `invoice_line.rate_source` and `case_rate_id`. A case rate changes only
+    the invoice it was set on; others on the case list it under
+    `caseRatesChangedSinceSent`. Concurrent changes are refused when the
+    page's `basedOnCaseRateId` isn't the latest, under a row lock on the
+    case. The invoice shows the case's rates and, for sign-off, those set
+    on it; the case page lists them all (`client/src/components/CaseRates.tsx`).
+    Case rate reasons are `invoice_decision_reasons` with `applies_to`
+    `case_rate` ("other" is on every list); the model's
+    `case_rate.reason_code_id` is `reason_id` here. Gaps: case rates can
+    only be set on invoices with a case, which demo invoices filed by person
+    don't have; and "the matching lines" are worked out on the page and
+    again on the server, so the page's total can differ if lines changed.
   - `POST .../finish` (any staff member) needs a decision on every line and
     at least one sign-off approver; it records the round as
     `invoice_approval_decision` rows at the next sequence number, each line

@@ -15,6 +15,7 @@ export interface RateRow {
   professionalId: string;
   hourlyRate: string;
   effectiveFrom: string;
+  source: 'person' | 'kind';
 }
 
 // Each professional's hourly rates, oldest first.
@@ -43,7 +44,11 @@ export async function listRates(db: DatabaseOrTransaction, professionalIds: stri
       .where(inArray(professional.professionalId, professionalIds))
       .orderBy(asc(professionalKindRate.effectiveFrom), asc(professionalKindRate.recordedAt)),
   ]);
-  return ownFirst(kinds, own as RateRow[], (rate) => rate.professionalId);
+  return ownFirst<RateRow>(
+    kinds.map((rate) => ({ ...rate, source: 'kind' as const })),
+    own.map((rate) => ({ ...rate, hourlyRate: rate.hourlyRate!, source: 'person' as const })),
+    (rate) => rate.professionalId,
+  );
 }
 
 // General rates until each key's own first takes effect, then its own; oldest first.
@@ -95,10 +100,14 @@ export async function addOwnRates(
 
 // A later row for the same date replaces an earlier one, as recorded.
 export function rateOn(rates: RateRow[], professionalId: string, date: string): string | undefined {
-  let found: string | undefined;
+  return rateRowOn(rates, professionalId, date)?.hourlyRate;
+}
+
+export function rateRowOn(rates: RateRow[], professionalId: string, date: string): RateRow | undefined {
+  let found: RateRow | undefined;
   for (const rate of rates) {
     if (rate.professionalId === professionalId && rate.effectiveFrom <= date) {
-      found = rate.hourlyRate;
+      found = rate;
     }
   }
   return found;

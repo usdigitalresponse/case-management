@@ -132,6 +132,14 @@ approver may reject the whole request; and a review setting decides whether
 anyone on staff or only named sign-off approvers may sign off. The workflow
 gains `reject_at_sign_off`. The snapshot layout is unchanged apart from
 `spec_version`.
+Also under 0.11.0: `case_rate` holds a reviewer's default rate for one person
+or kind of professional on a case, from a date, added only while reviewing a
+request and never changed (`set_case_rate`). A line's default comes from the
+case's rate for the person, then for their kind, then the configured rates,
+and `invoice_line.rate_source` and `case_rate_id` record which. A case rate
+changes only the request it was set on; other open requests on the case are
+flagged, not repriced. A case rate also comes before a pre-authorized rate in
+the rate check.
 
 ## Coverage and changes
 

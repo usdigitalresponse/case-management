@@ -16,6 +16,7 @@ import {
 } from '../db/schema';
 import { listReviewQueue } from '../billing/reviewQueue';
 import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
+import { loadCaseRateViews } from '../billing/caseRates';
 import { loadCaseReviewer, setCaseReviewer } from '../billing/reviewAssignment';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { createCase } from '../intake/createCase';
@@ -214,8 +215,8 @@ router.post(
 );
 
 // The case's submitted invoices, with who has each and what was approved,
-// and its pre-authorizations and invoice reviewer. Review itself happens on
-// the invoice page (../routes/invoices.ts).
+// and its pre-authorizations, case rates and invoice reviewer. Review itself
+// happens on the invoice page (../routes/invoices.ts).
 router.get(
   '/:id/invoices',
   asyncHandler(async (req, res) => {
@@ -224,9 +225,10 @@ router.get(
       res.status(404).json({ error: 'not_found' });
       return;
     }
-    const [{ invoices: rows }, preauthorizations, reviewer, numbers] = await Promise.all([
+    const [{ invoices: rows }, preauthorizations, caseRates, reviewer, numbers] = await Promise.all([
       listReviewQueue(db, 'all', { caseId }),
       loadPreauthorizationSummaries(db, caseId),
+      loadCaseRateViews(db, caseId),
       loadCaseReviewer(db, caseId),
       loadCaseNumbers(db, [caseId]),
     ]);
@@ -234,6 +236,7 @@ router.get(
     res.json({
       invoices: rows,
       preauthorizations,
+      caseRates,
       reviewer,
       caseNumber: numbers.get(caseId)?.caseNumber ?? null,
       otherCaseNumbers: numbers.get(caseId)?.otherNumbers ?? [],

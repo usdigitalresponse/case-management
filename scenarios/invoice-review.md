@@ -206,5 +206,33 @@ configuration defaults.
       submitter never sees it, and exports and the billing record don't
       mention it. Recalling or deleting the request also removes it.
 
+16. **Case rates:** The professional's kind is configured at 100 an hour. A
+    request on their case bills 2 hours on the 2nd and 1 hour on the 10th at
+    100 (`set_case_rate`).
+    - The reviewer approves line 1 at 90 for the matching lines on this
+      request. Both lines are approved at 90 with no reason; no case rate is
+      recorded.
+    - Instead, the reviewer sets the case's default for this person to 125
+      from the 2nd. A reason from the case rate list is required; a reason
+      from the cut list is refused, and a start after line 1's date is
+      refused. The case rate records 125, the 100 it replaced, the date, the
+      reason, the reviewer and the request. Both lines now show a default of
+      125 from the case and are approved at 125, with the reason.
+    - A second staff member, whose page still shows no case rate, sets 130.
+      It is refused and the page shows the latest. Set again from 125, the
+      new rate replaces the one from the same date.
+    - Another request on the case, sent before the case rate was set, keeps
+      its default of 100 and is flagged as changed since it was sent. A
+      request sent afterwards is priced with a default of 125.
+    - A case rate for the person's kind applies to everyone of that kind on
+      the case, unless the person has a case rate of their own.
+    - A case rate with no rate returns the case to the configured rate from
+      its date.
+    - With a pre-authorized rate of 110, lines are checked against it until
+      a case rate is set; then they are checked against the case rate.
+    - The approver sees the case rate set on the request, with the old and
+      new rates, who set it and why, before signing off. The case page lists
+      every case rate in date order and the ones in force now, read-only.
+
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.
