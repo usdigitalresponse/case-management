@@ -12,7 +12,6 @@ import {
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { DECIDED_STATUS_CODES, InvoiceStatus } from '../components/Completion';
-import { AddPersonToCase } from '../components/AddPersonToCase';
 import { CaseRateTable } from '../components/CaseRates';
 import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip } from '../components/FactsStrip';
@@ -227,8 +226,7 @@ export default function CaseDetail() {
         }
       />
       <p className="page-description">
-        Cases may be managed in your {EXTERNAL_SYSTEM_NAME}. They show here so invoices make sense. Add people here only so they
-        can send invoices on this case.
+        Cases may be managed in your {EXTERNAL_SYSTEM_NAME}. They show here so invoices make sense.
       </p>
 
       <FactsStrip>
@@ -279,10 +277,7 @@ export default function CaseDetail() {
           )}
         </section>
         <section className="compact-card">
-          <div className="section-heading-row">
-            <h2>People on this case</h2>
-            {!detail.case.closedOn && <AddPersonToCase caseId={detail.case.caseId} onAdded={refresh} />}
-          </div>
+          <h2>People on this case</h2>
           <RecordTable
             label="People on this case"
             rows={people}

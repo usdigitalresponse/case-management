@@ -1,7 +1,7 @@
 // What design I's case pages show beside each case: its number, who works on
 // it, its pre-authorized amount and invoices waiting, and the latest changes
 // across cases. Read-only.
-import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';
 import {
   caseAssignment,
@@ -20,6 +20,7 @@ import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { fromCents, toCents } from '../billing/money';
+import { hasLineReviewer } from './caseStage';
 
 export interface CaseListExtras {
   caseNumber: string | null;
@@ -61,6 +62,7 @@ export async function loadCaseListExtras(db: DatabaseOrTransaction, caseIds: str
 }
 
 // Invoice events worth showing on the overview, as words.
+const SENT_CODES = ['submitted', 'released_to_review'];
 const INVOICE_CHANGES: Record<string, string> = {
   submitted: 'sent for review',
   released_to_review: 'sent for review',
@@ -95,10 +97,12 @@ export async function loadRecentCaseChanges(db: DatabaseOrTransaction, limit = 8
         code: invoiceEventTypes.code,
         when: invoiceEvent.occurredAt,
         by: userAccount.displayName,
+        unassigned: sql<boolean>`${inArray(invoiceStatuses.code, IN_REVIEW_INVOICE_STATUS_CODES)} and not ${hasLineReviewer}`,
       })
       .from(invoiceEvent)
       .innerJoin(invoiceEventTypes, eq(invoiceEvent.eventTypeId, invoiceEventTypes.id))
       .innerJoin(invoice, eq(invoiceEvent.invoiceId, invoice.invoiceId))
+      .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
       .leftJoin(userAccount, eq(invoiceEvent.actorUserAccountId, userAccount.userAccountId))
       .where(and(isNotNull(invoice.caseId), inArray(invoiceEventTypes.code, Object.keys(INVOICE_CHANGES))))
       .orderBy(desc(invoiceEvent.occurredAt))
@@ -119,7 +123,9 @@ export async function loadRecentCaseChanges(db: DatabaseOrTransaction, limit = 8
   const changes = [
     ...invoiceRows.map((row) => ({
       caseId: row.caseId!,
-      what: `${row.periodStart ? `Invoice for ${MONTHS[Number(row.periodStart.slice(5, 7)) - 1]} ${row.periodStart.slice(0, 4)}` : 'An invoice'} ${INVOICE_CHANGES[row.code]}`,
+      what: `${row.periodStart ? `Invoice for ${MONTHS[Number(row.periodStart.slice(5, 7)) - 1]} ${row.periodStart.slice(0, 4)}` : 'An invoice'} ${
+        SENT_CODES.includes(row.code) && row.unassigned ? 'sent, no reviewer assigned yet' : INVOICE_CHANGES[row.code]
+      }`,
       when: row.when,
       by: row.by,
     })),

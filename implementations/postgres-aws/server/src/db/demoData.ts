@@ -56,7 +56,7 @@ const DEMO_CASE_COUNT = 10;
 const DEMO_PROFESSIONAL_COUNT = 4;
 // All three are staff; the third is the Director, the only one who signs off (seedDemoReviewers).
 const DEMO_STAFF_COUNT = 3;
-// How many demo cases get an external-submitter assignment; the rest stay unassigned.
+// How many demo cases get an external-submitter assignment with time and invoices.
 const ASSIGNED_CASE_COUNT = 6;
 
 async function seedDemoCases(fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>): Promise<string[]> {
@@ -347,6 +347,47 @@ async function seedDemoTimeEntriesAndInvoices(assignments: DemoAssignment[]): Pr
         serviceDate: entry.activityOn,
         quantity: entry.durationHours,
         description: entry.description,
+      })),
+    });
+  }
+}
+
+// Cases arrive with their first invoice (design I): the two cases after the
+// staff-assigned one each get a sender and a sent invoice no reviewer has
+// taken yet, so they show as needing assignment.
+async function seedDemoInvoicesWithoutReviewer(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+  caseIds: string[],
+  professionals: DemoProfessional[],
+): Promise<void> {
+  const [, , investigator, expert] = professionals;
+  const waiting: Array<[string | undefined, DemoProfessional | undefined, string]> = [
+    [caseIds[ASSIGNED_CASE_COUNT + 1], expert, 'Expert'],
+    [caseIds[ASSIGNED_CASE_COUNT + 2], investigator, 'Investigator'],
+  ];
+  for (const [caseId, professional, kind] of waiting) {
+    if (!caseId || !professional) {
+      throw new Error('Expected demo cases and senders for the invoices without a reviewer.');
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await db.insert(caseAssignment).values({
+      caseId,
+      professionalId: professional.professionalId,
+      assignedAt: faker.date.recent({ days: 90 }),
+      assignmentRoleId: fixtures.externalSubmitterAssignmentRoleId,
+      assignedByUserAccountId: fixtures.staffUserAccountId,
+    });
+    const descriptions = DEMO_TIME_DESCRIPTIONS[kind]!;
+    // eslint-disable-next-line no-await-in-loop
+    await createInvoice(db, professional, {
+      caseId,
+      submit: true,
+      attested: true,
+      lines: [0, 1].map((i) => ({
+        lineType: 'time' as const,
+        serviceDate: faker.date.recent({ days: 30 }).toISOString().slice(0, 10),
+        quantity: faker.number.float({ min: 1, max: 5, fractionDigits: 2 }),
+        description: descriptions[i]!,
       })),
     });
   }
@@ -885,6 +926,7 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
   await seedDemoMileage(fixtures, assignments);
   await seedClosedCase(fixtures, caseIds);
   await seedStaffAssignment(fixtures, caseIds, staffUserAccountIds);
+  await seedDemoInvoicesWithoutReviewer(fixtures, caseIds, professionals);
   await seedDemoReview(fixtures, caseIds, assignments, staffUserAccountIds);
   await seedDemoPreauthorizationRequests(fixtures, assignments, professionals);
   const [partner, colleague] = professionals;

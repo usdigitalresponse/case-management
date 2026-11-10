@@ -11,7 +11,8 @@ import {
   type CountyRow,
 } from '../counties';
 
-export function useCountyControl<T>(rows: T[], countyOf: (row: T) => CountyRow) {
+// hideLabel: beside other filters, the first choice reads "All counties" instead.
+export function useCountyControl<T>(rows: T[], countyOf: (row: T) => CountyRow, { hideLabel = false } = {}) {
   const { data } = useApiResource(() => listCounties().then((result) => result.counties), []);
   const options = data ?? [];
   const [choice, setChoice] = useState(ALL_COUNTIES);
@@ -20,9 +21,9 @@ export function useCountyControl<T>(rows: T[], countyOf: (row: T) => CountyRow) 
 
   const control = (
     <label className="sort-select county-list-control">
-      <span>County</span>
+      <span className={hideLabel ? 'usa-sr-only' : undefined}>County</span>
       <select className="usa-select" value={choice} onChange={(event) => setChoice(event.target.value)}>
-        <option value={ALL_COUNTIES}>All</option>
+        <option value={ALL_COUNTIES}>{hideLabel ? 'All counties' : 'All'}</option>
         <option value={GROUPED_BY_COUNTY}>All, grouped by county</option>
         {offered.settings.length > 0 && (
           <optgroup label="In place of a county">

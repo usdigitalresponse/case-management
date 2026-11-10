@@ -35,9 +35,15 @@ How case intake is handled on the server. See also [`api.md`](api.md) and
   `CaseList.tsx`, `CaseDetail.tsx`; `server/src/cases/caseSummaries.ts`):
   `GET /api/cases` adds each case's number, the people working on it, its
   pre-authorized amounts added up and the invoices waiting (`loadCaseListExtras`).
-  Case overview has a card per stage with its count and a "Recently changed"
-  table (`GET /api/cases/recent-changes`: the latest invoice events on cases,
-  as words, and case openings and closings, with who). All cases has All /
+  Cases come in with their invoices, so stages follow them
+  (`server/src/cases/caseStage.ts`): Needs assignment when a waiting
+  invoice has no reviewer, Billing when every waiting one has, Closing after
+  an approved one, else Represented. Case overview has a card per stage
+  with its count and a "Recently changed" table (`GET
+  /api/cases/recent-changes`: the latest invoice events on cases, as
+  words, such as "sent, no reviewer assigned yet", and case openings and
+  closings, with who). Neither list has Add case, and the case page has no
+  Add person (corrected in design I). All cases has All /
   Open / Closed chips, the county filter and a search, with design I's
   columns. A case's page has its facts, a "Pre-authorized and billed" card
   per pre-authorization (approved, waiting, what would be left, and a bar)

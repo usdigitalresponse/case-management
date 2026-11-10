@@ -102,8 +102,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   assignments; `GET /api/cases/:id` includes an `assignments` array (both
   kinds, joined with professional/role display names) and a computed
   `stage` (`src/cases/caseStage.ts` — needs-assignment / represented /
-  billing / closing / none-if-closed, derived from assignment/invoice
-  state rather than stored). Deliberately not implemented:
+  billing / closing / none-if-closed, derived from its invoices and
+  whether a reviewer has each one, rather than stored). Deliberately not implemented:
   `require_qualification_for_assignment` and
   `review_workload_before_assignment` (both `model/rules.yaml`
   `outcome: configurable`) and the "at most one overlapping primary
