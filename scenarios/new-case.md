@@ -4,6 +4,11 @@ These platform-neutral scenarios apply to `model/forms.yaml:new_case` (0.2).
 Use synthetic people and configured reference values only. The current Dataverse
 bootstrap implements the earlier 0.1 journey and has not passed these scenarios.
 
+In the current invoice-review focus, most cases are created by staff from an
+invoice during review; see [invoice review](invoice-review.md) scenarios 17
+and 20. These scenarios cover creating a case directly, which stays in the
+model as later scope.
+
 1. **Minimum case:** Select an existing person in the configured client role,
    an opening status and an explicit effective timestamp. Save. Case, participant
    and opening event receive stable IDs in one logical transaction; the opening

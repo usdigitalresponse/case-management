@@ -278,5 +278,45 @@ configuration defaults.
       aside and why; the submitter doesn't. Put back, the warning counts
       again.
 
+20. **Adding what isn't listed:** A submitter can't find the case or the
+    provider, so they enter the case number 26-CR-00340 and a provider's name
+    as proposed details (`match_invoice_to_case`).
+    - Sending it needs the true-and-correct statement, as usual. No case,
+      person or professional is created; the request waits in invoice intake
+      (`send_for_matching`).
+    - Staff match the provider to an existing professional and create the case
+      from the proposed details, after the duplicate and close-match checks.
+      With both resolved, the request goes to review as if just submitted
+      (`release_to_review`). Through review, the case and provider are marked
+      as ones the submitter entered rather than chose.
+    - Instead, staff send another such request back with the reason "Please
+      give the full case number" (`return_to_submitter`). The submitter sees
+      the reason on it, marked as needing changes and listed first among
+      theirs, until they send it again; no email is sent. Anything staff had
+      already matched stays matched.
+    - Before staff release it, the submitter may recall it to draft.
+
+21. **Counties:** Cases record a county, or a setting such as post-conviction
+    in its place (`record_case_county`).
+    - In the county picker, settings that aren't counties are listed before
+      counties, and typing narrows both.
+    - Typing "east river county" when East River exists reuses it rather than
+      adding a duplicate. Typing an inactive county's name is refused, not
+      reactivated. A new name is added, recording who added it.
+    - An import naming a county in the file suggests it; the user confirms or
+      changes it, and a county named only in the file is added only when the
+      user goes on with it.
+    - Changing the county after submission records the county it replaced.
+
+22. **Configured rates:** The professional's kind is configured at 100 an
+    hour. The professional is given their own rate of 120 from the 15th
+    (`apply_professional_rates`).
+    - A request with time on the 10th and the 20th, on a case with no case
+      rate, prices the 10th at 100 and the 20th at 120; each line records
+      which rate applied.
+    - Changing the rate means adding one from a later date; the earlier rates
+      stay as they were. A request already sent keeps the rates it was sent
+      with.
+
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

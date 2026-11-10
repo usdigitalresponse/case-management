@@ -1,9 +1,10 @@
 # Postgres + AWS implementation (React frontend)
 
-A production-shaped prototype of the canonical model (`../../model/`), scoped to
-case intake and a few core read screens. This is a separate track from
-`../dataverse/`, which compares native-form, Power Fx and React UIs against a
-Dataverse backend; this implementation instead evaluates a conventional
+A production-shaped prototype of the canonical model (`../../model/`): an
+invoice review tool designed to sit beside an external case management system
+(see "Current Focus" in `../../docs/PRODUCT.md`). It is the most complete
+implementation. The separate `../dataverse/` track loads the same model into a
+Dataverse app for schema review; this one evaluates a conventional
 React + Node/Express + Postgres stack deployed on AWS.
 
 Modeled on two prior USDR applications of similar shape: `usdr-gost` and
@@ -13,27 +14,35 @@ Knex; see `MAPPING.md`'s "Stack" section for why.
 
 ## Status
 
-Server-side data layer, intake handler, HTTP API (routes + auth), the React
-client (invoice review queue and review, sign-off, exports, case list/detail,
-intake form, external submitter portal), and local Docker Compose loop are
-built. Terraform is an undeployed infrastructure skeleton. See `MAPPING.md`
-for the schema subset in scope and documented gaps, and
-`../../docs/case-intake-comparison-plan.md` for how this relates to the
-Dataverse comparison.
+Server-side data layer, HTTP API (routes + auth), the React client and the
+local Docker Compose loop are built. The client covers the invoice review
+queue and review, questions to submitters, sign-off, exports and the billing
+record; cases, people, providers, clients and organizations; pre-authorization
+requests; settings; and the external submitter portal. A single-host
+production-mode stack runs the demo; Terraform is an undeployed infrastructure
+skeleton. See `MAPPING.md` for the schema subset in scope and documented gaps.
 
 ## Scope
 
-In scope: create a case (existing person, opening status/effective timestamp,
-optional context and identifier) per `../../model/forms.yaml:new_case`; view a
-saved case; a basic case list/detail view. See `../../scenarios/new-case.md`
-for the acceptance scenarios this implementation targets.
+In scope, with the acceptance scenarios this implementation targets:
 
-Also in scope: invoice submission and import by external submitters, and
-line-by-line review with sign-off (`../../scenarios/invoice-review.md`).
+- invoice upload, import and entry by external submitters and staff, and
+  line-by-line review with questions, rates and sign-off
+  (`../../scenarios/invoice-review.md`, `../../scenarios/payment-request.md`,
+  `../../scenarios/invoice-import-export.md`);
+- pre-authorization requests, county thresholds and overruns
+  (`../../scenarios/preauthorization.md`);
+- cases as review needs them: created from an invoice or directly, matched to
+  invoices, with their providers, rates and pre-authorized amounts. The
+  earlier direct case intake (`../../scenarios/new-case.md`) still works by
+  address but is off the sidebar.
 
-Out of scope: person creation/duplicate review, reopening cases, expense
-tracking, payment, documents, integration with an external case management
-system, and production-grade auth/SSO. See `MAPPING.md` for details.
+Out of scope: duplicate review of people, reopening closed cases, time and
+expense tracking outside invoices, payment, integration with an external case
+management system (its links are inert placeholders), and production sign-in
+decisions. Uploaded invoice files are temporary working copies; only
+providers' CVs, fee schedules and quotes are kept. See `MAPPING.md` for
+details.
 
 ## Setup
 

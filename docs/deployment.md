@@ -1,6 +1,10 @@
-# Deploying the case intake prototype
+# Deploying the Dataverse prototype
 
-The current prototype targets an English-base Dataverse development environment.
+This guide covers the Dataverse prototype only. The Postgres/AWS prototype's
+local setup and demo deployment are in
+[its README](../implementations/postgres-aws/README.md).
+
+The Dataverse prototype targets an English-base Dataverse development environment.
 The production architecture is not selected. Use synthetic data only.
 
 ## 0.2 synthetic review deployment

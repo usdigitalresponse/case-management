@@ -1,4 +1,7 @@
-# Domain model review — 0.2
+# Domain model review
+
+This file began as the 0.2 review and now records each model revision through
+the current `spec_version` in `model/schema.yaml`.
 
 This review extends the existing generic specification. No source research,
 organization-specific vocabulary or configuration values are included. Model
@@ -264,6 +267,9 @@ See the implementation README for preparation, deployment and verification.
 
 ## Product decisions still required
 
+- Whether invoices are filed by the person whose work they bill, with the case
+  number as typed (built in the Postgres/AWS prototype as design G, with
+  prototype-only fields listed in its `MAPPING.md`), rather than by case.
 - Allowed participant/assignment roles, intake permissions, sensitive-note access,
   and retention policy.
 - Exact status vocabularies and transition policies, correction authority,

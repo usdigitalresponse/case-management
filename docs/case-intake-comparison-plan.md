@@ -1,6 +1,9 @@
 # Plan: compare three case-intake interfaces
 
-Status: planned; no interface has passed the complete intake acceptance suite.
+Status: paused, not run. No interface has passed the complete intake acceptance
+suite. Case intake is later scope while the product focuses on invoice review
+(see [PRODUCT.md](PRODUCT.md#current-focus)); resume this plan when intake
+becomes a priority.
 
 ## Objective and scope
 

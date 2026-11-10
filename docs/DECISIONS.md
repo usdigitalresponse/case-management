@@ -314,7 +314,8 @@ record mappings, commands, and gaps under `implementations/dataverse/`. This
 does not select a production platform. Client creation and the full case
 lifecycle remain outside the first intake slice.
 
-The current prototyping direction is Power Platform, using its built-in
+At the time, the prototyping direction was Power Platform (see the 2026-11-10
+refinement under Prototype Direction), using its built-in
 capabilities wherever appropriate. Standard model-driven forms and views are
 the default; specialized interfaces require a demonstrated workflow need.
 Preserve the option to compare this prototype with a hybrid or fully custom
@@ -332,6 +333,11 @@ stack as its direction is validated.
 
 The shared specification should remain the source for comparing candidate
 implementations until the project explicitly chooses a different direction.
+
+**Refined 2026-11-10:** Prototype findings narrowed the first product to
+invoice review beside an external case management system, built in the
+Postgres/AWS prototype. Case intake, assignment and workload stay in the shared
+model as later scope. This sets the working focus, not a production platform.
 
 
 ### Data and Privacy
@@ -388,9 +394,10 @@ An account with no `system_role_id` is a configuration gap, not an implicit
 grant or denial — do not treat absence as "administrator" or "no access" without
 resolving that decision first.
 
-### New-case intake UI comparison (in progress)
+### New-case intake UI comparison (paused)
 
-- **Status:** In progress — not yet a decision
+- **Status:** Paused, not run — not a decision. Case intake is later scope while
+  the product focuses on invoice review.
 - **Started:** 2026-09-10
 
 Plan to compare standard model-driven intake, a Power Fx Custom Page and a React
@@ -498,7 +505,8 @@ The following decisions will be made when the project has enough information to
 support them:
 
 - production technology stack and hosting architecture;
-- detailed product scope and domain model;
+- domain model beyond invoice review, and whether invoices are filed by person
+  or by case;
 - YAML schema, formatting, and validation tooling;
 - continuous integration and required checks;
 - additional implementation-specific directory structures; and
