@@ -221,7 +221,7 @@ describe('pre-authorized amounts', () => {
     const { invoices } = await listReviewQueue(testDb, 'open');
     expect(invoices.find((row) => row.invoiceId === invoiceId)?.flags).toContainEqual({
       kind: 'preauthorization',
-      message: 'Over the pre-authorized $150.00',
+      message: 'Over the pre-authorized $150.00, not explained',
     });
     await setPreauthorizedAmount(testDb, reviewer, caseId, { professionalId: person.professionalId, amount: 250 });
     const after = await listReviewQueue(testDb, 'open');

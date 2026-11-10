@@ -16,7 +16,8 @@ export function PortalTopBar() {
           <nav className="portal-tabs" aria-label="Main navigation">
             <NavLink to={PORTAL_HOME_PATH}>Your invoices</NavLink>
             <NavLink to="/portal/cases">Your cases</NavLink>
-            <NavLink to="/portal/imports">Import invoices</NavLink>
+            <NavLink to="/portal/preauthorizations">Pre-authorizations</NavLink>
+            <NavLink to="/portal/imports">Upload invoices</NavLink>
           </nav>
         )}
         {user && (

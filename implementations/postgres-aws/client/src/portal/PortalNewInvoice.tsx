@@ -23,7 +23,7 @@ import { PageHeader } from '../components/PageHeader';
 export default function PortalNewInvoice() {
   return (
     <div>
-      <PageHeader title="New invoice" description="Enter an invoice by hand for a case, or import invoice files." />
+      <PageHeader title="New invoice" description="Enter an invoice by hand for a case, or upload invoice files." />
       <NewInvoiceStart />
     </div>
   );
@@ -154,7 +154,7 @@ function CaseInvoice({
           It will wait under "Waiting for a case" until it's matched.
         </Notice>
       )}
-      {/* Files go through "Import invoice" instead. */}
+      {/* Files go through "Upload invoices" instead. */}
       <NewInvoiceForm
         caseId={caseId}
         newCase={newCase}

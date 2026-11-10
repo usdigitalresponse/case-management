@@ -7,6 +7,7 @@ import {
   invoiceApprovalChain,
   invoiceLine,
   invoiceLineWorkingDecision,
+  invoiceOverrunExplanation,
   invoiceReviewQuestion,
   invoiceStatuses,
 } from '../db/schema';
@@ -16,8 +17,9 @@ import { formatMoney, toCents } from './money';
 import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments } from './reviewAssignment';
 import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
-import { loadPreauthorizationSummaries, loadRateLimits, overPreauthorization, rateLimitFor, type RateLimit } from './preauthorizations';
+import { loadPreauthorizationSummaries, loadRateLimits, overPreauthorization, rateLimitFor, summaryForProfessional, type RateLimit } from './preauthorizations';
 import { evaluateBillingRules, type RuleFinding } from './billingRules';
+import { loadThresholdTable } from './preauthorizationThresholds';
 import { currentCaseNumber, matchCaseNumbers, searchMatch } from './caseNumbers';
 import {
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
@@ -104,7 +106,7 @@ export async function listReviewQueue(
     getReviewSettings(db),
   ]);
   const caseIds = [...new Set(headers.map((header) => header.caseId))];
-  const [working, rateLimits, questions, preauthorizations] = await Promise.all([
+  const [working, rateLimits, questions, preauthorizations, explained] = await Promise.all([
     db
       .select({ chainId: invoiceLineWorkingDecision.invoiceApprovalChainId })
       .from(invoiceLineWorkingDecision)
@@ -114,10 +116,19 @@ export async function listReviewQueue(
       .select({ invoiceId: invoiceReviewQuestion.invoiceId, answeredAt: invoiceReviewQuestion.answeredAt })
       .from(invoiceReviewQuestion)
       .where(inArray(invoiceReviewQuestion.invoiceId, invoiceIds)),
-    Promise.all(
-      caseIds.flatMap((caseId) => (caseId ? [caseId] : [])).map(async (caseId) => [caseId, await loadPreauthorizationSummaries(db, caseId)] as const),
-    ).then((pairs) => new Map(pairs)),
+    loadThresholdTable(db).then((thresholds) =>
+      Promise.all(
+        caseIds
+          .flatMap((caseId) => (caseId ? [caseId] : []))
+          .map(async (caseId) => [caseId, await loadPreauthorizationSummaries(db, caseId, [], thresholds)] as const),
+      ).then((pairs) => new Map(pairs)),
+    ),
+    db
+      .selectDistinct({ invoiceId: invoiceOverrunExplanation.invoiceId })
+      .from(invoiceOverrunExplanation)
+      .where(inArray(invoiceOverrunExplanation.invoiceId, invoiceIds)),
   ]);
+  const explainedInvoiceIds = new Set(explained.map((row) => row.invoiceId));
   const linesFor = new Map<string, typeof lines>();
   for (const line of lines) {
     linesFor.set(line.invoiceId, [...(linesFor.get(line.invoiceId) ?? []), line]);
@@ -179,17 +190,15 @@ export async function listReviewQueue(
           decision.approvedRate !== null &&
           Number(decision.approvedRate) !== Number(own.find((line) => line.invoiceLineId === decision.invoiceLineId)?.billedRate),
       ).length;
-      const preauthorized = header.caseId
-        ? (preauthorizations.get(header.caseId) ?? []).find(
-            (summary) => summary.professionalId === null || summary.professionalId === header.professionalId,
-          )
-        : undefined;
+      const preauthorized = header.caseId ? summaryForProfessional(preauthorizations.get(header.caseId) ?? [], header.professionalId) : null;
       if (
         preauthorized &&
         !DECIDED_INVOICE_STATUS_CODES.includes(header.statusCode ?? '') &&
-        overPreauthorization(preauthorized, header.submittedTotal, false)
+        overPreauthorization(preauthorized, header.submittedTotal, true)
       ) {
-        flags.push({ kind: 'preauthorization', message: `Over the pre-authorized ${formatMoney(preauthorized.ceiling)}` });
+        const limit = preauthorized.source === 'threshold' ? 'the threshold' : 'the pre-authorized';
+        const unexplained = explainedInvoiceIds.has(header.invoiceId) ? '' : ', not explained';
+        flags.push({ kind: 'preauthorization', message: `Over ${limit} ${formatMoney(preauthorized.ceiling)}${unexplained}` });
       }
       if (changedRates > 0) {
         flags.push({ kind: 'rate_changed', message: `Reviewer changed the rate on ${changedRates} ${changedRates === 1 ? 'line' : 'lines'}` });

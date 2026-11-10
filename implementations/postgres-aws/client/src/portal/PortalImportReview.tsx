@@ -415,7 +415,7 @@ export default function PortalImportReview() {
     <div>
       <PageHeader
         crumbs={[
-          { label: fromBulk ? 'Import invoices' : importDetail.caseId ? 'Case' : newInvoiceLabel, to: backTo },
+          { label: fromBulk ? 'Upload invoices' : importDetail.caseId ? 'Case' : newInvoiceLabel, to: backTo },
           { label: importDetail.fileName },
         ]}
         title={importDetail.fileName}

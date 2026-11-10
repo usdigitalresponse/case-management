@@ -241,7 +241,7 @@ filed by person may be matched to a case while it is reviewed, keeping its
 sent prices; a matched request's review page is led by its case card. The
 earlier case-led queue and Intake (with the case-based upload) are
 off the sidebar but still work by address. The portal's tabs are Your invoices, Your
-cases and Import invoices; Your cases lists only cases staff matched or
+cases, Pre-authorizations and Upload invoices; Your cases lists only cases staff matched or
 assigned a sender to, and senders don't log time here (it stays in the
 external system). Every case and
 person picker is `client/src/components/PickOrAdd.tsx` (first option adds
@@ -316,6 +316,11 @@ from them into Git, fixtures or docs; describe findings generically.
 PDF imports are read in a background queue in the server process (one
 instance only), entirely in-process on the demo server's 1 GB; any model or
 service added to reading needs its hosting cost agreed first.
+Pre-authorization limits are per provider per case: the ceiling of their one
+pre-authorization (asking for more revises it; never add ceilings), else the
+case county's configured threshold for kinds it applies to. Going over is
+explained by the sender and flagged, never refused. Providers' CVs and fee
+schedules are kept records, unlike invoice working copies.
 Driving-distance lookups for the mileage rule (`ROUTE_CHECK_PROVIDER=aws`)
 are billed per request: keep them to submission with the rule on and cached
 by address pair, and have tests use `setRouteProviderForTests`, never AWS.

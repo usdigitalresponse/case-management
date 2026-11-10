@@ -26,6 +26,22 @@ questions, the time log check, entering an invoice in review, "Mark completed",
 - Any staff member can enter a case's pre-authorized amount.
 - An invoice that takes a case over its pre-authorized amount is flagged.
   Reviewers can still approve or reject it.
+- Pre-authorization (decided 2026-11-10):
+  - Each county may have its own threshold, else the default. Below it, a
+    provider's work on a case needs no pre-authorization. Thresholds apply
+    only to the professional kinds an administrator ticks, not to an
+    appointed attorney's own fees.
+  - An approved amount replaces the threshold as the provider's limit on
+    the case. Asking for more revises the same pre-authorization to a new
+    total; amounts never add up.
+  - Attorneys ask in the portal, and staff record requests that arrive by
+    email. Every request gets a number when it is received, including ones
+    later found not needed.
+  - Sending an invoice that takes a provider past their limit needs the
+    sender's explanation. It is never refused for going over. Staff and the
+    sender see the explanation; exports don't include it.
+  - Providers' CVs and fee schedules are kept on file in the existing
+    document storage, separately from invoice files, which are deleted.
 - Client names are stored. Exports include them unless the person exporting
   chooses to redact them.
 

@@ -28,6 +28,7 @@ import { readFileForInvoice } from '../imports/invoiceFile';
 import { findImportForInvoice } from '../imports/importedTimeEntries';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../billing/deleteInvoice';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
+import { findOverrun, loadOverrunExplanations } from '../billing/overrunExplanation';
 import { z } from 'zod';
 import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { db } from '../db/client';
@@ -341,7 +342,16 @@ router.get(
     const imported = await findImportForInvoice(db, detail.invoice.invoiceId);
     const reader = await sessionActor(req);
     const deletable = await isInvoiceDeletableBy(db, reader.userAccountId, detail.invoice.invoiceId);
-    res.json({ ...withoutReviewer(detail), import: imported ?? null, deletable, canAnswer: mayAnswerAsSubmitter(reader, detail.invoice) });
+    // A draft: whether sending would take its provider over their limit.
+    const overrun = detail.invoice.statusCode === 'draft' ? await findOverrun(db, detail.invoice.invoiceId, false) : null;
+    res.json({
+      ...withoutReviewer(detail),
+      import: imported ?? null,
+      deletable,
+      canAnswer: mayAnswerAsSubmitter(reader, detail.invoice),
+      overrun,
+      overrunExplanations: await loadOverrunExplanations(db, detail.invoice.invoiceId),
+    });
   }),
 );
 

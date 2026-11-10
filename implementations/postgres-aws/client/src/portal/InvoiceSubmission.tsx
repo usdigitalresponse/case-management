@@ -8,6 +8,8 @@ import {
   answerQuestion,
   apiErrorMessage,
   attestationStatement,
+  fieldError,
+  type Overrun,
   getMyInvoice,
   invoiceExportUrl,
   resolveInvoiceImport,
@@ -54,6 +56,12 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 // The file viewer's location for the case number, beside the lines'.
 const CASE_NUMBER_LOCATION = 'case-number';
+
+// As the server words it (server/src/billing/overrunExplanation.ts).
+function overrunMessage(overrun: Overrun): string {
+  const limit = overrun.source === 'threshold' ? 'threshold' : 'pre-authorized';
+  return `This takes the provider to ${formatMoney(overrun.total)} on this case, over the ${formatMoney(overrun.limit)} ${limit}. Explain why more wasn't pre-authorized.`;
+}
 
 // Drafts from one upload still to check after this one, oldest first.
 export interface CheckQueue {
@@ -305,6 +313,7 @@ function Lines({
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [caseNumberMissing, setCaseNumberMissing] = useState(false);
   const [answering, setAnswering] = useState(false);
+  const [overrun, setOverrun] = useState(() => (data.overrun ? { message: overrunMessage(data.overrun), required: !staff } : null));
   const receipt = useReceipt('send', { receivedOn: invoice.receivedOn, receivedViaDisplayName: invoice.receivedViaDisplayName });
   const checking = location.state as CheckQueue | null;
   // Where to go once this one is sent or saved for later.
@@ -316,7 +325,7 @@ function Lines({
     }
     return false;
   };
-  async function send() {
+  async function send(extra: { overrunExplanation?: string } = {}) {
     setSendError(null);
     if (!(await flush())) {
       setSending(false);
@@ -329,7 +338,7 @@ function Lines({
       const { status: sentAs } = await transitionInvoice(
         invoice.invoiceId,
         'submit',
-        byPerson ? { ...receipt.payload, attested: !staff, filedByPerson: true } : { attested: true },
+        { ...(byPerson ? { ...receipt.payload, attested: !staff, filedByPerson: true } : { attested: true }), ...extra },
       );
       setSending(false);
       setToast({
@@ -345,6 +354,12 @@ function Lines({
         onChanged();
       }
     } catch (err) {
+      const overrunMessage = fieldError(err, 'overrunExplanation');
+      if (overrunMessage) {
+        // Lines changed since loading.
+        setOverrun({ message: overrunMessage, required: true });
+        return;
+      }
       setSendError(apiErrorMessage(err, 'The invoice could not be sent. Check the lines and try again.'));
     }
   }
@@ -615,6 +630,13 @@ function Lines({
                 : `Sent for review on ${formatDateTime(data.submissionAttempt.submittedAt)}. We emailed a receipt to ${user?.email}. You can withdraw it until review starts.`}
             </Notice>
           )}
+          {!isDraft &&
+            data.overrunExplanations.map((entry) => (
+              <Notice key={entry.recordedAt} tone="warning" heading="Over the limit when sent">
+                {formatMoney(entry.total)} against {formatMoney(entry.limit)} {entry.source === 'threshold' ? 'threshold' : 'pre-authorized'}.{' '}
+                <strong>Explanation given:</strong> {entry.explanation}
+              </Notice>
+            ))}
           {isDraft && <SentBackNotice reason={invoice.returnedReason} />}
           {awaiting && (
             <Notice tone="info">
@@ -701,6 +723,7 @@ function Lines({
                 ? 'It is filed under the case you chose and goes straight to review. You can withdraw the invoice until review starts.'
                 : 'It is filed under your name. The billing office uses the case number to find the case in its own system. You can withdraw the invoice until review starts.'
           }
+          overrun={overrun}
           error={sendError}
           onSend={send}
           onClose={() => {
@@ -722,6 +745,7 @@ function Lines({
           linesSummary={linesSummary}
           askingFor={askingFor}
           email={user?.email}
+          overrun={overrun}
           error={sendError}
           onSend={send}
           onClose={() => {

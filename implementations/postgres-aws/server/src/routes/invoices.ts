@@ -38,8 +38,9 @@ import { shownRoleName } from '../auth/staffAccountRole';
 import { listReviewQueue, sentCaseNumberMatches } from '../billing/reviewQueue';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { correctCaseNumber } from '../billing/correctCaseNumber';
-import { loadPreauthorizationSummaries, overPreauthorization } from '../billing/preauthorizations';
-import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
+import { loadPreauthorizationSummaries, overPreauthorization, summaryForProfessional } from '../billing/preauthorizations';
+import { loadOverrunExplanations } from '../billing/overrunExplanation';
+import { APPROVED_INVOICE_STATUS_CODE, IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { readFileForInvoice } from '../imports/invoiceFile';
 import { MAX_UPLOAD_BYTES } from '../imports/detectFormat';
 import { discardTimeLog, linkTimeLogEntries, loadTimeLogView, setTimeLogColumns, setTimeLogWorker, uploadTimeLog } from '../billing/reviewTimeLog';
@@ -204,10 +205,12 @@ router.get(
     const detail = await loadOrThrow(req.params.id as string);
     // This professional's pre-authorization on the case, for the facts strip.
     const preauthorization = detail.invoice.caseId
-      ? ((await loadPreauthorizationSummaries(db, detail.invoice.caseId)).find(
-          (summary) => summary.professionalId === null || summary.professionalId === detail.invoice.professionalId,
-        ) ?? null)
+      ? summaryForProfessional(
+          await loadPreauthorizationSummaries(db, detail.invoice.caseId, detail.invoice.professionalId ? [detail.invoice.professionalId] : []),
+          detail.invoice.professionalId,
+        )
       : null;
+    const overrunExplanations = await loadOverrunExplanations(db, detail.invoice.invoiceId);
     const professionalId = detail.invoice.professionalId;
     const today = new Date().toISOString().slice(0, 10);
     const approvedRate = professionalId ? (rateOn(await listRates(db, [professionalId]), professionalId, today) ?? null) : null;
@@ -220,8 +223,12 @@ router.get(
     // Signed off, it is already in what was approved so far; rejected, it adds nothing.
     const overPreauthorized =
       detail.invoice.statusCode !== 'rejected' &&
-      overPreauthorization(preauthorization, detail.invoice.submittedTotal, detail.invoice.statusCode === 'approved');
-    res.json({ ...detail, preauthorization, overPreauthorized, approvedRate, caseNumberMatches, discardable, senderEmail, timeLog });
+      overPreauthorization(
+        preauthorization,
+        detail.invoice.submittedTotal,
+        [APPROVED_INVOICE_STATUS_CODE, ...IN_REVIEW_INVOICE_STATUS_CODES].includes(detail.invoice.statusCode ?? ''),
+      );
+    res.json({ ...detail, preauthorization, overPreauthorized, overrunExplanations, approvedRate, caseNumberMatches, discardable, senderEmail, timeLog });
   }),
 );
 

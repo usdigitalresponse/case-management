@@ -19,6 +19,9 @@ import {
   invoiceImportStatuses,
   invoiceReceiptChannels,
   preauthorizationOutcomes,
+  preauthorizationRequestStatuses,
+  preauthorizationRequestOutcomes,
+  documentPurposes,
   preauthorizationStatuses,
   role,
 } from './schema';
@@ -85,6 +88,36 @@ export async function ensureReferenceData(db: Database): Promise<void> {
         { code: 'denied', displayName: 'Denied' },
       ])
       .onConflictDoNothing({ target: preauthorizationOutcomes.code }),
+    db
+      .insert(preauthorizationRequestStatuses)
+      .values([
+        { code: 'submitted', displayName: 'Waiting for a decision' },
+        { code: 'info_requested', displayName: 'Waiting for information' },
+        { code: 'approved', displayName: 'Approved' },
+        { code: 'denied', displayName: 'Denied' },
+        { code: 'not_needed', displayName: 'Not needed' },
+        { code: 'withdrawn', displayName: 'Withdrawn' },
+      ])
+      .onConflictDoNothing({ target: preauthorizationRequestStatuses.code }),
+    db
+      .insert(preauthorizationRequestOutcomes)
+      .values([
+        { code: 'approved', displayName: 'Approved' },
+        { code: 'denied', displayName: 'Denied' },
+        { code: 'not_needed', displayName: 'Not needed: within the threshold' },
+        { code: 'duplicate', displayName: 'Duplicate' },
+        { code: 'moot', displayName: 'Moot: the work was already done' },
+      ])
+      .onConflictDoNothing({ target: preauthorizationRequestOutcomes.code }),
+    db
+      .insert(documentPurposes)
+      .values([
+        { code: 'cv', displayName: 'CV' },
+        { code: 'fee_schedule', displayName: 'Fee schedule' },
+        { code: 'quote', displayName: 'Quote' },
+        { code: 'supporting', displayName: 'Supporting document' },
+      ])
+      .onConflictDoNothing({ target: documentPurposes.code }),
     db
       .insert(invoiceEventTypes)
       .values([

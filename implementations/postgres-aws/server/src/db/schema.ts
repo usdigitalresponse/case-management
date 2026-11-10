@@ -62,10 +62,20 @@ export const invoiceDecisionReasons = pgTable('invoice_decision_reasons', {
 export const invoiceReceiptChannels = referenceTable('invoice_receipt_channels');
 export const preauthorizationStatuses = referenceTable('preauthorization_statuses');
 export const preauthorizationOutcomes = referenceTable('preauthorization_outcomes');
+export const preauthorizationRequestStatuses = referenceTable('preauthorization_request_statuses');
+export const preauthorizationRequestOutcomes = referenceTable('preauthorization_request_outcomes');
+export const documentPurposes = referenceTable('document_purposes');
 export const invoiceImportFormats = referenceTable('invoice_import_formats');
 export const invoiceImportStatuses = referenceTable('invoice_import_statuses');
 // Administrator-maintained (../billing/professionalRates.ts); none are seeded.
-export const professionalKinds = referenceTable('professional_kinds');
+export const professionalKinds = pgTable('professional_kinds', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull().unique(),
+  displayName: text('display_name').notNull(),
+  active: boolean('active').notNull().default(true),
+  // model/rules.yaml apply_preauthorization_limit.
+  thresholdApplies: boolean('threshold_applies').notNull().default(false),
+});
 // Task codes for the billing codes rule; administrator-maintained.
 export const billingCodes = referenceTable('billing_codes');
 
@@ -910,8 +920,7 @@ export const professionalInvoiceReviewer = pgTable(
 );
 
 // An external-service ceiling for one case, here for one professional, as
-// invoice.professional_id stands in for the service provider. Read-only in
-// this implementation: rows come from seed data (../../MAPPING.md).
+// invoice.professional_id stands in for the service provider.
 export const preauthorization = pgTable(
   'preauthorization',
   {
@@ -950,6 +959,153 @@ export const preauthorizationDecision = pgTable(
     reason: text('reason'),
   },
   (table) => [uniqueIndex('preauthorization_decision_sequence_uidx').on(table.preauthorizationId, table.sequenceNumber)],
+);
+
+// Decided once, then never changed (model/rules.yaml request_preauthorization).
+export const preauthorizationRequest = pgTable(
+  'preauthorization_request',
+  {
+    preauthorizationRequestId: uuid('preauthorization_request_id').primaryKey().defaultRandom(),
+    requestNumber: text('request_number').notNull().unique(),
+    caseId: uuid('case_id').references(() => caseTable.caseId),
+    // Stands in for service_provider_id, as on preauthorization.
+    professionalId: uuid('professional_id').references(() => professional.professionalId),
+    proposedDetails: jsonb('proposed_details'),
+    preauthorizationId: uuid('preauthorization_id').references(() => preauthorization.preauthorizationId),
+    professionalKindId: uuid('professional_kind_id').references(() => professionalKinds.id),
+    serviceDescription: text('service_description').notNull(),
+    rateBasis: text('rate_basis').notNull(),
+    requestedRate: numeric('requested_rate', { precision: 12, scale: 2 }),
+    estimatedQuantity: numeric('estimated_quantity', { precision: 10, scale: 2 }),
+    requestedAmount: numeric('requested_amount', { precision: 12, scale: 2 }).notNull(),
+    justification: text('justification').notNull(),
+    currencyCode: text('currency_code').notNull().default('USD'),
+    statusId: uuid('status_id').notNull().references(() => preauthorizationRequestStatuses.id),
+    requestedByUserAccountId: uuid('requested_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    requestedForPersonId: uuid('requested_for_person_id').references(() => person.personId),
+    receivedVia: text('received_via'),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
+    outcomeId: uuid('outcome_id').references(() => preauthorizationRequestOutcomes.id),
+    decisionReason: text('decision_reason'),
+    preauthorizationDecisionId: uuid('preauthorization_decision_id').references(
+      () => preauthorizationDecision.preauthorizationDecisionId,
+    ),
+    decidedByUserAccountId: uuid('decided_by_user_account_id').references(() => userAccount.userAccountId),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    withdrawnByUserAccountId: uuid('withdrawn_by_user_account_id').references(() => userAccount.userAccountId),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('preauthorization_request_case_idx').on(table.caseId),
+    index('preauthorization_request_requested_by_idx').on(table.requestedByUserAccountId),
+  ],
+);
+
+// Recorded once each, like invoice_review_question.
+export const preauthorizationQuestion = pgTable(
+  'preauthorization_question',
+  {
+    preauthorizationQuestionId: uuid('preauthorization_question_id').primaryKey().defaultRandom(),
+    preauthorizationRequestId: uuid('preauthorization_request_id')
+      .notNull()
+      .references(() => preauthorizationRequest.preauthorizationRequestId),
+    question: text('question').notNull(),
+    askedByUserAccountId: uuid('asked_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    askedAt: timestamp('asked_at', { withTimezone: true }).notNull(),
+    answer: text('answer'),
+    answeredByUserAccountId: uuid('answered_by_user_account_id').references(() => userAccount.userAccountId),
+    answeredAt: timestamp('answered_at', { withTimezone: true }),
+  },
+  (table) => [index('preauthorization_question_request_idx').on(table.preauthorizationRequestId)],
+);
+
+// Insert-only; null county_id is the default (model/rules.yaml apply_preauthorization_limit).
+export const preauthorizationThreshold = pgTable(
+  'preauthorization_threshold',
+  {
+    preauthorizationThresholdId: uuid('preauthorization_threshold_id').primaryKey().defaultRandom(),
+    countyId: uuid('county_id').references(() => county.countyId),
+    amount: numeric('amount', { precision: 12, scale: 2 }),
+    currencyCode: text('currency_code').notNull().default('USD'),
+    effectiveFrom: date('effective_from').notNull(),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('preauthorization_threshold_county_idx').on(table.countyId, table.effectiveFrom)],
+);
+
+// Recorded once with the attempt it was sent with (model/rules.yaml explain_preauthorization_overrun).
+export const invoiceOverrunExplanation = pgTable(
+  'invoice_overrun_explanation',
+  {
+    invoiceOverrunExplanationId: uuid('invoice_overrun_explanation_id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id').notNull().references(() => invoice.invoiceId),
+    invoiceApprovalChainId: uuid('invoice_approval_chain_id').references(
+      () => invoiceApprovalChain.invoiceApprovalChainId,
+    ),
+    // Stands in for service_provider_id.
+    professionalId: uuid('professional_id').notNull().references(() => professional.professionalId),
+    limitAmount: numeric('limit_amount', { precision: 12, scale: 2 }).notNull(),
+    limitSource: text('limit_source').notNull(),
+    totalWithRequest: numeric('total_with_request', { precision: 12, scale: 2 }).notNull(),
+    explanation: text('explanation').notNull(),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('invoice_overrun_explanation_invoice_idx').on(table.invoiceId)],
+);
+
+// A provider's fee schedule, row per service; insert-only.
+export const providerServiceRate = pgTable(
+  'provider_service_rate',
+  {
+    providerServiceRateId: uuid('provider_service_rate_id').primaryKey().defaultRandom(),
+    professionalId: uuid('professional_id').notNull().references(() => professional.professionalId),
+    serviceDescription: text('service_description').notNull(),
+    rate: numeric('rate', { precision: 12, scale: 2 }).notNull(),
+    rateBasis: text('rate_basis').notNull(),
+    effectiveFrom: date('effective_from').notNull(),
+    documentId: uuid('document_id').references(() => document.documentId),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('provider_service_rate_professional_idx').on(table.professionalId)],
+);
+
+// Only request and provider targets are used here (model/rules.yaml validate_documents).
+export const documentLink = pgTable(
+  'document_link',
+  {
+    documentLinkId: uuid('document_link_id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id').notNull().references(() => document.documentId),
+    caseId: uuid('case_id').references(() => caseTable.caseId),
+    invoiceId: uuid('invoice_id').references(() => invoice.invoiceId),
+    preauthorizationId: uuid('preauthorization_id').references(() => preauthorization.preauthorizationId),
+    preauthorizationRequestId: uuid('preauthorization_request_id').references(
+      () => preauthorizationRequest.preauthorizationRequestId,
+    ),
+    // Stands in for service_provider_id.
+    professionalId: uuid('professional_id').references(() => professional.professionalId),
+    purposeId: uuid('purpose_id').notNull().references(() => documentPurposes.id),
+  },
+  (table) => [
+    index('document_link_professional_idx').on(table.professionalId),
+    index('document_link_request_idx').on(table.preauthorizationRequestId),
+    check(
+      'document_link_one_target',
+      sql`num_nonnulls(${table.caseId}, ${table.invoiceId}, ${table.preauthorizationId}, ${table.preauthorizationRequestId}, ${table.professionalId}) = 1`,
+    ),
+  ],
 );
 
 // Insert-only like billing_rule_setting; the latest row per code is in

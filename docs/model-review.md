@@ -148,6 +148,24 @@ has its own hourly rate per professional, before the travel time setting,
 and `mileage_warning_dismissal` lets a reviewer set aside a mileage warning
 that stops on the way explain (`dismiss_mileage_warning`).
 
+Model files are now 0.12.0, additive: `preauthorization_request` is one ask
+for a provider's work on a case to be pre-authorized, first or for more, with
+its number, rate, total asked for, reason and outcome (`request_preauthorization`).
+Staff ask for more information with `preauthorization_question`, recorded once,
+and decide it as approved, denied, not needed, duplicate or moot. Approving
+records the ceiling decision on the provider's single preauthorization for the
+case; asking for more revises that ceiling to the new total rather than adding
+another (`preserve_authorization_decisions`). `preauthorization_threshold` holds
+the default and per-county amount a provider's work may reach without a
+preauthorization (`apply_preauthorization_limit`). Sending a request that takes
+its provider past their limit needs the submitter's `invoice_overrun_explanation`,
+shown to staff and the submitter and never exported; it is still approvable
+(`explain_preauthorization_overrun`). `document_link` can target a request or a
+provider, whose CV and fee schedule are kept on file with `provider_service_rate`
+rows (`request_provider_documents`), and staff see usage by county
+(`report_preauthorization_usage`). The snapshot layout is unchanged apart from
+`spec_version`.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

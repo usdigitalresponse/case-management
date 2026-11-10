@@ -1,4 +1,4 @@
-spec_version: "0.11.0"
+spec_version: "0.12.0"
 status: draft
 kind: workflows
 
@@ -128,6 +128,43 @@ workflows:
       - An invoice_import creates a draft through validate_invoice_import; time entries and expenses from its lines are created when that draft is submitted.
       - A reviewing staff member's own upload enters review at once, assigned to them (enter_request_in_review). Until its first round is finished, its reviewer enters and corrects lines and decides them in the same pass; finishing that round first freezes the request as an ordinary submission would, then records the round. Its lines never change after that, including after reopening or a send-back.
       - A submitter whose case, provider or a line's timekeeper isn't listed sends it for matching with the details they know (match_invoice_to_case); it waits in invoice intake and is released to review once staff have matched it. Its attestation is the one given on sending.
+  preauthorization_request:
+    entity: preauthorization_request
+    history_entity: preauthorization_question
+    transitions:
+      - action: submit
+        from: absent
+        to: submitted
+        requires: [authorized_requester_or_recording_staff, request_number, service_rate_amount_and_justification, received_at]
+      - action: ask_for_information
+        from: [submitted, info_requested]
+        to: info_requested
+        requires: [active_staff_user, brief_question]
+      - action: answer
+        from: info_requested
+        to: submitted
+        requires: [requester_or_recording_staff, brief_answer, no_other_unanswered_question]
+      - action: approve
+        from: submitted
+        to: approved
+        requires: [active_staff_user, case_and_provider_matched, approved_amount, preauthorization_decision_recorded_atomically]
+      - action: deny
+        from: [submitted, info_requested]
+        to: denied
+        requires: [active_staff_user, reason]
+      - action: mark_not_needed
+        from: [submitted, info_requested]
+        to: not_needed
+        requires: [active_staff_user, outcome_not_needed_duplicate_or_moot, reason]
+      - action: withdraw
+        from: [submitted, info_requested]
+        to: withdrawn
+        requires: [requester_or_recording_staff, effective_timestamp]
+    requirements:
+      - State names are semantic categories, not seeded reference IDs.
+      - Decided and withdrawn requests are final and kept; asking again is a new request (request_preauthorization).
+      - Approving records the ceiling decision on the provider's preauthorization for the case in the same transaction (preserve_authorization_decisions).
+      - The decision timestamps and actors come from the request's recorded outcome; questions and answers are its history.
   requester_communication:
     entity: invoice
     history_entity: invoice_event

@@ -24,6 +24,7 @@ import ClientsDirectory from './pages/ClientsDirectory';
 import VendorsDirectory from './pages/VendorsDirectory';
 import OrganizationsDirectory from './pages/OrganizationsDirectory';
 import Settings from './pages/Settings';
+import Preauthorizations, { StaffPreauthorizationRequest } from './pages/Preauthorizations';
 import ExternalPortalApp from './portal/ExternalPortalApp';
 import PortalInvoiceDetail from './portal/PortalInvoiceDetail';
 import PortalBulkImport from './portal/PortalBulkImport';
@@ -142,6 +143,7 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
           <NavLink to="/cases" end>
             All cases{counts?.openCases != null && <span className="nav-count">{counts.openCases}</span>}
           </NavLink>
+          <NavLink to="/preauthorizations">Pre-authorizations</NavLink>
         </div>
         <div className="nav-group">
           <h2>Look something up</h2>
@@ -223,6 +225,8 @@ function AppContent() {
             <Route path="/cases/new" element={<NewCaseIntake />} />
             <Route path="/cases/:caseId" element={<CaseDetail />} />
             <Route path="/vendors" element={<VendorsDirectory />} />
+            <Route path="/preauthorizations" element={<Preauthorizations />} />
+            <Route path="/preauthorizations/:requestId" element={<StaffPreauthorizationRequest />} />
             <Route path="/settings" element={<Settings isAdmin={Boolean(user.isAdmin)} />} />
             {/* Hidden from the sidebar while cases are managed elsewhere; still reachable. */}
             <Route path="/overview" element={<Overview />} />

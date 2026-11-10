@@ -37,6 +37,7 @@ import { RecordTable } from '../components/RecordTable';
 import { formatDate } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
 import { Notice, type SaveMessage } from '../components/Notice';
+import { PreauthorizationThresholds } from '../components/PreauthorizationThresholds';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -207,6 +208,14 @@ export default function Settings({ isAdmin }: { isAdmin: boolean }) {
         </div>
         {isAdmin && <AddKindForm onAdded={refresh} />}
       </section>
+      <section className="settings-section" id="settings-preauthorization">
+        <h2>Pre-authorization thresholds</h2>
+        <p className="compact-hint">
+          Up to the threshold, a provider's work on a case needs no pre-authorization. Senders must explain going past it, or
+          past what's pre-authorized; the invoice is still reviewed.
+        </p>
+        <PreauthorizationThresholds isAdmin={isAdmin} />
+      </section>
       <BillingRulesSettings isAdmin={isAdmin} />
       {demoMode && <DemoSettings isAdmin={isAdmin} />}
     </div>
@@ -217,6 +226,7 @@ const SECTIONS = [
   { id: 'settings-review', label: 'Invoice review' },
   { id: 'settings-people', label: 'People who use this tool' },
   { id: 'settings-rates', label: 'Rates' },
+  { id: 'settings-preauthorization', label: 'Pre-authorization thresholds' },
   { id: 'settings-rules', label: 'Billing rules and codes' },
   { id: 'settings-demo', label: 'Demo' },
 ];

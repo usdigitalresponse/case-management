@@ -7,6 +7,7 @@ import { db } from '../db/client';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { requireAdmin } from '../auth/requireAdmin';
 import { addKindRate, createKind, listKinds } from '../billing/professionalRates';
+import { addThreshold, getThresholdSettings, setKindThresholdApplies } from '../billing/preauthorizationThresholds';
 import { addMileageRate, listMileageRates } from '../billing/mileageRates';
 import { addTimeCategoryRate, listTimeCategoryRates } from '../billing/timeCategoryRates';
 import {
@@ -58,6 +59,30 @@ router.post(
   asyncHandler(async (req, res) => {
     const user = getSessionUser(req)!;
     res.status(201).json(await addKindRate(db, user.userAccountId, req.params.id as string, req.body));
+  }),
+);
+
+// Pre-authorization thresholds: added from a date, never edited.
+router.get(
+  '/preauthorization-thresholds',
+  asyncHandler(async (_req, res) => {
+    res.json(await getThresholdSettings(db));
+  }),
+);
+
+router.post(
+  '/preauthorization-thresholds',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await addThreshold(db, getSessionUser(req)!.userAccountId, req.body));
+  }),
+);
+
+router.put(
+  '/professional-kinds/:id/threshold-applies',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.json(await setKindThresholdApplies(db, getSessionUser(req)!.userAccountId, req.params.id as string, req.body));
   }),
 );
 

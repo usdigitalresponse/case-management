@@ -778,8 +778,8 @@ export default function PortalBulkImport() {
   return (
     <div>
       <PageHeader
-        crumbs={[{ label: newInvoiceLabel, to: newInvoicePath }, { label: 'Import invoices' }]}
-        title="Import invoices"
+        crumbs={[{ label: newInvoiceLabel, to: newInvoicePath }, { label: 'Upload invoices' }]}
+        title="Upload invoices"
         description="Upload several invoice files at once, check what was read from each, then send them together."
         actions={
           (stagedCount > 0 || batchInProgress.length > 0) &&

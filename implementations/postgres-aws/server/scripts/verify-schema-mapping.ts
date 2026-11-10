@@ -44,6 +44,12 @@ const IN_SCOPE_ENTITIES = [
   'invoice_review_setting',
   'preauthorization',
   'preauthorization_decision',
+  'preauthorization_request',
+  'preauthorization_question',
+  'preauthorization_threshold',
+  'invoice_overrun_explanation',
+  'provider_service_rate',
+  'document_link',
   'document',
   'invoice_import',
   'invoice_event',
@@ -69,6 +75,10 @@ const DELIBERATELY_OMITTED_FIELDS: Record<string, string> = {
   'invoice_line.source_expense_id': 'no expense entity/table exists yet; out of scope (time and invoices only)',
   'preauthorization.service_provider_id':
     'no service_provider table exists; preauthorization.professional_id plays that role, as on invoice',
+  'preauthorization_request.service_provider_id': 'professional_id plays that role, as on preauthorization',
+  'invoice_overrun_explanation.service_provider_id': 'professional_id plays that role, as on preauthorization',
+  'provider_service_rate.service_provider_id': 'professional_id plays that role, as on preauthorization',
+  'document_link.service_provider_id': 'professional_id plays that role, as on preauthorization',
 };
 
 interface SchemaYaml {
