@@ -236,10 +236,10 @@ send pages file invoices by the person who sent them with a case number as
 typed (design G, see its `MAPPING.md`); a person's own rates override their
 role's from their effective date, and reviewers correct a case number beside
 the typed one, never over it. Design I brings cases back: the sidebar has Case
-overview and All cases, and People, Clients and Organizations; a request
+overview and All cases, and People, Providers, Clients and Organizations; a request
 filed by person may be matched to a case while it is reviewed, keeping its
 sent prices; a matched request's review page is led by its case card. The
-earlier case-led queue, Providers and Intake (with the case-based upload) are
+earlier case-led queue and Intake (with the case-based upload) are
 off the sidebar but still work by address. The portal's tabs are Your invoices, Your
 cases and Import invoices; Your cases lists only cases staff matched or
 assigned a sender to, and senders don't log time here (it stays in the

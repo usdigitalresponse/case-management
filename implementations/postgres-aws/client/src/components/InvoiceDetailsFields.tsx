@@ -99,6 +99,31 @@ export function SenderPicker({
       .map((p) => ({ value: p.professionalId, label: senderLabel({ ...p, displayName: names[p.professionalId] ?? p.displayName }) })),
   ].sort((a, b) => a.label.localeCompare(b.label));
   // A submitter acting for others chooses among them; only staff add people.
+  // A few are shown as choices, as in design I43.
+  if (!staff && billable.length <= 6) {
+    return (
+      <fieldset className="sender-choices" aria-describedby={`${id}-hint`}>
+        <legend className="usa-label">Whose work is it?</legend>
+        {billable.map((p) => (
+          <label key={p.professionalId} className="radio-row">
+            <input
+              type="radio"
+              name={id}
+              value={p.professionalId}
+              checked={value === p.professionalId}
+              disabled={disabled}
+              onChange={() => onChange(p.professionalId)}
+            />
+            {names[p.professionalId] ?? p.displayName ?? 'Unnamed person'}
+            {p.isSelf ? ' (you)' : ''}
+            {p.kindDisplayName ? `, ${p.kindDisplayName.toLowerCase()}` : ''}
+          </label>
+        ))}
+        {error && <p className="field-error">{error}</p>}
+        <p id={`${id}-hint`} className="field-hint">{hint}</p>
+      </fieldset>
+    );
+  }
   if (!staff) {
     return (
       <>

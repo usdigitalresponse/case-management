@@ -2,7 +2,7 @@
 // (design I), who is signed in and Sign out.
 import { Link, NavLink } from 'react-router';
 import { useAuth } from '../AuthContext';
-import { PORTAL_HOME_PATH, UPLOAD_PATH } from './useShell';
+import { PORTAL_HOME_PATH } from './useShell';
 
 export function PortalTopBar() {
   const { user, logout } = useAuth();
@@ -16,7 +16,7 @@ export function PortalTopBar() {
           <nav className="portal-tabs" aria-label="Main navigation">
             <NavLink to={PORTAL_HOME_PATH}>Your invoices</NavLink>
             <NavLink to="/portal/cases">Your cases</NavLink>
-            <NavLink to={UPLOAD_PATH}>Import invoices</NavLink>
+            <NavLink to="/portal/imports">Import invoices</NavLink>
           </nav>
         )}
         {user && (

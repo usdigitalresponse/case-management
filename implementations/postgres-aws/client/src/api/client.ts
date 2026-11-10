@@ -360,6 +360,11 @@ export interface VendorRecord {
   professionalKindDisplayName: string | null;
   // Their kind's rates, oldest first.
   rates: ProfessionalRate[];
+  officeDisplayName: string | null;
+  // Billing delegates at their office, other than themselves.
+  sentByDisplayNames: string[];
+  // How many others they send invoices for, as a delegate.
+  sendsForCount: number;
 }
 
 export interface PersonDetailsInput {

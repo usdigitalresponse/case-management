@@ -119,8 +119,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - The rest of design G (G13, G15–G24):
     - **Sidebar**, as G: To review, Assigned to you, Finished; People, Exports; the external
       system link. It keeps "+ Upload Invoices" and, for administrators, Settings. Design I
-      adds a Cases group (Case overview, All cases with the open count) and Clients and
-      Organizations; Intake, Providers and the case-led queue are off it but work by address. A staff
+      adds a Cases group (Case overview, All cases with the open count) and Providers, Clients
+      and Organizations; Intake and the case-led queue are off it but work by address. A staff
       member's unsent drafts lead To review (from `GET /api/invoices/intake`), with a notice
       linking to Intake if anything is ever held there.
     - **People** (`/people`, `client/src/pages/People.tsx`) replaces Cases and Providers in the
@@ -376,7 +376,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     line's service date (as for delegates, below).
   - The external portal follows the invoice submission design: one top
     bar (the brand, design I's tabs Your invoices, Your cases and Import
-    invoices, the signed-in email and Sign out; `PortalTopBar.tsx`), no
+    invoices, which opens the several-files import at `/portal/imports`,
+    the signed-in email and Sign out; `PortalTopBar.tsx`), no
     sidebar, opening on "Your invoices" (`/portal/invoices`, which `/`
     redirects to; `PortalInvoiceList.tsx`). Drafts and sent invoices share
     one list, in the review side's words: "Draft, not sent" (with "Lines
@@ -393,8 +394,12 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     upload (`/portal/upload`, see "Structured invoice import"). Pages
     outside the design are out of navigation but still reachable:
     "New invoice" (`/new-invoice`, `PortalNewInvoice.tsx`: the bulk import
-    page or the case page's new-invoice form, `portal/NewInvoiceForm.tsx`)
-    and bulk import (`/portal/imports`).
+    page or the case page's new-invoice form, `portal/NewInvoiceForm.tsx`).
+    The import page (`PortalBulkImport.tsx`, I44) uses the upload's drop
+    zone and design I's words (Add files, Check each file, Send). The upload
+    asks a sender who bills for a few people "Whose work is it?" as choices
+    (I43), a dropdown past six, and points to Import invoices for several
+    files.
   - "Your cases" (`/portal/cases`, design I) lists the open cases of the
     people the sender bills for, grouped by person for a delegate, with
     each one's own pre-authorized amount and approved so far (never a
@@ -574,6 +579,14 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   columns. A case's page has its facts, a "Pre-authorized and billed" card
   per pre-authorization (approved, waiting, what would be left, and a bar)
   beside the people on it, then its invoices and case rates.
+- **Look-up pages** (design I, I51–I53): Providers (`/vendors`) lists each
+  provider with their kind (changed inline by administrators), today's rate,
+  their office and who can send their invoices: themselves once they can sign
+  in, and their office's billing delegates (`GET /api/professionals` with
+  `src/professionals/providerOffices.ts`). Clients lists every case's client
+  with its case, county, opened date and status (from `GET /api/cases`).
+  Organizations adds how many cases each has. Gap: organizations can't be
+  edited here, so I53's Edit isn't built.
 - **Demo tools** (Settings, "Demo"): only while the staff demo sign-in is on
   (`src/auth/demoSettings.ts`; otherwise the routes are 404s, and `/auth/me`
   reports `demoMode`). Every staff member then sees Settings, and

@@ -954,6 +954,8 @@ form.compact-form { max-width: none; }
 
 /* Case page */
 .case-list-table td, .case-list-table th { white-space: nowrap; }
+.sender-choices { margin: 0; padding: 0; border: 0; }
+.sender-choices .radio-row { display: inline-flex; margin-right: 1.5rem; }
 /* A case's page (design I49). */
 .case-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
 .case-columns .compact-card h2, .compact-card > h2 { margin: 0 0 .6rem; font-size: 1.05rem; }

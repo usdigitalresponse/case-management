@@ -1,7 +1,7 @@
 // Upload filed by person: who billed it (and, of staff, how it arrived) is
 // asked once for every file, then each becomes a draft or a reviewer's entry.
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link as RouterLink, useNavigate } from 'react-router';
 import {
   addProfessional,
   apiErrorMessage,
@@ -235,6 +235,12 @@ export default function UploadInvoices() {
               Enter an invoice by hand
             </button>
           </p>
+        )}
+        {!staff && entries.length === 0 && (
+          <Notice tone="info">
+            Several files, or one spreadsheet that covers several cases? Use{' '}
+            <RouterLink to="/portal/imports">Import invoices</RouterLink>, so you can check each one and send them together.
+          </Notice>
         )}
         {entries.length > 0 && (
           <ul className="file-cards">

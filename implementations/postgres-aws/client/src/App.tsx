@@ -125,7 +125,7 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
             <span><span aria-hidden="true">+ </span>Upload Invoices</span>
           </NavLink>
         </div>
-        {/* Intake, Providers, other person records and /home-alternate still work by address. */}
+        {/* Intake, other person records and /home-alternate still work by address. */}
         <div className="nav-group">
           <h2>Invoices</h2>
           <Link to="/" className={allActive ? 'active' : undefined}>
@@ -146,6 +146,7 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
         <div className="nav-group">
           <h2>Look something up</h2>
           <NavLink to="/people">People</NavLink>
+          <NavLink to="/vendors" end>Providers</NavLink>
           <NavLink to="/clients" end>Clients</NavLink>
           <NavLink to="/organizations" end>Organizations</NavLink>
           <NavLink to="/exports" end>Exports</NavLink>
