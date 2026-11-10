@@ -63,7 +63,6 @@ export function OriginalDocument({
 } & FileSourceRef) {
   const source: FileSourceRef = 'importId' in rest ? { importId: rest.importId } : { invoiceId: rest.invoiceId, portal: rest.portal };
   const key = 'importId' in source ? source.importId : source.invoiceId;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const { data, error } = useApiResource(() => load(source), [key]);
   const frame = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);

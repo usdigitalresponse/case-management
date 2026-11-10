@@ -18,7 +18,7 @@ import {
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { Notice } from './Notice';
-import { InvoiceNumberField, UploadPeriodField } from '../portal/PortalUpload';
+import { InvoiceNumberField, UploadPeriodField } from './upload/UploadFields';
 import { useShell } from '../portal/useShell';
 import type { AddedProvider } from './AddProvider';
 import { ADD_NEW, PickOrAdd } from './PickOrAdd';

@@ -80,7 +80,7 @@ export function detectInvoiceFile(bytes: Buffer): DetectedFile {
   } catch {
     throw new UnsupportedInvoiceFileError(UNSUPPORTED_MESSAGE);
   }
-  if (text.replace(/^﻿/, '').startsWith(LEDES_1998B_SIGNATURE)) {
+  if (text.replace(/^\uFEFF/, '').startsWith(LEDES_1998B_SIGNATURE)) {
     return {
       format: 'ledes_1998b',
       mediaType: 'text/plain',

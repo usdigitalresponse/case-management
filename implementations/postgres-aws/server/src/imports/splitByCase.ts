@@ -1,6 +1,6 @@
 // Files read before their case is known (model/rules.yaml
 // validate_invoice_import): split by case for one professional, or a portal
-// upload whose case is confirmed after reading. See MAPPING.md.
+// upload whose case is confirmed after reading. See docs/api.md "Invoice import".
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm';

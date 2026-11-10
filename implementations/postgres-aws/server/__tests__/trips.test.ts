@@ -94,7 +94,6 @@ describe('trips', () => {
     const { actor, caseId } = await setup();
     const [time, mileage] = tripLines();
     for (const lines of [[time, time], [mileage, mileage], [time, { lineType: 'other', amount: 5, tripKey: 'court' }]]) {
-      // eslint-disable-next-line no-await-in-loop
       await expect(createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines })).rejects.toMatchObject({
         fieldErrors: expect.anything(),
       });

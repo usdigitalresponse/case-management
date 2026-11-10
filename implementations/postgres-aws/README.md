@@ -20,7 +20,8 @@ queue and review, questions to submitters, sign-off, exports and the billing
 record; cases, people, providers, clients and organizations; pre-authorization
 requests; settings; and the external submitter portal. A single-host
 production-mode stack runs the demo; Terraform is an undeployed infrastructure
-skeleton. See `MAPPING.md` for the schema subset in scope and documented gaps.
+skeleton. See `MAPPING.md` for the schema subset in scope and documented
+gaps, and `docs/` for how the client, intake and API are built.
 
 ## Scope
 
@@ -90,9 +91,9 @@ threshold. The demo partner also has invoices uploaded as synthetic PDFs
 (`src/db/demoUploads.ts`): one not yet checked, one with a changed and a
 removed line, one misread, one sent with changes for review beside its file,
 one entered by hand, and staff have an upload waiting on Intake for a case.
-The case overview board is hidden from the sidebar but still at
-`/overview`. Links to an external case management system are disabled
-placeholders. See `MAPPING.md` "Invoice review".
+The sidebar's Cases group has the case overview board and all cases. Links
+to an external case management system are disabled placeholders. See
+`docs/api.md` "Invoice review".
 
 If you pulled these changes onto an existing database, restart the server
 container (`docker compose restart server`) to apply the new migrations;
@@ -144,6 +145,7 @@ migrated-but-empty test database.
 
 ```sh
 npm run typecheck              # tsc --noEmit
+npm run lint                   # eslint (eslint.config.mjs); also in client/
 npm run verify-schema-mapping  # checks src/db/schema.ts against model/schema.yaml
 npm run demo-invoices          # read-only: writes ../demo-invoices/ files naming the seeded demo vendors
 npm run demo-time-logs         # read-only: writes ../demo-invoices/time-logs/ case time logs, with expected results, for seeded invoices
@@ -212,7 +214,7 @@ disabled and only the demo sign-ins are available: `/auth/demo-login`
 also their office's billing delegate). The sign-in page lets you pick any
 seeded staff role or partner from a dropdown (`GET /auth/demo-accounts`). Each
 is off when `NODE_ENV=production` unless `DEMO_LOGIN_ENABLED=true` or
-`EXTERNAL_DEMO_LOGIN_ENABLED=true` (see MAPPING.md, "Demo sign-in"). A
+`EXTERNAL_DEMO_LOGIN_ENABLED=true` (see `docs/api.md`, "Demo sign-in"). A
 quick smoke test:
 
 ```sh
@@ -221,12 +223,11 @@ curl -b cookies.txt http://localhost:3000/auth/me
 curl -b cookies.txt http://localhost:3000/api/cases
 ```
 
-Routes: `POST /api/cases` (intake), `GET /api/cases` (list, optional
-`countyId`/`statusId`/`caseCategoryId` query filters), `GET /api/cases/:id`
-(detail with participants/lifecycle events/identifiers), `GET /api/people?q=`
-(existing-person search for the intake form), `GET /api/reference-data`
-(statuses/categories/roles/etc. for building forms). All require a session
-(`requireAuth`).
+Routes are in `server/src/routes/`, one file per area, mounted in
+`server/src/app.ts`; `docs/api.md` describes them. Staff
+routes need a staff session (`requireFullUser`), `/api/portal` and
+`/api/preauthorizations` any session (`requireAuth`), and settings changes
+an administrator (`requireAdmin`).
 
 ### Running the client without Docker Compose
 
@@ -235,6 +236,7 @@ cd client
 npm install
 API_PROXY_TARGET=http://localhost:3000 npm run dev   # http://localhost:5173
 npm run typecheck
+npm run lint
 npm test        # unit tests for client-side logic (no browser, no server)
 npm run build   # production build; verifies USWDS asset resolution
 ```
@@ -245,8 +247,8 @@ omitted when the server is running locally too (not in a container).
 ## CI
 
 `.github/workflows/postgres-aws.yml` runs on PRs/pushes touching this
-directory: `server` (typecheck, migrate, test, schema-mapping check),
-`client` (typecheck, build), and `compose-smoke-test` (a real
+directory: `server` (typecheck, lint, migrate, test, schema-mapping check),
+`client` (typecheck, lint, test, build), and `compose-smoke-test` (a real
 `docker compose up` + explicit demo seed + demo-login/list-cases round trip,
 followed by a restart check that verifies case IDs are preserved).
 
@@ -303,7 +305,31 @@ Applying this creates real AWS resources and costs money — don't run
 
 ## Documented gaps
 
-See `MAPPING.md` for the full list (auth, person creation, infrastructure,
-reference data). In short: this is a dev/demo-scoped prototype, not a
-production deployment. Terraform is an undeployed skeleton; Docker Compose
-is the runnable development environment.
+See `MAPPING.md` for the full list (auth, duplicate review of people,
+infrastructure, reference data). In short: this is a dev/demo-scoped
+prototype, not a production deployment. Terraform is an undeployed skeleton;
+Docker Compose is the runnable development environment.
+
+## Next steps
+
+What the notes already record as not built, nearest first. None is decided
+or scheduled here; each links to where it is described.
+
+1. Production sign-in: which identity provider staff use, and how external
+   senders are allowed in (`MAPPING.md` "Known gaps", Auth).
+2. Scan uploaded files for malware before reading them, which
+   `validate_invoice_import` requires (`MAPPING.md` "Known gaps", Upload
+   scanning).
+3. Email a submitter when a reviewer's question is waiting (`MAPPING.md`
+   "Known gaps", Review questions).
+4. A holiday calendar, so working days skip holidays as well as weekends
+   (`docs/api.md` "Invoice review").
+5. One lines table for submitters, in place of two (`MAPPING.md` "Known
+   gaps", Cleanup).
+6. A second reading pass for files the in-app reader can't read ("Improving
+   accuracy with AI" above), with its hosting cost agreed first.
+7. Links to the external case management system, now inert placeholders
+   (`../../docs/integration.md`).
+8. Hosting beyond the single-host demo: `terraform/` has never been applied
+   (`MAPPING.md` "Infrastructure").
+9. Duplicate review of people, and reopening closed cases ("Scope" above).

@@ -62,9 +62,11 @@ export async function ensureDefaultSettings(db: DatabaseOrTransaction): Promise<
   for (const name of DEFAULT_SETTINGS) {
     const same = rows.filter((row) => countyKey(row.displayName) === countyKey(name));
     if (same.length === 0) {
+      // eslint-disable-next-line no-await-in-loop
       await db.insert(county).values({ displayName: name, isCounty: false });
     }
     for (const row of same.filter((row) => row.isCounty)) {
+      // eslint-disable-next-line no-await-in-loop
       await db.update(county).set({ isCounty: false }).where(eq(county.countyId, row.countyId));
     }
   }

@@ -16,6 +16,7 @@
     "seed": "node --import tsx src/db/seed.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "verify-schema-mapping": "tsx scripts/verify-schema-mapping.ts",
     "demo-invoices": "tsx scripts/demo-invoices.ts",
     "demo-time-logs": "tsx scripts/demo-time-logs.ts",
@@ -44,6 +45,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/cookie-session": "^2.0.49",
     "@types/express": "^4.17.21",
     "@types/js-yaml": "^4.0.9",
@@ -52,9 +54,11 @@
     "@types/pdfkit": "^0.17.6",
     "@types/pg": "^8.23.1",
     "drizzle-kit": "^0.31.11",
+    "eslint": "^10.14.0",
     "js-yaml": "^4.1.0",
     "tsx": "^4.15.6",
     "typescript": "^5.4.5",
+    "typescript-eslint": "^8.72.2",
     "vitest": "^1.6.0"
   }
 }

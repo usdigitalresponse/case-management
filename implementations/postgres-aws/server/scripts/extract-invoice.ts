@@ -33,7 +33,6 @@ async function main(): Promise<number> {
       reports.push({ file: basename(path), error: `Could not read the file: ${(error as Error).message}` });
       continue;
     }
-    // eslint-disable-next-line no-await-in-loop
     reports.push(await extractReport(basename(path), bytes));
   }
   process.stdout.write(formatReports(reports, format));

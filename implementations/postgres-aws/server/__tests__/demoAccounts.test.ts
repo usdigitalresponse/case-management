@@ -1,4 +1,4 @@
-// MAPPING.md "Demo sign-in": only seeded example.invalid accounts are offered.
+// docs/api.md "Demo sign-in": only seeded example.invalid accounts are offered.
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';

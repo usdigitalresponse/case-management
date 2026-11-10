@@ -24,7 +24,7 @@ export async function hasOpenAssignment(db: DatabaseOrTransaction, professionalI
 // Distinct from a validation error: the request is well-formed, but the
 // caller has no open case_assignment for this case — the actual
 // authorization check (see model/schema.yaml case_assignment and
-// ../../MAPPING.md "Case assignment, scoped to external submitters").
+// ../../docs/api.md "Case assignment, two workflows").
 export class NotAssignedToCaseError extends ForbiddenError {
   constructor() {
     super('not_assigned', 'Not assigned to this case.');

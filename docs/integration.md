@@ -14,8 +14,9 @@ case's exported time log during review, and approved invoices leave as
 exports. Some features exist only to work around this.
 
 Code paths below are under `implementations/postgres-aws/server/src/`. See the
-prototype's [MAPPING.md](../implementations/postgres-aws/MAPPING.md) for how
-each feature is built.
+prototype's [design notes](../implementations/postgres-aws/docs/) for how
+each feature is built, and its
+[MAPPING.md](../implementations/postgres-aws/MAPPING.md) for its gaps.
 
 ## Features that change once case data is available
 

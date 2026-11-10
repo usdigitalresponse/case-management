@@ -135,6 +135,7 @@ export function SavedCountyPicker({
   const [error, setError] = useState<string | null>(null);
   // Only the latest save's answer is shown, whatever order they come back in.
   const latest = useRef(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => setValue(initial), [initial?.countyId, initial?.displayName]);
 
   async function change(next: CountyValue | null) {

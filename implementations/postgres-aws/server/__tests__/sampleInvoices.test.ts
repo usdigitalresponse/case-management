@@ -108,7 +108,6 @@ describe('shared synthetic invoice samples', () => {
   // so it is recognized again like any scan.
   it('says when a PDF was read by text recognition, including searchable scans', async () => {
     for (const fileName of ['pdf-scanned-unlabelled.pdf', 'pdf-searchable-unlabelled.pdf']) {
-      // eslint-disable-next-line no-await-in-loop
       expect((await parse(fileName)).warnings?.map((warning) => warning.code)).toContain('read_by_ocr');
     }
     expect((await parse('pdf-unlabelled.pdf')).warnings).toEqual([]);

@@ -1,5 +1,5 @@
 // Synthetic reporting zone pending per-organization configuration
-// (MAPPING.md). Shared by ./intake/createCase.ts (opening) and
+// (docs/intake.md). Shared by ./intake/createCase.ts (opening) and
 // ./cases/closeCase.ts (closing) — both need to turn an exact instant
 // into the calendar date a case's opened_on/closed_on columns store.
 const REPORTING_TIME_ZONE = 'UTC';

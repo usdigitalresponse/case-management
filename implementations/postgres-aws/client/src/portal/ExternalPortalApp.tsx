@@ -2,8 +2,8 @@
 // invoices, their cases and importing, no sidebar, opening on their invoices.
 // The older manual-entry form and bulk import stay reachable by address but
 // out of view.
-// See ../AuthContext.tsx and ../../MAPPING.md "Case assignment, scoped to
-// external submitters".
+// See ../AuthContext.tsx and ../../docs/api.md "Case assignment, two
+// workflows".
 import { Routes, Route, Link, Navigate } from 'react-router';
 import PortalNewInvoice from './PortalNewInvoice';
 import PortalInvoiceList from './PortalInvoiceList';

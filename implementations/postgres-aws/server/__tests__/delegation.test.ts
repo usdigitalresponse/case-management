@@ -279,7 +279,6 @@ describe('delegated submission', () => {
     expect(row?.recordedByUserAccountId).toBe(delegate.userAccountId);
 
     for (const professionalId of [unassigned.professionalId, outsider.professionalId]) {
-      // eslint-disable-next-line no-await-in-loop
       await expect(createTimeEntry(testDb, delegate, { ...entry, professionalId })).rejects.toThrow(NotAssignedToCaseError);
     }
     await expect(createTimeEntry(testDb, officeUser, { ...entry, professionalId: member.professionalId })).rejects.toThrow(

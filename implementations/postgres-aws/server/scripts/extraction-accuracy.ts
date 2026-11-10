@@ -34,7 +34,6 @@ async function synthetic(ids: string[]) {
         continue;
       }
       const started = Date.now();
-      // eslint-disable-next-line no-await-in-loop
       const result = await extractor.extract(readFileSync(join(SAMPLES_DIR, file))).then(
         (parsed) => scoreExtraction(entry.document!, parsed),
         (error: unknown) => {
@@ -71,7 +70,6 @@ async function local(dir: string, ids: string[]) {
       let parsed: ParsedInvoice = { lines: [] };
       let error = '';
       try {
-        // eslint-disable-next-line no-await-in-loop
         parsed = await extractor.extract(readFileSync(join(dir, file)));
       } catch (caught) {
         if (!(caught instanceof UnreadableInvoiceFileError)) {

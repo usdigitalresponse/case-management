@@ -4,7 +4,7 @@
 // assignment stay distinguishable in case_assignment rows. No
 // qualification/role-choice is implemented (model/rules.yaml
 // require_qualification_for_assignment, outcome: configurable; see
-// ../../MAPPING.md) — every staff assignment uses this one fixed role,
+// ../../docs/api.md "Case assignment, two workflows") — every staff assignment uses this one fixed role,
 // the same simplification already made for external assignments.
 import type { Database } from '../db/client';
 import { getSeededRoleId } from '../db/referenceLookups';

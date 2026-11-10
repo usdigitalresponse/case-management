@@ -228,8 +228,8 @@ function AppContent() {
             <Route path="/preauthorizations" element={<Preauthorizations />} />
             <Route path="/preauthorizations/:requestId" element={<StaffPreauthorizationRequest />} />
             <Route path="/settings" element={<Settings isAdmin={Boolean(user.isAdmin)} />} />
-            {/* Hidden from the sidebar while cases are managed elsewhere; still reachable. */}
             <Route path="/overview" element={<Overview />} />
+            {/* Off the sidebar; still reachable. */}
             <Route path="/person-records" element={<PeopleDirectory />} />
             <Route path="/clients" element={<ClientsDirectory />} />
             <Route path="/organizations" element={<OrganizationsDirectory />} />

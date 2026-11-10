@@ -32,7 +32,7 @@ function ledesDate(raw: string | undefined, location: string, field: string): st
 
 export function parseLedes1998b(text: string): ParsedInvoice {
   const records = text
-    .replace(/^﻿/, '')
+    .replace(/^\uFEFF/, '')
     .split('[]')
     .map((record) => record.replace(/^[\r\n]+|[\r\n]+$/g, ''))
     .filter((record) => record.trim() !== '');

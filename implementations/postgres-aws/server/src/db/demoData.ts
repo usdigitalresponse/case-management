@@ -66,8 +66,8 @@ async function seedDemoCases(fixtures: Awaited<ReturnType<typeof resetAndSeedBas
   for (let i = 0; i < DEMO_CASE_COUNT; i += 1) {
     const givenName = faker.person.firstName();
     const familyName = faker.person.lastName();
-    // eslint-disable-next-line no-await-in-loop
     const demoPerson = firstRow(
+      // eslint-disable-next-line no-await-in-loop
       await db
         .insert(person)
         .values({ givenName, familyName, displayName: `${givenName} ${familyName}` })
@@ -527,8 +527,8 @@ async function seedDemoReview(
     // Pre-authorized at their configured rate.
     const configured = rates.filter((rate) => rate.professionalId === assignment.professionalId).at(-1)?.hourlyRate ?? '125.00';
     const approvedHourlyRate = index === 2 ? '125.00' : configured;
-    // eslint-disable-next-line no-await-in-loop
     const { preauthorizationId } = firstRow(
+      // eslint-disable-next-line no-await-in-loop
       await db
         .insert(preauthorization)
         .values({
