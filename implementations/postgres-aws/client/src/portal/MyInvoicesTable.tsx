@@ -3,7 +3,7 @@ import type { InvoiceRecord as MyInvoiceRecord } from '../api/client';
 import { StatusPill } from '../components/StatusPill';
 import { RecordTable, type RecordTableColumn } from '../components/RecordTable';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
-import { formatDate } from '../formatDateTime';
+import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
 // A submitter's invoices: on Your invoices (every case) and a case's page
@@ -50,10 +50,10 @@ export function MyInvoicesTable({
           // A recall clears submittedAt; show the earlier submission.
           render: (invoice) =>
             invoice.submittedAt ? (
-              formatDate(invoice.submittedAt.slice(0, 10))
+              formatDay(invoice.submittedAt)
             ) : invoice.lastSubmittedAt ? (
               <>
-                {formatDate(invoice.lastSubmittedAt.slice(0, 10))}
+                {formatDay(invoice.lastSubmittedAt)}
                 <span className="cell-note">Then recalled</span>
               </>
             ) : (

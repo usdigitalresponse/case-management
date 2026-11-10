@@ -155,9 +155,11 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
       invoice filed by person while its lines are reviewed: it sets the case, adds the
       sender to it and records `matched_to_case`, but doesn't price lines again. "Add a case
       for [number]" opens the new case page with that number, then matches the invoice and
-      returns to it. A matched invoice is led by a case card: client, case numbers, the
-      number the invoice gave, the pre-authorized amount with what's approved on the case
-      and waiting, and "Open the case". Case rates that would now apply are flagged as
+      returns to it. Every review page is titled with the sender, as in I15; a matched
+      invoice then has a case card: "Client · case number", the number the invoice gave,
+      one line with the pre-authorized amount and what's approved so far, and "Open the
+      case". A mileage line over the driving route is highlighted in the line table with
+      the route and the miles over, as in the travel log (I20). Case rates that would now apply are flagged as
       changed since it was sent (`caseRatesChangedSince`).
     - **Pre-authorized amounts**: any staff member sets one on the case page, for a person
       or the whole case (`POST /api/cases/:id/preauthorizations`,
@@ -401,7 +403,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     (I43), a dropdown past six, and points to Import invoices for several
     files.
   - "Your cases" (`/portal/cases`, design I) lists the open cases of the
-    people the sender bills for, grouped by person for a delegate, with
+    people the sender bills for, grouped by person for a delegate ("Name,
+    kind", under a note naming whom they send for), with
     each one's own pre-authorized amount and approved so far (never a
     whole-case amount, whose approved total includes other providers') and
     any draft. Its cases are those staff matched their invoices to, which
@@ -431,8 +434,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   through Fontsource, so no font request leaves the app. Body text is 13px.
   Existing classes take the design's components: `.btn--outline` is its
   secondary button, `.chip` its tag, `.notice` its alert and
-  `.choice-toggle` its segmented control. Gaps: the joined decision bar
-  (Approve, Part, Rate, Reject) and alert icons are not built yet. The gold
+  `.choice-toggle` its segmented control, and `.decision-bar` its joined
+  Approve, Part, Rate, Reject buttons. Gap: alert icons are not built yet. The gold
   used for focus rings and for missing or flagged markers is under 3:1
   against white, short of the non-text contrast minimum; it stays as
   specified until the design changes it.
@@ -760,7 +763,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     approves the undecided matching lines (same person, same type of rate)
     at a changed rate, or adds a `case_rate` row for the person or their
     kind from a date and approves the lines on this invoice it governs.
-    "Approve part" offers both once only the rate changed
+    The Rate panel offers both once the rate changed
     (`client/src/components/LineReview.tsx`), and "Return to the configured
     rate instead" stores a row with no rate. Pricing (`priceLines.ts`) takes
     each line's default from `defaultRates.ts` and records
@@ -806,13 +809,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     description and a trip's route are fields in its row, edited in place
     with no save button (`client/src/portal/CheckLinesTable.tsx`,
     `useLineEntry.ts`). Edits stay on the page, marked unsaved, until the
-    next action saves them all first: deciding any line, opening Approve part
+    next action saves them all first: deciding any line, opening Part, Rate
     or Reject, asking or answering, re-pricing or finishing; a line that
     can't be priced stops these with what it needs. Leaving the page or
     closing the tab saves them too, keeping the invoice unfinished, with any
     line that can't be priced keeping its last saved version (as on the
     check page). An edited line shows its decision buttons again, since
-    saving undoes its decision, and editing it closes its open Approve part
+    saving undoes its decision, and editing it closes its open Part, Rate
     or Reject; typed back to its saved values it is no longer edited. A save refused as stale drops the unsaved
     edits and shows the lines as they are. Adding, removing and putting back
     a line still save at once. Its bar holds Remove (and "Put it back as
@@ -1511,11 +1514,14 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     with none, the hourly rate. Their time entries get the `travel` or
     `waiting` activity type: `time_entry` has no `trip_id` here, since
     trips are replaced on draft save (model gap).
-  - In review, a line's only decision buttons are Approve, Approve part and
-    Reject. On a time, travel time, waiting time or mileage line, "Approve
-    part" corrects the hours or the rate: less than requested is approved
-    in part with a reason; the same hours at a higher rate are approved at
-    that rate with no reason, and the amount may exceed the request. A
+  - In review, a line's decision bar is Approve, Part, Rate and Reject
+    (design I; Rate only on time, travel time, waiting time and mileage
+    lines). Part corrects the hours or the rate, or an expense's amount;
+    less than requested is approved in part with a reason. Rate keeps the
+    hours and takes a new rate: a higher one is approved at that rate with
+    no reason, and the amount may exceed the request; a lower one asks for
+    a reason from a short list under the rate. Each line's description,
+    kind and person share a "What was done" column, as in I15. A
     changed rate flags the queue row ("Reviewer changed the rate"), and the
     review page lists changed rates above the sign-off panel. The server
     still accepts a lower rate approved with no reason

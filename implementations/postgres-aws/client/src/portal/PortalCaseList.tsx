@@ -2,7 +2,7 @@ import { Link as RouterLink } from 'react-router';
 import { listMyCases, type MyCaseProfessional, type MyCaseRecord, type MyCasesResult } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { RecordTable } from '../components/RecordTable';
-import { formatDate } from '../formatDateTime';
+import { formatDay } from '../formatDateTime';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { formatMoney } from '../formatMoney';
@@ -32,7 +32,7 @@ function CaseTable({ professionalId, cases, label }: { professionalId: string; c
       columns={[
         { header: 'Client', width: '22%', rowHeader: true, render: (c) => c.clientDisplayName ?? 'Unknown client' },
         { header: 'Case', width: '15%', render: (c) => c.caseNumber ?? '—' },
-        { header: 'Since', width: '13%', render: (c) => formatDate(c.assignedAt.slice(0, 10)) },
+        { header: 'Since', width: '13%', render: (c) => formatDay(c.assignedAt) },
         {
           header: 'Pre-authorized',
           width: '22%',
@@ -75,6 +75,16 @@ function CaseTable({ professionalId, cases, label }: { professionalId: string; c
   );
 }
 
+function SendsFor({ others }: { others: CaseSection[] }) {
+  const names = others.map((section) => section.professional.displayName ?? 'an unnamed professional');
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
+  return (
+    <Notice tone="info">
+      You also send invoices for {names.length === 1 ? 'one person' : `${names.length} people`}: {list}. The billing office set this up.
+    </Notice>
+  );
+}
+
 export default function PortalCaseList() {
   const { data, error } = useApiResource(() => listMyCases().then(caseSections), []);
   const isDelegate = data?.some((section) => !section.professional.isSelf) ?? false;
@@ -88,10 +98,16 @@ export default function PortalCaseList() {
       />
       {Boolean(error) && <Notice tone="danger">Failed to load your cases.</Notice>}
       {!data && !error && <p role="status">Loading your cases…</p>}
+      {data && isDelegate && <SendsFor others={data.filter((section) => !section.professional.isSelf)} />}
       {data &&
         (isDelegate ? (
           data.map(({ professional, cases }) => {
-            const heading = professional.isSelf ? 'Assigned to you' : `Assigned to ${professional.displayName ?? 'an unnamed professional'}`;
+            const name = professional.displayName ?? 'An unnamed professional';
+            const heading = professional.isSelf
+              ? 'Assigned to you'
+              : professional.kindDisplayName
+                ? `${name}, ${professional.kindDisplayName.toLowerCase()}`
+                : name;
             return (
               <section key={professional.professionalId} className="detail-section">
                 <h2>{heading}</h2>

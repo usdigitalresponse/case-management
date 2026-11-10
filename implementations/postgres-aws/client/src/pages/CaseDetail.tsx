@@ -23,7 +23,7 @@ import { FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../compon
 import { ReviewerSelect, useReviewPeople } from '../components/ReviewRouting';
 import { StatusPill } from '../components/StatusPill';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
-import { formatDate, formatPeriod } from '../formatDateTime';
+import { formatDate, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { stageLabel } from '../overviewStages';
 
@@ -312,7 +312,7 @@ export default function CaseDetail() {
                 ),
               },
               { header: 'Billing period', render: (invoice) => formatPeriod(invoice.periodStart, invoice.periodEnd) },
-              { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDate(invoice.submittedAt.slice(0, 10)) : '—') },
+              { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDay(invoice.submittedAt) : '—') },
               { header: 'Requested', render: (invoice) => formatMoney(invoice.submittedTotal) },
               {
                 header: 'Approved',

@@ -34,6 +34,14 @@ function routeMiles(line: PortalInvoiceLine): number | undefined {
   return line.routeDistance === null ? undefined : Number(line.routeDistance) * (line.roundTrip ? 2 : 1);
 }
 
+// Under a flagged mileage line: "Driving route is 14.6 mi. 15.4 mi more claimed, over tolerance."
+export function overRouteNote(line: PortalInvoiceLine): string | null {
+  const route = routeMiles(line);
+  if (route === undefined) return null;
+  const over = Number(line.quantity ?? 0) - route;
+  return `Driving route is ${Number(route.toFixed(1))} mi. ${Number(over.toFixed(1))} mi more claimed, over tolerance.`;
+}
+
 // Staff only: set a flagged trip's warning aside for stops on the way, or put it back.
 export interface StopsDismissal {
   dismissals: MileageDismissal[];

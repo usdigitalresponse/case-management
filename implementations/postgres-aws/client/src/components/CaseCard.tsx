@@ -31,40 +31,29 @@ export function CaseCard({
   const who = invoice.professionalDisplayName ?? 'this person';
   return (
     <>
-      <section className="invoice-case-card" aria-label="Case">
+      <section className="invoice-case-card" aria-labelledby="invoice-case-card-heading">
         <div>
+          <h2 id="invoice-case-card-heading" className="invoice-case-card__eyebrow">Case</h2>
           <RouterLink to={casePath} className="invoice-case-card__client">
-            {invoice.caseClientDisplayName ?? 'Unnamed client'}
+            {invoice.caseClientDisplayName ?? 'Unnamed client'} · {caseNumber ?? '—'}
           </RouterLink>
-          <p>
-            <strong>Case {caseNumber ?? '—'}</strong>
-            {otherNumbers.length > 0 && <span className="cell-note"> {otherNumbers.join(', ')}</span>}
-          </p>
+          {otherNumbers.length > 0 && <p className="cell-note">Also {otherNumbers.join(', ')}</p>}
           {typed && <p className="cell-note">The invoice says {typed}{typed === caseNumber ? '.' : '. It was matched to this case.'}</p>}
         </div>
-        <dl className="invoice-case-card__money">
-          <div>
-            <dt>Pre-authorized{preauthorization?.professionalId ? ` for ${who}` : ''}</dt>
-            <dd>{preauthorization ? formatMoney(preauthorization.ceiling) : 'None'}</dd>
+        <div>
+          <p>
+            {preauthorization
+              ? `Pre-authorized${preauthorization.professionalId ? ` for ${who}` : ''}: ${formatMoney(preauthorization.ceiling)}. Approved so far: ${formatMoney(preauthorization.approvedSoFar)}.`
+              : 'Nothing pre-authorized.'}
+          </p>
+          <div className="invoice-case-card__links">
+            <RouterLink to={casePath}>
+              Open the case <span aria-hidden="true">→</span>
+            </RouterLink>
+            <button type="button" className="link-button" disabled title="Not connected yet">
+              Open it in your {EXTERNAL_SYSTEM_NAME} <span aria-hidden="true">↗</span>
+            </button>
           </div>
-          {preauthorization && (
-            <>
-              <div>
-                <dt>Approved on the case so far</dt>
-                <dd>{formatMoney(preauthorization.approvedSoFar)}</dd>
-              </div>
-              <div>
-                <dt>Waiting, this one included</dt>
-                <dd>{formatMoney(preauthorization.waiting)}</dd>
-              </div>
-            </>
-          )}
-        </dl>
-        <div className="invoice-case-card__links">
-          <RouterLink to={casePath}>Open the case</RouterLink>
-          <button type="button" className="link-button" disabled title="Not connected yet">
-            Open it in your {EXTERNAL_SYSTEM_NAME} <span aria-hidden="true">↗</span>
-          </button>
         </div>
       </section>
       {overPreauthorized && preauthorization && (

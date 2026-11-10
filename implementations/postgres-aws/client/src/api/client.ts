@@ -753,6 +753,7 @@ export interface MyCaseRecord {
 export interface MyCaseProfessional {
   professionalId: string;
   displayName: string | null;
+  kindDisplayName: string | null;
   isSelf: boolean;
 }
 

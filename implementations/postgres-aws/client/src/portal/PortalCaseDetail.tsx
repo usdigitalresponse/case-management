@@ -23,7 +23,7 @@ import { RecordTable } from '../components/RecordTable';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { PageHeader } from '../components/PageHeader';
 import { caseDisplayLabel } from '../caseDisplayLabel';
-import { formatDate } from '../formatDateTime';
+import { formatDate, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { Notice } from '../components/Notice';
 
@@ -370,7 +370,7 @@ export default function PortalCaseDetail() {
         meta={
           <>
             {myCase?.caseNumber && <strong>Case {myCase.caseNumber}</strong>}
-            {myCase && <span>Assigned {formatDate(myCase.assignedAt.slice(0, 10))}</span>}
+            {myCase && <span>Assigned {formatDay(myCase.assignedAt)}</span>}
           </>
         }
         actions={<RouterLink className="btn btn--primary" to={UPLOAD_PATH}>New invoice</RouterLink>}

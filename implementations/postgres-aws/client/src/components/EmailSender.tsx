@@ -1,5 +1,5 @@
 import type { PortalInvoiceLine, QueuedInvoice } from '../api/client';
-import { formatDate, formatPeriod } from '../formatDateTime';
+import { formatDate, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { lineDate, lineDescription, lineHours, lineType } from '../invoiceLineDisplay';
 
@@ -23,7 +23,7 @@ export function senderMailto(email: string | null, invoice: QueuedInvoice, caseN
     invoice.periodStart || invoice.periodEnd
       ? formatPeriod(invoice.periodStart, invoice.periodEnd)
       : invoice.submittedAt
-        ? `Sent ${formatDate(invoice.submittedAt.slice(0, 10))}`
+        ? `Sent ${formatDay(invoice.submittedAt)}`
         : invoice.receivedOn
           ? `Received ${formatDate(invoice.receivedOn)}`
           : null;

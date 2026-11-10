@@ -20,3 +20,8 @@ export function formatDate(isoDate: string | null | undefined): string {
 export function formatPeriod(start: string | null, end: string | null): string {
   return start || end ? `${formatDate(start)} – ${formatDate(end)}` : '—';
 }
+
+// A timestamp's date in the viewer's zone, so an evening submission isn't shown as the next day.
+export function formatDay(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
+}

@@ -6,10 +6,9 @@ import { isMileage, lineDate, lineDescription, lineHours, lineRate, lineTimekeep
 import { EnteredFlag } from './NewEntryFields';
 
 // An invoice's lines as reviewers and submitters both see them, with an
-// optional decision column and a panel under a line. What was done has the
-// full width under each line's figures, so a long description isn't
-// squeezed. The notes add what the submitter changed from the file: under
-// the description, the hours and the amount.
+// optional decision column and a panel under a line. The notes add what the
+// submitter changed from the file: under the description, the hours and the
+// amount.
 export function InvoiceLinesTable<L extends PortalInvoiceLine>({
   lines,
   decisionHeader,
@@ -40,28 +39,27 @@ export function InvoiceLinesTable<L extends PortalInvoiceLine>({
       emptyMessage="This invoice has no items."
       rowClassName={rowClassName}
       rowDetail={rowDetail}
-      rowNote={(line) => (
-        <>
-          {lineDescription(line)}
-          {line.tripId && line.tripOrigin && line.tripDestination && (
-            <span className="cell-note">
-              {line.tripOrigin} → {line.tripDestination}
-            </span>
-          )}
-          {line.proposedTimekeeperName && (
-            <EnteredFlag what={`Person (“${line.proposedTimekeeperName}”)`} matched={Boolean(line.timekeeperProfessionalId)} compact />
-          )}
-          {note?.(line)}
-        </>
-      )}
       columns={[
-        { header: 'Date', render: (line) => lineDate(line) },
+        { header: 'Date', className: 'line-date-cell', render: (line) => lineDate(line) },
         {
-          header: 'Kind',
+          header: 'What was done',
+          className: 'line-what-cell',
           render: (line) => (
             <>
-              {lineType(line)}
-              <span className="cell-note">{lineTimekeeper(line)}</span>
+              {lineDescription(line)}
+              <span className="cell-note">
+                {lineType(line)}
+                {line.timekeeperDisplayName || line.timekeeperLabel ? ` · ${lineTimekeeper(line)}` : ''}
+              </span>
+              {line.tripId && line.tripOrigin && line.tripDestination && (
+                <span className="cell-note">
+                  {line.tripOrigin} → {line.tripDestination}
+                </span>
+              )}
+              {line.proposedTimekeeperName && (
+                <EnteredFlag what={`Person (“${line.proposedTimekeeperName}”)`} matched={Boolean(line.timekeeperProfessionalId)} compact />
+              )}
+              {note?.(line)}
             </>
           ),
         },

@@ -336,7 +336,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
    the table past the file beside it. */
 .check-lines__actions--decide { white-space: normal; min-width: 12rem; }
 .check-lines__actions--decide .decision-buttons { align-items: flex-end; }
-.check-lines__actions--decide .decision-button-row { flex-wrap: wrap; justify-content: flex-end; }
+.check-lines__actions--decide .decision-bar { flex-wrap: wrap; justify-content: flex-end; }
 /* Edited in place while entered: compact fields in the cells. */
 .check-lines__input { width: 100%; min-width: 4rem; max-width: none; height: auto; margin-top: 0; padding: .3rem .4rem; font-size: .9rem; }
 .check-lines__table .amount .check-lines__input { width: 4.5rem; min-width: 0; text-align: right; }
@@ -844,8 +844,10 @@ form.compact-form { max-width: none; }
 
 /* Review table */
 .review-table td { vertical-align: top; }
+.review-table td.line-date-cell { white-space: nowrap; }
 .review-table tr.is-rejected td:not(.decision-cell) { opacity: .6; }
 .review-table tr.is-open, .review-table tr.detail-row { background: var(--row-open); }
+.review-table tr.is-flagged { background: var(--warning-tint); }
 .data-card table.review-table tbody tr.detail-row:hover { background: var(--row-open); }
 .data-card table tr.detail-row td { padding: 0; }
 /* A row and the full-width note under it read as one (RecordTable rowNote). */
@@ -855,8 +857,15 @@ form.compact-form { max-width: none; }
 .decision-cell { min-width: 18.5rem; }
 .decision-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
 /* Approve, Approve part and Reject stay on one line. */
-.decision-button-row { display: flex; flex-wrap: nowrap; gap: .4rem; }
-.decision-button-row .btn { padding: .35rem .7rem; }
+.decision-bar { display: inline-flex; flex-wrap: nowrap; }
+.decision-bar button { margin: 0 0 0 -1px; padding: .4rem .8rem; border: 1px solid var(--color-primary); background: var(--surface); color: var(--color-primary); font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; }
+.decision-bar button:first-child { margin-left: 0; border-radius: 6px 0 0 6px; }
+.decision-bar button:last-child { border-radius: 0 6px 6px 0; }
+.decision-bar button:hover:not(:disabled) { background: var(--row-open); }
+.decision-bar button.is-active { position: relative; background: var(--color-primary); color: var(--surface); }
+.decision-bar .decision-bar__reject { color: var(--color-error); }
+.decision-bar .decision-bar__reject.is-active { background: var(--color-error); border-color: var(--color-error); }
+.decision-bar button:disabled { opacity: .6; cursor: default; }
 .decision-panel__question { max-width: 36rem; margin-bottom: .5rem; }
 .decision-buttons > .link-button { font-size: .85rem; }
 /* Asking about a line, under its questions. */
@@ -869,7 +878,6 @@ form.compact-form { max-width: none; }
 .line-bar .line-ask { padding: 0; }
 .line-bar__decide { margin-left: auto; }
 .line-bar__decide .decision-buttons { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .4rem .75rem; }
-.line-bar__decide .decision-button-row .btn { padding: .3rem .75rem; }
 /* A decided line: its decision, why, who and the links to change it, across the bar. */
 .line-bar__decide { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .3rem .9rem; }
 .line-bar__decide .decision-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .75rem; }
@@ -913,6 +921,9 @@ form.compact-form { max-width: none; }
 .decision-panel__result strong { display: block; font-size: 1.1rem; color: var(--ink); }
 .radio-row, .checkbox-row { display: flex; align-items: center; gap: .5rem; margin: .3rem 0; color: var(--ink); font-size: .9rem; cursor: pointer; }
 .decision-panel__note { display: block; }
+.decision-panel__rate-result { margin: .6rem 0 0; font-size: .85rem; font-weight: 600; color: var(--ink); }
+.decision-panel__rate-reason { display: block; max-width: 24rem; margin-top: .8rem; }
+.decision-panel--rate input[type="number"] { max-width: 10rem; }
 .decision-panel__case-rate { margin: .6rem 0 0 1.6rem; display: grid; gap: .6rem; }
 .decision-panel__case-rate .inline-pair { grid-template-columns: 1fr 1fr; max-width: 26rem; }
 .decision-panel select, .decision-panel input[type="date"] { display: block; width: 100%; box-sizing: border-box; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); background: var(--surface); }
@@ -970,13 +981,11 @@ form.compact-form { max-width: none; }
 @media (max-width: 64rem) { .case-columns { grid-template-columns: 1fr; } }
 
 /* Case card and matching on the review page */
-.invoice-case-card { display: grid; grid-template-columns: minmax(14rem, 1.3fr) 2fr auto; gap: 1rem 2rem; align-items: start; margin: 0 0 1rem; padding: 1rem 1.25rem; border: 1px solid var(--line); border-left: 3px solid var(--primary); border-radius: var(--radius); background: var(--surface); }
+.invoice-case-card { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 2rem; align-items: start; margin: 0 0 1rem; padding: 1rem 1.25rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .invoice-case-card p { margin: .25rem 0 0; }
-.invoice-case-card__client { font-size: 1.1rem; font-weight: 700; }
-.invoice-case-card__money { display: flex; flex-wrap: wrap; gap: .6rem 2rem; margin: 0; }
-.invoice-case-card__money dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
-.invoice-case-card__money dd { margin: .2rem 0 0; font-weight: 600; }
-.invoice-case-card__links { display: grid; gap: .4rem; justify-items: start; }
+.invoice-case-card__eyebrow { margin: 0 0 .25rem; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
+.invoice-case-card__client { font-family: var(--font-serif); font-size: 1.25rem; font-weight: 700; text-decoration: none; }
+.invoice-case-card__links { display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; margin-top: .5rem; }
 @media (max-width: 52rem) { .invoice-case-card { grid-template-columns: 1fr; } }
 .case-match { margin: 0 0 1rem; padding: .9rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .case-match h2 { margin: 0 0 .5rem; font-size: 1rem; }

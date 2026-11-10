@@ -46,6 +46,8 @@ function pdfWasm(): Plugin {
 
 export default defineConfig({
   plugins: [react(), pdfWasm()],
+  // Inline, so Vite doesn't search parent folders for one (blocked in the sandbox).
+  css: { postcss: {} },
   server: {
     host: true, // bind 0.0.0.0 so the dev server is reachable from outside a container
     port: 5173,

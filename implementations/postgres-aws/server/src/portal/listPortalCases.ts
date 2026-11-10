@@ -12,6 +12,7 @@ import {
   invoiceStatuses,
   person,
   professional,
+  professionalKinds,
   timeEntry,
 } from '../db/schema';
 import { portalReadableInvoiceCondition } from '../billing/invoiceAccess';
@@ -23,6 +24,7 @@ import { representedProfessionalIds, resolvePortalActor, type PortalActor } from
 export interface PortalCaseProfessional {
   professionalId: string;
   displayName: string | null;
+  kindDisplayName: string | null;
   isSelf: boolean;
 }
 
@@ -117,8 +119,13 @@ export async function listPortalCases(
   }
 
   const names = await db
-    .select({ professionalId: professional.professionalId, displayName: professional.displayName })
+    .select({
+      professionalId: professional.professionalId,
+      displayName: professional.displayName,
+      kindDisplayName: professionalKinds.displayName,
+    })
     .from(professional)
+    .leftJoin(professionalKinds, eq(professionalKinds.id, professional.professionalKindId))
     .where(inArray(professional.professionalId, professionalIds));
   // Yourself first, then the people you act for by name.
   const professionals = names

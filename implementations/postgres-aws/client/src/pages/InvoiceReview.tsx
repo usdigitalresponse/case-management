@@ -26,7 +26,7 @@ import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { RuleFindings } from '../components/BillingRules';
-import { TravelLog } from '../components/TravelLog';
+import { overRouteNote, TravelLog } from '../components/TravelLog';
 import { StatusPill } from '../components/StatusPill';
 import { DecisionCell, DecisionPanel, decisionInput, rateChanged, type PanelMode, type RateScope } from '../components/LineReview';
 import { ReviewerPicker, SignOffApprovers } from '../components/ReviewRouting';
@@ -46,9 +46,9 @@ import { EmailAboutLine, EmailSender } from '../components/EmailSender';
 import { shownCaseNumber } from '../caseNumbers';
 import { EnteredFlag, proposedCaseLabel } from '../components/NewEntryFields';
 import { Toast, useToast, type ToastMessage } from '../components/Toast';
-import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
+import { formatDate, formatDateTime, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
-import { reviewTotals, submittedByLabel } from '../reviewTotals';
+import { reviewTotals } from '../reviewTotals';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { CaseNumberReview } from '../components/CaseNumberReview';
 import { EnteredCaseNumber, EntryLines, EntryReceipt } from '../components/EntryLines';
@@ -226,6 +226,7 @@ export default function InvoiceReview() {
       finding.rule === 'mileage_distance' && !data.mileageDismissals.some((row) => row.invoiceLineId === finding.invoiceLineId),
   );
   const stopsSetAside = data.mileageDismissals.length;
+  const overRoute = new Set(mileageFindings.map((finding) => finding.invoiceLineId));
 
   const approvers = assignments?.signOff ?? [];
   const sentBack = status === 'under_review' ? data.signOffs.filter((s) => s.outcomeCode === 'changes_requested').at(-1) : undefined;
@@ -526,7 +527,7 @@ export default function InvoiceReview() {
     ) : null;
   };
 
-  // Filed by person: led by who sent it, not a case.
+  // Filed by person, with no case matched yet.
   const byPerson = invoice.caseId === null;
   const sender = invoice.professionalDisplayName ?? 'Unknown sender';
   const senderFirstName = sender.split(' ')[0];
@@ -547,16 +548,8 @@ export default function InvoiceReview() {
   return (
     <div className="invoice-review">
       <PageHeader
-        crumbs={
-          byPerson
-            ? [{ label: 'To review', to: '/' }, { label: sender, to: senderPath }, { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` }]
-            : [
-                { label: 'Invoices', to: '/' },
-                { label: invoice.caseClientDisplayName ?? 'Case', to: `/cases/${invoice.caseId}` },
-                { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` },
-              ]
-        }
-        title={byPerson ? sender : (invoice.caseClientDisplayName ?? 'Unknown client')}
+        crumbs={[{ label: 'To review', to: '/' }, { label: sender, to: senderPath }, { label: `Invoice ${invoice.invoiceId.slice(0, 8)}` }]}
+        title={sender}
         status={
           <StatusPill
             code={everyLineDecided ? 'every_line_decided' : status}
@@ -564,45 +557,30 @@ export default function InvoiceReview() {
           />
         }
         meta={
-          byPerson ? (
-            <>
-              <strong>{invoice.professionalKindDisplayName ?? 'Professional'}</strong>
+          <>
+            <strong>{invoice.professionalKindDisplayName ?? 'Professional'}</strong>
+            <span>
+              Invoice for {formatPeriod(invoice.periodStart, invoice.periodEnd)}
+              {invoice.submittedAt && `, submitted ${formatDay(invoice.submittedAt)}`}
+            </span>
+            {invoice.submittedByDisplayName && invoice.submittedByDisplayName !== invoice.professionalDisplayName && (
               <span>
-                Invoice for {formatPeriod(invoice.periodStart, invoice.periodEnd)}
-                {invoice.submittedAt && `, submitted ${formatDate(invoice.submittedAt.slice(0, 10))}`}
+                {entered ? 'Entered' : 'Sent'} by {invoice.submittedByDisplayName}
               </span>
-              {invoice.submittedByDisplayName && invoice.submittedByDisplayName !== invoice.professionalDisplayName && (
-                <span>
-                  {entered ? 'Entered' : 'Sent'} by {invoice.submittedByDisplayName}
-                </span>
-              )}
-              {invoice.receivedOn && (
-                <span>
-                  Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
-                  {formatDate(invoice.receivedOn)}
-                </span>
-              )}
-              {senderPath && <RouterLink to={senderPath}>See all of their invoices</RouterLink>}
-              {entering && checking && checking.total > 1 && (
-                <span>
-                  Invoice {countOf(checking.total - checking.queue.length, checking.total)} uploaded
-                </span>
-              )}
-            </>
-          ) : (
-            <>
+            )}
+            {invoice.receivedOn && (
               <span>
-                {invoice.professionalKindDisplayName ?? 'Professional'} invoice from {submittedByLabel(invoice)}
+                Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
+                {formatDate(invoice.receivedOn)}
               </span>
-              {invoice.receivedOn && (
-                <span>
-                  Received {invoice.receivedViaDisplayName ? `by ${invoice.receivedViaDisplayName.toLowerCase()} ` : ''}on{' '}
-                  {formatDate(invoice.receivedOn)}
-                </span>
-              )}
-              {senderPath && <RouterLink to={senderPath}>See all of their invoices</RouterLink>}
-            </>
-          )
+            )}
+            {senderPath && <RouterLink to={senderPath}>See all of their invoices</RouterLink>}
+            {entering && checking && checking.total > 1 && (
+              <span>
+                Invoice {countOf(checking.total - checking.queue.length, checking.total)} uploaded
+              </span>
+            )}
+          </>
         }
         actions={
           <>
@@ -984,9 +962,10 @@ export default function InvoiceReview() {
         <div className="review-file-layout__lines">
       <InvoiceLinesTable
         lines={lines}
-        note={
-          fileSource && fileChanges.tracking
-            ? (line) => (
+        note={(line) => (
+          <>
+            {overRoute.has(line.invoiceLineId) && <span className="cell-note line-rate-differs">{overRouteNote(line)}</span>}
+            {fileSource && fileChanges.tracking && (
                 <ChangeNote
                   line={line}
                   read={fileChanges.readOf(line)}
@@ -1001,14 +980,14 @@ export default function InvoiceReview() {
                       : undefined
                   }
                 />
-              )
-            : undefined
-        }
+            )}
+          </>
+        )}
         hoursNote={(line) => <WasNote value={wasQuantity(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
         amountNote={(line) => <WasNote value={wasAmount(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
         timeLog={timeLog ? logCellOf : undefined}
         decisionHeader={inReview ? 'Your decision' : 'Decision'}
-        rowClassName={(line) => lineRowClass(current(line)?.outcomeCode, Boolean(openPanel(line)))}
+        rowClassName={(line) => lineRowClass(current(line)?.outcomeCode, Boolean(openPanel(line))) ?? (overRoute.has(line.invoiceLineId) ? 'is-flagged' : undefined)}
         decision={decisionCell}
         rowDetail={lineDetail}
       />

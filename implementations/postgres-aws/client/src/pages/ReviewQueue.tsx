@@ -13,7 +13,7 @@ import { useCountyControl } from '../components/CountyListControl';
 import { AssignReviewer } from '../components/ReviewRouting';
 import { Toast, useToast } from '../components/Toast';
 import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
-import { formatDate } from '../formatDateTime';
+import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
 const FILTERS = QUEUE_FILTERS;
@@ -150,7 +150,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
             ),
           },
           { header: 'From', render: (invoice) => <FromCell invoice={invoice} /> },
-          { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDate(invoice.submittedAt.slice(0, 10)) : '—') },
+          { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDay(invoice.submittedAt) : '—') },
           { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
           { header: 'Decided', render: (invoice) => `${invoice.decidedCount} of ${invoice.lineCount}` },
           open
