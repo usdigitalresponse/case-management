@@ -262,5 +262,19 @@ configuration defaults.
       the case again before sending, it keeps the number.
     - Putting a draft under a case they aren't on is refused.
 
+19. **Travel time and stops:** Travel time is set at half the hourly rate of
+    100, and mileage at 0.50 a mile (`apply_time_category_rates`,
+    `dismiss_mileage_warning`).
+    - A trip's 2 hours of travel time are priced at 50. After the
+      professional is given their own travel time rate of 70, the next is
+      priced at 70; once a case rate of 80 is set for their travel time, at
+      80.
+    - A round trip claims 30 miles where the route is 11.2 there and back,
+      and is warned about. The reviewer sets the warning aside, saying the
+      trip stopped at the jail on the way; with no reason it is refused, and
+      a travel time line has no warning to set aside. Staff see who set it
+      aside and why; the submitter doesn't. Put back, the warning counts
+      again.
+
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

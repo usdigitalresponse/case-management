@@ -143,7 +143,10 @@ the rate check. A request filed by person may be matched to a case while it
 is reviewed, keeping its prices (`match_invoice_to_case`); any staff member
 enters a case's pre-authorized amount, and review flags a request that goes
 over it. A submitter filing by person may put a draft under one of the
-cases they are on, and sees only their own pre-authorized amounts.
+cases they are on, and sees only their own pre-authorized amounts. Travel time
+has its own hourly rate per professional, before the travel time setting,
+and `mileage_warning_dismissal` lets a reviewer set aside a mileage warning
+that stops on the way explain (`dismiss_mileage_warning`).
 
 ## Coverage and changes
 

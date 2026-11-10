@@ -7,7 +7,7 @@ import type { DatabaseOrTransaction } from '../db/client';
 import { invoice, invoiceStatuses, person, professional, professionalKinds, userAccount } from '../db/schema';
 import { NotFoundError } from '../errors';
 import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
-import { listRates, rateOn } from '../billing/professionalRates';
+import { listOwnTravelRates, listRates, rateOn } from '../billing/professionalRates';
 import { mileageRateOn, mileageRatesForEach } from '../billing/mileageRates';
 import { loadPersonReviewer } from '../billing/reviewAssignment';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
@@ -42,11 +42,13 @@ async function selectPeople(db: DatabaseOrTransaction, professionalId?: string) 
 
   const ids = people.map((row) => row.professionalId);
   const today = new Date().toISOString().slice(0, 10);
-  const [rates, mileage] = await Promise.all([listRates(db, ids), mileageRatesForEach(db, ids)]);
+  const [rates, mileage, travel] = await Promise.all([listRates(db, ids), mileageRatesForEach(db, ids), listOwnTravelRates(db, ids)]);
   return people.map((row) => ({
     ...row,
     hourlyRate: rateOn(rates, row.professionalId, today) ?? null,
     ratePerMile: mileageRateOn(mileage.get(row.professionalId) ?? [], today) ?? null,
+    // Their own only; without one, travel time follows the travel time setting.
+    travelHourlyRate: rateOn(travel.get(row.professionalId) ?? [], row.professionalId, today) ?? null,
   }));
 }
 

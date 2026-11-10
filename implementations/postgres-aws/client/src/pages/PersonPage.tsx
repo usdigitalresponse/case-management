@@ -154,6 +154,9 @@ export default function PersonPage() {
           <strong>{person.hourlyRate ? `${formatMoney(person.hourlyRate)} an hour` : 'None set'}</strong>
         </Fact>
         <Fact label="Mileage rate">{person.ratePerMile ? `${formatMoney(person.ratePerMile)} a mile` : 'None set'}</Fact>
+        <Fact label="Travel time rate">
+          {person.travelHourlyRate ? `${formatMoney(person.travelHourlyRate)} an hour` : 'The travel time setting'}
+        </Fact>
         <Fact label="Invoices this year">{thisYear.length}</Fact>
         <Fact label="Requested this year">{formatMoney(sum(thisYear, (row) => row.submittedTotal))}</Fact>
         <Fact label="Approved this year">{formatMoney(sum(thisYear, (row) => row.approvedTotal))}</Fact>

@@ -366,12 +366,22 @@ rules:
       - A trip groups lines on one request; every line on it shares its date, which is required to confirm an import or submit. A trip has at most one time line, its travel time, at most one mileage line, any number of expense lines for its other costs (such as parking, tolls, fares or lodging), and no other lines. A trip with no lines is removed.
       - Each line on a trip is requested, reviewed, decided, allocated and exported on its own; the trip changes none of those rules. Removing a trip removes its lines.
       - A mileage line entered or imported without a trip is given one of its own, from its date and route.
-      - Time falls in one of three categories - work, travel (a time line on a trip) or waiting (a time line off a trip with time_category waiting). Travel and waiting time are priced like work (apply_professional_rates), except that the configured_rate is their category's rate on the date. Administrators add a time_category_rate for a category from an effective date, never by changing an earlier one, with one basis - the professional's hourly rate, a percent of it, or one flat hourly rate - and the rate for a category on a date is its setting with the latest effective_from on or before it. With none in force, that time is priced at the hourly rate. A percent of an hourly rate is rounded to cents.
+      - Time falls in one of three categories - work, travel (a time line on a trip) or waiting (a time line off a trip with time_category waiting). Travel and waiting time are priced like work (apply_professional_rates), except that the configured_rate is their category's rate on the date. Travel time has its own hourly rate: a professional's own travel time rate in force on the date, set by administrators from a date like their other rates, comes before the category's rate; a case rate for travel time comes before both (set_case_rate). Administrators add a time_category_rate for a category from an effective date, never by changing an earlier one, with one basis - the professional's hourly rate, a percent of it, or one flat hourly rate - and the rate for a category on a date is its setting with the latest effective_from on or before it. With none in force, that time is priced at the hourly rate. A percent of an hourly rate is rounded to cents.
       - A rate stated on an imported supporting invoice still becomes billed_rate, and review flags it when it differs from the category's rate. Reviewers may change it (decide_invoice_lines).
       - Time billing rules (billing codes, time increment, daily hour cap, long entry) apply to travel and waiting time as to other time.
       - Anyone entering or reviewing requests can see the travel and waiting time rates in force.
       - Imports never put lines on a shared trip. While checking a request, before submitting, the submitter or staff may put a time or expense line onto a trip with a mileage line on the same date, or take it off again; doing so is offered, never required. Each imported mileage line stays its own trip until they do.
       - Reviewers are shown, for each date a request claims travel, how many of the same professional's other submitted requests on another case also claim travel that day, with a way to open all of that professional's requests with an item on that date beside the review.
+
+  dismiss_mileage_warning:
+    description: Let a reviewer set aside a mileage line's distance warning that stops on the way explain.
+    applies_to: mileage_warning_dismissal
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - A trip has one start and one end, even with stops in between, so the mileage distance rule may warn about a trip that made stops.
+      - Any active staff user who may decide the request's lines may set aside the warning on a mileage line while its lines are reviewed, saying what the stops were, or put it back. Each is recorded with the staff user and when; the latest stands.
+      - The warning as submitted is never changed or removed from the snapshot. A set-aside warning no longer counts among the request's open mileage warnings; staff, sign-off included, see who set it aside and why. Submitters and exports don't see it.
 
   apply_billing_rules:
     description: Apply the deployment's configured billing rules to payment requests.

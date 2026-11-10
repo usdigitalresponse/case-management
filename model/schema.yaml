@@ -518,6 +518,40 @@ entities:
         type: datetime
         required: true
 
+  mileage_warning_dismissal:
+    display_name: Mileage Warning Dismissal
+    description: A reviewer setting aside a mileage line's distance warning because the trip made stops on the way, or putting it back (dismiss_mileage_warning). Rows are added, never changed; the latest for a line stands. Staff only.
+    primary_key: mileage_warning_dismissal_id
+    fields:
+      mileage_warning_dismissal_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      invoice_line_id:
+        type: uuid
+        required: true
+        references: invoice_line.invoice_line_id
+        description: A mileage line.
+      dismissed:
+        type: boolean
+        required: true
+        description: True sets the warning aside; false puts it back.
+      reason:
+        type: string
+        required: false
+        description: What the stops were; required when dismissed.
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
+
   billing_rule_setting:
     display_name: Billing Rule Setting
     description: How one of the deployment's configurable billing rules applies from when it is recorded until a later setting for the same rule. Settings are added, never changed, so earlier submissions can be explained.

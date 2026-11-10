@@ -9,7 +9,7 @@ entry when a decision materially changes.
 
 ### Design I: cases, case rates and one staff role
 
-- **Status:** Decided; staff roles, case rates, cases on review and sender pages built in the Postgres/AWS prototype
+- **Status:** Built in the Postgres/AWS prototype, apart from the gaps its MAPPING.md lists
 - **Decided:** 2026-11-09
 
 Design I brings cases back to the invoice review tool. Features in the
@@ -50,14 +50,16 @@ questions, the time log check, entering an invoice in review, "Mark completed",
 - Staff can see a case's default rates on its invoices.
 - Travel time has its own hourly rate. Travel time and mileage rates follow
   the same order as other rates: a line's rate, then the case's default, then
-  the configured rate.
+  the configured rate. Built in the Postgres/AWS prototype as a person's own travel
+  time rate, before the travel time setting.
 - Rate changes are checked by the second person in review (see below).
 
 **Travel**
 - A trip stays separate lines for travel time, mileage and costs. The reviewer
   cuts the mileage, the travel time or both.
 - A trip has one start and one end, even with stops in between. A reviewer can
-  dismiss a mileage warning caused by stops.
+  dismiss a mileage warning caused by stops. Built: the reviewer says what the stops were,
+  and sign-off sees it.
 - Exports show every detail the invoice has for each trip. Trips have no caps.
 
 **Staff roles**

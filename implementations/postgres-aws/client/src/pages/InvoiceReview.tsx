@@ -6,6 +6,7 @@ import {
   askQuestion,
   applyLineRate,
   decideInvoiceLine,
+  setMileageWarning,
   finishReview,
   getInvoiceForReview,
   listDecisionReasons,
@@ -219,7 +220,12 @@ export default function InvoiceReview() {
   const totals = reviewTotals(lines, current);
   const everyLineDecided = inReview && !awaitingAnswer && lines.length > 0 && totals.decided === lines.length;
   const ruleFindings = data.ruleFindings ?? [];
-  const mileageFindings = ruleFindings.filter((finding) => finding.rule === 'mileage_distance');
+  // Less any set aside for stops on the way.
+  const mileageFindings = ruleFindings.filter(
+    (finding) =>
+      finding.rule === 'mileage_distance' && !data.mileageDismissals.some((row) => row.invoiceLineId === finding.invoiceLineId),
+  );
+  const stopsSetAside = data.mileageDismissals.length;
 
   const approvers = assignments?.signOff ?? [];
   const sentBack = status === 'under_review' ? data.signOffs.filter((s) => s.outcomeCode === 'changes_requested').at(-1) : undefined;
@@ -890,7 +896,13 @@ export default function InvoiceReview() {
       {mileageFindings.length > 0 && (
         <Notice tone="warning">
           Mileage: {mileageFindings.length} {mileageFindings.length === 1 ? 'trip is' : 'trips are'} longer than the driving route
-          allows. <a href="#travel-log">See the travel log</a>.
+          allows. <a href="#travel-log">See the travel log</a>, where a warning caused by stops on the way can be set aside.
+        </Notice>
+      )}
+      {stopsSetAside > 0 && (
+        <Notice tone="info">
+          {stopsSetAside} mileage {stopsSetAside === 1 ? 'warning was' : 'warnings were'} set aside for stops on the way.{' '}
+          <a href="#travel-log">See why in the travel log</a>.
         </Notice>
       )}
       {invoice.professionalId && data.sameDayTravel.length > 0 && (
@@ -1089,7 +1101,21 @@ export default function InvoiceReview() {
       <SignOffHistory signOffs={data.signOffs} />
 
       <div id="travel-log">
-        <TravelLog lines={lines} findings={ruleFindings} />
+        <TravelLog
+          lines={lines}
+          findings={ruleFindings}
+          stops={{
+            dismissals: data.mileageDismissals,
+            canChange: canDecide && !data.entryOpen,
+            onDismiss: (lineId, reason) =>
+              act(() => setMileageWarning(invoice.invoiceId, lineId, { dismissed: true, reason }), {
+                message: 'Mileage warning set aside for stops on the way.',
+                undo: () => setMileageWarning(invoice.invoiceId, lineId, { dismissed: false }),
+              }),
+            onRestore: (lineId) =>
+              void act(() => setMileageWarning(invoice.invoiceId, lineId, { dismissed: false }), { message: 'Mileage warning put back.' }),
+          }}
+        />
       </div>
 
       <Toast toast={toast} onUndo={(undo) => void act(undo, { message: 'Undone.' })} />

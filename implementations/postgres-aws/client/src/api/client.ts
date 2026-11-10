@@ -344,6 +344,7 @@ export interface PersonDetailsInput {
   paidThrough?: string;
   hourlyRate?: number;
   ratePerMile?: number;
+  travelHourlyRate?: number;
 }
 
 // Administrators only. A changed rate applies from today.
@@ -384,6 +385,8 @@ export interface BillingPerson {
   // Today's, their own or else their role's and the general mileage rate.
   hourlyRate: string | null;
   ratePerMile: string | null;
+  // Their own; null means the travel time setting applies.
+  travelHourlyRate: string | null;
   waiting: { count: number; total: string };
   lastInvoiceAt: string | null;
 }
@@ -873,6 +876,8 @@ export interface BillableProfessional {
   // With rates of their own, their mileage rates in place of the general
   // ones; empty otherwise.
   mileageRates?: MileageRate[];
+  // Their own travel time rates, in place of the travel time setting.
+  travelRates?: ProfessionalRate[];
 }
 
 export interface ProfessionalRate {
@@ -1816,6 +1821,19 @@ export interface InvoiceReview {
   // that would now give its lines another default.
   caseRates: CaseRate[];
   caseRatesChangedSinceSent: string[];
+  // Staff only: mileage warnings set aside for stops on the way.
+  mileageDismissals: MileageDismissal[];
+}
+
+export interface MileageDismissal {
+  invoiceLineId: string;
+  reason: string;
+  dismissedByDisplayName: string;
+  dismissedAt: string;
+}
+
+export function setMileageWarning(invoiceId: string, invoiceLineId: string, input: { dismissed: boolean; reason?: string }): Promise<unknown> {
+  return request(`/api/invoices/${invoiceId}/lines/${invoiceLineId}/mileage-warning`, { method: 'PUT', body: JSON.stringify(input) });
 }
 
 export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {

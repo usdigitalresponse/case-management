@@ -368,7 +368,8 @@ export function timeItemPreview(
     };
   }
   const hourly = rateOn(professional.rates, line.serviceDate);
-  const configuredRate = category ? categoryRateOn(category.rates, category.category, line.serviceDate, hourly) : hourly;
+  const ownTravel = category?.category === 'travel' ? rateOn(professional.travelRates ?? [], line.serviceDate) : undefined;
+  const configuredRate = ownTravel ?? (category ? categoryRateOn(category.rates, category.category, line.serviceDate, hourly) : hourly);
   if (configuredRate === undefined) {
     return { missing: 'No rate set for this date' };
   }

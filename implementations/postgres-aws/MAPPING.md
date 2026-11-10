@@ -1518,9 +1518,24 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     costs, total and a directions link that opens in the viewer's own
     browser); review lines say "Travel time" or "Travel expense"; exports add
     a travel log table, one row per trip.
+  - Stops (`dismiss_mileage_warning`; `src/billing/mileageWarnings.ts`,
+    migration `0036`): on review, a trip the mileage rule flagged offers
+    "Stops on the way?" in the travel log. The reviewer says what the stops
+    were and the warning is set aside (`PUT .../lines/:lineId/mileage-warning`,
+    a `mileage_warning_dismissal` row), or put back; the latest row stands.
+    Set-aside warnings drop out of the page's mileage warning and are
+    listed with who set them aside and why. Refused while an invoice is
+    still being entered. Submitters, exports and the queue's rule count
+    don't change.
+  - Travel time rate (design I): a person's own travel time rate
+    (`professional_rate.travel_hourly_rate`, migration `0036`), set like
+    their other rates on Add a person and their page, comes before the
+    travel time setting and after a case rate (`defaultRates.ts`); the
+    portal's price preview uses it too.
   - Gaps: no address autocomplete (it would cost calls per keystroke); one
     trip can't be split across cases; no other expense types are priced;
-    a flat travel or waiting rate is general, not per person.
+    a flat travel or waiting rate is general, though a person may have
+    their own travel time rate; a kind has no travel time rate of its own.
 - **Rates and billing from time** (`src/billing/professionalRates.ts`,
   `priceLines.ts`, `invoiceLifecycle.ts`; `src/routes/settings.ts`;
   `client/src/pages/Settings.tsx`, `components/UnbilledTimePicker.tsx`;

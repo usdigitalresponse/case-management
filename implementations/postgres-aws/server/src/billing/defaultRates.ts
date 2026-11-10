@@ -1,12 +1,13 @@
 // A line's default rate (model/rules.yaml apply_professional_rates): the
 // case's rate for the person, else for their kind, else the person's own
-// configured rate, else their kind's. Travel and waiting time with no case
-// rate of their own take their category's rate from that hourly default;
-// mileage with none takes the person's own rate per mile, else the general one.
+// configured rate, else their kind's. Travel time with no case rate takes
+// the person's own travel time rate; then travel and waiting time take their
+// category's rate from that hourly default. Mileage with no case rate takes
+// the person's own rate per mile, else the general one.
 import { asc, eq, inArray } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';
 import { caseRate, professional } from '../db/schema';
-import { listOwnMileageRates, listRates, rateRowOn } from './professionalRates';
+import { listOwnMileageRates, listOwnTravelRates, listRates, rateRowOn } from './professionalRates';
 import { listMileageRates, mileageRateOn } from './mileageRates';
 import { categoryRateOn, categorySettingOn, listTimeCategoryRates } from './timeCategoryRates';
 
@@ -86,9 +87,10 @@ export async function loadDefaultRates(
   professionalIds: string[],
 ): Promise<{ resolve: DefaultRateResolver; kindOf: Map<string, string | null>; caseRates: CaseRateRow[] }> {
   const ids = [...new Set(professionalIds)];
-  const [caseRates, hourly, categories, ownMileage, generalMileage, kinds] = await Promise.all([
+  const [caseRates, hourly, ownTravel, categories, ownMileage, generalMileage, kinds] = await Promise.all([
     listCaseRates(db, caseId),
     listRates(db, ids),
+    listOwnTravelRates(db, ids),
     listTimeCategoryRates(db),
     listOwnMileageRates(db, ids),
     listMileageRates(db),
@@ -123,6 +125,8 @@ export async function loadDefaultRates(
       const row = professionalId ? rateRowOn(hourly, professionalId, date) : undefined;
       return row ? { rate: row.hourlyRate, source: row.source, caseRateId: null } : undefined;
     }
+    const travel = rateType === 'travel' && professionalId ? rateRowOn(ownTravel.get(professionalId) ?? [], professionalId, date) : undefined;
+    if (travel) return { rate: travel.hourlyRate, source: 'person', caseRateId: null };
     const base = resolve(professionalId, 'hourly', date);
     const rate = categoryRateOn(categories, rateType, date, base?.rate);
     if (rate === undefined) return undefined;

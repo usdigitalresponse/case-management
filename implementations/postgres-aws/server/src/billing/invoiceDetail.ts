@@ -37,6 +37,7 @@ import { completedAt, returnedReason } from './invoiceEvents';
 import { loadReviewQuestions, type ReviewQuestionView } from './reviewQuestions';
 import { caseRatesChangedSince, loadCaseRateViews, rateProfessionalId, type CaseRateView } from './caseRates';
 import { rateTypeOf, type RateType } from './defaultRates';
+import { loadMileageDismissals, type MileageWarningDismissal } from './mileageWarnings';
 
 export type Audience = 'staff' | 'submitter';
 
@@ -285,6 +286,8 @@ export interface InvoiceDetail {
   // one was sent that would now give its lines another default.
   caseRates: CaseRateView[];
   caseRatesChangedSinceSent: string[];
+  // Staff only: mileage warnings set aside for stops on the way.
+  mileageDismissals: MileageWarningDismissal[];
 }
 
 // Who staff email about an invoice: whoever sent it, or for a staff upload,
@@ -345,6 +348,7 @@ export async function loadInvoiceDetail(
     loadFileSource(db, invoiceId),
     audience === 'staff' ? loadCaseRateViews(db, header.caseId) : [],
   ]);
+  const mileageDismissals = audience === 'staff' ? await loadMileageDismissals(db, invoiceId) : [];
   const rateProfessionalIds = [
     ...new Set(lineRows.flatMap((line) => rateProfessionalId(line, header.professionalId) ?? [])),
   ];
@@ -497,6 +501,7 @@ export async function loadInvoiceDetail(
         (decision) => decision.sequenceNumber === round && decision.decidedByUserAccountId === header.submittedByUserAccountId,
       ),
     caseRates,
+    mileageDismissals,
     caseRatesChangedSinceSent: attempt
       ? caseRatesChangedSince(
           caseRates,

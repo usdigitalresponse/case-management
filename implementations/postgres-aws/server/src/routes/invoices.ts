@@ -16,6 +16,7 @@ import { isExportableStatus } from '../billing/invoiceAccess';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { InvoiceNotFoundError, repriceLines, reviewInvoiceLine, undoLineDecision } from '../billing/reviewInvoiceLine';
 import { applyLineRate } from '../billing/caseRates';
+import { setMileageWarning } from '../billing/mileageWarnings';
 import { finishReview, markCompleted, reopenReview, signOffInvoice } from '../billing/reviewRounds';
 import {
   confirmEnteredImport,
@@ -367,6 +368,14 @@ router.delete(
   '/:id/lines/:lineId/decision',
   asyncHandler(async (req, res) => {
     res.json(await undoLineDecision(db, actorId(req), req.params.id as string, req.params.lineId as string, req.body));
+  }),
+);
+
+// A mileage warning set aside for stops on the way, or put back (../billing/mileageWarnings.ts).
+router.put(
+  '/:id/lines/:lineId/mileage-warning',
+  asyncHandler(async (req, res) => {
+    res.json(await setMileageWarning(db, actorId(req), req.params.id as string, req.params.lineId as string, req.body));
   }),
 );
 

@@ -323,8 +323,9 @@ export const professionalKindRate = pgTable(
   (table) => [index('professional_kind_rate_kind_idx').on(table.professionalKindId, table.effectiveFrom)],
 );
 
-// A person's own approved rates, in place of their kind's and the general
-// mileage rate (../billing/professionalRates.ts). Insert-only; either may be null.
+// A person's own approved rates, in place of their kind's, the travel time
+// setting and the general mileage rate (../billing/professionalRates.ts).
+// Insert-only; any may be null.
 export const professionalRate = pgTable(
   'professional_rate',
   {
@@ -334,6 +335,7 @@ export const professionalRate = pgTable(
       .references(() => professional.professionalId),
     hourlyRate: numeric('hourly_rate', { precision: 12, scale: 2 }),
     ratePerMile: numeric('rate_per_mile', { precision: 8, scale: 3 }),
+    travelHourlyRate: numeric('travel_hourly_rate', { precision: 12, scale: 2 }),
     effectiveFrom: date('effective_from').notNull(),
     recordedByUserAccountId: uuid('recorded_by_user_account_id')
       .notNull()
@@ -537,6 +539,29 @@ export const invoiceLine = pgTable(
     sourceLocation: text('source_location'),
   },
   (table) => [index('invoice_line_invoice_id_idx').on(table.invoiceId)],
+);
+
+// Insert-only: a reviewer sets aside a mileage line's distance warning,
+// caused by stops on the way, or puts it back; the latest row stands
+// (model/rules.yaml dismiss_mileage_warning; ../billing/mileageWarnings.ts).
+export const mileageWarningDismissal = pgTable(
+  'mileage_warning_dismissal',
+  {
+    mileageWarningDismissalId: uuid('mileage_warning_dismissal_id').primaryKey().defaultRandom(),
+    invoiceId: uuid('invoice_id')
+      .notNull()
+      .references(() => invoice.invoiceId),
+    invoiceLineId: uuid('invoice_line_id')
+      .notNull()
+      .references(() => invoiceLine.invoiceLineId),
+    dismissed: boolean('dismissed').notNull(),
+    reason: text('reason'),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('mileage_warning_dismissal_invoice_idx').on(table.invoiceId)],
 );
 
 // Insert-only: a reviewer's default rate for one person or one kind on one

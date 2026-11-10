@@ -42,7 +42,7 @@ import {
   timeEntryLockedReason,
   updateTimeEntry,
 } from '../portal/changeTimeEntry';
-import { listOwnMileageRates, listRates, ownFirst } from '../billing/professionalRates';
+import { listOwnMileageRates, listOwnTravelRates, listRates, ownFirst } from '../billing/professionalRates';
 import { getBillingRules, listBillingCodes } from '../billing/billingRules';
 import { listMileageRates } from '../billing/mileageRates';
 import { listTimeCategoryRates } from '../billing/timeCategoryRates';
@@ -183,7 +183,7 @@ router.get(
     // Everyone who may bill for a professional sees their rates
     // (model/rules.yaml apply_professional_rates).
     const rates = await listRates(db, ids);
-    const [generalMileage, ownMileage] = await Promise.all([listMileageRates(db), listOwnMileageRates(db, ids)]);
+    const [generalMileage, ownMileage, ownTravel] = await Promise.all([listMileageRates(db), listOwnMileageRates(db, ids), listOwnTravelRates(db, ids)]);
     res.json({
       professionals: rows.map((row) => {
         const own = ownMileage.get(row.professionalId);
@@ -195,6 +195,8 @@ router.get(
             .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
           // Only for someone with their own; the general rates otherwise.
           mileageRates: own ? ownFirst(generalMileage, own, () => '') : [],
+          // Their own travel time rates; the travel time setting otherwise.
+          travelRates: (ownTravel.get(row.professionalId) ?? []).map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
         };
       }),
     });
