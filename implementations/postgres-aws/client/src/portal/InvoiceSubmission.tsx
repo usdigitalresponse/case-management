@@ -11,6 +11,8 @@ import {
   getMyInvoice,
   invoiceExportUrl,
   resolveInvoiceImport,
+  listMyCases,
+  setDraftCase,
   setDraftCaseNumber,
   setDraftCounty,
   setDraftDetails,
@@ -64,6 +66,66 @@ export function checkLinesPath(invoiceId: string, staff: boolean): string {
   return staff ? `/invoices/${invoiceId}/check` : `/portal/invoices/${invoiceId}`;
 }
 
+// One of the sender's cases, as the billing office matched their invoices
+// to them, or "not listed" to type its number (design I). Only the cases of
+// the person whose work it is.
+function CaseChoice({
+  invoice,
+  beforeChange,
+  onChanged,
+}: {
+  invoice: PortalInvoice['invoice'];
+  // Saves the lines first, since a case prices them again.
+  beforeChange: () => Promise<boolean>;
+  onChanged: (caseNumber: string | null) => void;
+}) {
+  const { data } = useApiResource(() => listMyCases(), []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const cases = (data?.cases ?? []).filter(
+    (row) => invoice.professionalId && row.assignedProfessionalIds.includes(invoice.professionalId),
+  );
+  if (cases.length === 0) {
+    return null;
+  }
+  async function choose(caseId: string | null) {
+    setSaving(true);
+    setError(null);
+    try {
+      if (!(await beforeChange())) return;
+      const saved = await setDraftCase(invoice.invoiceId, caseId);
+      onChanged(saved.caseNumber);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'The case could not be saved. Try again.'));
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <div className="usa-form-group case-choice">
+      <label className="usa-label" htmlFor="case-choice">Which case is it?</label>
+      <select
+        id="case-choice"
+        className="usa-select"
+        value={invoice.caseId ?? ''}
+        disabled={saving}
+        onChange={(event) => void choose(event.target.value || null)}
+      >
+        <option value="">Not listed: type its case number below</option>
+        {cases.map((row) => (
+          <option key={row.caseId} value={row.caseId}>
+            {[row.caseNumber ?? 'No number', row.clientDisplayName].filter(Boolean).join(' · ')}
+          </option>
+        ))}
+      </select>
+      <span className="field-hint">
+        {invoice.caseId ? 'It goes straight to review when you send it.' : 'Cases the billing office has matched your invoices to.'}
+      </span>
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
 // The typed case number, saved as a draft.
 function TypedCaseNumber({
   invoiceId,
@@ -76,11 +138,14 @@ function TypedCaseNumber({
   readFromFile,
   own,
   corrected,
+  chosenCase = null,
   onFocus,
   county,
 }: {
   invoiceId: string;
   county: ReactNode;
+  // The sender's case it is under, instead of a typed number.
+  chosenCase?: string | null;
   // A reviewer's correction, shown in its place.
   corrected: string | null;
   value: string;
@@ -108,6 +173,7 @@ function TypedCaseNumber({
   }
   const yours = own ? 'your' : 'the';
   const hint = (() => {
+    if (chosenCase) return `The number of the case you chose, ${chosenCase}.`;
     if (missing) return 'Add the case number before you send.';
     if (corrected) return `Corrected by the billing office. ${own ? 'You' : 'The sender'} typed ${value || 'none'}.`;
     if (!editable) return own ? 'As you typed it. The billing office did not change it.' : 'As typed. It is not checked against a list of cases.';
@@ -130,7 +196,9 @@ function TypedCaseNumber({
       onFocus={onFocus}
       county={county}
     >
-      {own ? (
+      {chosenCase ? (
+        <strong>Filed under the case you chose above.</strong>
+      ) : own ? (
         <>
           <strong>Your invoice is filed under your name, not under a case.</strong>
           <p>
@@ -196,7 +264,8 @@ function Lines({
   const { staff } = useShell();
   const { user } = useAuth();
   const { invoice, fileSource } = data;
-  const byPerson = filedByPerson ?? !invoice.caseId;
+  // Filed by person, even once put under one of the sender's cases.
+  const byPerson = filedByPerson ?? (!invoice.caseId || Boolean(invoice.caseNumberAsTyped));
   const isSubmitter = invoice.submittedByUserAccountId === user?.userAccountId;
   const isDraft = invoice.statusCode === 'draft';
   const editable = isDraft && isSubmitter;
@@ -350,14 +419,14 @@ function Lines({
 
   async function startSending() {
     const noSender = byPerson && !invoice.professionalId;
-    const noCaseNumber = byPerson && !typedCaseNumber.trim();
+    const noCaseNumber = byPerson && !invoice.caseId && !typedCaseNumber.trim();
     setSenderMissing(noSender);
     if (noCaseNumber) setCaseNumberMissing(true);
     if (noSender || noCaseNumber) return;
     // The case number box otherwise saves only on losing focus.
     if (!(await flush())) return;
     try {
-      if (byPerson) await setDraftCaseNumber(invoice.invoiceId, typedCaseNumber);
+      if (byPerson && !invoice.caseId) await setDraftCaseNumber(invoice.invoiceId, typedCaseNumber);
       setSending(true);
     } catch (err) {
       setError(apiErrorMessage(err, 'The case number could not be saved. Try again.'));
@@ -468,6 +537,16 @@ function Lines({
               }}
             />
           )}
+          {editable && !staff && (
+            <CaseChoice
+              invoice={invoice}
+              beforeChange={flush}
+              onChanged={(caseNumber) => {
+                if (caseNumber) setTypedCaseNumber(caseNumber);
+                onChanged();
+              }}
+            />
+          )}
           {caseNumberMissing && !typedCaseNumber.trim() && (
             <Notice tone="warning">This invoice needs a case number before it can be sent. Type it in the box below.</Notice>
           )}
@@ -475,7 +554,8 @@ function Lines({
             invoiceId={invoice.invoiceId}
             value={typedCaseNumber}
             onChange={setTypedCaseNumber}
-            editable={editable}
+            editable={editable && !invoice.caseId}
+            chosenCase={invoice.caseId ? (data.caseNumber ?? typedCaseNumber) : null}
             missing={caseNumberMissing && !typedCaseNumber.trim()}
             fromName={fromName}
             hasFile={Boolean(fileSource)}
@@ -592,8 +672,12 @@ function Lines({
 
       {sending && byPerson && (
         <SendDialog
-          caseHeading="Case number"
-          caseLabel={`${typedCaseNumber.trim()}, as ${staff ? '' : 'you '}typed it`}
+          caseHeading={invoice.caseId ? 'Case' : 'Case number'}
+          caseLabel={
+            invoice.caseId
+              ? [data.caseNumber ?? typedCaseNumber.trim(), invoice.caseClientDisplayName].filter(Boolean).join(' · ')
+              : `${typedCaseNumber.trim()}, as ${staff ? '' : 'you '}typed it`
+          }
           period={period}
           linesSummary={linesSummary}
           askingFor={askingFor}
@@ -603,7 +687,9 @@ function Lines({
           explanation={
             staff
               ? `It is filed under ${fromName}. Reviewers use the case number to find the case in the ${EXTERNAL_SYSTEM_NAME}, and see the file next to these lines.`
-              : 'It is filed under your name. The billing office uses the case number to find the case in its own system. You can withdraw the invoice until review starts.'
+              : invoice.caseId
+                ? 'It is filed under the case you chose and goes straight to review. You can withdraw the invoice until review starts.'
+                : 'It is filed under your name. The billing office uses the case number to find the case in its own system. You can withdraw the invoice until review starts.'
           }
           error={sendError}
           onSend={send}

@@ -91,7 +91,7 @@ describe('after upload: review each, then submit', () => {
   });
 });
 
-const caseFields = { statusId: 's', statusDisplayName: 'Open', caseNumber: null, assignedAt: '2026-01-01T00:00:00Z', unsubmittedTimeProfessionalIds: [], unsubmittedInvoiceProfessionalIds: [] };
+const caseFields = { statusId: 's', statusDisplayName: 'Open', caseNumber: null, assignedAt: '2026-01-01T00:00:00Z', unsubmittedTimeProfessionalIds: [], unsubmittedInvoiceProfessionalIds: [], preauthorizations: [] };
 
 const result: MyCasesResult = {
   professionals: [

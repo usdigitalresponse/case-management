@@ -142,7 +142,8 @@ flagged, not repriced. A case rate also comes before a pre-authorized rate in
 the rate check. A request filed by person may be matched to a case while it
 is reviewed, keeping its prices (`match_invoice_to_case`); any staff member
 enters a case's pre-authorized amount, and review flags a request that goes
-over it.
+over it. A submitter filing by person may put a draft under one of the
+cases they are on, and sees only their own pre-authorized amounts.
 
 ## Coverage and changes
 

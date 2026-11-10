@@ -1,6 +1,7 @@
-// Shell for external (email-code) users: one top bar, no sidebar, opening
-// on their invoices. Pages outside the submission design (cases, the older
-// manual-entry form, bulk import) stay reachable by address but out of view.
+// Shell for external (email-code) users: one top bar with tabs for their
+// invoices, their cases and importing, no sidebar, opening on their invoices.
+// The older manual-entry form and bulk import stay reachable by address but
+// out of view.
 // See ../AuthContext.tsx and ../../MAPPING.md "Case assignment, scoped to
 // external submitters".
 import { Routes, Route, Link, Navigate } from 'react-router';
@@ -24,12 +25,13 @@ export default function ExternalPortalApp() {
           <Route path="/" element={<Navigate to={PORTAL_HOME_PATH} replace />} />
           <Route path={PORTAL_HOME_PATH} element={<PortalInvoiceList />} />
           <Route path={UPLOAD_PATH} element={<UploadInvoices />} />
+          <Route path="/portal/cases" element={<PortalCaseList />} />
+          <Route path="/portal/cases/:caseId" element={<PortalCaseDetail />} />
           <Route path="/portal/invoices/:invoiceId" element={<InvoiceSubmission />} />
           <Route path="/portal/imports/:importId" element={<PortalImportReview />} />
           {/* Out of view; reachable by address. */}
           <Route path={NEW_INVOICE_PATH} element={<PortalNewInvoice />} />
-          <Route path="/portal/cases" element={<PortalCaseList />} />
-          <Route path="/portal/cases/:caseId" element={<PortalCaseDetail />} />
+
           <Route path="/portal/imports" element={<PortalBulkImport />} />
           <Route path="*" element={<><h1>Page not found</h1><Link to={PORTAL_HOME_PATH}>Back to your invoices</Link></>} />
         </Routes>

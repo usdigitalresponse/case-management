@@ -253,5 +253,14 @@ configuration defaults.
       Changing the amount to 250 keeps the first decision and clears the
       flag. An amount below what is already approved is refused.
 
+18. **A sender's cases:** The professional is on case 26-CR-00211, with a
+    pre-authorized amount of 500 for them and 5,000 for the whole case.
+    - Their case list shows the case with 500, never the 5,000.
+    - A draft filed by person, typed 26cr211, is put under that case: its
+      case number becomes 26-CR-00211 and its lines are priced with the
+      case's rate. Sent, it goes straight to review on the case. Taken off
+      the case again before sending, it keeps the number.
+    - Putting a draft under a case they aren't on is refused.
+
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

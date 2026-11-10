@@ -9,7 +9,7 @@ entry when a decision materially changes.
 
 ### Design I: cases, case rates and one staff role
 
-- **Status:** Decided; staff roles, case rates and cases on review built in the Postgres/AWS prototype
+- **Status:** Decided; staff roles, case rates, cases on review and sender pages built in the Postgres/AWS prototype
 - **Decided:** 2026-11-09
 
 Design I brings cases back to the invoice review tool. Features in the
@@ -28,6 +28,14 @@ questions, the time log check, entering an invoice in review, "Mark completed",
   Reviewers can still approve or reject it.
 - Client names are stored. Exports include them unless the person exporting
   chooses to redact them.
+
+**Sender pages** (decided 2026-11-09)
+- To avoid copying the external case management system, the sender side
+  stays thin. Senders don't log time in this tool; it stays in the external
+  system. Their case list shows only cases staff matched their invoices to
+  or assigned them to, so nothing is entered for it alone. They may put an
+  invoice under one of those cases, or type the case number of one that
+  isn't listed.
 
 **Rates**
 - A submitter may bill any rate. Lines are never repriced automatically.

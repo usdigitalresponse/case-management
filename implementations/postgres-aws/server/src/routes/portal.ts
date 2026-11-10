@@ -52,6 +52,7 @@ import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoi
 import { loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail';
 import {
   recallInvoice,
+  setDraftCase,
   setDraftCaseNumber,
   setDraftCounty,
   setDraftDetails,
@@ -219,6 +220,13 @@ router.put(
   '/invoices/:id/case-number',
   asyncHandler(async (req, res) => {
     res.json(await setDraftCaseNumber(db, await sessionActor(req), req.params.id as string, req.body));
+  }),
+);
+
+router.put(
+  '/invoices/:id/case',
+  asyncHandler(async (req, res) => {
+    res.json(await setDraftCase(db, await sessionActor(req), req.params.id as string, req.body));
   }),
 );
 

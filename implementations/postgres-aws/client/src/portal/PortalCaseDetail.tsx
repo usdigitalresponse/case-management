@@ -17,6 +17,7 @@ import {
 import { professionalLabel } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
 import { NewInvoiceForm } from './NewInvoiceForm';
+import { UPLOAD_PATH } from './useShell';
 import { MyInvoicesTable } from './MyInvoicesTable';
 import { RecordTable } from '../components/RecordTable';
 import { ConfirmButton } from '../components/ConfirmButton';
@@ -316,18 +317,24 @@ function InvoiceSection({
         />
       )}
 
-      <NewInvoiceForm
-        caseId={caseId}
-        billable={billable}
-        entries={entries}
-        onSaved={() => {
-          setListVersion((version) => version + 1);
-          onInvoiced();
-        }}
-      />
+      {SENDERS_LOG_TIME && (
+        <NewInvoiceForm
+          caseId={caseId}
+          billable={billable}
+          entries={entries}
+          onSaved={() => {
+            setListVersion((version) => version + 1);
+            onInvoiced();
+          }}
+        />
+      )}
     </section>
   );
 }
+
+// Hidden, not deleted: senders log time, and invoice it from here, in the
+// external case management system (design I).
+const SENDERS_LOG_TIME = false;
 
 export default function PortalCaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
@@ -362,13 +369,13 @@ export default function PortalCaseDetail() {
         title={myCase?.clientDisplayName ?? title}
         meta={
           <>
-            {myCase?.externalReference && <strong>Case {myCase.externalReference}</strong>}
+            {myCase?.caseNumber && <strong>Case {myCase.caseNumber}</strong>}
             {myCase && <span>Assigned {formatDate(myCase.assignedAt.slice(0, 10))}</span>}
           </>
         }
-        actions={<a className="btn btn--primary" href="#new-invoice">New invoice</a>}
+        actions={<RouterLink className="btn btn--primary" to={UPLOAD_PATH}>New invoice</RouterLink>}
       />
-      {billable && billable.length > 0 && (
+      {SENDERS_LOG_TIME && billable && billable.length > 0 && (
         <TimeEntrySection
           key={timeEntryVersion}
           caseId={caseId}

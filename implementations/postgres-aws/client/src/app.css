@@ -194,6 +194,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .portal-header { gap: .75rem; }
 .portal-header .user-name { max-width: 24rem; }
 .portal-badge { padding: .15rem .55rem; border-left: 1px solid var(--color-inverse-primary); color: var(--color-on-inverse-surface); font-size: 13px; white-space: nowrap; }
+.portal-tabs { display: flex; align-self: stretch; gap: .25rem; margin-left: 1.5rem; }
+.portal-tabs a { display: flex; align-items: center; padding: 0 .8rem; color: var(--color-on-inverse-surface); text-decoration: none; font-size: .92rem; border-bottom: 3px solid transparent; }
+.portal-tabs a:hover { border-bottom-color: var(--color-inverse-primary); }
+.portal-tabs a.active { font-weight: 600; border-bottom-color: var(--color-inverse-primary); }
+@media (max-width: 52rem) { .portal-tabs { order: 3; flex-basis: 100%; margin: 0; overflow-x: auto; } .portal-header { flex-wrap: wrap; } }
 .portal-page { min-height: calc(100vh - 57px); box-sizing: border-box; background: var(--sidebar); }
 .portal-sign-in { min-height: calc(100vh - 57px); box-sizing: border-box; padding: 6rem 1rem 3rem; background: var(--sidebar); }
 .portal-sign-in:focus { outline: none; }

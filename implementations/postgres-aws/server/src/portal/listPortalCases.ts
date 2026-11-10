@@ -17,6 +17,7 @@ import {
 import { portalReadableInvoiceCondition } from '../billing/invoiceAccess';
 import { UNSUBMITTED_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
+import { loadPreauthorizationSummaries, type PreauthorizationSummary } from '../billing/preauthorizations';
 import { representedProfessionalIds, resolvePortalActor, type PortalActor } from './portalActor';
 
 export interface PortalCaseProfessional {
@@ -40,6 +41,8 @@ export interface PortalCase {
   unsubmittedTimeProfessionalIds: string[];
   // Draft or withdrawn invoices you can read, by whom they bill.
   unsubmittedInvoiceProfessionalIds: string[];
+  // For the people listed.
+  preauthorizations: PreauthorizationSummary[];
 }
 
 type CaseProfessionalPairs = Array<{ caseId: string; professionalId: string }>;
@@ -152,6 +155,7 @@ export async function listPortalCases(
         assignedProfessionalIds: [professionalId],
         unsubmittedTimeProfessionalIds: [],
         unsubmittedInvoiceProfessionalIds: [],
+        preauthorizations: [],
       });
     } else if (!existing.assignedProfessionalIds.includes(professionalId)) {
       existing.assignedProfessionalIds.push(professionalId);
@@ -159,11 +163,18 @@ export async function listPortalCases(
   }
   const caseIds = [...byCase.keys()];
   if (caseIds.length > 0) {
-    const [time, invoices, numbers] = await Promise.all([
+    const [time, invoices, numbers, preauthorized] = await Promise.all([
       unsubmittedTime(db, professionalIds, caseIds),
       unsubmittedInvoices(db, actor, professionalIds, caseIds),
       loadCaseNumbers(db, caseIds),
+      Promise.all(caseIds.map(async (caseId) => [caseId, await loadPreauthorizationSummaries(db, caseId)] as const)),
     ]);
+    for (const [caseId, summaries] of preauthorized) {
+      byCase.get(caseId)!.preauthorizations = summaries.filter(
+        // Not the whole case's: its approved total includes other people's invoices.
+        (summary) => summary.professionalId !== null && professionalIds.includes(summary.professionalId),
+      );
+    }
     for (const [caseId, { caseNumber }] of numbers) {
       if (caseId) byCase.get(caseId)!.caseNumber = caseNumber;
     }

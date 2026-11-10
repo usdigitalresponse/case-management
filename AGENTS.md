@@ -238,7 +238,10 @@ overview and All cases, and People, Clients and Organizations; a request
 filed by person may be matched to a case while it is reviewed, keeping its
 sent prices; a matched request's review page is led by its case card. The
 earlier case-led queue, Providers and Intake (with the case-based upload) are
-off the sidebar but still work by address. Every case and
+off the sidebar but still work by address. The portal's tabs are Your invoices, Your
+cases and Import invoices; Your cases lists only cases staff matched or
+assigned a sender to, and senders don't log time here (it stays in the
+external system). Every case and
 person picker is `client/src/components/PickOrAdd.tsx` (first option adds
 one), except a submitter choosing among the people they bill for. Every
 county picker is `client/src/components/CountyPicker.tsx`: settings such as

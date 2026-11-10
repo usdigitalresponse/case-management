@@ -375,8 +375,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     which passes because assignment is checked as of now, not on each
     line's service date (as for delegates, below).
   - The external portal follows the invoice submission design: one top
-    bar (the brand, the signed-in email and Sign out; `PortalTopBar.tsx`),
-    no sidebar, opening on "Your invoices" (`/portal/invoices`, which `/`
+    bar (the brand, design I's tabs Your invoices, Your cases and Import
+    invoices, the signed-in email and Sign out; `PortalTopBar.tsx`), no
+    sidebar, opening on "Your invoices" (`/portal/invoices`, which `/`
     redirects to; `PortalInvoiceList.tsx`). Drafts and sent invoices share
     one list, in the review side's words: "Draft, not sent" (with "Lines
     not checked yet." while its import is unconfirmed), "Waiting for
@@ -392,8 +393,25 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     upload (`/portal/upload`, see "Structured invoice import"). Pages
     outside the design are out of navigation but still reachable:
     "New invoice" (`/new-invoice`, `PortalNewInvoice.tsx`: the bulk import
-    page or the case page's new-invoice form, `portal/NewInvoiceForm.tsx`),
-    "Your cases" (`/portal/cases`) and bulk import (`/portal/imports`).
+    page or the case page's new-invoice form, `portal/NewInvoiceForm.tsx`)
+    and bulk import (`/portal/imports`).
+  - "Your cases" (`/portal/cases`, design I) lists the open cases of the
+    people the sender bills for, grouped by person for a delegate, with
+    each one's own pre-authorized amount and approved so far (never a
+    whole-case amount, whose approved total includes other providers') and
+    any draft. Its cases are those staff matched their invoices to, which
+    adds them to the case, or assigned them to; nothing is entered for
+    the list alone. A case's page lists its invoices. Senders don't log
+    time here: it is kept in the external system, so the time section and
+    the case page's new-invoice form are hidden (`SENDERS_LOG_TIME` in
+    `PortalCaseDetail.tsx`), not deleted.
+  - On the check page, "Which case is it?" offers the cases of the person
+    whose work it is, or "Not listed" to type the number as before
+    (`CaseChoice` in `InvoiceSubmission.tsx`). Choosing one
+    (`PUT /api/portal/invoices/:id/case`, `setDraftCase` in
+    `billing/invoiceLifecycle.ts`) sets the draft's case and its number to
+    the case's and prices its lines again, so case rates apply; it is still
+    sent as filed by person and goes straight to review with its case.
     An invoice opens on its own page (see "Checking the lines" and
     "Sending" under "Structured invoice import"); a draft's row says what
     the submitter changed from the file so far. Gap: the design's "Paid"
