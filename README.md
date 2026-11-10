@@ -3,24 +3,29 @@ https://policies.usdigitalresponse.org/data-and-software-guidelines
 
 [![Code of Conduct](https://img.shields.io/badge/%E2%9D%A4-code%20of%20conduct-blue.svg?style=flat)](./CODE_OF_CONDUCT.md)
 
-# Case Management Prototype
+# Invoice Review and Case Management Prototype
 
-This project explores a generic case-management and billing system for
-public-sector workflows. It begins with an implementation-neutral specification
-that can be used to evaluate prototypes built with different technology stacks.
-As the project develops and its technical direction is validated, it may evolve
-into a stack-specific implementation.
+This project's working prototype is an invoice review tool for public-sector
+organizations that pay attorneys and other providers. It sits beside an
+existing case management system: providers send invoices, staff review them
+line by line, approvers sign them off, and the approved result is exported for
+payment elsewhere.
 
-The prototype is intended to describe reusable capabilities such as structured
-case data, assignments, workflow controls, time and expense tracking, billing,
-vendor services, reporting, and audit history. 
+The prototype is built on a broader, implementation-neutral specification for
+case management and billing, covering case data, assignments, time and
+expenses, vendor services, reporting and audit history. Those wider
+capabilities are later scope. The specification can be used to evaluate
+prototypes built with different technology stacks.
 
 
 ## Project Status
 
-This repository is in an early design and prototyping phase. Initial work will
-focus on defining the shared domain model, business rules, workflows, forms, and
-acceptance scenarios before committing to a production technology stack.
+This repository is a prototype, not production-ready software. The
+[Postgres/AWS prototype](implementations/postgres-aws/README.md) implements
+invoice review; the [Dataverse prototype](implementations/dataverse/README.md)
+is a schema review. No production technology stack has been chosen. See
+[the product definition](docs/PRODUCT.md#current-focus) for what is in and out
+of the current focus.
 
 
 ## Project Principles
