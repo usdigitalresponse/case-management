@@ -1,6 +1,12 @@
 # Power Platform prototype: assessment and incremental plan
 
-The current prototyping direction is Power Platform. Use its built-in
+> **Status (November 2026):** this assessment covers the Dataverse track only.
+> Since it was written, the working focus has moved to invoice review in the
+> [Postgres/AWS prototype](../implementations/postgres-aws/README.md); see
+> [PRODUCT.md](PRODUCT.md#current-focus). For running that app on Microsoft
+> services, see the [Microsoft platform plan](microsoft-platform-plan.md).
+
+When this was written, the prototyping direction was Power Platform. Use its built-in
 capabilities where appropriate while keeping the requirements sufficient for
 a future custom web implementation. The production platform remains undecided.
 This assessment proposes incremental work; it does not initiate a large refactor.
@@ -145,7 +151,8 @@ without selecting a second stack today.
 
 ## Revised domain implementation boundary
 
-Power Platform remains the active prototype direction. The same model supports
+At the time, the prototyping direction was Power Platform (see the 2026-11-10
+refinement under Prototype Direction in [DECISIONS.md](DECISIONS.md)). The same model supports
 an AWS-hosted relational/custom implementation, a possible lightweight Airtable
 prototype, and a later fully custom web app. No production platform is selected.
 Keep platform forms and custom web journeys interchangeable at the domain

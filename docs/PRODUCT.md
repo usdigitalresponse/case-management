@@ -11,6 +11,21 @@ specific to a technology stack as prototype findings clarify the appropriate
 direction.
 
 
+## Current Focus
+
+Prototype findings have narrowed the first product to **invoice review beside
+an external case management system** (see
+[DECISIONS.md](DECISIONS.md#invoice-review-beside-an-external-case-management-system)).
+Cases, assignments and time records may be kept in that external system.
+This product receives invoices from attorneys and other providers, reviews
+them line by line, has them signed off, and exports the approved result for
+payment elsewhere. It keeps only the case information that review needs.
+
+The [Postgres/AWS prototype](../implementations/postgres-aws/README.md)
+implements this focus. The broader case-management capabilities below remain
+in the shared model as later scope, marked as such, and are not removed.
+
+
 ## Problem
 
 Organizations managing cases and related billing often depend on disconnected
@@ -35,7 +50,10 @@ auditability.
 
 ## Intended Users
 
-The prototype should account for the needs of:
+The current focus serves billing staff who review and sign off invoices,
+administrators, and external attorneys and providers who send invoices and
+pre-authorization requests. The broader product should account for the needs
+of:
 
 - intake and case-assignment staff;
 - professionals assigned to cases;
@@ -67,7 +85,15 @@ The prototype should demonstrate how a system could:
 
 ## Initial Capability Areas
 
-### Case Intake and Management
+Areas marked **current focus** are built in the Postgres/AWS prototype, with
+the gaps its `MAPPING.md` lists. Areas marked **later scope** are defined in the
+model but not yet a product priority.
+
+### Case Intake and Management (later scope, except as review needs it)
+
+Review keeps a lightweight case record: case numbers, client, county or other
+setting, the providers on the case, and pre-authorized amounts. Staff create
+cases from invoices during review, after duplicate and close-match checks.
 
 - Structured client and case information
 - Duplicate detection
@@ -77,7 +103,7 @@ The prototype should demonstrate how a system could:
 - Historical record preservation
 
 
-### Assignment and Workload
+### Assignment and Workload (later scope)
 
 - Qualification records
 - Assignment eligibility
@@ -89,41 +115,66 @@ The prototype should demonstrate how a system could:
 
 ### Time and Expenses
 
-- Case-specific activity entries
+Current focus: providers keep recording time in the external system, not
+here. Invoice lines are travel time, waiting time, mileage, costs and other
+expenses as well as time; a trip's lines stay separate and are each decided.
+Reviewers may compare an invoice with a case's time log exported from the
+external system, as a working aid that is deleted when the review round ends.
+
+Later scope:
+
+- Case-specific activity entries recorded directly in this system
 - Structured activity categories
-- Expense and travel entries
 - Validation against case access and assignment
 - Support for timely entry
 
 
-### Billing and Payments
+### Billing and Payments (current focus)
 
-- Digital invoice submission, including staff entering invoices received by
-  email or from other tools
+- Invoice submission by external submitters, under one of their cases or
+  with a case number staff match during review
+- Filing invoices by the person whose work it is, with the case number as
+  typed: built in the Postgres/AWS prototype; whether the shared model files
+  invoices by person rather than by case is still to be decided
+- Staff entry of invoices received by email or from other tools, including
+  entry straight into review
+- Reading uploaded PDF and structured invoice files into editable lines, with
+  the file kept only as a working copy
+- Proposed details for a case, provider or timekeeper that isn't listed,
+  matched to records by staff before review
 - Automatic totals and discrepancy detection
 - Duplicate or overlapping billing checks
-- Line-by-line review with reasons, then sign-off, routed to assigned
-  reviewers and approvers
-- Requests for additional information
-- Review alongside an external case management system
-- External payment completion tracking; actual payment occurs outside this system
+- Rates by provider kind and by person, case rates set during review, and
+  separate rates for travel time, waiting time and mileage, with mileage
+  checked against driving distance where configured
+- Line-by-line review with reasons, questions to the submitter about a line,
+  then sign-off by at least two people, with changed rates flagged for
+  sign-off
+- Matching an invoice to a case during review
+- Exports and a billing record for payment elsewhere, with optional redaction
 - Pipeline status and aging
+- Later scope: external payment completion tracking; actual payment always
+  occurs outside this system
 
 
-### External Services
+### External Services (current focus)
 
-- Service-provider records
-- Preauthorization requests
-- Approval and status tracking
-- Rate and qualification information
-- Connection between services, cases, invoices, and payments
+- Service-provider records, including CVs and fee schedules kept on file
+- Pre-authorization requests from attorneys, and requests staff record when
+  they arrive another way
+- Thresholds by county, below which no pre-authorization is needed
+- Overruns explained by the sender and flagged for review, never refused
+- Pre-authorization usage by county
+- Later scope: qualification information
 
 
 ### Reporting and Oversight
 
+Current focus: the billing record, county filters on exports, and
+pre-authorization usage. Later scope:
+
 - Workload and capacity reporting
 - Case and assignment reporting
-- Billing pipeline visibility
 - Data-quality monitoring
 - Configurable periodic reports
 - Trend and operational analysis
@@ -131,11 +182,14 @@ The prototype should demonstrate how a system could:
 
 ### Administration and Access
 
-- Role- and assignment-based access
-- Provisioning and deprovisioning
-- Delegable administrative responsibilities
-- Audit history
-- Configurable reference data and policies
+- One staff role, with administrators keeping settings, configured rates and
+  the removal of people (current focus)
+- External submitters sign in with an emailed code and attest that each
+  invoice is true and correct (current focus)
+- Audit history (current focus)
+- Configurable reference data and policies (current focus)
+- Later scope: role- and assignment-based access beyond review, provisioning
+  and deprovisioning, and delegable administrative responsibilities
 
 
 ## Product Principles
@@ -193,10 +247,15 @@ The prototype will be useful if it allows the team to:
 
 ## Open Questions
 
-- Which workflows should be included in the first demonstration?
+The first demonstration is invoice review (see Current Focus). Blocking and
+warning behavior, and what external users submit and see, are recorded rule by
+rule in `model/rules.yaml` and [DECISIONS.md](DECISIONS.md). Still open:
+
 - Which user roles should participate in prototype testing?
-- Which rules must be blocking, and which should produce warnings?
-- What information should external users be able to submit or view?
-- What audit and retention behavior is required?
-- Which integrations need to be represented in the prototype?
+- What audit and retention behavior is required beyond what review records?
+- Which integrations with the external case management, finance and document
+  management systems are needed, and in what form?
 - What criteria will be used to compare candidate technology stacks?
+
+An adopting organization's own questions are listed in the
+[README](../README.md#questions-for-your-organization).

@@ -67,19 +67,22 @@ processing boundary, which includes the organization's own cloud account.
 ## Phases
 
 1. **Specification:** schema, rules, workflow, scenarios and fixture checks.
+   Status: done.
 2. **Export and submitter view:** document and spreadsheet export of a
    submission attempt; portal detail view with lines, status and decisions;
    draft editing, recall before review and withdrawal; delegate accounts and
-   role.
+   role. Status: built in the Postgres/AWS prototype.
 3. **Structured import:** LEDES 1998B and template spreadsheet upload, draft
    review, timekeeper matching and confirmation with file deletion, submit with
-   time-entry creation and duplicate warnings.
+   time-entry creation and duplicate warnings. Status: built in the
+   Postgres/AWS prototype.
 4. **Design review:** review the invoice and billing screens end to end:
    submitter and delegate portal (case invoices, draft editing, import review,
    invoice detail, recall and export) and staff billing queue and review.
    Cover layout, wording, error and empty states, accessibility and the line
    editor's density, then fix what the review finds before adding more
-   screens.
+   screens. Status: not recorded; later design rounds (G and I in
+   [DECISIONS.md](DECISIONS.md)) reworked these screens.
 5. **Document import:** first generate the synthetic PDF corpus in
    `scenarios/fixtures/invoices/` (itemized, UTBMS-coded, summary-only, voucher
    style, multi-page and scanned-looking layouts, each with expected values),

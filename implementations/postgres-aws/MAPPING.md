@@ -2029,6 +2029,8 @@ form relies on this being airtight.
   with a single-instance (non-Multi-AZ) RDS Postgres instance. No
   staging/production promotion path, autoscaling policy, or WAF is configured
   yet.
+- **Upload scanning**: uploaded files are checked by format and limits but not
+  scanned for malware, which `validate_invoice_import` requires before parsing.
 - **Review questions**: no email tells the submitter a question is waiting;
   they see it on the invoice and its status in their list ("Question for
   you").

@@ -5,7 +5,7 @@ This worksheet records the three-interface experiment described in the
 backend, intake contract and acceptance scenarios. Shared backend effort and
 failures must be recorded separately from UI-specific findings.
 
-**Status: not yet run.** The existing standard case form is a read-only review
+**Status: paused, not run** (see the [plan](case-intake-comparison-plan.md)). The existing standard case form is a read-only review
 artifact; neither the Power Fx Custom Page nor React intake has been built.
 The shared transactional intake operation is also not implemented. The plan
 supersedes the earlier sequential-write Custom Page experiment.

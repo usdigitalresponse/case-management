@@ -2,24 +2,22 @@
 
 These platform-neutral scenarios apply to `invoice_import`, the
 `invoice_import` and `payment_request` workflows and the import/export rules in
-`model/rules.yaml`. Use synthetic payees, cases, files and amounts only. No
-implementation has passed these scenarios yet.
+`model/rules.yaml`. Use synthetic payees, cases, files and amounts only.
 
 1. **Structured file:** An external submitter with an active assignment uploads
    a synthetic standard legal billing exchange file with three time lines and one
-   flat-fee line for that case. The file is stored as a document with its hash
-   until the import is confirmed or discarded. Parsing records the method and version and creates one draft
+   flat-fee line for that case. The file is stored as a private working copy
+   with its hash (see 9 for how long it is kept). Parsing records the method and version and creates one draft
    request whose lines carry the stated date, description, hours, rate, codes and
    amount. Nothing is submitted.
 2. **Free-form document:** Upload a synthetic PDF invoice with the same content.
    Extraction proposes the same draft, recording confidence for each value. The
    submitter sees the original file beside the draft, corrects one description
-   and confirms. The file content is deleted and `content_deleted_at` is set;
-   its metadata and hash remain. The extraction result keeps the original
-   extracted value; the draft holds the corrected value.
+   and confirms. The file stays beside the request through review (see 9).
+   The extraction result keeps the original extracted value; the draft holds
+   the corrected value.
 3. **Edit, recall and start over:** After confirming, the submitter edits a
-   line amount in the draft and submits; the original file is no longer
-   available. Before any review decision they recall the submission: the
+   line amount in the draft and submits. Before any review decision they recall the submission: the
    request returns to draft, the recalled attempt's snapshot is preserved, and
    they edit and resubmit. Recall after a review decision is blocked. Instead of
    resubmitting, they may withdraw the draft and upload a new file, which
@@ -78,7 +76,8 @@ implementation has passed these scenarios yet.
     development configuration using such a service accepts only synthetic files.
 11. **Submitter view:** A submitter or represented professional lists their
     requests and opens one to see submitted lines, current status and line
-    decisions with reasons. No original file is offered.
+    decisions with reasons, and the original file while the request is live
+   (see 9).
 12. **Export:** Billing staff export any submitted request; a submitter or
     represented professional exports only their own. Exports create no audit
     events. Document and spreadsheet exports contain the same values from one
@@ -94,3 +93,8 @@ implementation has passed these scenarios yet.
 
 An implementation must document unenforced boundaries, unavailable formats and
 non-atomic time-entry or expense creation as gaps before claiming parity.
+
+The Postgres/AWS prototype's automated tests exercise most of these scenarios.
+Not yet covered: the malware scan in 9 (not implemented), confidence for every
+extracted value in 2 (only low-confidence recognized figures are flagged), and
+exporting an earlier attempt after a revision in 12.

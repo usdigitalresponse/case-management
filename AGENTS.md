@@ -17,12 +17,14 @@ platform silently redefine the domain model.
 
 ## Current phase
 
-The repository is at an early design and prototyping stage. The current
-prototyping direction is Power Platform: Dataverse, Solutions, and model-driven
-apps using standard forms and views by default. Preserve enough separation for
-a future fully custom web implementation of the same shared specification.
+The repository is at an early design and prototyping stage. The working focus
+is invoice review beside an external case management system, built in the
+Postgres/AWS prototype (`implementations/postgres-aws/`); see "Current Focus" in
+`docs/PRODUCT.md`. The Dataverse track (`implementations/dataverse/`) is a
+schema review using standard forms and views; keep the guidance below for any
+Dataverse work, and preserve the shared specification for either.
 
-Use supported Microsoft capabilities and `pac`/Solution tooling for packaging
+For Dataverse work, use supported Microsoft capabilities and `pac`/Solution tooling for packaging
 and deployment. Introduce Custom Pages, PCF, flows, environment variables, and
 connection references when the workflow or integration needs them. Do not build
 custom CRUD interfaces or speculative portability infrastructure. See
