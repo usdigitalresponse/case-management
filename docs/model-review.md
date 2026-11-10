@@ -125,7 +125,13 @@ Model files are now 0.11.0, additive: the billing record can be narrowed to
 signed-off requests in one county whose billing period overlaps chosen dates,
 carries the case's client, and can leave out any column but the request's
 reference and amounts, labelled as a redacted copy (`report_billing_results`).
-The snapshot layout is unchanged apart from `spec_version`.
+Review roles collapse to staff and administrators (`authorize_invoice_review`):
+any staff member decides lines, finishes, reopens and reassigns, each line
+keeping who decided it; at least two people take part in each round; an
+approver may reject the whole request; and a review setting decides whether
+anyone on staff or only named sign-off approvers may sign off. The workflow
+gains `reject_at_sign_off`. The snapshot layout is unchanged apart from
+`spec_version`.
 
 ## Coverage and changes
 

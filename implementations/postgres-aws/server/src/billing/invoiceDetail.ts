@@ -269,8 +269,8 @@ export interface InvoiceDetail {
   entryOpen: boolean;
   // While open, who last changed its lines, and when.
   linesChangedByDisplayName: string | null;
-  // Staff only: whoever entered it also finished its latest round, shown to
-  // the approvers (model/rules.yaml enter_request_in_review).
+  // Staff only: whoever entered it also decided lines in its latest round,
+  // shown to the approvers (model/rules.yaml enter_request_in_review).
   decidedByEnterer: boolean;
 }
 

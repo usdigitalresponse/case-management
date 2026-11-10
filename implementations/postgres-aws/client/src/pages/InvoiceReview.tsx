@@ -193,11 +193,11 @@ export default function InvoiceReview() {
   // Lines may still be decided while waiting for an answer; finishing waits.
   const inReview = status === 'submitted' || status === 'under_review' || awaitingAnswer;
   const reviewer = assignments?.reviewer ?? null;
-  const isReviewer = reviewer?.userAccountId === userId;
-  // Deciding a line on an unassigned invoice takes it.
-  const canDecide = inReview && Boolean(permissions?.reviewLines) && (!reviewer || isReviewer);
-  // Its reviewer enters its lines and decides them in one pass.
-  const entering = data.entryOpen && inReview && isReviewer;
+  // Anyone on staff decides lines; deciding one on an unassigned invoice takes it.
+  const canDecide = inReview && Boolean(permissions?.reviewLines);
+  const someoneElses = canDecide && reviewer !== null && reviewer.userAccountId !== userId;
+  // Lines are entered and decided in one pass.
+  const entering = data.entryOpen && canDecide;
   knownVersion.current = Math.max(knownVersion.current, invoice.linesVersion);
   if (period.current.invoiceId !== invoice.invoiceId) {
     period.current = { invoiceId: invoice.invoiceId, periodStart: invoice.periodStart, periodEnd: invoice.periodEnd };
@@ -798,11 +798,17 @@ export default function InvoiceReview() {
         </Notice>
       )}
 
+      {someoneElses && (
+        <Notice tone="info" heading={`${reviewer!.displayName} is reviewing this invoice.`}>
+          You can still decide lines and finish the review. Each decision records who made it.
+        </Notice>
+      )}
+
       {inReview && (
         <SignOffApprovers
           invoiceId={invoice.invoiceId}
           approvers={approvers}
-          canChange={isReviewer || Boolean(permissions?.changeSettings) || (!reviewer && Boolean(permissions?.reviewLines))}
+          canChange={Boolean(permissions?.reassign)}
           onChanged={onRoutingChanged}
         />
       )}
@@ -970,7 +976,7 @@ export default function InvoiceReview() {
           totals={totals}
           lineCount={lines.length}
           inReview={inReview}
-          canFinish={isReviewer && !awaitingAnswer}
+          canFinish={Boolean(permissions?.reviewLines) && !awaitingAnswer}
           approvers={approvers}
           saving={saving}
           onFinish={() => void finish()}
@@ -1013,18 +1019,22 @@ export default function InvoiceReview() {
           nextApprover={data.nextSignOff}
           approvedCents={totals.approved}
           canSignOff={Boolean(permissions?.signOff) && data.nextSignOff?.userAccountId === userId}
-          canReopen={isReviewer && !data.signOffStarted}
+          canReopen={Boolean(permissions?.reviewLines) && !data.signOffStarted}
           saving={saving}
-          onSignOff={() => void act(() => signOffInvoice(invoice.invoiceId, { outcome: 'approved' }), { message: 'Signed off.' })}
-          onSendBack={(comment) =>
-            act(() => signOffInvoice(invoice.invoiceId, { outcome: 'changes_requested', comment }), {
-              message: 'Sent back to the reviewer.',
+          onDecide={(outcome, comment) =>
+            act(() => signOffInvoice(invoice.invoiceId, { outcome, comment: comment || undefined }), {
+              message: { approved: 'Signed off.', rejected: 'Invoice rejected.', changes_requested: 'Sent back to the reviewer.' }[outcome],
             })
           }
           onReopen={() => void act(() => reopenReview(invoice.invoiceId), { message: 'Review reopened.' })}
         />
       )}
 
+      {status === 'rejected' && (
+        <Notice tone="warning" heading="Rejected at sign-off.">
+          Nothing on this invoice is approved. The sign-off history says who rejected it.
+        </Notice>
+      )}
       {status === 'approved' && (
         <Notice tone="success" heading="Signed off.">
           Export the PDF or spreadsheet to send for payment. Check it for confidential information before you send it; this

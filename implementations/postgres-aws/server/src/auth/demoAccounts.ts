@@ -5,7 +5,8 @@ import { and, asc, eq, inArray, like } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';
 import { professional, professionalKinds, role, userAccount } from '../db/schema';
 import { EXTERNAL_DEMO_EMAIL } from '../db/demoAccounts';
-import { getStaffAccountRoleIds } from './staffAccountRole';
+import { getStaffAccountRoleIds, shownRoleName } from './staffAccountRole';
+import { allowedToSignOff, getReviewSettings } from '../billing/reviewSettings';
 
 const DEMO_DOMAIN = '%@example.invalid';
 const DEMO_VENDOR_EMAILS = 'demo-vendor-%@example.invalid';
@@ -18,13 +19,17 @@ export interface DemoAccount {
   description: string | null;
 }
 
+// The demo's named sign-off approver plays the agency Director.
+const DEMO_APPROVER_DESCRIPTION = 'Director, signs off';
+
 // userAccountId: just that account, if it is one of them.
 export async function listDemoStaff(db: DatabaseOrTransaction, userAccountId?: string): Promise<DemoAccount[]> {
   const staffRoleIds = await getStaffAccountRoleIds(db);
   if (staffRoleIds.length === 0) {
     return [];
   }
-  return db
+  const settings = await getReviewSettings(db);
+  const rows = await db
     .select({ userAccountId: userAccount.userAccountId, displayName: userAccount.displayName, description: role.displayName })
     .from(userAccount)
     .innerJoin(role, eq(userAccount.systemRoleId, role.roleId))
@@ -37,6 +42,13 @@ export async function listDemoStaff(db: DatabaseOrTransaction, userAccountId?: s
       ),
     )
     .orderBy(asc(role.displayName), asc(userAccount.displayName));
+  return rows.map((row) => ({
+    ...row,
+    description:
+      settings.signOffBy === 'approvers' && allowedToSignOff(settings, row.userAccountId)
+        ? DEMO_APPROVER_DESCRIPTION
+        : shownRoleName(row.description),
+  }));
 }
 
 export async function listDemoPartners(db: DatabaseOrTransaction, userAccountId?: string): Promise<DemoAccount[]> {

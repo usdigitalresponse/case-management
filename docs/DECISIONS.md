@@ -57,6 +57,10 @@ questions, the time log check, entering an invoice in review, "Mark completed",
   whole invoice, and sign off. Administrators also keep Settings, the
   configured rates, removing people and the demo reset. Staff change roles
   often, so this replaces the billing reviewer and sign-off approver roles.
+  Built in the Postgres/AWS prototype.
+- An administrator chooses in Settings whether the second reviewer, who signs
+  off, can be anyone on staff or must be one of the sign-off approvers they
+  name (decided 2026-11-09).
 - At least two different staff members take part in reviewing each invoice.
   It doesn't matter which part each one does.
 - Any staff member can finish a review assigned to someone else. The page
@@ -152,7 +156,8 @@ The external submitter portal keeps its sign-in and is restyled to match.
 - The working-day threshold for calling out late invoices is a setting.
 - Roles: billing reviewer, sign-off approver, general staff (duties to be
   defined) and administrator. Replaced by one staff role and administrators
-  on 2026-11-09 (see "Design I" above).
+  on 2026-11-09, with an optional list of named sign-off approvers (see
+  "Design I" above).
 
 **Exports**
 - After sign-off, staff export the documentation for payment.

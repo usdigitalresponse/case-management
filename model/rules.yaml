@@ -65,32 +65,34 @@ rules:
       - Reject decisions for superseded chains.
       - Require a positive sequence_number, unique within the chain for invoice-level decisions and per line for line decisions.
       - Include invoice pre-approval decisions before line-review decisions when required by configured policy.
-      - Require the deciding user to be an active user authorized for that step_type and holding the active invoice_review_assignment for it; a user other than the invoice submitter for pre-approval and sign-off.
+      - Require the deciding user to be an active staff user. Sign-off decisions are by the assigned approver whose turn it is, who must be allowed to sign off under the review settings (anyone on staff, or only the named sign-off approvers); a user other than the invoice submitter for pre-approval and sign-off.
+      - At least two different staff members take part in each round - by deciding its lines, finishing it or signing it off - before it is approved or rejected. Finishing is refused when the people deciding, finishing and assigned to sign off are one person.
       - For invoice pre-approval and sign-off, omit invoice_line_id and allow one decision per sequence_number.
-      - For line review, require invoice_line_id and allow one decision per line per sequence_number. A round of line review is recorded at one sequence_number, for every line at once, when the reviewer finishes it (decide_invoice_lines).
+      - For line review, require invoice_line_id and allow one decision per line per sequence_number. A round of line review is recorded at one sequence_number, for every line at once, when it is finished (decide_invoice_lines).
       - Require the reviewed line to belong to the invoice referenced by the chain.
       - A line-review round is complete when every line has a decision; a rejected line counts as decided with nothing approved and does not block the request.
       - Sign-off decisions follow the latest complete line-review round, one per assigned approver in position order.
       - A sign-off send-back (changes requested) requires an internal_only comment and opens a new line-review round in the same chain; it does not return the request to the submitter.
+      - A sign-off approver may instead reject the whole request, with an optional internal_only comment. The request is rejected and nothing on it is approved. Approving also takes an optional internal_only comment. Whether such comments may ever reach the submitter is unresolved.
       - Denial or a request for changes from the submitter requires a reason and blocks advancement.
       - Record the actual deciding user and decision timestamp.
       - Apply record_approved_request_amounts to every decision and final allocation draw.
 
   decide_invoice_lines:
-    description: Let the assigned reviewer decide each line, change their mind freely, and record the round only when they finish it.
+    description: Let staff decide each line, change their minds freely, and record the round only when it is finished.
     applies_to: invoice_line_working_decision
     trigger: before_change
     outcome: blocking
     requirements:
-      - Only the user holding the active line-review invoice_review_assignment may record, change or undo working decisions, and only while the request is under review.
+      - Any active staff user may record, change or undo working decisions, and only while the request is under review. Deciding a line on an unassigned request assigns line review to them; on a request someone else reviews, the assignment stays and the decision records who made it. Staff see when the request they are deciding is assigned to someone else.
       - Each line has at most one working decision; changing or undoing it replaces or removes it without history.
       - Approve takes the requested amount and needs no reason. Approve in part needs a reason code and an approved amount above zero and below the requested amount; on a line with hours the reviewer corrects the hours or the rate and the amount is their product rounded to cents, otherwise the reviewer corrects the amount. A reviewer may approve a line that states no hours.
       - Any reviewer may instead approve a line with hours or miles (time, travel time, waiting time or mileage) at a changed rate, higher or lower than billed, with no reason code; the amount is its quantity times that rate, rounded to cents, and may exceed the requested amount. A changed rate is flagged to the sign-off approvers before they sign off, with the billed rate and the line's configured_rate.
       - Reject needs a reason code and approves nothing. Any decision may carry a note; the reason code for another reason requires one.
       - Approving in part and rejecting each draw from their own list of reason codes (invoice_decision_reasons.applies_to); a reason may be on both. A reason not on the list for the outcome is refused. Administrators maintain the lists without a code release; a retired reason stays on decisions that used it.
       - Re-pricing applies approve-in-part decisions at the line's rate limit (apply_professional_rates), with the rate reason, to every undecided time line whose billed_rate is above it.
-      - Finishing a round requires a working decision on every line; it records them all as invoice_approval_decision rows at a new sequence_number with the finishing reviewer and time, clears the working decisions, records an invoice event and moves the request to awaiting sign-off.
-      - Until the first sign-off decision after a round, the reviewer may reopen review; the next round starts from that round's decisions as working decisions and is recorded as a new round when finished. Recorded rounds are never changed.
+      - Any active staff user may finish a round. It requires a working decision on every line; it records them all as invoice_approval_decision rows at a new sequence_number, each with the staff member who made that decision and when, clears the working decisions, records an invoice event with who finished it and moves the request to awaiting sign-off.
+      - Until the first sign-off decision after a round, any staff user may reopen review; the next round starts from that round's decisions as working decisions and is recorded as a new round when finished. Recorded rounds are never changed.
 
   check_lines_against_time_log:
     description: Let the line reviewer compare a request's time lines with one case's time log exported from another system, flag every line it doesn't support, and optionally require a staff-only reason before approving those lines' billed hours.
@@ -98,7 +100,7 @@ rules:
     trigger: before_change
     outcome: blocking
     requirements:
-      - Only the user holding the active line-review invoice_review_assignment, or any line reviewer while the request has none, may upload, replace or remove the log, choose its columns, say who a name is, or link entries, and only while the request is submitted, under review or awaiting an answer. Uploading does not take the request.
+      - Any active staff user may upload, replace or remove the log, choose its columns, say who a name is, or link entries, and only while the request is submitted, under review or awaiting an answer. Uploading does not take the request.
       - A log is CSV or a spreadsheet with a header row, which may sit below title rows. Its columns are found by their headers, preferring the date of the work and the worker over other dates and names; time spent may be in hours (decimal, h:mm or words) or minutes. The reviewer sees which columns were used and may choose others at any time without uploading again; a log whose date, worker and time spent can't be found is not kept until they are chosen.
       - The log covers one case. Only entries in the request's billing period, or between its lines' first and last dates when it has none, are compared; the rest are listed as outside it. Entries without a readable date or time are counted, not compared.
       - A name in the log is used for a person on the request only if it matches their name exactly, or once the reviewer confirms it. A likely variant, such as last name first or a first initial, is suggested, never assumed. The reviewer may mark a name as not a person, such as an office or shared account.
@@ -115,16 +117,16 @@ rules:
     trigger: before_change
     outcome: blocking
     requirements:
-      - A staff user with a line-reviewing role who uploads or types in a request, filed under the person it is from, takes it straight from draft to under review. They hold its line-review invoice_review_assignment and the default sign-off approvers are assigned, as on submission. It may be reassigned like any request in review.
-      - Until the first round is finished the entry is open. Only the user holding the line review may add, change or remove lines and set the case number as written on the request, its billing period, the number on the supplier's own invoice, and who it is from. Who it is from may be unknown when the entry starts; its lines show as read until it is chosen. Choosing or changing it prices the lines at that person's rates, moves lines attributed to the earlier choice to them, and removes the working decision on any line whose values change. A save, or a line decision, made from lines that changed since they were loaded (another window, or before a reassignment) is refused, and the latest lines are shown; nothing is overwritten or decided against unseen values. Losing the line-reviewing role ends the right to enter, as it does to decide. A reviewer's case number correction waits until the entry is closed.
+      - An active staff user who uploads or types in a request, filed under the person it is from, takes it straight from draft to under review. They hold its line-review invoice_review_assignment and the default sign-off approvers are assigned, as on submission. It may be reassigned like any request in review.
+      - Until the first round is finished the entry is open. Any active staff user may add, change or remove lines and set the case number as written on the request, its billing period, the number on the supplier's own invoice, and who it is from. Who it is from may be unknown when the entry starts; its lines show as read until it is chosen. Choosing or changing it prices the lines at that person's rates, moves lines attributed to the earlier choice to them, and removes the working decision on any line whose values change. A save, or a line decision, made from lines that changed since they were loaded (another window, or before a reassignment) is refused, and the latest lines are shown; nothing is overwritten or decided against unseen values. A deactivated account can no longer enter, as it can no longer decide. A reviewer's case number correction waits until the entry is closed.
       - Anyone who can see the request sees that it is still being entered, by whom, and when its lines last changed. A change to a line's type, date, description, quantity, rate, amount or who did the work removes that line's working decision. A line with a review question can't be removed.
       - The request is created in review in one step; if it can't be put in review, it isn't created.
       - Lines are priced, and an unmatched line's worker filled in, on every save as submitting would, so freezing changes no decided amount; if it would, finishing is refused.
-      - Values read from a file are confirmed when the reviewer first tries to finish, by whoever holds the line review. Confirmation is kept even if finishing then fails; any decided line it changed loses its decision, and finishing is refused until that line is decided again.
+      - Values read from a file are confirmed when someone first tries to finish, by whoever is finishing. Confirmation is kept even if finishing then fails; any decided line it changed loses its decision, and finishing is refused until that line is decided again.
       - Finishing the first round requires what submitting does (the case number, who it is from, how and when it was received, a confirmed import, dated imported lines, billing rules), then freezes the request and its billing rule findings in the attempt's snapshot before recording the round. Reopening or a send-back changes decisions only, never lines.
       - Billing rule findings are live while the entry is open, then as frozen.
       - Before the first round is finished and before any question is asked, the user holding the line review may discard the request outright, as deleting a draft does.
-      - Approvers are told when whoever entered the request also finished its latest round. That is allowed; whether to require a different reviewer is an open decision.
+      - Approvers are told when whoever entered the request also decided lines in its latest round. That is allowed; the two-person rule (enforce_invoice_approval_sequence) still applies.
 
   ask_review_question:
     description: Let the line reviewer ask the submitter a brief question about a line, hold review for the answer, and keep both on the request's record.
@@ -132,10 +134,10 @@ rules:
     trigger: before_change
     outcome: blocking
     requirements:
-      - Only the user holding the active line-review invoice_review_assignment may ask, taking an unassigned request as deciding a line does, while the request is submitted, under review or awaiting an answer.
+      - Any active staff user may ask, taking an unassigned request as deciding a line does, while the request is submitted, under review or awaiting an answer.
       - Every question is about one line of the request. A question and an answer are each brief, at most 500 characters.
       - Asking moves the request to awaiting an answer. While awaiting an answer, the reviewer may keep deciding lines but may not finish the round, and the submitter may not recall the request.
-      - The submitter or the represented professional answers. A staff user with a reviewing role may instead record an answer received another way, and is recorded as answering; this is also how review continues without a reply.
+      - The submitter or the represented professional answers. A staff user may instead record an answer received another way, and is recorded as answering; this is also how review continues without a reply.
       - Each question is answered once. Questions and answers are never changed or deleted.
       - Answering the last unanswered question returns the request to under review.
       - Until the round is finished, lists of requests show reviewers which have unanswered questions and which have answered ones, and the submitter which have questions for them.
@@ -149,9 +151,9 @@ rules:
     outcome: blocking
     requirements:
       - On submission, assign line review to the case's active case_invoice_reviewer, else the configured default reviewer, else leave it unassigned. Assign sign-off to the configured default sign-off approvers in order.
-      - Any user with a reviewing system role may reassign line review on any request, ending the current assignment and recording who reassigned it; the same action may set the new reviewer as the case's reviewer for future requests.
-      - The line reviewer may change the request's sign-off approvers, their order or number, until the round is finished.
-      - Assignees must be active users whose system role allows the step.
+      - Any active staff user may reassign line review on any request, ending the current assignment and recording who reassigned it; the same action may set the new reviewer as the case's reviewer for future requests.
+      - Any staff user may change the request's sign-off approvers, their order or number, until the round is finished.
+      - Assignees must be active staff users. Sign-off assignees, defaults included, must be allowed to sign off under the review settings: an administrator chooses whether anyone on staff may sign off or only the sign-off approvers they name.
       - Every reviewer can see every request under review; their own work is shown first.
 
   measure_review_waiting:
@@ -614,7 +616,7 @@ rules:
     trigger: before_create
     outcome: blocking
     requirements:
-      - Configured system roles decide who may review lines, sign off, reassign, change review settings and read the review queue. A reference configuration has a billing reviewer (review lines, reassign), a sign-off approver (sign off or send back, reassign), general staff (read only, until their work is defined) and an administrator (settings).
+      - Every active staff user may upload, review lines, finish, reassign and sign off, since staff change duties often; administrators also change settings. Who may sign off can be narrowed to named sign-off approvers in the review settings (assign_invoice_review). Earlier reviewer-only and approver-only roles are retired; accounts that still have them act as staff, and their history is kept.
       - Review access is by role, not by case assignment; submitter access stays as authorize_payment_request_export and authorize_delegated_submission describe.
 
   recommend_configured_resources:

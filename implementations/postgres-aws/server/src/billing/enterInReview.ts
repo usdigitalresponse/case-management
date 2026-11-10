@@ -32,8 +32,8 @@ import { recordInvoiceEvent } from './invoiceEvents';
 import { freezeRequest, InvoiceStateError, MILEAGE_EXPENSE_TYPE_CODE, parseDraftContent, replaceLines } from './invoiceLifecycle';
 import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry, type ReceiptInput } from './invoiceReceipt';
 import { DRAFT_INVOICE_STATUS_CODE, LINE_REVIEW_STATUS_CODES, UNDER_REVIEW_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
-import { requireReviewPermission } from './reviewAccess';
-import { assignForEntry, loadAssignments, lockInvoiceForReview, NotYourInvoiceError } from './reviewAssignment';
+import { loadReviewPermissions, requireReviewPermission } from './reviewAccess';
+import { assignForEntry, loadAssignments, lockInvoiceForReview } from './reviewAssignment';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { priceLines } from './priceLines';
 import { measureTrips } from './routeCheck';
@@ -104,7 +104,7 @@ export async function enterDraftInReview(db: Database, actorUserAccountId: strin
   return { invoiceId };
 }
 
-// The invoice's reviewer, while its entry is open and they still review.
+// Any staff member, while the entry is open.
 async function lockOpenEntry(tx: Transaction, actorUserAccountId: string, invoiceId: string) {
   await requireReviewPermission(tx, actorUserAccountId, 'reviewLines');
   const locked = await lockInvoiceForReview(tx, invoiceId);
@@ -114,10 +114,6 @@ async function lockOpenEntry(tx: Transaction, actorUserAccountId: string, invoic
   }
   if (!LINE_REVIEW_STATUS_CODES.includes(locked.statusCode)) {
     throw new InvoiceStateError('Lines can only be entered while the invoice is being reviewed.');
-  }
-  const { reviewer } = await loadAssignments(tx, invoiceId);
-  if (reviewer?.userAccountId !== actorUserAccountId) {
-    throw new NotYourInvoiceError(reviewer?.displayName ?? 'Someone else');
   }
   return entry;
 }
@@ -321,8 +317,7 @@ export async function setEnteredReceipt(db: Database, actorUserAccountId: string
 // Looked up before finishing, outside its transaction, as sending does.
 export async function measureEnteredTrips(db: Database, actorUserAccountId: string, invoiceId: string): Promise<void> {
   if (!z.uuid().safeParse(invoiceId).success || !(await entryIsOpen(db, invoiceId))) return;
-  const { reviewer } = await loadAssignments(db, invoiceId);
-  if (reviewer?.userAccountId !== actorUserAccountId) return;
+  if (!(await loadReviewPermissions(db, actorUserAccountId)).reviewLines) return;
   const trips = await db
     .select({ tripOrigin: trip.tripOrigin, tripDestination: trip.tripDestination })
     .from(trip)
@@ -333,7 +328,7 @@ export async function measureEnteredTrips(db: Database, actorUserAccountId: stri
   await measureTrips(db, trips);
 }
 
-// Called by finishing the first round, which has checked the reviewer:
+// Called by finishing the first round, which has checked who may finish:
 // what sending checks, then the request is frozen.
 export async function closeEntry(tx: Transaction, actorUserAccountId: string, invoiceId: string, chainId: string, receipt: ReceiptInput) {
   const before = await lineValues(tx, invoiceId, false);

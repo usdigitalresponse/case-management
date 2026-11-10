@@ -25,8 +25,6 @@ import {
 import { EXTERNAL_SUBMITTER_ROLE_DISPLAY_NAME } from '../professionals/externalSubmitterRole';
 import {
   ADMIN_ACCOUNT_ROLE_DISPLAY_NAME,
-  BILLING_REVIEWER_ROLE_DISPLAY_NAME,
-  SIGN_OFF_APPROVER_ROLE_DISPLAY_NAME,
   STAFF_ACCOUNT_ROLE_DISPLAY_NAME,
 } from '../auth/staffAccountRole';
 import { INVOICE_DECISION_REASONS } from '../billing/decisionReasons';
@@ -156,12 +154,6 @@ export async function ensureReferenceData(db: Database): Promise<void> {
         { code: 'changes_requested', displayName: 'Sent back' },
       ])
       .onConflictDoNothing({ target: invoiceApprovalOutcomes.code }),
-    ...[BILLING_REVIEWER_ROLE_DISPLAY_NAME, SIGN_OFF_APPROVER_ROLE_DISPLAY_NAME].map((displayName) =>
-      db
-        .insert(role)
-        .values({ displayName, roleContext: 'user_account', active: true })
-        .onConflictDoNothing({ target: [role.displayName, role.roleContext] }),
-    ),
     db
       .insert(role)
       .values({ displayName: EXTERNAL_SUBMITTER_ROLE_DISPLAY_NAME, roleContext: 'case_assignment', active: true })

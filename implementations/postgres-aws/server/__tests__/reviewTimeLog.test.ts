@@ -114,10 +114,11 @@ describe('checking lines against a time log', () => {
     await expect(setTimeLogColumns(testDb, reviewer, invoiceId, { columns: { date: 0 } })).rejects.toThrow(ValidationError);
   });
 
-  it('is only for the reviewer while in review', async () => {
+  it('is for any staff member, not only the reviewer', async () => {
     const { invoiceId } = await submitted();
-    const other = await createStaff('reviewer');
-    await expect(upload(invoiceId, LOG, other)).rejects.toThrow(ConflictError);
+    const other = await createStaff('staff');
+    await upload(invoiceId, LOG, other);
+    expect(await loadTimeLogView(testDb, invoiceId)).not.toBeNull();
   });
 
   it('asks why before approving the billed hours of a flagged line, when the setting says so', async () => {

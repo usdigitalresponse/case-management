@@ -1926,7 +1926,9 @@ export function reopenReview(invoiceId: string): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/reopen`, { method: 'POST' });
 }
 
-export function signOffInvoice(invoiceId: string, input: { outcome: 'approved' | 'changes_requested'; comment?: string }): Promise<unknown> {
+export type SignOffOutcome = 'approved' | 'rejected' | 'changes_requested';
+
+export function signOffInvoice(invoiceId: string, input: { outcome: SignOffOutcome; comment?: string }): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/sign-off`, { method: 'POST', body: JSON.stringify(input) });
 }
 
@@ -1965,6 +1967,8 @@ export function setSignOffApprovers(invoiceId: string, userAccountIds: string[])
 export interface ReviewSettings {
   defaultReviewerUserAccountId: string | null;
   defaultSignOffUserAccountIds: string[];
+  signOffBy: 'anyone' | 'approvers';
+  signOffApproverUserAccountIds: string[];
   waitingAlertWorkingDays: number;
   timeLogBlocksApproval: boolean;
 }

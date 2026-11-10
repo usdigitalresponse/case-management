@@ -22,9 +22,9 @@ export async function requireReviewPermission(
 ): Promise<void> {
   if (!(await loadReviewPermissions(db, userAccountId))[permission]) {
     const messages: Record<keyof ReviewPermissions, string> = {
-      reviewLines: 'Only billing reviewers can decide invoice lines.',
-      signOff: 'Only sign-off approvers can sign off invoices.',
-      reassign: 'Only reviewers and approvers can change who has an invoice.',
+      reviewLines: 'Only staff can decide invoice lines.',
+      signOff: 'Only staff can sign off invoices.',
+      reassign: 'Only staff can change who has an invoice.',
       changeSettings: 'Only an administrator can change settings.',
     };
     throw new ForbiddenError('forbidden', messages[permission]);

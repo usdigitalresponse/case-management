@@ -1049,7 +1049,8 @@ entities:
   invoice_review_setting:
     display_name: Invoice Review Setting
     description: One deployment-wide review setting, such as the default reviewer, the default sign-off
-      approvers, how many working days a request may wait before it is called out, or whether approving the
+      approvers, whether anyone on staff may sign off or only named sign-off approvers (and who they are),
+      how many working days a request may wait before it is called out, or whether approving the
       billed hours of lines a time log doesn't support needs a reason. Settings are added,
       never changed, from when they are recorded until a later setting of the same kind.
     primary_key: invoice_review_setting_id

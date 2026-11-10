@@ -16,7 +16,7 @@ import {
 } from '../imports/readTimeLog';
 import { InvoiceLineNotFoundError } from './reviewInvoiceLine';
 import { LINE_REVIEW_STATUS_CODES } from './invoiceStatusCodes';
-import { loadAssignments, lockInvoiceForReview } from './reviewAssignment';
+import { lockInvoiceForReview } from './reviewAssignment';
 import { requireReviewPermission } from './reviewAccess';
 import { getReviewSettings } from './reviewSettings';
 import { compareWithTimeLog, NOT_A_PERSON, type CheckLine, type TimeLogComparison } from './timeLogCheck';
@@ -30,15 +30,11 @@ export interface TimeLogView extends TimeLogComparison {
   columns: TimeLogColumns;
 }
 
-// Only while in review, by its reviewer, or anyone reviewing while it has none.
-async function beginTimeLogChange(tx: Transaction, actorUserAccountId: string, invoiceId: string) {
+// Only while in review; anyone on staff, as with deciding lines.
+async function beginTimeLogChange(tx: Transaction, invoiceId: string) {
   const locked = await lockInvoiceForReview(tx, invoiceId);
   if (!LINE_REVIEW_STATUS_CODES.includes(locked.statusCode)) {
     throw new ConflictError('invalid_state', 'A time log can only be checked while the invoice is being reviewed.');
-  }
-  const { reviewer } = await loadAssignments(tx, invoiceId);
-  if (reviewer && reviewer.userAccountId !== actorUserAccountId) {
-    throw new ConflictError('not_assigned', `${reviewer.displayName} is reviewing this invoice. Give it to yourself first.`);
   }
 }
 
@@ -86,7 +82,7 @@ export async function uploadTimeLog(
   }
   const read = await readTimeLog(input.bytes, fileName, parseColumns(input.columns));
   return db.transaction(async (tx) => {
-    await beginTimeLogChange(tx, actorUserAccountId, invoiceId);
+    await beginTimeLogChange(tx, invoiceId);
     if (read.needsColumns) {
       return { needsColumns: true, headers: read.headers };
     }
@@ -113,7 +109,7 @@ export async function setTimeLogColumns(db: Database, actorUserAccountId: string
   const columns = parseColumns((rawInput as { columns?: unknown } | null)?.columns);
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
   return db.transaction(async (tx) => {
-    await beginTimeLogChange(tx, actorUserAccountId, invoiceId);
+    await beginTimeLogChange(tx, invoiceId);
     const log = await requireLog(tx, invoiceId);
     if (!columns || !hasRequiredColumns(columns, sheetHeaders(log).length)) {
       throw new ValidationError({ columns: 'Choose the date, who did the work, and the hours or minutes.' });
@@ -137,7 +133,7 @@ export async function setTimeLogWorker(db: Database, actorUserAccountId: string,
   const { name, match } = parsed.data;
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
   return db.transaction(async (tx) => {
-    await beginTimeLogChange(tx, actorUserAccountId, invoiceId);
+    await beginTimeLogChange(tx, invoiceId);
     const log = await requireLog(tx, invoiceId);
     if (!entriesOf(log).some((entry) => entry.worker === name)) {
       throw new ValidationError({ name: 'That name is not in the time log.' });
@@ -164,7 +160,7 @@ export async function linkTimeLogEntries(db: Database, actorUserAccountId: strin
   const entryKeys = [...new Set(parsed.data.entryKeys)];
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
   return db.transaction(async (tx) => {
-    await beginTimeLogChange(tx, actorUserAccountId, invoiceId);
+    await beginTimeLogChange(tx, invoiceId);
     const log = await requireLog(tx, invoiceId);
     const lineIds = (await loadCheckLines(tx, invoiceId)).map((line) => line.invoiceLineId);
     if (!lineIds.includes(invoiceLineId)) {
@@ -188,7 +184,7 @@ export async function linkTimeLogEntries(db: Database, actorUserAccountId: strin
 export async function discardTimeLog(db: Database, actorUserAccountId: string, invoiceId: string) {
   await requireReviewPermission(db, actorUserAccountId, 'reviewLines');
   return db.transaction(async (tx) => {
-    await beginTimeLogChange(tx, actorUserAccountId, invoiceId);
+    await beginTimeLogChange(tx, invoiceId);
     await removeTimeLog(tx, invoiceId);
     return { invoiceId };
   });

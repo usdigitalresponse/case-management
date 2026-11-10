@@ -44,15 +44,15 @@ workflows:
       - action: enter_in_review
         from: draft
         to: under_review
-        requires: [reviewing_staff_uploader, own_new_upload, sender_chosen, uploader_assigned_as_reviewer]
+        requires: [active_staff_uploader, own_new_upload, sender_chosen, uploader_assigned_as_reviewer]
       - action: review
         from: [submitted, under_review]
         to: under_review
-        requires: [current_assigned_reviewer, earlier_steps_complete, working_line_decision]
+        requires: [active_staff_user, earlier_steps_complete, working_line_decision]
       - action: ask_question
         from: [submitted, under_review, awaiting_answer]
         to: awaiting_answer
-        requires: [current_assigned_reviewer, line_of_request, brief_question]
+        requires: [active_staff_user, line_of_request, brief_question]
       - action: answer_question
         from: awaiting_answer
         to: under_review
@@ -60,11 +60,11 @@ workflows:
       - action: finish_review
         from: under_review
         to: awaiting_sign_off
-        requires: [current_assigned_reviewer, every_line_decided, reasons_for_partial_and_rejected_lines, immutable_round_of_decisions, frozen_review_attempt_if_entered_in_review]
+        requires: [active_staff_user, every_line_decided, reasons_for_partial_and_rejected_lines, immutable_round_of_decisions, two_people_taking_part, frozen_review_attempt_if_entered_in_review]
       - action: reopen_review
         from: awaiting_sign_off
         to: under_review
-        requires: [current_assigned_reviewer, no_sign_off_decision_since_round]
+        requires: [active_staff_user, no_sign_off_decision_since_round]
       - action: send_back
         from: awaiting_sign_off
         to: under_review
@@ -72,7 +72,11 @@ workflows:
       - action: approve
         from: awaiting_sign_off
         to: approved
-        requires: [current_assigned_approver, every_assigned_approver_signed_off, approved_line_amounts, atomic_authorization_draw_check]
+        requires: [current_assigned_approver, every_assigned_approver_signed_off, two_people_taking_part, approved_line_amounts, atomic_authorization_draw_check]
+      - action: reject_at_sign_off
+        from: awaiting_sign_off
+        to: rejected
+        requires: [current_assigned_approver, two_people_taking_part, immutable_decision]
       - action: deny
         from: [submitted, under_review]
         to: denied
@@ -108,11 +112,12 @@ workflows:
       - action: discard_entry
         from: [under_review, awaiting_answer]
         to: absent
-        requires: [current_assigned_reviewer, entry_open, no_question_asked]
+        requires: [assigned_reviewer, entry_open, no_question_asked]
     requirements:
       - Configure reference status mappings and actor permissions before enabling transitions.
       - Reviewed timestamps and reviewers come from decisions; final approval cannot be asserted by editing status.
-      - Line decisions during review are working decisions (decide_invoice_lines); finish_review records them as one immutable round. A request with several sign-off approvers stays awaiting sign-off until the last approves.
+      - Line decisions during review are working decisions (decide_invoice_lines); finish_review records them as one immutable round. A request with several sign-off approvers stays awaiting sign-off until the last approves, or any of them rejects it.
+      - Any active staff member may decide lines, ask questions, finish or reopen a review, including one assigned to someone else; each decision records who made it. At least two different staff members take part in each round before it is approved or rejected (enforce_invoice_approval_sequence).
       - The reviewer may ask the submitter a question about a line (ask_review_question). Asking moves the request to awaiting_answer, where lines may still be decided but the round can't be finished; it returns to under_review when the last open question is answered. To stop waiting without a reply, staff record what they learned as the answer.
       - send_back returns the request to its line reviewer with an internal comment; deny and request_changes are the paths back to the submitter.
       - External completion confirmation references the approved attempt and leaves approval status unchanged; it never executes payment.

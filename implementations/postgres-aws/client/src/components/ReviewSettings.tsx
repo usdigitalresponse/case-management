@@ -39,7 +39,19 @@ export function ReviewRoutingSettings({ isAdmin }: { isAdmin: boolean }) {
   if (error || !draft || !peopleData) {
     return <LoadState error={error} what="review settings" />;
   }
-  const approvers = peopleData.people.filter((person) => person.signsOff);
+  const staff = peopleData.people.filter((person) => person.reviewsLines);
+  const named = new Set(draft.signOffApproverUserAccountIds);
+  const approvers = draft.signOffBy === 'anyone' ? staff : staff.filter((person) => named.has(person.userAccountId));
+
+  function setNamed(userAccountId: string, on: boolean) {
+    const ids = on ? [...draft!.signOffApproverUserAccountIds, userAccountId] : draft!.signOffApproverUserAccountIds.filter((id) => id !== userAccountId);
+    setDraft({
+      ...draft!,
+      signOffApproverUserAccountIds: ids,
+      // Someone taken off the list can't stay a default approver.
+      defaultSignOffUserAccountIds: draft!.defaultSignOffUserAccountIds.filter((id) => on || id !== userAccountId),
+    });
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -71,8 +83,49 @@ export function ReviewRoutingSettings({ isAdmin }: { isAdmin: boolean }) {
         onChange={(userAccountId) => setDraft({ ...draft, defaultReviewerUserAccountId: userAccountId || null })}
       />
       <fieldset className="settings-field">
+        <legend>Who may sign off</legend>
+        <p className="cell-note">
+          Anyone on staff can decide lines and finish a review. At least two people take part in each invoice; sign-off is
+          the second look.
+        </p>
+        {(['anyone', 'approvers'] as const).map((value) => (
+          <label key={value} className="checkbox-row">
+            <input
+              type="radio"
+              name="sign-off-by"
+              disabled={!isAdmin}
+              checked={draft.signOffBy === value}
+              onChange={() =>
+                setDraft({
+                  ...draft,
+                  signOffBy: value,
+                  defaultSignOffUserAccountIds:
+                    value === 'anyone' ? draft.defaultSignOffUserAccountIds : draft.defaultSignOffUserAccountIds.filter((id) => named.has(id)),
+                })
+              }
+            />
+            {value === 'anyone' ? 'Anyone on staff' : 'Only the sign-off approvers named here'}
+          </label>
+        ))}
+        {draft.signOffBy === 'approvers' && (
+          <div className="export-fields__grid">
+            {staff.map((person) => (
+              <label key={person.userAccountId} className="checkbox-row">
+                <input
+                  type="checkbox"
+                  disabled={!isAdmin}
+                  checked={named.has(person.userAccountId)}
+                  onChange={(event) => setNamed(person.userAccountId, event.target.checked)}
+                />
+                {person.displayName}
+              </label>
+            ))}
+          </div>
+        )}
+      </fieldset>
+      <fieldset className="settings-field">
         <legend>Who signs off, in order</legend>
-        {approvers.length === 0 && <p className="cell-note">No one has the sign-off role yet. Give someone it below.</p>}
+        {approvers.length === 0 && <p className="cell-note">Name at least one sign-off approver above.</p>}
         <OrderedChoiceList
           options={approvers}
           optionKey={(person) => person.userAccountId}
@@ -81,7 +134,7 @@ export function ReviewRoutingSettings({ isAdmin }: { isAdmin: boolean }) {
           chosen={draft.defaultSignOffUserAccountIds}
           onChange={(chosen) => setDraft({ ...draft, defaultSignOffUserAccountIds: chosen })}
         />
-        <p className="cell-note">Reviewers can change this for one invoice before they finish.</p>
+        <p className="cell-note">Staff can change this for one invoice before the review is finished.</p>
       </fieldset>
       <label className="settings-field">
         Call out invoices waiting more than this many working days
@@ -319,8 +372,8 @@ export function StaffRoleSettings() {
         )}
       </div>
       <p className="compact-hint">
-        Billing reviewers decide lines and can give invoices to each other. Sign-off approvers sign off whole invoices
-        or send them back. Intake staff can look but not decide. Administrators can do everything, including Settings.
+        Staff upload invoices, decide lines, finish reviews and sign off, as "Who may sign off" allows. Administrators can
+        also change Settings.
       </p>
       {adding && (
         <AddStaff

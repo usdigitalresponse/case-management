@@ -643,7 +643,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     (`src/auth/oidcProviders.ts`) on any account that has no role yet —
     including one first created by an emailed-code sign-in — and never replaced once
     set. For now that first role is "Administrator", so testers can try
-    every view; "Intake Staff" is the intended default. Emailed-code login never sets it, which is how the
+    every view; "Staff" is the intended default. Emailed-code login never sets it, which is how the
     two populations stay distinguishable in the same `user_account`
     table. Emails are lowercased (`normalizeEmail` in
     `src/auth/emailLists.ts`) before being stored or matched.
@@ -683,14 +683,20 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     are not audited. The first one moves the invoice to `under_review`,
     which ends recall. `POST .../reprice` approves in part, at the
     configured rate, every undecided time line billed above it.
-  - `POST .../finish` needs a decision on every line and at least one
-    sign-off approver; it records the round as `invoice_approval_decision`
-    rows at the next sequence number and moves the invoice to
-    `awaiting_sign_off`. `POST .../reopen` (the reviewer, before any
-    sign-off) copies the round back into working decisions.
-    `POST .../sign-off` takes `approved` or `changes_requested` with a
+  - `POST .../finish` (any staff member) needs a decision on every line and
+    at least one sign-off approver; it records the round as
+    `invoice_approval_decision` rows at the next sequence number, each line
+    under whoever decided it (the `review_finished` event records who
+    finished), and moves the invoice to `awaiting_sign_off`. It is refused
+    when the deciders, the finisher and the sign-off approvers are one
+    person; the last sign-off or a rejection checks the same again
+    (`roundParticipants` in `src/billing/reviewRounds.ts`).
+    `POST .../reopen` (any staff member, before any sign-off) copies the
+    round back into working decisions. `POST .../sign-off` takes
+    `approved`, `rejected` or `changes_requested` (which needs one) with a
     comment, stored `internal_only`; approvers sign in position order and
-    the last one approves the invoice. A send-back reopens review for the
+    the last one approves the invoice, while a rejection rejects it at once
+    with nothing approved (`approvedTotal` is zero). A send-back reopens review for the
     same reviewer in the same chain. A rejected line counts as decided
     with nothing approved; it no longer rejects the invoice.
   - Questions (`ask_review_question`; `src/billing/reviewQuestions.ts`,
@@ -817,17 +823,23 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   - Routing: submission assigns line review to the case's
     `case_invoice_reviewer`, else the `invoice_review_setting` default,
     else no one, and sign-off to the default approvers. `PUT .../reviewer`
-    (any reviewer or approver) reassigns, optionally for the case's future
-    invoices; `PUT .../sign-off-approvers` (the reviewer, or an
-    administrator) changes approvers before finishing. Deciding a line or
-    choosing approvers on an unassigned invoice takes it. Recall ends the
+    (any staff member) reassigns, optionally for the case's future
+    invoices; `PUT .../sign-off-approvers` (any staff member) changes
+    approvers before finishing. Deciding a line, asking a question or
+    choosing approvers on an unassigned invoice takes it; on one someone
+    else reviews, it stays theirs and the review page says whose it is. Recall ends the
     invoice's assignments; delete removes them with the invoice.
   - Roles (`src/auth/staffAccountRole.ts` `reviewPermissionsForRole`):
-    Billing Reviewer decides lines and reassigns; Sign-off Approver signs
-    off and reassigns; Intake Staff (general staff) only reads;
-    Administrator does all of these and changes settings. One system role
-    per account, set in Settings (`PUT /api/settings/staff-roles/:id`,
-    audited as `system_role_changed`).
+    Staff upload, decide lines, reassign, finish and sign off;
+    Administrator also changes settings. One system role per account, set
+    in Settings (`PUT /api/settings/staff-roles/:id`, audited as
+    `system_role_changed`). Migration `0034` renamed "Intake Staff" to
+    "Staff" and retired "Billing Reviewer" and "Sign-off Approver" without
+    moving accounts, since `audit_event` needs an actor: accounts that
+    still have one act and show as Staff until an administrator changes
+    their role. Review settings `sign_off_by` (`anyone` or `approvers`) and
+    `sign_off_approvers` (`src/billing/reviewSettings.ts` `canSignOff`)
+    decide who may be chosen to sign off and who may sign.
   - Staff accounts: created on first SSO sign-in from an allowed domain
     (`*_ALLOWED_DOMAINS`), or added first by an administrator in Settings
     with a name, work email and role (`POST /api/settings/staff`, audited
@@ -1617,7 +1629,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
 `src/db/ensureReferenceData.ts` idempotently seeds the reference/config
 rows the app needs to function at all (`activity_types`,
 `invoice_statuses`, `invoice_line_types`, `invoice_approval_step_types`,
-`invoice_approval_outcomes`, and the "Intake Staff", "External Submitter"
+`invoice_approval_outcomes`, and the "Staff", "External Submitter"
 and "Assigned Staff" roles) via `insert ... on conflict do nothing`,
 keyed by each table's unique `code` column (or, for `role`, a unique
 index on `(display_name, role_context)`). The settings recorded in place
@@ -1778,8 +1790,12 @@ form relies on this being airtight.
 ### Synthetic seed data provenance
 
 - **Review demo data** (`src/db/seed.ts` `seedDemoReviewers`,
-  `seedDemoReview`): two demo staff become billing reviewers and one a
-  sign-off approver; cases get synthetic `DEMO-26-…` numbers and `COURT-…`
+  `seedDemoReview`): three demo staff; the third plays the agency Director,
+  the only named sign-off approver ("Who may sign off" is set to named
+  approvers), and the demo sign-in list shows them as "Director, signs off".
+  The Director has signed off one invoice and rejected another whole; one
+  waits for them with lines decided by both reviewers; one assigned to the
+  first reviewer has a line the second decided. Cases get synthetic `DEMO-26-…` numbers and `COURT-…`
   identifiers; four assignments get a $2,500 pre-authorization; an
   investigator invoice states a $175 rate against the $75 configured one;
   and invoices are left signed off, awaiting sign-off, part-decided,

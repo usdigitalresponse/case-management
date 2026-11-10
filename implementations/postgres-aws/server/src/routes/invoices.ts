@@ -29,6 +29,8 @@ import { changeInvoiceCounty } from '../billing/invoiceCounty';
 import { answerQuestionAsStaff, askQuestion } from '../billing/reviewQuestions';
 import { reassignReviewer, setSignOffApprovers, LINE_REVIEW_STEP_TYPE_CODE } from '../billing/reviewAssignment';
 import { listReviewPeople } from '../billing/reviewAccess';
+import { allowedToSignOff, getReviewSettings } from '../billing/reviewSettings';
+import { shownRoleName } from '../auth/staffAccountRole';
 import { listReviewQueue, sentCaseNumberMatches } from '../billing/reviewQueue';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { correctCaseNumber } from '../billing/correctCaseNumber';
@@ -144,7 +146,10 @@ router.get(
 router.get(
   '/reviewers',
   asyncHandler(async (_req, res) => {
-    const people = (await listReviewPeople(db)).filter((person) => person.permissions.reviewLines || person.permissions.signOff);
+    const [people, settings] = await Promise.all([
+      listReviewPeople(db).then((all) => all.filter((person) => person.permissions.reviewLines || person.permissions.signOff)),
+      getReviewSettings(db),
+    ]);
     const waiting = await db
       .select({ userAccountId: invoiceReviewAssignment.assignedUserAccountId, waiting: count() })
       .from(invoiceReviewAssignment)
@@ -163,9 +168,9 @@ router.get(
       people: people.map((person) => ({
         userAccountId: person.userAccountId,
         displayName: person.displayName,
-        roleName: person.roleName,
+        roleName: shownRoleName(person.roleName),
         reviewsLines: person.permissions.reviewLines,
-        signsOff: person.permissions.signOff,
+        signsOff: person.permissions.signOff && allowedToSignOff(settings, person.userAccountId),
         waiting: waiting.find((row) => row.userAccountId === person.userAccountId)?.waiting ?? 0,
       })),
     });

@@ -1,17 +1,16 @@
 # Invoice review and sign-off
 
 A payment request (`invoice`) is reviewed line by line, then signed off. Cases
-may be managed in an external case management system. Use synthetic users with
-configured reviewer, sign-off approver, staff and administrator roles. Amounts
-and day counts are synthetic test values, not configuration defaults.
+may be managed in an external case management system. Use synthetic staff and
+administrator users. Amounts and day counts are synthetic test values, not
+configuration defaults.
 
 1. **Routing:** With no defaults configured, a submitted request is
    unassigned. With a default reviewer set, the next request goes to that
    reviewer. Setting a reviewer for a case sends that case's later requests to
-   them instead. Any reviewer may reassign a request, and the earlier
-   assignment remains in history. Every reviewer sees every request, with their
-   own work shown first. Staff without a reviewing role can read the queue but
-   cannot decide or reassign.
+   them instead. Any staff member may reassign a request, and the earlier
+   assignment remains in history. Every staff member sees every request, with
+   their own work shown first. A deactivated account can't decide or reassign.
 2. **Waiting:** A request submitted on a Friday has waited one working day on
    the following Monday. A request waiting longer than the configured number of
    working days is called out.
@@ -36,19 +35,29 @@ and day counts are synthetic test values, not configuration defaults.
      An administrator adds a reason to the reject list and retires another;
      reviewers see the change at once, and decisions that used the retired
      reason keep it.
-   - Only the assigned reviewer can decide lines.
+   - Another staff member decides a line on a request assigned to someone
+     else. The page tells them whose review it is; the request stays assigned
+     to its reviewer, and the line shows who decided it.
 5. **Undo and change:** Undoing or changing a decision before the round is
    finished leaves no history. Finishing with an undecided line is blocked.
-   Finishing records one round of immutable decisions, and the request then
-   awaits sign-off. Reopening before sign-off and finishing again records a
+   Finishing records one round of immutable decisions, each with whoever made
+   it, and the request then awaits sign-off. A staff member who isn't the
+   assigned reviewer may finish, and is recorded as finishing. Reopening before sign-off and finishing again records a
    second round; both rounds are kept, and the latest round's amounts are the
    approved amounts.
 6. **Rejected lines:** A round with one rejected line still goes to sign-off.
    The approved total excludes that line.
 7. **Sign-off:**
-   - The reviewer may change the sign-off approvers before finishing.
+   - Any staff member may change the sign-off approvers before finishing.
+   - A reviewer who decided every line alone and chose only themselves to sign
+     off can't finish: at least two people take part. With a colleague who
+     decided one line, they can.
+   - With Settings set to named sign-off approvers only, choosing anyone else
+     to sign off is refused, and someone taken off the list can no longer sign.
    - Each approver signs off in order, and the request is approved after the
      last one.
+   - An approver rejects the whole request, with an optional comment. It is
+     rejected and nothing on it is approved.
    - An approver sends a request back with a comment. The request returns to
      its reviewer for another round in the same chain.
    - The comment is visible to staff, but not to the submitter or in exports.
@@ -129,8 +138,7 @@ and day counts are synthetic test values, not configuration defaults.
     professional emailed in, with two lines read from the file
     (`enter_request_in_review`).
     - It is under review at once, assigned to the reviewer, with the default
-      sign-off approvers. Staff without a reviewing role upload as a draft and
-      submit it as before. A request typed in by hand, with its invoice
+      sign-off approvers. A request typed in by hand, with its invoice
       number, goes into review the same way.
     - The reviewer approves both lines, then corrects the second line's
       amount. The first keeps its decision; the second is undecided again. A

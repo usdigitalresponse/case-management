@@ -167,7 +167,7 @@ describe('review questions', () => {
     expect(await queueCounts(invoiceId)).toEqual({ openQuestionCount: 0, answeredQuestionCount: 0 });
   });
 
-  it('answers once, briefly, and only by the submitter, the professional or reviewing staff', async () => {
+  it('answers once, briefly, and only by the submitter, the professional or staff', async () => {
     const { invoiceId, lineIds } = await createSubmittedInvoice(['70.00']);
     const { invoiceReviewQuestionId } = await askQuestion(testDb, reviewer, invoiceId, { question: 'Which hearing?', invoiceLineId: lineIds[0] });
 
@@ -175,7 +175,7 @@ describe('review questions', () => {
     await expect(answerQuestionAsSubmitter(testDb, stranger, invoiceId, invoiceReviewQuestionId, { answer: 'Me' })).rejects.toBeInstanceOf(
       ForbiddenError,
     );
-    await expect(answerQuestionAsStaff(testDb, approver, invoiceId, invoiceReviewQuestionId, { answer: 'Me' })).rejects.toBeInstanceOf(
+    await expect(answerQuestionAsStaff(testDb, stranger.userAccountId, invoiceId, invoiceReviewQuestionId, { answer: 'Me' })).rejects.toBeInstanceOf(
       ForbiddenError,
     );
     await expect(
@@ -188,10 +188,11 @@ describe('review questions', () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 
-  it('is asked only by the reviewer, about a line on the invoice, while it is in line review', async () => {
+  it('is asked by staff, about a line on the invoice, while it is in line review', async () => {
     const { invoiceId, lineIds } = await createSubmittedInvoice(['70.00']);
     const other = await createSubmittedInvoice(['10.00']);
     const otherReviewer = await createStaff('reviewer', 'Reviewer Two');
+    const stranger = await createAccount();
     const invoiceLineId = lineIds[0]!;
 
     await expect(askQuestion(testDb, reviewer, invoiceId, { question: '', invoiceLineId })).rejects.toBeInstanceOf(ValidationError);
@@ -200,7 +201,8 @@ describe('review questions', () => {
       ValidationError,
     );
     await askQuestion(testDb, reviewer, invoiceId, { question: 'Which hearing?', invoiceLineId });
-    await expect(askQuestion(testDb, otherReviewer, invoiceId, { question: 'And this?', invoiceLineId })).rejects.toBeInstanceOf(ConflictError);
-    await expect(askQuestion(testDb, approver, invoiceId, { question: 'And this?', invoiceLineId })).rejects.toBeInstanceOf(ForbiddenError);
+    // Another staff member may ask too; the invoice stays with its reviewer.
+    await askQuestion(testDb, otherReviewer, invoiceId, { question: 'And this?', invoiceLineId });
+    await expect(askQuestion(testDb, stranger.userAccountId, invoiceId, { question: 'And this?', invoiceLineId })).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
