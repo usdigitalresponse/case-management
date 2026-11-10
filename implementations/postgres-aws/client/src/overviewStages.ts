@@ -6,7 +6,7 @@ export const overviewStages: { id: CaseStage; label: string; description: string
   {
     id: 'needs-assignment',
     label: 'Needs assignment',
-    description: 'Cases waiting for someone to be assigned.',
+    description: 'An invoice came in and no reviewer is assigned yet.',
     route: '/cases?stage=needs-assignment',
   },
   { id: 'represented', label: 'Represented', description: 'Active work, no invoice waiting.', route: '/cases?stage=represented' },

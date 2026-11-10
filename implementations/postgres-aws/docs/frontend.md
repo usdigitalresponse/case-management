@@ -268,11 +268,13 @@ How the React client is built and why. Schema mapping and gaps are in
     - Gaps: reviewer names stay hidden from external users, against G13, until that rule
       changes. "Paid" waits on payment records. The old person search moved to
       `/person-records`.
-  - Hidden, not removed: Overview (`/overview`), Clients, Organizations,
-    People and the case page's lifecycle history and Close case action are
-    out of the sidebar but their routes and code remain. The case page
-    keeps Add case (on the Cases list) and Add person, since invoice
-    access depends on case assignment.
+  - Hidden, not removed: the case page's lifecycle history and Close case
+    action are off the page but their code remains (design I put Case
+    overview, People, Clients and Organizations back in the sidebar). Cases come in
+    with their invoices (design I): a case is added only while matching an
+    invoice ("Add a case for [number]", or on Intake), which adds its
+    sender too, so the case pages have no Add case or Add person
+    (`AddPersonToCase.tsx` stays, unused).
   - Links to the external case management system ("Open the case in…",
     the sidebar link) are disabled placeholders; nothing is integrated.
   - Staff "Intake" (`/intake`, off the sidebar since design G;
@@ -335,7 +337,7 @@ How the React client is built and why. Schema mapping and gaps are in
     every case and person picker is `client/src/components/PickOrAdd.tsx`,
     whose first option adds one, showing its fields
     (`components/NewEntryFields.tsx`; the type-ahead searches on New case
-    and a case's "Add person" offer it first too). Nothing has to be
+    offer it first too). Nothing has to be
     chosen to continue: what isn't known waits on Intake. A submitter's
     entry is only details on the invoice (`invoice.proposed_case`,
     `proposed_provider`, `invoice_line.proposed_timekeeper_name`, migration
@@ -448,28 +450,14 @@ How the React client is built and why. Schema mapping and gaps are in
   used for focus rings and for missing or flagged markers is under 3:1
   against white, short of the non-text contrast minimum; it stays as
   specified until the design changes it.
-- **Overview home** (hidden; reachable at `/overview`): shows four stage columns (Needs assignment,
-  Represented, Billing, Closing); `/cases` retains the full list, now
-  with its own Stage column. Every column buckets real cases by their
-  actual derived stage (`server/src/cases/caseStage.ts` —
-  needs-assignment / represented / billing / closing /
-  none-if-closed, computed from assignment/invoice state, not stored).
-  Starting
-  a case isn't a stage with cases in it (a case already has its client
-  participant from the moment it's created — see
-  `src/intake/createCase.ts`), so it isn't a board column at all; it's
-  the sidebar's "New case" link and the header's "+ New case" button,
-  both going to `/cases/new`. Cards use existing case data, with three
-  previews and a link onward: Billing's "View all" goes to its real
-  queue (`/billing`, `client/src/pages/BillingQueue.tsx`); Awaiting
-  assignment, Represented, and Closing all go to `/cases?stage=<id>` —
-  `client/src/pages/CaseList.tsx` reads that query param and filters to
-  just that stage (with a "Show all cases" link back out), since none of
-  the three has a dedicated page of its own. Their sidebar links use the
-  same `?stage=` routes, as plain `Link`s rather than `NavLink`s — every
-  one of them (plus "Cases") shares the `/cases` pathname, and `NavLink`
-  only compares pathname by default, so all four would otherwise light up
-  together regardless of which `?stage=` is actually active. The sidebar
+- **Case overview** (`/overview`, in the sidebar's Cases group since design
+  I): four stage cards (Needs assignment, Represented, Billing, Closing),
+  each with its count and up to three cases, then "Recently changed". Cases
+  are bucketed by their derived stage (`server/src/cases/caseStage.ts`;
+  see the case pages in `intake.md`). A case is never started here: cases
+  come in with their invoices. Each card's "View all" goes to
+  `/cases?stage=<id>`, which `client/src/pages/CaseList.tsx` filters to that
+  stage. The sidebar
   condenses on small screens and columns wrap into a vertical layout. The
   header's `Messages`/`Timer` placeholders and "Search everything" box
   were removed outright (disabled controls with no planned near-term

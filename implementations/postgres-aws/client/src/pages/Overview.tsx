@@ -10,7 +10,7 @@ import { formatMoney } from '../formatMoney';
 
 // What the card says under each case, by stage (design I47).
 function caseNote(record: CaseListRecord): string {
-  if (record.stage === 'billing' && record.waiting.count > 0) {
+  if ((record.stage === 'billing' || record.stage === 'needs-assignment') && record.waiting.count > 0) {
     return `${record.waiting.count} ${record.waiting.count === 1 ? 'invoice' : 'invoices'}, ${formatMoney(record.waiting.total)}`;
   }
   if (record.workers.length > 0) return record.workers.join(', ');
@@ -29,14 +29,11 @@ export default function Overview() {
 
   return (
     <>
-      <div className="page-title-row">
-        <PageHeading
-          eyebrow="Cases"
-          title="Case overview"
-          description={`Where every case is right now. ${cases.length} ${cases.length === 1 ? 'case' : 'cases'}, ${open} open.`}
-        />
-        <Link className="btn btn--primary" to="/cases/new">Add case</Link>
-      </div>
+      <PageHeading
+        eyebrow="Cases"
+        title="Case overview"
+        description={`Where every case is right now. ${cases.length} ${cases.length === 1 ? 'case' : 'cases'}, ${open} open.`}
+      />
       <div className="stage-cards">
         {overviewStages.map((stage) => {
           const stageCases = cases.filter((record) => record.stage === stage.id);

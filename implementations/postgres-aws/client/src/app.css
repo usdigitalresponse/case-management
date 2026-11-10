@@ -422,6 +422,10 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin: 1.2rem 0 1.1rem; }
 .list-toolbar .clearable { flex: 0 1 300px; }
 .list-toolbar .usa-input { margin: 0; }
+.list-toolbar .chip-filters { margin: 0; }
+.list-toolbar__filters { display: flex; flex: 0 1 34rem; align-items: center; gap: .75rem; }
+.list-toolbar__filters .clearable { flex: 1 1 14rem; min-width: 0; }
+.list-toolbar__filters .usa-select { height: 2.5rem; min-width: 12rem; }
 .list-count { color: var(--ink-faint); font-size: .85rem; white-space: nowrap; }
 
 /* The single place a table gets its box: rounded/clipped corners, full

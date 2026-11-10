@@ -5,7 +5,7 @@ import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase, type CreateCaseInput } from '../src/intake/createCase';
 import { caseStageExpression } from '../src/cases/caseStage';
-import { caseAssignment, caseTable, invoice, userAccount } from '../src/db/schema';
+import { caseTable, invoice, invoiceReviewAssignment, userAccount } from '../src/db/schema';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 
 let fixtures: BaselineFixtureIds;
@@ -38,104 +38,56 @@ async function stageOf(caseId: string): Promise<string | null> {
 }
 
 describe('caseStageExpression', () => {
-  it('buckets a freshly opened case as needs-assignment', async () => {
+  it('buckets an open case with no invoice waiting as represented', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
-    expect(await stageOf(caseId)).toBe('needs-assignment');
-  });
-
-  it('buckets an open-assignment case as represented', async () => {
-    const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
-    await testDb.insert(caseAssignment).values({
-      caseId,
-      professionalId: await createProfessional(),
-      assignedAt: new Date(),
-      assignmentRoleId: fixtures.externalSubmitterAssignmentRoleId,
-      assignedByUserAccountId: fixtures.staffUserAccountId,
-    });
     expect(await stageOf(caseId)).toBe('represented');
   });
 
-  it('ignores an ended assignment and falls back to needs-assignment', async () => {
+  it('buckets a case whose waiting invoice has no reviewer as needs-assignment', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
-    await testDb.insert(caseAssignment).values({
-      caseId,
-      professionalId: await createProfessional(),
-      assignedAt: new Date('2026-01-01T00:00:00Z'),
-      endedAt: new Date('2026-01-10T00:00:00Z'),
-      assignmentRoleId: fixtures.externalSubmitterAssignmentRoleId,
-      assignedByUserAccountId: fixtures.staffUserAccountId,
-    });
+    await sentInvoice(caseId, fixtures.invoiceStatusSubmittedId);
     expect(await stageOf(caseId)).toBe('needs-assignment');
   });
 
-  it('buckets a case with a submitted invoice as billing, even if also assigned', async () => {
+  it('moves it to billing once a reviewer is assigned, and back if the assignment ends', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
-    const professionalId = await createProfessional();
-    await testDb.insert(caseAssignment).values({
-      caseId,
-      professionalId,
-      assignedAt: new Date(),
-      assignmentRoleId: fixtures.externalSubmitterAssignmentRoleId,
-      assignedByUserAccountId: fixtures.staffUserAccountId,
-    });
-    await testDb.insert(invoice).values({
-      submittedByUserAccountId: fixtures.staffUserAccountId,
-      professionalId,
-      statusId: fixtures.invoiceStatusSubmittedId,
-      submittedAt: new Date(),
-      submittedTotal: '100.00',
-      caseId,
-    });
+    const invoiceId = await sentInvoice(caseId, fixtures.invoiceStatusSubmittedId);
+    const [assignment] = await testDb
+      .insert(invoiceReviewAssignment)
+      .values({
+        invoiceId,
+        stepTypeId: fixtures.invoiceApprovalStepTypeLineReviewId,
+        position: 1,
+        assignedUserAccountId: fixtures.staffUserAccountId,
+        assignedAt: new Date(),
+      })
+      .returning();
     expect(await stageOf(caseId)).toBe('billing');
+
+    await testDb
+      .update(invoiceReviewAssignment)
+      .set({ endedAt: new Date() })
+      .where(eq(invoiceReviewAssignment.invoiceReviewAssignmentId, assignment!.invoiceReviewAssignmentId));
+    expect(await stageOf(caseId)).toBe('needs-assignment');
   });
 
   it('ignores a draft invoice (not yet submitted)', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
-    await testDb.insert(invoice).values({
-      submittedByUserAccountId: fixtures.staffUserAccountId,
-      professionalId: await createProfessional(),
-      statusId: fixtures.invoiceStatusDraftId,
-      submittedTotal: '0.00',
-      caseId,
-    });
-    expect(await stageOf(caseId)).toBe('needs-assignment');
+    await sentInvoice(caseId, fixtures.invoiceStatusDraftId);
+    expect(await stageOf(caseId)).toBe('represented');
   });
 
   it('buckets a case whose only reviewed invoice was approved as closing', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
-    await testDb.insert(invoice).values({
-      submittedByUserAccountId: fixtures.staffUserAccountId,
-      professionalId: await createProfessional(),
-      statusId: fixtures.invoiceStatusApprovedId,
-      submittedAt: new Date(),
-      submittedTotal: '75.00',
-      caseId,
-    });
+    await sentInvoice(caseId, fixtures.invoiceStatusApprovedId);
     expect(await stageOf(caseId)).toBe('closing');
   });
 
-  it('keeps a case in billing while a later invoice awaits review, even after one was approved', async () => {
+  it('keeps a case waiting while a later invoice awaits review, even after one was approved', async () => {
     const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
-    const professionalId = await createProfessional();
-    await testDb.insert(invoice).values([
-      {
-        submittedByUserAccountId: fixtures.staffUserAccountId,
-        professionalId,
-        statusId: fixtures.invoiceStatusApprovedId,
-        submittedAt: new Date(),
-        submittedTotal: '75.00',
-        caseId,
-      },
-      {
-        submittedByUserAccountId: fixtures.staffUserAccountId,
-        professionalId,
-        statusId: fixtures.invoiceStatusSubmittedId,
-        submittedAt: new Date(),
-        submittedTotal: '50.00',
-        caseId,
-      },
-    ]);
-    expect(await stageOf(caseId)).toBe('billing');
+    await sentInvoice(caseId, fixtures.invoiceStatusApprovedId);
+    await sentInvoice(caseId, fixtures.invoiceStatusSubmittedId);
+    expect(await stageOf(caseId)).toBe('needs-assignment');
   });
 
   it('has no stage once the case is closed', async () => {
@@ -143,6 +95,21 @@ describe('caseStageExpression', () => {
     await testDb.update(caseTable).set({ closedOn: '2026-02-01' }).where(eq(caseTable.caseId, caseId));
     expect(await stageOf(caseId)).toBeNull();
   });
+
+  async function sentInvoice(caseId: string, statusId: string): Promise<string> {
+    const [row] = await testDb
+      .insert(invoice)
+      .values({
+        submittedByUserAccountId: fixtures.staffUserAccountId,
+        professionalId: await createProfessional(),
+        statusId,
+        submittedAt: new Date(),
+        submittedTotal: '100.00',
+        caseId,
+      })
+      .returning();
+    return row!.invoiceId;
+  }
 
   async function createProfessional(): Promise<string> {
     const email = `vendor-${randomUUID()}@example.com`;

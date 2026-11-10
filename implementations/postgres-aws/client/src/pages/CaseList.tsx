@@ -32,20 +32,17 @@ export default function CaseList() {
       (shown === 'all' || (shown === 'open') === !caseRecord.closedOn) &&
       matchesQuery(caseRecord, query),
   );
-  const county = useCountyControl(listed, (caseRecord) => ({ countyId: caseRecord.countyId }));
+  const county = useCountyControl(listed, (caseRecord) => ({ countyId: caseRecord.countyId }), { hideLabel: true });
   const count = (which: Shown) => (cases ?? []).filter((caseRecord) => which === 'all' || (which === 'open') === !caseRecord.closedOn).length;
 
   return (
     <ResourceList
       heading={
-        <div className="page-title-row">
-          <PageHeading
-            eyebrow="Cases"
-            title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'}
-            description={`Every case invoices can be sent for. Cases may be managed in your ${EXTERNAL_SYSTEM_NAME}; they show here so invoices make sense.`}
-          />
-          <RouterLink className="btn btn--primary" to="/cases/new">Add case</RouterLink>
-        </div>
+        <PageHeading
+          eyebrow="Cases"
+          title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'}
+          description={`Every case invoices can be sent for. Cases may be managed in your ${EXTERNAL_SYSTEM_NAME}; they show here so invoices make sense.`}
+        />
       }
       error={error}
       data={cases}
@@ -74,15 +71,17 @@ export default function CaseList() {
                 </button>
               ))}
             </div>
-            {county.control}
-            <SearchInput
-              id="case-filter"
-              name="caseFilter"
-              aria-label="Search cases by client, case number or who works on it"
-              placeholder="Search by client or case number"
-              value={query}
-              onChange={setQuery}
-            />
+            <div className="list-toolbar__filters">
+              {county.control}
+              <SearchInput
+                id="case-filter"
+                name="caseFilter"
+                aria-label="Search cases by client, case number or who works on it"
+                placeholder="Search by client or case number"
+                value={query}
+                onChange={setQuery}
+              />
+            </div>
           </div>
           <RecordTable
             label="Cases"

@@ -9,6 +9,7 @@ import { createCase } from '../src/intake/createCase';
 import { priceLines } from '../src/billing/priceLines';
 import { applyLineRate } from '../src/billing/caseRates';
 import { matchInvoiceToCase } from '../src/billing/invoiceIntake';
+import { recordInvoiceEvent } from '../src/billing/invoiceEvents';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { listReviewQueue } from '../src/billing/reviewQueue';
 import { loadPreauthorizationSummaries, setPreauthorizedAmount } from '../src/billing/preauthorizations';
@@ -172,6 +173,10 @@ describe('the case pages', () => {
     const person = await newProfessional(100);
     await setPreauthorizedAmount(testDb, reviewer, caseId, { professionalId: person.professionalId, amount: 500 });
     const { invoiceId } = await filedByPerson(person, '26-CR-00211');
+    const submittedId = await getReferenceId(testDb, invoiceStatuses, 'submitted');
+    await testDb.transaction((tx) =>
+      recordInvoiceEvent(tx, { invoiceId, eventTypeCode: 'submitted', statusId: submittedId, actorUserAccountId: person.userAccountId }),
+    );
     await matchInvoiceToCase(testDb, reviewer, invoiceId, { caseId, addMissing: true });
 
     const extras = (await loadCaseListExtras(testDb, [caseId])).get(caseId);
@@ -184,6 +189,7 @@ describe('the case pages', () => {
     const changes = await loadRecentCaseChanges(testDb);
     expect(changes[0]).toMatchObject({ caseId, what: 'An invoice matched to this case', by: 'Reviewer One', caseNumber: '26-CR-00211' });
     expect(changes.some((change) => change.caseId === caseId && change.what === 'Case opened')).toBe(true);
+    expect(changes.some((change) => change.caseId === caseId && change.what === 'An invoice sent, no reviewer assigned yet')).toBe(true);
   });
 });
 

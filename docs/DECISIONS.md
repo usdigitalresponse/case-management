@@ -141,8 +141,10 @@ questions, the time log check, entering an invoice in review, "Mark completed",
 
 The Postgres/AWS staff app becomes a tool for reviewing invoices, designed to
 sit beside an external case management system. Cases may be managed there, so
-case pages here are mostly read-only. **Add case**, and adding people to a
-case, stay because invoice access depends on case assignment. Other case
+case pages here are mostly read-only. Cases come in with their invoices:
+staff add a case only while matching an invoice to one, and matching adds
+its sender to the case, so the case pages have no **Add case** or **Add
+person** (design I, corrected 2026-11-10). Other case
 features (overview board, directories, closing a case, lifecycle history)
 are hidden, not removed. Links to the external system are inert placeholders.
 The external submitter portal keeps its sign-in and is restyled to match.
