@@ -118,8 +118,9 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     (`client/src/portal/PortalUpload.tsx`).
   - The rest of design G (G13, G15–G24):
     - **Sidebar**, as G: To review, Assigned to you, Finished; People, Exports; the external
-      system link. It keeps "+ Upload Invoices" and, for administrators, Settings. Intake,
-      Cases, Providers and the case-led queue are off it but work by address. A staff
+      system link. It keeps "+ Upload Invoices" and, for administrators, Settings. Design I
+      adds a Cases group (Case overview, All cases with the open count) and Clients and
+      Organizations; Intake, Providers and the case-led queue are off it but work by address. A staff
       member's unsent drafts lead To review (from `GET /api/invoices/intake`), with a notice
       linking to Intake if anything is ever held there.
     - **People** (`/people`, `client/src/pages/People.tsx`) replaces Cases and Providers in the
@@ -146,6 +147,26 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
       correction. Beside it are an inert "Search your [external system]" link, the match
       counts and "See all invoices with this case number". The facts show the person's
       approved rate.
+    - **Cases on review** (design I; `match_invoice_to_case`): below the case number box,
+      "Match it to a case" lists cases whose number, or any other number they have, matches
+      the invoice's exactly or closely (`GET /api/invoices/:id/case-matches`,
+      `server/src/cases/casesByNumber.ts`; `client/src/components/CaseCard.tsx`). Matching
+      uses the intake match (`POST /api/invoices/intake/:id/case`), which now also takes an
+      invoice filed by person while its lines are reviewed: it sets the case, adds the
+      sender to it and records `matched_to_case`, but doesn't price lines again. "Add a case
+      for [number]" opens the new case page with that number, then matches the invoice and
+      returns to it. A matched invoice is led by a case card: client, case numbers, the
+      number the invoice gave, the pre-authorized amount with what's approved on the case
+      and waiting, and "Open the case". Case rates that would now apply are flagged as
+      changed since it was sent (`caseRatesChangedSince`).
+    - **Pre-authorized amounts**: any staff member sets one on the case page, for a person
+      or the whole case (`POST /api/cases/:id/preauthorizations`,
+      `setPreauthorizedAmount` in `billing/preauthorizations.ts`): the first is an approved
+      `preauthorization` with its first decision, a change a `revised` decision keeping its
+      hourly rate. An amount below what is signed off so far is refused. An invoice whose
+      total, with what is approved so far, goes over it is flagged on its page and in the
+      queue (`overPreauthorization`). Gap: "approved so far" sums signed-off invoices, as
+      before, not authorization draws.
     - **Search** (`/search`, `pages/SearchResults.tsx`, G24): the header search covers every
       sent invoice by name or case number, with exact and close matches listed and totalled
       apart, and an export to CSV. The queue no longer filters in place.

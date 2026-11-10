@@ -5,6 +5,7 @@ import {
   getCase,
   getCaseInvoices,
   setCaseReviewer,
+  setPreauthorizedAmount,
   type AssignedPerson,
   type PreauthorizationSummary,
 } from '../api/client';
@@ -75,6 +76,71 @@ function PreauthorizationLine({ summary, name }: { summary: PreauthorizationSumm
       <span>Approved so far: {formatMoney(summary.approvedSoFar)}</span>
       <strong>Waiting for a decision: {formatMoney(summary.waiting)}</strong>
     </p>
+  );
+}
+
+// Any staff member enters a pre-authorized amount, or changes one; earlier amounts are kept.
+function PreauthorizedAmount({ caseId, people, onSaved }: {
+  caseId: string;
+  people: Array<{ professionalId: string; name: string }>;
+  onSaved: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [forWhom, setForWhom] = useState('');
+  const [amount, setAmount] = useState('');
+  const [number, setNumber] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  if (!open) {
+    return (
+      <button type="button" className="btn btn--outline" onClick={() => setOpen(true)}>
+        Set a pre-authorized amount
+      </button>
+    );
+  }
+  return (
+    <form
+      className="inline-fields preauth-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setSaving(true);
+        setError(null);
+        setPreauthorizedAmount(caseId, { professionalId: forWhom || null, amount: Number(amount), authorizationNumber: number.trim() || undefined }).then(
+          () => {
+            setOpen(false);
+            setAmount('');
+            setNumber('');
+            setSaving(false);
+            onSaved();
+          },
+          (err: unknown) => {
+            setError(apiErrorMessage(err, 'The amount could not be saved.'));
+            setSaving(false);
+          },
+        );
+      }}
+    >
+      <div className="usa-form-group">
+        <label className="usa-label" htmlFor="preauth-for">For</label>
+        <select id="preauth-for" className="usa-select" value={forWhom} onChange={(event) => setForWhom(event.target.value)}>
+          <option value="">The whole case</option>
+          {people.map((person) => (
+            <option key={person.professionalId} value={person.professionalId}>{person.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="usa-form-group">
+        <label className="usa-label" htmlFor="preauth-amount">Amount</label>
+        <input id="preauth-amount" className="usa-input" type="number" min="0" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} />
+      </div>
+      <div className="usa-form-group">
+        <label className="usa-label" htmlFor="preauth-number">Authorization number (optional)</label>
+        <input id="preauth-number" className="usa-input" value={number} onChange={(event) => setNumber(event.target.value)} />
+      </div>
+      <button type="submit" className="btn btn--primary" disabled={saving || !(Number(amount) > 0)}>Save</button>
+      <button type="button" className="link-button" onClick={() => setOpen(false)}>Cancel</button>
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </form>
   );
 }
 
@@ -208,6 +274,16 @@ export default function CaseDetail() {
             name={summary.professionalId ? (professionalNames.get(summary.professionalId) ?? null) : null}
           />
         ))}
+        {user?.reviewPermissions?.reviewLines && (
+          <PreauthorizedAmount
+            caseId={detail.case.caseId}
+            people={activeAssignments.map((assignment) => ({
+              professionalId: assignment.professionalId,
+              name: assignment.professionalDisplayName ?? 'Unknown',
+            }))}
+            onSaved={refresh}
+          />
+        )}
       </section>
 
       <section className="detail-section">

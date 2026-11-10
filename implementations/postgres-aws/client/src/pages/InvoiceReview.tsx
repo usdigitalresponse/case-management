@@ -31,6 +31,7 @@ import { DecisionCell, DecisionPanel, decisionInput, rateChanged, type PanelMode
 import { ReviewerPicker, SignOffApprovers } from '../components/ReviewRouting';
 import { RateCheckNotice, SignOffHistory, SignOffPanel, TotalsBar } from '../components/ReviewPanels';
 import { InvoiceCaseRates } from '../components/CaseRates';
+import { CaseCard, CaseMatch } from '../components/CaseCard';
 import { AskLink, LineQuestions, QuestionForm } from '../components/ReviewQuestions';
 import { InvoiceLinesTable, lineRowClass } from '../components/InvoiceLinesTable';
 import { OriginalDocument } from '../components/OriginalDocument';
@@ -584,7 +585,6 @@ export default function InvoiceReview() {
             </>
           ) : (
             <>
-              <strong>Case {data.caseNumber ?? '—'}</strong>
               <span>
                 {invoice.professionalKindDisplayName ?? 'Professional'} invoice from {submittedByLabel(invoice)}
               </span>
@@ -594,9 +594,7 @@ export default function InvoiceReview() {
                   {formatDate(invoice.receivedOn)}
                 </span>
               )}
-              <button type="button" className="link-button" disabled title="Not connected yet">
-                Open the case in your {EXTERNAL_SYSTEM_NAME} ↗
-              </button>
+              {senderPath && <RouterLink to={senderPath}>See all of their invoices</RouterLink>}
             </>
           )
         }
@@ -729,6 +727,15 @@ export default function InvoiceReview() {
         />
       )}
       {entering && <EnteredCaseNumber invoice={invoice} />}
+      {!byPerson && (
+        <CaseCard
+          invoice={invoice}
+          caseNumber={data.caseNumber}
+          otherNumbers={data.otherCaseNumbers}
+          preauthorization={data.preauthorization}
+          overPreauthorized={data.overPreauthorized}
+        />
+      )}
       {byPerson && !entering && (
         <CaseNumberReview
           invoice={invoice}
@@ -740,13 +747,17 @@ export default function InvoiceReview() {
           }}
         />
       )}
+      {byPerson && inReview && !data.entryOpen && Boolean(permissions?.reviewLines) && (
+        <CaseMatch
+          invoice={invoice}
+          onMatched={(message) => {
+            setToast({ message });
+            void refresh();
+          }}
+        />
+      )}
 
       <FactsStrip>
-        {!byPerson && (
-          <Fact label="Case number" note={data.otherCaseNumbers.join(', ') || undefined}>
-            <strong>{data.caseNumber ?? '—'}</strong>
-          </Fact>
-        )}
         <Fact label="Submitted">
           <strong>{invoice.submittedAt ? formatDateTime(invoice.submittedAt) : '—'}</strong>
         </Fact>
@@ -770,21 +781,9 @@ export default function InvoiceReview() {
         <Fact label="Approved so far" note={totals.cut > 0 ? `${formatMoney(totals.cut / 100)} cut` : undefined}>
           {formatMoney(totals.approved / 100)}
         </Fact>
-        {byPerson ? (
-          <Fact label={`${senderFirstName}'s approved rate`} note="Set on their page under People">
-            <strong>{data.approvedRate ? `${formatMoney(data.approvedRate)} an hour` : 'None set'}</strong>
-          </Fact>
-        ) : (
-          <Fact
-            label="Pre-authorized"
-            note={
-              data.preauthorization &&
-              `${formatMoney(data.preauthorization.approvedSoFar)} approved, ${formatMoney(data.preauthorization.waiting)} waiting`
-            }
-          >
-            {data.preauthorization ? <strong>{formatMoney(data.preauthorization.ceiling)}</strong> : 'None'}
-          </Fact>
-        )}
+        <Fact label={`${senderFirstName}'s approved rate`} note="Set on their page under People">
+          <strong>{data.approvedRate ? `${formatMoney(data.approvedRate)} an hour` : 'None set'}</strong>
+        </Fact>
         <Fact label="Lines decided">
           <Progress done={totals.decided} total={lines.length} />
         </Fact>

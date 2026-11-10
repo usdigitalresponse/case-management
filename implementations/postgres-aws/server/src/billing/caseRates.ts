@@ -316,25 +316,22 @@ export async function loadCaseRateViews(db: DatabaseOrTransaction, caseId: strin
   }));
 }
 
-// Case rates set on other invoices after this one was sent that would now
-// give one of its lines a different default. Its lines keep theirs.
+// Case rates that would now give one of an invoice's lines another default,
+// as when one changes after it was sent or it is matched to a case later.
+// Its lines keep theirs; rates set while reviewing it are already on them.
 export function caseRatesChangedSince(
   views: CaseRateView[],
-  invoiceId: string,
-  sentAt: Date | null,
-  lines: Array<{ professionalId: string | null; kindId: string | null; rateType: RateType | null; serviceDate: string | null }>,
+  lines: Array<{ professionalId: string | null; kindId: string | null; rateType: RateType | null; serviceDate: string | null; caseRateId: string | null }>,
 ): CaseRateView[] {
-  if (!sentAt) return [];
-  return views.filter(
-    (view) =>
-      view.invoiceId !== invoiceId &&
-      view.recordedAt > sentAt &&
-      lines.some(
-        (line) =>
-          line.rateType === view.rateType &&
-          line.serviceDate !== null &&
-          line.serviceDate >= view.effectiveFrom &&
-          (view.professionalId ? line.professionalId === view.professionalId : line.kindId === view.professionalKindId),
-      ),
-  );
+  const changed = new Set<CaseRateView>();
+  for (const line of lines) {
+    if (!line.rateType || !line.serviceDate) continue;
+    const own = line.professionalId ? caseRateRowOn(views, { professionalId: line.professionalId }, line.rateType, line.serviceDate) : undefined;
+    const byKind = line.kindId ? caseRateRowOn(views, { professionalKindId: line.kindId }, line.rateType, line.serviceDate) : undefined;
+    const governing = own?.rate != null ? own : byKind?.rate != null ? byKind : (own ?? byKind);
+    if (governing && governing.caseRateId !== line.caseRateId && !(governing.rate === null && line.caseRateId === null)) {
+      changed.add(governing as CaseRateView);
+    }
+  }
+  return [...changed];
 }

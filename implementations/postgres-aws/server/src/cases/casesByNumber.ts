@@ -1,0 +1,61 @@
+// Cases whose number, or any of their other numbers, is the one an invoice
+// gives: exactly, else closely (../billing/caseNumbers.ts closeKey). For
+// matching an invoice filed by person to its case.
+import { eq } from 'drizzle-orm';
+import type { DatabaseOrTransaction } from '../db/client';
+import { caseIdentifier, caseTable, county, person } from '../db/schema';
+import { closeKey } from '../billing/caseNumbers';
+import { loadCaseNumbers } from '../billing/invoiceDetail';
+
+export interface CaseByNumber {
+  caseId: string;
+  caseNumber: string | null;
+  otherNumbers: string[];
+  clientDisplayName: string | null;
+  countyDisplayName: string | null;
+  closed: boolean;
+  match: 'exact' | 'close';
+}
+
+export async function findCasesByNumber(db: DatabaseOrTransaction, caseNumber: string | null): Promise<CaseByNumber[]> {
+  if (!caseNumber) return [];
+  const [cases, identifiers] = await Promise.all([
+    db
+      .select({
+        caseId: caseTable.caseId,
+        externalReference: caseTable.externalReference,
+        clientDisplayName: person.displayName,
+        countyDisplayName: county.displayName,
+        closedOn: caseTable.closedOn,
+      })
+      .from(caseTable)
+      .leftJoin(person, eq(caseTable.clientId, person.personId))
+      .leftJoin(county, eq(caseTable.countyId, county.countyId)),
+    db.select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value }).from(caseIdentifier),
+  ]);
+  const wanted = caseNumber.toUpperCase();
+  const wantedClose = closeKey(caseNumber);
+  const found = cases.flatMap((row) => {
+    const numbers = [row.externalReference, ...identifiers.filter((id) => id.caseId === row.caseId).map((id) => id.value)].filter(
+      (value): value is string => Boolean(value),
+    );
+    const match = numbers.some((value) => value.toUpperCase() === wanted)
+      ? ('exact' as const)
+      : wantedClose && numbers.some((value) => closeKey(value) === wantedClose)
+        ? ('close' as const)
+        : null;
+    return match ? [{ row, match }] : [];
+  });
+  const numbers = await loadCaseNumbers(db, found.map(({ row }) => row.caseId));
+  return found
+    .map(({ row, match }) => ({
+      caseId: row.caseId,
+      caseNumber: numbers.get(row.caseId)?.caseNumber ?? null,
+      otherNumbers: numbers.get(row.caseId)?.otherNumbers ?? [],
+      clientDisplayName: row.clientDisplayName,
+      countyDisplayName: row.countyDisplayName,
+      closed: row.closedOn !== null,
+      match,
+    }))
+    .sort((a, b) => (a.match === b.match ? 0 : a.match === 'exact' ? -1 : 1));
+}

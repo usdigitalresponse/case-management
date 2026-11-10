@@ -234,5 +234,24 @@ configuration defaults.
       new rates, who set it and why, before signing off. The case page lists
       every case rate in date order and the ones in force now, read-only.
 
+17. **Cases on review:** A request filed by person gives the case number
+    26-CR-00211 and has no case (`match_invoice_to_case`).
+    - While it is reviewed, the page lists the case with that number and one
+      whose number differs only in dashes and leading zeros, marked as a
+      close match. Matching it to the first sets the case on the request and
+      its lines, adds its professional to the case, records who matched it,
+      and keeps its prices. Matching it again to another case is refused.
+    - With no case listed, staff add one from the request's number and go
+      back to it matched. A case number already in the system, or a client
+      with the same name not confirmed as someone else, is refused.
+    - Matched, the page is led by the case: its client, its numbers, the
+      number the request gave, and the pre-authorized amount with what is
+      approved on the case so far.
+    - Any staff member enters a pre-authorized amount of 150 for the
+      professional. The request, for 200, is flagged as taking them over it,
+      on the page and in the queue, and can still be approved or rejected.
+      Changing the amount to 250 keeps the first decision and clears the
+      flag. An amount below what is already approved is refused.
+
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

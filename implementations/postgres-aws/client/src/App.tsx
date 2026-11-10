@@ -30,7 +30,7 @@ import PortalBulkImport from './portal/PortalBulkImport';
 import PortalImportReview from './portal/PortalImportReview';
 import PortalUpload from './portal/PortalUpload';
 import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
-import { DATA_CHANGED_EVENT, listReviewQueue } from './api/client';
+import { DATA_CHANGED_EVENT, listCases, listReviewQueue } from './api/client';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 
 // The landing page files invoices by who sent them; the earlier queue, led
@@ -81,7 +81,7 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
 // Counts for the sidebar, refreshed as the reviewer moves around or changes something.
 function useQueueCounts(userAccountId: string) {
   const location = useLocation();
-  const [counts, setCounts] = useState<{ all: number; mine: number } | null>(null);
+  const [counts, setCounts] = useState<{ all: number; mine: number; openCases: number | null } | null>(null);
   const [changes, setChanges] = useState(0);
   useEffect(() => {
     const onChange = () => setChanges((n) => n + 1);
@@ -90,12 +90,13 @@ function useQueueCounts(userAccountId: string) {
   }, []);
   useEffect(() => {
     let cancelled = false;
-    listReviewQueue('open').then(
-      ({ invoices }) => {
+    Promise.all([listReviewQueue('open'), listCases().catch(() => null)]).then(
+      ([{ invoices }, cases]) => {
         if (!cancelled) {
           setCounts({
             all: invoices.length,
             mine: invoices.filter((invoice) => invoice.holder?.userAccountId === userAccountId).length,
+            openCases: cases ? cases.cases.filter((row) => !row.closedOn).length : null,
           });
         }
       },
@@ -124,7 +125,7 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
             <span><span aria-hidden="true">+ </span>Upload Invoices</span>
           </NavLink>
         </div>
-        {/* Intake, Cases, Providers and /home-alternate still work by address. */}
+        {/* Intake, Providers, other person records and /home-alternate still work by address. */}
         <div className="nav-group">
           <h2>Invoices</h2>
           <Link to="/" className={allActive ? 'active' : undefined}>
@@ -136,8 +137,17 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
           <NavLink to="/finished" end>Finished</NavLink>
         </div>
         <div className="nav-group">
+          <h2>Cases</h2>
+          <NavLink to="/overview" end>Case overview</NavLink>
+          <NavLink to="/cases" end>
+            All cases{counts?.openCases != null && <span className="nav-count">{counts.openCases}</span>}
+          </NavLink>
+        </div>
+        <div className="nav-group">
           <h2>Look something up</h2>
           <NavLink to="/people">People</NavLink>
+          <NavLink to="/clients" end>Clients</NavLink>
+          <NavLink to="/organizations" end>Organizations</NavLink>
           <NavLink to="/exports" end>Exports</NavLink>
         </div>
         <div className="nav-group">

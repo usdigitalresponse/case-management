@@ -231,11 +231,14 @@ case management system; links to that system stay inert placeholders, and
 features hidden for it are hidden from navigation, not deleted. Its landing
 page `/`, the sidebar's "+ Upload Invoices" and the external upload, check and
 send pages file invoices by the person who sent them with a case number as
-typed (design G, see its `MAPPING.md`); People replaces Cases and Providers in
-its sidebar, a person's own rates override their role's from their effective
-date, and reviewers correct a case number beside the typed one, never over it.
-The earlier case-led queue and Intake (with the case-based upload) are off the
-sidebar but still work by address. Every case and
+typed (design G, see its `MAPPING.md`); a person's own rates override their
+role's from their effective date, and reviewers correct a case number beside
+the typed one, never over it. Design I brings cases back: the sidebar has Case
+overview and All cases, and People, Clients and Organizations; a request
+filed by person may be matched to a case while it is reviewed, keeping its
+sent prices; a matched request's review page is led by its case card. The
+earlier case-led queue, Providers and Intake (with the case-based upload) are
+off the sidebar but still work by address. Every case and
 person picker is `client/src/components/PickOrAdd.tsx` (first option adds
 one), except a submitter choosing among the people they bill for. Every
 county picker is `client/src/components/CountyPicker.tsx`: settings such as

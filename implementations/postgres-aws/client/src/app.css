@@ -920,6 +920,22 @@ form.compact-form { max-width: none; }
 /* Case page */
 .preauth-line { display: flex; flex-wrap: wrap; gap: .3rem 2rem; margin: .8rem 0 0; font-size: .88rem; color: var(--ink-muted); }
 .preauth-line strong { color: var(--ink); }
+
+/* Case card and matching on the review page */
+.invoice-case-card { display: grid; grid-template-columns: minmax(14rem, 1.3fr) 2fr auto; gap: 1rem 2rem; align-items: start; margin: 0 0 1rem; padding: 1rem 1.25rem; border: 1px solid var(--line); border-left: 3px solid var(--primary); border-radius: var(--radius); background: var(--surface); }
+.invoice-case-card p { margin: .25rem 0 0; }
+.invoice-case-card__client { font-size: 1.1rem; font-weight: 700; }
+.invoice-case-card__money { display: flex; flex-wrap: wrap; gap: .6rem 2rem; margin: 0; }
+.invoice-case-card__money dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
+.invoice-case-card__money dd { margin: .2rem 0 0; font-weight: 600; }
+.invoice-case-card__links { display: grid; gap: .4rem; justify-items: start; }
+@media (max-width: 52rem) { .invoice-case-card { grid-template-columns: 1fr; } }
+.case-match { margin: 0 0 1rem; padding: .9rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.case-match h2 { margin: 0 0 .5rem; font-size: 1rem; }
+.case-match ul { margin: 0 0 .5rem; padding: 0; list-style: none; }
+.case-match li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .4rem 0; border-top: 1px solid var(--line); }
+.case-match p { margin: .4rem 0 0; }
+.preauth-form { margin-top: .8rem; align-items: end; }
 .section-heading-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin-bottom: .85rem; }
 .section-heading-row h2 { margin: 0; }
 .add-person { flex-basis: 100%; max-width: 36rem; }

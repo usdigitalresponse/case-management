@@ -139,7 +139,10 @@ case's rate for the person, then for their kind, then the configured rates,
 and `invoice_line.rate_source` and `case_rate_id` record which. A case rate
 changes only the request it was set on; other open requests on the case are
 flagged, not repriced. A case rate also comes before a pre-authorized rate in
-the rate check.
+the rate check. A request filed by person may be matched to a case while it
+is reviewed, keeping its prices (`match_invoice_to_case`); any staff member
+enters a case's pre-authorized amount, and review flags a request that goes
+over it.
 
 ## Coverage and changes
 

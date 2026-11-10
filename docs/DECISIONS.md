@@ -9,7 +9,7 @@ entry when a decision materially changes.
 
 ### Design I: cases, case rates and one staff role
 
-- **Status:** Decided; staff roles and case rates built in the Postgres/AWS prototype
+- **Status:** Decided; staff roles, case rates and cases on review built in the Postgres/AWS prototype
 - **Decided:** 2026-11-09
 
 Design I brings cases back to the invoice review tool. Features in the

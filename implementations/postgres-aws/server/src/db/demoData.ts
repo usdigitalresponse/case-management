@@ -505,6 +505,18 @@ async function seedDemoReview(
     ]);
   }
 
+  // The expert's case also has the number their sender types, so the
+  // invoice they filed by person can be matched to it while it is reviewed.
+  const expertCase = assignments[3]?.caseId;
+  if (expertCase) {
+    await db.insert(caseIdentifier).values({
+      caseId: expertCase,
+      identifierTypeId: fixtures.identifierTypeSampleId,
+      issuer: 'Demo court',
+      value: '26-CR-00245',
+    });
+  }
+
   const [approvedStatusId, approvedOutcomeId] = await Promise.all([
     getReferenceId(db, preauthorizationStatuses, 'approved'),
     getReferenceId(db, preauthorizationOutcomes, 'approved'),

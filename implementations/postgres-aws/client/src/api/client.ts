@@ -249,6 +249,29 @@ export function getCaseInvoices(caseId: string): Promise<CaseInvoices> {
   return request<CaseInvoices>(`/api/cases/${caseId}/invoices`);
 }
 
+// Any staff member enters or changes a pre-authorized amount; null professionalId: the whole case.
+export function setPreauthorizedAmount(
+  caseId: string,
+  input: { professionalId: string | null; amount: number; authorizationNumber?: string },
+): Promise<{ preauthorizationId: string }> {
+  return request(`/api/cases/${caseId}/preauthorizations`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export interface CaseByNumber {
+  caseId: string;
+  caseNumber: string | null;
+  otherNumbers: string[];
+  clientDisplayName: string | null;
+  countyDisplayName: string | null;
+  closed: boolean;
+  match: 'exact' | 'close';
+}
+
+// Cases with the number an invoice filed by person gives.
+export function findCaseMatches(invoiceId: string): Promise<{ cases: CaseByNumber[] }> {
+  return request(`/api/invoices/${invoiceId}/case-matches`);
+}
+
 export function setCaseReviewer(caseId: string, userAccountId: string): Promise<AssignedPerson | null> {
   return request(`/api/cases/${caseId}/invoice-reviewer`, { method: 'PUT', body: JSON.stringify({ userAccountId }) });
 }
@@ -1512,7 +1535,7 @@ export interface AssignedPerson {
 }
 
 export interface QueueFlag {
-  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case';
+  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case' | 'preauthorization';
   message: string;
 }
 
@@ -1748,6 +1771,8 @@ export interface InvoiceReview {
   invoice: QueuedInvoice;
   // This professional's pre-authorization on the case, if there is one.
   preauthorization: PreauthorizationSummary | null;
+  // This invoice takes its person, or the case, over the pre-authorized amount.
+  overPreauthorized: boolean;
   caseNumber: string | null;
   otherCaseNumbers: string[];
   lines: InvoiceReviewLine[];

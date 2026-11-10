@@ -15,7 +15,7 @@ import {
   role,
 } from '../db/schema';
 import { listReviewQueue } from '../billing/reviewQueue';
-import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
+import { loadPreauthorizationSummaries, setPreauthorizedAmount } from '../billing/preauthorizations';
 import { loadCaseRateViews } from '../billing/caseRates';
 import { loadCaseReviewer, setCaseReviewer } from '../billing/reviewAssignment';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
@@ -241,6 +241,15 @@ router.get(
       caseNumber: numbers.get(caseId)?.caseNumber ?? null,
       otherCaseNumbers: numbers.get(caseId)?.otherNumbers ?? [],
     });
+  }),
+);
+
+// Any staff member enters or changes a pre-authorized amount.
+router.post(
+  '/:id/preauthorizations',
+  asyncHandler(async (req, res) => {
+    const actor = getSessionUser(req)!;
+    res.status(201).json(await setPreauthorizedAmount(db, actor.userAccountId, req.params.id as string, req.body));
   }),
 );
 

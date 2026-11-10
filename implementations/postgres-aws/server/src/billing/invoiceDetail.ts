@@ -497,11 +497,17 @@ export async function loadInvoiceDetail(
         (decision) => decision.sequenceNumber === round && decision.decidedByUserAccountId === header.submittedByUserAccountId,
       ),
     caseRates,
-    caseRatesChangedSinceSent: caseRatesChangedSince(
-      caseRates,
-      invoiceId,
-      attempt?.submittedAt ?? null,
-      lines.map((line) => ({ professionalId: line.rateProfessionalId, kindId: line.rateKindId, rateType: line.rateType, serviceDate: line.serviceDate })),
-    ).map((view) => view.caseRateId),
+    caseRatesChangedSinceSent: attempt
+      ? caseRatesChangedSince(
+          caseRates,
+          lines.map((line) => ({
+            professionalId: line.rateProfessionalId,
+            kindId: line.rateKindId,
+            rateType: line.rateType,
+            serviceDate: line.serviceDate,
+            caseRateId: line.caseRateId,
+          })),
+        ).map((view) => view.caseRateId)
+      : [],
   };
 }

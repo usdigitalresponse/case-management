@@ -8,6 +8,8 @@ import { invoiceApprovalStepTypes, invoiceReviewAssignment, invoice, invoiceStat
 import { listDecisionReasons } from '../billing/decisionReasons';
 import { billingRecordCsv, billingRecordXlsx, loadBillingRecord, OMITTABLE_BILLING_RECORD_COLUMNS } from '../billing/billingRecord';
 import { listInvoiceIntake, matchInvoiceToCase, returnToSubmitter } from '../billing/invoiceIntake';
+import { findCasesByNumber } from '../cases/casesByNumber';
+import { currentCaseNumber } from '../billing/caseNumbers';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { loadInvoiceDetail, loadSenderEmail } from '../billing/invoiceDetail';
 import { isExportableStatus } from '../billing/invoiceAccess';
@@ -35,7 +37,7 @@ import { shownRoleName } from '../auth/staffAccountRole';
 import { listReviewQueue, sentCaseNumberMatches } from '../billing/reviewQueue';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { correctCaseNumber } from '../billing/correctCaseNumber';
-import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
+import { loadPreauthorizationSummaries, overPreauthorization } from '../billing/preauthorizations';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { readFileForInvoice } from '../imports/invoiceFile';
 import { MAX_UPLOAD_BYTES } from '../imports/detectFormat';
@@ -186,6 +188,15 @@ async function loadOrThrow(invoiceId: string) {
   return detail;
 }
 
+// Cases with the number this invoice gives, to match it to one.
+router.get(
+  '/:id/case-matches',
+  asyncHandler(async (req, res) => {
+    const detail = await loadOrThrow(req.params.id as string);
+    res.json({ cases: await findCasesByNumber(db, currentCaseNumber(detail.invoice)) });
+  }),
+);
+
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
@@ -205,7 +216,11 @@ router.get(
     const discardable =
       detail.entryOpen && detail.assignments?.reviewer?.userAccountId === actorId(req) && detail.questions.length === 0;
     const timeLog = await loadTimeLogView(db, detail.invoice.invoiceId);
-    res.json({ ...detail, preauthorization, approvedRate, caseNumberMatches, discardable, senderEmail, timeLog });
+    // Signed off, it is already in what was approved so far; rejected, it adds nothing.
+    const overPreauthorized =
+      detail.invoice.statusCode !== 'rejected' &&
+      overPreauthorization(preauthorization, detail.invoice.submittedTotal, detail.invoice.statusCode === 'approved');
+    res.json({ ...detail, preauthorization, overPreauthorized, approvedRate, caseNumberMatches, discardable, senderEmail, timeLog });
   }),
 );
 

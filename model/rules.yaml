@@ -90,6 +90,7 @@ rules:
       - Any reviewer may instead approve a line with hours or miles (time, travel time, waiting time or mileage) at a changed rate, higher or lower than billed, with no reason code; the amount is its quantity times that rate, rounded to cents, and may exceed the requested amount. A changed rate is flagged to the sign-off approvers before they sign off, with the billed rate and the line's configured_rate.
       - Reject needs a reason code and approves nothing. Any decision may carry a note; the reason code for another reason requires one.
       - Approving in part and rejecting each draw from their own list of reason codes (invoice_decision_reasons.applies_to); a reason may be on both. Setting a case rate has a third list; the reason for another reason is on every list. A reason not on the list for the outcome is refused. Administrators maintain the lists without a code release; a retired reason stays on decisions that used it.
+      - Review flags a request that takes its professional, or the case, over the pre-authorized amount: what is approved on the case so far plus the request's total, above the latest ceiling. Reviewers may still approve or reject it.
       - Re-pricing applies approve-in-part decisions at the line's rate limit (apply_professional_rates), with the rate reason, to every undecided time line whose billed_rate is above it. A changed rate may also go to the matching lines or the case's default (set_case_rate).
       - Any active staff user may finish a round. It requires a working decision on every line; it records them all as invoice_approval_decision rows at a new sequence_number, each with the staff member who made that decision and when, clears the working decisions, records an invoice event with who finished it and moves the request to awaiting sign-off.
       - Until the first sign-off decision after a round, any staff user may reopen review; the next round starts from that round's decisions as working decisions and is recorded as a new round when finished. Recorded rounds are never changed.
@@ -432,6 +433,7 @@ rules:
       - Ceilings are replacement amounts, not additive approvals; the latest effective decision determines the ceiling.
       - Denial cannot revoke a ceiling with committed draws; resolve commitments under explicit policy first.
       - Reject a reduction below effective committed approved draws. Preserve decisions immutably and serialize ceiling changes with draw approvals.
+      - Any active staff user may enter a case's pre-authorized amount for one professional or the whole case, as an approved preauthorization with its first decision, or change it with a revised decision that keeps its hourly rate.
       - Configured status and outcome mappings distinguish pending, approved and denied; external preauthorization is separate from invoice-chain pre-approval.
 
   validate_payment_confirmation:
@@ -563,7 +565,7 @@ rules:
     outcome: blocking
     requirements:
       - A staff-entered draft request with no case is listed in invoice intake, with imports still being read or confirmed whose case is not known.
-      - Matching is manual. Any active staff user may match a draft request to an open case, setting the case on the request and all its lines; a submitted request is not rematched. When an imported file clearly names one case (and, if several professionals share it, one of them), that case and professional may be offered first; staff still choose, and an offered case that has since closed is not offered.
+      - Matching is manual. Any active staff user may match a draft request to an open case, setting the case on the request and all its lines; a submitted request is not rematched. A request filed by person with no case may be matched to an open case while its lines are reviewed, listing cases whose number matches the one the request gives exactly or closely; its prices and default rates stay as sent, and case rates that would now apply are flagged (set_case_rate). Staff may add the case from the request's number instead, refusing a duplicate case number or a probable duplicate client. When an imported file clearly names one case (and, if several professionals share it, one of them), that case and professional may be offered first; staff still choose, and an offered case that has since closed is not offered.
       - A request saved without its provider gets one on matching, chosen from active professionals, and its time with no one named is then priced as theirs; until then it cannot be submitted, even without a case.
       - Every professional the request relies on must be assigned to the case on matching; on request, matching assigns any who are not, as an external submitter. Record a matched_to_case request event with the actor.
       - Staff may instead add the case first and match the request to it in the same step.
