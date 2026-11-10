@@ -21,9 +21,11 @@ import { Notice } from '../components/Notice';
 import { RecordTable } from '../components/RecordTable';
 import { FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
 import { ReviewerSelect, useReviewPeople } from '../components/ReviewRouting';
+import { StatusPill } from '../components/StatusPill';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
-import { formatDate } from '../formatDateTime';
+import { formatDate, formatPeriod } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
+import { stageLabel } from '../overviewStages';
 
 // Who reviews this case's new invoices, ahead of the default in Settings.
 function CaseReviewer({ caseId, reviewer, canChange, onChanged }: {
@@ -69,13 +71,39 @@ function CaseReviewer({ caseId, reviewer, canChange, onChanged }: {
   );
 }
 
-function PreauthorizationLine({ summary, name }: { summary: PreauthorizationSummary; name: string | null }) {
+// What is pre-authorized, approved and waiting, with what would be left (design I49).
+function PreauthorizedBilled({ summary, name }: { summary: PreauthorizationSummary; name: string | null }) {
+  const ceiling = Number(summary.ceiling);
+  const approved = Number(summary.approvedSoFar);
+  const waiting = Number(summary.waiting);
+  const left = ceiling - approved - waiting;
+  const share = (amount: number) => `${ceiling > 0 ? Math.min(100, Math.max(0, (amount / ceiling) * 100)) : 0}%`;
   return (
-    <p className="preauth-line">
-      <span>Pre-authorized{name ? ` for ${name}` : ''}: {formatMoney(summary.ceiling)}</span>
-      <span>Approved so far: {formatMoney(summary.approvedSoFar)}</span>
-      <strong>Waiting for a decision: {formatMoney(summary.waiting)}</strong>
-    </p>
+    <div className="preauth-billed">
+      <dl>
+        <div>
+          <dt>Pre-authorized{name ? ` for ${name}` : ' for the case'}</dt>
+          <dd>{formatMoney(summary.ceiling)}</dd>
+        </div>
+        <div>
+          <dt>Approved so far</dt>
+          <dd className="total-figure--good">{formatMoney(summary.approvedSoFar)}</dd>
+        </div>
+        <div>
+          <dt>Waiting for a decision</dt>
+          <dd>{formatMoney(summary.waiting)}</dd>
+        </div>
+        <div>
+          <dt>{left < 0 ? 'Over if everything waiting is approved' : 'Left if everything waiting is approved'}</dt>
+          <dd className={left < 0 ? 'total-figure--cut' : undefined}>{formatMoney(Math.abs(left))}</dd>
+        </div>
+      </dl>
+      <div className="preauth-bar" aria-hidden="true">
+        <span className="preauth-bar__approved" style={{ width: share(approved) }} />
+        <span className="preauth-bar__waiting" style={{ width: share(waiting) }} />
+      </div>
+      <p className="cell-note">Green is approved, blue is waiting for a decision.</p>
+    </div>
   );
 }
 
@@ -186,38 +214,31 @@ export default function CaseDetail() {
   return (
     <div>
       <PageHeader
-        crumbs={[{ label: 'Cases', to: '/cases' }, { label: detail.case.clientDisplayName ?? 'Case' }]}
+        crumbs={[{ label: 'All cases', to: '/cases' }, { label: detail.case.clientDisplayName ?? 'Case' }, { label: caseNumber }]}
         title={detail.case.clientDisplayName ?? 'Case'}
-        meta={
-          <>
-            <strong>Case {caseNumber}</strong>
-            {billing && billing.otherCaseNumbers.length > 0 && <span>{billing.otherCaseNumbers.join(', ')}</span>}
-            {detail.case.openedOn && <span>Opened {formatDate(detail.case.openedOn)}</span>}
-          </>
-        }
+        status={<StatusPill label={stageLabel(detail.case.stage)} />}
         actions={
           <button type="button" className="btn btn--outline" disabled title="Not connected yet">
-            Open the case in your {EXTERNAL_SYSTEM_NAME} ↗
+            Open in your {EXTERNAL_SYSTEM_NAME} ↗
           </button>
         }
       />
-
-      <Notice tone="info">
-        Cases may be managed in your {EXTERNAL_SYSTEM_NAME}. They show here so invoices make sense. Add people here only so
-        they can submit invoices on this case.
-      </Notice>
+      <p className="page-description">
+        Cases may be managed in your {EXTERNAL_SYSTEM_NAME}. They show here so invoices make sense. Add people here only so they
+        can send invoices on this case.
+      </p>
 
       <FactsStrip>
-        <Fact label="Case number">{caseNumber}</Fact>
-        <Fact label="Other numbers">{billing?.otherCaseNumbers.join(', ') || 'None'}</Fact>
-        <Fact label="Status">{detail.case.statusDisplayName}</Fact>
-        <Fact label="Professionals">{activeAssignments.map((a) => a.professionalDisplayName).filter(Boolean).join(', ') || '—'}</Fact>
-        <Fact label="Pre-authorized">
-          {billing && billing.preauthorizations.length > 0
-            ? formatMoney(billing.preauthorizations.reduce((sum, p) => sum + Number(p.ceiling), 0))
-            : 'None'}
+        <Fact label="Case number" note={billing?.otherCaseNumbers.length ? billing.otherCaseNumbers.join(', ') : undefined}>
+          <strong>{caseNumber}</strong>
         </Fact>
-        <Fact label="Who reviews its invoices">
+        <Fact label="Opened">
+          <strong>{detail.case.openedOn ? formatDate(detail.case.openedOn) : '—'}</strong>
+        </Fact>
+        <Fact label="County">
+          <strong>{detail.case.countyDisplayName ?? '—'}</strong>
+        </Fact>
+        <Fact label="Who reviews its invoices" note="Change in Settings or here">
           {billing && (
             <CaseReviewer
               caseId={detail.case.caseId}
@@ -229,7 +250,48 @@ export default function CaseDetail() {
         </Fact>
       </FactsStrip>
 
-      <section className="detail-section">
+      <div className="case-columns">
+        <section className="compact-card">
+          <h2>Pre-authorized and billed</h2>
+          {billing && billing.preauthorizations.length === 0 && <p className="muted">Nothing pre-authorized yet.</p>}
+          {billing?.preauthorizations.map((summary) => (
+            <PreauthorizedBilled
+              key={summary.professionalId ?? 'case'}
+              summary={summary}
+              name={summary.professionalId ? (professionalNames.get(summary.professionalId) ?? null) : null}
+            />
+          ))}
+          {user?.reviewPermissions?.reviewLines && (
+            <PreauthorizedAmount
+              caseId={detail.case.caseId}
+              people={activeAssignments.map((assignment) => ({
+                professionalId: assignment.professionalId,
+                name: assignment.professionalDisplayName ?? 'Unknown',
+              }))}
+              onSaved={refresh}
+            />
+          )}
+        </section>
+        <section className="compact-card">
+          <div className="section-heading-row">
+            <h2>People on this case</h2>
+            {!detail.case.closedOn && <AddPersonToCase caseId={detail.case.caseId} onAdded={refresh} />}
+          </div>
+          <RecordTable
+            label="People on this case"
+            rows={people}
+            rowKey={(person) => person.key}
+            emptyMessage="No one is on this case yet."
+            columns={[
+              { header: 'Person', rowHeader: true, render: (person) => person.name },
+              { header: 'Role on the case', render: (person) => person.role },
+              { header: 'Since', render: (person) => formatDate(person.since.slice(0, 10)) },
+            ]}
+          />
+        </section>
+      </div>
+
+      <section className="compact-card">
         <h2>Invoices on this case</h2>
         {Boolean(billingError) && <Notice tone="danger">Failed to load invoices.</Notice>}
         {billing && (
@@ -240,7 +302,6 @@ export default function CaseDetail() {
             rowKey={(invoice) => invoice.invoiceId}
             emptyMessage="No invoices submitted yet."
             columns={[
-              { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDate(invoice.submittedAt.slice(0, 10)) : '—') },
               {
                 header: 'From',
                 render: (invoice) => (
@@ -250,9 +311,13 @@ export default function CaseDetail() {
                   </>
                 ),
               },
-              { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
-              { header: 'Approved', align: 'right', render: (invoice) => formatMoney(invoice.approvedTotal ?? 0) },
-              { header: 'Decided', render: (invoice) => `${invoice.decidedCount} of ${invoice.lineCount}` },
+              { header: 'Billing period', render: (invoice) => formatPeriod(invoice.periodStart, invoice.periodEnd) },
+              { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDate(invoice.submittedAt.slice(0, 10)) : '—') },
+              { header: 'Requested', render: (invoice) => formatMoney(invoice.submittedTotal) },
+              {
+                header: 'Approved',
+                render: (invoice) => (DECIDED_STATUS_CODES.includes(invoice.statusCode) ? formatMoney(invoice.approvedTotal ?? 0) : 'None yet'),
+              },
               {
                 header: 'Status',
                 render: (invoice) => (
@@ -262,52 +327,16 @@ export default function CaseDetail() {
                   </>
                 ),
               },
-              { header: 'Reviewer', render: (invoice) => invoice.reviewer?.displayName ?? <span className="muted">Not assigned</span> },
               openInvoiceColumn((invoice) => (DECIDED_STATUS_CODES.includes(invoice.statusCode) ? 'View' : 'Review')),
             ]}
           />
         )}
-        {billing?.preauthorizations.map((summary) => (
-          <PreauthorizationLine
-            key={summary.professionalId ?? 'case'}
-            summary={summary}
-            name={summary.professionalId ? (professionalNames.get(summary.professionalId) ?? null) : null}
-          />
-        ))}
-        {user?.reviewPermissions?.reviewLines && (
-          <PreauthorizedAmount
-            caseId={detail.case.caseId}
-            people={activeAssignments.map((assignment) => ({
-              professionalId: assignment.professionalId,
-              name: assignment.professionalDisplayName ?? 'Unknown',
-            }))}
-            onSaved={refresh}
-          />
-        )}
       </section>
 
-      <section className="detail-section">
+      <section className="compact-card">
         <h2>Case rates</h2>
         <p className="compact-hint">Reviewers set these while reviewing the case's invoices. A new rate is added; earlier ones stay.</p>
         {billing && <CaseRateTable rows={billing.caseRates} label="Case rates" />}
-      </section>
-
-      <section className="detail-section">
-        <div className="section-heading-row">
-          <h2>People on this case</h2>
-          {!detail.case.closedOn && <AddPersonToCase caseId={detail.case.caseId} onAdded={refresh} />}
-        </div>
-        <RecordTable
-          label="People on this case"
-          rows={people}
-          rowKey={(person) => person.key}
-          emptyMessage="No one is on this case yet."
-          columns={[
-            { header: 'Person', rowHeader: true, render: (person) => person.name },
-            { header: 'Role on the case', render: (person) => person.role },
-            { header: 'Since', render: (person) => formatDate(person.since.slice(0, 10)) },
-          ]}
-        />
       </section>
     </div>
   );

@@ -555,6 +555,25 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   office must belong to that organization.
 - **Demo seeding**: `npm run seed` explicitly resets all application data; normal
   Docker Compose startup only migrates and starts the server, preserving records.
+- **Settings layout** (design I, I36–I39; `client/src/pages/Settings.tsx`,
+  `components/ReviewSettings.tsx`, `components/SegmentedChoice.tsx`): an "On
+  this page" index of Invoice review (routing beside the reason lists, whose
+  list is a segmented Approving part / Rejecting / Both / Case rate choice),
+  People who use this tool (what each role can do, then staff), Rates (a card
+  per kind, mileage, travel and waiting time) and Billing rules and codes (one
+  row per rule with an Off / Warn / Require choice); Demo comes last. Design
+  I37's three staff roles are replaced by Staff and Administrator, as decided.
+- **Case pages** (design I, I47–I49; `client/src/pages/Overview.tsx`,
+  `CaseList.tsx`, `CaseDetail.tsx`; `server/src/cases/caseSummaries.ts`):
+  `GET /api/cases` adds each case's number, the people working on it, its
+  pre-authorized amounts added up and the invoices waiting (`loadCaseListExtras`).
+  Case overview has a card per stage with its count and a "Recently changed"
+  table (`GET /api/cases/recent-changes`: the latest invoice events on cases,
+  as words, and case openings and closings, with who). All cases has All /
+  Open / Closed chips, the county filter and a search, with design I's
+  columns. A case's page has its facts, a "Pre-authorized and billed" card
+  per pre-authorization (approved, waiting, what would be left, and a bar)
+  beside the people on it, then its invoices and case rates.
 - **Demo tools** (Settings, "Demo"): only while the staff demo sign-in is on
   (`src/auth/demoSettings.ts`; otherwise the routes are 404s, and `/auth/me`
   reports `demoMode`). Every staff member then sees Settings, and

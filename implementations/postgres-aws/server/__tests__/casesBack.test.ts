@@ -13,6 +13,7 @@ import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { listReviewQueue } from '../src/billing/reviewQueue';
 import { loadPreauthorizationSummaries, setPreauthorizedAmount } from '../src/billing/preauthorizations';
 import { findCasesByNumber } from '../src/cases/casesByNumber';
+import { loadCaseListExtras, loadRecentCaseChanges } from '../src/cases/caseSummaries';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { getReferenceId } from '../src/db/referenceLookups';
 import { ForbiddenError, ValidationError } from '../src/errors';
@@ -162,6 +163,27 @@ describe('matching an invoice filed by person while it is reviewed', () => {
     const { invoiceId } = await filedByPerson(person, '26-CR-00211', caseId);
 
     await expect(matchInvoiceToCase(testDb, reviewer, invoiceId, { caseId: other, addMissing: true })).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe('the case pages', () => {
+  it('list each case with its number, who works on it, what is pre-authorized and what is waiting, and the latest changes', async () => {
+    const caseId = await newCase('26-CR-00211');
+    const person = await newProfessional(100);
+    await setPreauthorizedAmount(testDb, reviewer, caseId, { professionalId: person.professionalId, amount: 500 });
+    const { invoiceId } = await filedByPerson(person, '26-CR-00211');
+    await matchInvoiceToCase(testDb, reviewer, invoiceId, { caseId, addMissing: true });
+
+    const extras = (await loadCaseListExtras(testDb, [caseId])).get(caseId);
+    expect(extras).toMatchObject({
+      caseNumber: '26-CR-00211',
+      workers: [expect.any(String)],
+      preauthorized: '500.00',
+      waiting: { count: 1, total: '200.00' },
+    });
+    const changes = await loadRecentCaseChanges(testDb);
+    expect(changes[0]).toMatchObject({ caseId, what: 'An invoice matched to this case', by: 'Reviewer One', caseNumber: '26-CR-00211' });
+    expect(changes.some((change) => change.caseId === caseId && change.what === 'Case opened')).toBe(true);
   });
 });
 

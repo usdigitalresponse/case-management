@@ -12,6 +12,7 @@ import {
   professional,
   person,
   caseStatuses,
+  county,
   role,
 } from '../db/schema';
 import { listReviewQueue } from '../billing/reviewQueue';
@@ -20,6 +21,7 @@ import { loadCaseRateViews } from '../billing/caseRates';
 import { loadCaseReviewer, setCaseReviewer } from '../billing/reviewAssignment';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { createCase } from '../intake/createCase';
+import { loadCaseListExtras, loadRecentCaseChanges } from '../cases/caseSummaries';
 import { caseStageExpression } from '../cases/caseStage';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { assignExternalSubmitterToCase } from '../cases/assignExternalSubmitterToCase';
@@ -42,6 +44,7 @@ const caseColumnsWithClientName = {
   clientId: caseTable.clientId,
   clientDisplayName: person.displayName,
   countyId: caseTable.countyId,
+  countyDisplayName: county.displayName,
   externalReference: caseTable.externalReference,
   caseCategoryId: caseTable.caseCategoryId,
   statusId: caseTable.statusId,
@@ -88,8 +91,18 @@ router.get(
       .from(caseTable)
       .leftJoin(person, eq(caseTable.clientId, person.personId))
       .leftJoin(caseStatuses, eq(caseTable.statusId, caseStatuses.id))
+      .leftJoin(county, eq(caseTable.countyId, county.countyId))
       .where(filters.length > 0 ? and(...filters) : undefined);
-    res.json({ cases: rows });
+    const extras = await loadCaseListExtras(db, rows.map((row) => row.caseId));
+    res.json({ cases: rows.map((row) => ({ ...row, ...extras.get(row.caseId)! })) });
+  }),
+);
+
+// The latest changes across cases, for the case overview.
+router.get(
+  '/recent-changes',
+  asyncHandler(async (_req, res) => {
+    res.json({ changes: await loadRecentCaseChanges(db) });
   }),
 );
 
@@ -104,6 +117,7 @@ router.get(
       .from(caseTable)
       .leftJoin(person, eq(caseTable.clientId, person.personId))
       .leftJoin(caseStatuses, eq(caseTable.statusId, caseStatuses.id))
+      .leftJoin(county, eq(caseTable.countyId, county.countyId))
       .where(eq(caseTable.caseId, caseId));
     if (!caseRow) {
       res.status(404).json({ error: 'not_found' });

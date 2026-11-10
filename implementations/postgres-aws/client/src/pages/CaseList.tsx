@@ -1,40 +1,49 @@
 import { useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
-import { Table } from '@trussworks/react-uswds';
-import { listCases, type CaseRecord } from '../api/client';
+import { listCases, type CaseListRecord } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
 import { ResourceList } from '../components/ResourceList';
-import { caseDisplayLabel } from '../caseDisplayLabel';
+import { RecordTable } from '../components/RecordTable';
 import { useCountyControl } from '../components/CountyListControl';
 import { stageLabel } from '../overviewStages';
+import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
+import { formatMoney } from '../formatMoney';
 
-function matchesQuery(caseRecord: CaseRecord, query: string): boolean {
-  const haystack = `${caseRecord.clientDisplayName ?? ''} ${caseRecord.externalReference ?? ''}`.toLowerCase();
+type Shown = 'all' | 'open' | 'closed';
+
+function matchesQuery(caseRecord: CaseListRecord, query: string): boolean {
+  const haystack = `${caseRecord.clientDisplayName ?? ''} ${caseRecord.caseNumber ?? ''} ${caseRecord.workers.join(' ')}`.toLowerCase();
   return haystack.includes(query.toLowerCase());
 }
 
+// Every case, as design I48 lists them.
 export default function CaseList() {
   const { data: cases, error } = useApiResource(() => listCases().then((result) => result.cases), []);
   const [query, setQuery] = useState('');
-  // ?stage=<id> narrows to one board stage (sidebar/Overview "View all"
-  // links set it). An unrecognized value just matches nothing, same as a
-  // typo'd filter text.
+  const [shown, setShown] = useState<Shown>('all');
+  // ?stage=<id> narrows to one stage (the Case overview's "View all" links set it).
   const [searchParams] = useSearchParams();
   const stageParam = searchParams.get('stage');
-  const stageCases = (cases ?? []).filter((caseRecord) => !stageParam || caseRecord.stage === stageParam);
-  const county = useCountyControl(
-    stageCases.filter((caseRecord) => matchesQuery(caseRecord, query)),
-    (caseRecord) => ({ countyId: caseRecord.countyId }),
+  const listed = (cases ?? []).filter(
+    (caseRecord) =>
+      (!stageParam || caseRecord.stage === stageParam) &&
+      (shown === 'all' || (shown === 'open') === !caseRecord.closedOn) &&
+      matchesQuery(caseRecord, query),
   );
+  const county = useCountyControl(listed, (caseRecord) => ({ countyId: caseRecord.countyId }));
+  const count = (which: Shown) => (cases ?? []).filter((caseRecord) => which === 'all' || (which === 'open') === !caseRecord.closedOn).length;
 
   return (
     <ResourceList
       heading={
         <div className="page-title-row">
-          <PageHeading eyebrow="Cases" title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'} />
-          {/* Kept while cases can still be opened here as well as in the external system. */}
+          <PageHeading
+            eyebrow="Cases"
+            title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'}
+            description={`Every case invoices can be sent for. Cases may be managed in your ${EXTERNAL_SYSTEM_NAME}; they show here so invoices make sense.`}
+          />
           <RouterLink className="btn btn--primary" to="/cases/new">Add case</RouterLink>
         </div>
       }
@@ -44,83 +53,75 @@ export default function CaseList() {
       loadingMessage="Loading cases…"
       emptyMessage="No cases yet."
     >
-      {() => {
-        const filtered = county.shown;
-        return (
-          <>
-            {stageParam && (
-              <p className="stage-filter-note">
-                Showing only <strong>{stageLabel(stageParam)}</strong> cases.{' '}
-                <RouterLink to="/cases">Show all cases</RouterLink>
-              </p>
-            )}
-            <div className="list-toolbar">
-              <SearchInput
-                id="case-filter"
-                name="caseFilter"
-                aria-label="Filter cases by client or external reference"
-                placeholder="Filter by client or external reference"
-                value={query}
-                onChange={setQuery}
-              />
-              {county.control}
-              <span className="list-count">
-                {filtered.length} of {stageCases.length} {stageCases.length === 1 ? 'case' : 'cases'}
-              </span>
-            </div>
-
-            <div className="data-card">
-              <Table bordered fullWidth className="case-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Client</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Stage</th>
-                    <th scope="col">County</th>
-                    <th scope="col">Opened</th>
-                    <th scope="col">External reference</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((caseRecord) => (
-                    <tr key={caseRecord.caseId}>
-                      <th scope="row">
-                        <RouterLink to={`/cases/${caseRecord.caseId}`}>
-                          {caseDisplayLabel([caseRecord.clientDisplayName], { label: 'Case opened', date: caseRecord.openedOn })}
-                        </RouterLink>
-                      </th>
-                      <td><span className="chip chip--neutral">{caseRecord.statusDisplayName}</span></td>
-                      <td><span className="chip chip--neutral">{stageLabel(caseRecord.stage)}</span></td>
-                      <td>{county.nameOf(caseRecord.countyId) ?? '—'}</td>
-                      <td>{caseRecord.openedOn ?? '—'}</td>
-                      <td>{caseRecord.externalReference ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </div>
-
-            <ul className="row-cards">
-              {filtered.map((caseRecord) => (
-                <li key={caseRecord.caseId}>
-                  <RouterLink className="row-card" to={`/cases/${caseRecord.caseId}`}>
-                    <span className="row-card-title">
-                      {caseDisplayLabel([caseRecord.clientDisplayName], { label: 'Case opened', date: caseRecord.openedOn })}
-                    </span>
-                    <span className="row-card-meta">
-                      <span className="chip chip--neutral">{caseRecord.statusDisplayName}</span>
-                      <span className="chip chip--neutral">{stageLabel(caseRecord.stage)}</span>
-                      {county.nameOf(caseRecord.countyId) && <span>{county.nameOf(caseRecord.countyId)}</span>}
-                      <span>Opened {caseRecord.openedOn ?? '—'}</span>
-                      {caseRecord.externalReference && <span>{caseRecord.externalReference}</span>}
-                    </span>
-                  </RouterLink>
-                </li>
+      {() => (
+        <>
+          {stageParam && (
+            <p className="stage-filter-note">
+              Showing only <strong>{stageLabel(stageParam)}</strong> cases. <RouterLink to="/cases">Show all cases</RouterLink>
+            </p>
+          )}
+          <div className="list-toolbar">
+            <div className="chip-filters" role="group" aria-label="Which cases">
+              {(['all', 'open', 'closed'] as const).map((which) => (
+                <button
+                  key={which}
+                  type="button"
+                  className="chip chip--filter"
+                  aria-pressed={shown === which}
+                  onClick={() => setShown(which)}
+                >
+                  {which === 'all' ? 'All' : which === 'open' ? 'Open' : 'Closed'} <span className="chip-count">{count(which)}</span>
+                </button>
               ))}
-            </ul>
-          </>
-        );
-      }}
+            </div>
+            {county.control}
+            <SearchInput
+              id="case-filter"
+              name="caseFilter"
+              aria-label="Search cases by client, case number or who works on it"
+              placeholder="Search by client or case number"
+              value={query}
+              onChange={setQuery}
+            />
+          </div>
+          <RecordTable
+            label="Cases"
+            className="queue-table case-list-table"
+            rows={county.shown}
+            rowKey={(caseRecord) => caseRecord.caseId}
+            emptyMessage="No cases match."
+            columns={[
+              {
+                header: 'Client',
+                rowHeader: true,
+                render: (caseRecord) => (
+                  <RouterLink to={`/cases/${caseRecord.caseId}`}>{caseRecord.clientDisplayName || 'Unnamed client'}</RouterLink>
+                ),
+              },
+              { header: 'Case', render: (caseRecord) => caseRecord.caseNumber ?? '—' },
+              { header: 'Stage', render: (caseRecord) => <span className="chip chip--neutral">{stageLabel(caseRecord.stage)}</span> },
+              { header: 'County', render: (caseRecord) => county.nameOf(caseRecord.countyId) ?? '—' },
+              {
+                header: 'Who works on it',
+                render: (caseRecord) => (caseRecord.workers.length > 0 ? caseRecord.workers.join(', ') : <span className="muted">No one yet</span>),
+              },
+              { header: 'Pre-authorized', render: (caseRecord) => (caseRecord.preauthorized ? formatMoney(caseRecord.preauthorized) : '—') },
+              {
+                header: 'Waiting',
+                render: (caseRecord) =>
+                  caseRecord.waiting.count > 0 ? (
+                    <>
+                      {caseRecord.waiting.count} {caseRecord.waiting.count === 1 ? 'invoice' : 'invoices'}
+                      <span className="cell-note">{formatMoney(caseRecord.waiting.total)}</span>
+                    </>
+                  ) : (
+                    '—'
+                  ),
+              },
+            ]}
+          />
+        </>
+      )}
     </ResourceList>
   );
 }

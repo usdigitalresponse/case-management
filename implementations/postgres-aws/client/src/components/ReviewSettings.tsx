@@ -22,6 +22,8 @@ import { LoadState } from './LoadState';
 import { OrderedChoiceList } from './OrderedChoiceList';
 import { RecordTable } from './RecordTable';
 import { ReviewerSelect } from './ReviewRouting';
+import { SegmentedChoice } from './SegmentedChoice';
+import { useAuth } from '../AuthContext';
 
 // Who gets new invoices, who signs off, and when a waiting invoice is called
 // out. Each save adds a setting; invoices already routed keep theirs.
@@ -182,8 +184,9 @@ const LIST_LABELS: Record<ReasonAppliesTo, string> = {
   approved_in_part: 'Approving part',
   rejected: 'Rejecting',
   both: 'Both',
-  case_rate: "Setting a case's default rate",
+  case_rate: 'Case rate',
 };
+const LIST_OPTIONS = (Object.keys(LIST_LABELS) as ReasonAppliesTo[]).map((value) => ({ value, label: LIST_LABELS[value] }));
 
 // The reasons reviewers choose from when they approve part of a line, reject
 // it or set a case's default rate. Administrators keep the lists current
@@ -212,7 +215,7 @@ export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <section className="compact-card">
-      <h3>Reasons for review decisions</h3>
+      <h3>Reasons for cutting or rejecting a line</h3>
       <p className="compact-hint">
         Approving part of a line, rejecting it and setting a case's default rate each have their own list. Reviewers
         must pick one, and "Another reason", on every list, needs a note.
@@ -224,31 +227,29 @@ export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
         rowKey={(reason) => reason.reasonId}
         rowClassName={(reason) => (reason.active ? undefined : 'is-retired')}
         columns={[
-          { header: 'Reason', rowHeader: true, render: (reason) => reason.displayName },
+          { header: 'Reason on the list', rowHeader: true, render: (reason) => reason.displayName },
           {
-            header: 'On the list for',
+            header: 'For',
             render: (reason) =>
               isAdmin && reason.code !== 'other' ? (
-                <select
-                  className="usa-select settings-role"
-                  aria-label={`List for ${reason.displayName}`}
+                <SegmentedChoice
+                  label={`List for ${reason.displayName}`}
+                  options={LIST_OPTIONS}
                   value={reason.appliesTo}
-                  onChange={(event) =>
-                    void run(() => updateDecisionReason(reason.reasonId, { appliesTo: event.target.value as ReasonAppliesTo }), 'Reason moved.')
-                  }
-                >
-                  {Object.entries(LIST_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
+                  onChange={(appliesTo) => void run(() => updateDecisionReason(reason.reasonId, { appliesTo }), 'Reason moved.')}
+                />
+              ) : reason.code === 'other' ? (
+                'Every list'
               ) : (
-                reason.code === 'other' ? 'Every list' : LIST_LABELS[reason.appliesTo]
+                LIST_LABELS[reason.appliesTo]
               ),
           },
           {
             header: 'In use',
             render: (reason) =>
-              isAdmin && reason.code !== 'other' ? (
+              reason.code === 'other' ? (
+                <span className="cell-note">Always on</span>
+              ) : isAdmin ? (
                 <button
                   type="button"
                   className="link-button"
@@ -272,19 +273,16 @@ export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
             void run(() => addDecisionReason({ displayName: displayName.trim(), appliesTo }), 'Reason added.').then(() => setDisplayName(''));
           }}
         >
-          <div className="usa-form-group">
-            <label className="usa-label" htmlFor="new-reason">New reason</label>
-            <input id="new-reason" className="usa-input" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-          </div>
-          <div className="usa-form-group">
-            <label className="usa-label" htmlFor="new-reason-list">For</label>
-            <select id="new-reason-list" className="usa-select" value={appliesTo} onChange={(event) => setAppliesTo(event.target.value as ReasonAppliesTo)}>
-              {Object.entries(LIST_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </div>
-          <button type="submit" className="btn btn--primary" disabled={displayName.trim().length < 3}>Add reason</button>
+          <label className="usa-sr-only" htmlFor="new-reason">New reason</label>
+          <input
+            id="new-reason"
+            className="usa-input"
+            placeholder="New reason"
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+          />
+          <SegmentedChoice label="List for the new reason" options={LIST_OPTIONS} value={appliesTo} onChange={setAppliesTo} />
+          <button type="submit" className="btn btn--outline" disabled={displayName.trim().length < 3}>Add reason</button>
         </form>
       )}
     </section>
@@ -344,6 +342,7 @@ function AddStaff({ roles, onAdded, onCancel }: { roles: StaffRolesResponse['rol
 // here first. Administrators change roles and deactivate accounts here; every
 // change is kept in the audit history.
 export function StaffRoleSettings() {
+  const { user } = useAuth();
   const [version, setVersion] = useState(0);
   const { data, error } = useApiResource(() => getStaffRoles(), [version]);
   const [message, setMessage] = useState<SaveMessage | null>(null);
@@ -367,15 +366,11 @@ export function StaffRoleSettings() {
   return (
     <section className="compact-card">
       <div className="section-title-row">
-        <h3>People who use this tool</h3>
+        <h3>Staff</h3>
         {!adding && (
-          <button type="button" className="btn btn--outline btn--small" onClick={() => setAdding(true)}>Add staff</button>
+          <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>Add staff</button>
         )}
       </div>
-      <p className="compact-hint">
-        Staff upload invoices, decide lines, finish reviews and sign off, as "Who may sign off" allows. Administrators can
-        also change Settings.
-      </p>
       {adding && (
         <AddStaff
           roles={data.roles}
@@ -429,6 +424,9 @@ export function StaffRoleSettings() {
             render: (person) => (
               <span className="row-actions">
                 <StatusPill tone={person.active ? 'success' : 'neutral'} label={person.active ? 'Active' : 'Deactivated'} />
+                {person.userAccountId === user?.userAccountId ? (
+                  <span className="cell-note">You</span>
+                ) : (
                 <button
                   type="button"
                   className="link-button"
@@ -442,11 +440,27 @@ export function StaffRoleSettings() {
                 >
                   {person.active ? 'Deactivate' : 'Reactivate'}
                 </button>
+                )}
               </span>
             ),
           },
         ]}
       />
+    </section>
+  );
+}
+
+// What each role can do (one staff role since design I; administrators also keep Settings).
+export function RoleSummary() {
+  return (
+    <section className="compact-card">
+      <h3>What each role can do</h3>
+      <dl className="role-summary">
+        <dt>Staff</dt>
+        <dd>Upload invoices, decide lines, finish reviews and sign off, as "Who may sign off" allows.</dd>
+        <dt>Administrator</dt>
+        <dd>Everything staff do, and Settings, rates and the people who use this tool.</dd>
+      </dl>
     </section>
   );
 }

@@ -125,6 +125,7 @@ export interface CaseRecord {
   clientId: string | null;
   clientDisplayName: string | null;
   countyId: string | null;
+  countyDisplayName: string | null;
   externalReference: string | null;
   caseCategoryId: string | null;
   statusId: string;
@@ -138,8 +139,30 @@ export interface CaseRecord {
   stage: CaseStage | null;
 }
 
-export function listCases(): Promise<{ cases: CaseRecord[] }> {
-  return request<{ cases: CaseRecord[] }>('/api/cases');
+// As listed: with its number, who works on it, what is pre-authorized and what is waiting.
+export interface CaseListRecord extends CaseRecord {
+  caseNumber: string | null;
+  workers: string[];
+  // Every pre-authorization on the case added up; null with none.
+  preauthorized: string | null;
+  waiting: { count: number; total: string };
+}
+
+export function listCases(): Promise<{ cases: CaseListRecord[] }> {
+  return request<{ cases: CaseListRecord[] }>('/api/cases');
+}
+
+export interface CaseChange {
+  caseId: string;
+  clientDisplayName: string | null;
+  caseNumber: string | null;
+  what: string;
+  when: string;
+  by: string | null;
+}
+
+export function listRecentCaseChanges(): Promise<{ changes: CaseChange[] }> {
+  return request('/api/cases/recent-changes');
 }
 
 export interface CaseParticipant {
