@@ -49,7 +49,7 @@ import { listTimeCategoryRates } from '../billing/timeCategoryRates';
 import { createInvoice } from '../portal/createInvoice';
 import { listPortalInvoices } from '../portal/listPortalInvoices';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../billing/invoiceAccess';
-import { loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail';
+import { decisionCommentsOf, loadInvoiceDetail, type InvoiceDetail } from '../billing/invoiceDetail';
 import {
   recallInvoice,
   setDraftCase,
@@ -325,10 +325,7 @@ function withoutReviewer(detail: InvoiceDetail) {
     fileSource: detail.fileSource,
     submitterChanges: detail.submitterChanges,
     questions: detail.questions,
-    // Comments on approving or rejecting the whole invoice, shared like line notes.
-    decisionComments: detail.signOffs.flatMap(({ outcomeCode, comment, decidedAt }) =>
-      comment && outcomeCode !== 'changes_requested' ? [{ outcomeCode, comment, decidedAt }] : [],
-    ),
+    decisionComments: decisionCommentsOf(detail.signOffs),
     lines: detail.lines.map(({ decidedByDisplayName: _reviewer, decision, history, ...line }) => ({
       ...line,
       decision: decision ? anonymous(decision) : null,

@@ -243,6 +243,14 @@ export interface SignOffView {
   decidedAt: Date;
 }
 
+// Comments on approving or rejecting the whole invoice, which the submitter
+// sees like line notes; a send-back to the reviewer is never among them.
+export function decisionCommentsOf(signOffs: SignOffView[]) {
+  return signOffs.flatMap(({ outcomeCode, comment, decidedAt }) =>
+    comment && outcomeCode !== 'changes_requested' ? [{ outcomeCode, comment, decidedAt }] : [],
+  );
+}
+
 export interface SubmissionAttempt {
   invoiceApprovalChainId: string;
   submittedAt: Date;

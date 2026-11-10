@@ -120,6 +120,11 @@ describe('a person’s own travel time rate', () => {
     const { invoiceId: own, travelLineId } = await sentTrip(caseId, person, '2', '10');
     expect((await loadInvoiceDetail(testDb, own, 'staff'))!.lines[0]).toMatchObject({ configuredRate: '70.000', rateSource: 'person', amount: '140.00' });
 
+    // A later change to the hourly rate alone keeps the travel rate.
+    await addOwnRates(testDb, admin, person.professionalId, { hourlyRate: 110, effectiveFrom: '2026-01-15' });
+    const { invoiceId: hourlyChanged } = await sentTrip(caseId, person, '2', '10');
+    expect((await loadInvoiceDetail(testDb, hourlyChanged, 'staff'))!.lines[0]).toMatchObject({ configuredRate: '70.000', rateSource: 'person' });
+
     await applyLineRate(testDb, reviewer, own, travelLineId, { rate: 80, scope: 'case', target: 'person', reasonCode: 'case_rate_agreed', basedOnCaseRateId: null });
     const { invoiceId: later } = await sentTrip(caseId, person, '2', '10');
     expect((await loadInvoiceDetail(testDb, later, 'staff'))!.lines[0]).toMatchObject({ configuredRate: '80.000', rateSource: 'case_person' });

@@ -16,7 +16,7 @@ import {
 import { finishReview, markCompleted, reopenReview, signOffInvoice } from '../src/billing/reviewRounds';
 import { reassignReviewer, setSignOffApprovers } from '../src/billing/reviewAssignment';
 import { setReviewSettings } from '../src/billing/reviewSettings';
-import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
+import { decisionCommentsOf, loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { invoiceExportContent } from '../src/billing/exportInvoice';
 import { listReviewQueue } from '../src/billing/reviewQueue';
 import { loadBillingRecord } from '../src/billing/billingRecord';
@@ -561,7 +561,12 @@ describe('finishing and sign-off', () => {
     // The next round needs both sign-offs again.
     await finishReview(testDb, reviewer, invoiceId);
     await signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' });
-    await signOffInvoice(testDb, second, invoiceId, { outcome: 'approved' });
+    await signOffInvoice(testDb, second, invoiceId, { outcome: 'approved', comment: 'Approved after the check.' });
     expect(await statusCode(invoiceId)).toBe('approved');
+
+    // The submitter sees the approval's comment, never the send-back's.
+    const sent = decisionCommentsOf((await loadInvoiceDetail(testDb, invoiceId))!.signOffs);
+    expect(sent).toEqual([expect.objectContaining({ outcomeCode: 'approved', comment: 'Approved after the check.' })]);
+    expect(decisionCommentsOf(staffView.signOffs)).toEqual([]);
   });
 });

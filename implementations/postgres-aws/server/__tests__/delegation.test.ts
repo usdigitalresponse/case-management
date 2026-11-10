@@ -22,6 +22,7 @@ import { canPortalReaderReadInvoice } from '../src/billing/invoiceAccess';
 import { listPortalCases } from '../src/portal/listPortalCases';
 import { loadProviderOffices } from '../src/professionals/providerOffices';
 import { giveRate } from './rateHelpers';
+import { createKind, setProfessionalKind } from '../src/billing/professionalRates';
 import { ValidationError } from '../src/errors';
 import { caseAssignment, invoice, invoiceEvent, invoiceLine, person, personAffiliation, professional, timeEntry, userAccount } from '../src/db/schema';
 
@@ -204,6 +205,8 @@ describe('delegated submission', () => {
     const ownCase = await createCaseAssignedTo([self.professionalId]);
     const sharedCase = await createCaseAssignedTo([first.professionalId, second.professionalId]);
     const outsiderCase = await createCaseAssignedTo([outsider.professionalId]);
+    const { professionalKindId } = await createKind(testDb, { displayName: 'Investigator' });
+    await setProfessionalKind(testDb, first.professionalId, { professionalKindId });
 
     const { professionals, cases } = await listPortalCases(testDb, self.userAccountId);
 
@@ -214,6 +217,8 @@ describe('delegated submission', () => {
     expect(others.map((p) => p.professionalId).sort()).toEqual(
       [first.professionalId, second.professionalId, idle.professionalId].sort(),
     );
+    // Each with their kind, for "Name, investigator" headings.
+    expect(others.find((p) => p.professionalId === first.professionalId)).toMatchObject({ kindDisplayName: 'Investigator' });
     const names = others.map((p) => p.displayName ?? '');
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
     const byCase = new Map(cases.map((c) => [c.caseId, c.assignedProfessionalIds.sort()]));

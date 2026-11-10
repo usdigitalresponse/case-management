@@ -76,7 +76,7 @@ export function DecisionHistory({ line }: { line: Pick<InvoiceReviewLine, 'histo
 }
 
 // Time, travel time and mileage: corrected by quantity and rate.
-function hasHours(line: InvoiceReviewLine): boolean {
+function hasHours(line: Pick<InvoiceReviewLine, 'quantity' | 'billedRate'>): boolean {
   return line.quantity !== null && Number(line.quantity) > 0 && line.billedRate !== null;
 }
 
@@ -106,6 +106,38 @@ export function latestCaseRate(caseRates: CaseRate[], line: InvoiceReviewLine, t
       (target === 'person' ? row.professionalId === line.rateProfessionalId : row.professionalKindId === line.rateKindId),
   );
   return own.sort((a, b) => a.recordedAt.localeCompare(b.recordedAt)).at(-1) ?? null;
+}
+
+// What a Part or Rate panel's figures decide. Rate keeps the hours: a higher
+// rate approves more with no reason, a lower one is a cut and needs one, and
+// only Rate offers the rate to the matching lines or the case.
+export function lineAdjustment(
+  line: Pick<InvoiceReviewLine, 'quantity' | 'billedRate' | 'amount' | 'rateType' | 'rateSource'>,
+  mode: PanelMode,
+  figures: { hours: string; rate: string; amount: string },
+  scope: { offered: boolean; matching: number; canSetCase: boolean },
+) {
+  const byHours = hasHours(line);
+  const adjusting = mode === 'approved_in_part' || mode === 'rate';
+  const hours = mode === 'rate' ? (line.quantity ?? '') : figures.hours;
+  const rate = Number(figures.rate);
+  const changedRate = rate > 0 && rate !== Number(line.billedRate);
+  const hoursKept = adjusting && byHours && Number(hours) === Number(line.quantity);
+  const rateOnly = hoursKept && changedRate;
+  const requestedCents = cents(line.amount);
+  const approvedCents = byHours ? cents(Number(hours) * rate) : cents(Number(figures.amount));
+  const validAmount = Number.isFinite(approvedCents) && approvedCents > 0 && approvedCents < requestedCents;
+  // The same hours at a higher rate approve more than was asked; sign-off sees it flagged.
+  const raised = rateOnly && approvedCents >= requestedCents;
+  const rateValid = mode !== 'rate' || changedRate;
+  const fromCase = line.rateSource === 'case_person' || line.rateSource === 'case_kind';
+  const offerScope =
+    mode === 'rate' &&
+    scope.offered &&
+    Boolean(line.rateType) &&
+    hoursKept &&
+    ((rateOnly && (scope.matching > 1 || scope.canSetCase)) || (scope.canSetCase && fromCase));
+  return { rateOnly, requestedCents, approvedCents, validAmount, raised, rateValid, cutNeedsReason: adjusting && rateValid && !raised, offerScope };
 }
 
 // Approve part (corrected hours or rate, or the amount), approve at another
@@ -159,14 +191,12 @@ export function DecisionPanel({
   const reasonCode = options.some((reason) => reason.code === picked) ? picked : '';
   const caseReasons = reasons.filter((reason) => reason.code === 'other' || reason.appliesTo === 'case_rate');
 
-  // Only the rate changed: it may also go to other lines or the case. A case
-  // rate in force may also be returned to the configured rate.
-  const hoursKept = adjusting && byHours && Number(hours) === Number(line.quantity);
-  const rateOnly = hoursKept && Number(rate) > 0 && Number(rate) !== Number(line.billedRate);
   const canSetCase = Boolean(rateScope?.hasCase && line.rateProfessionalId && line.rateType && line.serviceDate);
-  const fromCase = line.rateSource === 'case_person' || line.rateSource === 'case_kind';
-  const offerScope = Boolean(
-    mode === 'rate' && rateScope && line.rateType && hoursKept && ((rateOnly && (matching.length > 1 || canSetCase)) || (canSetCase && fromCase)),
+  const { rateOnly, requestedCents, approvedCents, validAmount, raised, rateValid, cutNeedsReason, offerScope } = lineAdjustment(
+    line,
+    mode,
+    { hours, rate, amount },
+    { offered: Boolean(rateScope), matching: matching.length, canSetCase },
   );
   const shownScope = offerScope ? scope : 'line';
   const latest = rateScope ? latestCaseRate(rateScope.caseRates, line, target) : null;
@@ -179,20 +209,7 @@ export function DecisionPanel({
   const scopeCents = scopeLines.reduce((sum, other) => sum + cents(Number(other.quantity) * Number(rate)), 0);
   const scopeRequestedCents = scopeLines.reduce((sum, other) => sum + cents(other.amount), 0);
 
-  const requestedCents = cents(line.amount);
-  const approvedCents = byHours ? cents(Number(hours) * Number(rate)) : cents(Number(amount));
-  const validAmount = Number.isFinite(approvedCents) && approvedCents > 0 && approvedCents < requestedCents;
-  // The same hours at a higher rate approve more than was asked: no reason
-  // is needed, and sign-off sees the changed rate flagged.
-  const raised =
-    adjusting &&
-    byHours &&
-    Number(hours) === Number(line.quantity) &&
-    Number(rate) > 0 &&
-    Number(rate) !== Number(line.billedRate) &&
-    approvedCents >= requestedCents;
-  const rateValid = mode !== 'rate' || (Number(rate) > 0 && Number(rate) !== Number(line.billedRate));
-  const needsReason = mode === 'rejected' || (adjusting && rateValid && !raised && shownScope === 'line');
+  const needsReason = mode === 'rejected' || (cutNeedsReason && shownScope === 'line');
   // Approving the billed hours, as billed or at another rate.
   const keepsHours = mode === 'time_log' || (adjusting && byHours && Number(hours) >= Number(line.quantity));
   const needsOverride = logBlocks && keepsHours;
