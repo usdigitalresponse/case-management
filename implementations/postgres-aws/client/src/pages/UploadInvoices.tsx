@@ -7,8 +7,6 @@ import {
   apiErrorMessage,
   createInvoice,
   createUploadDraft,
-  deleteInvoice,
-  discardUpload,
   invoiceTemplateUrl,
   listBillableProfessionals,
   type InvoiceReceipt,
@@ -46,7 +44,7 @@ export default function UploadInvoices() {
   const reviews = useReviewsOwnUploads();
   const home = staff ? { label: 'To review', to: '/' } : { label: 'Your invoices', to: PORTAL_HOME_PATH };
   // A file's own sender; '' is the one chosen above.
-  const { entries, update, addFiles, remove } = useUploadEntries(() => '');
+  const { entries, update, addFiles, remove, discardAll } = useUploadEntries(() => '');
   const { data: billable } = useApiResource(() => listBillableProfessionals(null).then((result) => result.professionals), []);
   const self = billable?.find((p) => p.isSelf);
   const asks = asksWho(staff, billable);
@@ -170,18 +168,9 @@ export default function UploadInvoices() {
     }
   }
 
-  // Keeps none of the files: unread ones are discarded, drafts deleted.
   async function cancel() {
     setBusy(true);
-    await Promise.all(
-      entries.map((entry) =>
-        entry.created
-          ? deleteInvoice(entry.created.invoiceId).catch(() => undefined)
-          : entry.uploadReadId
-            ? discardUpload(entry.uploadReadId).catch(() => undefined)
-            : undefined,
-      ),
-    );
+    await discardAll();
     navigate(home.to);
   }
 

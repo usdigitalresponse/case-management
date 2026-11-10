@@ -6,7 +6,6 @@
 import { createHash } from 'node:crypto';
 import type { LineType } from '../../billing/invoiceLifecycle';
 import {
-  cents,
   checkLineCount,
   lineTotalCents,
   type SourceRegion,
@@ -20,6 +19,7 @@ import { recognizePages, type OcrWord, type RecognizedFrame } from './ocr';
 import { loadPdfJs, withPdf, type PdfAnnotation, type PdfDocument, type PdfPage, type PdfTextItem } from './pdfDocument';
 import type { ExtractOptions, InvoiceExtractor } from './types';
 import { labelledCaseNumbers } from '../../billing/caseNumbers';
+import { toCents } from '../../billing/money';
 
 // In points.
 const ROW_TOLERANCE = 2;
@@ -607,7 +607,7 @@ function figureOptions(figure: Figure, text: string): Array<{ value: number; cos
 function deriveFigure(figure: Figure, figures: Figures): number | undefined {
   const { quantity, unitRate, amount } = figures;
   if (figure === 'amount') {
-    return quantity !== undefined && unitRate !== undefined ? cents(quantity * unitRate) / 100 : undefined;
+    return quantity !== undefined && unitRate !== undefined ? toCents(quantity * unitRate) / 100 : undefined;
   }
   const other = figure === 'quantity' ? unitRate : quantity;
   if (amount === undefined || other === undefined) {
@@ -618,7 +618,7 @@ function deriveFigure(figure: Figure, figures: Figures): number | undefined {
   const exact = amount / other;
   const places = exact < 10 ? 1000 : 100;
   const value = Math.round(exact * places) / places;
-  return value > 0 && cents(value * other) === cents(amount) ? value : undefined;
+  return value > 0 && toCents(value * other) === toCents(amount) ? value : undefined;
 }
 
 const DERIVED_COST = 2.5;
@@ -647,7 +647,7 @@ export function reconcileFigures(read: Partial<Record<Figure, FigureReading>>): 
   for (const quantity of options[0]!) {
     for (const unitRate of options[1]!) {
       for (const amount of options[2]!) {
-        if (cents(quantity.value * unitRate.value) === cents(amount.value)) {
+        if (toCents(quantity.value * unitRate.value) === toCents(amount.value)) {
           fits.push({ figures: { quantity: quantity.value, unitRate: unitRate.value, amount: amount.value }, cost: quantity.cost + unitRate.cost + amount.cost });
         }
       }
@@ -672,7 +672,7 @@ export function reconcileFigures(read: Partial<Record<Figure, FigureReading>>): 
   if (cheapest === 0 || cheapest > DERIVED_COST) {
     return { figures: asRead, repaired: [] };
   }
-  const best = [...new Map(fits.filter((fit) => fit.cost === cheapest).map((fit) => [FIGURES.map((figure) => cents(fit.figures[figure]!)).join(), fit])).values()];
+  const best = [...new Map(fits.filter((fit) => fit.cost === cheapest).map((fit) => [FIGURES.map((figure) => toCents(fit.figures[figure]!)).join(), fit])).values()];
   if (best.length !== 1) {
     return { figures: asRead, repaired: [] };
   }
@@ -1096,15 +1096,15 @@ function sortAttachments(
   const backs = (amount: number, page: number, isTotal = false) => {
     const open = lines.filter((candidate) => !backedUp.has(candidate));
     const line =
-      open.find((candidate) => cents(candidate.amount) === cents(amount)) ??
-      (isTotal ? open.find((candidate) => Math.abs(cents(candidate.amount) - cents(amount)) <= Math.min(100, cents(amount) / 100)) : undefined);
+      open.find((candidate) => toCents(candidate.amount) === toCents(amount)) ??
+      (isTotal ? open.find((candidate) => Math.abs(toCents(candidate.amount) - toCents(amount)) <= Math.min(100, toCents(amount) / 100)) : undefined);
     if (line) {
       backedUp.add(line);
       warnings.push({
         code: 'attachment_matches',
         location: line.location,
         message:
-          cents(line.amount) === cents(amount)
+          toCents(line.amount) === toCents(amount)
             ? `${place(page).text} shows the same amount (${money(amount)}), likely its receipt or backup.`
             : `${place(page).text} shows ${money(amount)}, close to this item’s ${money(line.amount)}; likely its receipt or backup. Check the difference.`,
       });
@@ -1116,7 +1116,7 @@ function sortAttachments(
   for (const page of pages) {
     const items = [...attachedLines].flatMap(([line, onPage]) => (onPage === page ? [line] : []));
     const amounts = attachedAmounts.get(page) ?? [];
-    const sum = items.reduce((total, line) => total + cents(line.amount), 0) / 100;
+    const sum = items.reduce((total, line) => total + toCents(line.amount), 0) / 100;
     const candidates = [...new Set([...amounts, ...(items.length > 1 ? [sum] : [])])];
     const largest = Math.max(...candidates);
     if (candidates.some((amount) => backs(amount, page, amount === largest))) {
@@ -1125,7 +1125,7 @@ function sortAttachments(
     const left = items.filter((line) => !backs(line.amount, page));
     suggested.push(...left);
     if (left.length > 0) {
-      const total = left.reduce((sumSoFar, line) => sumSoFar + cents(line.amount), 0) / 100;
+      const total = left.reduce((sumSoFar, line) => sumSoFar + toCents(line.amount), 0) / 100;
       warnings.push({
         code: 'attachment_items',
         location: place(page).location,
@@ -1134,9 +1134,9 @@ function sortAttachments(
     }
     // Amounts no item explains, such as a fee written on a map page.
     const explained = new Set(
-      items.flatMap((line) => [line.amount, line.unitRate ?? 0]).map(cents).concat(cents(sum)),
+      items.flatMap((line) => [line.amount, line.unitRate ?? 0]).map((value) => toCents(value)).concat(toCents(sum)),
     );
-    const unexplained = [...new Set(amounts.map(cents))].filter((amount) => !explained.has(amount));
+    const unexplained = [...new Set(amounts.map((value) => toCents(value)))].filter((amount) => !explained.has(amount));
     if (unexplained.length > 0) {
       warnings.push({
         code: 'attachment_amounts',
@@ -1161,7 +1161,7 @@ function compareTimeSheets(lines: ParsedLine[], sheets: Map<number, TimeSheet>, 
   const invoiced = new Map<string, number>();
   for (const line of lines) {
     if (line.lineType === 'time' && line.serviceDate && line.quantity !== undefined) {
-      invoiced.set(line.serviceDate, (invoiced.get(line.serviceDate) ?? 0) + cents(line.quantity));
+      invoiced.set(line.serviceDate, (invoiced.get(line.serviceDate) ?? 0) + toCents(line.quantity));
     }
   }
   const hours = (hundredths: number) => String(hundredths / 100);
@@ -1356,7 +1356,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
         const date = parseDate(textOf(found.get('date')) ?? '');
         const hours = readFigure('quantity', textOf(found.get('hours')) ?? '');
         if (date && hours !== undefined) {
-          sheet.hours.set(date, (sheet.hours.get(date) ?? 0) + cents(hours));
+          sheet.hours.set(date, (sheet.hours.get(date) ?? 0) + toCents(hours));
         }
       }
       const written = [...row.text.matchAll(/\$\s?([\d,]+\.\d{2})\b/g)].map((match) => parseMoney(match[1]));
@@ -1407,7 +1407,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
             description: optionalText(item.description),
             quantity: item.hours,
             unitRate: rate,
-            amount: cents(item.hours * rate) / 100,
+            amount: toCents(item.hours * rate) / 100,
           });
           looseItems += 1;
         }
@@ -1515,7 +1515,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     }
     if (isSubtotalRow(row)) {
       const stated = parseMoney(row.text);
-      if (!attached && stated !== undefined && sinceSubtotal > 0 && cents(stated) !== sinceSubtotal) {
+      if (!attached && stated !== undefined && sinceSubtotal > 0 && toCents(stated) !== sinceSubtotal) {
         warnings.push({
           code: 'subtotal_mismatch',
           location: `page ${row.page}`,
@@ -1633,7 +1633,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     }
     // An undated row adding up two or more items above it is their total,
     // labelled or not ("For services rendered 3.40 $306.00").
-    if (!attached && itemsSinceSubtotal >= 2 && cents(amount) === sinceSubtotal && row.text.match(DATE_PATTERN) === null) {
+    if (!attached && itemsSinceSubtotal >= 2 && toCents(amount) === sinceSubtotal && row.text.match(DATE_PATTERN) === null) {
       columns = undefined;
       sinceSubtotal = 0;
       itemsSinceSubtotal = 0;
@@ -1682,7 +1682,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     }
     add(row, previous);
     if (!attached) {
-      sinceSubtotal += cents(amount);
+      sinceSubtotal += toCents(amount);
       itemsSinceSubtotal += 1;
     }
     addMileage(previous.serviceDate);
@@ -1700,14 +1700,14 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
   const charges = summaryCharges.filter((charge) => charge.row.page <= lastPage);
   const itemSums = [lines, lines.filter((line) => line.lineType === 'time'), lines.filter((line) => line.lineType !== 'time')].map(lineTotalCents);
   const unlisted = charges.filter(
-    (charge) => !charge.hours && cents(charge.quantity * charge.unitRate) === cents(charge.amount) && !itemSums.includes(cents(charge.amount)),
+    (charge) => !charge.hours && toCents(charge.quantity * charge.unitRate) === toCents(charge.amount) && !itemSums.includes(toCents(charge.amount)),
   );
   // Catches an hours figure misread along with its amount.
   const timeLines = lines.filter((line) => line.lineType === 'time' && line.quantity !== undefined);
   for (const charge of charges.filter((candidate) => candidate.hours)) {
-    const atRate = timeLines.filter((line) => line.unitRate !== undefined && cents(line.unitRate) === cents(charge.unitRate));
-    const itemHours = (atRate.length > 0 ? atRate : timeLines).reduce((sum, line) => sum + cents(line.quantity!), 0) / 100;
-    if (timeLines.length > 0 && cents(itemHours) !== cents(charge.quantity)) {
+    const atRate = timeLines.filter((line) => line.unitRate !== undefined && toCents(line.unitRate) === toCents(charge.unitRate));
+    const itemHours = (atRate.length > 0 ? atRate : timeLines).reduce((sum, line) => sum + toCents(line.quantity!), 0) / 100;
+    if (timeLines.length > 0 && toCents(itemHours) !== toCents(charge.quantity)) {
       warnings.push({
         code: 'hours_mismatch',
         location: placeOf(charge.row).location,
@@ -1715,7 +1715,7 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
       });
     }
   }
-  if (unlisted.length > 0 && fields.statedTotal !== undefined && itemSums[0]! + lineTotalCents(unlisted) === cents(fields.statedTotal)) {
+  if (unlisted.length > 0 && fields.statedTotal !== undefined && itemSums[0]! + lineTotalCents(unlisted) === toCents(fields.statedTotal)) {
     for (const charge of unlisted) {
       const location = `${placeOf(charge.row).location}, row ${lines.length + 1}`;
       lines.push({

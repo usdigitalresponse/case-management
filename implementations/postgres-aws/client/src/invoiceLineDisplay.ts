@@ -3,7 +3,7 @@
 // (portal/CheckLinesTable.tsx) share the kind, quantity and rate wording.
 import type { InvoiceLineType, PortalInvoiceLine } from './api/client';
 import { formatDate } from './formatDateTime';
-import { formatMoney, formatRate } from './formatMoney';
+import { formatRate } from './formatMoney';
 
 const KIND_LABELS: Record<InvoiceLineType, string> = { time: 'Time', mileage: 'Mileage', expense: 'Expense', other: 'Other' };
 
@@ -63,15 +63,6 @@ export function lineType(line: PortalInvoiceLine): string {
 // The configured rate a time or mileage line is billed at; else the file's stated one.
 export function lineRate(line: PortalInvoiceLine): string {
   return formatLineRate(lineKind(line), line.billedRate ?? line.unitRate);
-}
-
-// What an imported file claimed, when it differs from what is billed.
-export function lineStatedDifference(line: PortalInvoiceLine): string | undefined {
-  if (line.statedAmount === null || Number(line.statedAmount) === Number(line.amount)) {
-    return undefined;
-  }
-  const rate = line.unitRate === null ? '' : ` at ${formatMoney(line.unitRate)}${isMileage(line) ? '/mi' : '/h'}`;
-  return `File said ${formatMoney(line.statedAmount)}${rate}`;
 }
 
 // Opens the trip in the reviewer's own browser; nothing is sent by the app.

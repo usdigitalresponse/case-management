@@ -32,6 +32,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+// A file as the raw request body, its name in a header.
+async function sendFile<T>(path: string, file: File): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
+    body: file,
+  });
+  const body = await response.json().catch(() => undefined);
+  if (!response.ok) {
+    throw new ApiError(response.status, body);
+  }
+  return body as T;
+}
+
 export interface AuthenticatedUser {
   userAccountId: string;
   email: string;
@@ -333,19 +348,6 @@ export interface PersonRecord {
 
 export function searchPeople(query: string): Promise<{ people: PersonRecord[] }> {
   return request<{ people: PersonRecord[] }>(`/api/people?q=${encodeURIComponent(query)}`);
-}
-
-// People who hold the "Client" role on at least one case — the sidebar's
-// Clients directory, distinct from searchPeople above (any existing
-// person, used to pick one for a new case participant).
-export interface ClientRecord {
-  personId: string;
-  displayName: string;
-  email: string | null;
-}
-
-export function listClients(query: string): Promise<{ clients: ClientRecord[] }> {
-  return request<{ clients: ClientRecord[] }>(`/api/clients?q=${encodeURIComponent(query)}`);
 }
 
 // Providers (attorneys, experts and vendors): the sidebar's Providers list.
@@ -1265,23 +1267,13 @@ export interface InvoiceImportDetail {
 
 // The file goes as the raw body; the server identifies it from its content.
 // No case: the file waits on Intake until it is matched.
-export async function uploadInvoiceFile(
+export function uploadInvoiceFile(
   caseId: string | null,
   file: File,
   professionalId?: string,
 ): Promise<{ invoiceImportId: string; status: string; invoiceId: string | null }> {
   const query = new URLSearchParams({ ...(caseId ? { caseId } : {}), ...(professionalId ? { professionalId } : {}) });
-  const response = await fetch(`/api/portal/invoice-imports?${query.toString()}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
-    body: file,
-  });
-  const body = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    throw new ApiError(response.status, body);
-  }
-  return body as { invoiceImportId: string; status: string; invoiceId: string | null };
+  return sendFile(`/api/portal/invoice-imports?${query.toString()}`, file);
 }
 
 export function getInvoiceImport(importId: string): Promise<InvoiceImportDetail> {
@@ -1341,19 +1333,9 @@ export interface CaseSplitPreview {
 }
 
 // The file is read in the background, like an upload; poll its read.
-export async function startCaseSplit(file: File, professionalId: string): Promise<{ splitReadId: string }> {
+export function startCaseSplit(file: File, professionalId: string): Promise<{ splitReadId: string }> {
   const query = new URLSearchParams({ professionalId });
-  const response = await fetch(`/api/portal/invoice-imports/case-split/reads?${query.toString()}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
-    body: file,
-  });
-  const body = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    throw new ApiError(response.status, body);
-  }
-  return body as { splitReadId: string };
+  return sendFile<{ splitReadId: string }>(`/api/portal/invoice-imports/case-split/reads?${query.toString()}`, file);
 }
 
 export type CaseSplitRead =
@@ -1397,18 +1379,8 @@ export type UploadRead =
       suggested: { caseId: string; professionalId: string } | null;
     };
 
-export async function startUpload(file: File): Promise<{ uploadReadId: string }> {
-  const response = await fetch('/api/portal/uploads', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) },
-    body: file,
-  });
-  const body = await response.json().catch(() => undefined);
-  if (!response.ok) {
-    throw new ApiError(response.status, body);
-  }
-  return body as { uploadReadId: string };
+export function startUpload(file: File): Promise<{ uploadReadId: string }> {
+  return sendFile<{ uploadReadId: string }>('/api/portal/uploads', file);
 }
 
 export function listUploadCases(): Promise<{ cases: UploadCase[] }> {

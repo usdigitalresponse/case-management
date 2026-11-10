@@ -8,7 +8,6 @@ import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db
 import { createCase } from '../src/intake/createCase';
 import { createInvoice } from '../src/portal/createInvoice';
 import { resolvePortalActor } from '../src/portal/portalActor';
-import { NotAssignedToCaseError } from '../src/portal/caseAssignmentAuthorization';
 import { recallInvoice, submitInvoice } from '../src/billing/invoiceLifecycle';
 import { listInvoiceIntake, matchInvoiceToCase, returnToSubmitter } from '../src/billing/invoiceIntake';
 import { listPortalInvoices } from '../src/portal/listPortalInvoices';

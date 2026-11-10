@@ -16,7 +16,7 @@ import { finishReview } from '../src/billing/reviewRounds';
 import { reassignReviewer, setSignOffApprovers } from '../src/billing/reviewAssignment';
 import { setReviewSettings } from '../src/billing/reviewSettings';
 import { discardTimeLog, linkTimeLogEntries, loadTimeLogView, setTimeLogColumns, setTimeLogWorker, uploadTimeLog } from '../src/billing/reviewTimeLog';
-import { ConflictError, ValidationError } from '../src/errors';
+import { ValidationError } from '../src/errors';
 
 let fixtures: BaselineFixtureIds;
 let reviewer: string;

@@ -128,8 +128,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .app-main h1, .portal-page h1 { font-family: var(--font-serif); font-size: 32px; font-weight: 600; letter-spacing: -.5px; margin: 0 0 .7rem; line-height: 1.2; }
 .page-heading { margin-bottom: 1.5rem; }
 
-.case-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-.case-heading-row .page-heading { flex: 1; }
 .close-case-form { display: flex; flex-direction: column; gap: .5rem; min-width: 240px; }
 .close-case-form .usa-input { margin: 0; }
 .close-case-buttons { display: flex; gap: .5rem; }
@@ -153,14 +151,10 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .login-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1.25rem; max-width: 52rem; margin: 0 auto; }
 .login-panel { display: flex; flex-direction: column; gap: .75rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.6rem; box-shadow: var(--elevation-1); }
 .login-panel h1, .login-panel h2 { margin: 0; font-size: 1.1rem; }
-.login-panel--single { max-width: 26rem; margin: 0 auto; }
 .login-panel > p { margin: -.4rem 0 .25rem; color: var(--ink-muted); font-size: .92rem; }
 /* Sign-in buttons span the panel; the demo row's sits beside its select. */
-.login-panel > .btn, .login-form .btn { width: 100%; }
+.login-panel > .btn { width: 100%; }
 .login-panel .btn { min-height: 2.5rem; }
-.login-form { display: flex; flex-direction: column; gap: .75rem; max-width: none; }
-.login-form .usa-label { margin: 0; }
-.login-form .usa-input { max-width: none; height: 2.5rem; margin-top: .3rem; }
 .login-panel .notice { margin: 0; }
 .login-demo { display: flex; flex-direction: column; gap: .4rem; margin-top: auto; padding-top: .9rem; border-top: 1px solid var(--line); font-size: .85rem; }
 .login-demo > label { color: var(--ink-faint); }
@@ -431,8 +425,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .list-count { color: var(--ink-faint); font-size: .85rem; white-space: nowrap; }
 
 /* The single place a table gets its box: rounded/clipped corners, full
-   width, and horizontal scroll on overflow. .row-cards renders the same
-   rows as a mobile fallback below 760px — CSS picks one. */
+   width, and horizontal scroll on overflow. */
 .data-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow-x: auto; overflow-y: hidden; }
 .data-card .usa-table { margin: 0; width: 100%; }
 /* USWDS's base .usa-table styles every cell with a 1px var(--ink) border and
@@ -446,22 +439,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .data-card table tbody tr:hover { background: var(--row-open); }
 .data-card table th[scope="row"] a { color: var(--ink); font-weight: 700; text-decoration: none; }
 .data-card table th[scope="row"] a:hover, .data-card table th[scope="row"] a:focus { text-decoration: underline; }
-/* Cases list: Status, Stage and Opened shrink to their one-line content;
-   Client and External reference share the rest. */
-.case-table th:nth-child(2), .case-table td:nth-child(2),
-.case-table th:nth-child(3), .case-table td:nth-child(3),
-.case-table th:nth-child(4), .case-table td:nth-child(4) { width: 1%; white-space: nowrap; }
-/* Line pill-column headers up with the pill text, not the pill edge. */
-.case-table thead th:nth-child(2), .case-table thead th:nth-child(3) { padding-left: calc(1.1rem + .6rem); }
-.case-table th:nth-child(1), .case-table td:nth-child(1),
-.case-table th:nth-child(5), .case-table td:nth-child(5) { overflow-wrap: anywhere; }
-/* Case detail: visually separates "this case's own facts" (.fact-grid,
-   below) from "related records" (.data-card tables). */
 .detail-section { margin-top: 2.2rem; }
 .detail-section h2 { font-size: 1.1rem; margin: 0 0 .85rem; }
-.fact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1.2rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.2rem 1.4rem; }
-.fact dt { margin: 0 0 .3rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-faint); }
-.fact dd { margin: 0; font-size: .95rem; }
 
 .type-ahead { position: relative; max-width: 30rem; }
 .clearable { position: relative; }
@@ -478,21 +457,6 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
 .assign-staff-row .type-ahead { flex: 1; max-width: 400px; }
 .assign-staff-row .clearable__input { margin-top: 0; }
 
-
-.row-cards { display: none; list-style: none; margin: 0; padding: 0; }
-.row-card { display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.1rem; text-decoration: none; color: inherit; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow-wrap: anywhere; }
-.row-card:hover { border-color: var(--primary); background: var(--row-open); }
-.row-card + .row-card { margin-top: .75rem; }
-.row-card-title { font-weight: 700; font-size: .95rem; }
-.row-card-meta { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: var(--ink-faint); font-size: .82rem; }
-@media (max-width: 760px) {
-  /* Only a .data-card paired with a .row-cards fallback (Cases list) hides
-     below this breakpoint — a bare .data-card (RecordTable) has no card
-     equivalent to fall back to, so it just scrolls horizontally instead
-     (.data-card's own overflow-x handles that). */
-  .data-card:has(+ .row-cards) { display: none; }
-  .row-cards { display: block; }
-}
 
 /* Form layout: each Fieldset in its own card, short-field sections in a responsive 2-column grid. */
 /* react-uswds's <Form> applies .usa-form, which caps max-width at 20rem —
@@ -511,9 +475,6 @@ form.case-intake-form { max-width: 52rem; }
   .form-grid { grid-template-columns: 1fr; }
 }
 
-/* Portal's case list: same .row-card as Cases/Overview, arranged as a grid. */
-.portal-case-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
-.portal-case-section + .portal-case-section { margin-top: 2rem; }
 @media (max-width: 1250px) {
   .app-layout { grid-template-columns: 195px minmax(0, 1fr); }
   .app-main { padding: 2rem 1.2rem; }
@@ -544,7 +505,6 @@ form.case-intake-form { max-width: 52rem; }
 
 /* Compact portal forms: fields side by side, overriding USWDS's
    single-column sizing. */
-.back-link { display: inline-block; margin-bottom: .6rem; font-size: .9rem; }
 .portal-main section { margin-top: 1.6rem; }
 .portal-main section > h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
 form.compact-form { max-width: none; }
@@ -567,9 +527,6 @@ form.compact-form { max-width: none; }
 .period-fields { grid-template-columns: 12rem 12rem; margin-bottom: .8rem; }
 .confirm-inline { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .confirm-inline__prompt { font-weight: 700; }
-.queue-filter { display: flex; align-items: end; gap: .75rem; margin: 0 0 1rem; }
-.queue-filter .usa-select { margin: 0; width: auto; min-width: 12rem; height: 2.25rem; padding: .25rem .5rem; }
-.queue-filter .usa-label { margin: 0 0 .2rem; font-size: .85rem; }
 /* Import review: the original beside the items, or above them when narrow. */
 .import-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1.2rem; align-items: start; margin-top: .8rem; }
 .import-review-items { min-width: 0; }
@@ -670,7 +627,6 @@ form.compact-form { max-width: none; }
 .unbilled-time-row { display: inline-flex; flex-wrap: wrap; gap: .2rem 1rem; }
 .unbilled-time-description { color: var(--ink-muted); }
 .rate-note { margin: 0 0 .8rem; font-size: .85rem; color: var(--ink-muted); }
-.line-stated { display: block; font-size: .78rem; color: var(--danger); white-space: nowrap; }
 .trip-note { display: block; margin-top: .15rem; font-size: .78rem; line-height: 1.3; color: var(--ink-faint); }
 .trip-note--flagged { color: var(--danger); font-weight: 600; }
 .stops-form { display: grid; gap: .4rem; margin-top: .4rem; font-size: .85rem; }
@@ -755,7 +711,7 @@ form.compact-form { max-width: none; }
 .list-toggle { margin: 0 0 .5rem; }
 .list-toggle .usa-checkbox__label { margin-top: 0; font-size: .9rem; }
 /* Compact selects keep USWDS's right padding clear of the arrow. */
-.inline-fields .usa-select, .queue-filter .usa-select, .assign-all .usa-select { padding-right: 2rem; }
+.inline-fields .usa-select, .assign-all .usa-select { padding-right: 2rem; }
 
 /* --- Invoice review design ------------------------------------------------ */
 .muted { color: var(--ink-faint); }
@@ -779,8 +735,6 @@ form.compact-form { max-width: none; }
 .btn--danger { background: var(--surface); color: var(--color-error); border-color: var(--color-error); }
 .btn--danger:hover:not(:disabled) { background: var(--color-error-container); color: var(--color-on-error-container); }
 .link-button--danger { color: var(--danger); }
-.btn--danger-solid { background: var(--color-error); color: var(--color-on-error); }
-.btn--danger-solid:hover:not(:disabled) { background: var(--color-on-error-container); }
 .btn--select { color: var(--ink); font-weight: 600; }
 .btn--select .muted { font-weight: 400; }
 
@@ -1075,8 +1029,7 @@ form.compact-form { max-width: none; }
 .line-rate-differs { color: var(--warning); }
 .import-review-items h2 { font-size: 1.05rem; }
 /* Older cards and fact grids take the same tokens. */
-.fact-grid, .compact-card, .form-card, .data-card { border-color: var(--line); border-radius: var(--radius); }
-.fact dt { font-size: .68rem; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
+.compact-card, .form-card, .data-card { border-color: var(--line); border-radius: var(--radius); }
 /* Table headers: Title/Small. */
 .data-card table thead th { background: var(--table-head); font-size: 11px; letter-spacing: .6px; color: var(--ink-muted); font-weight: 600; }
 .data-card table td, .data-card table th { border-bottom-color: var(--line); }

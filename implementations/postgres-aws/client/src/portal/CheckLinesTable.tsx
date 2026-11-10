@@ -2,7 +2,7 @@
 // removed lines struck through; on a draft, an Edit panel under a line, or
 // while staff enter it in review, its fields in the cells.
 import { useRef, useState, type ReactNode } from 'react';
-import type { FileLine, ImportWarning, InvoiceLineType } from '../api/client';
+import type { FileLine, ImportWarning } from '../api/client';
 import { emptyLine, isTimeKind, mileageItemPreview, tripParts, type DraftKind, type LineDraft } from '../components/InvoiceLinesEditor';
 import { TripFields } from '../components/TripFields';
 import { changedFields, changeSentence, type Row } from '../fileChanges';

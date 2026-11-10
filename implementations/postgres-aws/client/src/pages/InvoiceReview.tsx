@@ -983,7 +983,7 @@ export default function InvoiceReview() {
             )}
           </>
         )}
-        hoursNote={(line) => <WasNote value={wasQuantity(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
+        hoursNote={(line) => <WasNote value={wasQuantity(fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
         amountNote={(line) => <WasNote value={wasAmount(line, fileChanges.readOf(line), fileChanges.fieldsOf(line))} />}
         timeLog={timeLog ? logCellOf : undefined}
         decisionHeader={inReview ? 'Your decision' : 'Decision'}

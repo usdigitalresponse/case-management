@@ -16,7 +16,7 @@ import {
 } from '../api/client';
 import { AddProvider, type AddedProvider } from './AddProvider';
 import { NO_PROPOSED_PERSON, ProposedPersonFields } from './NewEntryFields';
-import { formatMoney, formatRate } from '../formatMoney';
+import { cents, formatMoney, formatRate } from '../formatMoney';
 import { formatDate } from '../formatDateTime';
 import { ADD_NEW, PickOrAdd } from './PickOrAdd';
 import { TripFields } from './TripFields';
@@ -378,8 +378,6 @@ export function timeItemPreview(
   return { amount: (Math.round(hours * Number(rate) * 100) / 100).toFixed(2), rate, hours, configuredRate };
 }
 
-const toCents = (amount: string | number) => Math.round(Number(amount) * 100);
-
 // Each part of a trip as it would be billed; a part not claimed is absent.
 export function travelItemPreview(
   draft: LineDraft,
@@ -401,10 +399,10 @@ export function travelItemPreview(
       })
     : undefined;
   const mileage = Number(draft.quantity) > 0 ? mileageItemPreview(draft, mileageRates) : undefined;
-  const timeCents = time && 'amount' in time ? toCents(time.amount) : 0;
+  const timeCents = time && 'amount' in time ? cents(time.amount) : 0;
   const otherCents =
-    (mileage && 'amount' in mileage ? toCents(mileage.amount) : 0) +
-    travelCostsOf(draft).reduce((cents, cost) => cents + toCents(cost.amount), 0);
+    (mileage && 'amount' in mileage ? cents(mileage.amount) : 0) +
+    travelCostsOf(draft).reduce((total, cost) => total + cents(cost.amount), 0);
   const complete = (!time || 'amount' in time) && (!mileage || 'amount' in mileage);
   return { time, mileage, timeCents, otherCents, complete };
 }
@@ -440,7 +438,7 @@ export function invoiceTotalPreview(
     if (isTimeKind(line.lineType)) {
       const preview = timeKindPreview(line, timekeepers, billedProfessionalId, categoryRates);
       if ('amount' in preview) {
-        timeCents += toCents(preview.amount);
+        timeCents += cents(preview.amount);
       } else {
         complete = false;
       }
@@ -452,12 +450,12 @@ export function invoiceTotalPreview(
     } else if (line.lineType === 'mileage') {
       const preview = mileageItemPreview(line, mileageRates);
       if ('amount' in preview) {
-        otherCents += toCents(preview.amount);
+        otherCents += cents(preview.amount);
       } else {
         complete = false;
       }
     } else {
-      otherCents += toCents(line.amount);
+      otherCents += cents(line.amount);
     }
   }
   return { time: timeCents / 100, other: otherCents / 100, total: (timeCents + otherCents) / 100, complete };

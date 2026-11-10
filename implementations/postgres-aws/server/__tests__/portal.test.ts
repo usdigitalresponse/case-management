@@ -237,7 +237,7 @@ describe('createInvoice', () => {
 // is just a catch around this same constraint.
 describe('case_assignment_open_unique', () => {
   it('rejects a second open assignment for the same case/professional pair', async () => {
-    const { userAccountId, professionalId } = await createVendorProfessional('vendor-dup@example.com');
+    const { professionalId } = await createVendorProfessional('vendor-dup@example.com');
     const caseId = await createCaseAssignedTo(professionalId);
 
     await expect(

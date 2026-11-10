@@ -7,7 +7,7 @@ import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { caseAssignment, caseIdentifier, caseTable, invoice, person, supportingInvoice } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
-import { fieldErrorsFromZodIssues } from '../intake/validation';
+import { fieldErrorsFromZodIssues, withBillingPeriod } from '../intake/validation';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
 import { billableProfessionalIds, representedProfessionalIds, type PortalActor } from '../portal/portalActor';
 import type { DocumentStore } from './documentStore';
@@ -395,8 +395,8 @@ export function discardUploadRead(store: DocumentStore, actor: PortalActor, uplo
   return discardCaseSplitRead(store, actor, uploadReadId, 'upload');
 }
 
-const uploadDraftSchema = z
-  .object({
+const uploadDraftSchema = withBillingPeriod(
+  z.object({
     uploadReadId: z.uuid(),
     // Null: matched later, in Intake, from what the uploader entered.
     caseId: z.uuid('Choose the case this invoice is for.').nullable(),
@@ -412,15 +412,8 @@ const uploadDraftSchema = z
     // (../billing/enterInReview.ts).
     enterInReview: z.boolean().optional(),
     ...receiptInputSchema.shape,
-  })
-  .refine((input) => Boolean(input.periodStart) === Boolean(input.periodEnd), {
-    message: 'Enter both days of the billing period, or neither.',
-    path: ['periodEnd'],
-  })
-  .refine((input) => !input.periodStart || !input.periodEnd || input.periodEnd >= input.periodStart, {
-    message: 'The billing period must end on or after its first day.',
-    path: ['periodEnd'],
-  });
+  }),
+);
 
 // The checked file becomes one import and draft; its lines are checked next.
 export async function createDraftFromUpload(db: Database, actor: PortalActor, rawInput: unknown) {

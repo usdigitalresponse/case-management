@@ -5,7 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
 import { invoice, invoiceLine, professional, professionalKinds, supportingInvoice } from '../db/schema';
 import { ValidationError } from '../errors';
-import { fieldErrorsFromZodIssues } from '../intake/validation';
+import { fieldErrorsFromZodIssues, withBillingPeriod } from '../intake/validation';
 import { authorizeBilling, type PortalActor } from '../portal/portalActor';
 import { CONFIRMED_IMPORT_STATUS_CODE, findImportForInvoice } from '../imports/importedTimeEntries';
 import { recheckDuplicates } from '../imports/duplicateWarnings';
@@ -88,20 +88,13 @@ export async function changeSenderInTx(
   await priceLines(tx, invoiceId, { billedProfessionalId: professionalId, unmatchedMeansBilled: confirmed, strict: false });
 }
 
-const detailsSchema = z
-  .object({
+const detailsSchema = withBillingPeriod(
+  z.object({
     periodStart: z.iso.date('Enter the first day of the billing period.').nullable(),
     periodEnd: z.iso.date('Enter the last day of the billing period.').nullable(),
     invoiceNumber: z.string().trim().max(100, 'Keep the invoice number under 100 characters.').nullable(),
-  })
-  .refine((input) => Boolean(input.periodStart) === Boolean(input.periodEnd), {
-    message: 'Enter both days of the billing period, or neither.',
-    path: ['periodEnd'],
-  })
-  .refine((input) => !input.periodStart || !input.periodEnd || input.periodEnd >= input.periodStart, {
-    message: 'The billing period must end on or after its first day.',
-    path: ['periodEnd'],
-  });
+  }),
+);
 
 export type InvoiceDetailsInput = z.infer<typeof detailsSchema>;
 

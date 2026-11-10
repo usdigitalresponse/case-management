@@ -311,10 +311,7 @@ const DEMO_TIME_DESCRIPTIONS: Record<string, string[]> = {
 
 // Logs time on every assignment's case, and an invoice filed by person for
 // most (one left un-invoiced, one a draft), so status varies.
-async function seedDemoTimeEntriesAndInvoices(
-  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
-  assignments: DemoAssignment[],
-): Promise<void> {
+async function seedDemoTimeEntriesAndInvoices(assignments: DemoAssignment[]): Promise<void> {
   for (const [index, assignment] of assignments.entries()) {
     const actor = { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId };
     const descriptions = DEMO_TIME_DESCRIPTIONS[DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!]!;
@@ -804,7 +801,7 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
   const staffUserAccountIds = await seedDemoStaff(fixtures);
   await seedDemoReviewers(fixtures, staffUserAccountIds);
   const assignments = await seedDemoAssignments(fixtures, caseIds, professionals);
-  await seedDemoTimeEntriesAndInvoices(fixtures, assignments);
+  await seedDemoTimeEntriesAndInvoices(assignments);
   await seedDemoMileage(fixtures, assignments);
   await seedClosedCase(fixtures, caseIds);
   await seedStaffAssignment(fixtures, caseIds, staffUserAccountIds);

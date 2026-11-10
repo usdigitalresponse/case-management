@@ -33,7 +33,6 @@ import { requireCurrentEntryLines } from './enterInReview';
 import { keepsBilledHours, linesBlockedByTimeLog, TIME_LOG_BLOCKS_MESSAGE } from './reviewTimeLog';
 
 export const reviewOutcomeSchema = z.enum(['approved', 'approved_in_part', 'rejected']);
-export type ReviewOutcome = z.infer<typeof reviewOutcomeSchema>;
 
 export const reviewInvoiceLineInputSchema = z.object({
   outcome: reviewOutcomeSchema,

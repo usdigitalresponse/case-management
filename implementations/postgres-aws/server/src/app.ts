@@ -7,7 +7,6 @@ import { demoLoginEnabled, externalDemoLoginEnabled } from './auth/demoSettings'
 import { createAuthRouter } from './routes/auth';
 import casesRouter from './routes/cases';
 import peopleRouter from './routes/people';
-import clientsRouter from './routes/clients';
 import professionalsRouter from './routes/professionals';
 import staffRouter from './routes/staff';
 import invoicesRouter from './routes/invoices';
@@ -53,7 +52,6 @@ export function createApp() {
   app.use('/auth', createAuthRouter({ oidcProviders, demoLoginEnabled, externalDemoLoginEnabled }));
   app.use('/api/cases', casesRouter);
   app.use('/api/people', peopleRouter);
-  app.use('/api/clients', clientsRouter);
   app.use('/api/professionals', professionalsRouter);
   app.use('/api/staff', staffRouter);
   app.use('/api/invoices', invoicesRouter);

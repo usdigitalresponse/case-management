@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
-import { Checkbox, Form, Label, Select } from '@trussworks/react-uswds';
+import { Checkbox, Form, Select } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
   deleteInvoice,
@@ -27,7 +27,7 @@ import { RecordTable } from '../components/RecordTable';
 import { AttestationCheckbox } from '../components/AttestationCheckbox';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { caseDisplayLabel } from '../caseDisplayLabel';
-import { formatMoney, formatRate } from '../formatMoney';
+import { formatMoney, formatRate, sumMoney } from '../formatMoney';
 import {
   caseChoiceGroups,
   currentStep,
@@ -112,8 +112,8 @@ function SplitAssignment({
   const [error, setError] = useState<string | null>(null);
   const unassigned = caseIds.filter((caseId) => !caseId).length;
   const draftCount = new Set(caseIds.filter(Boolean)).size;
-  const statedTotal = split.lines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0) / 100;
-  const billedTotal = split.lines.reduce((sum, line) => sum + Math.round((line.billedAmount ?? 0) * 100), 0) / 100;
+  const statedTotal = sumMoney(split.lines.map((line) => line.amount));
+  const billedTotal = sumMoney(split.lines.map((line) => line.billedAmount));
   const allPriced = split.lines.every((line) => line.billedAmount !== null);
 
   async function create() {
@@ -572,7 +572,7 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<{ submitted: ImportInProgress[]; errors: string[] } | null>(null);
   const chosen = ready.filter((row) => !excluded.has(row.invoiceImportId));
-  const chosenTotal = chosen.reduce((sum, row) => sum + Math.round(Number(row.submittedTotal ?? 0) * 100), 0) / 100;
+  const chosenTotal = sumMoney(chosen.map((row) => row.submittedTotal));
   // Staff say once how and when this batch was received.
   const receipt = useReceipt('bulk');
 

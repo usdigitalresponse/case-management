@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { asc, eq } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
-import { createStaff, giveRole } from './reviewHelpers';
+import { createStaff } from './reviewHelpers';
 import { createCase } from '../src/intake/createCase';
 import { giveRate } from './rateHelpers';
 import { addKindRate, createKind } from '../src/billing/professionalRates';

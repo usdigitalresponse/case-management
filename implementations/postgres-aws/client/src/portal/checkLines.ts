@@ -12,7 +12,7 @@ import {
   type LineDraft,
 } from '../components/InvoiceLinesEditor';
 import { readLineType, type LineValues, type Row } from '../fileChanges';
-import { formatMoney } from '../formatMoney';
+import { cents, formatMoney, sumMoney } from '../formatMoney';
 
 export interface PricingContext {
   timekeepers: BillableProfessional[];
@@ -78,8 +78,6 @@ export function draftFromRead(read: FileLine, billedProfessionalId: string | und
   };
 }
 
-const cents = (value: number) => Math.round(value * 100);
-const sum = (values: number[]) => values.reduce((total, value) => total + cents(value), 0) / 100;
 
 export interface TotalsNotice {
   tone: 'success' | 'warning' | 'info';
@@ -117,7 +115,7 @@ export function totalsNotice({
   }
   const file = ownFile ? 'your file' : 'the file';
   const File = ownFile ? 'Your file' : 'The file';
-  const readTotal = sum(source.lines.map((line) => line.amount ?? 0));
+  const readTotal = sumMoney(source.lines.map((line) => line.amount ?? 0));
   const fileSays = source.statedTotal ?? readTotal;
   const firstDuplicate = [...duplicates.entries()][0];
   const duplicateHint = firstDuplicate ? ` Check line ${firstDuplicate[0]}: it looks the same as line ${firstDuplicate[1]}.` : '';

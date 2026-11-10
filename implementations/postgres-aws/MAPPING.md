@@ -467,21 +467,13 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
   feature).
 - **Lookup directories**: the sidebar's People (`/people`), Clients
   (`/clients`), Providers (`/vendors`; attorneys, experts and vendors), and
-  Organizations (`/organizations`)
-  all share one component, `client/src/components/SearchDirectory.tsx`
-  (search box + results table), each wired to a different fetch:
-  - People/Clients/Vendors hit a server search endpoint
-    (`GET /api/people`, `/api/clients`, `/api/professionals` — all
-    `requireFullUser`). People and Clients require a query first (the
-    person table could be large); Vendors loads everything up front
-    (a small table).
-  - `GET /api/clients` (`src/routes/clients.ts`) is new: people who hold
-    the "Client" `case_participant`-context role on at least one case,
-    distinct, optionally filtered by name/email. The role name is a
-    server-selected synthetic lookup (`'Client'`), the same
-    simplification as `OPENING_EVENT_TYPE_CODE` — `case_participant`
-    roles are organization-configurable, only seeded by `src/db/fixtures.ts`
-    (test/dev), not `src/db/ensureReferenceData.ts`.
+  Organizations (`/organizations`). People and Providers share
+  `client/src/components/SearchDirectory.tsx` (search box + results table):
+  - People and Providers hit a server search endpoint (`GET /api/people`,
+    `/api/professionals`, both `requireFullUser`); Clients and
+    Organizations are built from `GET /api/cases` and reference data (see
+    Look-up pages below). People requires a query first (the person table
+    could be large); Providers loads everything up front (a small table).
   - `GET /api/professionals` (`src/routes/professionals.ts`) used to
     return `[]` without a query and was otherwise unused by the client;
     it now also backs the Providers list, listing everyone when no query is

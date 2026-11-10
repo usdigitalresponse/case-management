@@ -31,7 +31,7 @@ import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { z } from 'zod';
 import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';
 import { db } from '../db/client';
-import { timeEntry, invoice, person, professional, professionalKinds } from '../db/schema';
+import { timeEntry, person, professional, professionalKinds } from '../db/schema';
 import { getSessionUser, requireAuth } from '../auth/session';
 import { UnauthenticatedError } from '../errors';
 import { billableProfessionalIds, resolvePortalActor, timeReadableProfessionalIds, type PortalActor } from '../portal/portalActor';

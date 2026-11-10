@@ -8,6 +8,8 @@ import { caseAssignment, caseTable, expenseTypes, invoice, invoiceLine, invoiceL
 import { documentStore } from '../imports/documentStore';
 import { createDraftFromUpload, getUploadRead, startUploadRead } from '../imports/splitByCase';
 import { confirmInvoiceImport } from '../imports/invoiceImports';
+import { lineTotalCents } from '../imports/parsedInvoice';
+import { toCents } from '../billing/money';
 import { submitInvoice, updateDraftInvoice } from '../billing/invoiceLifecycle';
 import { reviewInvoiceLine } from '../billing/reviewInvoiceLine';
 import { createInvoice } from '../portal/createInvoice';
@@ -74,7 +76,7 @@ function drawInvoice(file: DemoFile): Promise<Buffer> {
       ]),
     ],
   });
-  const total = file.statedTotal ?? file.items.reduce((sum, item) => sum + Math.round(item.amount * 100), 0) / 100;
+  const total = file.statedTotal ?? lineTotalCents(file.items) / 100;
   doc.moveDown();
   doc.font('Helvetica-Bold').fontSize(11).text(`Total Due: ${money(total)}`, { align: 'right' });
   doc.font('Helvetica').fontSize(8).fillColor('#444').text('Synthetic invoice for a demo. Not a real bill.').fillColor('black');
@@ -83,7 +85,7 @@ function drawInvoice(file: DemoFile): Promise<Buffer> {
 }
 
 function timeItem(timekeeper: string, rate: number, date: string, description: string, hours: number): Item {
-  return { date, timekeeper, description, hours, rate, amount: Math.round(hours * rate * 100) / 100 };
+  return { date, timekeeper, description, hours, rate, amount: toCents(hours * rate) / 100 };
 }
 
 // PDFs are read in the background queue; the seed waits for each. Returns

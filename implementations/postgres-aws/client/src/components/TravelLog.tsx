@@ -3,7 +3,7 @@ import type { MileageDismissal, PortalInvoiceLine, RuleFinding } from '../api/cl
 import { formatDateTime } from '../formatDateTime';
 import { RecordTable } from './RecordTable';
 import { directionsUrl, isMileage, lineDate } from '../invoiceLineDisplay';
-import { formatMoney } from '../formatMoney';
+import { formatMoney, sumMoney } from '../formatMoney';
 
 interface Trip {
   tripId: string;
@@ -23,7 +23,7 @@ export function tripsOf(lines: PortalInvoiceLine[]): Trip[] {
     if (isMileage(line)) trip.mileage = line;
     else if (line.lineTypeCode === 'time') trip.travel = line;
     else trip.costs.push(line);
-    trip.total = (Math.round(trip.total * 100) + Math.round(Number(line.amount) * 100)) / 100;
+    trip.total = sumMoney([trip.total, line.amount]);
     trips.set(line.tripId, trip);
   }
   return [...trips.values()];

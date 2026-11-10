@@ -1,6 +1,7 @@
 // Field-by-field accuracy against scenarios/fixtures/invoices/expected.json,
 // for comparing extraction methods.
-import { cents, lineTotalCents, type ParsedInvoice, type ParsedLine } from '../parsedInvoice';
+import { lineTotalCents, type ParsedInvoice, type ParsedLine } from '../parsedInvoice';
+import { toCents } from '../../billing/money';
 
 export interface ExpectedLine {
   lineType: string;
@@ -97,7 +98,7 @@ export function scoreFigures(expected: ExpectedFigures, actual: ParsedInvoice): 
     serviceDate: count((e, a) => e.serviceDate !== undefined && e.serviceDate === a.serviceDate),
     dated: want.filter((line) => line.serviceDate !== undefined).length,
     statedTotal: sameNumber(actual.statedTotal, expected.statedTotal),
-    sumMatches: got.length > 0 && sum === cents(Number(expected.statedTotal)),
+    sumMatches: got.length > 0 && sum === toCents(Number(expected.statedTotal)),
   };
 }
 

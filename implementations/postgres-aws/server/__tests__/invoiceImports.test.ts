@@ -31,14 +31,12 @@ import { detectInvoiceFile, UnsupportedInvoiceFileError } from '../src/imports/d
 import { UnreadableInvoiceFileError } from '../src/imports/parsedInvoice';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { listInvoiceIntake } from '../src/billing/invoiceIntake';
-import { ValidationError } from '../src/errors';
 import { giveRate } from './rateHelpers';
 import {
   caseAssignment,
   document,
   invoice,
   invoiceAttestation,
-  invoiceEvent,
   invoiceImport,
   invoiceImportStatuses,
   invoiceLine,
