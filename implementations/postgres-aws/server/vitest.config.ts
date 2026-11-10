@@ -1,6 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // Inline, so Vite doesn't search parent folders for one (blocked in the sandbox).
+  css: { postcss: {} },
   test: {
     environment: 'node',
     include: ['__tests__/**/*.test.ts'],
