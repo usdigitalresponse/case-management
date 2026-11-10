@@ -4,6 +4,7 @@ import {
   apiErrorMessage,
   findCaseMatches,
   matchInvoiceToCase,
+  type OverrunExplanation,
   type PreauthorizationSummary,
   type QueuedInvoice,
 } from '../api/client';
@@ -19,16 +20,21 @@ export function CaseCard({
   otherNumbers,
   preauthorization,
   overPreauthorized,
+  overrunExplanations = [],
 }: {
   invoice: QueuedInvoice;
   caseNumber: string | null;
   otherNumbers: string[];
   preauthorization: PreauthorizationSummary | null;
   overPreauthorized: boolean;
+  overrunExplanations?: OverrunExplanation[];
 }) {
   const typed = invoice.caseNumberCorrected ?? invoice.caseNumberAsTyped;
   const casePath = `/cases/${invoice.caseId}`;
   const who = invoice.professionalDisplayName ?? 'this person';
+  const threshold = preauthorization?.source === 'threshold';
+  const limitName = threshold ? 'threshold' : 'pre-authorized amount';
+  const billed = preauthorization ? Number(preauthorization.approvedSoFar) + Number(preauthorization.waiting) : 0;
   return (
     <>
       <section className="invoice-case-card" aria-labelledby="invoice-case-card-heading">
@@ -43,7 +49,9 @@ export function CaseCard({
         <div>
           <p>
             {preauthorization
-              ? `Pre-authorized${preauthorization.professionalId ? ` for ${who}` : ''}: ${formatMoney(preauthorization.ceiling)}. Approved so far: ${formatMoney(preauthorization.approvedSoFar)}.`
+              ? threshold
+                ? `Nothing pre-authorized for ${who} (${formatMoney(preauthorization.ceiling)} threshold). Approved so far: ${formatMoney(preauthorization.approvedSoFar)}.`
+                : `Pre-authorized${preauthorization.professionalId ? ` for ${who}` : ''}: ${formatMoney(preauthorization.ceiling)}. Approved so far: ${formatMoney(preauthorization.approvedSoFar)}.`
               : 'Nothing pre-authorized.'}
           </p>
           <div className="invoice-case-card__links">
@@ -57,9 +65,20 @@ export function CaseCard({
         </div>
       </section>
       {overPreauthorized && preauthorization && (
-        <Notice tone="warning" heading={`This invoice takes ${preauthorization.professionalId ? who : 'the case'} over the pre-authorized amount.`}>
-          {formatMoney(preauthorization.ceiling)} pre-authorized, {formatMoney(preauthorization.approvedSoFar)} approved so far, and this
-          invoice asks for {formatMoney(invoice.submittedTotal)}. You can still approve or reject it.
+        <Notice tone="warning" heading={`This invoice takes ${preauthorization.professionalId ? who : 'the case'} over the ${limitName}.`}>
+          {formatMoney(billed)} approved and waiting, this invoice included, against {formatMoney(preauthorization.ceiling)}{' '}
+          {threshold ? 'threshold' : 'pre-authorized'}. You can still approve or reject it.
+          {overrunExplanations.length === 0 ? (
+            <p>
+              <strong>No explanation given.</strong> Ask the sender with a line question.
+            </p>
+          ) : (
+            overrunExplanations.map((entry) => (
+              <p key={entry.recordedAt}>
+                <strong>Why, from {entry.recordedBy ?? 'the sender'}:</strong> {entry.explanation}
+              </p>
+            ))
+          )}
         </Notice>
       )}
     </>

@@ -227,8 +227,8 @@ export default function UploadInvoices() {
         )}
         {!staff && entries.length === 0 && (
           <Notice tone="info">
-            Several files, or one spreadsheet that covers several cases? Use{' '}
-            <RouterLink to="/portal/imports">Import invoices</RouterLink>, so you can check each one and send them together.
+            Several files, or one spreadsheet that covers several cases? Use the{' '}
+            <RouterLink to="/portal/imports">Upload invoices tab</RouterLink>, so you can check each one and send them together.
           </Notice>
         )}
         {entries.length > 0 && (

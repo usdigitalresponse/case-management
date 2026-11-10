@@ -49,7 +49,7 @@ export async function loadCaseListExtras(db: DatabaseOrTransaction, caseIds: str
   const ceilings = new Map(preauthorizations);
   for (const caseId of caseIds) {
     const own = waiting.filter((row) => row.caseId === caseId);
-    const summaries = ceilings.get(caseId) ?? [];
+    const summaries = (ceilings.get(caseId) ?? []).filter((summary) => summary.source === 'preauthorized');
     result.set(caseId, {
       caseNumber: numbers.get(caseId)?.caseNumber ?? null,
       workers: [...new Set(workers.filter((row) => row.caseId === caseId).flatMap((row) => (row.name ? [row.name] : [])))].sort(),

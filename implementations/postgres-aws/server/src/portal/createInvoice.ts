@@ -29,6 +29,7 @@ export const createInvoiceInputSchema = draftContentSchema.extend({
   withoutCase: z.boolean().optional(),
   // A submitter sending their own confirms it is true and correct.
   attested: z.boolean().optional(),
+  overrunExplanation: z.string().max(4000).optional(),
   // Given, the invoice is filed by person and sent as such.
   caseNumber: caseNumberInput.optional(),
   ...countyChoice,
@@ -98,6 +99,7 @@ export async function createInvoice(
           withoutCase: parsed.data.withoutCase,
           attested: parsed.data.attested,
           filedByPerson: caseNumber !== null,
+          overrunExplanation: parsed.data.overrunExplanation,
         })
       : 'draft';
     return { invoiceId, submittedTotal: await totalOf(tx, invoiceId), status };

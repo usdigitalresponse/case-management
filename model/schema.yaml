@@ -1,4 +1,4 @@
-spec_version: "0.11.0"
+spec_version: "0.12.0"
 status: draft
 kind: domain_schema
 
@@ -1295,6 +1295,280 @@ entities:
         type: string
         required: true
 
+  preauthorization_request:
+    display_name: Preauthorization Request
+    description: One ask for a provider's work on a case to be pre-authorized, first or for more, and what became of
+      it (request_preauthorization). Approving it records a decision on the provider's preauthorization for the
+      case, whose ceiling is then the amount approved in total.
+    primary_key: preauthorization_request_id
+    fields:
+      preauthorization_request_id:
+        type: uuid
+        required: true
+        generated: true
+      request_number:
+        type: string
+        required: true
+        description: Assigned when the request is received, in a configured yearly sequence; every request has one,
+          including those later found not needed.
+      case_id:
+        type: uuid
+        required: false
+        references: case.case_id
+        description: Empty while the case is only proposed; staff match it before deciding.
+      service_provider_id:
+        type: uuid
+        required: false
+        references: service_provider.service_provider_id
+        description: The provider whose work it is. Empty while only proposed.
+      proposed_details:
+        type: object
+        required: false
+        description: The case number, county and provider the requester typed when either wasn't listed. Kept, never
+          turned into records by the requester (match_invoice_to_case applies as for requests for payment).
+      preauthorization_id:
+        type: uuid
+        required: false
+        references: preauthorization.preauthorization_id
+        description: The provider's preauthorization on the case it asks more of, or the one approving it created.
+      professional_kind_id:
+        type: reference
+        required: false
+        reference_data: professional_kinds
+        description: The kind of service, such as investigator or expert.
+      service_description:
+        type: string
+        required: true
+      rate_basis:
+        type: string
+        required: true
+        description: hourly, flat or per_unit.
+      requested_rate:
+        type: decimal
+        required: false
+      estimated_quantity:
+        type: decimal
+        required: false
+        description: Hours or units expected; empty for a flat fee.
+      requested_amount:
+        type: money
+        required: true
+        description: The total the provider's work on the case should be allowed, including any amount already
+          pre-authorized.
+      justification:
+        type: string
+        required: true
+      currency_code:
+        type: string
+        required: true
+      status_id:
+        type: reference
+        required: true
+        reference_data: preauthorization_request_statuses
+        description: submitted, info_requested, approved, denied, not_needed or withdrawn.
+      requested_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+        description: The requester sending it, or the staff member recording one received another way.
+      requested_for_person_id:
+        type: uuid
+        required: false
+        references: person.person_id
+        description: The appointed attorney asking, when staff record it for them.
+      received_via:
+        type: string
+        required: false
+        description: How a staff-recorded request arrived, such as email.
+      received_at:
+        type: datetime
+        required: true
+      outcome_id:
+        type: reference
+        required: false
+        reference_data: preauthorization_request_outcomes
+        description: approved, denied, not_needed, duplicate or moot (the work was already done). Recorded once.
+      decision_reason:
+        type: string
+        required: false
+      preauthorization_decision_id:
+        type: uuid
+        required: false
+        references: preauthorization_decision.preauthorization_decision_id
+        description: The ceiling decision an approval recorded.
+      decided_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+      decided_at:
+        type: datetime
+        required: false
+      withdrawn_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+      withdrawn_at:
+        type: datetime
+        required: false
+
+  preauthorization_question:
+    display_name: Preauthorization Question
+    description: Staff asking the requester for more information about a preauthorization request, and the answer.
+      Each is recorded once and never changed (request_preauthorization).
+    primary_key: preauthorization_question_id
+    fields:
+      preauthorization_question_id:
+        type: uuid
+        required: true
+        generated: true
+      preauthorization_request_id:
+        type: uuid
+        required: true
+        references: preauthorization_request.preauthorization_request_id
+      question:
+        type: string
+        required: true
+      asked_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      asked_at:
+        type: datetime
+        required: true
+      answer:
+        type: string
+        required: false
+      answered_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+        description: The requester, or staff recording an answer received another way.
+      answered_at:
+        type: datetime
+        required: false
+
+  preauthorization_threshold:
+    display_name: Preauthorization Threshold
+    description: The amount a provider's work on one case may reach without a preauthorization, from a date; the
+      default, or one county's or setting's. Rows are added, never changed (apply_preauthorization_limit).
+    primary_key: preauthorization_threshold_id
+    fields:
+      preauthorization_threshold_id:
+        type: uuid
+        required: true
+        generated: true
+      county_id:
+        type: uuid
+        required: false
+        references: county.county_id
+        description: Empty for the default.
+      amount:
+        type: money
+        required: false
+        description: Empty removes a county's own threshold, returning it to the default.
+      currency_code:
+        type: string
+        required: true
+      effective_from:
+        type: date
+        required: true
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
+
+  invoice_overrun_explanation:
+    display_name: Overrun Explanation
+    description: Why a provider's work on a case went past its limit without more being pre-authorized, given by
+      the submitter when sending a request that takes it over (explain_preauthorization_overrun). Recorded once and
+      never changed; visible to staff and the submitter, never exported.
+    primary_key: invoice_overrun_explanation_id
+    fields:
+      invoice_overrun_explanation_id:
+        type: uuid
+        required: true
+        generated: true
+      invoice_id:
+        type: uuid
+        required: true
+        references: invoice.invoice_id
+      invoice_approval_chain_id:
+        type: uuid
+        required: false
+        references: invoice_approval_chain.invoice_approval_chain_id
+        description: The submission attempt it was given with.
+      service_provider_id:
+        type: uuid
+        required: true
+        references: service_provider.service_provider_id
+      limit_amount:
+        type: money
+        required: true
+        data_role: snapshot
+      limit_source:
+        type: string
+        required: true
+        data_role: snapshot
+        description: preauthorized or threshold.
+      total_with_request:
+        type: money
+        required: true
+        data_role: snapshot
+        description: Approved and waiting amounts for the provider on the case, with this request.
+      explanation:
+        type: string
+        required: true
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
+
+  provider_service_rate:
+    display_name: Provider Service Rate
+    description: A provider's stated fee for one service from a date, from their fee schedule or quote. Rows are
+      added, never changed. Evidence for reviewing requests, not a billing rate.
+    primary_key: provider_service_rate_id
+    fields:
+      provider_service_rate_id:
+        type: uuid
+        required: true
+        generated: true
+      service_provider_id:
+        type: uuid
+        required: true
+        references: service_provider.service_provider_id
+      service_description:
+        type: string
+        required: true
+      rate:
+        type: decimal
+        required: true
+      rate_basis:
+        type: string
+        required: true
+        description: hourly, flat or per_unit.
+      effective_from:
+        type: date
+        required: true
+      document_id:
+        type: uuid
+        required: false
+        references: document.document_id
+        description: The fee schedule or quote it came from.
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
+
   audit_event:
     display_name: Audit Event
     description: An immutable record of a significant action or state change.
@@ -2014,6 +2288,15 @@ entities:
         type: uuid
         required: false
         references: preauthorization.preauthorization_id
+      preauthorization_request_id:
+        type: uuid
+        required: false
+        references: preauthorization_request.preauthorization_request_id
+      service_provider_id:
+        type: uuid
+        required: false
+        references: service_provider.service_provider_id
+        description: A provider's CV, fee schedule or quote kept on file (request_provider_documents).
       purpose_id:
         type: reference
         required: true

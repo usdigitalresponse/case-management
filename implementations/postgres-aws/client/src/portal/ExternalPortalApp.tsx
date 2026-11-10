@@ -14,6 +14,7 @@ import PortalImportReview from './PortalImportReview';
 import PortalBulkImport from './PortalBulkImport';
 import UploadInvoices from '../pages/UploadInvoices';
 import { PortalTopBar } from './PortalTopBar';
+import PortalPreauthorizations, { PORTAL_PREAUTHORIZATIONS_PATH, PortalPreauthorizationRequest } from './PortalPreauthorizations';
 import { NEW_INVOICE_PATH, PORTAL_HOME_PATH, UPLOAD_PATH } from './useShell';
 
 export default function ExternalPortalApp() {
@@ -29,6 +30,8 @@ export default function ExternalPortalApp() {
           <Route path="/portal/cases/:caseId" element={<PortalCaseDetail />} />
           <Route path="/portal/invoices/:invoiceId" element={<InvoiceSubmission />} />
           <Route path="/portal/imports/:importId" element={<PortalImportReview />} />
+          <Route path={PORTAL_PREAUTHORIZATIONS_PATH} element={<PortalPreauthorizations />} />
+          <Route path={`${PORTAL_PREAUTHORIZATIONS_PATH}/:requestId`} element={<PortalPreauthorizationRequest />} />
           {/* Out of view; reachable by address. */}
           <Route path={NEW_INVOICE_PATH} element={<PortalNewInvoice />} />
 

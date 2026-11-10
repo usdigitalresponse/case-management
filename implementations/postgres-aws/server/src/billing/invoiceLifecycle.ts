@@ -63,9 +63,10 @@ import {
   WITHDRAWN_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
 import { optionalEmail } from '../people/emails';
+import { requireOverrunExplanation } from './overrunExplanation';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.11.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.12.0';
 
 // invoice_line_types codes; 'other' is the pre-existing 'service' type.
 // Mileage is an expense line with the mileage expense type.
@@ -542,6 +543,7 @@ export async function submitInTx(
     // Filed under its sender with a typed case number: needs both, and goes
     // to review without a case.
     filedByPerson?: boolean;
+    overrunExplanation?: string;
   } = {},
 ): Promise<'submitted' | 'awaiting_match'> {
   const staff = await isStaffAccount(tx, actor.userAccountId);
@@ -600,7 +602,7 @@ export async function submitInTx(
     });
     return 'awaiting_match';
   }
-  await finishSubmission(tx, invoiceId, {
+  const chainId = await finishSubmission(tx, invoiceId, {
     caseId: locked.caseId,
     caseNumberAsTyped: locked.caseNumberAsTyped,
     billedProfessionalId: locked.professionalId!,
@@ -609,6 +611,13 @@ export async function submitInTx(
     attestedAt: new Date(),
     actorUserAccountId: actor.userAccountId,
     eventTypeCode: 'submitted',
+  });
+  await requireOverrunExplanation(tx, {
+    invoiceId,
+    chainId,
+    actorUserAccountId: actor.userAccountId,
+    explanation: options.overrunExplanation,
+    required: !staff,
   });
   return 'submitted';
 }
@@ -688,7 +697,7 @@ async function finishSubmission(
     actorUserAccountId: string;
     eventTypeCode: 'submitted' | 'released_to_review';
   },
-): Promise<void> {
+): Promise<string> {
   const { caseId, billedProfessionalId } = args;
   const submittedAt = new Date();
   const submittedStatusId = await statusId(tx, SUBMITTED_INVOICE_STATUS_CODE);
@@ -717,6 +726,7 @@ async function finishSubmission(
     chainId: invoiceApprovalChainId,
   });
   await assignOnSubmit(tx, invoiceId, caseId, billedProfessionalId);
+  return invoiceApprovalChainId;
 }
 
 export async function updateDraftInvoice(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
@@ -821,7 +831,12 @@ export async function setDraftDetails(db: Database, actor: PortalActor, invoiceI
 // passes `attested`, and is emailed a receipt.
 export async function submitInvoice(db: Database, actor: PortalActor, invoiceId: string, rawReceipt: unknown = {}) {
   const receipt = receiptInputSchema
-    .extend({ withoutCase: z.boolean().optional(), attested: z.boolean().optional(), filedByPerson: z.boolean().optional() })
+    .extend({
+      withoutCase: z.boolean().optional(),
+      attested: z.boolean().optional(),
+      filedByPerson: z.boolean().optional(),
+      overrunExplanation: z.string().max(4000).optional(),
+    })
     .safeParse(rawReceipt ?? {});
   if (!receipt.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(receipt.error.issues));
@@ -851,6 +866,7 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
       withoutCase: receipt.data.withoutCase,
       attested: receipt.data.attested,
       filedByPerson: receipt.data.filedByPerson,
+      overrunExplanation: receipt.data.overrunExplanation,
     });
   });
   if (!(await isStaffAccount(db, actor.userAccountId))) {

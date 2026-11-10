@@ -166,9 +166,43 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
       `setPreauthorizedAmount` in `billing/preauthorizations.ts`): the first is an approved
       `preauthorization` with its first decision, a change a `revised` decision keeping its
       hourly rate. An amount below what is signed off so far is refused. An invoice whose
-      total, with what is approved so far, goes over it is flagged on its page and in the
-      queue (`overPreauthorization`). Gap: "approved so far" sums signed-off invoices, as
-      before, not authorization draws.
+      total, with what is approved and waiting, goes over the limit is flagged on its page
+      and in the queue (`overPreauthorization`), with ", not explained" when no overrun
+      explanation was given. Gap: "approved so far" sums signed-off invoices, as before,
+      not authorization draws.
+    - **Pre-authorization requests** (`model/rules.yaml` `request_preauthorization`,
+      `apply_preauthorization_limit`, `explain_preauthorization_overrun`,
+      `request_provider_documents`, `report_preauthorization_usage`; migration `0037`):
+      - Thresholds (`billing/preauthorizationThresholds.ts`, Settings "Pre-authorization
+        thresholds"): administrators add a default and per-county amounts from a date, and
+        tick the professional kinds they apply to (`professional_kinds.threshold_applies`).
+        A bound provider with no pre-authorization on a case has the case county's
+        threshold, in force today, as their limit (`PreauthorizationSummary.source
+        'threshold'`; the case list's pre-authorized total leaves these out).
+      - Requests (`billing/preauthorizationRequests.ts`, `routes/preauthorizations.ts`):
+        submitters ask from the portal's Pre-authorizations tab for a case they or someone
+        they bill for is on, naming a provider on their cases or typing one (proposed
+        details, as for invoices); staff record emailed ones from the staff
+        Pre-authorizations page with how and when they arrived. Each gets `YY-NNN` on
+        receipt. The form previews the limit and says when the total is within the
+        threshold. Staff ask questions (recorded once), match a proposed case or provider,
+        and decide once: approved (a `recordCeilingInTx` decision on the provider's single
+        pre-authorization; ceilings replace), denied, not needed, duplicate or moot, each
+        but approval with a reason the requester sees. Requesters answer and withdraw.
+      - Overruns (`billing/overrunExplanation.ts`): sending an invoice with a case that
+        takes its provider's approved, waiting and new total past their limit needs an
+        explanation from a submitter (`SendDialog` shows the field; staff may record one);
+        it is stored with the attempt, shown on the review page's case card and never
+        exported. Invoices filed by person without a case are not checked when sent; once
+        matched they are flagged with no explanation, and reviewers ask with a line question.
+      - Provider documents: CVs, fee schedules and quotes are `document` rows linked to the
+        professional by `document_link` (PDF, .docx, PNG or JPEG), kept while the provider
+        is on record, unlike invoice working copies; the fees they list are
+        `provider_service_rate` rows. Shown on a person's page and on each request.
+      - Usage by county (`billing/preauthorizationUsage.ts`, the page's "By county" tab):
+        requests received in the period by status and amount, then each provider's limit,
+        billed and over on cases with a request or invoice in the period, by the case's
+        county, with a CSV download. Each count opens the filtered request list.
     - **Search** (`/search`, `pages/SearchResults.tsx`, G24): the header search covers every
       sent invoice by name or case number, with exact and close matches listed and totalled
       apart, and an export to CSV. The queue no longer filters in place.
@@ -400,8 +434,8 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     The import page (`PortalBulkImport.tsx`, I44) uses the upload's drop
     zone and design I's words (Add files, Check each file, Send). The upload
     asks a sender who bills for a few people "Whose work is it?" as choices
-    (I43), a dropdown past six, and points to Import invoices for several
-    files.
+    (I43), a dropdown past six, and points to the Upload invoices tab for
+    several files.
   - "Your cases" (`/portal/cases`, design I) lists the open cases of the
     people the sender bills for, grouped by person for a delegate ("Name,
     kind", under a note naming whom they send for), with
@@ -953,8 +987,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     `approved_hourly_rate` for its professional on the case (or a
     case-wide one), else its configured rate. The invoice detail carries
     each line's `rateLimit` and its source; the queue flag and Re-price use
-    the same limit. Pre-authorizations are seeded, with no screen to enter
-    them yet.
+    the same limit. Approving a pre-authorization request may set that rate.
   - Reasons (`src/billing/decisionReasons.ts`): `invoice_decision_reasons`
     has an `applies_to` column (`approved_in_part`, `rejected` or `both`);
     the review panel offers only the outcome's list and the server refuses
@@ -1240,7 +1273,7 @@ app. Vite's CSS asset pipeline resolves and hashes USWDS's font/image
     commit; the hourly sweep retries any removal that failed. Gap: payment completion isn't recorded yet, so a live
     request's file stays until it is withdrawn or deleted.
   - Bulk import (`client/src/portal/PortalBulkImport.tsx`, `bulkImport.ts`;
-    "Import invoices" on the portal case list) takes several files, each
+    the portal's "Upload invoices" tab) takes several files, each
     assigned a case and whom it bills (one choice, grouped by person, so a
     delegate picks both), suggested from the file name when exactly one
     case's reference or client name fits. It uploads them one at a time
@@ -1825,6 +1858,9 @@ list/detail views are implemented as tables:
 `invoice_approval_decision`, `invoice_line_working_decision`, `review_time_log`,
 `invoice_review_question`, `invoice_review_assignment`, `case_invoice_reviewer`,
 `invoice_review_setting`, `preauthorization`, `preauthorization_decision`,
+`preauthorization_request`, `preauthorization_question`,
+`preauthorization_threshold`, `invoice_overrun_explanation`,
+`provider_service_rate`, `document_link`,
 `invoice_event`, `document`, `invoice_import`, `supporting_invoice`,
 `invoice_attestation`, plus lookup tables for the `reference_data`
 sets these entities use (`case_categories`, `case_statuses`,
@@ -1833,19 +1869,24 @@ sets these entities use (`case_categories`, `case_statuses`,
 `invoice_statuses`, `invoice_line_types`, `expense_types`, `invoice_approval_step_types`,
 `invoice_approval_outcomes`, `invoice_event_types`, `invoice_import_formats`,
 `invoice_import_statuses`, `invoice_decision_reasons`,
-`preauthorization_statuses`, `preauthorization_outcomes`).
+`preauthorization_statuses`, `preauthorization_outcomes`,
+`preauthorization_request_statuses`, `preauthorization_request_outcomes`,
+`document_purposes`). `professional_kinds` also has `threshold_applies`.
 `invoice_review_setting.setting_code` is a code from
 `src/billing/reviewSettings.ts` rather than a lookup table, like
 `billing_rule_setting.rule_code`.
 
-`preauthorization` and its decisions are read-only here: rows come only
-from the demo seed, with `professional_id` standing in for
-`service_provider_id` (as on `invoice`). The case page and invoice facts
-show each professional's ceiling (the latest decision), the approved total
-of their signed-off invoices on the case, and the requested total of those
+`preauthorization` and its decisions are written by staff on the case page
+and by approving a `preauthorization_request`, with `professional_id`
+standing in for `service_provider_id` (as on `invoice`, and on the request,
+`invoice_overrun_explanation`, `provider_service_rate` and `document_link`).
+The case page and invoice facts show each professional's limit (the ceiling
+of the latest decision, else the county's threshold), the approved total of
+their signed-off invoices on the case, and the requested total of those
 still in review. That approximates the model's
 `invoice_authorization_allocation` draws, which aren't built: nothing
-blocks approving past a ceiling.
+blocks approving past a limit. `document_link` is used only for request
+and provider targets.
 
 `document`, `invoice_import` and `time_entry.source_invoice_import_id` back
 structured invoice import (see "Structured invoice import" above).

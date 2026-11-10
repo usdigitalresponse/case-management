@@ -6,6 +6,8 @@ import { ValidationError } from '../src/errors';
 
 const summary = (ceiling: string, approvedSoFar: string): PreauthorizationSummary => ({
   professionalId: null,
+  source: 'preauthorized',
+  preauthorizationId: null,
   authorizationNumbers: [],
   ceiling,
   approvedSoFar,

@@ -20,6 +20,7 @@ import { formatMoney, sumMoney } from '../formatMoney';
 import { formatDate } from '../formatDateTime';
 import { Notice } from '../components/Notice';
 import { personPath } from '../staffPaths';
+import { ProviderOnFile } from '../components/PreauthorizationRequestView';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -190,6 +191,7 @@ export default function PersonPage() {
         Showing {shown.length} of {invoices.length}. Every invoice is filed under {name}. Case numbers are as they were typed, and the
         tool does not check them against a list of cases.
       </p>
+      <ProviderOnFile professionalId={professionalId as string} name={name} />
       {editing && (
         <PersonDialog
           person={person}

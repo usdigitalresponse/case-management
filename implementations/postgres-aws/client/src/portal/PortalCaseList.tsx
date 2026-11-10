@@ -40,7 +40,7 @@ function CaseTable({ professionalId, cases, label }: { professionalId: string; c
             const own = c.preauthorizations.find((summary) => summary.professionalId === professionalId);
             return own ? (
               <>
-                {formatMoney(own.ceiling)}
+                {own.source === 'threshold' ? `None (${formatMoney(own.ceiling)} threshold)` : formatMoney(own.ceiling)}
                 <span className="cell-note">{formatMoney(own.approvedSoFar)} approved so far</span>
               </>
             ) : (

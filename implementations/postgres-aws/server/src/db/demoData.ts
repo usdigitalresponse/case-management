@@ -38,6 +38,9 @@ import { ensureProfessionalForUserAccount } from '../professionals/ensureProfess
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase } from '../cases/closeCase';
 import { addKindRate, addOwnRates, createKind, listRates, setProfessionalKind } from '../billing/professionalRates';
+import { addThreshold, getThresholdSettings, setKindThresholdApplies } from '../billing/preauthorizationThresholds';
+import { askRequestQuestion, createPreauthorizationRequest, decidePreauthorizationRequest } from '../billing/preauthorizationRequests';
+import { resolvePortalActor } from '../portal/portalActor';
 import { addMileageRate } from '../billing/mileageRates';
 import { addTimeCategoryRate } from '../billing/timeCategoryRates';
 import { addBillingCode, setBillingRule } from '../billing/billingRules';
@@ -791,6 +794,83 @@ export interface DemoDataSummary {
 
 // Destructive: deletes all application data, including accounts, then
 // recreates the synthetic demo data.
+// A synthetic threshold and three requests: waiting for an answer, not needed, approved for less.
+async function seedDemoPreauthorizationRequests(
+  fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
+  assignments: DemoAssignment[],
+  professionals: DemoProfessional[],
+): Promise<void> {
+  const admin = fixtures.staffUserAccountId;
+  await addThreshold(db, admin, { countyId: null, amount: 2000, effectiveFrom: '2025-01-01' });
+  const settings = await getThresholdSettings(db);
+  for (const kind of settings.kinds.filter((row) => row.displayName === 'Investigator' || row.displayName === 'Expert')) {
+    // eslint-disable-next-line no-await-in-loop
+    await setKindThresholdApplies(db, admin, kind.professionalKindId, { thresholdApplies: true });
+  }
+  const [first, second] = assignments;
+  const investigator = professionals[2];
+  const expert = professionals[3];
+  if (!first || !second || !investigator || !expert) {
+    throw new Error('Expected demo attorneys, an investigator and an expert.');
+  }
+  for (const [caseId, professionalId] of [
+    [first.caseId, investigator.professionalId],
+    [first.caseId, expert.professionalId],
+    [second.caseId, investigator.professionalId],
+  ] as const) {
+    // eslint-disable-next-line no-await-in-loop
+    await db.insert(caseAssignment).values({
+      caseId,
+      professionalId,
+      assignedAt: new Date('2026-01-10T15:00:00Z'),
+      assignmentRoleId: fixtures.externalSubmitterAssignmentRoleId,
+      assignedByUserAccountId: admin,
+    });
+  }
+  const ask = async (attorney: DemoAssignment, professionalId: string, details: { service: string; rate: number | null; hours: number | null; amount: number; why: string }) =>
+    createPreauthorizationRequest(db, await resolvePortalActor(db, attorney.userAccountId), {
+      caseId: attorney.caseId,
+      professionalId,
+      serviceDescription: details.service,
+      rateBasis: details.rate === null ? 'flat' : 'hourly',
+      requestedRate: details.rate,
+      estimatedQuantity: details.hours,
+      requestedAmount: details.amount,
+      justification: details.why,
+    });
+  const waiting = await ask(first, investigator.professionalId, {
+    service: 'Witness interviews and scene work',
+    rate: 95,
+    hours: 50,
+    amount: 4750,
+    why: 'Several witnesses named in discovery have not been interviewed, and the scene needs photographing before it changes.',
+  });
+  await askRequestQuestion(db, admin, waiting.preauthorizationRequestId, { question: 'How many witnesses, and could some be interviewed by phone?' });
+  const notNeeded = await ask(first, expert.professionalId, {
+    service: 'Review of the lab report',
+    rate: null,
+    hours: null,
+    amount: 1500,
+    why: 'The lab report needs an independent review before the hearing.',
+  });
+  await decidePreauthorizationRequest(db, admin, notNeeded.preauthorizationRequestId, {
+    outcome: 'not_needed',
+    reason: 'This is within the county threshold, so no pre-authorization is needed.',
+  });
+  const approved = await ask(second, investigator.professionalId, {
+    service: 'Records requests and follow-up interviews',
+    rate: 95,
+    hours: 40,
+    amount: 3800,
+    why: 'Records from two agencies are needed, and the people named in them should be interviewed.',
+  });
+  await decidePreauthorizationRequest(db, admin, approved.preauthorizationRequestId, {
+    outcome: 'approved',
+    approvedAmount: 3000,
+    reason: 'Approved for the records and the first round of interviews. Ask again if more interviews are needed.',
+  });
+}
+
 export async function resetToDemoData(): Promise<DemoDataSummary> {
   const fixtures = await resetAndSeedBaselineFixtures(db);
   const caseIds = await seedDemoCases(fixtures);
@@ -806,6 +886,7 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
   await seedClosedCase(fixtures, caseIds);
   await seedStaffAssignment(fixtures, caseIds, staffUserAccountIds);
   await seedDemoReview(fixtures, caseIds, assignments, staffUserAccountIds);
+  await seedDemoPreauthorizationRequests(fixtures, assignments, professionals);
   const [partner, colleague] = professionals;
   if (!partner || !colleague) {
     throw new Error('Expected two demo vendors for the uploads.');

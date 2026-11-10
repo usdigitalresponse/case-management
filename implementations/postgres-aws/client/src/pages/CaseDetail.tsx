@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import {
   apiErrorMessage,
   getCase,
@@ -82,7 +82,10 @@ function PreauthorizedBilled({ summary, name }: { summary: PreauthorizationSumma
     <div className="preauth-billed">
       <dl>
         <div>
-          <dt>Pre-authorized{name ? ` for ${name}` : ' for the case'}</dt>
+          <dt>
+            {summary.source === 'threshold' ? 'Threshold' : 'Pre-authorized'}
+            {name ? ` for ${name}` : ' for the case'}
+          </dt>
           <dd>{formatMoney(summary.ceiling)}</dd>
         </div>
         <div>
@@ -252,7 +255,10 @@ export default function CaseDetail() {
 
       <div className="case-columns">
         <section className="compact-card">
-          <h2>Pre-authorized and billed</h2>
+          <div className="section-heading-row">
+            <h2>Pre-authorized and billed</h2>
+            <Link to={`/preauthorizations?status=&caseId=${detail.case.caseId}`}>Requests on this case</Link>
+          </div>
           {billing && billing.preauthorizations.length === 0 && <p className="muted">Nothing pre-authorized yet.</p>}
           {billing?.preauthorizations.map((summary) => (
             <PreauthorizedBilled

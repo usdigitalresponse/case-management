@@ -1,4 +1,4 @@
-spec_version: "0.11.0"
+spec_version: "0.12.0"
 status: draft
 kind: business_rules
 
@@ -444,7 +444,65 @@ rules:
       - Denial cannot revoke a ceiling with committed draws; resolve commitments under explicit policy first.
       - Reject a reduction below effective committed approved draws. Preserve decisions immutably and serialize ceiling changes with draw approvals.
       - Any active staff user may enter a case's pre-authorized amount for one professional or the whole case, as an approved preauthorization with its first decision, or change it with a revised decision that keeps its hourly rate.
+      - A provider has at most one approved preauthorization on a case (and a case at most one for the whole case); asking for more revises its ceiling to the new total (request_preauthorization) rather than adding another.
       - Configured status and outcome mappings distinguish pending, approved and denied; external preauthorization is separate from invoice-chain pre-approval.
+
+  request_preauthorization:
+    description: Let an appointed attorney ask for a provider's work on a case to be pre-authorized, or for more, and let staff decide it.
+    applies_to: preauthorization_request
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - A submitter may request for a provider they bill for or who works on their cases, on a case they are on or by entering its number and county as proposed details; staff may record a request received another way, with how and when it arrived and the attorney it is from. Each request records its requester and gets the next number in the yearly sequence when received.
+      - A request states the kind of service, what it is for, the rate and its basis (hourly, flat or per unit), the hours or units expected where not flat, the total asked for including anything already pre-authorized, and why it is needed.
+      - Before sending, the requester sees the provider's limit on the case (apply_preauthorization_limit), what has been billed against it and, when the total asked for is within the threshold, that no pre-authorization is needed. They may still send it.
+      - When the provider has no CV or no current fee schedule or quote on file, the request asks for them (request_provider_documents); it can be sent without them, marked as missing them.
+      - Any active staff user may ask the requester for more information (preauthorization_question); the request is then info_requested until every question is answered, by the requester or by staff recording an answer received another way. Questions and answers are recorded once, never changed, visible to the requester and staff, and never exported.
+      - Staff decide a request once, recording the outcome, reason and actor - approved, denied, not_needed (within the threshold), duplicate or moot (the work was already done). Denial, not_needed, duplicate and moot need a reason, which the requester sees. A request whose case or provider is only proposed is matched first (match_invoice_to_case applies as for requests for payment).
+      - Approving sets the amount and optionally the hourly rate, which may differ from what was asked. It records a decision on the provider's preauthorization for the case - its first approval, or a revised decision with the approved total - under preserve_authorization_decisions, so an approved total below what is already approved for the provider is refused.
+      - The requester may withdraw a request not yet decided. Decided and withdrawn requests are kept and never changed; asking again is a new request.
+
+  apply_preauthorization_limit:
+    description: Work out how much of a provider's work on a case may be billed before more must be pre-authorized.
+    applies_to: preauthorization_threshold
+    trigger: on_read
+    outcome: informational
+    requirements:
+      - A provider's limit on a case is the ceiling of their approved preauthorization on it (the latest decision; ceilings replace, never add) or, with none, the threshold in force for the case's county or setting. A case-wide preauthorization is a separate limit on all providers' work on the case together.
+      - The threshold in force on a date is the latest preauthorization_threshold for the case's county on or before it, else the latest default. Administrators add thresholds; a new one takes over from its date and earlier ones are kept. Amounts are configuration, never fixed values.
+      - Thresholds apply to providers of the configured professional kinds (such as investigators and experts), not to an appointed attorney's own fees. With no threshold set, nothing is needed below a preauthorization's ceiling and a provider without one has no limit.
+      - What counts against the limit is the approved amount of signed-off requests for that provider on the case and the requested amount of their requests still in review, until allocation draws (validate_authorization_draws) are built.
+      - Limits warn; they never block approving a request.
+
+  explain_preauthorization_overrun:
+    description: Ask for the reason a provider's work went past its limit, without refusing payment for it.
+    applies_to: invoice_overrun_explanation
+    trigger: before_submit
+    outcome: blocking
+    requirements:
+      - When sending a request with a case would take its provider's total on that case past their limit (apply_preauthorization_limit), the submitter is shown the limit and the total and must explain why more was not pre-authorized before it can be sent. The explanation is bound to that attempt with the limit and total at the time, recorded once and never changed.
+      - A request whose case is matched only later is checked when matched; with no explanation it is flagged, and the reviewer may ask for one with a review question (ask_review_question).
+      - Reviewers see the overrun, the limit's source and the explanation on the request and in the queue; they may still approve, cut or reject it. This is the policy for uncovered amounts that validate_authorization_draws asks for.
+      - Explanations are shown to staff and the submitter, and never exported or put in the billing record.
+
+  request_provider_documents:
+    description: Keep a provider's CV and fee schedule or quote on file and ask for them when missing.
+    applies_to: document_link
+    trigger: before_create
+    outcome: informational
+    requirements:
+      - Staff and anyone who may bill for a provider may add the provider's CV, fee schedule or quote, linked to the provider with its purpose, and a provider_service_rate for each service it lists, with its date. A newer document supersedes an older one, which is kept.
+      - A provider's documents are kept records, not working copies of a request's files, and stay while the provider is on record.
+      - A preauthorization request for a provider with no CV, or no fee schedule or quote, asks for it; staff see which are missing when deciding.
+
+  report_preauthorization_usage:
+    description: Show staff how pre-authorized and threshold limits are used, by county.
+    applies_to: preauthorization_request
+    trigger: on_read
+    outcome: informational
+    requirements:
+      - For a chosen period, one row per county or setting with the threshold in force, requests received by status, amounts asked for and approved, what is billed against limits (approved and waiting), what is left, providers over their limit with the amount over and how many lack an explanation, and providers billing within the threshold without a preauthorization.
+      - Each count leads to the requests or cases it counts. Configured billing staff roles may download it; it holds no client names.
 
   validate_payment_confirmation:
     description: Validate payment confirmation.
@@ -469,7 +527,7 @@ rules:
     trigger: before_create
     outcome: blocking
     requirements:
-      - Require exactly one target among case_id, invoice_id and preauthorization_id. All target and document references must resolve.
+      - Require exactly one target among case_id, invoice_id, preauthorization_id, preauthorization_request_id and service_provider_id. All target and document references must resolve.
       - Supporting invoice and signature documents must be linked to the same request or its case; evidence cannot be silently replaced after submission.
       - Document versions are immutable and identify their predecessor; content hashes and storage references must resolve to the retained version unless content_deleted_at records deletion under a no-retention policy.
       - Authorize document retrieval through the target domain record. A link or storage identifier alone does not grant access.

@@ -242,6 +242,9 @@ export function getCase(caseId: string): Promise<CaseDetail> {
 
 export interface PreauthorizationSummary {
   professionalId: string | null;
+  // 'threshold': nothing pre-authorized; ceiling is the county's threshold.
+  source: 'preauthorized' | 'threshold';
+  preauthorizationId: string | null;
   authorizationNumbers: string[];
   ceiling: string;
   approvedSoFar: string;
@@ -953,6 +956,7 @@ export interface InvoiceReceipt {
   // Filed under whom it is from: needs a typed case number, and goes to
   // review without a case.
   filedByPerson?: boolean;
+  overrunExplanation?: string;
 }
 
 // What a submitter confirms when sending (server/src/billing/invoiceLifecycle.ts).
@@ -1196,6 +1200,25 @@ export interface PortalInvoice {
   // Whether this user may answer its questions: whoever sent it, or the
   // professional it bills for.
   canAnswer: boolean;
+  // Set on a draft that sending would take over its limit.
+  overrun: Overrun | null;
+  overrunExplanations: OverrunExplanation[];
+}
+
+export interface Overrun {
+  professionalId: string | null;
+  limit: string;
+  source: 'preauthorized' | 'threshold';
+  total: string;
+}
+
+export interface OverrunExplanation {
+  limit: string;
+  source: string;
+  total: string;
+  explanation: string;
+  recordedBy: string | null;
+  recordedAt: string;
 }
 
 export function deleteInvoice(invoiceId: string): Promise<{ invoiceId: string }> {
@@ -1477,6 +1500,11 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
     return fieldMessage ?? body?.message ?? fallback;
   }
   return fallback;
+}
+
+export function fieldError(err: unknown, field: string): string | undefined {
+  if (!(err instanceof ApiError)) return undefined;
+  return (err.body as { fieldErrors?: Record<string, string> } | undefined)?.fieldErrors?.[field];
 }
 
 export type InvoiceExportFormat = 'pdf' | 'xlsx';
@@ -1786,8 +1814,10 @@ export interface InvoiceReview {
   invoice: QueuedInvoice;
   // This professional's pre-authorization on the case, if there is one.
   preauthorization: PreauthorizationSummary | null;
-  // This invoice takes its person, or the case, over the pre-authorized amount.
+  // This invoice takes its person, or the case, over their limit.
   overPreauthorized: boolean;
+  // Staff and the sender only.
+  overrunExplanations: OverrunExplanation[];
   caseNumber: string | null;
   otherCaseNumbers: string[];
   lines: InvoiceReviewLine[];
@@ -2137,5 +2167,231 @@ export function closeCase(
   return request<{ caseId: string; caseLifecycleEventId: string; closedOn: string }>(`/api/cases/${caseId}/close`, {
     method: 'POST',
     body: JSON.stringify({ reasonDetail }),
+  });
+}
+
+// --- Pre-authorization requests (server/src/routes/preauthorizations.ts) ---
+
+export type RateBasis = 'hourly' | 'flat' | 'per_unit';
+export type RequestStatusCode = 'submitted' | 'info_requested' | 'approved' | 'denied' | 'not_needed' | 'withdrawn';
+export type RequestOutcome = 'approved' | 'denied' | 'not_needed' | 'duplicate' | 'moot';
+
+export interface PreauthorizationRequestRow {
+  preauthorizationRequestId: string;
+  requestNumber: string;
+  caseId: string | null;
+  caseNumber: string | null;
+  proposedCaseNumber: string | null;
+  countyId: string | null;
+  countyName: string | null;
+  professionalId: string | null;
+  providerName: string | null;
+  proposedProviderName: string | null;
+  kindName: string | null;
+  serviceDescription: string;
+  rateBasis: RateBasis;
+  requestedRate: string | null;
+  estimatedQuantity: string | null;
+  requestedAmount: string;
+  justification: string;
+  statusCode: RequestStatusCode;
+  statusName: string;
+  outcomeCode: RequestOutcome | null;
+  outcomeName: string | null;
+  decisionReason: string | null;
+  approvedAmount: string | null;
+  approvedHourlyRate: string | null;
+  requestedByName: string;
+  requestedForName: string | null;
+  receivedVia: string | null;
+  receivedAt: string;
+  decidedByName: string | null;
+  decidedAt: string | null;
+  // Null until the case and provider are matched.
+  limit: PreauthorizationSummary | null;
+}
+
+export interface LinkedDocument {
+  documentId: string;
+  displayName: string;
+  purposeCode: 'cv' | 'fee_schedule' | 'quote' | 'supporting';
+  purposeName: string;
+  recordedAt: string;
+}
+
+export interface ProviderDocuments {
+  documents: LinkedDocument[];
+  rates: Array<{ providerServiceRateId: string; serviceDescription: string; rate: string; rateBasis: RateBasis; effectiveFrom: string }>;
+  missing: Array<'cv' | 'fee_schedule'>;
+}
+
+export interface PreauthorizationRequestDetail {
+  request: PreauthorizationRequestRow;
+  questions: Array<{
+    preauthorizationQuestionId: string;
+    question: string;
+    askedByName: string;
+    askedAt: string;
+    answer: string | null;
+    answeredByName: string | null;
+    answeredAt: string | null;
+  }>;
+  documents: LinkedDocument[];
+  providerDocuments: ProviderDocuments | null;
+  canDecide: boolean;
+}
+
+export interface NewPreauthorizationRequest {
+  caseId?: string | null;
+  proposedCase?: { caseNumber: string; countyId?: string | null; countyName?: string };
+  professionalId?: string | null;
+  proposedProvider?: { name: string; email?: string };
+  professionalKindId?: string | null;
+  serviceDescription: string;
+  rateBasis: RateBasis;
+  requestedRate?: number | null;
+  estimatedQuantity?: number | null;
+  requestedAmount: number;
+  justification: string;
+  receivedVia?: string;
+  receivedOn?: string;
+}
+
+export function listPreauthorizationRequests(filter: { status?: string; countyId?: string; caseId?: string; from?: string; to?: string } = {}) {
+  const query = new URLSearchParams(Object.entries(filter).filter((entry): entry is [string, string] => Boolean(entry[1])));
+  return request<{ requests: PreauthorizationRequestRow[] }>(`/api/preauthorizations/requests?${query}`);
+}
+
+export function getPreauthorizationRequest(requestId: string) {
+  return request<PreauthorizationRequestDetail>(`/api/preauthorizations/requests/${requestId}`);
+}
+
+export function createPreauthorizationRequest(input: NewPreauthorizationRequest) {
+  return request<{ preauthorizationRequestId: string; requestNumber: string }>('/api/preauthorizations/requests', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export interface RequestPreview {
+  threshold: string | null;
+  limit: PreauthorizationSummary | null;
+  // Approved and waiting.
+  billed: string;
+  withinThreshold: boolean;
+  documents: ProviderDocuments | null;
+}
+
+export function previewPreauthorizationRequest(input: { caseId?: string | null; professionalId?: string | null; countyId?: string | null; requestedAmount?: number }) {
+  // A read, so the sidebar's counts aren't reloaded.
+  return fetch('/api/preauthorizations/requests/preview', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  }).then(async (response) => {
+    const body = await response.json().catch(() => undefined);
+    if (!response.ok) throw new ApiError(response.status, body);
+    return body as RequestPreview;
+  });
+}
+
+export function listRequestableProviders() {
+  return request<{ providers: Array<{ professionalId: string; displayName: string | null; professionalKindId: string | null; kindName: string | null }> }>(
+    '/api/preauthorizations/providers',
+  );
+}
+
+export function askPreauthorizationQuestion(requestId: string, question: string) {
+  return request<PreauthorizationRequestDetail>(`/api/preauthorizations/requests/${requestId}/questions`, {
+    method: 'POST',
+    body: JSON.stringify({ question }),
+  });
+}
+
+export function answerPreauthorizationQuestion(requestId: string, questionId: string, answer: string) {
+  return request<PreauthorizationRequestDetail>(`/api/preauthorizations/requests/${requestId}/questions/${questionId}/answer`, {
+    method: 'POST',
+    body: JSON.stringify({ answer }),
+  });
+}
+
+export function matchPreauthorizationRequest(requestId: string, input: { caseId?: string; professionalId?: string }) {
+  return request<PreauthorizationRequestDetail>(`/api/preauthorizations/requests/${requestId}/match`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function decidePreauthorizationRequest(
+  requestId: string,
+  input: { outcome: RequestOutcome; approvedAmount?: number; approvedHourlyRate?: number | null; reason?: string },
+) {
+  return request<PreauthorizationRequestDetail>(`/api/preauthorizations/requests/${requestId}/decision`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function withdrawPreauthorizationRequest(requestId: string) {
+  return request<PreauthorizationRequestDetail>(`/api/preauthorizations/requests/${requestId}/withdraw`, { method: 'POST' });
+}
+
+export function uploadRequestDocument(requestId: string, file: File, purpose: LinkedDocument['purposeCode']) {
+  return sendFile<{ documents: LinkedDocument[] }>(`/api/preauthorizations/requests/${requestId}/documents?purpose=${purpose}`, file).then((result) => {
+    window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
+    return result;
+  });
+}
+
+export function getProviderDocuments(professionalId: string) {
+  return request<ProviderDocuments>(`/api/preauthorizations/providers/${professionalId}/documents`);
+}
+
+export function uploadProviderDocument(professionalId: string, file: File, purpose: LinkedDocument['purposeCode']) {
+  return sendFile<ProviderDocuments>(`/api/preauthorizations/providers/${professionalId}/documents?purpose=${purpose}`, file);
+}
+
+export function addProviderServiceRate(professionalId: string, input: { serviceDescription: string; rate: number; rateBasis: RateBasis; effectiveFrom: string }) {
+  return request<ProviderDocuments>(`/api/preauthorizations/providers/${professionalId}/service-rates`, { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function linkedDocumentUrl(documentId: string): string {
+  return `/api/preauthorizations/documents/${documentId}`;
+}
+
+export interface CountyUsage {
+  countyId: string | null;
+  countyName: string;
+  isCounty: boolean;
+  threshold: string | null;
+  requests: Record<'open' | 'approved' | 'not_needed' | 'denied' | 'withdrawn', number>;
+  requested: string;
+  approved: string;
+  billedApproved: string;
+  billedWaiting: string;
+  left: string;
+  over: { providers: number; amount: string; unexplained: number };
+  withinThreshold: { providers: number; billed: string };
+}
+
+export function getPreauthorizationUsage(period: { from: string; to: string }) {
+  return request<{ from: string; to: string; counties: CountyUsage[]; total: CountyUsage }>(
+    `/api/preauthorizations/usage-by-county?${new URLSearchParams(period)}`,
+  );
+}
+
+export interface ThresholdSettings {
+  current: Array<{ countyId: string | null; countyName: string | null; isCounty: boolean; amount: string | null; effectiveFrom: string }>;
+  history: Array<{ countyId: string | null; countyName: string | null; amount: string | null; effectiveFrom: string; recordedAt: string }>;
+  kinds: Array<{ professionalKindId: string; displayName: string; thresholdApplies: boolean }>;
+}
+
+export function getThresholdSettings() {
+  return request<ThresholdSettings>('/api/settings/preauthorization-thresholds');
+}
+
+export function addThreshold(input: { countyId: string | null; amount: number | null; effectiveFrom: string }) {
+  return request<ThresholdSettings>('/api/settings/preauthorization-thresholds', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function setKindThresholdApplies(professionalKindId: string, thresholdApplies: boolean) {
+  return request<ThresholdSettings>(`/api/settings/professional-kinds/${professionalKindId}/threshold-applies`, {
+    method: 'PUT',
+    body: JSON.stringify({ thresholdApplies }),
   });
 }
