@@ -2,7 +2,7 @@ import type { ImportProgress } from '../api/client';
 
 // "2 of 3", kept on one line however narrow the space.
 export function countOf(position: number, total: number): string {
-  return `${position} of ${total}`;
+  return `${position}\u00a0of\u00a0${total}`;
 }
 
 // What's happening to a file still being read, in plain words.
@@ -18,7 +18,7 @@ export function progressText(progress: ImportProgress | null): string {
     case 'reading':
       return 'Reading the file…';
     case 'recognizing':
-      return `Recognizing the scanned text: page ${countOf(progress.page, progress.pages)}`;
+      return `Recognizing the scanned text: page\u00a0${countOf(progress.page, progress.pages)}`;
   }
 }
 

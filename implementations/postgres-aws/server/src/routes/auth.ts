@@ -26,7 +26,7 @@ export interface AuthRouterOptions {
   // empty when no provider's credentials are set.
   oidcProviders: OidcProviderConfig[];
   // Passwordless sign-in as a seeded synthetic staff account, by default
-  // the administrator (see ../db/fixtures.ts and MAPPING.md "Demo sign-in").
+  // the administrator (see ../db/fixtures.ts and docs/api.md "Demo sign-in").
   demoLoginEnabled: boolean;
   // Passwordless sign-in as a seeded demo vendor (an external user), who is
   // also its office's billing delegate.

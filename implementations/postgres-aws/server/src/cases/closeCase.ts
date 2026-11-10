@@ -24,7 +24,7 @@ import { CaseAlreadyClosedError, CaseNotFoundError } from './errors';
 // case_lifecycle_event_types/case_statuses are organization-configurable
 // reference data in the canonical model, not fixed app constants, so
 // these codes exist only in ../db/fixtures.ts (test/dev), not
-// ../db/ensureReferenceData.ts; see MAPPING.md.
+// ../db/ensureReferenceData.ts; see docs/api.md "Closing a case".
 const CLOSING_EVENT_TYPE_CODE = 'sample_closed';
 const CLOSED_CASE_STATUS_CODE = 'sample_closed';
 

@@ -1,5 +1,5 @@
 // The seeded synthetic accounts the demo sign-ins may act as, so a demo can
-// try each role's view (MAPPING.md "Demo sign-in"). Only accounts on the
+// try each role's view (docs/api.md "Demo sign-in"). Only accounts on the
 // reserved example.invalid domain qualify; real accounts never do.
 import { and, asc, eq, inArray, like } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';

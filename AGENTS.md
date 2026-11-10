@@ -235,7 +235,7 @@ case management system; links to that system stay inert placeholders, and
 features hidden for it are hidden from navigation, not deleted. Its landing
 page `/`, the sidebar's "+ Upload Invoices" and the external upload, check and
 send pages file invoices by the person who sent them with a case number as
-typed (design G, see its `MAPPING.md`); a person's own rates override their
+typed (design G, see its `docs/frontend.md`); a person's own rates override their
 role's from their effective date, and reviewers correct a case number beside
 the typed one, never over it. Design I brings cases back: the sidebar has Case
 overview and All cases, and People, Providers, Clients and Organizations; a request
@@ -299,9 +299,13 @@ single-host production-mode stack; its seed command is equally destructive.
 Settings' Demo section (anyone switching their own role; administrators'
 "Reset demo data", the same reset) must stay unavailable unless the staff
 demo sign-in is enabled.
-Run server/client `npm run typecheck`, client `npm run build` and `npm test`, and
+Run server/client `npm run typecheck` and `npm run lint`, client `npm run build` and `npm test`, and
 server `npm test` against a separate migrated test database (see its README). The server
-build entry point is `dist/src/app.js`. Uploaded invoice files are working
+build entry point is `dist/src/app.js`. Its `MAPPING.md` holds the schema
+mapping and known gaps; how each part is built is in its `docs/`
+(`frontend.md`, `intake.md`, `api.md`). A new or changed route's access rule
+gets a case in `server/__tests__/routesAccess.test.ts`, which calls the
+running app through `__tests__/httpHelpers.ts`. Uploaded invoice files are working
 copies in a private local directory (`DOCUMENT_STORE_DIR`, a named
 `documents` volume in both Compose files), kept with a live
 request or draft (shown to its submitter and reviewers) and deleted on

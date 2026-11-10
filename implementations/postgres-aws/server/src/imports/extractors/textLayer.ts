@@ -224,6 +224,7 @@ function recognizedRows(page: number, words: OcrWord[]): Row[] {
 
 // Text a font can't map to characters arrives as control, private-use or
 // replacement characters; a layer that is mostly those isn't usable.
+// eslint-disable-next-line no-control-regex
 const UNMAPPED = /[\u0000-\u0008\u000e-\u001f-�]/gu;
 
 export function textLooksGarbled(text: string): boolean {

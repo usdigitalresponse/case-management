@@ -91,6 +91,7 @@ export function NewInvoiceForm({
     if (!touched) {
       setLinesState(startingLines(billedProfessionalId));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries]);
   const [period, setPeriod] = useState({ start: '', end: '' });
   const [submitting, setSubmitting] = useState(false);

@@ -2,7 +2,7 @@
 // SSO (whichever provider their organization has configured — inherits
 // their org's session/MFA policy, no email round-trip); external
 // partners have no pre-provisioned identity, so they sign in with a code
-// sent by email instead. See ../../MAPPING.md "Multi-IdP SSO" and
+// sent by email instead. See ../../docs/api.md "Multi-IdP SSO" and
 // "Emailed-code sign-in for external users".
 import { useState } from 'react';
 import { apiErrorMessage, listAuthProviders, listDemoAccounts, type DemoAccount } from '../api/client';

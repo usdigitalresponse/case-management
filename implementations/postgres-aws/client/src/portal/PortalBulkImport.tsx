@@ -47,7 +47,7 @@ import {
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { useReceipt } from './ReceivedFields';
-import { DropZone } from './PortalUpload';
+import { DropZone } from '../components/upload/UploadFiles';
 import { LATER, useShell } from './useShell';
 
 interface StagedFile {

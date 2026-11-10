@@ -32,7 +32,7 @@ import { formatMoney } from '../formatMoney';
 import { StatusPill, type Tone } from '../components/StatusPill';
 import { professionalLabel } from '../components/InvoiceLinesEditor';
 import { caseDisplayLabel } from '../caseDisplayLabel';
-import { DropZone, type UploadStart } from '../portal/PortalUpload';
+import { DropZone, type UploadStart } from '../components/upload/UploadFiles';
 import { UPLOAD_PATH } from '../portal/useShell';
 import { MyInvoicesTable } from '../portal/MyInvoicesTable';
 import type { UploadedState } from '../portal/PortalInvoiceList';

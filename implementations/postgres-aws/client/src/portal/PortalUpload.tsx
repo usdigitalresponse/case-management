@@ -1,35 +1,30 @@
 // Upload invoices, or enter one by hand: each file is read, then its case
 // and period are checked one at a time and it becomes a draft. A case or
 // provider that isn't known or listed is matched later on Intake. See
-// MAPPING.md "Structured invoice import".
-import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
+// docs/api.md "Invoice import".
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
   apiErrorMessage,
   createInvoice,
   createUploadDraft,
   fieldErrorsOf,
-  deleteInvoice,
-  discardUpload,
-  getUpload,
   invoiceTemplateUrl,
   listBillableProfessionals,
   listUploadCases,
-  startUpload,
   type BillableProfessional,
   type ProposedCase,
   type ProposedProvider,
   type UploadCase,
-  type UploadRead,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
-import { ImportProgressNote } from '../components/ImportProgressNote';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { professionalLabel } from '../components/InvoiceLinesEditor';
 import type { UploadedState } from './PortalInvoiceList';
 import { useShell } from './useShell';
-import { countOf } from './importProgress';
+import { DropZone, FileCard, Steps, useUploadEntries, type Entry, type ReadyRead, type UploadStart } from '../components/upload/UploadFiles';
+import { InvoiceNumberField, UploadPeriodField } from '../components/upload/UploadFields';
 import { AddProvider } from '../components/AddProvider';
 import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
 import {
@@ -60,17 +55,6 @@ interface Details {
   invoiceNumber: string;
 }
 
-export interface Entry<D = Details> {
-  key: string;
-  file: File;
-  uploadReadId?: string;
-  read?: UploadRead;
-  // Couldn't be sent or read; it is skipped.
-  error?: string;
-  details?: D;
-  created?: { invoiceImportId: string; invoiceId: string };
-}
-
 const optionValue = (row: Pick<UploadCase, 'caseId' | 'professionalId'>) => `${row.caseId}|${row.professionalId}`;
 
 function detailsFrom(read: ReadyRead): Details {
@@ -83,221 +67,9 @@ function detailsFrom(read: ReadyRead): Details {
   };
 }
 
-function fileBadge(name: string): string {
-  const extension = name.split('.').pop()?.toUpperCase() ?? '';
-  return ['PDF', 'XLSX', 'XLS', 'CSV'].includes(extension) ? extension : 'FILE';
-}
-
-function fileSize(bytes: number): string {
-  return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function caseLabel(row: UploadCase, showWho: boolean): string {
   const label = [row.caseNumber, row.clientDisplayName].filter(Boolean).join(' · ') || 'Unnamed case';
   return showWho && row.professionalDisplayName ? `${label} (${row.professionalDisplayName})` : label;
-}
-
-// A reviewer's own upload goes straight into their review, so there is
-// nothing to send.
-export function Steps({ reviewing = false }: { reviewing?: boolean }) {
-  const steps = reviewing ? ['Upload', 'Check and review the lines', 'Finish the review'] : ['Upload', 'Check the lines', 'Send for review'];
-  return (
-    <ol className="steps" aria-label="Steps">
-      {steps.map((step, index) => (
-        <li key={step} className={index === 0 ? 'steps__current' : undefined} aria-current={index === 0 ? 'step' : undefined}>
-          <span className="steps__number">{index + 1}</span>
-          {step}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-// Files dropped elsewhere (Intake), or manual entry, to start with.
-export interface UploadStart {
-  files?: File[];
-  manual?: boolean;
-}
-
-export function DropZone({ hasFiles, onFiles }: { hasFiles: boolean; onFiles: (files: File[]) => void }) {
-  const [over, setOver] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-  const drop = (event: DragEvent) => {
-    event.preventDefault();
-    setOver(false);
-    onFiles([...event.dataTransfer.files]);
-  };
-  return (
-    <label
-      className={`drop-zone${over ? ' drop-zone--over' : ''}`}
-      onDragOver={(event) => {
-        event.preventDefault();
-        setOver(true);
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={drop}
-    >
-      <input
-        ref={input}
-        className="usa-sr-only"
-        type="file"
-        multiple
-        accept=".pdf,.xlsx,.xls,.csv,.txt,.ledes"
-        onChange={(event) => {
-          onFiles([...(event.target.files ?? [])]);
-          event.target.value = '';
-        }}
-      />
-      <strong>{hasFiles ? 'Drop more invoices here, or choose files' : 'Drop your invoices here, or choose files'}</strong>
-      <span>PDF, Excel (.xlsx) or CSV. One invoice per file. You can add several files at once.</span>
-    </label>
-  );
-}
-
-export function FileCard({
-  entry,
-  position,
-  total,
-  current,
-  onRemove,
-}: {
-  entry: Entry<unknown>;
-  position: number;
-  total: number;
-  current: boolean;
-  onRemove?: () => void;
-}) {
-  const read = entry.read;
-  const size = read?.file.sizeBytes ?? entry.file.size;
-  const meta = [read?.file.format === 'spreadsheet' ? 'Spreadsheet' : null, fileSize(size)].filter(Boolean).join(' · ');
-  const many = total > 1;
-  let status;
-  if (entry.created) {
-    status = (
-      <>
-        <span className="file-card__ok">✓ Imported</span>
-        {many && <span>Invoice {countOf(position, total)}</span>}
-      </>
-    );
-  } else if (entry.error || read?.status === 'failed') {
-    status = <span className="file-card__error">{entry.error ?? (read?.status === 'failed' ? read.failureMessage : '')}</span>;
-  } else if (read?.status === 'ready') {
-    status = (
-      <>
-        <span className={current || !many ? 'file-card__ok' : undefined}>
-          Read: {read.read.lineCount} {read.read.lineCount === 1 ? 'line' : 'lines'} found
-        </span>
-        {many && (
-          <span className={current ? 'file-card__current' : undefined}>
-            Invoice {countOf(position, total)} · {current ? 'checking now' : 'next'}
-          </span>
-        )}
-      </>
-    );
-  } else {
-    status = <ImportProgressNote compact progress={read?.status === 'reading' ? read.progress : null} />;
-  }
-  return (
-    <li className={`file-card${current && many ? ' file-card--current' : ''}`}>
-      <span className="file-card__badge" aria-hidden="true">{fileBadge(entry.file.name)}</span>
-      <span className="file-card__name">
-        <strong>{entry.file.name}</strong>
-        <span>{meta}</span>
-      </span>
-      <span className="file-card__status">
-        {status}
-        {onRemove && (
-          <button type="button" className="link-button" onClick={onRemove}>
-            Remove file
-          </button>
-        )}
-      </span>
-    </li>
-  );
-}
-
-export type ReadyRead = Extract<UploadRead, { status: 'ready' }>;
-
-// Files sent to be read, polled until each is read; a read file's details
-// start from `detailsFrom`.
-export function useUploadEntries<D>(detailsFrom: (read: ReadyRead) => D) {
-  const [entries, setEntries] = useState<Array<Entry<D>>>([]);
-  const counter = useRef(0);
-  // Removed or cancelled; an upload still in flight is discarded when it lands.
-  const gone = useRef(new Set<string>());
-
-  const update = useCallback((key: string, patch: Partial<Entry<D>>) => {
-    setEntries((current) => current.map((entry) => (entry.key === key ? { ...entry, ...patch } : entry)));
-  }, []);
-
-  async function refresh(key: string, uploadReadId: string) {
-    try {
-      const read = await getUpload(uploadReadId);
-      setEntries((current) =>
-        current.map((entry) =>
-          entry.key === key ? { ...entry, read, details: entry.details ?? (read.status === 'ready' ? detailsFrom(read) : undefined) } : entry,
-        ),
-      );
-    } catch (err) {
-      update(key, { error: apiErrorMessage(err, 'This file could not be read. Upload it again.') });
-    }
-  }
-
-  function addFiles(files: File[]) {
-    for (const file of files) {
-      counter.current += 1;
-      const key = `file-${counter.current}`;
-      setEntries((current) => [...current, { key, file }]);
-      startUpload(file).then(
-        ({ uploadReadId }) => {
-          if (gone.current.has(key)) {
-            void discardUpload(uploadReadId).catch(() => undefined);
-            return;
-          }
-          update(key, { uploadReadId });
-          void refresh(key, uploadReadId);
-        },
-        (err: unknown) => update(key, { error: apiErrorMessage(err, 'This file could not be uploaded.') }),
-      );
-    }
-  }
-
-  const reading = entries.filter((entry) => entry.uploadReadId && !entry.error && (!entry.read || entry.read.status === 'reading'));
-  const readingKey = reading.map((entry) => entry.key).join(',');
-  useEffect(() => {
-    if (!readingKey) return undefined;
-    const timer = window.setInterval(() => {
-      for (const entry of reading) {
-        void refresh(entry.key, entry.uploadReadId!);
-      }
-    }, 2000);
-    return () => window.clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readingKey]);
-
-  async function remove(entry: Entry<D>) {
-    gone.current.add(entry.key);
-    setEntries((list) => list.filter((row) => row.key !== entry.key));
-    if (entry.uploadReadId && !entry.created) {
-      await discardUpload(entry.uploadReadId).catch(() => undefined);
-    }
-  }
-
-  // Keeps none of the files: unread ones are discarded, drafts deleted.
-  async function discardAll() {
-    for (const entry of entries) gone.current.add(entry.key);
-    await Promise.all(
-      entries.map((entry) =>
-        entry.created
-          ? deleteInvoice(entry.created.invoiceId).catch(() => undefined)
-          : entry.uploadReadId
-            ? discardUpload(entry.uploadReadId).catch(() => undefined)
-            : undefined,
-      ),
-    );
-  }
-
-  return { entries, update, addFiles, remove, discardAll };
 }
 
 // Who the user may bill with no case chosen: staff, any active provider; a
@@ -404,82 +176,6 @@ function DetailsForm({
           onChange={(invoiceNumber) => set({ invoiceNumber })}
         />
       )}
-    </div>
-  );
-}
-
-export function UploadPeriodField({
-  start,
-  end,
-  error,
-  hint,
-  onChange,
-}: {
-  start: string;
-  end: string;
-  error?: string;
-  hint: string;
-  onChange: (period: { periodStart: string; periodEnd: string }) => void;
-}) {
-  return (
-    <div className="upload-details__field">
-      <span className="usa-label" id="upload-period-label">Billing period</span>
-      <div className="upload-period" role="group" aria-labelledby="upload-period-label">
-        <input
-          className="usa-input"
-          type="date"
-          aria-label="First day"
-          value={start}
-          onChange={(event) => onChange({ periodStart: event.target.value, periodEnd: end })}
-        />
-        <span>to</span>
-        <input
-          className="usa-input"
-          type="date"
-          aria-label="Last day"
-          min={start || undefined}
-          value={end}
-          onChange={(event) => onChange({ periodStart: start, periodEnd: event.target.value })}
-        />
-      </div>
-      {error && <p className="field-error">{error}</p>}
-      <p className="field-hint">{hint}</p>
-    </div>
-  );
-}
-
-export function InvoiceNumberField({
-  label,
-  value,
-  error,
-  hint,
-  onChange,
-  onSave,
-}: {
-  label: string;
-  value: string;
-  error?: string;
-  hint: string;
-  onChange: (value: string) => void;
-  // On blur or Enter.
-  onSave?: () => void;
-}) {
-  return (
-    <div className="upload-details__field">
-      <label className="usa-label" htmlFor="upload-invoice-number">{label}</label>
-      <input
-        id="upload-invoice-number"
-        className="usa-input"
-        value={value}
-        aria-describedby="upload-invoice-number-hint"
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={onSave}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') onSave?.();
-        }}
-      />
-      {error && <p className="field-error">{error}</p>}
-      <p id="upload-invoice-number-hint" className="field-hint">{hint}</p>
     </div>
   );
 }
@@ -670,7 +366,7 @@ export default function PortalUpload() {
     navigate(invoicesPath);
   }
 
-  const position = (entry: Entry) => usable.indexOf(entry) + 1;
+  const position = (entry: Entry<Details>) => usable.indexOf(entry) + 1;
 
   return (
     <div className="portal-narrow">

@@ -1,6 +1,6 @@
 // Full-user ("sso") sign-in: one OIDC strategy implementation, registered
 // once per configured provider, rather than a different passport strategy
-// library per identity provider. See ../../MAPPING.md "Multi-IdP SSO".
+// library per identity provider. See ../../docs/api.md "Multi-IdP SSO".
 import passport from 'passport';
 import { Strategy as OidcStrategy, type Profile } from 'passport-openidconnect';
 import { db } from '../db/client';

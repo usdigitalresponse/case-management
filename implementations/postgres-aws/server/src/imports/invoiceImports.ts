@@ -436,6 +436,7 @@ export async function failInterruptedExtractions(db: Database): Promise<number> 
     await db
       .update(invoiceImport)
       .set({
+        // eslint-disable-next-line no-await-in-loop
         statusId: await importStatusId(db, 'failed'),
         extractionMethod: `${extractor.id} ${extractor.version}`,
         extractedAt: new Date(),

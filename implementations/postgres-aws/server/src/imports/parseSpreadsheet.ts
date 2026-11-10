@@ -118,7 +118,7 @@ export function parseCsvRows(text: string): string[][] {
   let row: string[] = [];
   let field = '';
   let quoted = false;
-  const source = text.replace(/^﻿/, '');
+  const source = text.replace(/^\uFEFF/, '');
   for (let i = 0; i < source.length; i += 1) {
     const char = source[i];
     if (quoted) {

@@ -61,6 +61,7 @@ export function useLineEntry({
     timeCategoryRates,
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fileLines = fileSource && tracksSource(lines.map((line) => line.carried.sourceLocation)) ? fileSource.lines : [];
   const rows = useMemo(() => rowsInFileOrder(fileLines, lines, (line) => line.carried.sourceLocation), [fileLines, lines]);
   const totals = rows.map((row) => (row.kind === 'line' ? priceOf(row.line, context).total : 0));

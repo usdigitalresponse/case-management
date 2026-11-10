@@ -64,7 +64,6 @@ export function createApp() {
 
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof AppError) {
       if (err.status >= 500) {
