@@ -258,4 +258,4 @@ rule in `model/rules.yaml` and [DECISIONS.md](DECISIONS.md). Still open:
 - What criteria will be used to compare candidate technology stacks?
 
 An adopting organization's own questions are listed in the
-[README](../README.md#questions-for-your-organization).
+[adoption guide](adopting.md#questions-for-your-organization).
