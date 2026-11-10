@@ -84,7 +84,7 @@ export default function FinishedInvoices() {
         emptyMessage={county.narrowed ? 'No invoices here for that county.' : filter === 'month' ? 'Nothing finished this month yet.' : 'No invoices here.'}
         columns={[
           { header: 'From', rowHeader: true, render: (invoice) => <FromCell invoice={invoice} /> },
-          { header: 'Case number, as typed', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },
+          { header: 'Case number', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },
           {
             header: 'Finished',
             render: (invoice) =>

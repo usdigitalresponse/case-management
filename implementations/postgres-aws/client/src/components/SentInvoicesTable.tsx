@@ -26,7 +26,7 @@ export function SentInvoicesTable({
   const columns: Array<RecordTableColumn<ReviewQueueItem>> = [
     ...(showFrom ? [{ header: 'From', rowHeader: true, render: (invoice: ReviewQueueItem) => <FromCell invoice={invoice} /> }] : []),
     {
-      header: 'Case number, as typed',
+      header: 'Case number',
       className: 'case-number-cell',
       render: (invoice) => <CaseNumberCell invoice={invoice} note={caseNumberNote?.(invoice)} />,
     },
