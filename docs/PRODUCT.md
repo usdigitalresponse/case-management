@@ -1,4 +1,4 @@
-# Case Management Prototype
+# Invoice Review and Case Management Prototype
 
 ## Purpose
 
