@@ -237,7 +237,7 @@ npm install
 API_PROXY_TARGET=http://localhost:3000 npm run dev   # http://localhost:5173
 npm run typecheck
 npm run lint
-npm test        # unit tests for client-side logic (no browser, no server)
+npm test        # unit tests, and page tests in jsdom against a fake API (no browser, no server)
 npm run build   # production build; verifies USWDS asset resolution
 ```
 
@@ -250,7 +250,9 @@ omitted when the server is running locally too (not in a container).
 directory: `server` (typecheck, lint, migrate, test, schema-mapping check),
 `client` (typecheck, lint, test, build), and `compose-smoke-test` (a real
 `docker compose up` + explicit demo seed + demo-login/list-cases round trip,
-followed by a restart check that verifies case IDs are preserved).
+followed by a restart check that verifies case IDs are preserved), and
+`end-to-end` (Playwright in Chromium and WebKit against a fresh seeded
+stack; see `e2e/README.md`).
 
 ## Deploy
 

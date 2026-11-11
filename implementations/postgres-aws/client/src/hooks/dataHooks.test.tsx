@@ -39,6 +39,15 @@ describe('useResource', () => {
     await waitFor(() => expect(result.current.data).toBe('new'));
   });
 
+  it('shows a fresh resource once reloaded, even when the reload is unchanged', async () => {
+    // An earlier page's copy, as after uploading and going on to check it.
+    const page = { key: ['item', 'same'], load: vi.fn(async () => ({ name: 'unchanged' })), fresh: true };
+    queryClient.setQueryData(page.key, { name: 'unchanged' }, { updatedAt: Date.now() - 60_000 });
+    const { result } = renderHook(() => useResource(page), { wrapper });
+    expect(result.current.data).toBeNull();
+    await waitFor(() => expect(result.current.data).toEqual({ name: 'unchanged' }));
+  });
+
   it("moves to the next address's preloaded data without blanking", () => {
     const first = resource('a', 'A', { fresh: true });
     const second = resource('b', 'B', { fresh: true });
