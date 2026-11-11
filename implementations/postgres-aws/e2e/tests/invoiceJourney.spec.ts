@@ -46,7 +46,7 @@ test.describe.serial('an invoice from upload to review', () => {
     await expect(undecided).toHaveCount(2);
 
     for (let left = 2; left > 0; left -= 1) {
-      await undecided.first().getByRole('button', { name: 'Approve' }).click();
+      await undecided.first().getByRole('button', { name: 'Approve', exact: true }).click();
       await expect(undecided).toHaveCount(left - 1);
     }
     await page.getByRole('button', { name: 'Finish review' }).click();
