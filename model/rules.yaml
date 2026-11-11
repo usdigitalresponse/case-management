@@ -40,13 +40,16 @@ rules:
       - Explain any discrepancy to the user.
 
   flag_overlapping_invoice_period:
-    description: Identify possible duplicate billing for the same case and party.
+    description: Identify possible duplicate billing for the same professional, on the same case or another.
     applies_to: invoice
     trigger: before_submit
     outcome: warning
     requirements:
-      - Compare the proposed billing period with relevant submitted or paid invoices.
-      - Show the potentially overlapping records to the user.
+      - Compare the request's dates (its billing period and line dates together) with the professional's other sent requests, including those sent later. Withdrawn and rejected requests, and drafts never sent, are not compared; a request sent back to its sender still is. Lines a finished round rejected are left out.
+      - On the same case, flag a request whose dates overlap, and list its lines inside the overlap. A request without a matched case is on the same case when its case number closely matches.
+      - On another case, flag a request that bills the same person's time on a date this request bills them, and list those lines.
+      - Name each listed line that has the same date, person, kind and quantity as a line on this request.
+      - Show the flags to the submitter while the request is a draft, limited to requests they may read, and to reviewers throughout review. Never refuse the request for them.
 
   configure_invoice_approval_chain:
     description: Establish the required review for an invoice.

@@ -724,10 +724,45 @@ async function seedDemoSignInReview(
   });
   await reassignReviewer(db, signIn, toReview.invoiceId, { userAccountId: signIn });
 
+  // Flagged as possible double billing on it: earlier March weeks here, and the 10th on another case.
+  // Filed by person, so it doesn't count against the case's pre-authorization.
+  const expertActor = { userAccountId: expert.userAccountId, professionalId: expert.professionalId };
+  const firstHalf = await createInvoice(db, expertActor, {
+    caseId: null,
+    caseNumber: '26-CR-00245',
+    attested: true,
+    periodStart: '2026-03-01',
+    periodEnd: '2026-03-15',
+    lines: [
+      { lineType: 'time', serviceDate: '2026-03-03', quantity: 2, unitRate: 150, description: 'Reviewed the lab report and photographs' },
+      { lineType: 'time', serviceDate: '2026-03-06', quantity: 1.5, unitRate: 150, description: 'Visited the lab to inspect the samples' },
+    ],
+  });
+  await db
+    .update(invoice)
+    .set({ submittedAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000) })
+    .where(eq(invoice.invoiceId, firstHalf.invoiceId));
+  for (const lineId of await lineIds(firstHalf.invoiceId)) {
+    // eslint-disable-next-line no-await-in-loop
+    await reviewInvoiceLine(db, reviewer, firstHalf.invoiceId, lineId, { outcome: 'approved' });
+  }
+  await finishReview(db, reviewer, firstHalf.invoiceId);
+  await signOffInvoice(db, director, firstHalf.invoiceId, { outcome: 'approved' });
+  await createInvoice(db, expertActor, {
+    caseId: null,
+    caseNumber: '26-CR-00252',
+    attested: true,
+    periodStart: '2026-03-01',
+    periodEnd: '2026-03-31',
+    lines: [
+      { lineType: 'time', serviceDate: '2026-03-10', quantity: 6, unitRate: 150, description: 'Testified at the suppression hearing' },
+      { lineType: 'time', serviceDate: '2026-03-24', quantity: 1, unitRate: 150, description: 'Call with counsel after the hearing' },
+    ],
+  });
+
   // On the expert's case: one sent first and given to the demo sign-in, then
   // one on which a reviewer set the case's rate, waiting for the Director.
   // The first is flagged, since its default changed after it was sent.
-  const expertActor = { userAccountId: expert.userAccountId, professionalId: expert.professionalId };
   const sentEarlier = await createInvoice(db, expertActor, {
     caseId: expert.caseId,
     attested: true,

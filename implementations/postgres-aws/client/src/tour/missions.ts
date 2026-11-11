@@ -315,12 +315,13 @@ const review: MissionDefinition = {
     {
       id: 'earlier',
       role: 'staff',
-      goal: 'Choose “Open the case”, then open its earlier invoice: its weeks overlap this one.',
+      goal: 'Find “Possible double billing”: an earlier invoice on this case covers some of the same weeks, and the same day is billed on another case. Open the lines it lists.',
       before: 'Double billing was caught by searching folders of old invoices.',
-      now: 'The case lists every invoice on it with its billing period. (A flag for overlapping periods isn’t built yet.)',
-      path: (ctx) => (ctx.run.caseId ? `/cases/${ctx.run.caseId}` : invoicePath(ctx)),
-      target: { text: 'Open the case' },
-      done: { route: (ctx) => exact(ctx.run.earlierInvoiceId ? `/billing/${ctx.run.earlierInvoiceId}` : '/never') },
+      now: 'Invoices on the same case whose dates overlap, and time on other cases on the same days, are flagged with their lines, and a line billed twice is named.',
+      path: invoicePath,
+      target: { text: 'Possible double billing' },
+      done: { manual: 'I see the earlier invoice' },
+      hint: 'Each listed invoice opens in a new tab.',
     },
     {
       id: 'rate',

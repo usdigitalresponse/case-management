@@ -4,6 +4,8 @@ import { readFileForInvoice } from '../../imports/invoiceFile';
 import { findImportForInvoice } from '../../imports/importedTimeEntries';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../../billing/deleteInvoice';
 import { findOverrun, loadOverrunExplanations } from '../../billing/overrunExplanation';
+import { findBillingOverlaps } from '../../billing/billingOverlaps';
+import { isStaffAccount } from '../../portal/portalActor';
 import { z } from 'zod';
 import { db } from '../../db/client';
 import { createInvoice } from '../../portal/createInvoice';
@@ -163,12 +165,18 @@ router.get(
     const deletable = await isInvoiceDeletableBy(db, reader.userAccountId, detail.invoice.invoiceId);
     // A draft: whether sending would take its provider over their limit.
     const overrun = detail.invoice.statusCode === 'draft' ? await findOverrun(db, detail.invoice.invoiceId, false) : null;
+    // A draft: what it may bill twice. Submitters see only invoices they may read.
+    const billingOverlaps =
+      detail.invoice.statusCode === 'draft'
+        ? await findBillingOverlaps(db, detail.invoice.invoiceId, (await isStaffAccount(db, reader.userAccountId)) ? undefined : reader)
+        : [];
     res.json({
       ...withoutReviewer(detail),
       import: imported ?? null,
       deletable,
       canAnswer: mayAnswerAsSubmitter(reader, detail.invoice),
       overrun,
+      billingOverlaps,
       overrunExplanations: await loadOverrunExplanations(db, detail.invoice.invoiceId),
     });
   }),

@@ -12,6 +12,7 @@ import { findCasesByNumber } from '../cases/casesByNumber';
 import { currentCaseNumber } from '../billing/caseNumbers';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { loadInvoiceDetail, loadSenderEmail } from '../billing/invoiceDetail';
+import { findBillingOverlaps } from '../billing/billingOverlaps';
 import { isExportableStatus } from '../billing/invoiceAccess';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { InvoiceNotFoundError, repriceLines, reviewInvoiceLine, undoLineDecision } from '../billing/reviewInvoiceLine';
@@ -219,7 +220,10 @@ router.get(
     // As canDiscardEntry decides, from what the detail already holds.
     const discardable =
       detail.entryOpen && detail.assignments?.reviewer?.userAccountId === actorId(req) && detail.questions.length === 0;
-    const timeLog = await loadTimeLogView(db, detail.invoice.invoiceId);
+    const [timeLog, billingOverlaps] = await Promise.all([
+      loadTimeLogView(db, detail.invoice.invoiceId),
+      findBillingOverlaps(db, detail.invoice.invoiceId),
+    ]);
     // Signed off, it is already in what was approved so far; rejected, it adds nothing.
     const overPreauthorized =
       detail.invoice.statusCode !== 'rejected' &&
@@ -228,7 +232,7 @@ router.get(
         detail.invoice.submittedTotal,
         [APPROVED_INVOICE_STATUS_CODE, ...IN_REVIEW_INVOICE_STATUS_CODES].includes(detail.invoice.statusCode ?? ''),
       );
-    res.json({ ...detail, preauthorization, overPreauthorized, overrunExplanations, approvedRate, caseNumberMatches, discardable, senderEmail, timeLog });
+    res.json({ ...detail, preauthorization, overPreauthorized, overrunExplanations, approvedRate, caseNumberMatches, discardable, senderEmail, timeLog, billingOverlaps });
   }),
 );
 

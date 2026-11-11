@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import express from 'express';
 import cookieSession from 'cookie-session';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -118,6 +119,33 @@ describe('an external submitter', () => {
     expect((await other.call('DELETE', `/api/portal/invoices/${invoiceId}`)).status).toBe(404);
     const listed = (await (await other.call('GET', '/api/portal/invoices')).json()) as { invoices: unknown[] };
     expect(listed.invoices).toEqual([]);
+  });
+
+  it('is shown possible double billing only on invoices they may read', async () => {
+    const professional = await createSubmitter();
+    const { invoiceId: sentId } = await createSubmittedInvoice(professional);
+    await testDb.update(invoice).set({ periodStart: '2026-03-01', periodEnd: '2026-03-15' }).where(eq(invoice.invoiceId, sentId));
+    // A colleague's draft for the same professional, case and weeks.
+    const email = `demo-vendor-${randomUUID()}@example.invalid`;
+    const [colleague] = await testDb.insert(userAccount).values({ displayName: email, email, active: true }).returning();
+    const [sent] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, sentId));
+    const [draft] = await testDb
+      .insert(invoice)
+      .values({
+        submittedByUserAccountId: colleague!.userAccountId,
+        professionalId: professional.professionalId,
+        statusId: await getReferenceId(testDb, invoiceStatuses, 'draft'),
+        submittedTotal: '0.00',
+        caseId: sent!.caseId,
+        periodStart: '2026-03-10',
+        periodEnd: '2026-03-31',
+      })
+      .returning();
+    const overlapsFor = async (call: Call) =>
+      ((await (await call('GET', `/api/portal/invoices/${draft!.invoiceId}`)).json()) as { billingOverlaps: Array<{ invoiceId: string }> }).billingOverlaps;
+
+    expect((await overlapsFor(professional.call)).map((overlap) => overlap.invoiceId)).toEqual([sentId]);
+    expect(await overlapsFor(await signIn(server, '/auth/demo-login/external', colleague!.userAccountId))).toEqual([]);
   });
 
   it("is not sent a sign-off send-back comment or the reviewer's time log", async () => {

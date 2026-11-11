@@ -296,9 +296,16 @@ form relies on this being airtight.
 - **Guided tour material**: each tour run makes its own synthetic case
   and invoices (`server/src/demoTour/`), which show in the shared demo's
   queues beside the seeded ones, unlabelled, and are kept until the next
-  demo reset; nothing removes old runs yet. The tour has no
-  overlapping-period check to show (it shows the case's invoices with
-  their periods instead), and "Skip step" doesn't perform the step.
+  demo reset; nothing removes old runs yet. "Skip step" doesn't perform
+  the step.
+- **Possible double billing** (`flag_overlapping_invoice_period`,
+  `src/billing/billingOverlaps.ts`): worked out each time a draft or review
+  page loads, not kept in the submission snapshot, so it also shows
+  requests sent later. It isn't an administrator-set billing rule: always
+  on, warn only. On another case only time lines are compared, by date;
+  expenses and travel the same day are left to the same-day travel note.
+  An invoice billed by the same professional with no billing period is
+  always a candidate, so a long history of such invoices is read in full.
 - **Duplicate review of people**: staff add people and providers while
   matching invoices and cases (`client/src/components/PickOrAdd.tsx`), but
   nothing flags or reviews a probable duplicate of an existing `person`.

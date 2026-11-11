@@ -3,6 +3,8 @@ import { OriginalDocument } from '../../components/OriginalDocument';
 import { RecordedDecision } from '../../components/lineReview/DecisionCell';
 import { LineQuestions } from '../../components/ReviewQuestions';
 import { SentBackNotice } from '../../components/SentBackNotice';
+import { BillingOverlaps } from '../../components/BillingOverlaps';
+import { useShell } from '../useShell';
 import { formatDateTime } from '../../formatDateTime';
 import { formatMoney } from '../../formatMoney';
 import { CheckLinesTable } from '../CheckLinesTable';
@@ -10,6 +12,7 @@ import type { Submission } from './useSubmission';
 
 export function SubmissionLines({ s }: { s: Submission }) {
   const { data, staff, user, focus, setFocus } = s;
+  const { invoicePath } = useShell();
   const { invoice, isDraft, editable, awaiting, sent } = s.facts;
   const { fileSource } = data;
   const { lines, rows, context, askingFor, duplicates, notice, undatedRow, fileSays, error, handlers, edited, editLine } = s.entry;
@@ -58,6 +61,14 @@ export function SubmissionLines({ s }: { s: Submission }) {
             </Notice>
           ))}
         {isDraft && <SentBackNotice reason={invoice.returnedReason} />}
+        {isDraft && (
+          <BillingOverlaps
+            overlaps={data.billingOverlaps}
+            lineNumbers={new Map(rows.flatMap((row) => (row.kind === 'line' && row.line.invoiceLineId ? [[row.line.invoiceLineId, row.number]] : [])))}
+            invoicePath={invoicePath}
+            submitter={!staff}
+          />
+        )}
         {awaiting && (
           <Notice tone="info">
             Sent. Some of its details aren’t in our system yet, so the billing office will match them, then send it for review.

@@ -86,3 +86,53 @@ describe('entering lines in review', () => {
     expect(api.unhandled).toEqual([]);
   });
 });
+
+describe('possible double billing', () => {
+  it('shows the other invoice, its overlapping lines and which line here they match', async () => {
+    const line = reviewLine();
+    const api = fakeApi({
+      ...signedIn(REVIEWER),
+      'GET /api/decision-reasons': { reasons: [] },
+      'GET /api/invoices/:id': () =>
+        invoiceReview({
+          lines: [line],
+          billingOverlaps: [
+            {
+              invoiceId: 'inv-2',
+              sameCase: true,
+              caseId: 'case-1',
+              caseNumber: '26-CR-0001',
+              invoiceNumber: 'INV-0042',
+              professionalDisplayName: 'Synthetic Investigator',
+              statusCode: 'approved',
+              statusDisplayName: 'Approved',
+              submittedAt: '2026-03-16T15:00:00Z',
+              periodStart: '2026-03-01',
+              periodEnd: '2026-03-15',
+              submittedTotal: '300.00',
+              lines: [
+                {
+                  invoiceLineId: 'other-1',
+                  serviceDate: '2026-03-12',
+                  lineTypeCode: 'time',
+                  description: 'Wrote up the interview notes',
+                  quantity: '1.50',
+                  amount: '150.00',
+                  workerDisplayName: 'Synthetic Investigator',
+                  sameAsLineIds: ['line-1'],
+                },
+              ],
+            },
+          ],
+        }),
+    });
+    await openReview();
+
+    expect(await screen.findByText('Possible double billing')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /invoice INV-0042/ }).getAttribute('href')).toBe('/billing/inv-2');
+    expect(screen.getByText(/1 line on the same dates, 1 with the same date, person and quantity/)).toBeTruthy();
+    expect(screen.getByText('Wrote up the interview notes')).toBeTruthy();
+    expect(screen.getByText('Line 1')).toBeTruthy();
+    expect(api.unhandled).toEqual([]);
+  });
+});

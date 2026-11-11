@@ -136,6 +136,13 @@ How the React client is built and why. Schema mapping and gaps are in
       case". A mileage line over the driving route is highlighted in the line table with
       the route and the miles over, as in the travel log (I20). Case rates that would now apply are flagged as
       changed since it was sent (`caseRatesChangedSince`).
+    - **Possible double billing** (`flag_overlapping_invoice_period`;
+      `client/src/components/BillingOverlaps.tsx`): a warning on the review page, and on the
+      check page while it's a draft ("Some of these dates are already billed" for a
+      submitter), listing each other sent invoice that covers the same dates: on this case,
+      overlapping dates; on another, time on the same days. Each opens in a new tab and
+      shows its period, status, total and when it was sent; its lines on the same dates are
+      in a table, and one matching a line here by date, person and quantity says "Line N".
     - **Pre-authorized amounts**: any staff member sets one on the case page, for a person
       or the whole case (`POST /api/cases/:id/preauthorizations`,
       `setPreauthorizedAmount` in `billing/preauthorizations.ts`): the first is an approved

@@ -143,7 +143,9 @@ Later scope:
 - Proposed details for a case, provider or timekeeper that isn't listed,
   matched to records by staff before review
 - Automatic totals and discrepancy detection
-- Duplicate or overlapping billing checks
+- Duplicate or overlapping billing checks: overlapping dates on the same case,
+  and time on the same dates on another case, flagged to submitters and
+  reviewers in the Postgres/AWS prototype
 - Rates by provider kind and by person, case rates set during review, and
   separate rates for travel time, waiting time and mileage, with mileage
   checked against driving distance where configured

@@ -1,7 +1,7 @@
 import { request } from './http';
 import type { CountyChoice, SavedCounty } from './cases';
 import type { MileageRate, RuleFinding } from './settings';
-import type { InvoiceReviewLine, ReviewQuestion } from './invoiceReview';
+import type { BillingOverlap, InvoiceReviewLine, ReviewQuestion } from './invoiceReview';
 import type { QueuedInvoice } from './reviewQueue';
 import type { SendStatus } from './intake';
 import type { ImportWarning } from './invoiceImports';
@@ -332,6 +332,8 @@ export interface PortalInvoice {
   canAnswer: boolean;
   // Set on a draft that sending would take over its limit.
   overrun: Overrun | null;
+  // A draft's possible double billing, among invoices this user may read.
+  billingOverlaps: BillingOverlap[];
   overrunExplanations: OverrunExplanation[];
 }
 

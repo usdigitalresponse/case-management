@@ -548,7 +548,12 @@ export const invoiceLine = pgTable(
     // The import's line or row it was read from; null if the submitter added it.
     sourceLocation: text('source_location'),
   },
-  (table) => [index('invoice_line_invoice_id_idx').on(table.invoiceId)],
+  (table) => [
+    index('invoice_line_invoice_id_idx').on(table.invoiceId),
+    // For finding a person's lines by date (../billing/billingOverlaps.ts).
+    index('invoice_line_timekeeper_date_idx').on(table.timekeeperProfessionalId, table.serviceDate),
+    index('invoice_line_source_time_entry_idx').on(table.sourceTimeEntryId),
+  ],
 );
 
 // Insert-only: a reviewer sets aside a mileage line's distance warning,
