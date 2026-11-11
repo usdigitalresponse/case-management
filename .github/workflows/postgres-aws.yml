@@ -87,7 +87,8 @@ jobs:
         run: docker compose up -d
       - name: Wait for the server to become healthy
         run: |
-          for _ in $(seq 1 30); do
+          # Cold startup on runners has taken over a minute.
+          for _ in $(seq 1 90); do
             if curl -sf http://localhost:3000/healthz; then
               exit 0
             fi
@@ -106,7 +107,7 @@ jobs:
         run: |
           docker compose -f implementations/postgres-aws/docker-compose.yml restart server
           ready=false
-          for _ in $(seq 1 30); do
+          for _ in $(seq 1 90); do
             if curl -sf http://localhost:3000/healthz; then
               ready=true
               break
