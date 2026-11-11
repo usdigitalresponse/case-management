@@ -1,0 +1,98 @@
+/* Uploading and Intake: steps, drop zone, files and bulk import. */
+/* Upload (portal/PortalUpload.tsx). */
+.steps { display: flex; flex-wrap: wrap; gap: .5rem 1.6rem; margin: 0 0 1.4rem; padding: 0; list-style: none; color: var(--ink-muted); font-size: .92rem; }
+.steps li { display: flex; align-items: center; gap: .5rem; }
+.steps__number { display: inline-flex; align-items: center; justify-content: center; width: 1.4rem; height: 1.4rem; border-radius: 999px; background: var(--line); color: var(--ink-muted); font-size: .72rem; font-weight: 600; }
+.steps__current { color: var(--ink); font-weight: 600; }
+.steps__current .steps__number { background: var(--primary); color: white; }
+.upload-card { display: flex; flex-direction: column; gap: 1.25rem; padding: 1.5rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.upload-card__intro, .upload-card__heading { margin: 0; font-size: .95rem; }
+.upload-card__heading { font-weight: 600; overflow-wrap: anywhere; }
+.upload-card__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.2rem; }
+.upload-card__actions .field-hint { margin: 0; }
+.upload-card > .notice { margin: 0; }
+.drop-zone { display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: 1.6rem 1rem; border: 1.5px dashed var(--line-strong); border-radius: var(--radius); background: var(--table-head); text-align: center; font-size: .85rem; color: var(--ink-muted); cursor: pointer; }
+.drop-zone strong { color: var(--ink); font-size: .95rem; }
+.drop-zone:hover, .drop-zone--over { border-color: var(--primary); background: var(--row-open); }
+.drop-zone:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.file-cards { display: flex; flex-direction: column; gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.file-card { display: flex; align-items: center; gap: .9rem; padding: .8rem 1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.file-card--current { border: 2px solid var(--primary); background: var(--row-open); }
+.file-card__badge { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.75rem; border-radius: 4px; background: var(--danger-tint); color: var(--color-on-error-container); font-size: .62rem; font-weight: 700; }
+.file-card__name { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; gap: .15rem; font-size: .78rem; color: var(--ink-faint); }
+.file-card__name strong { color: var(--ink); font-size: .92rem; overflow-wrap: anywhere; }
+.file-card__status { display: flex; flex-direction: column; align-items: flex-end; gap: .2rem; text-align: right; font-size: .78rem; color: var(--ink-muted); }
+.file-card__status .link-button { font-size: .78rem; font-weight: 600; }
+.file-card__status .import-progress { min-width: 10rem; }
+.file-card__ok { color: var(--success); font-weight: 600; font-size: .85rem; }
+.file-card__current { color: var(--primary); font-weight: 600; }
+.file-card__error { color: var(--danger); font-weight: 600; max-width: 18rem; }
+.upload-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.25rem 1rem; }
+.upload-details .usa-label { margin: 0 0 .4rem; font-size: .88rem; }
+.upload-details .usa-select, .upload-details .usa-input { max-width: none; width: 100%; height: 2.5rem; margin: 0; }
+/* Adding someone takes the whole row; the picker keeps its column's width. */
+.upload-details__field:has(.new-entry) { grid-column: 1 / -1; }
+@media (min-width: 48rem) {
+  .upload-details__field:has(.new-entry) > .pick-or-add > .usa-select { max-width: calc(50% - .5rem); }
+}
+/* Who it is from and how it came in, above the drop zone (pages/UploadInvoices.tsx). */
+.upload-card__about { margin-bottom: 1.5rem; }
+.upload-card__about > .upload-details { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+.upload-card__about .add-sender { margin-top: .75rem; }
+.file-senders { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: .5rem; }
+.file-senders li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(12rem, 18rem); gap: .75rem; align-items: center; }
+.file-senders label { font-size: .88rem; overflow-wrap: anywhere; }
+.file-senders .usa-select { max-width: none; width: 100%; height: 2.5rem; margin: 0; }
+@media (max-width: 40em) {
+  .file-senders li { grid-template-columns: 1fr; gap: .25rem; }
+}
+.upload-period { display: flex; align-items: center; gap: .5rem; }
+.upload-period .usa-input { flex: 1 1 0; min-width: 0; }
+.upload-footnote { margin: 1rem 0 0; color: var(--ink-muted); font-size: .85rem; }
+.upload-footnote a { font-weight: 600; }
+@media (max-width: 40rem) {
+  .file-card { flex-wrap: wrap; }
+  .file-card__status { align-items: flex-start; text-align: left; width: 100%; }
+}
+.import-case { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; margin: 0 0 1.5rem; }
+.import-case .cell-note { margin: 0; }
+.kind-cell { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .75rem; }
+/* Bulk import: three steps, the current one marked. */
+.bulk-steps { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; margin: 0 0 1.2rem; padding: 0; }
+.bulk-steps li { display: flex; align-items: center; gap: .45rem; padding: .3rem .8rem .3rem .4rem; border-radius: 999px; background: var(--neutral-tint); color: var(--ink-muted); font-size: .85rem; white-space: nowrap; }
+.bulk-steps .bulk-step-number { display: inline-flex; align-items: center; justify-content: center; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--surface); font-weight: 700; font-size: .75rem; }
+.bulk-steps li.is-current { background: var(--ink); color: white; font-weight: 700; }
+.bulk-steps li.is-current .bulk-step-number { color: var(--ink); }
+.bulk-steps li.is-done { background: var(--success-tint); color: var(--success); }
+.bulk-step-section { margin-top: 2rem; }
+.bulk-step-section h3 { margin: 1.2rem 0 .5rem; font-size: 1rem; }
+.bulk-position { margin: -.4rem 0 .8rem; font-size: .9rem; color: var(--ink-muted); }
+/* A file still being read: what's happening and how far through. */
+.import-progress { display: grid; gap: .4rem; max-width: 36rem; margin: 1rem 0; }
+.import-progress progress { width: 100%; height: .6rem; accent-color: var(--primary); }
+.import-progress .compact-hint { margin: 0; }
+.import-progress-compact { margin: 0; gap: .25rem; font-size: .9rem; min-width: 14rem; }
+/* Bulk import: assigning a one-person file's lines to cases. */
+.split-assignment { margin-top: 1rem; }
+.split-assignment h3 { margin: 0 0 .3rem; }
+.split-assignment .usa-select { margin: 0; min-width: 12rem; height: 2.25rem; padding: .25rem 2rem .25rem .5rem; }
+.kind-cell .usa-select { margin: 0; width: auto; min-width: 9rem; height: 2.25rem; padding: .25rem 2rem .25rem .5rem; }
+.assign-all { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; margin: 0 0 .8rem; padding: .5rem .7rem; background: var(--neutral-tint); border-radius: 6px; }
+.assign-all .usa-label { margin: 0; font-size: .85rem; flex-basis: 100%; }
+.assign-all .usa-select { margin: 0; width: auto; min-width: 12rem; height: 2.25rem; padding: .25rem .5rem; }
+/* New invoice and Intake: two ways to start, side by side. */
+.start-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1rem; margin-top: 1.2rem; }
+.start-option { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
+.start-option h2 { margin: 0; font-size: 1.05rem; }
+.start-option .usa-select { max-width: 100%; margin: 0; }
+/* Staff entering an invoice received elsewhere: how and when it came in. */
+.received-fields { margin: 0 0 .8rem; padding: .7rem .9rem; border: 1px solid var(--line); border-radius: 6px; background: var(--info-tint); }
+.received-fields legend { padding: 0 .3rem; font-size: .9rem; font-weight: 600; }
+.received-fields__row { grid-template-columns: minmax(10rem, 16rem) 11rem; }
+.received-fields .compact-hint { margin-top: .4rem; }
+/* Intake */
+.intake-match { grid-template-columns: minmax(0, 24rem) auto; margin-bottom: .6rem; }
+.intake-provider { margin: 0 0 1.2rem; }
+/* Side by side where there's room; in a narrow column, each takes a row. */
+.intake-provider__fields { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }
+.intake-add { gap: .75rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }

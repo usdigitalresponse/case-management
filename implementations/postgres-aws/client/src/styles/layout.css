@@ -1,0 +1,94 @@
+/* The staff and portal shells: header, sidebar, main area and page titles. */
+.app-header { display: flex; align-items: center; gap: 1rem; min-height: 56px; padding: .5rem 2rem; background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); border-bottom: 1px solid var(--color-inverse-surface); }
+.app-header .link-button { color: var(--color-inverse-primary); }
+.app-brand { color: var(--color-on-inverse-surface); text-decoration: none; font-family: var(--font-serif); font-size: 20px; font-weight: 600; letter-spacing: -.2px; white-space: nowrap; }
+/* One row, as in the design: the search shrinks before anything wraps. The
+   note sits under the name. */
+.app-brand-block { display: flex; flex: none; flex-direction: column; line-height: 1.2; }
+.header-badge { white-space: nowrap; font-size: 11px; color: var(--color-inverse-primary); }
+.header-search { flex: 0 1 26rem; min-width: 12rem; margin-left: 2rem; }
+.header-search input { width: 100%; box-sizing: border-box; height: 2.1rem; padding: 0 .9rem; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); color: var(--ink); }
+.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; margin-left: auto; white-space: nowrap; }
+.user-name { display: inline-block; font-size: .9rem; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.header-actions .link-button { font-size: .9rem; }
+.app-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: calc(100vh - 57px); }
+.app-sidebar { padding: 1.4rem .5rem; border-right: 1px solid var(--line); background: var(--sidebar); }
+.app-sidebar a:not(.btn), .nav-group button { display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; padding: .45rem .75rem; text-align: left; border: 0; border-radius: 6px; text-decoration: none; color: var(--ink); background: transparent; font-size: .92rem; }
+.app-sidebar a:hover { background: var(--line); }
+/* Bold and a bar too, so the selection doesn't rest on color alone. */
+.app-sidebar a.active { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; box-shadow: inset 3px 0 0 var(--color-primary); }
+.nav-count { font-size: .78rem; color: var(--ink-muted); }
+.app-sidebar a.active .nav-count { color: var(--primary); }
+/* A count chip beside a section heading. */
+.heading-count { margin-left: .5rem; vertical-align: .2em; }
+/* Intake: where invoices come in, so it reads as the main action. */
+.app-sidebar a.nav-primary { background: var(--primary); color: white; font-weight: 700; padding: .6rem .85rem; }
+.app-sidebar a.nav-primary:hover { background: var(--primary-hover); }
+.app-sidebar a.nav-primary.active { background: var(--primary); color: white; }
+.app-sidebar a.nav-primary .nav-count { min-width: 1.4rem; padding: .05rem .4rem; border-radius: 999px; background: white; color: var(--primary); font-weight: 700; text-align: center; }
+.nav-group + .nav-group { margin-top: 1.6rem; }
+.nav-group h2 { padding: 0 .75rem; margin: 0 0 .35rem; font-size: .68rem; line-height: 1.5; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
+.nav-group button:disabled { color: var(--ink-faint); cursor: not-allowed; justify-content: flex-start; gap: .4rem; }
+.app-main { min-width: 0; padding: 2rem 2rem 6rem; }
+/* <main tabIndex={-1}> is a skip-link landing target, not an interactive
+   control — once it's focused (e.g. via "Skip to main content"), the
+   default outline would otherwise persist across every client-side route
+   change, since an SPA navigation never reloads the page to clear it. */
+.app-main:focus { outline: none; }
+/* Shown only if the next page is slow to load. */
+.page-loading { position: fixed; inset: 0 0 auto; height: 3px; z-index: 1000; background: var(--color-primary); transform-origin: left; animation: page-loading 2s ease-out 200ms both; }
+@keyframes page-loading { from { transform: scaleX(0); } to { transform: scaleX(.9); } }
+@media (prefers-reduced-motion: reduce) {
+  .page-loading { animation-duration: 1ms; }
+}
+/* Headline/Large. */
+.app-main h1, .portal-page h1 { font-family: var(--font-serif); font-size: 32px; font-weight: 600; letter-spacing: -.5px; margin: 0 0 .7rem; line-height: 1.2; }
+.page-heading { margin-bottom: 1.5rem; }
+.eyebrow { color: var(--ink-faint); text-transform: uppercase; font-size: 11px; font-weight: 600; letter-spacing: .6px; margin: 0 0 .65rem; }
+.page-description { margin: 0; color: var(--ink-faint); font-size: .85rem; }
+/* The portal (portal/ExternalPortalApp.tsx): one top bar, no sidebar. */
+.portal-header { gap: .75rem; }
+.portal-header .user-name { max-width: 11rem; }
+.portal-badge { padding: .15rem .55rem; border-left: 1px solid var(--color-inverse-primary); color: var(--color-on-inverse-surface); font-size: 13px; white-space: nowrap; }
+.portal-tabs { display: flex; align-self: stretch; gap: .25rem; margin-left: 1rem; }
+.portal-tabs a { display: flex; align-items: center; padding: 0 .65rem; color: var(--color-on-inverse-surface); text-decoration: none; font-size: .92rem; white-space: nowrap; border-bottom: 3px solid transparent; }
+.portal-tabs a:hover { border-bottom-color: var(--color-inverse-primary); }
+.portal-tabs a.active { font-weight: 600; border-bottom-color: var(--color-inverse-primary); }
+@media (max-width: 52rem) {
+  .portal-tabs { order: 3; flex-basis: 100%; margin: 0; overflow-x: auto; }
+  .portal-header { flex-wrap: wrap; }
+}
+.portal-page { min-height: calc(100vh - 57px); box-sizing: border-box; background: var(--sidebar); }
+/* Page widths from the design: the list, and the narrower upload. */
+.portal-content { max-width: 75rem; margin: 0 auto; }
+.portal-narrow { max-width: 47.5rem; margin: 0 auto; }
+.portal-title-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem; }
+.portal-title-row h1 { margin-bottom: .3rem; }
+.portal-content > .notice { margin-bottom: 1rem; }
+@media (max-width: 1250px) {
+  .app-layout { grid-template-columns: 195px minmax(0, 1fr); }
+  .app-main { padding: 2rem 1.2rem; }
+}
+@media (max-width: 760px) {
+  .app-header { padding: 1rem; }
+  .header-actions { flex-wrap: wrap; justify-content: flex-start; margin: 0; }
+  .app-layout { display: block; }
+  .app-sidebar { border-right: 0; border-bottom: 1px solid var(--line); padding: .7rem 1rem; }
+  .app-sidebar nav { display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
+  .nav-group, .nav-group + .nav-group { display: flex; flex-wrap: wrap; gap: .2rem; margin: 0; }
+  .app-sidebar .nav-group a:not(.btn) { width: auto; gap: .4rem; }
+  .nav-group h2, .nav-group button { display: none; }
+}
+@media (max-width: 480px) {
+  .app-main h1, .portal-page h1 { font-size: 1.7rem; }
+}
+.portal-main section { margin-top: 1.6rem; }
+.portal-main section > h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
+/* Case page tables: amounts and row actions as in the queue. */
+.portal-main .data-card .amount { font-weight: 600; }
+.portal-main .row-actions a { font-weight: 600; text-decoration: none; }
+.portal-main .compact-card h3 { font-size: 1rem; }
+@media (max-width: 760px) {
+  .header-search { flex-basis: 100%; margin: 0; order: 3; }
+  .app-header { flex-wrap: wrap; }
+}

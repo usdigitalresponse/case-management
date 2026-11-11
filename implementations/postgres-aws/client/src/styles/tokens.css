@@ -1,0 +1,83 @@
+/* Design system tokens, named as in Figma. Text stays 4.5:1 or better: on a
+   *-container fill it uses on-*-container. */
+:root {
+  --color-primary: #005a9c;
+  --color-on-primary: #ffffff;
+  --color-primary-hover: #055187;
+  --color-primary-container: #dff0ff;
+  --color-on-primary-container: #0a4370;
+  --color-primary-container-low: #f0f8ff;
+  --color-secondary-container: #e5e7eb;
+  --color-on-secondary-container: #1f2937;
+  --color-tertiary: #eab308;
+  --color-tertiary-container: #fef9c3;
+  --color-on-tertiary-container: #713f12;
+  --color-focus: #eab308;
+  --color-error: #dc2626;
+  --color-on-error: #ffffff;
+  --color-error-container: #fee2e2;
+  --color-on-error-container: #7f1d1d;
+  --color-success: #15803d;
+  --color-success-container: #dcfce7;
+  --color-on-success-container: #14532d;
+  --color-surface: #ffffff;
+  --color-surface-container-low: #f9fafb;
+  --color-surface-container: #f3f4f6;
+  --color-surface-container-high: #e5e7eb;
+  --color-on-surface: #111827;
+  --color-on-surface-variant: #4b5563;
+  --color-on-surface-muted: #6b7280;
+  --color-outline: #6b7280;
+  --color-outline-variant: #d1d5db;
+  --color-outline-subtle: #e5e7eb;
+  --color-inverse-surface: #072a4a;
+  --color-on-inverse-surface: #ffffff;
+  --color-inverse-primary: #b9e1fe;
+  --color-scrim: #030712;
+
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+
+  --space-1: 1px;
+  --space-2: 2px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+
+  --elevation-1: 0 1px 3px 1px rgba(7, 42, 74, .3);
+  --elevation-2: 0 2px 6px 1px rgba(7, 42, 74, .3);
+  --elevation-3: 0 4px 6px 2px rgba(7, 42, 74, .25);
+  --elevation-4: 0 6px 8px 2px rgba(7, 42, 74, .3);
+
+  /* Older names, kept as aliases of the roles above. */
+  --font: var(--font-sans);
+  --ink: var(--color-on-surface);
+  --ink-muted: var(--color-on-surface-variant);
+  --ink-faint: var(--color-on-surface-muted);
+  --line: var(--color-outline-subtle);
+  --line-strong: var(--color-outline-variant);
+  --surface: var(--color-surface);
+  --table-head: var(--color-surface-container-low);
+  --row-open: var(--color-primary-container-low);
+  --canvas: var(--color-surface);
+  --sidebar: var(--color-surface-container);
+  --primary: var(--color-primary);
+  --primary-hover: var(--color-primary-hover);
+  --primary-tint: var(--color-primary-container);
+  --danger: var(--color-error);
+  --danger-line: var(--color-error);
+  --danger-tint: var(--color-error-container);
+  --success: var(--color-success);
+  --success-tint: var(--color-success-container);
+  --warning: var(--color-on-tertiary-container);
+  --warning-line: var(--color-tertiary);
+  --warning-tint: var(--color-tertiary-container);
+  --info: var(--color-on-primary-container);
+  --info-tint: var(--color-primary-container-low);
+  --link-on-dark: var(--color-inverse-primary);
+  --neutral-tint: var(--color-surface-container);
+  --radius: 8px;
+  font-family: var(--font);
+  color: var(--ink);
+  background: var(--canvas);
+}

@@ -1,0 +1,32 @@
+/* Chips, notices, toasts and flags on entered details. */
+/* Chips and status pills: the design's tag. */
+.chip { display: inline-flex; align-items: center; gap: .35rem; padding: var(--space-2) var(--space-4); border-radius: 4px; font-family: var(--font-sans); font-size: 11px; font-weight: 600; letter-spacing: .2px; line-height: 1.25; background: var(--color-secondary-container); color: var(--color-on-secondary-container); white-space: nowrap; border: 0; }
+.chip--success { background: var(--color-success-container); color: var(--color-on-success-container); }
+.chip--warning { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+.chip--danger { background: var(--color-error-container); color: var(--color-on-error-container); }
+.chip--info { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+.chip--filter { cursor: pointer; padding: .3rem .75rem; }
+.chip--filter[aria-pressed="true"] { background: var(--ink); color: white; }
+.chip--filter[aria-pressed="false"]:not(.chip--warning) { background: var(--neutral-tint); color: var(--ink-muted); }
+.chip-filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
+.chip-count { font-weight: 400; }
+/* Notices (components/Notice.tsx): context with an optional action. */
+.notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin: 0 0 1rem; padding: .75rem 1rem; border-radius: 4px; border-left: 3px solid; font-size: .88rem; }
+.notice__body { flex: 1 1 20rem; min-width: 0; }
+.notice__heading { display: block; margin: 0 0 .2rem; font-size: .95rem; font-weight: 700; }
+.notice__body ul { margin: .2rem 0 0; padding-left: 1.2rem; }
+.notice__action { display: flex; flex-wrap: wrap; gap: .5rem; }
+.notice a { color: inherit; font-weight: 700; }
+.notice a.btn--outline { color: var(--primary); font-weight: 600; }
+.notice--warning { background: var(--color-tertiary-container); border-color: var(--color-tertiary); color: var(--color-on-tertiary-container); }
+.notice--info { background: var(--color-primary-container-low); border-color: var(--color-primary); color: var(--color-on-primary-container); }
+.notice--success { background: var(--color-success-container); border-color: var(--color-success); color: var(--color-on-success-container); }
+.notice--danger { background: var(--color-error-container); border-color: var(--color-error); color: var(--color-on-error-container); }
+/* Message with Undo, at the bottom of the screen. */
+.toast { position: fixed; z-index: 30; left: 50%; bottom: 2rem; transform: translateX(-50%); display: flex; align-items: center; gap: 1.5rem; padding: .7rem 1.1rem; border-radius: var(--radius); background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); box-shadow: var(--elevation-3); font-size: .9rem; }
+.toast__undo { border: 0; background: none; color: var(--link-on-dark); font-weight: 700; cursor: pointer; padding: 0; }
+.entered-flag { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .5rem; margin: .15rem .25rem 0 0; border-radius: 999px; border: 1px solid var(--warning-line); background: var(--warning-tint); color: var(--warning); font-size: .72rem; font-weight: 700; white-space: normal; }
+.entered-flag::before { content: "⚑"; }
+.entered-details { margin: .4rem 0 .6rem; padding-left: 1.1rem; }
+.entered-details p { margin: .2rem 0; }
+.entered-flag--compact { padding: 0 .45rem; font-size: .7rem; white-space: nowrap; vertical-align: middle; cursor: help; }

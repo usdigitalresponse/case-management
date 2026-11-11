@@ -1,0 +1,39 @@
+/* Page headers, sections, facts strips and list toolbars. */
+/* List toolbar: result count + client-side filter. */
+.stage-filter-note { color: var(--ink-faint); font-size: .85rem; margin: 1.2rem 0 0; }
+.list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin: 1.2rem 0 1.1rem; }
+.list-toolbar .clearable { flex: 0 1 300px; }
+.list-toolbar .usa-input { margin: 0; }
+.list-toolbar .chip-filters { margin: 0; }
+.list-toolbar__filters { display: flex; flex: 0 1 34rem; align-items: center; gap: .75rem; }
+.list-toolbar__filters .clearable { flex: 1 1 14rem; min-width: 0; }
+.list-toolbar__filters .usa-select { height: 2.5rem; min-width: 12rem; }
+.list-count { color: var(--ink-faint); font-size: .85rem; white-space: nowrap; }
+.detail-section { margin-top: 2.2rem; }
+.detail-section h2 { font-size: 1.1rem; margin: 0 0 .85rem; }
+/* Page headings */
+.page-title-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.2rem; }
+.page-title-row > :first-child { flex: 1 1 20rem; min-width: 0; }
+.page-title-row h1 { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.title-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin: 0; color: var(--ink-muted); font-size: .92rem; }
+.title-meta strong { color: var(--ink); }
+.title-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .5rem; }
+.breadcrumb { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .6rem; font-size: .82rem; color: var(--ink-faint); }
+.breadcrumb a { color: var(--ink-faint); text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+/* Facts strip and progress */
+.facts-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin: 0 0 1rem; padding: 1rem 1.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.facts-strip dt { margin: 0 0 .25rem; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
+.facts-strip dd { margin: 0; font-size: .95rem; }
+.progress { display: block; width: 100%; max-width: 7rem; height: 4px; margin-top: .4rem; background: var(--line); border-radius: 2px; overflow: hidden; }
+.progress span { display: block; height: 100%; background: var(--primary); }
+.page-tabs { margin-bottom: 1rem; }
+.section-heading-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin-bottom: .85rem; }
+.section-heading-row h2 { margin: 0; }
+/* People, a person's page and search results. */
+.list-controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem 1rem; margin: 0 0 1rem; }
+.list-controls .chip-filters { margin: 0; }
+.list-controls__search { flex: 0 1 18rem; }
+.list-controls__search .usa-input { max-width: none; width: 100%; height: 2.25rem; margin: 0; }
+.search-totals { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: .75rem 1rem; margin-top: 1rem; }
+.search-totals .compact-hint { margin: .2rem 0 0; }

@@ -438,7 +438,9 @@ How the React client is built and why. Schema mapping and gaps are in
     status waits on external completion records, which aren't built. Staff
     open portal invoice pages from Intake in their own shell, where the
     older draft editor (`PortalInvoiceDetail.tsx`) still applies.
-- **Design system** (`client/src/app.css`): color roles, spacing,
+- **Design system** (`client/src/styles/`, imported once in order by
+  `index.css`: tokens, base, layout and shared components, then one file per
+  area such as `review.css` or `line-editor.css`): color roles, spacing,
   elevation and type follow the team's Figma design system, itself built on
   a Keystone-style role scheme (`--color-primary`, `--color-on-*-container`
   and so on, named as in Figma). The older short names (`--primary`,
@@ -581,6 +583,17 @@ How the React client is built and why. Schema mapping and gaps are in
   `<ScrollRestoration />`: a new page opens at the top and Back returns
   to where you were; a page's own filter changes pass
   `preventScrollReset`.
+- **The review page** (`src/pages/InvoiceReview.tsx`) only lays out its
+  sections from `src/pages/review/`: `useReviewPage` holds its data, what
+  is open and the action runner (`act`); `reviewFacts` works out what it
+  shows and allows (unit tested); `lineCells` builds each line's decision,
+  questions and open form; the rest are its sections, top to bottom.
+- **Styles** (`src/styles/`) are plain global CSS with BEM-style names,
+  as USWDS is, in one file per area, imported in a fixed order by
+  `index.css` so later files can override earlier ones. A rule used by one
+  area goes in that area's file; one shared across areas goes in the shared
+  files (`buttons`, `feedback`, `page`, `tables`, `forms`, `pickers`,
+  `overlays`).
 - **Tests**: hooks that need React or a router run in jsdom with React
   Testing Library (`// @vitest-environment jsdom` at the top of the
   file; a router test also imports `src/testing/routerInJsdom.ts`).

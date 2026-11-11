@@ -1,0 +1,131 @@
+/* Reviewing an invoice (pages/InvoiceReview.tsx): lines, decisions, questions, totals and sign-off. */
+/* The submitter's file beside the lines. */
+.review-file-layout { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 9fr); gap: 1rem; align-items: start; }
+.review-file-layout__lines { min-width: 0; }
+.change-note { display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; margin-top: .35rem; }
+.change-note__text .link-button { font-size: .8rem; font-weight: 600; }
+.change-note__show { display: block; margin-top: .3rem; font-weight: 600; }
+.removed-lines { margin-top: .6rem; }
+.removed-lines caption { padding: .6rem 1.1rem; text-align: left; font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-muted); }
+.removed-lines td { color: var(--ink-faint); }
+.removed-lines .chip { display: block; width: fit-content; margin-top: .3rem; }
+@media (max-width: 64rem) {
+  .submission__layout, .review-file-layout { grid-template-columns: 1fr; }
+}
+.trip-note { display: block; margin-top: .15rem; font-size: .78rem; line-height: 1.3; color: var(--ink-faint); }
+.trip-note--flagged { color: var(--danger); font-weight: 600; }
+/* A button laid out as a note keeps the link's look. */
+.link-button.trip-note { color: var(--primary); font-size: inherit; }
+.stops-form { display: grid; gap: .4rem; margin-top: .4rem; font-size: .85rem; }
+.stops-form input { display: block; width: 100%; box-sizing: border-box; margin-top: .2rem; padding: .35rem .5rem; border: 1px solid var(--line-strong); border-radius: 6px; }
+.rule-findings ul { margin: .3rem 0 0; padding-left: 1.2rem; }
+/* An invoice whose lines are still being entered (EntryBadge). */
+.entry-badge { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: 0 0 1rem; }
+.entry-badge .cell-note { margin-top: 0; }
+/* Review table */
+.review-table td { vertical-align: top; }
+.review-table td.line-date-cell { white-space: nowrap; }
+.review-table tr.is-rejected td:not(.decision-cell) { opacity: .6; }
+.review-table tr.is-open, .review-table tr.detail-row { background: var(--row-open); }
+.review-table tr.is-flagged { background: var(--warning-tint); }
+.data-card table.review-table tbody tr.detail-row:hover { background: var(--row-open); }
+.data-card table tr.detail-row td { padding: 0; }
+.decision-cell { min-width: 18.5rem; }
+.decision-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
+/* Approve, Approve part and Reject stay on one line. */
+.decision-bar { display: inline-flex; flex-wrap: nowrap; }
+.decision-bar button { margin: 0 0 0 -1px; padding: .4rem .8rem; border: 1px solid var(--color-primary); background: var(--surface); color: var(--color-primary); font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; }
+.decision-bar button:first-child { margin-left: 0; border-radius: 6px 0 0 6px; }
+.decision-bar button:last-child { border-radius: 0 6px 6px 0; }
+.decision-bar button:hover:not(:disabled) { background: var(--row-open); }
+.decision-bar button.is-active { position: relative; background: var(--color-primary); color: var(--surface); }
+.decision-bar .decision-bar__reject { color: var(--color-error); }
+.decision-bar .decision-bar__reject.is-active { background: var(--color-error); border-color: var(--color-error); }
+.decision-bar button:disabled { opacity: .6; cursor: default; }
+.decision-panel__question { max-width: 36rem; margin-bottom: .5rem; }
+.decision-buttons > .link-button { font-size: .85rem; }
+/* Asking about a line, under its questions. */
+.line-ask { margin: 0; padding: 0 1.5rem .7rem; font-size: .85rem; }
+.icon-link { display: inline-flex; align-items: center; margin-left: .6rem; vertical-align: middle; color: var(--primary); }
+.question-form { margin: 0; padding: .4rem 1.5rem .6rem; border-left: 3px solid var(--primary); background: var(--row-open); }
+.question-form__row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; }
+.question-form__row .usa-input { flex: 1 1 18rem; max-width: 36rem; margin: 0; padding: .35rem .6rem; height: auto; }
+.question-form__row .btn { padding: .35rem .9rem; }
+.question-form .cell-note { margin-top: .25rem; }
+/* A line's questions, in the full-width row under it. */
+.line-questions { display: grid; gap: .5rem; margin: 0; padding: .6rem 1.5rem .9rem; list-style: none; }
+.line-question { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .5rem 1.5rem; padding: .6rem .9rem; border-left: 3px solid var(--line-strong); border-radius: 0 6px 6px 0; background: var(--surface); }
+.line-question--open { border-left-color: var(--warning-line); background: var(--warning-tint); }
+.line-question__body { flex: 1 1 24rem; max-width: 48rem; }
+.line-question__body p { margin: 0; }
+.line-question__meta { font-size: .8rem; color: var(--ink-muted); }
+.line-question__meta strong { color: var(--ink); }
+.line-question__body .line-question__meta--answer { margin-top: .5rem; }
+.question-chips { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
+.line-question__answer { flex-basis: 100%; }
+.line-question__answer label { display: block; font-size: .85rem; color: var(--ink-muted); }
+.line-question__answer textarea { display: block; width: 100%; box-sizing: border-box; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); background: var(--surface); }
+.decision-hint { color: var(--primary); }
+.decision-summary__head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.decision-summary__why { margin: .3rem 0 0; font-size: .88rem; }
+.decision-history { margin-top: .3rem; font-size: .82rem; }
+.decision-history ol { margin: .3rem 0 0; padding-left: 1.1rem; color: var(--ink-muted); }
+/* Approve part / reject panel */
+.decision-panel { margin: 0; padding: 1.1rem 1.5rem 1.3rem; border-left: 3px solid var(--primary); }
+.decision-panel--rejected { border-left-color: var(--danger); }
+.decision-panel h3 { margin: 0 0 .8rem; font-size: 1rem; }
+.decision-panel__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.2rem 2rem; }
+.decision-panel fieldset { margin: 0; padding: 0; border: 0; }
+.decision-panel legend { margin-bottom: .5rem; font-weight: 600; font-size: .9rem; }
+.decision-panel label { font-size: .85rem; color: var(--ink-muted); }
+.decision-panel input[type="number"], .decision-panel textarea, .send-back-form textarea { display: block; width: 100%; box-sizing: border-box; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); background: var(--surface); }
+.decision-panel__result { margin: .8rem 0 0; }
+.decision-panel__result strong { display: block; font-size: 1.1rem; color: var(--ink); }
+.decision-panel__note { display: block; }
+.decision-panel__rate-result { margin: .6rem 0 0; font-size: .85rem; font-weight: 600; color: var(--ink); }
+.decision-panel__rate-reason { display: block; max-width: 24rem; margin-top: .8rem; }
+.decision-panel--rate input[type="number"] { max-width: 10rem; }
+.decision-panel__case-rate { margin: .6rem 0 0 1.6rem; display: grid; gap: .6rem; }
+.decision-panel__case-rate .inline-pair { grid-template-columns: 1fr 1fr; max-width: 26rem; }
+.decision-panel select, .decision-panel input[type="date"] { display: block; width: 100%; box-sizing: border-box; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); background: var(--surface); }
+.case-rates { margin: 1rem 0; }
+.case-rates summary { cursor: pointer; font-size: .9rem; color: var(--ink-muted); }
+/* Totals and sign-off */
+.totals-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1rem 2rem; margin-top: 1rem; padding: 1rem 1.5rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.totals-bar dl { display: flex; flex-wrap: wrap; gap: 1rem 2.5rem; margin: 0; }
+.totals-bar dt { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
+.totals-bar dd { margin: .2rem 0 0; }
+.total-figure { font-size: 1.35rem; font-weight: 700; }
+.total-figure--good { color: var(--success); }
+.total-figure--cut { color: var(--warning); }
+.totals-bar__next { display: flex; align-items: center; gap: 1.2rem; max-width: 36rem; }
+.totals-bar__next p { margin: 0; font-size: .88rem; color: var(--ink-muted); }
+.sign-off-panel { margin-top: 1.2rem; padding: 1rem 1.5rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.sign-off-panel h2 { margin: 0 0 .4rem; font-size: 1.05rem; }
+.sign-off-panel p { margin: 0 0 .6rem; }
+.send-back-form label { display: block; max-width: 36rem; font-weight: 600; }
+.history-list { margin: 0; padding-left: 1.1rem; }
+.sign-off-approvers { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin: 0 0 1rem; font-size: .9rem; }
+.inline-editor { flex-basis: 100%; max-width: 28rem; padding: .8rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+/* Case card and matching on the review page */
+.invoice-case-card { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem 2rem; align-items: start; margin: 0 0 1rem; padding: 1rem 1.25rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.invoice-case-card p { margin: .25rem 0 0; }
+.invoice-case-card__eyebrow { margin: 0 0 .25rem; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
+.invoice-case-card__client { font-family: var(--font-serif); font-size: 1.25rem; font-weight: 700; text-decoration: none; }
+.invoice-case-card__links { display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; margin-top: .5rem; }
+@media (max-width: 52rem) {
+  .invoice-case-card { grid-template-columns: 1fr; }
+}
+.case-match { margin: 0 0 1rem; padding: .9rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.case-match h2 { margin: 0 0 .5rem; font-size: 1rem; }
+.case-match ul { margin: 0 0 .5rem; padding: 0; list-style: none; }
+.case-match li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .4rem 0; border-top: 1px solid var(--line); }
+.case-match p { margin: .4rem 0 0; }
+/* Finish this review? */
+.confirm-panel { flex-basis: 100%; padding: .9rem 1.1rem; border-radius: var(--radius); background: var(--info-tint); border-left: 3px solid var(--primary); }
+.confirm-panel h3 { margin: 0 0 .3rem; font-size: 1rem; }
+.confirm-panel p { margin: 0; font-size: .9rem; }
+.completion-button { display: flex; margin-top: .35rem; }
+@media (max-width: 760px) {
+  .decision-cell { min-width: 12rem; }
+}

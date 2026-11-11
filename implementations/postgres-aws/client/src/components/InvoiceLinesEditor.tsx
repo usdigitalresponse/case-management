@@ -650,7 +650,7 @@ export function InvoiceLinesEditor({
   // Staff review's columns (client/src/pages/InvoiceReview.tsx), led by the
   // kind of item, which decides whether it takes hours or an amount; a trip
   // takes its miles and costs below. Who did it and its code sit under the
-  // description. Widths and the narrow layouts are in app.css (.line-editor).
+  // description. Widths and the narrow layouts are in styles/line-editor.css.
   const columns = ['Kind', 'Date', 'What was done', 'Hours', 'Rate', 'Amount', ''];
 
   function update(index: number, changes: Partial<LineDraft>) {
@@ -758,7 +758,7 @@ export function InvoiceLinesEditor({
               )
             : undefined;
         return (
-          // data-label: a short visible label when a narrow editor stacks its cells (app.css).
+          // data-label: a short visible label when a narrow editor stacks its cells (styles/line-editor.css).
           <div key={index} className="line-row inline-fields" role="group" aria-label={item}>
             <div className="usa-form-group" data-label="Kind">
               <Label htmlFor={id('type')} className="line-label">{`${item} kind`}</Label>

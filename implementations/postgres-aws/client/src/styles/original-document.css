@@ -1,0 +1,48 @@
+/* The uploaded file beside the lines (components/OriginalDocument.tsx) and import review. */
+.original-document--gone { padding: 1rem; color: var(--ink-muted); font-size: .9rem; }
+/* Import review: the original beside the items, or above them when narrow. */
+.import-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1.2rem; align-items: start; margin-top: .8rem; }
+.import-review-items { min-width: 0; }
+.import-review-intro { margin: .6rem 0 0; font-size: .95rem; }
+.original-document { position: sticky; top: 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+/* The file or time log beside the lines, with the switch between them. */
+.side-panel { position: sticky; top: 1rem; min-width: 0; }
+.side-panel .original-document { position: static; }
+.original-document__bar { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; padding: .6rem .9rem; border-bottom: 1px solid var(--line); }
+.original-document__bar h2 { font-size: .68rem; margin: 0; white-space: nowrap; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-muted); font-weight: 600; }
+.original-document__name { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.original-document__name span { font-size: .88rem; font-weight: 600; overflow-wrap: anywhere; }
+.original-document__bar a { flex: none; font-size: .85rem; font-weight: 600; text-align: right; }
+.original-rows__focus td, .original-rows__focus th { background: var(--warning-tint); }
+/* Page and zoom controls (components/OriginalDocument.tsx). */
+.original-document__frame { position: relative; }
+.original-document__bar { flex-wrap: wrap; align-items: center; }
+.original-document__tools { display: flex; flex: none; align-items: center; gap: .9rem; font-size: .85rem; color: var(--ink-muted); }
+.original-document__page { white-space: nowrap; }
+.zoom-controls { display: inline-flex; align-items: center; gap: .1rem; }
+.zoom-controls button { border: 0; background: none; color: var(--ink-muted); font: inherit; cursor: pointer; border-radius: 4px; }
+.zoom-controls button:hover:not(:disabled) { background: var(--neutral-tint); color: var(--ink); }
+.zoom-controls button:disabled { color: var(--line-strong); cursor: not-allowed; }
+.zoom-controls__step { width: 1.6rem; height: 1.6rem; font-size: 1rem; line-height: 1; }
+.zoom-controls__level { min-width: 3rem; padding: .15rem .25rem; font-variant-numeric: tabular-nums; }
+.original-document__frame { max-height: calc(100vh - 6rem); overflow: auto; padding: .6rem; background: var(--neutral-tint); }
+.original-document__frame:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
+.original-pages { display: flex; flex-direction: column; gap: .6rem; }
+.original-page { position: relative; width: max-content; background: var(--surface); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+.original-page canvas { display: block; }
+.original-highlight { position: absolute; margin: -3px; padding: 3px; box-sizing: content-box; border: 2px solid var(--warning); border-radius: 3px; background: color-mix(in srgb, var(--warning-tint) 45%, transparent); pointer-events: none; }
+.original-text { margin: 0; padding: .6rem; background: var(--surface); font-size: .78rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.original-rows { border-collapse: collapse; background: var(--surface); font-size: .8rem; }
+.original-rows th, .original-rows td { border: 1px solid var(--line); padding: .2rem .4rem; white-space: nowrap; }
+.original-rows th { color: var(--ink-faint); font-weight: normal; }
+.import-review-items h2 { font-size: 1.1rem; margin: 0 0 .6rem; }
+.import-suggestions { margin-top: 1rem; }
+.import-suggestions h3 { margin: 0 0 .3rem; font-size: 1rem; }
+.import-suggestions ul { list-style: none; margin: .6rem 0 0; padding: 0; }
+.import-suggestions li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .75rem; align-items: center; padding: .4rem 0; border-top: 1px solid var(--line); }
+@media (max-width: 1280px) {
+  .import-review-layout { grid-template-columns: 1fr; }
+  .original-document { position: static; }
+  .original-document__frame { max-height: 50vh; }
+}
+.import-review-items h2 { font-size: 1.05rem; }

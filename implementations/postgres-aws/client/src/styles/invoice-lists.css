@@ -1,0 +1,20 @@
+/* Lists of invoices: the portal's, and unfinished ones. */
+/* Your invoices: rows read at the design's size, lined up at the top so a
+   status with a note doesn't push the rest of the row down. */
+.data-card table.portal-invoices { font-size: .9rem; }
+.data-card table.portal-invoices td, .data-card table.portal-invoices th { padding: 1rem 1.1rem; vertical-align: top; }
+.data-card table.portal-invoices thead th { vertical-align: middle; }
+.portal-invoices th[scope="row"], .portal-invoices td:nth-child(3), .portal-invoices td:nth-child(4) { white-space: nowrap; }
+.portal-invoices .chip + .cell-note { margin-top: .35rem; }
+.portal-invoices__status { min-width: 11rem; }
+.portal-invoices__actions { width: 1%; white-space: nowrap; }
+.portal-invoices__actions .row-actions { flex-wrap: nowrap; }
+.portal-invoices__actions .link-button { font-weight: 600; }
+.portal-needs-changes { margin-bottom: 1.5rem; }
+.portal-needs-changes h2 { color: var(--danger); }
+.portal-invoices .text-warning, .portal-invoices .cell-note--warning { color: var(--warning); }
+.your-drafts { margin: 0 0 1rem; padding: .9rem 1.1rem; background: var(--info-tint); border-radius: var(--radius); }
+.your-drafts h2 { margin: 0 0 .5rem; font-size: .95rem; }
+.your-drafts ul { margin: 0; padding: 0; list-style: none; }
+.your-drafts li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .45rem 0; border-top: 1px solid var(--line); }
+.your-drafts li:first-child { border-top: 0; }

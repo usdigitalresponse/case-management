@@ -1,4 +1,4 @@
-// Shared page-header pattern (see app.css .page-heading/.eyebrow), so every page frames itself the same way.
+// Shared page-header pattern (styles/layout.css: .page-heading, .eyebrow), so every page frames itself the same way.
 export function PageHeading({
   eyebrow,
   title,

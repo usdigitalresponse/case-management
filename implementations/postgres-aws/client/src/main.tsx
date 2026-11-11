@@ -9,7 +9,7 @@ import '@fontsource/ibm-plex-sans/700.css';
 import '@fontsource/ibm-plex-serif/600.css';
 import App from './App';
 import { reloadForNewCode } from './lazyPage';
-import './app.css';
+import './styles/index.css';
 
 window.addEventListener('vite:preloadError', (event) => {
   if (reloadForNewCode()) event.preventDefault();
