@@ -3,8 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const sendMock = vi.fn().mockResolvedValue({});
 
 vi.mock('@aws-sdk/client-sesv2', () => ({
-  SESv2Client: vi.fn().mockImplementation(() => ({ send: sendMock })),
-  SendEmailCommand: vi.fn().mockImplementation((input: unknown) => input),
+  SESv2Client: vi.fn().mockImplementation(function () {
+    return { send: sendMock };
+  }),
+  SendEmailCommand: vi.fn().mockImplementation(function (input: unknown) {
+    return input;
+  }),
 }));
 
 describe('sendEmail', () => {
