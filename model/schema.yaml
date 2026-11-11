@@ -1627,6 +1627,118 @@ entities:
       email:
         type: string
         required: false
+      merged_into_person_id:
+        type: uuid
+        required: false
+        references: person.person_id
+        description: Set when an administrator merged this person into another (merge_duplicate_people); hidden
+          from lists and searches, kept so the merge can be undone. Cleared by undoing it.
+
+  person_duplicate_review:
+    display_name: Person Duplicate Review
+    description: Staff flagging two people as possibly one person recorded twice, or finding they are different
+      people (flag_possible_duplicate_client). Recorded once and never changed; a pair's latest review stands.
+    primary_key: person_duplicate_review_id
+    fields:
+      person_duplicate_review_id:
+        type: uuid
+        required: true
+        generated: true
+      person_id:
+        type: uuid
+        required: true
+        references: person.person_id
+      other_person_id:
+        type: uuid
+        required: true
+        references: person.person_id
+        description: The pair is stored in one order, so a pair has one history.
+      outcome:
+        type: string
+        required: true
+        description: possible_duplicate or not_duplicate.
+      note:
+        type: string
+        required: false
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
+
+  person_merge:
+    display_name: Person Merge
+    description: An administrator merging a person recorded twice into the one kept (merge_duplicate_people).
+      Every value it changed is recorded (person_merge_change) so it can be undone; undoing records who and when.
+    primary_key: person_merge_id
+    fields:
+      person_merge_id:
+        type: uuid
+        required: true
+        generated: true
+      kept_person_id:
+        type: uuid
+        required: true
+        references: person.person_id
+      retired_person_id:
+        type: uuid
+        required: true
+        references: person.person_id
+      note:
+        type: string
+        required: false
+      merged_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      merged_at:
+        type: datetime
+        required: true
+      undone_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+      undone_at:
+        type: datetime
+        required: false
+
+  person_merge_change:
+    display_name: Person Merge Change
+    description: One value a merge changed - a reference moved to the kept person or their provider profile, a
+      detail filled in, or the retired record set aside - with its prior value. Recorded once and never changed.
+    primary_key: person_merge_change_id
+    fields:
+      person_merge_change_id:
+        type: uuid
+        required: true
+        generated: true
+      person_merge_id:
+        type: uuid
+        required: true
+        references: person_merge.person_merge_id
+      position:
+        type: integer
+        required: true
+        description: Order applied; an undo goes in reverse.
+      table_name:
+        type: string
+        required: true
+      column_name:
+        type: string
+        required: true
+      row_id:
+        type: uuid
+        required: true
+      from_value:
+        type: string
+        required: false
+        data_role: snapshot
+      to_value:
+        type: string
+        required: false
+        data_role: snapshot
 
   organization:
     display_name: Organization

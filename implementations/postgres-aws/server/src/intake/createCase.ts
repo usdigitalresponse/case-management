@@ -1,5 +1,5 @@
 // Intake for model/forms.yaml:new_case; all writes share one transaction.
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 import type { PgTable, AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { Database } from '../db/client';
 import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
@@ -52,7 +52,7 @@ async function probableDuplicatePerson(
     const [sameName] = await db
       .select({ id: person.personId })
       .from(person)
-      .where(sql`lower(trim(${person.displayName})) = ${client.displayName.toLowerCase()}`)
+      .where(and(sql`lower(trim(${person.displayName})) = ${client.displayName.toLowerCase()}`, isNull(person.mergedIntoPersonId)))
       .limit(1);
     if (sameName) {
       return `Someone named ${client.displayName} is already in the system. Choose them instead, or confirm this is someone else.`;

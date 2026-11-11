@@ -108,10 +108,9 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   `review_workload_before_assignment` (both `model/rules.yaml`
   `outcome: configurable`) and the "at most one overlapping primary
   assignment per case" rule — every assignment of a given kind uses the
-  one fixed role for that kind, with no further role choice. Also not
-  implemented: `person`'s `flag_possible_duplicate_client` check, since a
-  `professional` here is always auto-created from a unique `user_account`,
-  not user-entered.
+  one fixed role for that kind, with no further role choice. Possible
+  duplicate people are found and merged separately (see "Possible duplicate
+  people" below).
 - **Invoice review** works in rounds, then sign-off (`model/rules.yaml`
   `decide_invoice_lines`, `assign_invoice_review`,
   `enforce_invoice_approval_sequence`; `src/billing/reviewInvoiceLine.ts`,
@@ -1139,11 +1138,41 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   Tour material is ordinary synthetic data and stays until the next demo
   reset (see "Known gaps" in `../MAPPING.md`).
 - **Routes**: `src/routes/cases.ts` (`POST /`, `GET /`, `GET /:id`) and
-  `src/routes/people.ts` (`GET /?q=`, existing-person search only — no
-  duplicate-person warning here, since no person is ever created by this
-  endpoint). All require a session (`requireAuth`). Async handlers are
+  `src/routes/people.ts` (`GET /?q=`, existing-person search, leaving out
+  merged-away people; no person is created there). All require a session (`requireAuth`). Async handlers are
   wrapped in `src/routes/asyncHandler.ts` since Express 4 doesn't forward a
   rejected promise to error middleware on its own.
+- **Possible duplicate people** (`model/rules.yaml`
+  `flag_possible_duplicate_client`, `merge_duplicate_people`;
+  `src/people/possibleDuplicates.ts`, `src/people/personMerges.ts`,
+  `src/routes/people.ts`), staff only:
+  - `GET /api/people/possible-duplicates` lists pairs of unmerged people
+    with the same email (theirs or their sign-in's), the same name ignoring
+    word order, case, punctuation and initials, or the same date of birth
+    and family name, plus pairs staff flagged, leaving out pairs whose
+    latest `person_duplicate_review` is `not_duplicate`. Each person comes
+    with their provider profile, sign-in email and case and invoice counts.
+  - `POST /api/people/possible-duplicates` (`{ personIds, outcome:
+    'possible_duplicate' | 'not_duplicate', note? }`), any staff member,
+    adds a review row; the pair's latest one stands.
+  - `GET /api/people/merge-preview?keep=&retire=`, any staff member, says
+    what a merge would move (counts by kind of record), which of the kept
+    record's empty details it fills in, what it leaves behind, and what
+    blocks it. `GET /api/people/merges` lists the latest 20.
+  - `POST /api/people/merges` and `POST /api/people/merges/:id/undo`,
+    administrators only. A merge locks both people and their profiles,
+    plans again, and refuses with `merge_blocked` if anything blocks it. It
+    moves each reference to the retired person to the kept one; if only
+    the retired person has a provider profile, that profile moves whole,
+    and if both do, everything naming the retired profile moves to the kept
+    one, its sign-in too when the kept profile has none, and the retired
+    profile is made inactive. Own rates, fee schedule and invoice reviewer
+    move only when the kept profile has none. Every changed value goes in
+    `person_merge_change` in order; an undo writes each back, last first,
+    only where it is still as the merge left it, and reports how many were
+    left as they are. Merged-away people are left out of the people and
+    provider lists, person search, email-in-use checks and sign-in matching
+    (`ensureProfessional.ts`).
 - **Indexes**: FK columns used as query filters/joins
   (`case.county_id`/`status_id`/`case_category_id`,
   `case_participant.case_id`, `case_identifier.case_id`) have plain B-tree

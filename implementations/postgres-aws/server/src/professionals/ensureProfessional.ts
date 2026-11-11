@@ -47,7 +47,7 @@ export async function ensureProfessionalForUserAccount(
       .select({ professionalId: professional.professionalId })
       .from(professional)
       .innerJoin(person, eq(professional.personId, person.personId))
-      .where(and(isNull(professional.userAccountId), sql`lower(${person.email}) = ${account.email.toLowerCase()}`));
+      .where(and(isNull(professional.userAccountId), isNull(person.mergedIntoPersonId), sql`lower(${person.email}) = ${account.email.toLowerCase()}`));
     if (added) {
       await db.update(professional).set({ userAccountId }).where(eq(professional.professionalId, added.professionalId));
       return added.professionalId;

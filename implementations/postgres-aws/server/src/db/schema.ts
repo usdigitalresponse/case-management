@@ -130,6 +130,9 @@ export const person = pgTable('person', {
   displayName: text('display_name').notNull(),
   dateOfBirth: date('date_of_birth'),
   email: text('email'),
+  // Set when an administrator merged them into another person
+  // (../people/personMerges.ts); cleared if the merge is undone.
+  mergedIntoPersonId: uuid('merged_into_person_id').references((): AnyPgColumn => person.personId),
 });
 
 // Effective membership of a person in an organization/office
@@ -1256,4 +1259,65 @@ export const signInCode = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('sign_in_code_email_idx').on(table.email)],
+);
+
+// Staff flagging two people as possibly one, or finding they are two
+// (model/rules.yaml flag_possible_duplicate_client; ../people/possibleDuplicates.ts).
+// Insert-only; a pair's latest row stands. person_id sorts before other_person_id.
+export const personDuplicateReview = pgTable(
+  'person_duplicate_review',
+  {
+    personDuplicateReviewId: uuid('person_duplicate_review_id').primaryKey().defaultRandom(),
+    personId: uuid('person_id').notNull().references(() => person.personId),
+    otherPersonId: uuid('other_person_id').notNull().references(() => person.personId),
+    // possible_duplicate or not_duplicate.
+    outcome: text('outcome').notNull(),
+    note: text('note'),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('person_duplicate_review_pair_idx').on(table.personId, table.otherPersonId, table.recordedAt),
+    check('person_duplicate_review_ordered_pair', sql`${table.personId} < ${table.otherPersonId}`),
+    check('person_duplicate_review_outcome', sql`${table.outcome} in ('possible_duplicate', 'not_duplicate')`),
+  ],
+);
+
+// An administrator merging one person into another (../people/personMerges.ts).
+export const personMerge = pgTable(
+  'person_merge',
+  {
+    personMergeId: uuid('person_merge_id').primaryKey().defaultRandom(),
+    keptPersonId: uuid('kept_person_id').notNull().references(() => person.personId),
+    retiredPersonId: uuid('retired_person_id').notNull().references(() => person.personId),
+    note: text('note'),
+    mergedByUserAccountId: uuid('merged_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    mergedAt: timestamp('merged_at', { withTimezone: true }).notNull(),
+    undoneByUserAccountId: uuid('undone_by_user_account_id').references(() => userAccount.userAccountId),
+    undoneAt: timestamp('undone_at', { withTimezone: true }),
+  },
+  (table) => [index('person_merge_merged_at_idx').on(table.mergedAt)],
+);
+
+// Every value a merge changed, so undoing it puts each back. Insert-only.
+export const personMergeChange = pgTable(
+  'person_merge_change',
+  {
+    personMergeChangeId: uuid('person_merge_change_id').primaryKey().defaultRandom(),
+    personMergeId: uuid('person_merge_id')
+      .notNull()
+      .references(() => personMerge.personMergeId),
+    // Undone last first.
+    position: integer('position').notNull(),
+    tableName: text('table_name').notNull(),
+    columnName: text('column_name').notNull(),
+    rowId: uuid('row_id').notNull(),
+    fromValue: text('from_value'),
+    toValue: text('to_value'),
+  },
+  (table) => [index('person_merge_change_merge_idx').on(table.personMergeId)],
 );

@@ -67,6 +67,16 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
     alternateFinished: preload(() => [resources.reviewQueue('finished'), resources.counties]),
     search: preload((args) => (searched(args) ? [resources.invoiceSearch(searched(args)), resources.counties] : []), { searchParams: ['q'] }),
     providers: preload((args) => [resources.providerList(searched(args))], { searchParams: ['q'] }),
+    possibleDuplicates: preload(() => [resources.possibleDuplicates, resources.personMerges]),
+    mergePeople: preload(
+      ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        const keep = params.get('keep');
+        const retire = params.get('retire');
+        return keep && retire ? [resources.mergePreview(keep, retire)] : [];
+      },
+      { searchParams: ['keep', 'retire'] },
+    ),
     personRecords: preload((args) => (searched(args) ? [resources.personRecords(searched(args))] : []), { searchParams: ['q'] }),
     settings: preload(() => [
       resources.professionalKinds,

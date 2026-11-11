@@ -35,6 +35,8 @@ async function selectPeople(db: DatabaseOrTransaction, professionalId?: string) 
       and(
         // A vendor account has no system role; plain `not in` would drop NULLs.
         or(isNull(userAccount.systemRoleId), notInArray(userAccount.systemRoleId, staffAccountRoleIds)),
+        // A merged-away profile is still found by its own id.
+        ...(professionalId ? [] : [isNull(person.mergedIntoPersonId)]),
         ...(professionalId ? [eq(professional.professionalId, professionalId)] : []),
       ),
     )

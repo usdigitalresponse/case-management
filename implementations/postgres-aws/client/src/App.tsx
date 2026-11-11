@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, useLocation, useNavigate, useNavigation, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './AuthContext';
-import { searchPath } from './staffPaths';
+import { POSSIBLE_DUPLICATES_PATH, searchPath } from './staffPaths';
 import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 import { Notice } from './components/ui/Notice';
@@ -123,6 +123,7 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
           <NavLink to="/vendors" end>Providers</NavLink>
           <NavLink to="/clients" end>Clients</NavLink>
           <NavLink to="/organizations" end>Organizations</NavLink>
+          <NavLink to={POSSIBLE_DUPLICATES_PATH}>Possible duplicates</NavLink>
           <NavLink to="/exports" end>Exports</NavLink>
         </div>
         <div className="nav-group">
@@ -215,6 +216,8 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
             { path: '/settings', ...page(() => import('./pages/Settings')), ...loaders.settings },
             { path: '/overview', ...page(() => import('./pages/Overview')), ...loaders.overview },
             // Off the sidebar; still reachable.
+            { path: POSSIBLE_DUPLICATES_PATH, ...page(() => import('./pages/PossibleDuplicates')), ...loaders.possibleDuplicates },
+            { path: `${POSSIBLE_DUPLICATES_PATH}/merge`, ...page(() => import('./pages/MergePeople')), ...loaders.mergePeople },
             { path: '/person-records', ...page(() => import('./pages/PeopleDirectory')), ...loaders.personRecords },
             { path: '/clients', ...page(() => import('./pages/ClientsDirectory')), ...loaders.clients },
             { path: '/organizations', ...page(() => import('./pages/OrganizationsDirectory')), ...loaders.organizations },
