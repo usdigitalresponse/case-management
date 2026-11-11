@@ -1,5 +1,4 @@
 // Filters or groups any list of cases or invoices by county (../counties.ts).
-import { useState } from 'react';
 import { useResource } from '../hooks/useResource';
 import { counties } from '../resources';
 import {
@@ -10,12 +9,13 @@ import {
   NO_COUNTY,
   type CountyRow,
 } from '../counties';
+import { useSearchParamState } from '../hooks/useSearchParamState';
 
 // hideLabel: beside other filters, the first choice reads "All counties" instead.
 export function useCountyControl<T>(rows: T[], countyOf: (row: T) => CountyRow, { hideLabel = false } = {}) {
   const { data } = useResource(counties);
   const options = data ?? [];
-  const [choice, setChoice] = useState(ALL_COUNTIES);
+  const [choice, setChoice] = useSearchParamState<string>('county', ALL_COUNTIES);
   const offered = countyControlOptions(rows, countyOf, options, choice);
   const label = (name: string, count: number) => `${name} (${count})`;
 

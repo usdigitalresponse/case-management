@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import { useResource } from '../hooks/useResource';
 import { cases } from '../resources';
@@ -7,11 +6,12 @@ import { SearchInput } from '../components/SearchInput';
 import { RecordTable } from '../components/RecordTable';
 import { LoadState } from '../components/LoadState';
 import { formatDate } from '../formatDateTime';
+import { useSearchParamState } from '../hooks/useSearchParamState';
 
 // Every case's client, one row per case (design I52).
 export default function ClientsDirectory() {
   const { data, error } = useResource(cases);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useSearchParamState<string>('q', '');
   if (error || !data) return <LoadState error={error} what="clients" />;
 
   const wanted = query.trim().toLowerCase();

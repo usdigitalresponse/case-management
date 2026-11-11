@@ -11,12 +11,13 @@ import { PersonDialog } from '../components/PersonDialog';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { personPath } from '../staffPaths';
+import { useSearchParamState } from '../hooks/useSearchParamState';
 
 export default function People() {
   const navigate = useNavigate();
   const { data, error } = useResource(people);
   const [role, setRole] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useSearchParamState<string>('q', '');
   const [adding, setAdding] = useState(false);
   const roles = useMemo(() => [...new Set((data ?? []).map((person) => person.role ?? 'No role'))].sort(), [data]);
 

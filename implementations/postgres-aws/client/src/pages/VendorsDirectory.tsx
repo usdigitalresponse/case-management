@@ -3,7 +3,6 @@ import { Select } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
   editProfessional,
-  listVendors,
   rateOn,
   setProfessionalKind,
   type ProfessionalKind,
@@ -11,7 +10,7 @@ import {
 } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
-import { professionalKinds } from '../resources';
+import { professionalKinds, providerList } from '../resources';
 import { SearchDirectory } from '../components/SearchDirectory';
 import { AddProvider } from '../components/AddProvider';
 import { Notice } from '../components/Notice';
@@ -142,7 +141,7 @@ export default function VendorsDirectory() {
           Add provider
         </button>
       }
-      fetchFn={(query) => listVendors(query).then((r) => r.professionals)}
+      resource={providerList}
       rowKey={(vendor) => vendor.professionalId}
       columns={[
         {

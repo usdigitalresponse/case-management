@@ -40,7 +40,7 @@ export function resourceQuery<T>(resource: Resource<T>) {
 export function useResource<T>(
   resource: Resource<T> | null,
   { resetKey }: { resetKey?: unknown } = {},
-): { data: T | null; error: unknown; reload: () => Promise<void> } {
+): { data: T | null; error: unknown; fetching: boolean; reload: () => Promise<void> } {
   const keyHash = hashKey(resource?.key ?? NOTHING);
   const committedReset = useRef(resetKey);
   const reset = !Object.is(committedReset.current, resetKey);
@@ -69,5 +69,5 @@ export function useResource<T>(
   }, [refetch]);
   // Read even while hidden: useQuery re-renders only for what a render reads.
   const data = query.data ?? null;
-  return { data: shown ? data : null, error: query.error, reload };
+  return { data: shown ? data : null, error: query.error, fetching: query.isFetching, reload };
 }

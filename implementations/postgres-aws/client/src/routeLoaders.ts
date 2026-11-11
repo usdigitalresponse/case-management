@@ -39,6 +39,7 @@ export function preload(list: (args: LoaderFunctionArgs) => Resource<unknown>[],
 }
 
 const param = (args: LoaderFunctionArgs, name: string) => args.params[name] as string;
+const searched = (args: LoaderFunctionArgs) => new URL(args.request.url).searchParams.get('q')?.trim() ?? '';
 
 export function staffLoaders(user: () => AuthenticatedUser | null) {
   return {
@@ -62,6 +63,11 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
         }),
       ];
     }, { searchParams: ['view'] }),
+    alternateOpen: preload(() => [resources.reviewQueue('open'), resources.counties]),
+    alternateFinished: preload(() => [resources.reviewQueue('finished'), resources.counties]),
+    search: preload((args) => (searched(args) ? [resources.invoiceSearch(searched(args)), resources.counties] : []), { searchParams: ['q'] }),
+    providers: preload((args) => [resources.providerList(searched(args))], { searchParams: ['q'] }),
+    personRecords: preload((args) => (searched(args) ? [resources.personRecords(searched(args))] : []), { searchParams: ['q'] }),
     settings: preload(() => [
       resources.professionalKinds,
       resources.reviewSettings,
@@ -107,4 +113,5 @@ export const portalLoaders = {
   }),
   preauthorizations: preload(() => [resources.myPreauthorizationRequests]),
   preauthorizationRequest: preload((args) => [resources.preauthorizationRequest(param(args, 'requestId'))]),
+  newInvoice: preload(() => [resources.myCases]),
 };

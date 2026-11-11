@@ -285,9 +285,8 @@ function InvoiceSection({
   // Billing changes what time is unbilled.
   onInvoiced: () => void;
 }) {
-  const [listVersion, setListVersion] = useState(0);
   const [showWithdrawn, setShowWithdrawn] = useState(false);
-  const { data, error } = useResource(myCaseInvoices(caseId), { resetKey: listVersion });
+  const { data, error, reload } = useResource(myCaseInvoices(caseId));
   const withdrawnCount = data?.filter((i) => i.statusCode === 'withdrawn').length ?? 0;
 
   return (
@@ -310,7 +309,7 @@ function InvoiceSection({
           showClient={false}
           rows={showWithdrawn ? data : data.filter((i) => i.statusCode !== 'withdrawn')}
           emptyMessage={withdrawnCount > 0 && !showWithdrawn ? 'No invoices besides withdrawn ones.' : 'No invoices yet.'}
-          onDeleted={() => setListVersion((v) => v + 1)}
+          onDeleted={() => void reload()}
         />
       )}
 
@@ -320,7 +319,7 @@ function InvoiceSection({
           billable={billable}
           entries={entries}
           onSaved={() => {
-            setListVersion((version) => version + 1);
+            void reload();
             onInvoiced();
           }}
         />

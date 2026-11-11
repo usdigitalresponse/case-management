@@ -303,7 +303,8 @@ The app is a React Router data router built per kind of signed-in user
 (`client/src/App.tsx`, the portal's routes in `portal/ExternalPortalApp.tsx`);
 pages give their route a loader over named resources (`src/routeLoaders.ts`,
 `src/resources.ts`), so they don't blank to "Loading…" while switching; add one
-for a new page that loads data. All data loads through `useResource`
+for a new page that loads data, and load its code with `src/lazyPage.tsx`;
+keep a list's filters in the address (`useSearchParamState`). All data loads through `useResource`
 (TanStack Query); resources a page edits are `fresh`: loaded for each visit,
 never refreshed under the user, and cleared and reloaded by a save's `resetKey`.
 Run server/client `npm run typecheck` and `npm run lint`, client `npm run build` and `npm test`, and

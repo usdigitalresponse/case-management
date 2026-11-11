@@ -164,11 +164,13 @@ function AddKindForm({ onAdded }: { onAdded: () => void }) {
   );
 }
 
-export default function Settings({ isAdmin }: { isAdmin: boolean }) {
+export default function Settings() {
   const [version, setVersion] = useState(0);
   const { data, error } = useResource(professionalKinds, { resetKey: version });
   const refresh = () => setVersion((v) => v + 1);
-  const demoMode = Boolean(useAuth().user?.demoMode);
+  const { user } = useAuth();
+  const isAdmin = Boolean(user?.isAdmin);
+  const demoMode = Boolean(user?.demoMode);
 
   return (
     <div>

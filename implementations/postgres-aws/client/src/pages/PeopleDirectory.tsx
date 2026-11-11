@@ -1,4 +1,4 @@
-import { searchPeople } from '../api/client';
+import { personRecords } from '../resources';
 import { SearchDirectory } from '../components/SearchDirectory';
 
 export default function PeopleDirectory() {
@@ -9,7 +9,7 @@ export default function PeopleDirectory() {
       description="Search everyone recorded in the system."
       searchLabel="Search people by name or email"
       searchPlaceholder="Search by name or email"
-      fetchFn={(query) => searchPeople(query).then((r) => r.people)}
+      resource={personRecords}
       rowKey={(person) => person.personId}
       columns={[
         { header: 'Name', render: (person) => person.displayName },

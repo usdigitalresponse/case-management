@@ -7,17 +7,9 @@
 import { Link, Navigate, Outlet, ScrollRestoration, useNavigation, type RouteObject } from 'react-router';
 import type { portalLoaders } from '../routeLoaders';
 import { Notice } from '../components/Notice';
-import PortalNewInvoice from './PortalNewInvoice';
-import PortalInvoiceList from './PortalInvoiceList';
-import PortalCaseList from './PortalCaseList';
-import PortalCaseDetail from './PortalCaseDetail';
-import InvoiceSubmission from './InvoiceSubmission';
-import PortalImportReview from './PortalImportReview';
-import PortalBulkImport from './PortalBulkImport';
-import UploadInvoices from '../pages/UploadInvoices';
 import { PortalTopBar } from './PortalTopBar';
-import PortalPreauthorizations, { PORTAL_PREAUTHORIZATIONS_PATH, PortalPreauthorizationRequest } from './PortalPreauthorizations';
-import { NEW_INVOICE_PATH, PORTAL_HOME_PATH, UPLOAD_PATH } from './useShell';
+import { page } from '../lazyPage';
+import { NEW_INVOICE_PATH, PORTAL_HOME_PATH, PORTAL_PREAUTHORIZATIONS_PATH, UPLOAD_PATH } from './useShell';
 
 function PortalShell() {
   const loadingPage = useNavigation().state === 'loading';
@@ -43,17 +35,17 @@ export function portalRoutes(loaders: typeof portalLoaders): RouteObject[] {
           errorElement: <Notice tone="danger">Something went wrong showing this page. Please refresh to try again.</Notice>,
           children: [
             { path: '/', element: <Navigate to={PORTAL_HOME_PATH} replace /> },
-            { path: PORTAL_HOME_PATH, element: <PortalInvoiceList />, ...loaders.invoices },
-            { path: UPLOAD_PATH, element: <UploadInvoices />, ...loaders.uploadByPerson },
-            { path: '/portal/cases', element: <PortalCaseList />, ...loaders.cases },
-            { path: '/portal/cases/:caseId', element: <PortalCaseDetail />, ...loaders.caseDetail },
-            { path: '/portal/invoices/:invoiceId', element: <InvoiceSubmission />, ...loaders.invoice },
-            { path: '/portal/imports/:importId', element: <PortalImportReview />, ...loaders.importReview },
-            { path: PORTAL_PREAUTHORIZATIONS_PATH, element: <PortalPreauthorizations />, ...loaders.preauthorizations },
-            { path: `${PORTAL_PREAUTHORIZATIONS_PATH}/:requestId`, element: <PortalPreauthorizationRequest />, ...loaders.preauthorizationRequest },
+            { path: PORTAL_HOME_PATH, ...page(() => import('./PortalInvoiceList')), ...loaders.invoices },
+            { path: UPLOAD_PATH, ...page(() => import('../pages/UploadInvoices')), ...loaders.uploadByPerson },
+            { path: '/portal/cases', ...page(() => import('./PortalCaseList')), ...loaders.cases },
+            { path: '/portal/cases/:caseId', ...page(() => import('./PortalCaseDetail')), ...loaders.caseDetail },
+            { path: '/portal/invoices/:invoiceId', ...page(() => import('./InvoiceSubmission')), ...loaders.invoice },
+            { path: '/portal/imports/:importId', ...page(() => import('./PortalImportReview')), ...loaders.importReview },
+            { path: PORTAL_PREAUTHORIZATIONS_PATH, ...page(() => import('./PortalPreauthorizations')), ...loaders.preauthorizations },
+            { path: `${PORTAL_PREAUTHORIZATIONS_PATH}/:requestId`, lazy: async () => ({ Component: (await import('./PortalPreauthorizations')).PortalPreauthorizationRequest }), ...loaders.preauthorizationRequest },
             // Out of view; reachable by address.
-            { path: NEW_INVOICE_PATH, element: <PortalNewInvoice /> },
-            { path: '/portal/imports', element: <PortalBulkImport />, ...loaders.imports },
+            { path: NEW_INVOICE_PATH, ...page(() => import('./PortalNewInvoice')), ...loaders.newInvoice },
+            { path: '/portal/imports', ...page(() => import('./PortalBulkImport')), ...loaders.imports },
             { path: '*', element: <><h1>Page not found</h1><Link to={PORTAL_HOME_PATH}>Back to your invoices</Link></> },
           ],
         },

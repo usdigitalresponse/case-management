@@ -6,6 +6,7 @@ import {
   getMyInvoice,
   getOwnDemoRole,
   getPerson,
+  searchPeople,
   getPortalBillingRules,
   getProviderDocuments,
   findCaseMatches,
@@ -182,3 +183,9 @@ export const portalBillingRules = resource({ key: ['portal-billing-rules'], load
 export const authProviders = resource({ key: ['auth-providers'], load: listAuthProviders, reference: true });
 
 export const demoAccounts = resource({ key: ['demo-accounts'], load: listDemoAccounts, reference: true });
+
+export const providerList = (query: string) =>
+  resource({ key: ['provider-list', query], load: () => listVendors(query).then((result) => result.professionals), keepPrevious: true });
+
+export const personRecords = (query: string) =>
+  resource({ key: ['person-records', query], load: () => searchPeople(query).then((result) => result.people), keepPrevious: true });

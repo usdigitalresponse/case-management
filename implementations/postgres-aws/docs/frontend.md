@@ -546,9 +546,14 @@ How the React client is built and why. Schema mapping and gaps are in
   own loading state) instead of blanking to "Loading…". A loader runs
   again only for a new address, not for a page's own query-string
   filters. Loaders and pages share named resources (`src/resources.ts`)
-  so they use one cache key. Still without one: Providers and search
-  (they load as you type), the out-of-view person records, earlier
-  case-led queue and portal hand-entry form.
+  so they use one cache key. Each route's page code loads when the route
+  is first opened (`src/lazyPage.tsx`, React Router's `lazy`), so the
+  first download stays small and portal users never fetch staff pages.
+- **Filters in the address** (`src/hooks/useSearchParamState.ts`): list
+  filters, sorts, text searches and the county choice are kept in the
+  query string, replacing the entry rather than adding one, so Back
+  returns to a list as it was filtered. Providers and person records
+  keep their submitted search there too, which their loaders preload.
 - **`useResource`** (`src/hooks/useResource.ts`, TanStack Query) is how
   every page and component loads data, from a named resource (or `null`
   to load nothing yet, as for a picker not open).

@@ -393,11 +393,10 @@ function AddInvoices() {
 // match_invoice_to_case).
 export default function InvoiceIntake() {
   const [params] = useSearchParams();
-  const [version, setVersion] = useState(0);
-  const refresh = () => setVersion((v) => v + 1);
-  const { data: intake, error } = useResource(invoiceIntake, { resetKey: version });
+  const { data: intake, error, reload: reloadIntake } = useResource(invoiceIntake);
   const data = intake?.items ?? null;
-  const { data: mine } = useResource(myInvoices, { resetKey: version });
+  const { data: mine, reload: reloadMine } = useResource(myInvoices);
+  const refresh = () => void Promise.all([reloadIntake(), reloadMine()]);
   // Drafts with no case are listed under "Waiting for a case" instead.
   const drafts = mine?.filter((invoice) => invoice.statusCode === 'draft' && invoice.caseId) ?? null;
   const [toast, setToast] = useToast();

@@ -10,7 +10,7 @@ import { caseText, PreauthorizationRequestView, providerText, rateText, RequestS
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
-export const PORTAL_PREAUTHORIZATIONS_PATH = '/portal/preauthorizations';
+import { PORTAL_PREAUTHORIZATIONS_PATH } from './useShell';
 
 function AskForm({ caseId, onCancel }: { caseId: string | undefined; onCancel: () => void }) {
   const navigate = useNavigate();

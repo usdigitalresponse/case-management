@@ -22,6 +22,7 @@ import { formatDate } from '../formatDateTime';
 import { Notice } from '../components/Notice';
 import { personPath } from '../staffPaths';
 import { ProviderOnFile } from '../components/PreauthorizationRequestView';
+import { useSearchParamState } from '../hooks/useSearchParamState';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -39,7 +40,7 @@ export default function PersonPage() {
   const dayParam = searchParams.get('day') ?? '';
   const day = /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : undefined;
   const { data: queue, error: queueError, reload: reloadQueue } = useResource(personInvoices(professionalId as string, day));
-  const [filter, setFilter] = useState<FilterId>('all');
+  const [filter, setFilter] = useSearchParamState<FilterId>('show', 'all', FILTERS.map((option) => option.id));
   const [caseNumber, setCaseNumber] = useState('');
   // Invoices whose case number matches, closely or exactly; null for all.
   const [matching, setMatching] = useState<Set<string> | null>(null);

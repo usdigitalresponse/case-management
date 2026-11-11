@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { type ReviewQueueItem } from '../api/client';
 import { useAuth } from '../AuthContext';
@@ -43,8 +43,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
   const [params, setParams] = useSearchParams();
   const filter: FilterId = view === 'open' ? ((params.get('show') as FilterId | null) ?? 'mine') : 'everyone';
   const query = params.get('q') ?? '';
-  const [version, setVersion] = useState(0);
-  const { data, error, reload } = useResource(reviewQueue(view), { resetKey: version });
+  const { data, error, reload } = useResource(reviewQueue(view));
   const [toast, setToast] = useToast();
   const canAssign = Boolean(user?.reviewPermissions?.reassign);
 
@@ -169,7 +168,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
                       invoiceId={invoice.invoiceId}
                       onAssigned={(name) => {
                         setToast({ message: `Given to ${name}.` });
-                        setVersion((v) => v + 1);
+                        void reload();
                       }}
                     />
                   ) : (

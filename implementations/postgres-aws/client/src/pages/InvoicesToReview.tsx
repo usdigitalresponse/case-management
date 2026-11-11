@@ -1,7 +1,7 @@
 // The landing page: every invoice waiting for a decision, led by the person
 // who sent it, with the case number as typed.
 import { useMemo, useState } from 'react';
-import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
+import { Link as RouterLink, useNavigate } from 'react-router';
 import { apiErrorMessage, enterInReview, type ReviewQueueItem } from '../api/client';
 import { reviewPath } from '../staffPaths';
 import { checkLinesPath } from '../portal/InvoiceSubmission';
@@ -22,6 +22,7 @@ import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueF
 import { formatDateTime, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
+import { useSearchParamState } from '../hooks/useSearchParamState';
 
 const SORTS = [
   { id: 'waiting', label: 'Waiting longest first' },
@@ -142,9 +143,8 @@ function YourUnfinished({ userAccountId, entering }: { userAccountId: string; en
 export default function InvoicesToReview() {
   const { user } = useAuth();
   const userAccountId = user?.userAccountId ?? '';
-  const [params, setParams] = useSearchParams();
-  const filter = (params.get('show') as QueueFilterId | null) ?? 'everyone';
-  const [sort, setSort] = useState<SortId>('waiting');
+  const [filter, setFilter] = useSearchParamState<QueueFilterId>('show', 'everyone', QUEUE_FILTERS.map(({ id }) => id));
+  const [sort, setSort] = useSearchParamState<SortId>('sort', 'waiting', SORTS.map((option) => option.id));
   const { data, error, reload } = useResource(reviewQueue('open'));
   const [toast, setToast] = useToast();
   const canAssign = Boolean(user?.reviewPermissions?.reassign);
@@ -221,7 +221,7 @@ export default function InvoicesToReview() {
             type="button"
             className={`chip chip--filter${id === 'flagged' ? ' chip--warning' : ''}`}
             aria-pressed={filter === id}
-            onClick={() => setParams({ show: id }, { preventScrollReset: true })}
+            onClick={() => setFilter(id)}
           >
             {label} <span className="chip-count">{counts[id]}</span>
           </button>

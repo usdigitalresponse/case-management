@@ -69,8 +69,7 @@ function StatusCell({ invoice }: { invoice: InvoiceRecord }) {
 // The submitter's drafts and sent invoices, drafts first. No search or
 // filters: the list is one person's.
 export default function PortalInvoiceList() {
-  const [version, setVersion] = useState(0);
-  const { data, error } = useResource(myInvoiceList, { resetKey: version });
+  const { data, error, reload } = useResource(myInvoiceList);
   const { user } = useAuth();
   const uploadedCount = (useLocation().state as UploadedState | null)?.uploadedCount ?? 0;
   const [withdrawing, setWithdrawing] = useState<InvoiceRecord | null>(null);
@@ -91,7 +90,7 @@ export default function PortalInvoiceList() {
       await transitionInvoice(invoice.invoiceId, 'recall');
       setWithdrawing(null);
       setToast({ message: 'Invoice withdrawn. It is back in your drafts.' });
-      setVersion((v) => v + 1);
+      void reload();
     } catch (err) {
       setWithdrawError(apiErrorMessage(err, 'The invoice could not be withdrawn.'));
     }

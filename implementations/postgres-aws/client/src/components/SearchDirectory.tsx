@@ -1,4 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { useResource, type Resource } from '../hooks/useResource';
+import { useSearchParamState } from '../hooks/useSearchParamState';
 import { PageHeading } from './PageHeading';
 import { RecordTable, type RecordTableColumn } from './RecordTable';
 import { SearchInput } from './SearchInput';
@@ -15,7 +17,7 @@ export function SearchDirectory<T>({
   description,
   searchLabel,
   searchPlaceholder,
-  fetchFn,
+  resource,
   columns,
   rowKey,
   loadInitially = false,
@@ -28,7 +30,7 @@ export function SearchDirectory<T>({
   description?: string;
   searchLabel: string;
   searchPlaceholder: string;
-  fetchFn: (query: string) => Promise<T[]>;
+  resource: (query: string) => Resource<T[]>;
   columns: RecordTableColumn<T>[];
   rowKey: (row: T) => string;
   loadInitially?: boolean;
@@ -39,30 +41,9 @@ export function SearchDirectory<T>({
   // Changing it runs the current search again, e.g. after adding a row.
   reloadKey?: number;
 }) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<T[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function runSearch(q: string) {
-    setLoading(true);
-    setError(null);
-    try {
-      setResults(await fetchFn(q));
-    } catch {
-      setError('Failed to load results.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (loadInitially || results) {
-      void runSearch(query);
-    }
-    // On mount, and when reloadKey changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reloadKey]);
+  const [searched, setSearched] = useSearchParamState<string>('q', '');
+  const [query, setQuery] = useState(searched);
+  const { data: results, error, fetching } = useResource(loadInitially || searched ? resource(searched) : null, { resetKey: reloadKey });
 
   const heading = <PageHeading eyebrow={eyebrow} title={title} description={description} />;
   return (
@@ -80,7 +61,7 @@ export function SearchDirectory<T>({
         className="list-toolbar"
         onSubmit={(event) => {
           event.preventDefault();
-          void runSearch(query);
+          setSearched(query.trim());
         }}
       >
         <SearchInput
@@ -92,11 +73,11 @@ export function SearchDirectory<T>({
           onChange={setQuery}
           // Back to the page's starting state: everything for a
           // loadInitially directory, otherwise no results until a search.
-          onClear={() => (loadInitially ? void runSearch('') : setResults(null))}
+          onClear={() => setSearched('')}
         />
-        <button type="submit" className="btn btn--outline" disabled={loading}>{loading ? 'Searching…' : 'Search'}</button>
+        <button type="submit" className="btn btn--outline" disabled={fetching}>{fetching ? 'Searching…' : 'Search'}</button>
       </form>
-      {error && <Notice tone="danger">{error}</Notice>}
+      {Boolean(error) && <Notice tone="danger">Failed to load results.</Notice>}
       {results && <RecordTable rows={results} rowKey={rowKey} columns={columns} emptyMessage="No results." />}
     </>
   );
