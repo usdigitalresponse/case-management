@@ -45,6 +45,9 @@
 .usa-select option { overflow: hidden; text-overflow: ellipsis; }
 .usa-select:-webkit-autofill { appearance: menulist; }
 input[type=search] { appearance: none; }
+/* Safari draws a date or time from the top and centred unless its line fills the field. */
+.usa-input:is([type=date], [type=time], [type=month], [type=datetime-local]) { line-height: calc(var(--space-10) - 2px); }
+.usa-input::-webkit-date-and-time-value { margin: 0; text-align: left; }
 .usa-input:focus, .usa-select:focus, .usa-textarea:focus {
   border-color: var(--color-primary);
   box-shadow: inset 0 0 0 1px var(--color-primary), var(--focus-ring);
@@ -72,6 +75,7 @@ input[type=search] { appearance: none; }
 }
 .settings-role, .line-meta .usa-select, .kind-cell .usa-select, .split-assignment .usa-select { padding-right: var(--space-9); }
 textarea.check-lines__input { height: auto; padding: var(--space-3) var(--space-4); }
+:is(.check-lines__input, .row-edit__input):is([type=date], [type=time], [type=month], [type=datetime-local]) { line-height: calc(var(--space-9) - 2px); }
 
 /* Checkbox and radio button: an 18px mark with a 2px border, then the label. Plain
    inputs draw the mark themselves; USWDS's hide the input and draw it before the label. */
