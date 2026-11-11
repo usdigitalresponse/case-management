@@ -734,7 +734,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     (F8) isn't built; a PDF line scrolls to its page rather than
     highlighting the line.
   - Sending (F9–F11, G9–G10 when filed by person): Send for review confirms the import (strict pricing
-    and billing rules) and submits with the true-and-correct tick, which
+    and billing rules; confirming one already confirmed changes nothing, so a
+    send refused for a missing explanation can be retried) and submits with the true-and-correct tick, which
     the server requires of any submitter who isn't staff and records as an
     `invoice_attestation` bound to the attempt and in its snapshot (staff
     entering a request received elsewhere don't attest for its payee; the
@@ -1089,6 +1090,28 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   (`docker-compose.prod.yml`, `deploy/ec2/`) opts in to both, so anyone
   who can reach it gets full staff access — never enable either where
   real data is stored.
+- **Guided tour** (`src/routes/demoTour.ts`, `src/demoTour/`): mounted
+  only where both demo sign-ins are on, since a tour plays staff and
+  vendor roles. `POST /auth/demo-tour/start` (body: `{ mission }`, one of
+  `staff-filing`, `preauth-send`, `review`, `answer-finish`, `sign-off`)
+  makes that run's own synthetic material with the same domain functions
+  as the seed (a case assigned to the demo investigator, and for some
+  missions invoices already sent, reviewed or finished) in one
+  transaction, so a failure leaves nothing behind, keeps the run in the
+  session cookie, signs in as the mission's first role and returns
+  `{ run, suggestions, user, role }`; `suggestions` are values the guide
+  offers to fill in, never stored. Starts are limited to 30 an hour per
+  address (429 past that). Missions that finish a review or sign off need
+  a second demo staff member who may sign off, as the Director; without
+  one they are refused (409) rather than started. `POST /auth/demo-tour/switch` (body:
+  `{ role }`: `staff`, `director` or `vendor`) signs in as one of that
+  run's accounts only. `GET /auth/demo-tour/sample-invoice.pdf` draws the
+  run's sample invoice (`drawInvoice` in `src/db/demoUploads.ts`). The
+  review mission caches its trip's driving distance in `route_check`, so
+  the mileage check never makes a billed lookup, and the tour never
+  changes rule settings; the demo seed sets the daily hour cap to warn.
+  Tour material is ordinary synthetic data and stays until the next demo
+  reset (see "Known gaps" in `../MAPPING.md`).
 - **Routes**: `src/routes/cases.ts` (`POST /`, `GET /`, `GET /:id`) and
   `src/routes/people.ts` (`GET /?q=`, existing-person search only — no
   duplicate-person warning here, since no person is ever created by this

@@ -17,7 +17,7 @@ import { createInvoice } from '../portal/createInvoice';
 import type { PortalActor } from '../portal/portalActor';
 import type { ReadCounty } from '../cases/counties';
 
-interface Item {
+export interface Item {
   // Blank to show a date taken from the line before.
   date?: string;
   timekeeper: string;
@@ -27,7 +27,7 @@ interface Item {
   amount: number;
 }
 
-interface DemoFile {
+export interface DemoFile {
   invoiceNumber: string;
   periodStart: string;
   periodEnd: string;
@@ -45,7 +45,7 @@ interface DemoFile {
 const money = (value: number) => `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const usDate = (iso: string) => `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}`;
 
-function drawInvoice(file: DemoFile): Promise<Buffer> {
+export function drawInvoice(file: DemoFile): Promise<Buffer> {
   const doc = new PDFDocument({ size: 'LETTER', margin: 48, info: { Title: `Invoice ${file.invoiceNumber}` } });
   const chunks: Buffer[] = [];
   doc.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -85,7 +85,7 @@ function drawInvoice(file: DemoFile): Promise<Buffer> {
   return done;
 }
 
-function timeItem(timekeeper: string, rate: number, date: string, description: string, hours: number): Item {
+export function timeItem(timekeeper: string, rate: number, date: string, description: string, hours: number): Item {
   return { date, timekeeper, description, hours, rate, amount: toCents(hours * rate) / 100 };
 }
 

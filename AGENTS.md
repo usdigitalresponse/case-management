@@ -298,7 +298,12 @@ step. `docker-compose.prod.yml` (with an untracked `.env.prod`) is the
 single-host production-mode stack; its seed command is equally destructive.
 Settings' Demo section (anyone switching their own role; administrators'
 "Reset demo data", the same reset) must stay unavailable unless the staff
-demo sign-in is enabled.
+demo sign-in is enabled. The guided tour (`client/src/tour/`,
+`server/src/demoTour/`) needs both demo sign-ins, is only ever started by
+the visitor beside the usual demo dropdowns, and makes its own synthetic
+material per run: it never resets data, changes shared settings or makes
+billed route lookups. Its steps complete from what the visitor does in the
+real app, and its "Before" lines restate research problems generically.
 The app is a React Router data router built per kind of signed-in user
 (`client/src/App.tsx`, the portal's routes in `portal/ExternalPortalApp.tsx`);
 pages give their route a loader over named resources (`src/routeLoaders.ts`,

@@ -20,6 +20,7 @@ import { EXTERNAL_DEMO_EMAIL } from '../db/demoAccounts';
 import { listDemoPartners, listDemoStaff, STAFF_DEMO_EMAIL } from '../auth/demoAccounts';
 import { sendEmail } from '../email/sendEmail';
 import { asyncHandler } from './asyncHandler';
+import { addDemoTourRoutes } from './demoTour';
 
 export interface AuthRouterOptions {
   // Configured full-user providers (see ../auth/oidcProviders.ts) —
@@ -227,6 +228,10 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
   }
   if (options.externalDemoLoginEnabled) {
     demoLogin('/demo-login/external', listDemoPartners, EXTERNAL_DEMO_EMAIL, 'email-code', 'partner');
+  }
+  // The tour plays staff and vendor roles, so it needs both sign-ins.
+  if (options.demoLoginEnabled && options.externalDemoLoginEnabled) {
+    addDemoTourRoutes(router);
   }
 
   return router;

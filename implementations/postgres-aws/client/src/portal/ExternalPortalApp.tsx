@@ -11,6 +11,7 @@ import { PortalTopBar } from './PortalTopBar';
 import { page } from '../lazyPage';
 import { NEW_INVOICE_PATH, PORTAL_HOME_PATH, PORTAL_PREAUTHORIZATIONS_PATH, UPLOAD_PATH } from './useShell';
 import { ScrollRestorationPerSignIn } from '../components/ScrollRestorationPerSignIn';
+import { TourChrome } from '../tour/GuidePanel';
 
 function PortalShell() {
   const loadingPage = useNavigation().state === 'loading';
@@ -22,6 +23,7 @@ function PortalShell() {
         {loadingPage && <div className="page-loading" aria-hidden="true" />}
         <Outlet />
       </main>
+      <TourChrome app="portal" />
     </>
   );
 }

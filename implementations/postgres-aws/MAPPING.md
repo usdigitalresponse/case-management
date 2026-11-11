@@ -293,6 +293,12 @@ form relies on this being airtight.
   that partner's *production* login, versus their own separate IdP
   decision, remains open — matching the Dataverse comparison plan's
   "intake roles and permitted actions" gap.
+- **Guided tour material**: each tour run makes its own synthetic case
+  and invoices (`server/src/demoTour/`), which show in the shared demo's
+  queues beside the seeded ones, unlabelled, and are kept until the next
+  demo reset; nothing removes old runs yet. The tour has no
+  overlapping-period check to show (it shows the case's invoices with
+  their periods instead), and "Skip step" doesn't perform the step.
 - **Duplicate review of people**: staff add people and providers while
   matching invoices and cases (`client/src/components/PickOrAdd.tsx`), but
   nothing flags or reviews a probable duplicate of an existing `person`.

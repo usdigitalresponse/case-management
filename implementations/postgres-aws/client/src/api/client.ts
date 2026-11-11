@@ -1,7 +1,9 @@
 // The API by area. Pages import from here.
-export { ApiError, DATA_CHANGED_EVENT, apiErrorMessage, fieldError, fieldErrorsOf, fileBytes } from './http';
+export { ApiError, DATA_CHANGED_EVENT, REQUEST_SUCCEEDED_EVENT, apiErrorMessage, fieldError, fieldErrorsOf, fileBytes } from './http';
+export type { RequestSucceeded } from './http';
 export type { ValidationErrorBody } from './http';
 export * from './auth';
+export * from './demoTour';
 export * from './cases';
 export * from './people';
 export * from './settings';

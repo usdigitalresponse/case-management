@@ -10,8 +10,38 @@ import { useResource } from '../hooks/useResource';
 import { authProviders, demoAccounts as demoAccountsResource } from '../resources';
 import { useAuth } from '../AuthContext';
 import { CodeSignIn } from '../portal/CodeSignIn';
+import { useTour } from '../tour/TourContext';
+import { MissionPicker } from '../tour/GuidePanel';
+import { MISSIONS, STORY } from '../tour/missions';
 import { Button, buttonClass } from '../components/ui/Button';
 import { useProductName } from '../components/AppBrand';
+
+// Demos only, and never on its own: free exploration stays beside it.
+function TourEntry() {
+  const tour = useTour();
+  if (!tour) return null;
+  const minutes = STORY.reduce((total, mission) => total + MISSIONS[mission].minutes, 0);
+  return (
+    <section className="login-tour" aria-labelledby="login-tour">
+      <div className="login-tour__bar">
+        <div className="login-tour__intro">
+          <h2 id="login-tour">New here? Take a guided tour</h2>
+          <p>
+            Take one invoice from pre-authorization to sign-off yourself, as an investigator, a reviewer and the Director. About{' '}
+            {minutes} minutes, with synthetic data.
+          </p>
+          {tour.error && <p className="field-error" role="alert">{tour.error}</p>}
+        </div>
+        <Button kind="primary" disabled={tour.busy} onClick={() => void tour.start(STORY)}>
+          {tour.busy ? 'Setting up your tour…' : 'Start the tour'}
+        </Button>
+        <div className="login-tour__parts">
+          <MissionPicker id="login-mission" label="Or try one part" busy={tour.busy} onStart={(missions) => void tour.start(missions)} />
+        </div>
+      </div>
+    </section>
+  );
+}
 
 // Demos only: sign in as any seeded synthetic account, to try each view.
 function DemoSignIn({
@@ -87,6 +117,8 @@ export default function LoginPage() {
           )}
         </section>
       </div>
+      {/* Pinned to the bottom of the screen, below the sign-ins. */}
+      {data?.demoLoginEnabled && data.externalDemoLoginEnabled && <TourEntry />}
     </div>
   );
 }
