@@ -24,7 +24,7 @@ How case intake is handled on the server. See also [`api.md`](api.md) and
 - **Demo seeding**: `npm run seed` explicitly resets all application data; normal
   Docker Compose startup only migrates and starts the server, preserving records.
 - **Settings layout** (design I, I36–I39; `client/src/pages/Settings.tsx`,
-  `components/ReviewSettings.tsx`, `components/SegmentedChoice.tsx`): an "On
+  one file per section in `pages/settings/`, `components/ui/SegmentedChoice.tsx`): an "On
   this page" index of Invoice review (routing beside the reason lists, whose
   list is a segmented Approving part / Rejecting / Both / Case rate choice),
   People who use this tool (what each role can do, then staff), Rates (a card

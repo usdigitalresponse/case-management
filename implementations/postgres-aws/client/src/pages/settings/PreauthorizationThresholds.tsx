@@ -1,15 +1,15 @@
 // Default and county thresholds, and the kinds they apply to (model/rules.yaml apply_preauthorization_limit).
 import { useState, type FormEvent } from 'react';
-import { addThreshold, apiErrorMessage, setKindThresholdApplies } from '../api/client';
-import { useResource } from '../hooks/useResource';
-import { thresholdSettings } from '../resources';
-import { formatDate } from '../formatDateTime';
-import { formatMoney } from '../formatMoney';
-import { CountyPicker } from './CountyPicker';
-import type { CountyValue } from '../counties';
-import { Notice } from './ui/Notice';
-import { RecordTable } from './RecordTable';
-import { Button } from './ui/Button';
+import { addThreshold, apiErrorMessage, setKindThresholdApplies } from '../../api/client';
+import { useResource } from '../../hooks/useResource';
+import { thresholdSettings } from '../../resources';
+import { formatDate } from '../../formatDateTime';
+import { formatMoney } from '../../formatMoney';
+import { CountyPicker } from '../../components/CountyPicker';
+import type { CountyValue } from '../../counties';
+import { Notice } from '../../components/ui/Notice';
+import { RecordTable } from '../../components/RecordTable';
+import { Button } from '../../components/ui/Button';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);

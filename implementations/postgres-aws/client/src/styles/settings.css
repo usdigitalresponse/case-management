@@ -1,4 +1,4 @@
-/* Settings (pages/Settings.tsx). */
+/* Settings (pages/Settings.tsx and pages/settings/). */
 /* Settings (design I): an index of its sections, then cards. */
 .page-index { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin: var(--space-4) 0 var(--space-6); font-size: var(--text-13); color: var(--color-on-surface-variant); }
 .page-index a { padding: var(--space-3) var(--space-5); border: 1px solid var(--color-outline-variant); border-radius: var(--radius-full); background: var(--color-surface); color: var(--color-primary); font-weight: 600; text-decoration: none; }

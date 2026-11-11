@@ -819,7 +819,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   a draft, writes an `audit_event` row (migration `0004`) with the actor
   and the entry's prior values; `audit_event` records nothing else yet.
 - **Billing rules** (`src/billing/billingRules.ts`, `src/routes/settings.ts`;
-  `client/src/pages/Settings.tsx`, `components/BillingRules.tsx`;
+  `client/src/pages/settings/BillingRulesSection.tsx`, `components/BillingRules.tsx`;
   `model/rules.yaml` `apply_billing_rules`; migration `0006`):
   - One agency per deployment, one set of rules. Administrators set each of
     billing codes, time increment, daily hour cap, long entry (warn only)
@@ -843,7 +843,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
 - **Trips, travel and waiting time, and mileage** (`src/billing/mileageRates.ts`,
   `timeCategoryRates.ts`, `routeCheck.ts`, `priceLines.ts`,
   `invoiceLifecycle.ts`, `sameDayTravel.ts`; `client/src/components/InvoiceLinesEditor.tsx`,
-  `TripFields.tsx`, `TravelLog.tsx`, `pages/Settings.tsx`; `model/rules.yaml`
+  `TripFields.tsx`, `TravelLog.tsx`, `pages/settings/MileageRates.tsx` and
+  `TimeCategoryRates.tsx`; `model/rules.yaml`
   `apply_mileage_rates`, `apply_time_category_rates` and the mileage
   distance and travel time rules in `apply_billing_rules`; migrations
   `0007`, `0022`–`0025`):
@@ -952,7 +953,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     their own travel time rate; a kind has no travel time rate of its own.
 - **Rates and billing from time** (`src/billing/professionalRates.ts`,
   `priceLines.ts`, `invoiceLifecycle.ts`; `src/routes/settings.ts`;
-  `client/src/pages/Settings.tsx`, `components/UnbilledTimePicker.tsx`;
+  `client/src/pages/settings/KindRates.tsx`, `components/UnbilledTimePicker.tsx`;
   `model/rules.yaml` `apply_professional_rates`, `validate_payment_request`):
   - Administrators (`user_account.system_role_id` = the seeded
     "Administrator" role, which also counts as staff) maintain

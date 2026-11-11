@@ -10,18 +10,18 @@ import {
   type ReasonAppliesTo,
   type ReviewSettings,
   type StaffRolesResponse,
-} from '../api/client';
-import { StatusPill } from './StatusPill';
-import { useResource } from '../hooks/useResource';
-import { decisionReasonSettings, reviewPeople, reviewSettings, staffRoles } from '../resources';
-import { Notice, type SaveMessage } from './ui/Notice';
-import { LoadState } from './LoadState';
-import { OrderedChoiceList } from './OrderedChoiceList';
-import { RecordTable } from './RecordTable';
-import { ReviewerSelect } from './ReviewRouting';
-import { SegmentedChoice } from './ui/SegmentedChoice';
-import { useAuth } from '../AuthContext';
-import { Button } from './ui/Button';
+} from '../../api/client';
+import { StatusPill } from '../../components/StatusPill';
+import { useResource } from '../../hooks/useResource';
+import { decisionReasonSettings, reviewPeople, reviewSettings, staffRoles } from '../../resources';
+import { Notice, type SaveMessage } from '../../components/ui/Notice';
+import { LoadState } from '../../components/LoadState';
+import { OrderedChoiceList } from '../../components/OrderedChoiceList';
+import { RecordTable } from '../../components/RecordTable';
+import { ReviewerSelect } from '../../components/ReviewRouting';
+import { SegmentedChoice } from '../../components/ui/SegmentedChoice';
+import { useAuth } from '../../AuthContext';
+import { Button } from '../../components/ui/Button';
 
 // Who gets new invoices, who signs off, and when a waiting invoice is called
 // out. Each save adds a setting; invoices already routed keep theirs.
