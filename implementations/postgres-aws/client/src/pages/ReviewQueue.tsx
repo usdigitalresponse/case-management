@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
-import { listReviewQueue, type ReviewQueueItem } from '../api/client';
+import { type ReviewQueueItem } from '../api/client';
 import { useAuth } from '../AuthContext';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
+import { reviewQueue } from '../resources';
 import { InvoiceStatus } from '../components/Completion';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
@@ -42,8 +43,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
   const [params, setParams] = useSearchParams();
   const filter: FilterId = view === 'open' ? ((params.get('show') as FilterId | null) ?? 'mine') : 'everyone';
   const query = params.get('q') ?? '';
-  const [version, setVersion] = useState(0);
-  const { data, error, reload } = useApiResource(() => listReviewQueue(view), [view, version]);
+  const { data, error, reload } = useResource(reviewQueue(view));
   const [toast, setToast] = useToast();
   const canAssign = Boolean(user?.reviewPermissions?.reassign);
 
@@ -168,7 +168,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
                       invoiceId={invoice.invoiceId}
                       onAssigned={(name) => {
                         setToast({ message: `Given to ${name}.` });
-                        setVersion((v) => v + 1);
+                        void reload();
                       }}
                     />
                   ) : (

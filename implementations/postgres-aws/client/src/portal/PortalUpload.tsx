@@ -15,7 +15,7 @@ import {
   type ProposedProvider,
   type UploadCase,
 } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { billableProfessionals, uploadCases } from '../resources';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
@@ -74,7 +74,7 @@ function caseLabel(row: UploadCase, showWho: boolean): string {
 // Who the user may bill with no case chosen: staff, any active provider; a
 // submitter, themselves and anyone they act for.
 function useBillable() {
-  return useApiResource(billableProfessionals(null), []);
+  return useResource(billableProfessionals(null));
 }
 
 // Asked only when there's more than one to choose from.
@@ -217,7 +217,7 @@ async function destination(details: Details, staff: boolean, billable: BillableP
 function ManualEntry({ onCancel }: { onCancel: () => void }) {
   const navigate = useNavigate();
   const { staff } = useShell();
-  const { data, error: loadError } = useApiResource(uploadCases, []);
+  const { data, error: loadError } = useResource(uploadCases);
   const { data: billable } = useBillable();
   const [details, setDetails] = useState<Details>(noDetails);
   const [errors, setErrors] = useState<Record<string, string>>({});

@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router';
 import type { BillingPerson } from '../api/client';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { people } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
@@ -11,12 +11,13 @@ import { PersonDialog } from '../components/PersonDialog';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { personPath } from '../staffPaths';
+import { useSearchParamText } from '../hooks/useSearchParamState';
 
 export default function People() {
   const navigate = useNavigate();
-  const { data, error } = useCachedResource(people);
+  const { data, error } = useResource(people);
   const [role, setRole] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useSearchParamText('q');
   const [adding, setAdding] = useState(false);
   const roles = useMemo(() => [...new Set((data ?? []).map((person) => person.role ?? 'No role'))].sort(), [data]);
 

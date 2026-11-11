@@ -1,20 +1,20 @@
-import { useState } from 'react';
 import type { NamedOption } from '../api/client';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { cases as casesResource, referenceData } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
 import { RecordTable } from '../components/RecordTable';
 import { Notice } from '../components/Notice';
+import { useSearchParamText } from '../hooks/useSearchParamState';
 
 // Organizations are already loaded whole for the New Case form's
 // reference data (../api/client.ts's getReferenceData) — a small enough
 // table that filtering client-side, like CaseList's text filter, beats a
 // round trip per keystroke.
 export default function OrganizationsDirectory() {
-  const { data, error } = useCachedResource(referenceData);
-  const { data: cases } = useCachedResource(casesResource);
-  const [query, setQuery] = useState('');
+  const { data, error } = useResource(referenceData);
+  const { data: cases } = useResource(casesResource);
+  const [query, setQuery] = useSearchParamText('q');
 
   if (error) return <Notice tone="danger">Failed to load organizations.</Notice>;
   if (!data) return <p role="status">Loading organizations…</p>;

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import {
   apiErrorMessage,
-  findCaseMatches,
   matchInvoiceToCase,
   type OverrunExplanation,
   type PreauthorizationSummary,
@@ -10,7 +9,8 @@ import {
 } from '../api/client';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { formatMoney } from '../formatMoney';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
+import { caseMatches } from '../resources';
 import { Notice } from './Notice';
 
 // The case an invoice is on, leading its review page (design I).
@@ -89,7 +89,7 @@ export function CaseCard({
 // cases with its number, or a new one added from it.
 export function CaseMatch({ invoice, onMatched }: { invoice: QueuedInvoice; onMatched: (message: string) => void }) {
   const number = invoice.caseNumberCorrected ?? invoice.caseNumberAsTyped;
-  const { data } = useApiResource(() => findCaseMatches(invoice.invoiceId), [invoice.invoiceId, number]);
+  const { data } = useResource(number ? caseMatches(invoice.invoiceId, number) : null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!number) {

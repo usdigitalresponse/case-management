@@ -1,8 +1,7 @@
 // Every invoice with all its lines decided, newest first: waiting for
 // sign-off, decided, or completed once the sender has been told.
-import { useState } from 'react';
 import type { ReviewQueueItem } from '../api/client';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { reviewQueue } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
@@ -14,6 +13,7 @@ import { CaseNumberCell, countyOfInvoice, FromCell, openInvoiceColumn } from '..
 import { useCountyControl } from '../components/CountyListControl';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
+import { useSearchParamState } from '../hooks/useSearchParamState';
 
 const FINISHED = ['awaiting_sign_off', ...DECIDED_STATUS_CODES];
 
@@ -42,8 +42,8 @@ function matches(invoice: ReviewQueueItem, filter: FilterId): boolean {
 }
 
 export default function FinishedInvoices() {
-  const { data, error, reload } = useCachedResource(reviewQueue('all'));
-  const [filter, setFilter] = useState<FilterId>('month');
+  const { data, error, reload } = useResource(reviewQueue('all'));
+  const [filter, setFilter] = useSearchParamState<FilterId>('show', 'month', FILTERS.map((option) => option.id));
   const [toast, setToast] = useToast();
   const finished = (data?.invoices ?? [])
     .filter((invoice) => FINISHED.includes(invoice.statusCode))

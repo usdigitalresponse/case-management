@@ -23,7 +23,7 @@ import {
 } from '../api/client';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { useReceipt } from './ReceivedFields';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { myCases, myInvoice } from '../resources';
 import { useAuth } from '../AuthContext';
 import { LoadState } from '../components/LoadState';
@@ -87,7 +87,7 @@ function CaseChoice({
   beforeChange: () => Promise<boolean>;
   onChanged: (caseNumber: string | null) => void;
 }) {
-  const { data } = useApiResource(myCases, []);
+  const { data } = useResource(myCases);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cases = (data?.cases ?? []).filter(
@@ -771,7 +771,7 @@ function Lines({
 export default function InvoiceSubmission({ byPerson }: { byPerson?: boolean }) {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(myInvoice(invoiceId as string), [invoiceId, version]);
+  const { data, error } = useResource(myInvoice(invoiceId as string), { resetKey: version });
   const [shown, setShown] = useState<PortalInvoice | null>(null);
   // Here, so a message (and its Undo) outlives reloading after a send.
   const [toast, setToast] = useToast(6000);

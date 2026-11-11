@@ -1,6 +1,6 @@
 // A requester's pre-authorization requests (model/rules.yaml request_preauthorization).
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { myCases, myPreauthorizationRequests, requestableProviders } from '../resources';
 import { LoadState } from '../components/LoadState';
 import { PageHeader } from '../components/PageHeader';
@@ -10,12 +10,12 @@ import { caseText, PreauthorizationRequestView, providerText, rateText, RequestS
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
-export const PORTAL_PREAUTHORIZATIONS_PATH = '/portal/preauthorizations';
+import { PORTAL_PREAUTHORIZATIONS_PATH } from './useShell';
 
 function AskForm({ caseId, onCancel }: { caseId: string | undefined; onCancel: () => void }) {
   const navigate = useNavigate();
-  const cases = useApiResource(myCases, []);
-  const providers = useApiResource(requestableProviders, []);
+  const cases = useResource(myCases);
+  const providers = useResource(requestableProviders);
   if (!cases.data || !providers.data) return <LoadState error={cases.error ?? providers.error} what="your cases" />;
   const options = cases.data.cases.map((row) => ({ id: row.caseId, label: [row.caseNumber, row.clientDisplayName].filter(Boolean).join(' · ') }));
   return (
@@ -39,7 +39,7 @@ function AskForm({ caseId, onCancel }: { caseId: string | undefined; onCancel: (
 export default function PortalPreauthorizations() {
   const [params, setParams] = useSearchParams();
   const asking = params.has('ask');
-  const { data, error } = useApiResource(myPreauthorizationRequests, []);
+  const { data, error } = useResource(myPreauthorizationRequests);
   return (
     <div>
       <PageHeader

@@ -1,10 +1,11 @@
-import { getPortalBillingRules, type BillingRule, type RuleFinding } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { type BillingRule, type RuleFinding } from '../api/client';
+import { useResource } from '../hooks/useResource';
+import { portalBillingRules } from '../resources';
 import { Notice } from './Notice';
 
 // The rules in force for invoice entry, and the code list when codes are in use.
 export function usePortalBillingRules() {
-  const { data } = useApiResource(() => getPortalBillingRules(), []);
+  const { data } = useResource(portalBillingRules);
   const rules = data?.rules ?? [];
   return {
     rules,

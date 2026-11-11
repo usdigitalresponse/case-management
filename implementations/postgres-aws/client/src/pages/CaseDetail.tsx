@@ -9,7 +9,7 @@ import {
   type PreauthorizationSummary,
 } from '../api/client';
 import { useAuth } from '../AuthContext';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { caseDetail, caseInvoices } from '../resources';
 import { DECIDED_STATUS_CODES, InvoiceStatus } from '../components/Completion';
 import { CaseRateTable } from '../components/CaseRates';
@@ -183,12 +183,12 @@ export default function CaseDetail() {
   const { user } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey((key) => key + 1);
-  const { data: detail, error } = useApiResource(caseDetail(caseId as string), [caseId, refreshKey]);
+  const { data: detail, error } = useResource(caseDetail(caseId as string), { resetKey: refreshKey });
   const {
     data: billing,
     error: billingError,
     reload: reloadBilling,
-  } = useApiResource(caseInvoices(caseId as string), [caseId, refreshKey]);
+  } = useResource(caseInvoices(caseId as string), { resetKey: refreshKey });
 
   if (error || !detail) {
     return <LoadState error={error} what="case" />;

@@ -7,11 +7,11 @@ import {
   fieldErrorsOf,
   matchInvoiceToCase,
   createCase,
-  getReferenceData,
   type ProposedCase,
   type ProposedProvider,
 } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
+import { referenceData } from '../resources';
 
 // `compact` for table cells: a short pill, the full meaning on hover and for
 // screen readers.
@@ -153,7 +153,7 @@ export function StaffNewCaseFields({
   onChange: (value: NewCaseEntry) => void;
   errors?: Record<string, string>;
 }) {
-  const { data } = useApiResource(getReferenceData, []);
+  const { data } = useResource(referenceData);
   const roles = data?.participantRoles ?? [];
   const statuses = data?.caseStatuses ?? [];
   const set = (patch: Partial<NewCaseEntry>) => onChange({ ...value, ...patch });

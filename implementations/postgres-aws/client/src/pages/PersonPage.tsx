@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { apiErrorMessage, listReviewQueue, removeProfessional } from '../api/client';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { useAuth } from '../AuthContext';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { person as personResource, personInvoices } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
@@ -22,6 +22,7 @@ import { formatDate } from '../formatDateTime';
 import { Notice } from '../components/Notice';
 import { personPath } from '../staffPaths';
 import { ProviderOnFile } from '../components/PreauthorizationRequestView';
+import { useSearchParamState } from '../hooks/useSearchParamState';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -34,12 +35,12 @@ export default function PersonPage() {
   const { professionalId } = useParams<{ professionalId: string }>();
   const { user } = useAuth();
   const [version, setVersion] = useState(0);
-  const { data: person, error } = useApiResource(personResource(professionalId as string), [professionalId, version]);
+  const { data: person, error } = useResource(personResource(professionalId as string), { resetKey: version });
   const [searchParams] = useSearchParams();
   const dayParam = searchParams.get('day') ?? '';
   const day = /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : undefined;
-  const { data: queue, error: queueError, reload: reloadQueue } = useApiResource(personInvoices(professionalId as string, day), [professionalId, day]);
-  const [filter, setFilter] = useState<FilterId>('all');
+  const { data: queue, error: queueError, reload: reloadQueue } = useResource(personInvoices(professionalId as string, day));
+  const [filter, setFilter] = useSearchParamState<FilterId>('show', 'all', FILTERS.map((option) => option.id));
   const [caseNumber, setCaseNumber] = useState('');
   // Invoices whose case number matches, closely or exactly; null for all.
   const [matching, setMatching] = useState<Set<string> | null>(null);

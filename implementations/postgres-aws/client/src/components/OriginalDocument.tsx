@@ -9,7 +9,7 @@ import {
   invoiceImportFileUrl,
   type ImportPreview,
 } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { countOf } from '../portal/importProgress';
 
 const PdfPages = lazy(() => import('./PdfPages'));
@@ -63,7 +63,7 @@ export function OriginalDocument({
 } & FileSourceRef) {
   const source: FileSourceRef = 'importId' in rest ? { importId: rest.importId } : { invoiceId: rest.invoiceId, portal: rest.portal };
   const key = 'importId' in source ? source.importId : source.invoiceId;
-  const { data, error } = useApiResource(() => load(source), [key]);
+  const { data, error } = useResource({ key: ['original-file', key, 'portal' in source && source.portal === true], load: () => load(source), fresh: true, discard: true });
   const frame = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [zoom, setZoom] = useState(1);

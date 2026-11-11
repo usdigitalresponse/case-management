@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { billableProfessionals, myCases, myTimeEntries } from '../resources';
+import { useResource } from '../hooks/useResource';
 import { Link as RouterLink, useSearchParams } from 'react-router';
-import { fieldErrorsOf, listBillableProfessionals, listMyCases, listMyTimeEntries, type ProposedCase } from '../api/client';
+import { fieldErrorsOf, type ProposedCase } from '../api/client';
 import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
 import {
   createCaseFromEntry,
@@ -10,7 +12,6 @@ import {
   proposedCaseToSend,
   StaffNewCaseFields,
 } from '../components/NewEntryFields';
-import { useApiResource } from '../hooks/useApiResource';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { NewInvoiceForm } from './NewInvoiceForm';
 import { UPLOAD_PATH, useShell } from './useShell';
@@ -36,7 +37,8 @@ export function NewInvoiceStart({ onSaved }: { onSaved?: () => void }) {
   const [params, setParams] = useSearchParams();
   const caseId = params.get('case') ?? '';
   const { staff } = useShell();
-  const { data: cases, error } = useApiResource(() => listMyCases().then((result) => result.cases), []);
+  const { data: mine, error } = useResource(myCases);
+  const cases = mine?.cases ?? null;
   const [proposedCase, setProposedCase] = useState<ProposedCase>(NO_PROPOSED_CASE);
   const [staffCase, setStaffCase] = useState(newCaseEntry);
   const [caseErrors, setCaseErrors] = useState<Record<string, string>>({});
@@ -121,10 +123,7 @@ function CaseInvoice({
 }) {
   const { casePath } = useShell();
   const [timeVersion, setTimeVersion] = useState(0);
-  const { data: loaded, error } = useApiResource(
-    () => listBillableProfessionals(caseId).then((result) => result.professionals),
-    [caseId],
-  );
+  const { data: loaded, error } = useResource(billableProfessionals(caseId));
   // Keep the form, and what was typed, while the list reloads.
   const [lastLoaded, setLastLoaded] = useState(loaded);
   if (loaded && loaded !== lastLoaded) {
@@ -132,10 +131,8 @@ function CaseInvoice({
   }
   const billable = loaded ?? lastLoaded;
   // Recorded time belongs to a case.
-  const { data: entries } = useApiResource(
-    () => (caseId ? listMyTimeEntries(caseId).then((result) => result.timeEntries) : Promise.resolve([])),
-    [caseId, timeVersion],
-  );
+  const { data: caseEntries } = useResource(caseId ? myTimeEntries(caseId) : null, { resetKey: timeVersion });
+  const entries = caseId ? caseEntries : [];
 
   if (error) {
     return <Notice tone="danger">You can't bill on this case.</Notice>;

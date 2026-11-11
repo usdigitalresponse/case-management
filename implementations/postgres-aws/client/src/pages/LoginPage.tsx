@@ -5,8 +5,9 @@
 // sent by email instead. See ../../docs/api.md "Multi-IdP SSO" and
 // "Emailed-code sign-in for external users".
 import { useState } from 'react';
-import { apiErrorMessage, listAuthProviders, listDemoAccounts, type DemoAccount } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { apiErrorMessage, type DemoAccount } from '../api/client';
+import { useResource } from '../hooks/useResource';
+import { authProviders, demoAccounts as demoAccountsResource } from '../resources';
 import { useAuth } from '../AuthContext';
 import { CodeSignIn } from '../portal/CodeSignIn';
 
@@ -52,13 +53,10 @@ function DemoSignIn({
 }
 
 export default function LoginPage() {
-  const { data } = useApiResource(listAuthProviders, []);
+  const { data } = useResource(authProviders);
   const providers = data?.providers;
   const demoEnabled = Boolean(data?.demoLoginEnabled || data?.externalDemoLoginEnabled);
-  const { data: demoAccounts } = useApiResource(
-    () => (demoEnabled ? listDemoAccounts() : Promise.resolve({ staff: [], partners: [] })),
-    [demoEnabled],
-  );
+  const { data: demoAccounts } = useResource(demoEnabled ? demoAccountsResource : null);
   const { demoLogin, externalDemoLogin } = useAuth();
 
   return (

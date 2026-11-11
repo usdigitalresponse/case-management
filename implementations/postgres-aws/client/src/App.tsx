@@ -2,42 +2,16 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, ScrollRestoration, useLocation, useNavigate, useNavigation, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './AuthContext';
-import LoginPage from './pages/LoginPage';
-import PortalSignIn from './portal/PortalSignIn';
-import CaseList from './pages/CaseList';
-import CaseDetail from './pages/CaseDetail';
-import NewCaseIntake from './pages/NewCaseIntake';
-import Overview from './pages/Overview';
-import ReviewQueue from './pages/ReviewQueue';
-import InvoicesToReview from './pages/InvoicesToReview';
-import FinishedInvoices from './pages/FinishedInvoices';
-import People from './pages/People';
-import PersonPage from './pages/PersonPage';
-import SearchResults from './pages/SearchResults';
 import { searchPath } from './staffPaths';
-import UploadInvoices from './pages/UploadInvoices';
-import InvoiceSubmission from './portal/InvoiceSubmission';
-import InvoiceReview from './pages/InvoiceReview';
-import Exports from './pages/Exports';
-import InvoiceIntake from './pages/InvoiceIntake';
-import PeopleDirectory from './pages/PeopleDirectory';
-import ClientsDirectory from './pages/ClientsDirectory';
-import VendorsDirectory from './pages/VendorsDirectory';
-import OrganizationsDirectory from './pages/OrganizationsDirectory';
-import Settings from './pages/Settings';
-import Preauthorizations, { StaffPreauthorizationRequest } from './pages/Preauthorizations';
-import PortalInvoiceDetail from './portal/PortalInvoiceDetail';
-import PortalBulkImport from './portal/PortalBulkImport';
-import PortalImportReview from './portal/PortalImportReview';
-import PortalUpload from './portal/PortalUpload';
 import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 import { Notice } from './components/Notice';
 import { queryClient, refreshCacheOnDataChange } from './queryClient';
 import { nextLoadIsFirst, portalLoaders, staffLoaders } from './routeLoaders';
-import { useCachedResource } from './hooks/useCachedResource';
+import { useResource } from './hooks/useResource';
 import { cases as casesResource, reviewQueue } from './resources';
 import { portalRoutes } from './portal/ExternalPortalApp';
+import { page, pageWith } from './lazyPage';
 import type { AuthenticatedUser } from './api/client';
 
 // The landing page files invoices by who sent them; the earlier queue, led
@@ -86,8 +60,8 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
 }
 
 function useQueueCounts(userAccountId: string) {
-  const { data: queue } = useCachedResource(reviewQueue('open'));
-  const { data: caseList, error: casesError } = useCachedResource(casesResource);
+  const { data: queue } = useResource(reviewQueue('open'));
+  const { data: caseList, error: casesError } = useResource(casesResource);
   return useMemo(() => {
     if (!queue) return null;
     return {
@@ -182,11 +156,6 @@ function StaffShell() {
   );
 }
 
-function StaffSettings() {
-  const { user } = useAuth();
-  return <Settings isAdmin={Boolean(user?.isAdmin)} />;
-}
-
 // Keeps the sidebar and top bar when a page fails to render.
 function PageError() {
   return <Notice tone="danger">Something went wrong showing this page. Please refresh to try again.</Notice>;
@@ -203,41 +172,41 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
         {
           errorElement: <PageError />,
           children: [
-            { path: '/', element: <InvoicesToReview />, ...loaders.toReview },
-            { path: ALTERNATE_HOME_PATH, element: <ReviewQueue view="open" /> },
-            { path: `${ALTERNATE_HOME_PATH}/finished`, element: <ReviewQueue view="finished" /> },
-            { path: '/finished', element: <FinishedInvoices />, ...loaders.finished },
-            { path: '/search', element: <SearchResults /> },
-            { path: '/people', element: <People />, ...loaders.people },
-            { path: '/people/:professionalId', element: <PersonPage />, ...loaders.person },
-            { path: '/billing/:invoiceId', element: <InvoiceReview />, ...loaders.review },
-            { path: '/exports', element: <Exports />, ...loaders.exports },
+            { path: '/', ...page(() => import('./pages/InvoicesToReview')), ...loaders.toReview },
+            { path: ALTERNATE_HOME_PATH, ...pageWith(() => import('./pages/ReviewQueue'), { view: 'open' }), ...loaders.alternateOpen },
+            { path: `${ALTERNATE_HOME_PATH}/finished`, ...pageWith(() => import('./pages/ReviewQueue'), { view: 'finished' }), ...loaders.alternateFinished },
+            { path: '/finished', ...page(() => import('./pages/FinishedInvoices')), ...loaders.finished },
+            { path: '/search', ...page(() => import('./pages/SearchResults')), ...loaders.search },
+            { path: '/people', ...page(() => import('./pages/People')), ...loaders.people },
+            { path: '/people/:professionalId', ...page(() => import('./pages/PersonPage')), ...loaders.person },
+            { path: '/billing/:invoiceId', ...page(() => import('./pages/InvoiceReview')), ...loaders.review },
+            { path: '/exports', ...page(() => import('./pages/Exports')), ...loaders.exports },
             // Intake and the portal invoice and import pages it links to, in the staff shell.
             {
               element: <div className="portal-main"><Outlet /></div>,
               children: [
-                { path: INTAKE_PATH, element: <InvoiceIntake />, ...loaders.intake },
-                { path: UPLOAD_PATH, element: <PortalUpload />, ...loaders.uploadByCase },
-                { path: STAFF_UPLOAD_PATH, element: <UploadInvoices />, ...loaders.uploadByPerson },
-                { path: '/invoices/:invoiceId/check', element: <InvoiceSubmission byPerson />, ...loaders.invoiceDetail },
-                { path: '/portal/invoices/:invoiceId', element: <PortalInvoiceDetail />, ...loaders.invoiceDetail },
-                { path: '/portal/imports', element: <PortalBulkImport />, ...loaders.imports },
-                { path: '/portal/imports/:importId', element: <PortalImportReview />, ...loaders.importReview },
+                { path: INTAKE_PATH, ...page(() => import('./pages/InvoiceIntake')), ...loaders.intake },
+                { path: UPLOAD_PATH, ...page(() => import('./portal/PortalUpload')), ...loaders.uploadByCase },
+                { path: STAFF_UPLOAD_PATH, ...page(() => import('./pages/UploadInvoices')), ...loaders.uploadByPerson },
+                { path: '/invoices/:invoiceId/check', ...pageWith(() => import('./portal/InvoiceSubmission'), { byPerson: true }), ...loaders.invoiceDetail },
+                { path: '/portal/invoices/:invoiceId', ...page(() => import('./portal/PortalInvoiceDetail')), ...loaders.invoiceDetail },
+                { path: '/portal/imports', ...page(() => import('./portal/PortalBulkImport')), ...loaders.imports },
+                { path: '/portal/imports/:importId', ...page(() => import('./portal/PortalImportReview')), ...loaders.importReview },
               ],
             },
             { path: NEW_INVOICE_PATH, element: <NewInvoiceRedirect /> },
-            { path: '/cases', element: <CaseList />, ...loaders.cases },
-            { path: '/cases/new', element: <NewCaseIntake />, ...loaders.newCase },
-            { path: '/cases/:caseId', element: <CaseDetail />, ...loaders.caseDetail },
-            { path: '/vendors', element: <VendorsDirectory /> },
-            { path: '/preauthorizations', element: <Preauthorizations />, ...loaders.preauthorizations },
-            { path: '/preauthorizations/:requestId', element: <StaffPreauthorizationRequest />, ...loaders.preauthorizationRequest },
-            { path: '/settings', element: <StaffSettings />, ...loaders.settings },
-            { path: '/overview', element: <Overview />, ...loaders.overview },
+            { path: '/cases', ...page(() => import('./pages/CaseList')), ...loaders.cases },
+            { path: '/cases/new', ...page(() => import('./pages/NewCaseIntake')), ...loaders.newCase },
+            { path: '/cases/:caseId', ...page(() => import('./pages/CaseDetail')), ...loaders.caseDetail },
+            { path: '/vendors', ...page(() => import('./pages/VendorsDirectory')), ...loaders.providers },
+            { path: '/preauthorizations', ...page(() => import('./pages/Preauthorizations')), ...loaders.preauthorizations },
+            { path: '/preauthorizations/:requestId', lazy: async () => ({ Component: (await import('./pages/Preauthorizations')).StaffPreauthorizationRequest }), ...loaders.preauthorizationRequest },
+            { path: '/settings', ...page(() => import('./pages/Settings')), ...loaders.settings },
+            { path: '/overview', ...page(() => import('./pages/Overview')), ...loaders.overview },
             // Off the sidebar; still reachable.
-            { path: '/person-records', element: <PeopleDirectory /> },
-            { path: '/clients', element: <ClientsDirectory />, ...loaders.clients },
-            { path: '/organizations', element: <OrganizationsDirectory />, ...loaders.organizations },
+            { path: '/person-records', ...page(() => import('./pages/PeopleDirectory')), ...loaders.personRecords },
+            { path: '/clients', ...page(() => import('./pages/ClientsDirectory')), ...loaders.clients },
+            { path: '/organizations', ...page(() => import('./pages/OrganizationsDirectory')), ...loaders.organizations },
             { path: '*', element: <><h1>Page not found</h1><Link to="/">Back to your invoices</Link></> },
           ],
         },
@@ -248,8 +217,14 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
 
 const routesFor: Record<Audience, () => RouteObject[]> = {
   'signed-out': () => [
-    { path: '/submit', element: <PortalSignIn /> },
-    { path: '*', element: <LoginPage /> },
+    {
+      HydrateFallback: () => null,
+      errorElement: <PageError />,
+      children: [
+        { path: '/submit', ...page(() => import('./portal/PortalSignIn')) },
+        { path: '*', ...page(() => import('./pages/LoginPage')) },
+      ],
+    },
   ],
   portal: () => portalRoutes(portalLoaders),
   staff: () => staffRoutes(() => signedInUser),

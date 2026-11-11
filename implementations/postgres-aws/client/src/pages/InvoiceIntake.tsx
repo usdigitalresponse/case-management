@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   apiErrorMessage,
-  listBillableProfessionals,
-  listCases,
   matchInvoiceToCase,
   returnToSubmitter,
   type IntakeItem,
@@ -19,8 +17,8 @@ import {
   StaffNewCaseFields,
   type NewCaseEntry,
 } from '../components/NewEntryFields';
-import { useApiResource } from '../hooks/useApiResource';
-import { invoiceIntake, myInvoices } from '../resources';
+import { useResource } from '../hooks/useResource';
+import { billableProfessionals, cases as casesResource, invoiceIntake, myInvoices } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
@@ -47,14 +45,11 @@ const STAGES: Record<IntakeItem['stage'], { label: string; tone: Tone }> = {
 // Match an invoice to a case, adding its providers to the case when they
 // aren't on it. A case closed here is reopened by matching.
 function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message: string) => void }) {
-  const { data } = useApiResource(() => listCases().then((result) => result.cases), []);
+  const data = useResource(casesResource).data?.cases ?? null;
   const needsProfessional = item.professionalId === null;
   const unlisted = item.unlistedTimekeepers;
   const [added, setAdded] = useState<Array<{ professionalId: string; displayName: string }>>([]);
-  const { data: listed } = useApiResource(
-    () => (needsProfessional || unlisted.length > 0 ? listBillableProfessionals(null).then((result) => result.professionals) : Promise.resolve([])),
-    [needsProfessional, unlisted.length],
-  );
+  const { data: listed } = useResource(needsProfessional || unlisted.length > 0 ? billableProfessionals(null) : null);
   const providers = [...(listed ?? []).map((p) => ({ value: p.professionalId, label: professionalLabel(p) })), ...added.map((p) => ({ value: p.professionalId, label: p.displayName }))];
   // Starts from the file's suggestion, or what the submitter entered.
   const [caseId, setCaseId] = useState(item.caseId ?? item.suggestedCaseId ?? (item.proposedCase ? ADD_NEW : ''));
@@ -398,11 +393,10 @@ function AddInvoices() {
 // match_invoice_to_case).
 export default function InvoiceIntake() {
   const [params] = useSearchParams();
-  const [version, setVersion] = useState(0);
-  const refresh = () => setVersion((v) => v + 1);
-  const { data: intake, error } = useApiResource(invoiceIntake, [version]);
+  const { data: intake, error, reload: reloadIntake } = useResource(invoiceIntake);
   const data = intake?.items ?? null;
-  const { data: mine } = useApiResource(myInvoices, [version]);
+  const { data: mine, reload: reloadMine } = useResource(myInvoices);
+  const refresh = () => void Promise.all([reloadIntake(), reloadMine()]);
   // Drafts with no case are listed under "Waiting for a case" instead.
   const drafts = mine?.filter((invoice) => invoice.statusCode === 'draft' && invoice.caseId) ?? null;
   const [toast, setToast] = useToast();

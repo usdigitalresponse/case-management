@@ -2,9 +2,10 @@
 // invoice entered in review. Saves go one at a time, each the whole set of
 // lines; on a failure the page goes back to the last set the server holds,
 // keeping changes made in place.
+import { billableProfessionals } from '../resources';
+import { useResource } from '../hooks/useResource';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ApiError, apiErrorMessage, listBillableProfessionals, type FileLine, type FileSource, type PortalInvoiceLine } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { ApiError, apiErrorMessage, type FileLine, type FileSource, type PortalInvoiceLine } from '../api/client';
 import { useSaveBeforeLeaving } from '../hooks/useSaveBeforeLeaving';
 import { usePortalBillingRules } from '../components/BillingRules';
 import { lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
@@ -53,7 +54,7 @@ export function useLineEntry({
   }, [serverLines]);
 
   const { mileageRates, timeCategoryRates } = usePortalBillingRules();
-  const { data: timekeepers } = useApiResource(() => listBillableProfessionals(caseId).then((result) => result.professionals), [caseId]);
+  const { data: timekeepers } = useResource(billableProfessionals(caseId));
   const ownMileageRates = timekeepers?.find((p) => p.professionalId === professionalId)?.mileageRates ?? [];
   const context: PricingContext = {
     timekeepers: timekeepers ?? [],

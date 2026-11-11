@@ -6,6 +6,7 @@ import { useAuth } from '../AuthContext';
 export const NEW_INVOICE_PATH = '/new-invoice';
 // External submitters start on their invoices and add new ones by upload.
 export const PORTAL_HOME_PATH = '/portal/invoices';
+export const PORTAL_PREAUTHORIZATIONS_PATH = '/portal/preauthorizations';
 export const UPLOAD_PATH = '/portal/upload';
 // Staff enter invoices, finish drafts and match invoices to cases here.
 export const INTAKE_PATH = '/intake';

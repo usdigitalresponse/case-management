@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
 import type { CaseListRecord } from '../api/client';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { cases as casesResource } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
@@ -11,6 +10,7 @@ import { useCountyControl } from '../components/CountyListControl';
 import { stageLabel } from '../overviewStages';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { formatMoney } from '../formatMoney';
+import { useSearchParamState, useSearchParamText } from '../hooks/useSearchParamState';
 
 type Shown = 'all' | 'open' | 'closed';
 
@@ -21,10 +21,10 @@ function matchesQuery(caseRecord: CaseListRecord, query: string): boolean {
 
 // Every case, as design I48 lists them.
 export default function CaseList() {
-  const { data, error } = useCachedResource(casesResource);
+  const { data, error } = useResource(casesResource);
   const cases = data?.cases ?? null;
-  const [query, setQuery] = useState('');
-  const [shown, setShown] = useState<Shown>('all');
+  const [query, setQuery] = useSearchParamText('q');
+  const [shown, setShown] = useSearchParamState<Shown>('show', 'all', ['all', 'open', 'closed']);
   // ?stage=<id> narrows to one stage (the Case overview's "View all" links set it).
   const [searchParams] = useSearchParams();
   const stageParam = searchParams.get('stage');

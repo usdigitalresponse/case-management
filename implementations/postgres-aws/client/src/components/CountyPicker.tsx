@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useCombobox } from 'downshift';
 import { apiErrorMessage, type CountyChoice, type CountyOption, type SavedCounty } from '../api/client';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { counties as countiesResource } from '../resources';
 import { countyChoiceOf, countyMatches, type CountyValue } from '../counties';
 
@@ -27,7 +27,7 @@ export function CountyPicker({
   error?: string | null;
   disabled?: boolean;
 }) {
-  const { data } = useCachedResource(countiesResource);
+  const { data } = useResource(countiesResource);
   // A county just added isn't in the list fetched before it.
   const options =
     value?.countyId && data && !data.some((option) => option.countyId === value.countyId)

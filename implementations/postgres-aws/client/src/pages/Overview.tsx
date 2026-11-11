@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
 import type { CaseListRecord } from '../api/client';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { cases as casesResource, recentCaseChanges } from '../resources';
 import { overviewStages } from '../overviewStages';
 import { PageHeading } from '../components/PageHeading';
@@ -19,8 +19,8 @@ function caseNote(record: CaseListRecord): string {
 }
 
 export default function Overview() {
-  const { data, error } = useCachedResource(casesResource);
-  const { data: recent } = useCachedResource(recentCaseChanges);
+  const { data, error } = useResource(casesResource);
+  const { data: recent } = useResource(recentCaseChanges);
   if (error) return <Notice tone="danger">Unable to load the overview. Please refresh to try again.</Notice>;
   if (!data) return <p role="status">Loading overview…</p>;
 

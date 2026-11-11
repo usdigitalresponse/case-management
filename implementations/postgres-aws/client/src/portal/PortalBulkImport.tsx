@@ -7,7 +7,6 @@ import {
   discardCaseSplitRead,
   getCaseSplitRead,
   invoiceTemplateUrl,
-  listBillableProfessionals,
   listInvoiceImports,
   resolveInvoiceImport,
   startCaseSplit,
@@ -19,8 +18,8 @@ import {
   type ImportInProgress,
   type MyCasesResult,
 } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
-import { invoiceImports, myCases } from '../resources';
+import { useResource } from '../hooks/useResource';
+import { billableProfessionals, invoiceImports, myCases } from '../resources';
 import { usePoll } from '../hooks/usePoll';
 import { ImportProgressNote } from '../components/ImportProgressNote';
 import { RecordTable } from '../components/RecordTable';
@@ -688,14 +687,12 @@ export default function PortalBulkImport() {
   const [version, setVersion] = useState(0);
   const [stagedCount, setStagedCount] = useState(0);
   const [uploadedCount, setUploadedCount] = useState(0);
-  const { data: cases, error: casesError } = useApiResource(myCases, []);
+  const { data: cases, error: casesError } = useResource(myCases);
   const { staff, newInvoicePath, newInvoiceLabel } = useShell();
   // Staff may import for any active professional with no case yet.
-  const { data: noCase } = useApiResource(
-    () => (staff ? listBillableProfessionals(null).then((result) => result.professionals) : Promise.resolve([])),
-    [staff],
-  );
-  const { data: imports, error: importsError } = useApiResource(invoiceImports, [version]);
+  const { data: billableNoCase } = useResource(staff ? billableProfessionals(null) : null);
+  const noCase = staff ? billableNoCase : [];
+  const { data: imports, error: importsError } = useResource(invoiceImports, { resetKey: version });
   const refresh = () => setVersion((v) => v + 1);
   // While files are being read, poll for their progress; reload everything
   // when one finishes.
