@@ -3,8 +3,9 @@
 // staff. Staff may record that a pair are different people; only an
 // administrator merges them (./personMerges.ts). Nothing is merged here.
 import { z } from 'zod';
-import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
+import { inIds } from '../db/inIds';
 import {
   caseParticipant,
   caseTable,
@@ -142,19 +143,19 @@ export async function summarize(db: DatabaseOrTransaction, personIds: string[]):
     .leftJoin(professional, eq(professional.personId, person.personId))
     .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
     .leftJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
-    .where(inArray(person.personId, personIds));
+    .where(inIds(person.personId, personIds));
   const cases = await db.execute<{ person_id: string; count: number }>(sql`
     select person_id, count(distinct case_id)::int as count from (
       select ${caseParticipant.personId} as person_id, ${caseParticipant.caseId} as case_id from ${caseParticipant}
-        where ${inArray(caseParticipant.personId, personIds)}
+        where ${inIds(caseParticipant.personId, personIds)}
       union
-      select ${caseTable.clientId}, ${caseTable.caseId} from ${caseTable} where ${inArray(caseTable.clientId, personIds)}
+      select ${caseTable.clientId}, ${caseTable.caseId} from ${caseTable} where ${inIds(caseTable.clientId, personIds)}
     ) named group by person_id`);
   const invoices = await db
     .select({ personId: professional.personId, count: sql<number>`count(*)::int` })
     .from(invoice)
     .innerJoin(professional, eq(invoice.professionalId, professional.professionalId))
-    .where(inArray(professional.personId, personIds))
+    .where(inIds(professional.personId, personIds))
     .groupBy(professional.personId);
   const caseCounts = new Map(cases.rows.map((row) => [row.person_id, row.count]));
   const invoiceCounts = new Map(invoices.map((row) => [row.personId, row.count]));

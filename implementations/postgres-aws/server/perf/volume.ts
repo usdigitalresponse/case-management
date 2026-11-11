@@ -52,11 +52,15 @@ const FAMILY = [
   'Thorn', 'Vale', 'West', 'Yew', 'Ridge', 'Stone', 'Field', 'Grove', 'Hill', 'Lake', 'Marsh', 'Park', 'River', 'Sand', 'Wood',
   'Bloom', 'Crest',
 ];
+const MIDDLE = [
+  'Amber', 'Basil', 'Coral', 'Dusk', 'Echo', 'Flint', 'Ginger', 'Hazel', 'Ivy', 'Jade', 'Kale', 'Lilac', 'Mint', 'Nova', 'Olive',
+  'Pearl', 'Quill', 'Rain', 'Sky', 'Tide', 'Upton', 'Violet', 'Wade', 'Yuri', 'Zest', 'Bram',
+];
 const sqlArray = (values: string[]) => `array[${values.map((value) => `'${value}'`).join(',')}]`;
-// Unique for n below 62,400: given, middle initial, family.
+// Unique for n below 62,400 under nameKey, which ignores initials: given, middle, family.
 const given = (n: string) => `(${sqlArray(GIVEN)})[1 + (${n}) % ${GIVEN.length}]`;
 const family = (n: string) => `(${sqlArray(FAMILY)})[1 + ((${n}) / ${GIVEN.length}) % ${FAMILY.length}]`;
-const initial = (n: string) => `chr(65 + ((${n}) / ${GIVEN.length * FAMILY.length}) % 26)`;
+const middle = (n: string) => `(${sqlArray(MIDDLE)})[1 + ((${n}) / ${GIVEN.length * FAMILY.length}) % ${MIDDLE.length}]`;
 // Version 4 and variant digits set, so the routes' uuid checks accept them.
 const id = (kind: string, n: string) => `pg_temp.perf_uuid(md5('perf-${kind}-' || (${n})))`;
 
@@ -80,7 +84,7 @@ export async function loadVolume(pool: Pool, fixtures: BaselineFixtureIds, volum
      $$ select (substr(h, 1, 12) || '4' || substr(h, 14, 3) || '8' || substr(h, 18))::uuid $$`,
     `insert into person (person_id, given_name, family_name, display_name, email)
      select ${id('pro-person', 'g')}, ${given('g + 30000')}, ${family('g + 30000')},
-            ${given('g + 30000')} || ' ' || ${initial('g + 30000')} || '. ' || ${family('g + 30000')}, 'demo-vendor-perf-' || g || '@example.invalid'
+            ${given('g + 30000')} || ' ' || ${middle('g + 30000')} || ' ' || ${family('g + 30000')}, 'demo-vendor-perf-' || g || '@example.invalid'
      from generate_series(1, ${P}) g`,
     `insert into user_account (user_account_id, display_name, email, person_id, active)
      select ${id('pro-account', 'g')}, p.display_name, p.email, p.person_id, true
@@ -91,7 +95,7 @@ export async function loadVolume(pool: Pool, fixtures: BaselineFixtureIds, volum
     // Planted duplicates: same name (50th), email (70th), birth date and family name (90th).
     `insert into person (person_id, given_name, family_name, display_name, date_of_birth, email)
      select ${id('client', 'c')}, ${given('n')}, ${family('f')},
-            ${given('n')} || ' ' || ${initial('n')} || '. ' || ${family('f')},
+            ${given('n')} || ' ' || ${middle('n')} || ' ' || ${family('f')},
             date '1960-01-01' + ((d * 37) % 15000),
             case when c % 70 = 0 then 'perf-client-' || (c - 1) || '@example.test'
                  when c % 10 = 1 or c % 70 = 69 then 'perf-client-' || c || '@example.test' end
