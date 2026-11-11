@@ -19,7 +19,7 @@ import { ADD_NEW } from '../components/PickOrAdd';
 import { countyChoiceOf } from '../counties';
 import { DropZone, FileCard, Steps, useUploadEntries, type ReadyRead } from '../components/upload/UploadFiles';
 import { ReceivedFields } from '../portal/ReceivedFields';
-import { checkLinesPath, type CheckQueue } from '../portal/InvoiceSubmission';
+import { checkLinesPath, type CheckQueue } from '../portal/checkQueue';
 import { PORTAL_HOME_PATH, useShell } from '../portal/useShell';
 import { reviewPath } from '../staffPaths';
 import { useAuth } from '../AuthContext';

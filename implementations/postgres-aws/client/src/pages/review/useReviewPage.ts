@@ -5,7 +5,7 @@ import { useResource } from '../../hooks/useResource';
 import { decisionReasons, invoiceForReview } from '../../resources';
 import type { PanelMode } from '../../components/LineReview';
 import { useToast, type ToastMessage } from '../../components/Toast';
-import type { CheckQueue } from '../../portal/InvoiceSubmission';
+import type { CheckQueue } from '../../portal/checkQueue';
 import { reviewPath } from '../../staffPaths';
 
 // The review page's data, what is open on it, and running its actions.

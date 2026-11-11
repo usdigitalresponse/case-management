@@ -590,6 +590,13 @@ How the React client is built and why. Schema mapping and gaps are in
   is open and the action runner (`act`); `reviewFacts` works out what it
   shows and allows (unit tested); `lineCells` builds each line's decision,
   questions and open form; the rest are its sections, top to bottom.
+- **The check page** (`src/portal/InvoiceSubmission.tsx`, the portal's
+  invoice page and staff's check-the-lines page) lays out its sections from
+  `src/portal/submission/`: `useSubmission` holds the lines as edited, the
+  case number and sending, withdrawing and answering; `submissionFacts`
+  works out what it shows and allows (unit tested). `CheckQueue` and
+  `checkLinesPath` live in `src/portal/checkQueue.ts`, so pages linking to
+  it don't load its code.
 - **Styles** (`src/styles/`) are plain global CSS with BEM-style names,
   as USWDS is, in one file per area, imported in a fixed order by
   `index.css` so later files can override earlier ones. A rule used by one

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router';
 import { apiErrorMessage, enterInReview, type ReviewQueueItem } from '../api/client';
 import { reviewPath } from '../staffPaths';
-import { checkLinesPath } from '../portal/InvoiceSubmission';
+import { checkLinesPath } from '../portal/checkQueue';
 import { INTAKE_PATH } from '../portal/useShell';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
