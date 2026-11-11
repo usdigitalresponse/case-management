@@ -1,0 +1,50 @@
+{
+  "plugins": [
+    "stylelint-declaration-strict-value"
+  ],
+  "rules": {
+    "scale-unlimited/declaration-strict-value": [
+      [
+        "/color$/",
+        "font-size",
+        "font-family",
+        "/^margin/",
+        "/^padding/",
+        "gap",
+        "row-gap",
+        "column-gap",
+        "border-radius"
+      ],
+      {
+        "expandShorthand": true,
+        "disableFix": true,
+        "ignoreValues": [
+          "0",
+          "auto",
+          "none",
+          "inherit",
+          "initial",
+          "unset",
+          "transparent",
+          "currentColor",
+          "normal",
+          "GrayText",
+          "SelectedItem",
+          "ButtonText"
+        ],
+        "message": "Use a design token from src/styles/tokens.css for \"${property}\", not \"${value}\"."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/styles/tokens.css",
+        "src/styles/reset.css"
+      ],
+      "rules": {
+        "scale-unlimited/declaration-strict-value": null
+      }
+    }
+  ]
+}

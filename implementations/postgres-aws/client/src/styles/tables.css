@@ -4,9 +4,9 @@
 .usa-table thead td, .usa-table tfoot td, .usa-table th { background-clip:padding-box; line-height:1.3; background-color:var(--color-surface-container-low); color:var(--color-on-surface); }
 .usa-table th, .usa-table td { border:1px solid var(--color-outline-subtle); padding:var(--space-4) var(--space-6); }
 .usa-table td { background-color:var(--color-surface); font-weight:normal; }
-.usa-table caption { font-family:var(--font-sans); font-size:1rem; font-weight:700; margin-bottom:0.75rem; text-align:left; }
-.usa-table caption.usa-sr-only { position:static; clip:rect(0 0 0 0); clip-path:inset(50%); width:1px; height:1px; margin:-1px; overflow:hidden; white-space:nowrap; }
-.usa-table th[data-sortable] { padding-right:2.5rem; position:relative; }
+.usa-table caption { font-family:var(--font-sans); font-size:var(--text-15); font-weight:700; margin-bottom:var(--space-5); text-align:left; }
+.usa-table caption.usa-sr-only { position:static; clip:rect(0 0 0 0); clip-path:inset(50%); width:1px; height:1px; margin:calc(var(--space-1) * -1); overflow:hidden; white-space:nowrap; }
+.usa-table th[data-sortable] { padding-right:var(--space-10); position:relative; }
 .usa-table th[data-sortable]::after { border-bottom-color:transparent; border-bottom-style:solid; border-bottom-width:1px; bottom:0; content:""; height:0; left:0; position:absolute; width:100%; }
 .usa-table th[data-sortable][aria-sort=descending], .usa-table th[data-sortable][aria-sort=ascending] { background-color:var(--color-primary-container); }
 .usa-table thead th[aria-sort] { background-color:var(--color-primary-container); color:var(--color-on-surface); }
@@ -52,6 +52,7 @@
 .data-card table td, .data-card table th { border-bottom-color: var(--color-outline-subtle); }
 /* RecordTable with column widths: tables repeated per section line up. */
 .data-card table.fixed-columns { table-layout: fixed; }
+.data-card table.fixed-columns col { width: var(--column-width); }
 .data-card table.fixed-columns td, .data-card table.fixed-columns th { overflow-wrap: anywhere; }
 .data-card table .amount { text-align: right; }
 .data-card table tr.is-retired th, .data-card table tr.is-retired td { color: var(--color-on-surface-muted); }

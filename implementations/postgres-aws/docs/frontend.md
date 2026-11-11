@@ -596,7 +596,10 @@ How the React client is built and why. Schema mapping and gaps are in
   area goes in that area's file; one shared across areas goes in the shared
   files. Values come from `tokens.css`, and values known only at run time
   reach CSS as custom properties (`components/ui/cssVars.ts`), never inline
-  styles.
+  styles. `npm run lint` enforces both: stylelint
+  (`client/.stylelintrc.json`) rejects a literal color, font size or family,
+  margin, padding, gap or radius outside `tokens.css` and `reset.css`, and
+  ESLint rejects a `style` prop not built with `cssVars`.
 - **Tests**: hooks that need React or a router run in jsdom with React
   Testing Library (`// @vitest-environment jsdom` at the top of the
   file; a router test also imports `src/testing/routerInJsdom.ts`).
