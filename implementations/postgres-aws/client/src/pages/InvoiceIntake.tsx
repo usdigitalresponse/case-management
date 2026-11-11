@@ -27,7 +27,7 @@ import { Toast, useToast } from '../components/Toast';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { StatusPill, type Tone } from '../components/StatusPill';
-import { professionalLabel } from '../components/InvoiceLinesEditor';
+import { professionalLabel } from '../invoiceLines';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { DropZone, type UploadStart } from '../components/upload/UploadFiles';
 import { UPLOAD_PATH } from '../portal/useShell';

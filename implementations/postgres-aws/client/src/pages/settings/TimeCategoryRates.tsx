@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
 import { addTimeCategoryRate, apiErrorMessage, categoryRateIn, type TimeCategory, type TimeCategoryBasis } from '../../api/client';
-import { timeCategoryRateLabel } from '../../components/InvoiceLinesEditor';
+import { timeCategoryRateLabel } from '../../invoiceLines';
 import { useResource } from '../../hooks/useResource';
 import { timeCategoryRates } from '../../resources';
 import { RecordTable } from '../../components/RecordTable';

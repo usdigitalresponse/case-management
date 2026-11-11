@@ -9,7 +9,8 @@ import {
   type InvoiceTransition,
   type PortalInvoice,
 } from '../api/client';
-import { hasInvoiceItems, InvoiceLinesEditor, lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
+import { InvoiceLinesEditor } from '../components/InvoiceLinesEditor';
+import { hasInvoiceItems, lineDraftsFrom, linesFromDrafts, type LineDraft } from '../invoiceLines';
 import { useResource } from '../hooks/useResource';
 import { myInvoice } from '../resources';
 import { UnbilledTimePicker } from '../components/UnbilledTimePicker';

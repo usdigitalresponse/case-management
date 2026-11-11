@@ -13,14 +13,8 @@ import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
 import { matchToAddedCase, NO_PROPOSED_PERSON, ProposedPersonFields, proposedPersonToSend } from '../components/NewEntryFields';
 import { lineFromTimeEntry, UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { RulesInForce, usePortalBillingRules } from '../components/BillingRules';
-import {
-  emptyLine,
-  hasInvoiceItems,
-  InvoiceLinesEditor,
-  linesFromDrafts,
-  professionalLabel,
-  type LineDraft,
-} from '../components/InvoiceLinesEditor';
+import { InvoiceLinesEditor } from '../components/InvoiceLinesEditor';
+import { emptyLine, hasInvoiceItems, linesFromDrafts, professionalLabel, type LineDraft } from '../invoiceLines';
 import { InvoiceImportForm } from '../components/InvoiceImportForm';
 import { PeriodFields } from '../components/PeriodFields';
 import { Notice } from '../components/ui/Notice';

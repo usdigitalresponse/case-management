@@ -2,7 +2,7 @@ import { Checkbox } from '@trussworks/react-uswds';
 import type { BillableProfessional, TimeEntryRecord } from '../api/client';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
-import { emptyLine, professionalLabel, timeItemPreview, type LineDraft } from './InvoiceLinesEditor';
+import { emptyLine, professionalLabel, timeItemPreview, type LineDraft } from '../invoiceLines';
 
 export function lineFromTimeEntry(entry: TimeEntryRecord): LineDraft {
   return {

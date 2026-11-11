@@ -1,16 +1,7 @@
 // The figures behind "Check the lines": each line's amount as the server will
 // bill it, the lines read from the file, and the notice comparing the two.
 import type { BillableProfessional, FileLine, FileSource, MileageRate, TimeCategoryRate } from '../api/client';
-import {
-  emptyLine,
-  hasInvoiceItems,
-  isTimeKind,
-  mileageItemPreview,
-  timeItemPreview,
-  timeKindPreview,
-  travelItemPreview,
-  type LineDraft,
-} from '../components/InvoiceLinesEditor';
+import { emptyLine, hasInvoiceItems, isTimeKind, mileageItemPreview, timeItemPreview, timeKindPreview, travelItemPreview, type LineDraft } from '../invoiceLines';
 import { readLineType, type LineValues, type Row } from '../fileChanges';
 import { cents, formatMoney, sumMoney } from '../formatMoney';
 

@@ -370,7 +370,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     a holiday calendar, defaults by kind of invoice. Concurrent decisions
     are serialized by the invoice row lock.
 - **Drafts, submission, recall and withdrawal** (`src/billing/invoiceLifecycle.ts`,
-  `invoiceEvents.ts`; `client/src/components/InvoiceLinesEditor.tsx`):
+  `invoiceEvents.ts`; `client/src/components/InvoiceLinesEditor.tsx`, `invoiceLines.ts`):
   - `POST /api/portal/invoices` with `submit: false` saves a draft (the
     default still submits). `PUT /api/portal/invoices/:id` replaces a
     draft's period and lines; `POST .../submit`, `.../recall` and
@@ -843,7 +843,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     receipts above an amount (see `docs/DECISIONS.md`).
 - **Trips, travel and waiting time, and mileage** (`src/billing/mileageRates.ts`,
   `timeCategoryRates.ts`, `routeCheck.ts`, `priceLines.ts`,
-  `invoiceLifecycle.ts`, `sameDayTravel.ts`; `client/src/components/InvoiceLinesEditor.tsx`,
+  `invoiceLifecycle.ts`, `sameDayTravel.ts`; `client/src/invoiceLines.ts` (trip parts and
+  price previews), `components/InvoiceLinesEditor.tsx`,
   `TripFields.tsx`, `TravelLog.tsx`, `pages/settings/MileageRates.tsx` and
   `TimeCategoryRates.tsx`; `model/rules.yaml`
   `apply_mileage_rates`, `apply_time_category_rates` and the mileage

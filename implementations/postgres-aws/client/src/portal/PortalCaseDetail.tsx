@@ -10,7 +10,7 @@ import {
   type BillableProfessional,
   type TimeEntryRecord,
 } from '../api/client';
-import { professionalLabel } from '../components/InvoiceLinesEditor';
+import { professionalLabel } from '../invoiceLines';
 import { useResource } from '../hooks/useResource';
 import { billableProfessionals, myCaseInvoices, myCases as myCasesResource, myTimeEntries } from '../resources';
 import { NewInvoiceForm } from './NewInvoiceForm';

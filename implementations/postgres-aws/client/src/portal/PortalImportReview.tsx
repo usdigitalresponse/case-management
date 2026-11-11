@@ -17,18 +17,8 @@ import { useResource } from '../hooks/useResource';
 import { importReview, invoiceImports, type ImportReviewData } from '../resources';
 import { usePoll } from '../hooks/usePoll';
 import { ImportProgressNote } from '../components/ImportProgressNote';
-import {
-  assignTimekeeper,
-  emptyLine,
-  hasInvoiceItems,
-  invoiceTotalPreview,
-  InvoiceLinesEditor,
-  lineDraftsFrom,
-  linesFromDrafts,
-  professionalLabel,
-  SourceLocation,
-  type LineDraft,
-} from '../components/InvoiceLinesEditor';
+import { InvoiceLinesEditor, SourceLocation } from '../components/InvoiceLinesEditor';
+import { assignTimekeeper, emptyLine, hasInvoiceItems, invoiceTotalPreview, lineDraftsFrom, linesFromDrafts, professionalLabel, type LineDraft } from '../invoiceLines';
 import { formatDateTime } from '../formatDateTime';
 import { formatMoney, sumMoney } from '../formatMoney';
 import { ConfirmButton } from '../components/ConfirmButton';

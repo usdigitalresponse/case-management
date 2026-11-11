@@ -19,7 +19,7 @@ import { useResource } from '../hooks/useResource';
 import { billableProfessionals, uploadCases } from '../resources';
 import { Notice } from '../components/ui/Notice';
 import { PageHeader } from '../components/PageHeader';
-import { professionalLabel } from '../components/InvoiceLinesEditor';
+import { professionalLabel } from '../invoiceLines';
 import type { UploadedState } from './PortalInvoiceList';
 import { useShell } from './useShell';
 import { DropZone, FileCard, Steps, useUploadEntries, type Entry, type ReadyRead, type UploadStart } from '../components/upload/UploadFiles';

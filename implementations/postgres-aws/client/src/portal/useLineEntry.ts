@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, apiErrorMessage, type FileLine, type FileSource, type PortalInvoiceLine } from '../api/client';
 import { useSaveBeforeLeaving } from '../hooks/useSaveBeforeLeaving';
 import { usePortalBillingRules } from '../components/BillingRules';
-import { lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
+import { lineDraftsFrom, linesFromDrafts, type LineDraft } from '../invoiceLines';
 import type { ToastMessage } from '../components/Toast';
 import { changedFields, duplicateOf, rowsInFileOrder, tracksSource } from '../fileChanges';
 import { draftFromRead, priceOf, rowChanges, totalsNotice, valuesOf, type PricingContext } from './checkLines';

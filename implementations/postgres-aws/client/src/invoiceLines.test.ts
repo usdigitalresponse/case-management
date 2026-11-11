@@ -1,21 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { PortalInvoiceLine } from '../api/client';
-import {
-  assignTimekeeper,
-  emptyLine,
-  hasInvoiceItems,
-  invoiceTotalPreview,
-  lineDraftsFrom,
-  linesFromDrafts,
-  mileageItemPreview,
-  ratesInPlay,
-  timeItemPreview,
-  addToTrip,
-  travelItemPreview,
-  tripParts,
-  tripToJoin,
-} from './InvoiceLinesEditor';
-import { ADD_NEW } from './PickOrAdd';
+import type { PortalInvoiceLine } from './api/client';
+import { assignTimekeeper, emptyLine, hasInvoiceItems, invoiceTotalPreview, lineDraftsFrom, linesFromDrafts, mileageItemPreview, ratesInPlay, timeItemPreview, addToTrip, travelItemPreview, tripParts, tripToJoin } from './invoiceLines';
+import { ADD_NEW } from './components/PickOrAdd';
 
 const importedLine: PortalInvoiceLine = {
   invoiceLineId: 'line-1',
