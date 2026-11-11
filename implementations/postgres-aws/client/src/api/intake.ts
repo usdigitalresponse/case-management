@@ -1,4 +1,3 @@
-// Intake: requests waiting to be matched, matched to a case or returned.
 import { request } from './http';
 import type { ProposedCase, ProposedProvider } from './myInvoices';
 

@@ -1,4 +1,3 @@
-// Review queues, the people in them, and the billing record export.
 import { request } from './http';
 import type { CountyChoice, SavedCounty } from './cases';
 import type { ProposedCase, ProposedProvider } from './myInvoices';

@@ -1,4 +1,4 @@
-// Saving a draft's or an entry's lines in place, keeping each line's id.
+// Lines save in place, keeping their ids, so decisions and questions stay on them.
 import { and, eq, inArray, ne } from 'drizzle-orm';
 import { type Transaction } from '../../db/client';
 import { firstRow } from '../../db/rowHelpers';

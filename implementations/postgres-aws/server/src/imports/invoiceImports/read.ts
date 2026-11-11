@@ -1,4 +1,4 @@
-// Reading a file into a draft, in the background queue; parsed values stay unchanged in extraction_result.
+// Runs in the background queue; parsed values stay unchanged in extraction_result.
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { type Database, type Transaction } from '../../db/client';
 import { invoice, invoiceImport, invoiceImportStatuses, invoiceLine, professional } from '../../db/schema';
@@ -286,7 +286,7 @@ export async function extractIntoDraft(
     parsed: ParsedInvoice;
     fileName?: string;
     everyLineBilled: boolean;
-    // ../billing/timekeeperFallback.ts
+    // ../../billing/timekeeperFallback.ts
     timekeeperFallback?: boolean;
     // The billing period the uploader checked, in place of the one read;
     // the extraction record keeps what was read.

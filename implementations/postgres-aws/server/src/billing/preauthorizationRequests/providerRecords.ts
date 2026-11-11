@@ -1,4 +1,4 @@
-// A provider's kept records: CVs, fee schedules and other documents, and service rates.
+// A provider's CVs and fee schedules are kept records, unlike invoice working copies.
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';

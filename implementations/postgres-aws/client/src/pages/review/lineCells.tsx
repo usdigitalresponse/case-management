@@ -15,7 +15,6 @@ import { TimeLogLinkForm } from './timeLog/TimeLogLinkForm';
 import type { ReviewFacts } from './reviewFacts';
 import type { ReviewPage } from './useReviewPage';
 
-// What each line row shows beyond its figures: decision, questions, time log and open form.
 export function lineCells(page: ReviewPage, facts: ReviewFacts) {
   const { invoice, lines, data, timeLog, lineNumber, canDecide, inReview, permissions, askWhom } = facts;
   const { act, refresh, linesVersion, saving, panel, setPanel, asking, setAsking, linking, setLinking } = page;

@@ -1,4 +1,3 @@
-// A reviewer's case time log, checked against a request's lines.
 import { request } from './http';
 
 export type TimeLogLineStatus =

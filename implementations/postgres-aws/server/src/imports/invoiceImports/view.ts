@@ -1,4 +1,3 @@
-// An import as its uploader sees it, the list in progress, and its file.
 import { z } from 'zod';
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { type Database } from '../../db/client';

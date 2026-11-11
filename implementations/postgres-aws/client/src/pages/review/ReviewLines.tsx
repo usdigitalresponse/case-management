@@ -8,7 +8,6 @@ import type { LineCells } from './lineCells';
 import type { ReviewFacts } from './reviewFacts';
 import type { ReviewPage } from './useReviewPage';
 
-// The lines: edited in place while entering, else a table with the file or time log beside it.
 export function ReviewLines({
   page,
   facts,

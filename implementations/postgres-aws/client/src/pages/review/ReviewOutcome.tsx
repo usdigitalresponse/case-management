@@ -10,7 +10,6 @@ import { reviewPath } from '../../staffPaths';
 import type { ReviewFacts } from './reviewFacts';
 import type { ReviewPage } from './useReviewPage';
 
-// Below the lines: totals and finishing, sign-off, what happened since, and the travel log.
 export function ReviewOutcome({ page, facts }: { page: ReviewPage; facts: ReviewFacts }) {
   const { invoice, data, lines, status, totals, inReview, entering, approvers, permissions, awaitingAnswer } = facts;
   const { act, saving } = page;

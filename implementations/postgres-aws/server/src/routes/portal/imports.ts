@@ -1,4 +1,3 @@
-// Supporting invoice import (../../imports/invoiceImports/) and case-split reads.
 import express, { Router } from 'express';
 import { documentStore } from '../../imports/documentStore';
 import { MAX_UPLOAD_BYTES } from '../../imports/detectFormat';
@@ -45,7 +44,7 @@ router.post(
 );
 
 // A file designated to one professional whose lines name their cases
-// (../imports/splitByCase.ts): read in the background like an upload, then
+// (../../imports/splitByCase.ts): read in the background like an upload, then
 // previewed with a suggested case per line, then split into one import per
 // case from that reading. The raw body is the file.
 router.post(
@@ -85,7 +84,7 @@ router.post(
   }),
 );
 
-// The portal upload (../imports/splitByCase.ts): each file is read before
+// The portal upload (../../imports/splitByCase.ts): each file is read before
 // its case is chosen, then the submitter confirms the case, period and
 // invoice number and it becomes a draft. The raw body is the file.
 router.post(

@@ -1,4 +1,4 @@
-// Shared by the invoice import steps (model/workflows.yaml invoice_import).
+// model/workflows.yaml invoice_import.
 import { type DatabaseOrTransaction } from '../../db/client';
 import { getReferenceId } from '../../db/referenceLookups';
 import { invoiceImportStatuses } from '../../db/schema';

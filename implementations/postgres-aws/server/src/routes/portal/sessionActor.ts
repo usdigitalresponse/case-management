@@ -1,4 +1,3 @@
-// The signed-in portal user as an actor.
 import { type Request } from 'express';
 import { db } from '../../db/client';
 import { getSessionUser } from '../../auth/session';

@@ -1,6 +1,4 @@
-/* The design system's form controls (Figma's Text input, Drop-down select, Text area,
-   Checkbox and Radio button), on the class names @trussworks/react-uswds renders.
-   The only place a control's look is set; pages set width and placement. */
+/* Figma's form controls on react-uswds's class names; the only place their look is set. */
 
 /* Fields in a form: a label above its control, fields spaced apart. */
 .usa-form { font: var(--body-medium); }
@@ -77,8 +75,7 @@ input[type=search] { appearance: none; }
 textarea.check-lines__input { height: auto; padding: var(--space-3) var(--space-4); }
 :is(.check-lines__input, .row-edit__input):is([type=date], [type=time], [type=month], [type=datetime-local]) { line-height: calc(var(--space-9) - 2px); }
 
-/* Checkbox and radio button: an 18px mark with a 2px border, then the label. Plain
-   inputs draw the mark themselves; USWDS's hide the input and draw it before the label. */
+/* Plain inputs draw the mark; USWDS's hide the input and draw it before the label. */
 input[type=checkbox]:not([class*=usa-]), input[type=radio]:not([class*=usa-]),
 .usa-checkbox__label::before, .usa-radio__label::before {
   box-sizing: border-box;

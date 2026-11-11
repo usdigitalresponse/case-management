@@ -1,4 +1,4 @@
-// Storing an uploaded file and starting its import; for how long it is kept, see ../documentRetention.ts.
+// How long the file is kept: ../documentRetention.ts.
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { type Database, type Transaction } from '../../db/client';

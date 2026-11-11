@@ -8,7 +8,6 @@ import { useToast, type ToastMessage } from '../../components/Toast';
 import type { CheckQueue } from '../../portal/checkQueue';
 import { reviewPath } from '../../staffPaths';
 
-// The review page's data, what is open on it, and running its actions.
 export function useReviewPage(invoiceId: string, userAccountId: string | undefined) {
   const { data: loaded, error } = useResource(invoiceForReview(invoiceId));
   const { data: reasonData } = useResource(decisionReasons);

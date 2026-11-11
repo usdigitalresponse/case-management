@@ -8,8 +8,6 @@ import { DecisionTotals } from './DecisionTotals';
 import { TypedCaseNumber } from './TypedCaseNumber';
 import { CASE_NUMBER_LOCATION, type Submission } from './useSubmission';
 
-// Filed by person: whose work it is and its details, then the case or the typed
-// case number with its county, and once decided, the totals and comments.
 export function ByPersonDetails({ s }: { s: Submission }) {
   const { data, staff, onChanged, typedCaseNumber, setTypedCaseNumber, caseNumberMissing } = s;
   const { invoice, editable, decided, fromName } = s.facts;

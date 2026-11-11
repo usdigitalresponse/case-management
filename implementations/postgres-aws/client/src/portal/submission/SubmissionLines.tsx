@@ -8,7 +8,6 @@ import { formatMoney } from '../../formatMoney';
 import { CheckLinesTable } from '../CheckLinesTable';
 import type { Submission } from './useSubmission';
 
-// The file beside the lines, with where the invoice stands above them.
 export function SubmissionLines({ s }: { s: Submission }) {
   const { data, staff, user, focus, setFocus } = s;
   const { invoice, isDraft, editable, awaiting, sent } = s.facts;

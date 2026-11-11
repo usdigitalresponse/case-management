@@ -2,7 +2,6 @@ import type { InvoiceReview as InvoiceReviewData, InvoiceReviewLine, LineDecisio
 import { shownCaseNumber } from '../../caseNumbers';
 import { reviewTotals } from '../../reviewTotals';
 
-// What the review page shows and allows, worked out from its data and who is looking.
 export function reviewFacts(data: InvoiceReviewData, userId: string, permissions: ReviewPermissions | null | undefined) {
   const { invoice, lines, assignments } = data;
   const status = invoice.statusCode;

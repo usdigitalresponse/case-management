@@ -1,4 +1,4 @@
-// Recalling a sent request before any decision, or withdrawing it; each locks the invoice row, as review does.
+// Each locks the invoice row, as review does, so a recall can't race a decision.
 import { and, eq, isNull } from 'drizzle-orm';
 import { type Database, type Transaction } from '../../db/client';
 import { document, invoice, invoiceApprovalChain, invoiceApprovalDecision } from '../../db/schema';

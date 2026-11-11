@@ -1,4 +1,4 @@
-// Shared page-header pattern (styles/layout.css: .page-heading, .eyebrow), so every page frames itself the same way.
+// A title with an eyebrow above it, for pages without a breadcrumb.
 export function PageHeading({
   eyebrow,
   title,

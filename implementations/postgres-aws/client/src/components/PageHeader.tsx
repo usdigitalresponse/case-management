@@ -6,8 +6,6 @@ export interface Crumb {
   to?: string;
 }
 
-// Every page's top: breadcrumb, title with an optional status and the page's
-// actions on the right, then a line of key facts or a description across the page.
 export function PageHeader({
   crumbs,
   title,

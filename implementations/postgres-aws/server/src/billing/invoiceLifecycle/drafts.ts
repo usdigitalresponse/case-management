@@ -1,4 +1,4 @@
-// Starting a draft and changing it before it is sent; each locks the invoice row.
+// model/workflows.yaml payment_request; each change locks the invoice row first.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { type Database, type Transaction } from '../../db/client';

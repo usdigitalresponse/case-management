@@ -1,4 +1,4 @@
-/* Chips, notices, toasts and flags on entered details. */
+/* Tags, notices, toasts and flags on entered details. */
 /* Tags (components/ui/Tag.tsx), including status and filter tags. */
 .tag { display: inline-flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-radius: var(--radius-small); font-family: var(--font-sans); font-size: var(--text-11); font-weight: 600; letter-spacing: .2px; line-height: 1.25; background: var(--color-secondary-container); color: var(--color-on-secondary-container); white-space: nowrap; border: 0; }
 .tag--success { background: var(--color-success-container); color: var(--color-on-success-container); }
@@ -10,7 +10,7 @@
 .tag--filter[aria-pressed="false"]:not(.tag--warning) { background: var(--color-surface-container); color: var(--color-on-surface-variant); }
 .tag-filters { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: 0 0 var(--space-6); }
 .tag-count { font-weight: 400; }
-/* Notices (components/Notice.tsx): context with an optional action. */
+/* Notices (components/ui/Notice.tsx): context with an optional action. */
 .notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4) var(--space-6); margin: 0 0 var(--space-6); padding: var(--space-5) var(--space-6); border-radius: var(--radius-small); border-left: 3px solid; font-size: var(--text-15); }
 .notice__body { flex: 1 1 20rem; min-width: 0; }
 .notice__heading { display: block; margin: 0 0 var(--space-3); font-size: var(--text-15); font-weight: 700; }

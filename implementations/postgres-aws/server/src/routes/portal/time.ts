@@ -1,4 +1,3 @@
-// Time entries, and the rules, rates and people a sender bills with.
 import { Router } from 'express';
 import { z } from 'zod';
 import { and, asc, eq, getTableColumns, inArray } from 'drizzle-orm';

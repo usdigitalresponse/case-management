@@ -1,4 +1,3 @@
-// A sender's cases and time entries.
 import { request } from './http';
 import type { PreauthorizationSummary } from './cases';
 

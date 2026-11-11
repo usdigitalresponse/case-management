@@ -1,5 +1,4 @@
-/* A plain starting point for every page, from USWDS 3 (public domain): normalize,
-   box sizing, the skip link and screen-reader-only text. */
+/* From USWDS 3 (public domain): normalize, box sizing, skip link, screen-reader-only text. */
 html { line-height:1.15; -webkit-text-size-adjust:100%; }
 body { margin:0; }
 h1 { font-size:2em; margin:0.67em 0; }

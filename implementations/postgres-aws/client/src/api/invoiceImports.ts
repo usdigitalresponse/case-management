@@ -1,4 +1,3 @@
-// Reading uploaded invoice files into drafts, one at a time or split by case.
 import { fileBytes, request, sendFile } from './http';
 import type { CountyChoice } from './cases';
 import type { InvoiceLineType, InvoiceReceipt, ProposedCase, ProposedProvider, SourceRegion } from './myInvoices';

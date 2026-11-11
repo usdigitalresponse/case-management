@@ -1,4 +1,3 @@
-// A sender's invoices: drafts, sending, withdrawing and exports.
 import { request } from './http';
 import type { CountyChoice, SavedCounty } from './cases';
 import type { MileageRate, RuleFinding } from './settings';

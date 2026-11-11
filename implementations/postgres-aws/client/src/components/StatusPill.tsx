@@ -15,8 +15,7 @@ const STATUS_TONE: Record<string, Tone> = {
   rejected: 'danger',
 };
 
-// A status as the design's Tag, colored by status code or an explicit tone;
-// the text always carries the meaning.
+// Colored by status code or tone; the text always carries the meaning.
 export function StatusPill({ code, tone, label }: { code?: string | null; tone?: Tone; label: string | null }) {
   return <Tag tone={tone ?? ((code && STATUS_TONE[code]) || 'neutral')}>{label ?? 'Unknown'}</Tag>;
 }

@@ -4,7 +4,6 @@ import { SendDialog } from '../SendDialog';
 import { WithdrawDialog } from '../WithdrawDialog';
 import type { Submission } from './useSubmission';
 
-// Sending, filed by person or under a case, and withdrawing.
 export function SubmissionDialogs({ s }: { s: Submission }) {
   const { data, staff, user, typedCaseNumber, overrun, sendError } = s;
   const { invoice, byPerson, period, proposed, client, caseNumber, fromName } = s.facts;

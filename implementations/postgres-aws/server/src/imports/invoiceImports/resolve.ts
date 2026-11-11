@@ -1,4 +1,3 @@
-// Confirming, discarding or expiring an import, and removing files nothing refers to.
 import { z } from 'zod';
 import { and, eq, gte, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { type Database, type Transaction } from '../../db/client';
@@ -72,7 +71,7 @@ async function lockOwnImport(tx: Transaction, actor: PortalActor, importId: stri
 }
 
 // Returns the file's storage reference when nothing needs it any more
-// (./documentRetention.ts), for the caller to delete after commit. A
+// (../documentRetention.ts), for the caller to delete after commit. A
 // confirmed import keeps its file with the request.
 async function resolveImport(
   tx: Transaction,
@@ -119,7 +118,7 @@ export async function confirmInvoiceImport(db: Database, store: DocumentStore, a
 
 // Confirms a locked import as `actor`, returning a file nothing needs any
 // more for the caller to delete after commit. An invoice entered in review
-// is confirmed this way by its reviewer (../billing/enterInReview.ts).
+// is confirmed this way by its reviewer (../../billing/enterInReview.ts).
 export async function confirmImportInTx(
   tx: Transaction,
   actor: PortalActor,

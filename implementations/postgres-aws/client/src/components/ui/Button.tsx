@@ -1,6 +1,6 @@
 import { forwardRef, type ButtonHTMLAttributes } from 'react';
 
-// The design system's Button. Ghost buttons are .link-button for now.
+// Ghost buttons are .link-button for now.
 export type ButtonKind = 'primary' | 'secondary' | 'danger';
 
 // For a link that looks like a button.

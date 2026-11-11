@@ -1,4 +1,4 @@
-// A request's lines as sent: their schema and the draft body (model/workflows.yaml payment_request).
+// A request's lines as sent (model/workflows.yaml payment_request).
 import { z } from 'zod';
 import { ConflictError, ValidationError } from '../../errors';
 import { fieldErrorsFromZodIssues } from '../../intake/validation';
@@ -16,7 +16,7 @@ export const invoiceLineInputSchema = z
   .object({
     lineType: z.enum(['time', 'expense', 'mileage', 'other']).optional(),
     // Ignored on a time or mileage line, which is priced from rates
-    // (./priceLines.ts), except while an import is unconfirmed.
+    // (../priceLines.ts), except while an import is unconfirmed.
     amount: z.coerce.number().positive().optional(),
     // The billed professionals' time on this case; makes the line a time line.
     sourceTimeEntryId: z.string().uuid().optional(),
@@ -32,7 +32,7 @@ export const invoiceLineInputSchema = z
     expenseCode: z.string().trim().min(1).optional(),
     // Defaults to the billed professional on a delegated invoice.
     timekeeperProfessionalId: z.string().uuid().optional(),
-    // Someone not listed, named by the submitter (./proposedDetails.ts).
+    // Someone not listed, named by the submitter (../proposedDetails.ts).
     proposedTimekeeperName: z.string().trim().min(1).max(200).optional(),
     proposedTimekeeperEmail: optionalEmail,
     // Lines sharing a key are one trip (model/rules.yaml

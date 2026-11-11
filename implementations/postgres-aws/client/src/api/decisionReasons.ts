@@ -1,4 +1,3 @@
-// Reasons a reviewer gives for a decision, and their settings.
 import { request } from './http';
 
 // Which list a reason is on: approving in part, rejecting, both, or setting a case rate.

@@ -1,4 +1,3 @@
-// A sender's invoices: drafts, sending, answers, exports and files.
 import { Router, type Request } from 'express';
 import { documentStore } from '../../imports/documentStore';
 import { readFileForInvoice } from '../../imports/invoiceFile';

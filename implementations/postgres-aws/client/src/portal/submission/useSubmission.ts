@@ -29,8 +29,6 @@ function overrunMessage(overrun: Overrun): string {
   return `This takes the provider to ${formatMoney(overrun.total)} on this case, over the ${formatMoney(overrun.limit)} ${limit}. Explain why more wasn't pre-authorized.`;
 }
 
-// The check page's state: its lines as edited, the case number, and sending,
-// withdrawing and answering.
 export function useSubmission({
   data,
   filedByPerson,

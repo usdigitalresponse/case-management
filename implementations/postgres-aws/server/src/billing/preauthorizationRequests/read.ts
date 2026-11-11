@@ -1,4 +1,3 @@
-// Pre-authorization requests as staff and senders see them.
 import { z } from 'zod';
 import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';

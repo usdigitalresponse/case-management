@@ -4,7 +4,6 @@ import { PORTAL_HOME_PATH } from '../useShell';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-// What the check page shows and allows, from its invoice and who is looking.
 export function submissionFacts(data: PortalInvoice, { userId, staff, filedByPerson }: { userId: string | undefined; staff: boolean; filedByPerson: boolean | undefined }) {
   const { invoice } = data;
   // Filed by person, even once put under one of the sender's cases.

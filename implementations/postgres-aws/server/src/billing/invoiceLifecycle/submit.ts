@@ -1,4 +1,3 @@
-// Sending a request for review: its snapshot, attestation, receipt and assignment.
 import { z } from 'zod';
 import { and, desc, eq } from 'drizzle-orm';
 import { type Database, type Transaction } from '../../db/client';

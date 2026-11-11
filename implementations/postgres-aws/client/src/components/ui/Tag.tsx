@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-// The design system's Tag: a short label whose text carries the meaning; tone only adds color.
+// The text carries the meaning; tone only adds color.
 export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
 export function Tag({ tone = 'neutral', className, children }: { tone?: Tone; className?: string; children?: ReactNode }) {

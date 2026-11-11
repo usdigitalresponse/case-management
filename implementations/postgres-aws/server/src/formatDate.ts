@@ -23,8 +23,7 @@ function knownZone(timeZone: string | undefined): string | undefined {
   }
 }
 
-// An exact time as the design writes it, in the given zone if known, else the
-// reporting zone: "10 Nov 2026, 9:14 PM PST".
+// In the given zone if known, else the reporting zone: "10 Nov 2026, 9:14 PM PST".
 export function formatInstant(instant: Date, timeZone?: string): string {
   const zone = knownZone(timeZone);
   if (!zone) {

@@ -1,5 +1,5 @@
-/* Dialogs (components/Dialog.tsx) and popovers. */
-/* A modal confirmation (components/Dialog.tsx). */
+/* Dialogs (components/ui/Dialog.tsx) and popovers. */
+/* A modal confirmation (components/ui/Dialog.tsx). */
 .dialog { width: min(31.25rem, calc(100vw - 2rem)); box-sizing: border-box; padding: var(--space-9); border: 0; border-radius: var(--radius-medium); box-shadow: var(--elevation-4); color: var(--color-on-surface); }
 .dialog::backdrop { background: color-mix(in srgb, var(--color-scrim) 45%, transparent); }
 /* Headline/Small. */

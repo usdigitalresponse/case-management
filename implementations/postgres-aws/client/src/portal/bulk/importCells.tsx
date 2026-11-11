@@ -2,7 +2,6 @@ import { type ImportInProgress } from '../../api/client';
 import { caseDisplayLabel } from '../../caseDisplayLabel';
 import { formatMoney } from '../../formatMoney';
 
-// Cells shared by the check and send steps.
 export function caseOf(row: ImportInProgress): string {
   return row.caseId ? caseDisplayLabel([row.caseExternalReference, row.caseClientDisplayName], undefined) : 'No case yet';
 }

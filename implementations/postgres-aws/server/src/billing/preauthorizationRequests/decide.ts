@@ -1,4 +1,3 @@
-// Questions, matching and deciding a request, and withdrawing it while it is open.
 import { z } from 'zod';
 import { and, eq, isNull } from 'drizzle-orm';
 import { type Database, type DatabaseOrTransaction, type Transaction } from '../../db/client';

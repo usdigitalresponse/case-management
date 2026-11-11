@@ -13,7 +13,6 @@ import { personPath } from '../../staffPaths';
 import type { ReviewFacts } from './reviewFacts';
 import type { ReviewPage } from './useReviewPage';
 
-// What needs attention before deciding: entered details, status, questions, rates and rule findings.
 export function ReviewNotices({ page, facts }: { page: ReviewPage; facts: ReviewFacts }) {
   const { invoice, data, lines, status, byPerson, inReview, awaitingAnswer, openQuestions, answeredQuestions, sentBack, mileageFindings } = facts;
   const proposedPeople = [...new Set(lines.flatMap((line) => (line.proposedTimekeeperName ? [line.proposedTimekeeperName] : [])))];

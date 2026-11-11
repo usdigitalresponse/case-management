@@ -1,4 +1,4 @@
-// Shared by pre-authorization requests (model/rules.yaml request_preauthorization, workflows.yaml preauthorization_request).
+// model/rules.yaml request_preauthorization; workflows.yaml preauthorization_request.
 import { z } from 'zod';
 import { ValidationError } from '../../errors';
 import { fieldErrorsFromZodIssues } from '../../intake/validation';

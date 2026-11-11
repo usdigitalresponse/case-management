@@ -1,5 +1,4 @@
-/* Design system tokens, named as in Figma. Text stays 4.5:1 or better: on a
-   *-container fill it uses on-*-container. */
+/* Named as in Figma. For 4.5:1, text on a *-container fill uses on-*-container. */
 :root {
   --color-primary: #005a9c;
   --color-on-primary: #ffffff;

@@ -8,7 +8,6 @@ import { CaseNumberReview } from '../../components/CaseNumberReview';
 import type { ReviewFacts } from './reviewFacts';
 import type { ReviewPage } from './useReviewPage';
 
-// Who is entering it and its details while they do, then its case or the case number to match.
 export function EntryAndCase({ page, facts }: { page: ReviewPage; facts: ReviewFacts }) {
   const { invoice, data, entering, reviewer, byPerson, status, inReview, permissions } = facts;
   const { refresh, setToast, saveEdits, knownVersion } = page;

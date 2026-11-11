@@ -1,4 +1,3 @@
-// Reviewing a request: its lines, decisions, entry, sign-off and questions.
 import { request } from './http';
 import type { CaseRate, CountyChoice, PreauthorizationSummary, RateSource, RateType, SavedCounty } from './cases';
 import type { RuleFinding } from './settings';

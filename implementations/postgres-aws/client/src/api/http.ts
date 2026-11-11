@@ -33,7 +33,6 @@ export async function request<T>(path: string, init?: RequestInit, { notifies = 
   return body as T;
 }
 
-// A stored file's bytes, as for showing a PDF.
 export async function fileBytes(url: string): Promise<ArrayBuffer> {
   const response = await fetch(url, { credentials: 'include' });
   if (!response.ok) {

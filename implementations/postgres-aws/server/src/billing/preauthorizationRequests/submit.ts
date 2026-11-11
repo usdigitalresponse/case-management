@@ -1,4 +1,3 @@
-// A sender asking for a pre-authorization, and the preview of what it would allow.
 import { z } from 'zod';
 import { and, asc, eq, inArray, isNull, like, sql } from 'drizzle-orm';
 import { type Database, type DatabaseOrTransaction, type Transaction } from '../../db/client';
