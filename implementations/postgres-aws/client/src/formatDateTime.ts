@@ -22,6 +22,6 @@ export function formatPeriod(start: string | null, end: string | null): string {
 }
 
 // A timestamp's date in the viewer's zone, so an evening submission isn't shown as the next day.
-export function formatDay(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
+export function formatDay(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium', timeZone });
 }
