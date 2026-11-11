@@ -217,8 +217,14 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
 
 const routesFor: Record<Audience, () => RouteObject[]> = {
   'signed-out': () => [
-    { path: '/submit', ...page(() => import('./portal/PortalSignIn')) },
-    { path: '*', ...page(() => import('./pages/LoginPage')) },
+    {
+      HydrateFallback: () => null,
+      errorElement: <PageError />,
+      children: [
+        { path: '/submit', ...page(() => import('./portal/PortalSignIn')) },
+        { path: '*', ...page(() => import('./pages/LoginPage')) },
+      ],
+    },
   ],
   portal: () => portalRoutes(portalLoaders),
   staff: () => staffRoutes(() => signedInUser),

@@ -54,7 +54,7 @@ const edited = <T>(definition: Resource<T>) => ({ ...definition, fresh: true });
 export const reviewQueue = (view: 'open' | 'finished' | 'all') =>
   resource({ key: ['review-queue', view], load: () => listReviewQueue(view) });
 
-export const invoiceIntake = edited({ key: ['invoice-intake'], load: listInvoiceIntake });
+export const invoiceIntake = resource({ key: ['invoice-intake'], load: listInvoiceIntake });
 
 export const invoiceForReview = (invoiceId: string) =>
   edited({ key: ['invoice-review', invoiceId], load: () => getInvoiceForReview(invoiceId) });
@@ -71,8 +71,6 @@ export const people = resource({ key: ['people'], load: () => listPeople().then(
 
 export const referenceData = resource({ key: ['reference-data'], load: getReferenceData, reference: true });
 
-export const providers = resource({ key: ['providers'], load: () => listVendors('') });
-
 export const preauthorizationRequests = (filter: { status: string; countyId?: string; caseId?: string }) =>
   resource({
     key: ['preauthorization-requests', filter.status, filter.countyId ?? null, filter.caseId ?? null],
@@ -87,6 +85,11 @@ export function thisYear() {
 
 export const preauthorizationUsage = (period: { from: string; to: string }) =>
   resource({ key: ['preauthorization-usage', period.from, period.to], load: () => getPreauthorizationUsage(period), keepPrevious: true });
+
+export const myInvoices = resource({ key: ['my-invoices'], load: () => listMyInvoices().then((result) => result.invoices) });
+
+export const myCaseInvoices = (caseId: string) =>
+  resource({ key: ['my-case-invoices', caseId], load: () => listMyInvoices(caseId).then((result) => result.invoices) });
 
 // Read by pages that edit what they load.
 export const professionalKinds = edited({ key: ['professional-kinds'], load: () => listProfessionalKinds().then((result) => result.kinds) });
@@ -118,12 +121,7 @@ export const person = (professionalId: string) => edited({ key: ['person', profe
 export const personInvoices = (professionalId: string, day: string | undefined) =>
   edited({ key: ['person-invoices', professionalId, day ?? null], load: () => listReviewQueue('all', { professionalId, day }) });
 
-export const myInvoices = edited({ key: ['my-invoices'], load: () => listMyInvoices().then((result) => result.invoices) });
-
 export const myCases = edited({ key: ['my-cases'], load: listMyCases });
-
-export const myCaseInvoices = (caseId: string) =>
-  edited({ key: ['my-case-invoices', caseId], load: () => listMyInvoices(caseId).then((result) => result.invoices) });
 
 export const myTimeEntries = (caseId: string) =>
   edited({ key: ['my-time-entries', caseId], load: () => listMyTimeEntries(caseId).then((result) => result.timeEntries) });
@@ -169,9 +167,6 @@ export const providerDocuments = (professionalId: string) =>
 
 export const caseMatches = (invoiceId: string, caseNumber: string) =>
   edited({ key: ['case-matches', invoiceId, caseNumber], load: () => findCaseMatches(invoiceId) });
-
-export const vendorSearch = (query: string) =>
-  resource({ key: ['vendor-search', query], load: () => listVendors(query), keepPrevious: true });
 
 export const invoiceSearch = (query: string) =>
   resource({ key: ['invoice-search', query], load: () => listReviewQueue('all', { q: query }), keepPrevious: true });

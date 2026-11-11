@@ -8,7 +8,12 @@ import '@fontsource/ibm-plex-sans/600.css';
 import '@fontsource/ibm-plex-sans/700.css';
 import '@fontsource/ibm-plex-serif/600.css';
 import App from './App';
+import { reloadForNewCode } from './lazyPage';
 import './app.css';
+
+window.addEventListener('vite:preloadError', (event) => {
+  if (reloadForNewCode()) event.preventDefault();
+});
 
 const container = document.getElementById('root');
 if (!container) {

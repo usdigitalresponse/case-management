@@ -10,7 +10,7 @@ import { useCountyControl } from '../components/CountyListControl';
 import { stageLabel } from '../overviewStages';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { formatMoney } from '../formatMoney';
-import { useSearchParamState } from '../hooks/useSearchParamState';
+import { useSearchParamState, useSearchParamText } from '../hooks/useSearchParamState';
 
 type Shown = 'all' | 'open' | 'closed';
 
@@ -23,7 +23,7 @@ function matchesQuery(caseRecord: CaseListRecord, query: string): boolean {
 export default function CaseList() {
   const { data, error } = useResource(casesResource);
   const cases = data?.cases ?? null;
-  const [query, setQuery] = useSearchParamState<string>('q', '');
+  const [query, setQuery] = useSearchParamText('q');
   const [shown, setShown] = useSearchParamState<Shown>('show', 'all', ['all', 'open', 'closed']);
   // ?stage=<id> narrows to one stage (the Case overview's "View all" links set it).
   const [searchParams] = useSearchParams();

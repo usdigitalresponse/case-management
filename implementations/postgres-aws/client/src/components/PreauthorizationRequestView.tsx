@@ -20,7 +20,7 @@ import {
   type RequestOutcome,
 } from '../api/client';
 import { useResource } from '../hooks/useResource';
-import { cases as casesResource, preauthorizationRequest, providerDocuments, vendorSearch } from '../resources';
+import { cases as casesResource, preauthorizationRequest, providerDocuments, providerList } from '../resources';
 import { formatDate, formatDay, formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { Fact, FactsStrip } from './FactsStrip';
@@ -196,7 +196,7 @@ export function ProviderOnFile({ professionalId, name }: { professionalId: strin
 function MatchForm({ request, onMatched }: { request: PreauthorizationRequestRow; onMatched: (next: PreauthorizationRequestDetail) => void }) {
   const cases = useResource(request.caseId ? null : casesResource);
   const [query, setQuery] = useState(request.proposedProviderName ?? '');
-  const vendors = useResource(request.professionalId || !query.trim() ? null : vendorSearch(query.trim()));
+  const vendors = useResource(request.professionalId || !query.trim() ? null : providerList(query.trim()));
   const [error, setError] = useState<string | null>(null);
   const [casePick, setCasePick] = useState('');
   const [providerPick, setProviderPick] = useState('');
@@ -239,8 +239,8 @@ function MatchForm({ request, onMatched }: { request: PreauthorizationRequestRow
             value={providerPick}
             onChange={(value) => pick(value, setProviderPick, (professionalId) => ({ professionalId }))}
             addLabel="+ Add the provider"
-            placeholder={vendors.data?.professionals.length ? 'Choose a provider' : 'No match'}
-            options={(vendors.data?.professionals ?? []).map((row) => ({ value: row.professionalId, label: row.displayName ?? 'Unnamed' }))}
+            placeholder={vendors.data?.length ? 'Choose a provider' : 'No match'}
+            options={(vendors.data ?? []).map((row) => ({ value: row.professionalId, label: row.displayName ?? 'Unnamed' }))}
           >
             <RouterLink to="/vendors">Add them on Providers</RouterLink>, then come back and choose them.
           </PickOrAdd>

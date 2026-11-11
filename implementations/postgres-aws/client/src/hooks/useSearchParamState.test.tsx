@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import '../testing/routerInJsdom';
 import { afterEach, describe, expect, it } from 'vitest';
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { useSearchParamState } from './useSearchParamState';
+import { useSearchParamState, useSearchParamText } from './useSearchParamState';
 
 afterEach(cleanup);
 
@@ -33,5 +33,33 @@ describe('useSearchParamState', () => {
     expect(at()).toBe('?county=c1');
     await act(async () => router.navigate(-1));
     expect(router.state.location.pathname).toBe('/');
+  });
+});
+
+describe('useSearchParamText', () => {
+  function setupText(start: string) {
+    const box = { text: '', type: (_next: string) => {} };
+    function Search() {
+      [box.text, box.type] = useSearchParamText('q');
+      return null;
+    }
+    const router = createMemoryRouter([{ path: '/list', element: <Search /> }], { initialEntries: [start] });
+    render(<RouterProvider router={router} />);
+    return { box, router, q: () => new URLSearchParams(router.state.location.search).get('q') };
+  }
+
+  it('shows typing at once and writes the address after a pause', async () => {
+    const { box, q } = setupText('/list');
+    act(() => box.type('smi'));
+    expect(box.text).toBe('smi');
+    expect(q()).toBeNull();
+    await waitFor(() => expect(q()).toBe('smi'));
+  });
+
+  it('follows the address when it changes elsewhere', async () => {
+    const { box, router } = setupText('/list?q=lee');
+    expect(box.text).toBe('lee');
+    await act(async () => router.navigate('/list'));
+    expect(box.text).toBe('');
   });
 });

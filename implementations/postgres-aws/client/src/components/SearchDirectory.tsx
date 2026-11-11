@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useResource, type Resource } from '../hooks/useResource';
 import { useSearchParamState } from '../hooks/useSearchParamState';
 import { PageHeading } from './PageHeading';
@@ -41,9 +41,14 @@ export function SearchDirectory<T>({
   // Changing it runs the current search again, e.g. after adding a row.
   reloadKey?: number;
 }) {
-  const [searched, setSearched] = useSearchParamState<string>('q', '');
+  const [stored, setSearched] = useSearchParamState<string>('q', '');
+  const searched = stored.trim();
   const [query, setQuery] = useState(searched);
-  const { data: results, error, fetching } = useResource(loadInitially || searched ? resource(searched) : null, { resetKey: reloadKey });
+  // A search changed elsewhere, as by Back or the sidebar, shows in the box.
+  useEffect(() => setQuery(searched), [searched]);
+  const { data: results, error, pending, reload } = useResource(loadInitially || searched ? resource(searched) : null, { resetKey: reloadKey });
+  const [rerunning, setRerunning] = useState(false);
+  const searching = rerunning || ((loadInitially || searched !== '') && pending);
 
   const heading = <PageHeading eyebrow={eyebrow} title={title} description={description} />;
   return (
@@ -61,7 +66,12 @@ export function SearchDirectory<T>({
         className="list-toolbar"
         onSubmit={(event) => {
           event.preventDefault();
-          setSearched(query.trim());
+          if (query.trim() !== searched) {
+            setSearched(query.trim());
+          } else if (results) {
+            setRerunning(true);
+            void reload().finally(() => setRerunning(false));
+          }
         }}
       >
         <SearchInput
@@ -75,7 +85,7 @@ export function SearchDirectory<T>({
           // loadInitially directory, otherwise no results until a search.
           onClear={() => setSearched('')}
         />
-        <button type="submit" className="btn btn--outline" disabled={fetching}>{fetching ? 'Searching…' : 'Search'}</button>
+        <button type="submit" className="btn btn--outline" disabled={searching}>{searching ? 'Searching…' : 'Search'}</button>
       </form>
       {Boolean(error) && <Notice tone="danger">Failed to load results.</Notice>}
       {results && <RecordTable rows={results} rowKey={rowKey} columns={columns} emptyMessage="No results." />}

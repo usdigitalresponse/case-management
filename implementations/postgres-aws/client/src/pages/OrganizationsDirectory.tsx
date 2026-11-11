@@ -5,7 +5,7 @@ import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
 import { RecordTable } from '../components/RecordTable';
 import { Notice } from '../components/Notice';
-import { useSearchParamState } from '../hooks/useSearchParamState';
+import { useSearchParamText } from '../hooks/useSearchParamState';
 
 // Organizations are already loaded whole for the New Case form's
 // reference data (../api/client.ts's getReferenceData) — a small enough
@@ -14,7 +14,7 @@ import { useSearchParamState } from '../hooks/useSearchParamState';
 export default function OrganizationsDirectory() {
   const { data, error } = useResource(referenceData);
   const { data: cases } = useResource(casesResource);
-  const [query, setQuery] = useSearchParamState<string>('q', '');
+  const [query, setQuery] = useSearchParamText('q');
 
   if (error) return <Notice tone="danger">Failed to load organizations.</Notice>;
   if (!data) return <p role="status">Loading organizations…</p>;

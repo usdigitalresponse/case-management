@@ -6,12 +6,12 @@ import { SearchInput } from '../components/SearchInput';
 import { RecordTable } from '../components/RecordTable';
 import { LoadState } from '../components/LoadState';
 import { formatDate } from '../formatDateTime';
-import { useSearchParamState } from '../hooks/useSearchParamState';
+import { useSearchParamText } from '../hooks/useSearchParamState';
 
 // Every case's client, one row per case (design I52).
 export default function ClientsDirectory() {
   const { data, error } = useResource(cases);
-  const [query, setQuery] = useSearchParamState<string>('q', '');
+  const [query, setQuery] = useSearchParamText('q');
   if (error || !data) return <LoadState error={error} what="clients" />;
 
   const wanted = query.trim().toLowerCase();

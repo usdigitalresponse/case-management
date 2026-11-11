@@ -549,10 +549,13 @@ How the React client is built and why. Schema mapping and gaps are in
   so they use one cache key. Each route's page code loads when the route
   is first opened (`src/lazyPage.tsx`, React Router's `lazy`), so the
   first download stays small and portal users never fetch staff pages.
+  If a page's code is gone after a redeploy, the app reloads once for
+  the new files.
 - **Filters in the address** (`src/hooks/useSearchParamState.ts`): list
   filters, sorts, text searches and the county choice are kept in the
   query string, replacing the entry rather than adding one, so Back
-  returns to a list as it was filtered. Providers and person records
+  returns to a list as it was filtered. Text boxes (`useSearchParamText`)
+  are typed into locally and reach the address after a short pause. Providers and person records
   keep their submitted search there too, which their loaders preload.
 - **`useResource`** (`src/hooks/useResource.ts`, TanStack Query) is how
   every page and component loads data, from a named resource (or `null`

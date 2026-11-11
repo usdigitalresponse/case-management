@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import type { CountyUsage, PreauthorizationRequestRow } from '../api/client';
 import { useResource } from '../hooks/useResource';
-import { cases as casesResource, preauthorizationRequests, preauthorizationUsage, providers as providersResource, thisYear } from '../resources';
+import { cases as casesResource, preauthorizationRequests, preauthorizationUsage, providerList, thisYear } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
@@ -28,7 +28,7 @@ export const preauthorizationPath = (requestId: string) => `/preauthorizations/$
 function RecordRequest({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate();
   const cases = useResource(casesResource);
-  const providers = useResource(providersResource);
+  const providers = useResource(providerList(''));
   if (!cases.data || !providers.data) return <LoadState error={cases.error ?? providers.error} what="cases" />;
   return (
     <section className="compact-card">
@@ -36,7 +36,7 @@ function RecordRequest({ onDone }: { onDone: () => void }) {
       <PreauthorizationRequestForm
         staff
         cases={cases.data.cases.filter((row) => !row.closedOn).map((row) => ({ id: row.caseId, label: [row.caseNumber, row.clientDisplayName].filter(Boolean).join(' · ') }))}
-        providers={providers.data.professionals.map((row) => ({ id: row.professionalId, label: row.displayName ?? 'Unnamed' }))}
+        providers={providers.data.map((row) => ({ id: row.professionalId, label: row.displayName ?? 'Unnamed' }))}
         onCreated={(created, uploadError) => navigate(preauthorizationPath(created.preauthorizationRequestId), { state: { uploadError } })}
         onCancel={onDone}
       />
