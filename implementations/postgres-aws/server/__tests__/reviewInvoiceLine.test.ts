@@ -74,7 +74,9 @@ async function createProfessional(): Promise<{ userAccountId: string; profession
   return { userAccountId: account.userAccountId, professionalId };
 }
 
-type LineSpec = string | { amount: string; quantity: string; billedRate: string; configuredRate?: string };
+type LineSpec =
+  | string
+  | { amount: string; quantity: string; billedRate: string; configuredRate?: string; unitRate?: string; statedAmount?: string; position?: number };
 
 async function createInvoiceWithLines(specs: LineSpec[], statusCode = 'submitted') {
   const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
@@ -295,6 +297,22 @@ describe('line decisions', () => {
     const [queued] = (await listReviewQueue(testDb, 'open')).invoices.filter((row) => row.invoiceId === invoiceId);
     expect(queued?.flags).toContainEqual({ kind: 'rate_changed', message: 'Reviewer changed the rate on 1 line' });
     expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.approvedTotal).toBe('340.00');
+  });
+
+  it("flags in the queue a line above its rate and the first whose stated amount doesn't add up", async () => {
+    const { invoiceId } = await createInvoiceWithLines([
+      { amount: '300.00', quantity: '2.00', billedRate: '150.00', configuredRate: '125.00', position: 0 },
+      // 151.575, rounded half up.
+      { amount: '151.58', quantity: '7.05', billedRate: '21.50', unitRate: '21.50', statedAmount: '151.58', position: 1 },
+      { amount: '15.00', quantity: '1.50', billedRate: '10.00', unitRate: '10.00', statedAmount: '16.00', position: 2 },
+      { amount: '15.00', quantity: '1.00', billedRate: '10.00', unitRate: '10.00', statedAmount: '12.00', position: 3 },
+    ]);
+    const [queued] = (await listReviewQueue(testDb, 'all')).invoices.filter((row) => row.invoiceId === invoiceId);
+    expect(queued?.lineCount).toBe(4);
+    expect(queued?.flags).toEqual([
+      { kind: 'rate', message: 'Rate check: bills $150.00 an hour, approved rate $125.00' },
+      { kind: 'arithmetic', message: 'One line does not add up: 1.50 × $10.00 is not $16.00' },
+    ]);
   });
 
   it('checks and re-prices against the pre-authorized rate when the case has one', async () => {

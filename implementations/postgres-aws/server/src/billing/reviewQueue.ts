@@ -1,11 +1,12 @@
 // The staff queue: invoices waiting on review or sign-off, or finished, with
 // who has each, how long it has waited and what needs care.
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, count, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { inIds } from '../db/inIds';
 import type { Database } from '../db/client';
 import {
   invoice,
   invoiceApprovalChain,
+  invoiceApprovalDecision,
   invoiceLine,
   invoiceLineWorkingDecision,
   invoiceOverrunExplanation,
@@ -14,7 +15,7 @@ import {
 } from '../db/schema';
 import { loadCaseNumbers, selectInvoiceHeaders } from './invoiceDetail';
 import { approvedTotal, latestRoundNumber, loadRecordedDecisionsByChain, signOffProgress } from './reviewRounds';
-import { formatMoney, toCents } from './money';
+import { formatMoney } from './money';
 import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignmentsByInvoice } from './reviewAssignment';
 import { canDiscardEntry } from './enterInReview';
 import { getReviewSettings } from './reviewSettings';
@@ -79,22 +80,34 @@ export async function listReviewQueue(
   if (invoiceIds.length === 0) {
     return { invoices: [], waitingAlertWorkingDays: (await getReviewSettings(db)).waitingAlertWorkingDays };
   }
-  const [lines, chains, caseNumbers, settings] = await Promise.all([
+  const rateChecked = and(isNotNull(invoiceLine.configuredRate), isNotNull(invoiceLine.billedRate), isNull(invoiceLine.expenseTypeId));
+  // Postgres rounds the exact product half away from zero, as invoices do; floats can round 151.575 down.
+  const doesNotAddUp = sql`round(${invoiceLine.quantity} * ${invoiceLine.unitRate}, 2) <> ${invoiceLine.statedAmount}`;
+  // One row per invoice and rate a line is checked against, with its count and highest rate billed.
+  const [lineGroups, mismatches, chains, caseNumbers, settings] = await Promise.all([
     db
       .select({
         invoiceId: invoiceLine.invoiceId,
-        invoiceLineId: invoiceLine.invoiceLineId,
+        timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
+        configuredRate: invoiceLine.configuredRate,
+        rateSource: invoiceLine.rateSource,
+        lines: count(),
+        billedRate: sql<string | null>`max(${invoiceLine.billedRate}) filter (where ${rateChecked})`,
+      })
+      .from(invoiceLine)
+      .where(inIds(invoiceLine.invoiceId, invoiceIds))
+      .groupBy(invoiceLine.invoiceId, invoiceLine.timekeeperProfessionalId, invoiceLine.configuredRate, invoiceLine.rateSource),
+    // Each invoice's first line whose stated amount doesn't add up.
+    db
+      .selectDistinctOn([invoiceLine.invoiceId], {
+        invoiceId: invoiceLine.invoiceId,
         quantity: invoiceLine.quantity,
         unitRate: invoiceLine.unitRate,
         statedAmount: invoiceLine.statedAmount,
-        billedRate: invoiceLine.billedRate,
-        configuredRate: invoiceLine.configuredRate,
-        rateSource: invoiceLine.rateSource,
-        expenseTypeId: invoiceLine.expenseTypeId,
-        timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       })
       .from(invoiceLine)
-      .where(inIds(invoiceLine.invoiceId, invoiceIds)),
+      .where(and(inIds(invoiceLine.invoiceId, invoiceIds), doesNotAddUp))
+      .orderBy(invoiceLine.invoiceId, invoiceLine.position, invoiceLine.invoiceLineId),
     db
       .select({
         invoiceId: invoiceApprovalChain.invoiceId,
@@ -107,11 +120,12 @@ export async function listReviewQueue(
     getReviewSettings(db),
   ]);
   const caseIds = [...new Set(headers.map((header) => header.caseId))];
-  const [working, rateLimits, questions, preauthorizations, explained] = await Promise.all([
+  const chainIds = chains.map((chain) => chain.chainId);
+  const [working, rateLimits, questions, preauthorizations, explained, decidedRates] = await Promise.all([
     db
       .select({ chainId: invoiceLineWorkingDecision.invoiceApprovalChainId })
       .from(invoiceLineWorkingDecision)
-      .where(inIds(invoiceLineWorkingDecision.invoiceApprovalChainId, chains.map((chain) => chain.chainId))),
+      .where(inIds(invoiceLineWorkingDecision.invoiceApprovalChainId, chainIds)),
     loadRateLimitsByCase(db, caseIds.filter((caseId): caseId is string => caseId !== null)),
     db
       .select({ invoiceId: invoiceReviewQuestion.invoiceId, answeredAt: invoiceReviewQuestion.answeredAt })
@@ -122,13 +136,21 @@ export async function listReviewQueue(
       .selectDistinct({ invoiceId: invoiceOverrunExplanation.invoiceId })
       .from(invoiceOverrunExplanation)
       .where(inIds(invoiceOverrunExplanation.invoiceId, invoiceIds)),
+    // Billed rates of lines a reviewer set a rate on, for the changed-rate flag.
+    db
+      .selectDistinct({ invoiceLineId: invoiceLine.invoiceLineId, billedRate: invoiceLine.billedRate })
+      .from(invoiceApprovalDecision)
+      .innerJoin(invoiceLine, eq(invoiceLine.invoiceLineId, invoiceApprovalDecision.invoiceLineId))
+      .where(and(inIds(invoiceApprovalDecision.invoiceApprovalChainId, chainIds), isNotNull(invoiceApprovalDecision.approvedRate))),
   ]);
+  const mismatchOf = new Map(mismatches.map((line) => [line.invoiceId, line]));
+  const billedRateOf = new Map(decidedRates.map((line) => [line.invoiceLineId, line.billedRate]));
   const explainedInvoiceIds = new Set(explained.map((row) => row.invoiceId));
-  const linesFor = new Map<string, typeof lines>();
-  for (const line of lines) {
-    const own = linesFor.get(line.invoiceId);
-    if (own) own.push(line);
-    else linesFor.set(line.invoiceId, [line]);
+  const linesFor = new Map<string, typeof lineGroups>();
+  for (const group of lineGroups) {
+    const own = linesFor.get(group.invoiceId);
+    if (own) own.push(group);
+    else linesFor.set(group.invoiceId, [group]);
   }
   const questionsFor = new Map<string, typeof questions>();
   for (const question of questions) {
@@ -138,7 +160,7 @@ export async function listReviewQueue(
   }
   const [assignmentsFor, decisionsFor] = await Promise.all([
     loadAssignmentsByInvoice(db, invoiceIds),
-    loadRecordedDecisionsByChain(db, chains.map((chain) => chain.chainId)),
+    loadRecordedDecisionsByChain(db, chainIds),
   ]);
   const chainFor = new Map(chains.map((chain) => [chain.invoiceId, chain]));
   const workingCount = new Map<string, number>();
@@ -149,12 +171,13 @@ export async function listReviewQueue(
   const rows = await Promise.all(
     headers.map(async (header) => {
       const own = linesFor.get(header.invoiceId) ?? [];
+      const lineCount = own.reduce((sum, group) => sum + group.lines, 0);
       const chain = chainFor.get(header.invoiceId);
       const assignments = assignmentsFor.get(header.invoiceId)!;
       const recorded = chain ? (decisionsFor.get(chain.chainId) ?? []) : [];
-      const round = latestRoundNumber(recorded, own.length);
+      const round = latestRoundNumber(recorded, lineCount);
       const inLineReview = LINE_REVIEW_STATUS_CODES.includes(header.statusCode ?? '');
-      const decided = inLineReview ? (chain ? (workingCount.get(chain.chainId) ?? 0) : 0) : round === null ? 0 : own.length;
+      const decided = inLineReview ? (chain ? (workingCount.get(chain.chainId) ?? 0) : 0) : round === null ? 0 : lineCount;
       // Until the round is finished, so the reviewer sees answers come back.
       const ownQuestions = inLineReview ? (questionsFor.get(header.invoiceId) ?? []) : [];
       const answeredQuestionCount = ownQuestions.filter((question) => question.answeredAt).length;
@@ -166,7 +189,7 @@ export async function listReviewQueue(
       // Time lines (priced lines other than mileage) billed above their limit.
       const limits = (header.caseId ? rateLimits.get(header.caseId) : undefined) ?? new Map<string | null, string>();
       const overRate = own
-        .filter((line) => line.configuredRate !== null && line.billedRate !== null && line.expenseTypeId === null)
+        .filter((line) => line.billedRate !== null)
         .map((line) => ({ line, limit: rateLimitFor(line, header.professionalId, limits) }))
         .find(({ line, limit }) => limit && Number(line.billedRate) > Number(limit.rate));
       if (overRate?.limit) {
@@ -175,13 +198,7 @@ export async function listReviewQueue(
           message: `Rate check: bills ${formatMoney(overRate.line.billedRate as string)} an hour, ${RATE_LIMIT_NAMES[overRate.limit.source]} ${formatMoney(overRate.limit.rate)}`,
         });
       }
-      const mismatch = own.find(
-        (line) =>
-          line.quantity !== null &&
-          line.unitRate !== null &&
-          line.statedAmount !== null &&
-          toCents(Number(line.quantity) * Number(line.unitRate)) !== toCents(line.statedAmount),
-      );
+      const mismatch = mismatchOf.get(header.invoiceId);
       if (mismatch) {
         flags.push({
           kind: 'arithmetic',
@@ -193,7 +210,7 @@ export async function listReviewQueue(
         (decision) =>
           decision.sequenceNumber === round &&
           decision.approvedRate !== null &&
-          Number(decision.approvedRate) !== Number(own.find((line) => line.invoiceLineId === decision.invoiceLineId)?.billedRate),
+          Number(decision.approvedRate) !== Number(billedRateOf.get(decision.invoiceLineId!)),
       ).length;
       const preauthorized = header.caseId ? summaryForProfessional(preauthorizations.get(header.caseId) ?? [], header.professionalId) : null;
       if (
@@ -224,7 +241,7 @@ export async function listReviewQueue(
         ...header,
         caseNumber: numbers?.caseNumber ?? null,
         otherCaseNumbers: numbers?.otherNumbers ?? [],
-        lineCount: own.length,
+        lineCount,
         decidedCount: decided,
         openQuestionCount: ownQuestions.length - answeredQuestionCount,
         answeredQuestionCount,
