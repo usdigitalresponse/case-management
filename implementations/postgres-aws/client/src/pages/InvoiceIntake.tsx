@@ -4,8 +4,6 @@ import {
   apiErrorMessage,
   listBillableProfessionals,
   listCases,
-  listInvoiceIntake,
-  listMyInvoices,
   matchInvoiceToCase,
   returnToSubmitter,
   type IntakeItem,
@@ -22,6 +20,7 @@ import {
   type NewCaseEntry,
 } from '../components/NewEntryFields';
 import { useApiResource } from '../hooks/useApiResource';
+import { invoiceIntake, myInvoices } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
@@ -401,12 +400,11 @@ export default function InvoiceIntake() {
   const [params] = useSearchParams();
   const [version, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
-  const { data, error } = useApiResource(() => listInvoiceIntake().then((result) => result.items), [version]);
+  const { data: intake, error } = useApiResource(invoiceIntake, [version]);
+  const data = intake?.items ?? null;
+  const { data: mine } = useApiResource(myInvoices, [version]);
   // Drafts with no case are listed under "Waiting for a case" instead.
-  const { data: drafts } = useApiResource(
-    () => listMyInvoices().then((result) => result.invoices.filter((invoice) => invoice.statusCode === 'draft' && invoice.caseId)),
-    [version],
-  );
+  const drafts = mine?.filter((invoice) => invoice.statusCode === 'draft' && invoice.caseId) ?? null;
   const [toast, setToast] = useToast();
   const justMatched = params.get('matched');
   const uploadedCount = (useLocation().state as UploadedState | null)?.uploadedCount ?? 0;

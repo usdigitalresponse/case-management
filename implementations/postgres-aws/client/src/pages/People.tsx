@@ -1,8 +1,9 @@
 // Everyone who can send invoices, in place of Cases and Providers.
 import { useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router';
-import { listPeople, type BillingPerson } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import type { BillingPerson } from '../api/client';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { people } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
@@ -13,7 +14,7 @@ import { personPath } from '../staffPaths';
 
 export default function People() {
   const navigate = useNavigate();
-  const { data, error } = useApiResource(() => listPeople().then((result) => result.people), []);
+  const { data, error } = useCachedResource(people);
   const [role, setRole] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState(false);

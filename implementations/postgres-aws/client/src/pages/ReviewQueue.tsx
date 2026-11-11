@@ -72,7 +72,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);
     else next.delete(name);
-    setParams(next);
+    setParams(next, { preventScrollReset: true });
   };
 
   return (

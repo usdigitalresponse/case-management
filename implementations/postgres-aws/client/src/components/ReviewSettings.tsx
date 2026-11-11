@@ -3,10 +3,6 @@ import {
   addDecisionReason,
   addStaffAccount,
   apiErrorMessage,
-  getReviewSettings,
-  getStaffRoles,
-  listDecisionReasonSettings,
-  listReviewPeople,
   setReviewSettings,
   setStaffActive,
   setStaffRole,
@@ -17,6 +13,7 @@ import {
 } from '../api/client';
 import { StatusPill } from './StatusPill';
 import { useApiResource } from '../hooks/useApiResource';
+import { decisionReasonSettings, reviewPeople, reviewSettings, staffRoles } from '../resources';
 import { Notice, type SaveMessage } from './Notice';
 import { LoadState } from './LoadState';
 import { OrderedChoiceList } from './OrderedChoiceList';
@@ -29,8 +26,8 @@ import { useAuth } from '../AuthContext';
 // out. Each save adds a setting; invoices already routed keep theirs.
 export function ReviewRoutingSettings({ isAdmin }: { isAdmin: boolean }) {
   const [version, setVersion] = useState(0);
-  const { data: settings, error } = useApiResource(() => getReviewSettings(), [version]);
-  const { data: peopleData } = useApiResource(() => listReviewPeople(), [version]);
+  const { data: settings, error } = useApiResource(reviewSettings, [version]);
+  const { data: peopleData } = useApiResource(reviewPeople, [version]);
   const [draft, setDraft] = useState<ReviewSettings | null>(null);
   const [message, setMessage] = useState<SaveMessage | null>(null);
 
@@ -193,7 +190,7 @@ const LIST_OPTIONS = (Object.keys(LIST_LABELS) as ReasonAppliesTo[]).map((value)
 // without a code release; a retired reason stays where it was used.
 export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(() => listDecisionReasonSettings(), [version]);
+  const { data, error } = useApiResource(decisionReasonSettings, [version]);
   const [message, setMessage] = useState<SaveMessage | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [appliesTo, setAppliesTo] = useState<ReasonAppliesTo>('rejected');
@@ -344,7 +341,7 @@ function AddStaff({ roles, onAdded, onCancel }: { roles: StaffRolesResponse['rol
 export function StaffRoleSettings() {
   const { user } = useAuth();
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(() => getStaffRoles(), [version]);
+  const { data, error } = useApiResource(staffRoles, [version]);
   const [message, setMessage] = useState<SaveMessage | null>(null);
   const [adding, setAdding] = useState(false);
 

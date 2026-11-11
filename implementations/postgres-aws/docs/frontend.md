@@ -533,13 +533,50 @@ How the React client is built and why. Schema mapping and gaps are in
 
 ## Client (React) design notes
 
-- **`AppContent`** (`src/App.tsx`) is the single loading/signed-out/
-  portal/staff gate, so individual pages don't check auth themselves.
-- **`useApiResource`** (`src/hooks/useApiResource.ts`) is the shared
-  fetch/loading/error mechanics behind every mount-effect data load (case
-  list, case detail, intake's reference data) — error *message* wording
-  stays per-page (e.g. mapping a 404 to "Case not found."), since that's
-  genuinely page-specific.
+- **`AppRouter`** (`src/App.tsx`) is the single loading/signed-out/
+  portal/staff gate, so individual pages don't check auth themselves. It
+  builds one React Router data router for whoever is signed in (staff,
+  portal or signed out) and rebuilds it when a different kind of user
+  signs in; `AuthProvider` sits outside it, sends sign-in and sign-out
+  home and clears cached data.
+- **Route loaders** (`src/routeLoaders.ts`): pages that load data on
+  opening, staff and portal, have a loader that fetches it before the
+  page switches, so the previous page stays on screen (with a thin
+  progress bar after 200 ms, and at most 2 s before the page shows its
+  own loading state) instead of blanking to "Loading…". A loader runs
+  again only for a new address, not for a page's own query-string
+  filters. Loaders and pages share named resources (`src/resources.ts`)
+  so they use one cache key. Still without one: Providers and search
+  (they load as you type), the out-of-view person records, earlier
+  case-led queue and portal hand-entry form.
+- **Cached lists** (`src/hooks/useCachedResource.ts`, TanStack Query):
+  the sidebar's list pages and counts show what they had when opened
+  again, while they refresh. Any change (`DATA_CHANGED_EVENT`, fired by
+  every successful write and upload) refreshes lists on screen and marks
+  everything else, including `reference` data (counties, decision
+  reasons), to reload when next opened; a loader waits for a list
+  marked so. A new router's first page shows at once and loads there. The review page's invoice is
+  a `fresh` resource: loaded for each visit and never refreshed under the
+  reviewer, since the page edits it.
+- **Leaving and scrolling**: on the review and check pages, following a
+  link with lines changed in place saves them first
+  (`src/hooks/useSaveBeforeLeaving.ts`, React Router's `useBlocker`), so
+  the next page loads after the save; if it fails the page stays with
+  the reason, and leaving again goes anyway until the next edit. Leaving
+  after deleting the invoice passes `DISCARD_EDITS`. Both shells use
+  `<ScrollRestoration />`: a new page opens at the top and Back returns
+  to where you were; a page's own filter changes pass
+  `preventScrollReset`.
+- **Tests**: hooks that need React or a router run in jsdom with React
+  Testing Library (`// @vitest-environment jsdom` at the top of the
+  file; a router test also imports `src/testing/routerInJsdom.ts`).
+  Everything else stays in Node.
+- **`useApiResource`** (`src/hooks/useApiResource.ts`) is the uncached
+  load for pages that edit what they load (Settings, case and person
+  pages, intake and upload, the portal). Given a resource, the page
+  starts with what its loader fetched for this visit; saves that reload
+  a section still clear and refetch it as before. Error *message*
+  wording stays per page.
 - **`ReferenceSelect`** and **`RecordTable`** (`src/components/`) are the
   shared "label + select + reference-data options" and "empty vs.
   bordered table" shapes used by `NewCaseIntake`/`CaseDetail`.

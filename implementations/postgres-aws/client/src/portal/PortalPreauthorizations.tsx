@@ -1,7 +1,7 @@
 // A requester's pre-authorization requests (model/rules.yaml request_preauthorization).
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { listMyCases, listPreauthorizationRequests, listRequestableProviders } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { myCases, myPreauthorizationRequests, requestableProviders } from '../resources';
 import { LoadState } from '../components/LoadState';
 import { PageHeader } from '../components/PageHeader';
 import { RecordTable } from '../components/RecordTable';
@@ -14,8 +14,8 @@ export const PORTAL_PREAUTHORIZATIONS_PATH = '/portal/preauthorizations';
 
 function AskForm({ caseId, onCancel }: { caseId: string | undefined; onCancel: () => void }) {
   const navigate = useNavigate();
-  const cases = useApiResource(() => listMyCases(), []);
-  const providers = useApiResource(() => listRequestableProviders(), []);
+  const cases = useApiResource(myCases, []);
+  const providers = useApiResource(requestableProviders, []);
   if (!cases.data || !providers.data) return <LoadState error={cases.error ?? providers.error} what="your cases" />;
   const options = cases.data.cases.map((row) => ({ id: row.caseId, label: [row.caseNumber, row.clientDisplayName].filter(Boolean).join(' · ') }));
   return (
@@ -39,7 +39,7 @@ function AskForm({ caseId, onCancel }: { caseId: string | undefined; onCancel: (
 export default function PortalPreauthorizations() {
   const [params, setParams] = useSearchParams();
   const asking = params.has('ask');
-  const { data, error } = useApiResource(() => listPreauthorizationRequests(), []);
+  const { data, error } = useApiResource(myPreauthorizationRequests, []);
   return (
     <div>
       <PageHeader
@@ -47,14 +47,14 @@ export default function PortalPreauthorizations() {
         description="Your requests and the billing office’s answers."
         actions={
           !asking && (
-            <button type="button" className="btn btn--primary" onClick={() => setParams({ ask: '' })}>
+            <button type="button" className="btn btn--primary" onClick={() => setParams({ ask: '' }, { preventScrollReset: true })}>
               Ask for pre-authorization
             </button>
           )
         }
       />
       {asking && (
-        <AskForm caseId={params.get('case') ?? undefined} onCancel={() => setParams({})} />
+        <AskForm caseId={params.get('case') ?? undefined} onCancel={() => setParams({}, { preventScrollReset: true })} />
       )}
       {!data ? (
         <LoadState error={error} what="requests" />

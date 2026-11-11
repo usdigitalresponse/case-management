@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { billingRecordUrl, listCounties } from '../api/client';
+import { billingRecordUrl } from '../api/client';
 import { useAuth } from '../AuthContext';
-import { useApiResource } from '../hooks/useApiResource';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { counties as countiesResource } from '../resources';
 import {
   BILLING_RECORD_FIELDS,
   loadBillingRecordChoices,
@@ -28,7 +29,7 @@ export function BillingRecordExportButton() {
 
 // Each person's last choices other than county and period are kept for their next export.
 function ExportDialog({ userAccountId, onClose }: { userAccountId: string; onClose: () => void }) {
-  const { data } = useApiResource(() => listCounties().then((result) => result.counties), []);
+  const { data } = useCachedResource(countiesResource);
   const counties = data ?? [];
   const [countyId, setCountyId] = useState('');
   const [period, setPeriod] = useState({ start: '', end: '' });

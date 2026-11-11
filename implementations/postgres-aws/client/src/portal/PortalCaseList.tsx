@@ -1,6 +1,7 @@
 import { Link as RouterLink } from 'react-router';
-import { listMyCases, type MyCaseProfessional, type MyCaseRecord, type MyCasesResult } from '../api/client';
+import { type MyCaseProfessional, type MyCaseRecord, type MyCasesResult } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { myCases } from '../resources';
 import { RecordTable } from '../components/RecordTable';
 import { formatDay } from '../formatDateTime';
 import { Notice } from '../components/Notice';
@@ -86,7 +87,8 @@ function SendsFor({ others }: { others: CaseSection[] }) {
 }
 
 export default function PortalCaseList() {
-  const { data, error } = useApiResource(() => listMyCases().then(caseSections), []);
+  const { data: loaded, error } = useApiResource(myCases, []);
+  const data = loaded ? caseSections(loaded) : null;
   const isDelegate = data?.some((section) => !section.professional.isSelf) ?? false;
 
   return (

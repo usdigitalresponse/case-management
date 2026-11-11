@@ -2,10 +2,11 @@
 // with ?day=, only those with an item on that date.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { apiErrorMessage, getPerson, listReviewQueue, removeProfessional } from '../api/client';
+import { apiErrorMessage, listReviewQueue, removeProfessional } from '../api/client';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
+import { person as personResource, personInvoices } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Fact, FactsStrip } from '../components/FactsStrip';
@@ -33,11 +34,11 @@ export default function PersonPage() {
   const { professionalId } = useParams<{ professionalId: string }>();
   const { user } = useAuth();
   const [version, setVersion] = useState(0);
-  const { data: person, error } = useApiResource(() => getPerson(professionalId as string), [professionalId, version]);
+  const { data: person, error } = useApiResource(personResource(professionalId as string), [professionalId, version]);
   const [searchParams] = useSearchParams();
   const dayParam = searchParams.get('day') ?? '';
   const day = /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : undefined;
-  const { data: queue, error: queueError, reload: reloadQueue } = useApiResource(() => listReviewQueue('all', { professionalId, day }), [professionalId, day]);
+  const { data: queue, error: queueError, reload: reloadQueue } = useApiResource(personInvoices(professionalId as string, day), [professionalId, day]);
   const [filter, setFilter] = useState<FilterId>('all');
   const [caseNumber, setCaseNumber] = useState('');
   // Invoices whose case number matches, closely or exactly; null for all.

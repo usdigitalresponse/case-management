@@ -2,12 +2,13 @@
 // who sent it, with the case number as typed.
 import { useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
-import { apiErrorMessage, enterInReview, listInvoiceIntake, listReviewQueue, type ReviewQueueItem } from '../api/client';
+import { apiErrorMessage, enterInReview, type ReviewQueueItem } from '../api/client';
 import { reviewPath } from '../staffPaths';
 import { checkLinesPath } from '../portal/InvoiceSubmission';
 import { INTAKE_PATH } from '../portal/useShell';
 import { useAuth } from '../AuthContext';
-import { useApiResource } from '../hooks/useApiResource';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { invoiceIntake, reviewQueue } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
@@ -44,11 +45,11 @@ function YourUnfinished({ userAccountId, entering }: { userAccountId: string; en
   const navigate = useNavigate();
   const { user } = useAuth();
   const reviews = Boolean(user?.reviewPermissions?.reviewLines);
-  const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const { data } = useApiResource(() => listInvoiceIntake().then((result) => result.items).catch(() => []), [version]);
-  const drafts = (data ?? []).filter((item) => item.invoiceId && item.stage !== 'sent' && item.enteredByUserAccountId === userAccountId);
-  const held = (data ?? []).filter((item) => item.stage === 'sent');
+  const { data, reload } = useCachedResource(invoiceIntake);
+  const items = data?.items ?? [];
+  const drafts = items.filter((item) => item.invoiceId && item.stage !== 'sent' && item.enteredByUserAccountId === userAccountId);
+  const held = items.filter((item) => item.stage === 'sent');
 
   // Who it is from must be chosen first; that is on the check page.
   async function continueDraft(invoiceId: string, hasSender: boolean) {
@@ -127,7 +128,7 @@ function YourUnfinished({ userAccountId, entering }: { userAccountId: string; en
                     </RouterLink>
                   )}
                   {/* Your own drafts, never sent, so always deletable. */}
-                  <DeleteInvoiceButton compact invoiceId={item.invoiceId!} onDeleted={() => setVersion((v) => v + 1)} />
+                  <DeleteInvoiceButton compact invoiceId={item.invoiceId!} onDeleted={() => void reload()} />
                 </span>
               </li>
             ))}
@@ -144,8 +145,7 @@ export default function InvoicesToReview() {
   const [params, setParams] = useSearchParams();
   const filter = (params.get('show') as QueueFilterId | null) ?? 'everyone';
   const [sort, setSort] = useState<SortId>('waiting');
-  const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(() => listReviewQueue('open'), [version]);
+  const { data, error, reload } = useCachedResource(reviewQueue('open'));
   const [toast, setToast] = useToast();
   const canAssign = Boolean(user?.reviewPermissions?.reassign);
 
@@ -221,7 +221,7 @@ export default function InvoicesToReview() {
             type="button"
             className={`chip chip--filter${id === 'flagged' ? ' chip--warning' : ''}`}
             aria-pressed={filter === id}
-            onClick={() => setParams({ show: id })}
+            onClick={() => setParams({ show: id }, { preventScrollReset: true })}
           >
             {label} <span className="chip-count">{counts[id]}</span>
           </button>
@@ -266,7 +266,7 @@ export default function InvoicesToReview() {
                         invoiceId={invoice.invoiceId}
                         onAssigned={(name) => {
                           setToast({ message: `Given to ${name}.` });
-                          setVersion((v) => v + 1);
+                          void reload();
                         }}
                       />
                     </span>

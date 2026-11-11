@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, apiErrorMessage, listBillableProfessionals, type FileLine, type FileSource, type PortalInvoiceLine } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { useSaveBeforeLeaving } from '../hooks/useSaveBeforeLeaving';
 import { usePortalBillingRules } from '../components/BillingRules';
 import { lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
 import type { ToastMessage } from '../components/Toast';
@@ -185,7 +186,8 @@ export function useLineEntry({
       // Changed elsewhere: show the lines as they are now rather than overwrite them.
       if (err instanceof ApiError && err.status === 409) {
         setLines(saved.current);
-        setEdited(new Set());
+        editedNow.current = new Set();
+        setEdited(editedNow.current);
         setError('These lines were changed elsewhere, so your unsaved changes were not kept.');
       } else {
         setError(apiErrorMessage(err, 'Your changes could not be saved. Try again.'));
@@ -233,7 +235,14 @@ export function useLineEntry({
       ),
   };
 
-  // Leaving the page, or closing the tab, saves what was changed in place.
+  useSaveBeforeLeaving({
+    unsaved: () => editedNow.current.size > 0,
+    save: () => flushNow.current(),
+    edits: edited,
+    onRefused: () => setError((shown) => shown && `${shown} Leave again to go anyway.`),
+  });
+
+  // Closing the tab, or leaving anyway, saves what was changed in place.
   const flushNow = useRef(flush);
   flushNow.current = flush;
   useEffect(() => {

@@ -124,6 +124,10 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary)
    default outline would otherwise persist across every client-side route
    change, since an SPA navigation never reloads the page to clear it. */
 .app-main:focus { outline: none; }
+/* Shown only if the next page is slow to load. */
+.page-loading { position: fixed; inset: 0 0 auto; height: 3px; z-index: 1000; background: var(--color-primary); transform-origin: left; animation: page-loading 2s ease-out 200ms both; }
+@keyframes page-loading { from { transform: scaleX(0); } to { transform: scaleX(.9); } }
+@media (prefers-reduced-motion: reduce) { .page-loading { animation-duration: 1ms; } }
 /* Headline/Large. */
 .app-main h1, .portal-page h1 { font-family: var(--font-serif); font-size: 32px; font-weight: 600; letter-spacing: -.5px; margin: 0 0 .7rem; line-height: 1.2; }
 .page-heading { margin-bottom: 1.5rem; }

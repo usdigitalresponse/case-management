@@ -1,7 +1,7 @@
 // Filters or groups any list of cases or invoices by county (../counties.ts).
 import { useState } from 'react';
-import { listCounties } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { counties } from '../resources';
 import {
   ALL_COUNTIES,
   applyCountyControl,
@@ -13,7 +13,7 @@ import {
 
 // hideLabel: beside other filters, the first choice reads "All counties" instead.
 export function useCountyControl<T>(rows: T[], countyOf: (row: T) => CountyRow, { hideLabel = false } = {}) {
-  const { data } = useApiResource(() => listCounties().then((result) => result.counties), []);
+  const { data } = useCachedResource(counties);
   const options = data ?? [];
   const [choice, setChoice] = useState(ALL_COUNTIES);
   const offered = countyControlOptions(rows, countyOf, options, choice);

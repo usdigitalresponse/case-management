@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
-import { listCases, type CaseListRecord } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import type { CaseListRecord } from '../api/client';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { cases as casesResource } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
 import { ResourceList } from '../components/ResourceList';
@@ -20,7 +21,8 @@ function matchesQuery(caseRecord: CaseListRecord, query: string): boolean {
 
 // Every case, as design I48 lists them.
 export default function CaseList() {
-  const { data: cases, error } = useApiResource(() => listCases().then((result) => result.cases), []);
+  const { data, error } = useCachedResource(casesResource);
+  const cases = data?.cases ?? null;
   const [query, setQuery] = useState('');
   const [shown, setShown] = useState<Shown>('all');
   // ?stage=<id> narrows to one stage (the Case overview's "View all" links set it).

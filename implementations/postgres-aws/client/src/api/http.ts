@@ -44,6 +44,7 @@ export async function sendFile<T>(path: string, file: File): Promise<T> {
   if (!response.ok) {
     throw new ApiError(response.status, body);
   }
+  window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
   return body as T;
 }
 
