@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { lineAdjustment, type PanelMode } from './LineReview';
+import { lineAdjustment } from './lineReview/lineRates';
+import { type PanelMode } from './lineReview/DecisionPanel';
 
 // 2 hours billed at $100.00 an hour.
 const line = { quantity: '2', billedRate: '100', amount: '200.00', rateType: 'hourly' as const, rateSource: 'person' as const };

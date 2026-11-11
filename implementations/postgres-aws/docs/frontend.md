@@ -652,7 +652,7 @@ only layout and should not need to change.
 | Table cell | `components/RecordTable.tsx` | `styles/tables.css` |
 | Link, breadcrumb | `components/PageHeader.tsx` | `styles/base.css`, `styles/page.css` |
 | Header, side navigation item | `App.tsx`, `portal/ExternalPortalApp.tsx` | `styles/layout.css` |
-| Decision bar | `components/LineReview.tsx` | `styles/review.css` |
+| Decision bar | `components/lineReview/DecisionCell.tsx` | `styles/review.css` |
 
 Form controls keep USWDS's class names (`usa-input`, `usa-select`…)
 because `@trussworks/react-uswds` renders them; restyle them in

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { apiErrorMessage, getInvoiceForReview, type InvoiceReview as InvoiceReviewData } from '../../api/client';
 import { useResource } from '../../hooks/useResource';
 import { decisionReasons, invoiceForReview } from '../../resources';
-import type { PanelMode } from '../../components/LineReview';
+import type { PanelMode } from '../../components/lineReview/DecisionPanel';
 import { useToast, type ToastMessage } from '../../components/Toast';
 import type { CheckQueue } from '../../portal/checkQueue';
 import { reviewPath } from '../../staffPaths';

@@ -3,7 +3,7 @@ import type { CaseRate } from '../api/client';
 import { formatDate, formatDateTime } from '../formatDateTime';
 import { formatRate } from '../formatMoney';
 import { reviewPath } from '../staffPaths';
-import { RATE_TYPE_LABELS } from './LineReview';
+import { RATE_TYPE_LABELS } from './lineReview/lineRates';
 import { Notice } from './ui/Notice';
 import { RecordTable } from './RecordTable';
 

@@ -1,5 +1,5 @@
 import { finishReview, markInvoiceCompleted, reopenReview, setMileageWarning, signOffInvoice } from '../../api/client';
-import { rateChanged } from '../../components/LineReview';
+import { rateChanged } from '../../components/lineReview/lineRates';
 import { SignOffHistory, SignOffPanel, TotalsBar } from '../../components/ReviewPanels';
 import { CompletionNotice, DECIDED_STATUS_CODES } from '../../components/Completion';
 import { EmailSender } from '../../components/EmailSender';
