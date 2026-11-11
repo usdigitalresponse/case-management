@@ -1,0 +1,33 @@
+{
+  "scale": 0.1,
+  "counts": {
+    "review / GET /api/invoices/:id": 36,
+    "review / loadInvoiceDetail": 15,
+    "review / findBillingOverlaps": 8,
+    "review / evaluateBillingRules": 6,
+    "review / sameDayTravel": 1,
+    "review / sentCaseNumberMatches": 3,
+    "review / findCasesByNumber": 4,
+    "review / findOverrun": 4,
+    "review / listReviewQueue open": 1003,
+    "review / listReviewQueue all": 2623,
+    "review / listReviewQueue open q": 1003,
+    "review / listReviewQueue open day": 135,
+    "review / GET /api/invoices": 1003,
+    "review / listInvoiceIntake": 5,
+    "review / preauthorizationUsageByCounty": 739,
+    "import / duplicateWarnings by number": 4,
+    "import / recheckDuplicates": 7,
+    "upload / uploadCases + suggestUploadCase": 8,
+    "upload / splitCases": 2,
+    "upload / listPortalInvoices": 5,
+    "upload / GET /api/portal/invoices/:id (draft)": 32,
+    "upload / findBillingOverlaps (submitter)": 3,
+    "upload / createInvoice + submit": 177,
+    "duplicates / listPossibleDuplicates": 5,
+    "duplicates / listPossibleDuplicateCases": 7,
+    "duplicates / GET /api/people/possible-duplicates": 5,
+    "duplicates / emailInUse": 2,
+    "duplicates / GET /api/people?q=": 1
+  }
+}

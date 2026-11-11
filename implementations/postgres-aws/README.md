@@ -141,6 +141,45 @@ Each test resets and reseeds baseline fixtures itself (`src/db/fixtures.ts`,
 shared with `npm run seed`), so tests can run in any order against a
 migrated-but-empty test database.
 
+### Performance tests
+
+`server/perf/` times the review, import, upload and duplicate-detection
+cross-checks against a large synthetic volume, to guide optimization. It
+runs against the same test database and resets it, and is not part of
+`npm test`:
+
+```sh
+cd server
+TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5433/case_management_postgres_aws_test" npm run test:perf
+```
+
+It loads 200 professionals, 2,000 cases, 10,000 invoices and 200,000
+items in SQL (`perf/volume.ts`), with planted duplicate people, cases,
+files and invoice numbers, then runs each check once to warm up and seven
+times timed. It prints each check's median and 95th-percentile time and
+the most database queries any timed run made, and writes them to
+`perf/results/latest.json` (gitignored). Options:
+
+- `PERF_SCALE=0.1` (quick) or `PERF_SCALE=4` (growth) scales the volume;
+- `PERF_ITERATIONS=3` sets the timed runs;
+- `PERF_SAVE_BASELINE=1` also saves the run as `perf/results/baseline.json`.
+  Later runs at the same `PERF_SCALE` fail if a check makes more queries or
+  gets more than 1.5 times slower (plus 20 ms); runs at another scale aren't
+  compared. Save one before optimizing and compare on the same machine.
+
+Nothing is saved from a run where any check was skipped (as with `-t`) or
+failed; the run fails instead.
+
+CI runs `npm run test:perf:queries`: the suite at `PERF_SCALE=0.1` with one
+timed run (set in `vitest.perf.config.ts`, so it works in any shell),
+failing only if a check makes more queries than the committed
+`perf/queryCounts.json`, is missing from it, or is in it but no longer
+measured, or if the file was saved at another scale; timings aren't
+judged there. Query counts can only be saved from that command. When a change lowers a count, or adds a check, save the new counts
+with `PERF_SAVE_QUERY_COUNTS=1 npm run test:perf:queries` and commit them.
+Run the full `npm run test:perf` before merging changes to how the
+cross-checks read the database.
+
 ### Other useful commands
 
 ```sh

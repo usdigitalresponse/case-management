@@ -13,5 +13,5 @@
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "migrations", "__tests__", "scripts", "drizzle.config.ts", "vitest.config.ts"]
+  "include": ["src", "migrations", "__tests__", "perf", "scripts", "drizzle.config.ts", "vitest.config.ts", "vitest.perf.config.ts"]
 }

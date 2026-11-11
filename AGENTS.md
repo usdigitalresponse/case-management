@@ -322,7 +322,13 @@ on any request it has no route for; build data with `src/test/fixtures.ts`.
 `e2e/` is the Playwright suite: it adds synthetic invoices, so run it only
 against a disposable seeded stack (CI does), never someone's demo data.
 Run server/client `npm run typecheck` and `npm run lint`, client `npm run build` and `npm test`, and
-server `npm test` against a separate migrated test database (see its README). The server
+server `npm test` against a separate migrated test database (see its README). Its
+`npm run test:perf` (`server/perf/`) times the cross-checks against a large
+synthetic volume in that same test database; it is not part of `npm test`.
+CI runs `npm run test:perf:queries`, failing if a check makes more queries
+than the committed `server/perf/queryCounts.json`; when a change lowers a
+count or adds a check, save it with `PERF_SAVE_QUERY_COUNTS=1 npm run
+test:perf:queries` (the only scale it saves at) and commit it. The server
 build entry point is `dist/src/app.js`. Its `MAPPING.md` holds the schema
 mapping and known gaps; how each part is built is in its `docs/`
 (`frontend.md`, `intake.md`, `api.md`). A new or changed route's access rule

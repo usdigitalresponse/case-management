@@ -50,6 +50,10 @@ jobs:
         run: npm run migrate
       - working-directory: implementations/postgres-aws/server
         run: npm test
+      # Query counts only; CI timings vary too much to judge.
+      - name: Query counts of the cross-checks
+        working-directory: implementations/postgres-aws/server
+        run: npm run test:perf:queries
       - working-directory: implementations/postgres-aws/server
         run: npm run verify-schema-mapping
 
