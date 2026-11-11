@@ -109,6 +109,7 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
       preauthorization_outcomes,
       invoice_event, invoice_approval_chain, invoice_line, trip, time_entry, audit_event, professional_kind_rate, professional_kinds, mileage_rate, time_category_rate, route_check, expense_types, billing_rule_setting, billing_codes, invoice_import, supporting_invoice, invoice_attestation, document, invoice,
       case_assignment, case_participant, professional, sign_in_code, "case", user_account,
+      person_merge_change, person_merge, person_duplicate_review, case_duplicate_review,
       person_affiliation, office, person, role, organization, county, case_categories,
       case_statuses, jurisdictions, languages, case_identifier_types, case_lifecycle_event_types,
       case_lifecycle_reasons, activity_types, invoice_statuses, invoice_line_types,

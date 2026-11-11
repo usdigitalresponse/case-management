@@ -4,6 +4,10 @@ import {
   getCaseInvoices,
   getInvoiceImport,
   getMyInvoice,
+  getMergePreview,
+  listPersonMerges,
+  listPossibleDuplicates,
+  listPossibleDuplicateCases,
   getOwnDemoRole,
   getPerson,
   searchPeople,
@@ -184,3 +188,16 @@ export const providerList = (query: string) =>
 
 export const personRecords = (query: string) =>
   resource({ key: ['person-records', query], load: () => searchPeople(query).then((result) => result.people), keepPrevious: true });
+
+// Possible duplicate people and merges; acted on from their pages.
+export const possibleDuplicates = edited({ key: ['possible-duplicates'], load: () => listPossibleDuplicates().then((result) => result.duplicates) });
+
+export const personMerges = edited({ key: ['person-merges'], load: () => listPersonMerges().then((result) => result.merges) });
+
+export const possibleDuplicateCases = edited({
+  key: ['possible-duplicate-cases'],
+  load: () => listPossibleDuplicateCases().then((result) => result.duplicates),
+});
+
+export const mergePreview = (keptPersonId: string, retiredPersonIds: string[]) =>
+  edited({ key: ['merge-preview', keptPersonId, ...retiredPersonIds], load: () => getMergePreview(keptPersonId, retiredPersonIds) });

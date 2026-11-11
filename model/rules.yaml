@@ -11,6 +11,32 @@ rules:
     requirements:
       - Show possible matches to the user.
       - Do not merge records automatically.
+      - List people who may be recorded twice for staff - matched by email, by name ignoring word order, case, punctuation and initials, or by date of birth and family name - and pairs any staff member flagged. Never show the list to external submitters.
+      - Any active staff user may flag two people as possibly one, or record that a listed pair are different people, with an optional note; record the actor and time. A pair found to be different people is no longer listed until flagged again.
+      - Show everyone linked by any listed pair together, as one person who may have several records.
+
+  flag_possible_duplicate_case:
+    description: Identify open cases that may be one case recorded twice, for staff to clean up; cases are never merged here.
+    applies_to: case
+    trigger: on_read
+    outcome: warning
+    requirements:
+      - List open cases for staff whose case numbers or identifiers match ignoring case, punctuation and leading zeros, and pairs any staff member flagged, grouping everything linked by any pair. Never show the list to external submitters.
+      - A case number is only unique within its county, so never list or flag two cases whose counties are both set and differ. A missing county doesn't rule a pair out; a matching one is shown as supporting the match.
+      - Any active staff user may flag two open cases in the same county (or without one) as possibly one, or record that a listed pair are different, with an optional note; record the actor and time.
+      - Cases belong to the external case management system, so never merge them here. Staff clean up by closing the extra case (preserve_case_lifecycle) once its invoices are finished, which takes it off the list.
+
+  merge_duplicate_people:
+    description: Merge a person recorded twice into the record kept, on an administrator's confirmation.
+    applies_to: person
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - Only an administrator merges, one or more records into the one kept, all or none. Before merging, show any staff user exactly what would move to the kept person from each record, which of the kept record's empty details would be filled in, what is not moved, and anything that prevents the merge; the administrator confirms the two are the same person.
+      - Move every reference to the retired person, and to their provider profile, to the kept person and their profile. Never replace a detail the kept record has. Their own rates, fee schedule and invoice reviewer move only when the kept profile has none.
+      - Refuse the merge while both profiles sign in with different accounts, both hold the same open role on a case, both are assigned to the same case, or both have a pre-authorization on the same case.
+      - Keep the retired person, hidden from lists and searches, marked as merged into the kept person. Sent invoices keep their submission snapshots, and recorded actors stay as recorded.
+      - Record every value the merge changed with its prior value, the administrator and the time. An administrator may undo a merge, or every merge made at once, restoring each value still as the merge left it and leaving anything changed since; an undo is refused while the kept person has since been merged into someone else.
 
   require_qualification_for_assignment:
     description: Evaluate professional qualifications before assigning a case.

@@ -1,7 +1,7 @@
 // Emails given for people being added: one rule for the input, and one check
 // that refuses a probable duplicate rather than adding them again.
 import { z } from 'zod';
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';
 import { person, professional, userAccount } from '../db/schema';
 
@@ -27,7 +27,7 @@ export async function emailInUse(
   }
   const query = db.select({ id: person.personId }).from(person);
   const [held] = await (people === 'professionals' ? query.innerJoin(professional, eq(professional.personId, person.personId)) : query)
-    .where(and(sql`lower(${person.email}) = ${email}`, exceptPersonId ? ne(person.personId, exceptPersonId) : undefined))
+    .where(and(sql`lower(${person.email}) = ${email}`, isNull(person.mergedIntoPersonId), exceptPersonId ? ne(person.personId, exceptPersonId) : undefined))
     .limit(1);
   return Boolean(held);
 }

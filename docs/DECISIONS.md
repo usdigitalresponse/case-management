@@ -526,6 +526,28 @@ Staff may now add a provider with no login directly from invoice intake
 (`add_professional_without_login`); that needs no approval because staff add
 them. Delegates adding colleagues, and the approval step, are still planned.
 
+### Duplicate people merged by an administrator, and undoable
+
+People get recorded twice: staff add a provider who later signs in with
+another email, or a client is typed in again. Staff see possible duplicates
+on one page, matched by email, name or date of birth and family name, or
+flagged by a colleague, and any staff member may flag a pair or record that
+they are different people. Merging moves cases, invoices, assignments,
+sign-ins and documents onto one record, so only an administrator does it,
+after a preview of exactly what moves and an explicit confirmation. Because a
+wrong merge is easy to make and hard to spot, every value a merge changes is
+recorded and an administrator can undo it; the retired record is hidden, not
+deleted. Merges that would lose something (two different sign-ins, two open
+assignments or pre-authorizations on one case) are refused until fixed by
+hand. Nothing is ever merged automatically.
+
+A person recorded three or more times shows as one group, and an
+administrator merges every extra record into the one kept in one step, all
+or none. Cases and assignments always belong to the external case
+management system, so possible duplicate cases are listed for review only:
+staff mark a pair as different or close the extra case here, and cases are
+never merged.
+
 
 ## Deferred Decisions
 

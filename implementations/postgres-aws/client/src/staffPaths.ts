@@ -10,3 +10,9 @@ export function personPath(professionalId: string): string {
 export function reviewPath(invoiceId: string): string {
   return `/billing/${invoiceId}`;
 }
+
+export const POSSIBLE_DUPLICATES_PATH = '/possible-duplicates';
+
+export function mergePath(keptPersonId: string, retiredPersonIds: string[]): string {
+  return `${POSSIBLE_DUPLICATES_PATH}/merge?${new URLSearchParams({ keep: keptPersonId, retire: retiredPersonIds.join(',') }).toString()}`;
+}

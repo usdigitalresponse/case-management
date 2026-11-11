@@ -48,6 +48,25 @@
 .list-controls__search .usa-input { max-width: none; width: 100%; margin: 0; }
 .search-totals { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: var(--space-5) var(--space-6); margin-top: var(--space-6); }
 .search-totals .compact-hint { margin: var(--space-3) 0 0; }
+/* Possible duplicate people, and merging them. */
+.duplicate-list { display: flex; flex-direction: column; gap: var(--space-6); margin: 0 0 var(--space-9); padding: 0; list-style: none; }
+.duplicate-pair { display: flex; flex-direction: column; gap: var(--space-6); padding: var(--space-7) var(--space-8); }
+.duplicate-pair__links { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding: 0; list-style: none; font: var(--body-medium); }
+.duplicate-pair__links > li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+.duplicate-pair__people, .merge-sides { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-6) var(--space-8); }
+.duplicate-pair__actions, .merge-confirm__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); }
+.duplicate-person__name { font: var(--title-medium); }
+.duplicate-person__facts { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-5); margin: var(--space-4) 0 0; font: var(--body-medium); }
+.duplicate-person__facts dt { color: var(--color-on-surface-variant); }
+.duplicate-person__facts dd { margin: 0; overflow-wrap: anywhere; }
+.merge-sides { margin-bottom: var(--space-6); }
+.merge-side { padding: var(--space-7) var(--space-8); }
+.merge-side h2 { margin: 0 0 var(--space-4); font: var(--title-small); color: var(--color-on-surface-variant); text-transform: uppercase; letter-spacing: .5px; }
+.merge-side--retired { background: var(--color-surface-container-low); }
+.merge-side__actions { display: flex; flex-wrap: wrap; gap: var(--space-6); margin-top: var(--space-5); }
+.merge-notes { margin: 0 0 var(--space-8); padding-left: var(--space-8); font: var(--body-medium); }
+.merge-confirm { display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-7) var(--space-8); }
+.merge-confirm .usa-label { margin-top: 0; }
 /* A download with what it holds, as design I34's Billing record. */
 .export-card { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); margin-bottom: var(--space-6); padding: var(--space-7) var(--space-8); }
 .export-card h2 { margin: 0; font-size: var(--text-15); }

@@ -39,7 +39,7 @@ router.get(
     // userAccount.systemRoleId is NULL for every vendor account — plain
     // `not in` would exclude those too (SQL's three-valued logic), so NULL
     // must be allowed through explicitly.
-    const filters = [or(isNull(userAccount.systemRoleId), notInArray(userAccount.systemRoleId, staffAccountRoleIds))!];
+    const filters = [or(isNull(userAccount.systemRoleId), notInArray(userAccount.systemRoleId, staffAccountRoleIds))!, isNull(person.mergedIntoPersonId)];
     if (q) {
       filters.push(or(ilike(userAccount.email, `%${q}%`), ilike(person.email, `%${q}%`), ilike(professional.displayName, `%${q}%`))!);
     }

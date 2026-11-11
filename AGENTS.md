@@ -344,6 +344,17 @@ from them into Git, fixtures or docs; describe findings generically.
 PDF imports are read in a background queue in the server process (one
 instance only), entirely in-process on the demo server's 1 GB; any model or
 service added to reading needs its hosting cost agreed first.
+Possible duplicate people (`src/people/possibleDuplicates.ts`) are listed
+for staff only; any staff member flags a pair or records they are different
+people, and only an administrator merges, after a preview of exactly what
+moves (`src/people/personMerges.ts`). A merge never deletes the retired
+person or replaces a detail on the kept one, records every value it changes
+so it can be undone, and a merged-away person is left out of every list,
+search, email check and sign-in match. Duplicates show in groups, and one
+merge may take several records, all or none. Possible duplicate cases
+(`src/cases/possibleDuplicateCases.ts`) are review only: cases belong to the
+external system and are never merged here; staff close the extra one.
+Cases in different counties are never listed or flagged as duplicates.
 Possible double billing (`src/billing/billingOverlaps.ts`) only warns, never
 refuses; a submitter sees only invoices they may read, and only on a draft.
 Pre-authorization limits are per provider per case: the ceiling of their one
