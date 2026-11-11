@@ -10,6 +10,7 @@ import { useResource } from '../hooks/useResource';
 import { authProviders, demoAccounts as demoAccountsResource } from '../resources';
 import { useAuth } from '../AuthContext';
 import { CodeSignIn } from '../portal/CodeSignIn';
+import { Button, buttonClass } from '../components/ui/Button';
 
 // Demos only: sign in as any seeded synthetic account, to try each view.
 function DemoSignIn({
@@ -45,7 +46,7 @@ function DemoSignIn({
             </option>
           ))}
         </select>
-        <button type="submit" className="btn btn--outline">Sign in</button>
+        <Button type="submit" kind="secondary">Sign in</Button>
       </div>
       {error && <p className="field-error" role="alert">{error}</p>}
     </form>
@@ -65,19 +66,19 @@ export default function LoginPage() {
         <h1>Invoice Review Prototype</h1>
       </header>
       <div className="login-panels">
-        <section className="login-panel" aria-labelledby="login-staff">
+        <section className="card login-panel" aria-labelledby="login-staff">
           <h2 id="login-staff">Staff</h2>
           <p>Use your organization's account.</p>
           {providers?.length === 0 && <p>No sign-in provider is configured yet.</p>}
           {providers?.map((provider) => (
-            <a key={provider.id} className="btn btn--primary" href={`/auth/${provider.id}`}>
+            <a key={provider.id} className={buttonClass('primary')} href={`/auth/${provider.id}`}>
               Sign in with {provider.displayName}
             </a>
           ))}
           {data?.demoLoginEnabled && <DemoSignIn id="demo-staff" accounts={demoAccounts?.staff ?? []} onSignIn={demoLogin} />}
         </section>
 
-        <section className="login-panel login-panel--code" aria-label="Attorneys and vendors">
+        <section className="card login-panel login-panel--code" aria-label="Attorneys and vendors">
           <CodeSignIn headingLevel="h2" />
           {data?.externalDemoLoginEnabled && (
             <DemoSignIn id="demo-partner" accounts={demoAccounts?.partners ?? []} onSignIn={externalDemoLogin} />

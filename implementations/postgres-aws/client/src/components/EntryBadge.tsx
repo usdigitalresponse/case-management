@@ -1,6 +1,7 @@
 // While an invoice's lines are still being entered: who is entering them and
 // when they last changed, for them and for anyone else looking at it.
 import { formatDateTime } from '../formatDateTime';
+import { Tag } from './ui/Tag';
 
 export function EntryBadge({
   enteringName,
@@ -19,7 +20,7 @@ export function EntryBadge({
   const changer = changedByName && changedByName !== enteringName ? ` by ${changedByName}` : '';
   return (
     <span className="entry-badge" role="status">
-      <span className="chip chip--info">Being entered by {by}</span>
+      <Tag tone="info">Being entered by {by}</Tag>
       {changedAt && (
         <span className="cell-note">
           {own ? 'Last saved' : 'Last change'} {formatDateTime(changedAt)}

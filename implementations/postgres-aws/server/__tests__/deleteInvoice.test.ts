@@ -8,13 +8,17 @@ import { createCase } from '../src/intake/createCase';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { resolvePortalActor, type PortalActor } from '../src/portal/portalActor';
 import { createInvoice } from '../src/portal/createInvoice';
-import { InvoiceStateError, recallInvoice, submitInvoice, updateDraftInvoice, withdrawInvoice } from '../src/billing/invoiceLifecycle';
+import { InvoiceStateError } from '../src/billing/invoiceLifecycle/lineInput';
+import { recallInvoice, withdrawInvoice } from '../src/billing/invoiceLifecycle/withdraw';
+import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
+import { updateDraftInvoice } from '../src/billing/invoiceLifecycle/drafts';
 import { InvoiceNotFoundError } from '../src/billing/reviewInvoiceLine';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../src/billing/deleteInvoice';
 import { getReferenceId } from '../src/db/referenceLookups';
 import { giveRate } from './rateHelpers';
 import { listPortalInvoices } from '../src/portal/listPortalInvoices';
-import { confirmInvoiceImport, uploadInvoiceFile } from '../src/imports/invoiceImports';
+import { confirmInvoiceImport } from '../src/imports/invoiceImports/resolve';
+import { uploadInvoiceFile } from '../src/imports/invoiceImports/upload';
 import {
   caseAssignment,
   document,

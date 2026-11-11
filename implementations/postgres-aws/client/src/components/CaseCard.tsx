@@ -11,7 +11,8 @@ import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { formatMoney } from '../formatMoney';
 import { useResource } from '../hooks/useResource';
 import { caseMatches } from '../resources';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button } from './ui/Button';
 
 // The case an invoice is on, leading its review page (design I).
 export function CaseCard({
@@ -37,7 +38,7 @@ export function CaseCard({
   const billed = preauthorization ? Number(preauthorization.approvedSoFar) + Number(preauthorization.waiting) : 0;
   return (
     <>
-      <section className="invoice-case-card" aria-labelledby="invoice-case-card-heading">
+      <section className="card invoice-case-card" aria-labelledby="invoice-case-card-heading">
         <div>
           <h2 id="invoice-case-card-heading" className="invoice-case-card__eyebrow">Case</h2>
           <RouterLink to={casePath} className="invoice-case-card__client">
@@ -115,7 +116,7 @@ export function CaseMatch({ invoice, onMatched }: { invoice: QueuedInvoice; onMa
   }
 
   return (
-    <section className="case-match" aria-labelledby="case-match-heading">
+    <section className="card case-match" aria-labelledby="case-match-heading">
       <h2 id="case-match-heading">Match it to a case</h2>
       {!data ? (
         <p className="cell-note">Looking for case {number}…</p>
@@ -132,14 +133,13 @@ export function CaseMatch({ invoice, onMatched }: { invoice: QueuedInvoice; onMa
                 {found.countyDisplayName ? ` · ${found.countyDisplayName}` : ''}
                 {found.match === 'close' && <span className="cell-note"> Close match</span>}
               </span>
-              <button
-                type="button"
-                className="btn btn--outline"
+              <Button
+                kind="secondary"
                 disabled={saving}
                 onClick={() => match(found.caseId, found.caseNumber ?? number)}
               >
                 {found.closed ? 'Match and reopen' : 'Match'}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

@@ -4,7 +4,8 @@ import { formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import type { ReviewTotals } from '../reviewTotals';
 import { ConfirmButton } from './ConfirmButton';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button } from './ui/Button';
 
 // Rate check: time lines billed above the case rate a reviewer set, else the
 // pre-authorized rate, else the person's approved rate, shown once above the
@@ -45,9 +46,9 @@ export function RateCheckNotice({
       tone="warning"
       action={
         canReprice && (
-          <button type="button" className="btn btn--outline" disabled={saving} onClick={() => onReprice(check.limit)}>
+          <Button kind="secondary" disabled={saving} onClick={() => onReprice(check.limit)}>
             Re-price at {formatMoney(check.limit)}
-          </button>
+          </Button>
         )
       }
     >
@@ -89,7 +90,7 @@ export function TotalsBar({
   const [confirming, setConfirming] = useState(false);
   const signers = approvers.map((approver) => approver.displayName).join(', then ');
   return (
-    <div className="totals-bar">
+    <div className="card totals-bar">
       <dl>
         <div><dt>Requested</dt><dd className="total-figure">{formatMoney(requested)}</dd></div>
         <div><dt>Approved</dt><dd className="total-figure total-figure--good">{formatMoney(totals.approved / 100)}</dd></div>
@@ -111,9 +112,9 @@ export function TotalsBar({
               ? `Next, ${signers} ${approvers.length === 1 ? 'signs' : 'sign'} off. Then it can be exported for payment with every reason attached.`
               : 'Choose who signs off before finishing.'}
           </p>
-          <button type="button" className="btn btn--primary" disabled={saving || approvers.length === 0} onClick={() => setConfirming(true)}>
+          <Button kind="primary" disabled={saving || approvers.length === 0} onClick={() => setConfirming(true)}>
             Finish review
-          </button>
+          </Button>
         </div>
       )}
       {confirming && (
@@ -126,9 +127,8 @@ export function TotalsBar({
             {locksLines ? ', to change decisions but not the lines.' : '.'}
           </p>
           <div className="button-row">
-            <button
-              type="button"
-              className="btn btn--primary"
+            <Button
+              kind="primary"
               disabled={saving}
               ref={(element) => element?.focus()}
               onClick={() => {
@@ -137,7 +137,7 @@ export function TotalsBar({
               }}
             >
               Finish review
-            </button>
+            </Button>
             <button type="button" className="link-button" onClick={() => setConfirming(false)}>Keep reviewing</button>
           </div>
         </div>
@@ -175,7 +175,7 @@ export function SignOffPanel({
     });
 
   return (
-    <section className="sign-off-panel" aria-labelledby="sign-off-heading">
+    <section className="card sign-off-panel" aria-labelledby="sign-off-heading">
       <h2 id="sign-off-heading">Sign-off</h2>
       <p>
         {nextApprover ? `Waiting for ${nextApprover.displayName} to sign off.` : 'Waiting for sign-off.'} Approvers decide the
@@ -184,7 +184,7 @@ export function SignOffPanel({
       {canSignOff && (
         <label className="send-back-form">
           Comment (needed to send it back)
-          <textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} />
+          <textarea className="usa-textarea" rows={3} value={comment} onChange={(event) => setComment(event.target.value)} />
           <span className="cell-note">
             Signing off or rejecting, everyone who sees the invoice sees it, as with line notes. Sending it back, only staff do.
           </span>
@@ -194,9 +194,9 @@ export function SignOffPanel({
         <div className="button-row">
           {canSignOff && (
             <>
-              <button type="button" className="btn btn--primary" disabled={saving} onClick={() => decide('approved')}>
+              <Button kind="primary" disabled={saving} onClick={() => decide('approved')}>
                 Sign off {formatMoney(approvedCents / 100)}
-              </button>
+              </Button>
               <ConfirmButton
                 label="Reject invoice"
                 prompt="Reject the whole invoice? Nothing on it will be approved."
@@ -204,15 +204,15 @@ export function SignOffPanel({
                 disabled={saving}
                 onConfirm={() => decide('rejected')}
               />
-              <button type="button" className="btn btn--outline" disabled={saving || !comment.trim()} onClick={() => decide('changes_requested')}>
+              <Button kind="secondary" disabled={saving || !comment.trim()} onClick={() => decide('changes_requested')}>
                 Send back to the reviewer
-              </button>
+              </Button>
             </>
           )}
           {canReopen && (
-            <button type="button" className="btn btn--outline" disabled={saving} onClick={onReopen}>
+            <Button kind="secondary" disabled={saving} onClick={onReopen}>
               Reopen review
-            </button>
+            </Button>
           )}
         </div>
       )}

@@ -4,6 +4,7 @@ import { formatDate, formatDateTime } from '../formatDateTime';
 import { cents, formatMoney, formatRate } from '../formatMoney';
 import { isMileage } from '../invoiceLineDisplay';
 import { StatusPill } from './StatusPill';
+import { Button } from './ui/Button';
 
 // A decision as recorded or in progress: what, how much, why, by whom, and
 // a corrected rate that differs from the line's default.
@@ -291,7 +292,7 @@ export function DecisionPanel({
   const reasonPicker = (
     <label className="decision-panel__rate-reason">
       Why a lower rate?
-      <select value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
+      <select className="usa-select" value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
         <option value="">Choose a reason</option>
         {options.map((reason) => (
           <option key={reason.code} value={reason.code}>
@@ -312,7 +313,7 @@ export function DecisionPanel({
             <legend>The rate to approve it at, higher or lower</legend>
             <label>
               Rate per {unit}
-              <input type="number" step={miles ? '0.001' : '0.01'} min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
+              <input className="usa-input" type="number" step={miles ? '0.001' : '0.01'} min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
             </label>
             <span className="cell-note">
               Enter a rate other than the billed {formatRate(line.billedRate ?? '0')}
@@ -337,12 +338,12 @@ export function DecisionPanel({
               <div className="inline-pair">
                 <label>
                   {miles ? 'Miles' : 'Hours'}
-                  <input type="number" step="0.01" min="0" value={hours} onChange={(e) => setHours(e.target.value)} />
+                  <input className="usa-input" type="number" step="0.01" min="0" value={hours} onChange={(e) => setHours(e.target.value)} />
                 </label>
                 <span aria-hidden="true">×</span>
                 <label>
                   Rate{miles ? ' per mile' : ''}
-                  <input type="number" step={miles ? '0.001' : '0.01'} min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
+                  <input className="usa-input" type="number" step={miles ? '0.001' : '0.01'} min="0" value={rate} onChange={(e) => setRate(e.target.value)} />
                 </label>
                 {line.configuredRate !== null && rate !== '' && Number(rate) !== Number(line.configuredRate) && (
                   <span className="line-rate-differs">Differs from the default {formatRate(line.configuredRate)}</span>
@@ -351,7 +352,7 @@ export function DecisionPanel({
             ) : (
               <label>
                 Amount to approve
-                <input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                <input className="usa-input" type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} />
               </label>
             )}
             {raised ? (
@@ -399,14 +400,14 @@ export function DecisionPanel({
                 <div className="inline-pair">
                   <label>
                     For
-                    <select value={target} onChange={(e) => setTarget(e.target.value as 'person' | 'kind')}>
+                    <select className="usa-select" value={target} onChange={(e) => setTarget(e.target.value as 'person' | 'kind')}>
                       <option value="person">{rateScope.personName}</option>
                       {line.rateKindId && <option value="kind">Every {line.rateKindDisplayName ?? 'person of their kind'} on this case</option>}
                     </select>
                   </label>
                   <label>
                     From work on
-                    <input type="date" value={from} max={line.serviceDate ?? undefined} onChange={(e) => setFrom(e.target.value)} />
+                    <input className="usa-input" type="date" value={from} max={line.serviceDate ?? undefined} onChange={(e) => setFrom(e.target.value)} />
                   </label>
                 </div>
                 {latest && (
@@ -461,21 +462,21 @@ export function DecisionPanel({
         {needsOverride && (
           <label className="decision-panel__note">
             Why approve its {miles ? 'miles' : 'hours'} although the time log doesn't support them?
-            <textarea rows={3} value={override} onChange={(e) => setOverride(e.target.value)} />
+            <textarea className="usa-textarea" rows={3} value={override} onChange={(e) => setOverride(e.target.value)} />
             <span className="cell-note">Only staff see this. Sign-off sees it with the line.</span>
           </label>
         )}
         <label className="decision-panel__note">
           Note for the record{reasonCode === 'other' || (shownScope === 'case' && caseReason === 'other') ? '' : ' (optional)'}
-          <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
+          <textarea className="usa-textarea" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
           <span className="cell-note">Everyone who sees the invoice sees this note.</span>
         </label>
       </div>
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="button-row">
-        <button
+        <Button
           type="submit"
-          className="btn btn--primary"
+          kind="primary"
           disabled={
             saving ||
             (needsReason && !reasonCode) ||
@@ -503,7 +504,7 @@ export function DecisionPanel({
                     : validAmount || raised
                       ? `Approve ${formatMoney(approvedCents / 100)}`
                       : 'Approve part'}
-        </button>
+        </Button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
         {!rateValid && <span className="cell-note">Enter a different rate first.</span>}
         {needsReason && !reasonCode && <span className="cell-note">Choose a reason first.</span>}

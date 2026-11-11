@@ -17,9 +17,9 @@ import {
 } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { billableProfessionals, uploadCases } from '../resources';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { PageHeader } from '../components/PageHeader';
-import { professionalLabel } from '../components/InvoiceLinesEditor';
+import { professionalLabel } from '../invoiceLines';
 import type { UploadedState } from './PortalInvoiceList';
 import { useShell } from './useShell';
 import { DropZone, FileCard, Steps, useUploadEntries, type Entry, type ReadyRead, type UploadStart } from '../components/upload/UploadFiles';
@@ -39,6 +39,7 @@ import {
   StaffNewCaseFields,
   type NewCaseEntry,
 } from '../components/NewEntryFields';
+import { Button } from '../components/ui/Button';
 
 interface Details {
   // `${caseId}|${professionalId}`, ADD_NEW, or '' (not known: matched on Intake).
@@ -262,7 +263,7 @@ function ManualEntry({ onCancel }: { onCancel: () => void }) {
   }
 
   return (
-    <div className="upload-card manual-entry">
+    <div className="card upload-card manual-entry">
       <h2 className="upload-card__heading">Enter an invoice by hand</h2>
       <p className="field-hint">Choose the case, then add each line of the invoice on the next step.</p>
       {Boolean(loadError) && <Notice tone="danger">Your cases could not be loaded.</Notice>}
@@ -276,9 +277,9 @@ function ManualEntry({ onCancel }: { onCancel: () => void }) {
       />
       {message && <Notice tone="danger">{message}</Notice>}
       <div className="upload-card__actions">
-        <button type="button" className="btn btn--primary" disabled={busy || !data} onClick={() => void start()}>
+        <Button kind="primary" disabled={busy || !data} onClick={() => void start()}>
           {busy ? 'Starting…' : 'Add the lines'}
-        </button>
+        </Button>
         <button type="button" className="link-button" disabled={busy} onClick={onCancel}>
           Cancel
         </button>
@@ -370,6 +371,7 @@ export default function PortalUpload() {
   return (
     <div className="portal-narrow">
       <PageHeader
+        list
         crumbs={[{ label: invoicesLabel, to: invoicesPath }, { label: many ? 'New invoices' : 'New invoice' }]}
         title={manual ? 'Enter an invoice' : many ? 'Upload invoices' : 'Upload an invoice'}
       />
@@ -377,7 +379,7 @@ export default function PortalUpload() {
       {manual ? (
         <ManualEntry onCancel={() => setManual(false)} />
       ) : (
-      <div className="upload-card">
+      <div className="card upload-card">
         <DropZone hasFiles={entries.length > 0} onFiles={addFiles} />
         {entries.length === 0 && (
           <p className="manual-entry__offer">
@@ -439,14 +441,13 @@ export default function PortalUpload() {
         {message && <Notice tone="danger">{message}</Notice>}
         {entries.length > 0 && (
           <div className="upload-card__actions">
-            <button
-              type="button"
-              className="btn btn--primary"
+            <Button
+              kind="primary"
               disabled={busy || (!byHand && !currentRead)}
               onClick={() => (byHand ? setManual(true) : void next())}
             >
               {many && !byHand ? 'Next' : 'Check the lines'}
-            </button>
+            </Button>
             <button type="button" className="link-button" disabled={busy} onClick={() => void cancel()}>
               Cancel
             </button>

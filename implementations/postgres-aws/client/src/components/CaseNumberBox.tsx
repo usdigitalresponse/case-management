@@ -31,7 +31,7 @@ export function CaseNumberBox({
   children?: ReactNode;
 }) {
   return (
-    <section className={`case-number-box${missing ? ' case-number-box--missing' : ''}`} aria-labelledby={`${id}-label`}>
+    <section className={`card case-number-box${missing ? ' case-number-box--missing' : ''}`} aria-labelledby={`${id}-label`}>
       <div className="case-number-box__field">
         <label id={`${id}-label`} className="usa-label" htmlFor={id}>{label}</label>
         <input

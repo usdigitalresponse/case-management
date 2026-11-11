@@ -7,7 +7,7 @@ import { reviewQueue } from '../resources';
 import { InvoiceStatus } from '../components/Completion';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { RecordTable } from '../components/RecordTable';
 import { caseNumberColumn, countyOfInvoice, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
 import { useCountyControl } from '../components/CountyListControl';
@@ -16,6 +16,8 @@ import { Toast, useToast } from '../components/Toast';
 import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
+import { Tag } from '../components/ui/Tag';
+import { FilterTag } from '../components/ui/Tag';
 
 const FILTERS = QUEUE_FILTERS;
 type FilterId = QueueFilterId;
@@ -78,6 +80,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
   return (
     <div>
       <PageHeader
+        list
         title={open ? 'Invoices to review' : 'Finished invoices'}
         description={
           open ? 'Every invoice waiting for a decision, longest wait first.' : 'Invoices signed off or rejected. Export them from the invoice.'
@@ -103,25 +106,24 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
 
       <div className="list-controls">
         {open && (
-          <div className="chip-filters" role="group" aria-label="Show">
+          <div className="tag-filters" role="group" aria-label="Show">
             {FILTERS.map(({ id, label }) => (
-              <button
+              <FilterTag
                 key={id}
-                type="button"
-                className={`chip chip--filter${id === 'flagged' ? ' chip--warning' : ''}`}
+                tone={id === 'flagged' ? 'warning' : undefined}
                 aria-pressed={filter === id}
                 onClick={() => setParam('show', id)}
               >
-                {label} <span className="chip-count">{counts[id]}</span>
-              </button>
+                {label} <span className="tag-count">{counts[id]}</span>
+              </FilterTag>
             ))}
             {query && (
-              <span className="chip chip--neutral">
+              <Tag tone="neutral">
                 Matching “{query}”
                 <button type="button" className="link-button" onClick={() => setParam('q', null)}>
                   Clear
                 </button>
-              </span>
+              </Tag>
             )}
           </div>
         )}

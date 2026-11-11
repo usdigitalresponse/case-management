@@ -6,6 +6,7 @@ import type { Transaction } from '../db/client';
 import { invoiceLine } from '../db/schema';
 import { ValidationError } from '../errors';
 import type { ImportWarning } from './parsedInvoice';
+import { formatCalendarDate } from '../formatDate';
 
 export const DATE_FROM_PREVIOUS_WARNING = 'date_from_previous_line';
 export const DATE_MISSING_WARNING = 'date_missing';
@@ -27,7 +28,7 @@ export function fillMissingDates(lines: Array<{ location: string; serviceDate?: 
         ? {
             code: DATE_FROM_PREVIOUS_WARNING,
             location: line.location,
-            message: `No date in the file, so it's set to the date of the line before it (${previous}). Check it.`,
+            message: `No date in the file, so it's set to the date of the line before it (${formatCalendarDate(previous)}). Check it.`,
           }
         : { code: DATE_MISSING_WARNING, location: line.location, message: "No date in the file. Enter this item's date." },
     );

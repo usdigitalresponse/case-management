@@ -11,6 +11,7 @@ import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
 import { PORTAL_PREAUTHORIZATIONS_PATH } from './useShell';
+import { Button } from '../components/ui/Button';
 
 function AskForm({ caseId, onCancel }: { caseId: string | undefined; onCancel: () => void }) {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ function AskForm({ caseId, onCancel }: { caseId: string | undefined; onCancel: (
   if (!cases.data || !providers.data) return <LoadState error={cases.error ?? providers.error} what="your cases" />;
   const options = cases.data.cases.map((row) => ({ id: row.caseId, label: [row.caseNumber, row.clientDisplayName].filter(Boolean).join(' · ') }));
   return (
-    <section className="compact-card">
+    <section className="card compact-card">
       <h2>Ask for pre-authorization</h2>
       <p className="compact-hint">
         Ask before a provider’s work on a case goes past the threshold or what’s pre-authorized. To ask for more, enter the new total.
@@ -43,13 +44,14 @@ export default function PortalPreauthorizations() {
   return (
     <div>
       <PageHeader
+        list
         title="Pre-authorizations"
         description="Your requests and the billing office’s answers."
         actions={
           !asking && (
-            <button type="button" className="btn btn--primary" onClick={() => setParams({ ask: '' }, { preventScrollReset: true })}>
+            <Button kind="primary" onClick={() => setParams({ ask: '' }, { preventScrollReset: true })}>
               Ask for pre-authorization
-            </button>
+            </Button>
           )
         }
       />

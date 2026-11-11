@@ -9,7 +9,8 @@ import {
 import { useResource } from '../hooks/useResource';
 import { reviewPeople } from '../resources';
 import { OrderedChoiceList } from './OrderedChoiceList';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button } from './ui/Button';
 
 // Staff who review or sign off, with how many invoices each has waiting.
 // Loaded only once `enabled`, such as when a picker opens.
@@ -57,9 +58,9 @@ export function AssignReviewer({ invoiceId, onAssigned }: { invoiceId: string; o
   const [error, setError] = useState<string | null>(null);
   if (!open) {
     return (
-      <button type="button" className="btn btn--outline btn--small" onClick={() => setOpen(true)}>
+      <Button kind="secondary" small onClick={() => setOpen(true)}>
         Assign
-      </button>
+      </Button>
     );
   }
   return (
@@ -139,17 +140,16 @@ export function ReviewerPicker({
 
   return (
     <div className="popover-anchor">
-      <button
-        type="button"
-        className="btn btn--outline btn--select"
+      <Button
+        kind="secondary" className="btn--select"
         aria-expanded={open}
         disabled={!canChange}
         onClick={() => setOpen(!open)}
       >
         <span className="muted">Reviewer</span> {reviewer ? reviewer.displayName : 'Not assigned'}
-      </button>
+      </Button>
       {open && (
-        <div className="popover" role="dialog" aria-label="Who reviews this invoice?">
+        <div className="card popover" role="dialog" aria-label="Who reviews this invoice?">
           <h3>Who reviews this invoice?</h3>
           {!people ? (
             <p role="status">Loading…</p>
@@ -196,9 +196,9 @@ export function ReviewerPicker({
           )}
           {error && <p className="field-error" role="alert">{error}</p>}
           <div className="button-row">
-            <button type="button" className="btn btn--primary" disabled={!chosen || saving} onClick={() => void save()}>
+            <Button kind="primary" disabled={!chosen || saving} onClick={() => void save()}>
               Give it to {chosenName ?? '…'}
-            </button>
+            </Button>
             <button type="button" className="link-button" onClick={() => setOpen(false)}>Cancel</button>
           </div>
         </div>
@@ -250,7 +250,7 @@ export function SignOffApprovers({
         <button type="button" className="link-button" onClick={() => setEditing(true)}>Change</button>
       )}
       {editing && (
-        <div className="inline-editor">
+        <div className="card inline-editor">
           {!people ? (
             <p role="status">Loading…</p>
           ) : (
@@ -270,9 +270,9 @@ export function SignOffApprovers({
           <p className="cell-note">They sign off in the order you tick them.</p>
           {error && <p className="field-error" role="alert">{error}</p>}
           <div className="button-row">
-            <button type="button" className="btn btn--primary" disabled={chosen.length === 0} onClick={() => void save()}>
+            <Button kind="primary" disabled={chosen.length === 0} onClick={() => void save()}>
               Save
-            </button>
+            </Button>
             <button type="button" className="link-button" onClick={() => setEditing(false)}>Cancel</button>
           </div>
         </div>

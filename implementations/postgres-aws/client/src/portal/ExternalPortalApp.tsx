@@ -6,7 +6,7 @@
 // workflows".
 import { Link, Navigate, Outlet, ScrollRestoration, useNavigation, type RouteObject } from 'react-router';
 import type { portalLoaders } from '../routeLoaders';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { PortalTopBar } from './PortalTopBar';
 import { page } from '../lazyPage';
 import { NEW_INVOICE_PATH, PORTAL_HOME_PATH, PORTAL_PREAUTHORIZATIONS_PATH, UPLOAD_PATH } from './useShell';

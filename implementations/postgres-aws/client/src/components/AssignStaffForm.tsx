@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Label } from '@trussworks/react-uswds';
 import { ApiError, createStaffAssignment, searchStaff, type StaffAccount } from '../api/client';
 import { TypeAheadPicker } from './TypeAheadPicker';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button } from './ui/Button';
 
 // The "assign staff to a case" action behind the needs-assignment ->
 // represented transition (server/src/cases/assignStaffToCase.ts).
@@ -55,9 +56,9 @@ export function AssignStaffForm({ caseId, onAssigned }: { caseId: string; onAssi
           }
           onSelect={(staff) => setSelectedStaff(staff ?? null)}
         />
-        <button type="button" className="btn btn--primary" disabled={!selectedStaff || assigning} onClick={() => void handleAssign()}>
+        <Button kind="primary" disabled={!selectedStaff || assigning} onClick={() => void handleAssign()}>
           {assigning ? 'Assigning…' : 'Assign'}
-        </button>
+        </Button>
       </div>
       {error && <Notice tone="danger">{error}</Notice>}
     </div>

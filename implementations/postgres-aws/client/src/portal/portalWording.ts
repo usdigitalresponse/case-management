@@ -3,6 +3,7 @@
 // phone use the same ones.
 import type { InvoiceRecord } from '../api/client';
 import type { Tone } from '../components/StatusPill';
+import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -11,15 +12,6 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function parts(isoDate: string) {
   const [year, month, day] = isoDate.slice(0, 10).split('-').map(Number);
   return { year: year!, month: MONTHS[month! - 1]!, day: day! };
-}
-
-// "2 Sep 2026".
-export function formatDay(isoDate: string | null | undefined): string {
-  if (!isoDate) {
-    return '—';
-  }
-  const { day, month, year } = parts(isoDate);
-  return `${day} ${month} ${year}`;
 }
 
 // "14 Oct", or with the year when it isn't this year.
@@ -31,13 +23,13 @@ export function formatDayShort(isoDate: string): string {
 // "1 to 30 Sep 2026", "1 Aug to 30 Sep 2026" or "1 Dec 2025 to 31 Jan 2026".
 export function formatSpan(start: string | null, end: string | null): string {
   if (!start || !end) {
-    return start || end ? formatDay(start ?? end) : '—';
+    return start || end ? formatDate(start ?? end) : '—';
   }
   const from = parts(start);
   const to = parts(end);
   const head =
-    from.year !== to.year ? formatDay(start) : from.month !== to.month ? `${from.day} ${from.month}` : String(from.day);
-  return `${head} to ${formatDay(end)}`;
+    from.year !== to.year ? formatDate(start) : from.month !== to.month ? `${from.day} ${from.month}` : String(from.day);
+  return `${head} to ${formatDate(end)}`;
 }
 
 export interface SubmissionStatus {

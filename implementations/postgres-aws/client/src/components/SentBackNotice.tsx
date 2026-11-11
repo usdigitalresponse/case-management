@@ -1,4 +1,4 @@
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
 
 // Why staff sent a draft back (model/rules.yaml match_invoice_to_case), shown
 // until it's sent again.

@@ -3,7 +3,9 @@ import { apiErrorMessage, createExternalAssignment, listVendors, type VendorReco
 import { AddProvider } from './AddProvider';
 import { AssignStaffForm } from './AssignStaffForm';
 import { TypeAheadPicker } from './TypeAheadPicker';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button } from './ui/Button';
+import { SegmentedChoice } from './ui/SegmentedChoice';
 
 // Adds someone to a case after it was opened. A provider (attorney, expert or
 // vendor) needs this to submit invoices on the case, and their invoices are
@@ -19,9 +21,9 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
 
   if (!open) {
     return (
-      <button type="button" className="btn btn--outline" onClick={() => setOpen(true)}>
+      <Button kind="secondary" onClick={() => setOpen(true)}>
         Add person
-      </button>
+      </Button>
     );
   }
 
@@ -39,11 +41,17 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
   }
 
   return (
-    <div className="inline-editor add-person">
-      <div className="choice-toggle" role="group" aria-label="Who are you adding?">
-        <button type="button" aria-pressed={kind === 'external'} onClick={() => setKind('external')}>Provider</button>
-        <button type="button" aria-pressed={kind === 'staff'} onClick={() => setKind('staff')}>Staff</button>
-      </div>
+    <div className="card inline-editor add-person">
+      <SegmentedChoice
+        label="Who are you adding?"
+        className="segmented--above"
+        options={[
+          { value: 'external', label: 'Provider' },
+          { value: 'staff', label: 'Staff' },
+        ]}
+        value={kind}
+        onChange={setKind}
+      />
       {kind === 'external' ? (
         <>
           <label className="settings-field" htmlFor="vendor-query">Find a provider (attorney, expert or vendor), or add one</label>
@@ -78,9 +86,9 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
               }
               onSelect={(vendor) => setSelected(vendor ?? null)}
             />
-            <button type="button" className="btn btn--primary" disabled={!selected} onClick={() => void addExternal()}>
+            <Button kind="primary" disabled={!selected} onClick={() => void addExternal()}>
               Add to case
-            </button>
+            </Button>
           </div>
           )}
           {error && <Notice tone="danger">{error}</Notice>}

@@ -6,7 +6,7 @@ import { useResource } from '../hooks/useResource';
 import { invoiceSearch } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { SentInvoicesTable } from '../components/SentInvoicesTable';
 import { useCountyControl } from '../components/CountyListControl';
 import { countyOfInvoice } from '../components/InvoiceCells';
@@ -15,6 +15,7 @@ import { downloadCsv } from '../downloadCsv';
 import { formatPeriod } from '../formatDateTime';
 import { formatMoney, sumMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
+import { Button } from '../components/ui/Button';
 
 export default function SearchResults() {
   const [params] = useSearchParams();
@@ -45,6 +46,7 @@ export default function SearchResults() {
   return (
     <div>
       <PageHeader
+        list
         crumbs={[{ label: 'Search' }, { label: query || 'Nothing yet' }]}
         title={byNumber ? `Invoices with a case number like ${query}` : `Invoices matching “${query}”`}
         description={
@@ -82,9 +84,8 @@ export default function SearchResults() {
               </p>
             )}
           </div>
-          <button
-            type="button"
-            className="btn btn--outline"
+          <Button
+            kind="secondary"
             onClick={() =>
               downloadCsv(
                 `search_${query.replace(/[^A-Za-z0-9]+/g, '_')}.csv`,
@@ -104,7 +105,7 @@ export default function SearchResults() {
             }
           >
             Export these to a spreadsheet
-          </button>
+          </Button>
         </div>
       )}
     </div>

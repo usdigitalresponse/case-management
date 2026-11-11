@@ -304,7 +304,12 @@ The app is a React Router data router built per kind of signed-in user
 pages give their route a loader over named resources (`src/routeLoaders.ts`,
 `src/resources.ts`), so they don't blank to "Loading…" while switching; add one
 for a new page that loads data, and load its code with `src/lazyPage.tsx`;
-keep a list's filters in the address (`useSearchParamState`). All data loads through `useResource`
+keep a list's filters in the address (`useSearchParamState`). Styles are global BEM-style CSS in `client/src/styles/`, one file per
+area, imported in order by `index.css`; put a rule in its area's file. Design
+values come only from `tokens.css` (Figma's role names), design-system components
+live in `client/src/components/ui/` (use `Button`, `Tag`, `Notice`, `Dialog`, the
+`card` class), USWDS's stylesheet is not loaded, and no inline styles: pass run-time
+values with `cssVars`. `npm run lint` enforces both (stylelint and ESLint). See "Changing the design system" in its `docs/frontend.md`. All data loads through `useResource`
 (TanStack Query); resources a page edits are `fresh`: loaded for each visit,
 never refreshed under the user, and cleared and reloaded by a save's `resetKey`.
 Run server/client `npm run typecheck` and `npm run lint`, client `npm run build` and `npm test`, and

@@ -15,8 +15,9 @@ import {
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { NewInvoiceForm } from './NewInvoiceForm';
 import { UPLOAD_PATH, useShell } from './useShell';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { PageHeader } from '../components/PageHeader';
+import { buttonClass } from '../components/ui/Button';
 
 // The submitter's start page for entering invoices. Staff enter invoices
 // received by email or from other tools on Intake (pages/InvoiceIntake.tsx),
@@ -24,7 +25,7 @@ import { PageHeader } from '../components/PageHeader';
 export default function PortalNewInvoice() {
   return (
     <div>
-      <PageHeader title="New invoice" description="Enter an invoice by hand for a case, or upload invoice files." />
+      <PageHeader list title="New invoice" description="Enter an invoice by hand for a case, or upload invoice files." />
       <NewInvoiceStart />
     </div>
   );
@@ -61,7 +62,7 @@ export function NewInvoiceStart({ onSaved }: { onSaved?: () => void }) {
       {Boolean(error) && <Notice tone="danger">Failed to load cases.</Notice>}
 
       <div className="start-options">
-        <section className="compact-card start-option">
+        <section className="card compact-card start-option">
           <h2>Enter invoice manually</h2>
           <p className="compact-hint">Choose the case, then type in the items.</p>
           <PickOrAdd
@@ -85,13 +86,13 @@ export function NewInvoiceStart({ onSaved }: { onSaved?: () => void }) {
           </PickOrAdd>
         </section>
 
-        <section className="compact-card start-option">
+        <section className="card compact-card start-option">
           <h2>Upload invoices</h2>
           <p className="compact-hint">
             Upload one or several PDFs, spreadsheets or billing files. Check what was read from each, then its lines, before
             sending it for review.
           </p>
-          <RouterLink className="btn btn--primary" to={UPLOAD_PATH}>Upload Invoices</RouterLink>
+          <RouterLink className={buttonClass('primary')} to={UPLOAD_PATH}>Upload Invoices</RouterLink>
         </section>
       </div>
 

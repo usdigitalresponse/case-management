@@ -17,7 +17,7 @@ import { CloseCaseAction } from '../components/CloseCaseAction';
 import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { RecordTable } from '../components/RecordTable';
 import { FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
 import { ReviewerSelect, useReviewPeople } from '../components/ReviewRouting';
@@ -26,6 +26,8 @@ import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { formatDate, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { stageLabel } from '../overviewStages';
+import { Button } from '../components/ui/Button';
+import { cssVars } from '../components/ui/cssVars';
 
 // Who reviews this case's new invoices, ahead of the default in Settings.
 function CaseReviewer({ caseId, reviewer, canChange, onChanged }: {
@@ -101,9 +103,9 @@ function PreauthorizedBilled({ summary, name }: { summary: PreauthorizationSumma
           <dd className={left < 0 ? 'total-figure--cut' : undefined}>{formatMoney(Math.abs(left))}</dd>
         </div>
       </dl>
-      <div className="preauth-bar" aria-hidden="true">
-        <span className="preauth-bar__approved" style={{ width: share(approved) }} />
-        <span className="preauth-bar__waiting" style={{ width: share(waiting) }} />
+      <div className="preauth-bar" aria-hidden="true" style={cssVars({ '--approved': share(approved), '--waiting': share(waiting) })}>
+        <span className="preauth-bar__approved" />
+        <span className="preauth-bar__waiting" />
       </div>
       <p className="cell-note">Green is approved, blue is waiting for a decision.</p>
     </div>
@@ -124,9 +126,9 @@ function PreauthorizedAmount({ caseId, people, onSaved }: {
   const [saving, setSaving] = useState(false);
   if (!open) {
     return (
-      <button type="button" className="btn btn--outline" onClick={() => setOpen(true)}>
+      <Button kind="secondary" onClick={() => setOpen(true)}>
         Set a pre-authorized amount
-      </button>
+      </Button>
     );
   }
   return (
@@ -168,7 +170,7 @@ function PreauthorizedAmount({ caseId, people, onSaved }: {
         <label className="usa-label" htmlFor="preauth-number">Authorization number (optional)</label>
         <input id="preauth-number" className="usa-input" value={number} onChange={(event) => setNumber(event.target.value)} />
       </div>
-      <button type="submit" className="btn btn--primary" disabled={saving || !(Number(amount) > 0)}>Save</button>
+      <Button type="submit" kind="primary" disabled={saving || !(Number(amount) > 0)}>Save</Button>
       <button type="button" className="link-button" onClick={() => setOpen(false)}>Cancel</button>
       {error && <p className="field-error" role="alert">{error}</p>}
     </form>
@@ -221,9 +223,9 @@ export default function CaseDetail() {
         title={detail.case.clientDisplayName ?? 'Case'}
         status={<StatusPill label={stageLabel(detail.case.stage)} />}
         actions={
-          <button type="button" className="btn btn--outline" disabled title="Not connected yet">
+          <Button kind="secondary" disabled title="Not connected yet">
             Open in your {EXTERNAL_SYSTEM_NAME} ↗
-          </button>
+          </Button>
         }
       />
       <p className="page-description">
@@ -253,7 +255,7 @@ export default function CaseDetail() {
       </FactsStrip>
 
       <div className="case-columns">
-        <section className="compact-card">
+        <section className="card compact-card">
           <div className="section-heading-row">
             <h2>Pre-authorized and billed</h2>
             <Link to={`/preauthorizations?status=&caseId=${detail.case.caseId}`}>Requests on this case</Link>
@@ -277,7 +279,7 @@ export default function CaseDetail() {
             />
           )}
         </section>
-        <section className="compact-card">
+        <section className="card compact-card">
           <h2>People on this case</h2>
           <RecordTable
             label="People on this case"
@@ -293,7 +295,7 @@ export default function CaseDetail() {
         </section>
       </div>
 
-      <section className="compact-card">
+      <section className="card compact-card">
         <h2>Invoices on this case</h2>
         {Boolean(billingError) && <Notice tone="danger">Failed to load invoices.</Notice>}
         {billing && (
@@ -335,7 +337,7 @@ export default function CaseDetail() {
         )}
       </section>
 
-      <section className="compact-card">
+      <section className="card compact-card">
         <h2>Case rates</h2>
         <p className="compact-hint">Reviewers set these while reviewing the case's invoices. A new rate is added; earlier ones stay.</p>
         {billing && <CaseRateTable rows={billing.caseRates} label="Case rates" />}
@@ -378,7 +380,7 @@ function CloseHere({ detail, onClosed }: { detail: CaseDetailRecord; onClosed: (
     );
   }
   return (
-    <section className="compact-card close-here">
+    <section className="card compact-card close-here">
       <h2>Closing the case here</h2>
       {body}
     </section>

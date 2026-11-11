@@ -20,8 +20,9 @@ import {
   startCaseSplitRead,
   uploadInvoiceFileByCase,
 } from '../src/imports/splitByCase';
-import { confirmInvoiceImport, listInvoiceImports } from '../src/imports/invoiceImports';
-import { withdrawInvoice } from '../src/billing/invoiceLifecycle';
+import { confirmInvoiceImport } from '../src/imports/invoiceImports/resolve';
+import { listInvoiceImports } from '../src/imports/invoiceImports/view';
+import { withdrawInvoice } from '../src/billing/invoiceLifecycle/withdraw';
 import { extractionsSettled } from '../src/imports/extractionJobs';
 import { UnsupportedInvoiceFileError } from '../src/imports/detectFormat';
 import { ValidationError } from '../src/errors';

@@ -1,0 +1,23 @@
+/* Elements and small text helpers used everywhere. */
+/* Body/Medium. */
+body { margin: 0; background: var(--color-surface); font-family: var(--font-sans); font-size: var(--text-13); line-height: 1.5; }
+a { color: var(--color-primary); }
+button, input, select, textarea { font: inherit; }
+/* Matches USWDS's focus selectors so the design's ring replaces its blue one. */
+[href]:focus, [tabindex]:focus, [contenteditable]:focus, button:not([disabled]):focus, input:not([disabled]):focus, select:not([disabled]):focus, textarea:not([disabled]):focus { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.field-hint { margin: var(--field-gap) 0 0; }
+.compact-hint { color: var(--color-on-surface-muted); font-size: var(--text-13); margin: var(--space-4) 0 0; }
+.amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.muted { color: var(--color-on-surface-muted); }
+.cell-note { display: block; margin-top: var(--space-2); font-size: var(--text-13); line-height: 1.35; color: var(--color-on-surface-muted); }
+.cell-flag { display: block; margin-top: var(--space-2); font-size: var(--text-13); line-height: 1.35; color: var(--color-on-tertiary-container); }
+.empty-note { padding: var(--space-9) var(--space-6); text-align: center; color: var(--color-on-surface-muted); background: var(--color-surface); border: 1px dashed var(--color-outline-subtle); border-radius: var(--radius-medium); }
+.field-error { margin: var(--field-gap) 0 0; }
+.link-button { border: 0; padding: 0; background: none; color: var(--color-primary); cursor: pointer; font-size: inherit; text-decoration: none; }
+.link-button:hover:not(:disabled) { text-decoration: underline; }
+.link-button:disabled { color: var(--color-on-surface-muted); cursor: not-allowed; }
+.link-row { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); margin-top: var(--space-3); font-size: var(--text-13); }
+.button-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4) var(--space-6); margin-top: var(--space-6); }
+.preserve-lines { white-space: pre-wrap; }
+.nowrap { white-space: nowrap; }
+.text-warning { color: var(--color-on-tertiary-container); }

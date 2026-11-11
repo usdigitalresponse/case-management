@@ -8,7 +8,7 @@ import {
   type ParsedInvoice,
   type ParsedLine,
 } from './parsedInvoice';
-import type { LineType } from '../billing/invoiceLifecycle';
+import type { LineType } from '../billing/invoiceLifecycle/lineInput';
 
 export const LEDES_1998B_SIGNATURE = 'LEDES1998B';
 

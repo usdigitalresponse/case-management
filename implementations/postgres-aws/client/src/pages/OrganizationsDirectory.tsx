@@ -4,7 +4,7 @@ import { cases as casesResource, referenceData } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
 import { RecordTable } from '../components/RecordTable';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { useSearchParamText } from '../hooks/useSearchParamState';
 
 // Organizations are already loaded whole for the New Case form's
@@ -27,6 +27,7 @@ export default function OrganizationsDirectory() {
   return (
     <>
       <PageHeading
+        list
         eyebrow="Look something up"
         title="Organizations"
         description="Organizations tracked in the system, such as the offices that represent clients."

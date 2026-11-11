@@ -30,7 +30,7 @@ import {
 import { demoLoginEnabled } from '../auth/demoSettings';
 import { resetToDemoData } from '../db/demoData';
 import { documentStore } from '../imports/documentStore';
-import { removeUnreferencedFiles } from '../imports/invoiceImports';
+import { removeUnreferencedFiles } from '../imports/invoiceImports/resolve';
 import { ConflictError, NotFoundError } from '../errors';
 import { asyncHandler } from './asyncHandler';
 

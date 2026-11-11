@@ -24,8 +24,9 @@ import { deleteUnsubmittedInvoice } from '../src/billing/deleteInvoice';
 import { ValidationError } from '../src/errors';
 import { caseAssignment, caseTable, invoice, invoiceAttestation, invoiceImport, supportingInvoice, userAccount } from '../src/db/schema';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
-import { ATTESTATION_STATEMENT, submitInvoice, updateDraftInvoice } from '../src/billing/invoiceLifecycle';
-import { confirmInvoiceImport } from '../src/imports/invoiceImports';
+import { ATTESTATION_STATEMENT, submitInvoice } from '../src/billing/invoiceLifecycle/submit';
+import { updateDraftInvoice } from '../src/billing/invoiceLifecycle/drafts';
+import { confirmInvoiceImport } from '../src/imports/invoiceImports/resolve';
 import { createInvoice } from '../src/portal/createInvoice';
 import { listInvoiceIntake } from '../src/billing/invoiceIntake';
 

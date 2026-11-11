@@ -10,18 +10,19 @@ import {
   type BillingRecordChoices,
   type BillingRecordFormat,
 } from '../exportChoices';
-import { Dialog } from './Dialog';
-import { Notice } from './Notice';
+import { Dialog } from './ui/Dialog';
+import { Notice } from './ui/Notice';
 import { PeriodFields } from './PeriodFields';
+import { Button, buttonClass } from './ui/Button';
 
 export function BillingRecordExportButton() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className="btn btn--outline" onClick={() => setOpen(true)}>
+      <Button kind="secondary" onClick={() => setOpen(true)}>
         Export billing record
-      </button>
+      </Button>
       {open && <ExportDialog userAccountId={user?.userAccountId ?? ''} onClose={() => setOpen(false)} />}
     </>
   );
@@ -128,7 +129,7 @@ function ExportDialog({ userAccountId, onClose }: { userAccountId: string; onClo
       <div className="dialog__actions">
         {!backwards && (
           <a
-            className="btn btn--primary"
+            className={buttonClass('primary')}
             href={href}
             download
             onClick={() => {

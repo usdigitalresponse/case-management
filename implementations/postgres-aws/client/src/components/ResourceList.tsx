@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
 
 // CaseList and PortalCaseList each hand-rolled this same error/loading/
 // empty/content branching under a shared heading — this is that shape,

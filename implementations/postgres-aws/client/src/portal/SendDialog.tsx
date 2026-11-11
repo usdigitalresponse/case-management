@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { ATTESTATION_STATEMENT } from '../api/client';
-import { Dialog } from '../components/Dialog';
-import { Notice } from '../components/Notice';
+import { Dialog } from '../components/ui/Dialog';
+import { Notice } from '../components/ui/Notice';
 import { formatMoney } from '../formatMoney';
+import { Button } from '../components/ui/Button';
 
 // Confirms what is being sent; Send stays off until the true-and-correct tick,
 // or, for staff, until `ready` (how it was received, in `children`).
@@ -82,9 +83,8 @@ export function SendDialog({
       )}
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="dialog__actions">
-        <button
-          type="button"
-          className="btn btn--primary"
+        <Button
+          kind="primary"
           disabled={(statement !== null && !ticked) || !ready || !explained || busy}
           onClick={() => {
             setBusy(true);
@@ -92,7 +92,7 @@ export function SendDialog({
           }}
         >
           {busy ? 'Sending…' : 'Send for review'}
-        </button>
+        </Button>
         <button type="button" className="link-button" disabled={busy} onClick={onClose}>
           Keep checking
         </button>

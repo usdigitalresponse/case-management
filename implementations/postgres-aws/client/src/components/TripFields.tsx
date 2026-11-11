@@ -1,6 +1,6 @@
 import { Checkbox, Label, TextInput } from '@trussworks/react-uswds';
 import { formatMoney, formatRate } from '../formatMoney';
-import type { LineDraft, TravelCost, mileageItemPreview } from './InvoiceLinesEditor';
+import type { LineDraft, TravelCost, mileageItemPreview } from '../invoiceLines';
 
 // A trip's route, miles and other costs, and with `withHours` its travel
 // hours: the invoice editor's Travel row and Check the lines' added trip.

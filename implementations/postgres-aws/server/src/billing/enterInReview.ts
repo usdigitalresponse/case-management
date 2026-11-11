@@ -23,13 +23,15 @@ import {
 } from '../db/schema';
 import { isStaffAccount, resolvePortalActor } from '../portal/portalActor';
 import { CONFIRMED_IMPORT_STATUS_CODE, findImportForInvoice } from '../imports/importedTimeEntries';
-import { confirmImportInTx } from '../imports/invoiceImports';
+import { confirmImportInTx } from '../imports/invoiceImports/resolve';
 import type { DocumentStore } from '../imports/documentStore';
 import { requireImportedDates } from '../imports/undatedLines';
 import { caseNumberInput, cleanCaseNumber } from './caseNumbers';
 import { parseCountyChoice, resolveCountyChange, shownInvoiceCounty } from '../cases/counties';
 import { recordInvoiceEvent } from './invoiceEvents';
-import { freezeRequest, InvoiceStateError, MILEAGE_EXPENSE_TYPE_CODE, parseDraftContent, replaceLines } from './invoiceLifecycle';
+import { freezeRequest } from './invoiceLifecycle/submit';
+import { InvoiceStateError, MILEAGE_EXPENSE_TYPE_CODE, parseDraftContent } from './invoiceLifecycle/lineInput';
+import { replaceLines } from './invoiceLifecycle/replaceLines';
 import { receiptInputSchema, recordReceipt, requireReceiptForStaffEntry, type ReceiptInput } from './invoiceReceipt';
 import { DRAFT_INVOICE_STATUS_CODE, LINE_REVIEW_STATUS_CODES, UNDER_REVIEW_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
 import { loadReviewPermissions, requireReviewPermission } from './reviewAccess';

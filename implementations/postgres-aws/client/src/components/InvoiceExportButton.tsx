@@ -9,7 +9,8 @@ import {
   type ExportChoices,
   type ExportFieldGroup,
 } from '../exportChoices';
-import { Dialog } from './Dialog';
+import { Dialog } from './ui/Dialog';
+import { buttonClass } from './ui/Button';
 
 // Opens a choice of format and of details to redact before the file is
 // sent on; each person's last choice is kept for their next export.
@@ -30,7 +31,7 @@ export function InvoiceExportButton({
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={compact ? 'link-button' : 'btn btn--outline'} onClick={() => setOpen(true)}>
+      <button type="button" className={compact ? 'link-button' : buttonClass('secondary')} onClick={() => setOpen(true)}>
         Export Invoice
       </button>
       {open && (
@@ -126,7 +127,7 @@ function ExportDialog({
       </p>
       <div className="dialog__actions">
         <a
-          className="btn btn--primary"
+          className={buttonClass('primary')}
           href={invoiceExportUrl(scope, invoiceId, choices.format, leftOut)}
           download
           onClick={() => {

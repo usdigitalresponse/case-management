@@ -1,0 +1,23 @@
+/* Dialogs (components/ui/Dialog.tsx) and popovers. */
+/* A modal confirmation (components/ui/Dialog.tsx). */
+.dialog { width: min(31.25rem, calc(100vw - 2rem)); box-sizing: border-box; padding: var(--space-9); border: 0; border-radius: var(--radius-medium); box-shadow: var(--elevation-4); color: var(--color-on-surface); }
+.dialog::backdrop { background: color-mix(in srgb, var(--color-scrim) 45%, transparent); }
+/* Headline/Small. */
+.dialog__title { margin: 0 0 var(--space-6); font-family: var(--font-serif); font-size: var(--text-20); font-weight: 600; letter-spacing: -.2px; line-height: 1.25; }
+.dialog p { margin: 0 0 var(--space-5); color: var(--color-on-surface-variant); font-size: var(--text-15); line-height: 1.5; }
+.dialog__small { font-size: var(--text-13); }
+.dialog__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); margin-top: var(--space-6); }
+.dialog--wide { width: min(40rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); overflow-y: auto; }
+/* Popover and choice lists (reviewer picker) */
+.popover-anchor { position: relative; }
+.popover { position: absolute; z-index: 20; right: 0; top: calc(100% + .3rem); width: min(22rem, 90vw); padding: var(--space-6); box-shadow: var(--elevation-2); }
+.popover h3 { margin: 0 0 var(--space-4); font-size: var(--text-15); }
+.choice-list { list-style: none; margin: 0 0 var(--space-4); padding: 0; border-top: 1px solid var(--color-outline-subtle); }
+.choice-list li { border-bottom: 1px solid var(--color-outline-subtle); }
+.choice-list label { display: flex; align-items: flex-start; gap: var(--space-4); padding: var(--space-4) var(--space-4); cursor: pointer; }
+.choice-list label.is-chosen { background: var(--color-primary-container-low); }
+.choice-list input { margin-top: var(--space-3); }
+.order-badge { display: inline-flex; align-items: center; justify-content: center; width: 1.2rem; height: 1.2rem; margin-right: var(--space-4); border-radius: var(--radius-circle); background: var(--color-primary); color: var(--color-on-primary); font-size: var(--text-11); font-weight: 700; }
+@media (max-width: 760px) {
+  .popover { left: 0; right: auto; }
+}

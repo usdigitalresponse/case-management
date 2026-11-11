@@ -11,18 +11,13 @@ import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db
 import { createCase } from '../src/intake/createCase';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { resolvePortalActor, type PortalActor } from '../src/portal/portalActor';
-import { ATTESTATION_STATEMENT, submitInvoice, updateDraftInvoice, InvoiceStateError } from '../src/billing/invoiceLifecycle';
-import {
-  confirmInvoiceImport,
-  discardInvoiceImport,
-  expireInvoiceImports,
-  failInterruptedExtractions,
-  getInvoiceImport,
-  IMPORT_EXPIRY_MS,
-  listInvoiceImports,
-  removeUnreferencedFiles,
-  uploadInvoiceFile,
-} from '../src/imports/invoiceImports';
+import { ATTESTATION_STATEMENT, submitInvoice } from '../src/billing/invoiceLifecycle/submit';
+import { updateDraftInvoice } from '../src/billing/invoiceLifecycle/drafts';
+import { InvoiceStateError } from '../src/billing/invoiceLifecycle/lineInput';
+import { confirmInvoiceImport, discardInvoiceImport, expireInvoiceImports, IMPORT_EXPIRY_MS, removeUnreferencedFiles } from '../src/imports/invoiceImports/resolve';
+import { failInterruptedExtractions } from '../src/imports/invoiceImports/read';
+import { getInvoiceImport, listInvoiceImports } from '../src/imports/invoiceImports/view';
+import { uploadInvoiceFile } from '../src/imports/invoiceImports/upload';
 import { extractionsSettled } from '../src/imports/extractionJobs';
 import { getReferenceId } from '../src/db/referenceLookups';
 import { parseLedes1998b } from '../src/imports/parseLedes';
@@ -417,7 +412,7 @@ describe('invoice import workflow', () => {
     ]);
     expect((await warningsOf(later.invoiceImportId)).find((warning) => warning.code === 'date_from_previous_line')).toMatchObject({
       location: 'line 4',
-      message: expect.stringContaining('the line before it (2026-01-10)'),
+      message: expect.stringContaining('the line before it (10 Jan 2026)'),
     });
     expect((await listInvoiceImports(testDb, actor))[0]).toMatchObject({ undatedCount: 0, inferredDateCount: 1, otherWarningCount: 0 });
     await confirmInvoiceImport(testDb, store, actor, later.invoiceImportId);

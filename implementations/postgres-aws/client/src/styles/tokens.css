@@ -1,0 +1,101 @@
+/* Named as in Figma. For 4.5:1, text on a *-container fill uses on-*-container. */
+:root {
+  --color-primary: #005a9c;
+  --color-on-primary: #ffffff;
+  --color-primary-hover: #055187;
+  --color-primary-container: #dff0ff;
+  --color-on-primary-container: #0a4370;
+  --color-primary-container-low: #f0f8ff;
+  --color-secondary-container: #e5e7eb;
+  --color-on-secondary-container: #1f2937;
+  --color-tertiary: #eab308;
+  --color-tertiary-container: #fef9c3;
+  --color-on-tertiary-container: #713f12;
+  --color-focus: #eab308;
+  --color-error: #dc2626;
+  --color-on-error: #ffffff;
+  --color-error-container: #fee2e2;
+  --color-on-error-container: #7f1d1d;
+  --color-success: #15803d;
+  --color-success-container: #dcfce7;
+  --color-on-success-container: #14532d;
+  --color-surface: #ffffff;
+  --color-surface-container-low: #f9fafb;
+  --color-surface-container: #f3f4f6;
+  --color-surface-container-high: #e5e7eb;
+  --color-on-surface: #111827;
+  --color-on-surface-variant: #4b5563;
+  --color-on-surface-muted: #6b7280;
+  --color-outline: #6b7280;
+  --color-outline-variant: #d1d5db;
+  --color-outline-subtle: #e5e7eb;
+  --color-inverse-surface: #072a4a;
+  --color-on-inverse-surface: #ffffff;
+  --color-inverse-primary: #b9e1fe;
+  --color-scrim: #030712;
+
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+
+  --space-1: 1px;
+  --space-2: 2px;
+  --space-3: 4px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 40px;
+  --space-11: 48px;
+  --space-12: 56px;
+  --space-13: 64px;
+  --space-14: 80px;
+  --space-15: 96px;
+  --space-16: 120px;
+
+  --radius-small: 4px;
+  --radius-medium: 8px;
+  --radius-full: 999px;
+  --radius-mark: 3px;
+  --radius-circle: 50%;
+
+  /* Form fields (Figma's Text input, Checkbox and Radio button). */
+  --field-gap: 6px;
+  --mark-size: 18px;
+  /* Keyboard focus: a gold ring inside a navy one, clear of the control. */
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 5px var(--color-focus), 0 0 0 7px var(--color-inverse-surface);
+
+  /* Type sizes: every font size is one of these. */
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-15: 15px;
+  --text-18: 18px;
+  --text-20: 20px;
+  --text-26: 26px;
+  --text-32: 32px;
+
+  /* Type roles: weight, size, line height where Figma gives one, and face. */
+  --headline-large: 600 var(--text-32) var(--font-serif);
+  --headline-medium: 600 var(--text-26) var(--font-serif);
+  --headline-small: 600 var(--text-20)/1.25 var(--font-serif);
+  --title-large: 600 var(--text-18) var(--font-sans);
+  --title-medium: 600 var(--text-15) var(--font-sans);
+  --title-small: 600 var(--text-11) var(--font-sans);
+  --body-large: 400 var(--text-15) var(--font-sans);
+  --body-medium: 400 var(--text-13)/1.5 var(--font-sans);
+  --body-small: 400 var(--text-11)/1.45 var(--font-sans);
+  --label-large: 600 var(--text-13)/1.25 var(--font-sans);
+  --label-medium: 500 var(--text-12) var(--font-sans);
+  --label-small: 600 var(--text-11) var(--font-sans);
+
+  --elevation-1: 0 1px 3px 1px rgba(7, 42, 74, .3);
+  --elevation-2: 0 2px 6px 1px rgba(7, 42, 74, .3);
+  --elevation-3: 0 4px 6px 2px rgba(7, 42, 74, .25);
+  --elevation-4: 0 6px 8px 2px rgba(7, 42, 74, .3);
+
+  font-family: var(--font-sans);
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+}

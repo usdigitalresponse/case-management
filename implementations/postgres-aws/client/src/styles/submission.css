@@ -1,0 +1,122 @@
+/* One invoice being checked or entered (portal/InvoiceSubmission.tsx, components/EntryLines.tsx). */
+/* One invoice in the portal (portal/InvoiceSubmission.tsx): file on the
+   left, lines on the right. */
+.submission { max-width: 86rem; margin: 0 auto; }
+.submission__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--space-6); margin-bottom: var(--space-7); }
+.submission__head h1 { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin: 0 0 var(--space-3); }
+.submission__meta { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); margin: 0; color: var(--color-on-surface-variant); font-size: var(--text-15); }
+.submission__meta strong { color: var(--color-on-surface); }
+.submission__actions { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.submission__actions .btn { min-height: 2.4rem; }
+/* Whom it is from, its period and number, above the case number (components/InvoiceDetailsFields.tsx). */
+.invoice-details { margin-bottom: var(--space-6); padding: var(--space-6) var(--space-7); }
+.invoice-details--missing #invoice-from { border: 2px solid var(--color-tertiary); background: var(--color-tertiary-container); }
+.invoice-details--missing #invoice-from-hint { color: var(--color-on-tertiary-container); }
+.upload-details__field:has(.add-sender) { grid-column: 1 / -1; }
+@media (min-width: 48rem) {
+  .upload-details__field:has(.add-sender) > .pick-or-add > .usa-select { max-width: calc((100% - 2rem) / 3); }
+}
+.add-sender { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-top: var(--space-4); }
+.add-sender .usa-input { flex: 1 1 8rem; }
+.add-sender .usa-select { flex: 1 1 9rem; }
+.add-sender .field-error { flex-basis: 100%; margin: 0; }
+/* The typed case number above the file and lines (filed by person). */
+.case-number-box { display: grid; grid-template-columns: minmax(14rem, 22rem) 1fr; gap: var(--space-6) var(--space-9); align-items: start; margin-bottom: var(--space-6); padding: var(--space-6) var(--space-7); }
+.case-number-box .usa-label { margin: 0 0 var(--space-4); }
+.case-number-box .usa-input { max-width: none; width: 100%; margin: 0; }
+.case-number-box .field-hint, .case-number-box .field-error { margin: var(--space-4) 0 0; }
+.case-number-box--missing .usa-input { border: 2px solid var(--color-tertiary); background: var(--color-tertiary-container); }
+.case-number-box--missing .field-error { color: var(--color-on-tertiary-container); }
+.case-number-box__why { padding-top: var(--space-8); font-size: var(--text-15); }
+.case-number-box__why p { margin: var(--space-3) 0 0; color: var(--color-on-surface-variant); }
+@media (max-width: 40em) {
+  .case-number-box { grid-template-columns: 1fr; }
+  .case-number-box__why { padding-top: 0; }
+}
+.submission__layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 8fr); gap: var(--space-6); align-items: start; }
+.submission__lines { min-width: 0; }
+.submission__lines > .notice { margin-bottom: var(--space-6); }
+.check-lines { overflow-x: auto; }
+.check-lines__table { width: 100%; border-collapse: collapse; font-size: var(--text-15); }
+.check-lines__table th { padding: var(--space-4) var(--space-5); background: var(--color-surface-container-low); border-bottom: 1px solid var(--color-outline-subtle); color: var(--color-on-surface-variant); font-size: var(--text-11); font-weight: 600; letter-spacing: .04em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.check-lines__table td { padding: var(--space-5) var(--space-5); border-bottom: 1px solid var(--color-outline-subtle); vertical-align: top; }
+.check-lines__table .amount { text-align: right; white-space: nowrap; }
+/* One tbody per line: figures, then what was done below. */
+.check-lines__row { cursor: pointer; }
+.check-lines__row:hover td { background: var(--color-primary-container-low); }
+.check-lines__summary td { border-bottom: 0; padding-bottom: var(--space-3); }
+.check-lines__summary td:first-child { color: var(--color-on-surface-muted); width: 1.5rem; }
+.check-lines__summary td:nth-child(2) { white-space: nowrap; }
+.check-lines__summary .tag { margin-left: var(--space-4); }
+.check-lines__what td { padding-top: 0; overflow-wrap: anywhere; }
+.check-lines__table .check-lines__detail-row td { padding: 0; }
+.check-lines__date { width: 9.5rem; margin-top: 0; padding: var(--space-3) var(--space-4); }
+.check-lines__row--flagged td, .check-lines__row--flagged:hover td { background: var(--color-tertiary-container); }
+.check-lines__row--flagged tr:not(.check-lines__edit-row) td:first-child { box-shadow: inset 3px 0 0 var(--color-tertiary); }
+.check-lines__row--editing td, .check-lines__row--focus td { background: var(--color-primary-container-low); }
+.check-lines__row--editing td:first-child, .check-lines__row--focus td:first-child { box-shadow: inset 3px 0 0 var(--color-primary); }
+.check-lines__row--removed td { color: var(--color-on-surface-muted); }
+.check-lines__row--removed s { text-decoration-thickness: 1px; }
+.cell-note.check-lines__warning { color: var(--color-on-tertiary-container); }
+.cell-note.check-lines__changed { color: var(--color-primary); }
+.check-lines__actions { text-align: right; white-space: nowrap; }
+.check-lines__actions .link-button { font-weight: 600; margin-left: var(--space-6); }
+.check-lines__actions .link-button:first-child { margin-left: 0; }
+.check-lines__actions .tag { margin-bottom: var(--space-3); }
+/* Decided while entered (EntryLines): its buttons wrap rather than widen
+   the table past the file beside it. */
+.check-lines__actions--decide { white-space: normal; min-width: 12rem; }
+.check-lines__actions--decide .decision-buttons { align-items: flex-end; }
+.check-lines__actions--decide .decision-bar { flex-wrap: wrap; justify-content: flex-end; }
+/* Edited in place while entered: compact fields in the cells. */
+.check-lines__input { width: 100%; min-width: 4rem; max-width: none; margin-top: 0; }
+.check-lines__table .amount .check-lines__input { width: 4.5rem; min-width: 0; text-align: right; }
+.check-lines__input.check-lines__date { width: 8.75rem; min-width: 0; }
+/* Grows with its text where the browser can size fields to content. */
+.check-lines__description { display: block; min-height: 3.4rem; line-height: 1.35; resize: vertical; field-sizing: content; }
+.check-lines__route { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4) var(--space-4); margin-top: var(--space-4); }
+.check-lines__route .check-lines__input { flex: 1 1 8rem; width: auto; }
+.check-lines__round-trip { white-space: nowrap; }
+.check-lines__unsaved { font-style: italic; }
+.line-bar__line { display: inline-flex; gap: var(--space-6); }
+.check-lines__table .check-lines__edit-row td { padding: 0; background: var(--color-primary-container-low); box-shadow: inset 3px 0 0 var(--color-primary); }
+.check-lines__footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-6); padding: var(--space-6) var(--space-6); }
+.check-lines__add { font-weight: 600; }
+.check-lines__empty { color: var(--color-on-surface-muted); text-align: center; }
+.manual-entry__offer { margin: 0; text-align: center; color: var(--color-on-surface-variant); font-size: var(--text-15); }
+.manual-entry__offer .link-button { font-weight: 600; }
+.check-lines__totals { display: flex; gap: var(--space-8); text-align: right; }
+.check-lines__totals > div { display: flex; flex-direction: column; gap: var(--space-2); }
+.check-lines__totals > div > span:first-child { color: var(--color-on-surface-variant); font-size: var(--text-11); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.check-lines__asking strong { font-size: var(--text-20); }
+.edit-line { display: flex; flex-direction: column; gap: var(--space-6); padding: var(--space-7) var(--space-8); }
+.edit-line h3 { margin: 0; font-size: var(--text-18); }
+.edit-line__fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-6); }
+.edit-line__field { display: flex; flex-direction: column; min-width: 0; }
+.edit-line__field .usa-label { margin: 0 0 var(--space-3); }
+.edit-line__field .usa-input, .edit-line__field .usa-select { max-width: none; margin: 0; }
+.edit-line__field--short { width: 7.5rem; }
+.edit-line__times { padding-bottom: var(--space-4); color: var(--color-on-surface-muted); }
+.edit-line__total { display: flex; flex-direction: column; gap: var(--space-2); padding-bottom: var(--space-3); font-size: var(--text-12); color: var(--color-on-surface-variant); }
+.edit-line__total strong { color: var(--color-on-surface); font-size: var(--text-20); }
+.edit-line .field-hint { margin: 0; }
+.edit-line__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }
+.edit-line__remove { margin-left: auto; }
+.send-summary { display: grid; grid-template-columns: auto 1fr; gap: var(--space-4) var(--space-8); margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-6); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-medium); background: var(--color-surface-container-low); font-size: var(--text-15); }
+.send-summary dt { color: var(--color-on-surface-variant); }
+.send-summary dd { margin: 0; }
+.send-summary__total { font-size: var(--text-18); font-weight: 700; }
+.attest { display: flex; align-items: flex-start; gap: var(--space-4); margin: var(--space-4) 0 var(--space-3); padding: var(--space-5) var(--space-6); border: 1px solid var(--color-outline-variant); border-radius: var(--radius-medium); background: var(--color-primary-container-low); font-size: var(--text-15); cursor: pointer; }
+.attest input { margin: var(--space-2) 0 0; }
+/* Entering: under a line's description, asking about it on the left and
+   deciding it on the right, on one row (EntryLines). */
+.check-lines__table .check-lines__bar td { padding-top: var(--space-2); }
+.line-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4) var(--space-6); }
+.line-bar .line-ask { padding: 0; }
+.line-bar__decide .decision-buttons { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-4) var(--space-5); }
+/* A decided line: its decision, why, who and the links to change it, across the bar. */
+.line-bar__decide { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-3) var(--space-6); }
+.line-bar__decide .decision-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-5); }
+.line-bar__decide .decision-summary p, .line-bar__decide .link-row, .line-bar__decide .decision-history { margin: 0; }
+.send-back { margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--color-outline-subtle); }
+.send-back__open { margin-top: var(--space-5); color: var(--color-error); }

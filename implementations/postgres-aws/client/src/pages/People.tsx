@@ -12,6 +12,8 @@ import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { personPath } from '../staffPaths';
 import { useSearchParamText } from '../hooks/useSearchParamState';
+import { Button } from '../components/ui/Button';
+import { FilterTag } from '../components/ui/Tag';
 
 export default function People() {
   const navigate = useNavigate();
@@ -35,20 +37,21 @@ export default function People() {
   return (
     <div>
       <PageHeader
+        list
         title="People"
         description="Everyone who can send invoices: attorneys, investigators and experts. Every invoice is filed under one of these people."
         actions={
-          <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
+          <Button kind="primary" onClick={() => setAdding(true)}>
             Add a person
-          </button>
+          </Button>
         }
       />
       <div className="list-controls">
-        <div className="chip-filters" role="group" aria-label="Show">
+        <div className="tag-filters" role="group" aria-label="Show">
           {[null, ...roles].map((name) => (
-            <button key={name ?? 'everyone'} type="button" className="chip chip--filter" aria-pressed={role === name} onClick={() => setRole(name)}>
-              {name ? `${name}s` : 'Everyone'} <span className="chip-count">{count(name)}</span>
-            </button>
+            <FilterTag key={name ?? 'everyone'} aria-pressed={role === name} onClick={() => setRole(name)}>
+              {name ? `${name}s` : 'Everyone'} <span className="tag-count">{count(name)}</span>
+            </FilterTag>
           ))}
         </div>
         <label className="list-controls__search">

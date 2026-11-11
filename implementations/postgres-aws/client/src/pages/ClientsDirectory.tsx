@@ -21,7 +21,7 @@ export default function ClientsDirectory() {
 
   return (
     <>
-      <PageHeading eyebrow="Look something up" title="Clients" description="People recorded as a case's client." />
+      <PageHeading list eyebrow="Look something up" title="Clients" description="People recorded as a case's client." />
       <div className="list-toolbar">
         <SearchInput
           id="client-filter"

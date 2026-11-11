@@ -13,20 +13,16 @@ import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
 import { matchToAddedCase, NO_PROPOSED_PERSON, ProposedPersonFields, proposedPersonToSend } from '../components/NewEntryFields';
 import { lineFromTimeEntry, UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { RulesInForce, usePortalBillingRules } from '../components/BillingRules';
-import {
-  emptyLine,
-  hasInvoiceItems,
-  InvoiceLinesEditor,
-  linesFromDrafts,
-  professionalLabel,
-  type LineDraft,
-} from '../components/InvoiceLinesEditor';
+import { InvoiceLinesEditor } from '../components/InvoiceLinesEditor';
+import { emptyLine, hasInvoiceItems, linesFromDrafts, professionalLabel, type LineDraft } from '../invoiceLines';
 import { InvoiceImportForm } from '../components/InvoiceImportForm';
 import { PeriodFields } from '../components/PeriodFields';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { AttestationCheckbox } from '../components/AttestationCheckbox';
 import { useReceipt } from './ReceivedFields';
 import { useShell } from './useShell';
+import { Button } from '../components/ui/Button';
+import { SegmentedChoice } from '../components/ui/SegmentedChoice';
 
 function draftSavedMessage(caseId: string | null, staff: boolean): string {
   if (caseId === null) return 'Saved. Match it to a case under "Waiting for a case".';
@@ -154,7 +150,7 @@ export function NewInvoiceForm({
   }
 
   return (
-    <div className="compact-card" id="new-invoice">
+    <div className="card compact-card" id="new-invoice">
       <h3>New invoice</h3>
       {/* Applies to both a typed invoice and an imported file. */}
       {(billable.length > 1 || staff) && (
@@ -192,14 +188,16 @@ export function NewInvoiceForm({
         </div>
       )}
       {allowImport && (
-        <div className="choice-toggle" role="group" aria-label="How to add the invoice">
-          <button type="button" aria-pressed={mode === 'enter'} onClick={() => setMode('enter')}>
-            Enter items
-          </button>
-          <button type="button" aria-pressed={mode === 'import'} onClick={() => setMode('import')}>
-            Import a file
-          </button>
-        </div>
+        <SegmentedChoice
+          label="How to add the invoice"
+          className="segmented--above"
+          options={[
+            { value: 'enter', label: 'Enter items' },
+            { value: 'import', label: 'Import a file' },
+          ]}
+          value={mode}
+          onChange={setMode}
+        />
       )}
 
       {allowImport && mode === 'import' ? (
@@ -244,19 +242,19 @@ export function NewInvoiceForm({
           </p>
           {caseId === null ? (
             <div className="invoice-actions">
-              <button type="button" className="btn btn--primary" disabled={submitting || !canSave} onClick={() => void save(false)}>
+              <Button kind="primary" disabled={submitting || !canSave} onClick={() => void save(false)}>
                 {submitting ? 'Saving…' : 'Save for matching'}
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="invoice-actions">
               {!staff && <AttestationCheckbox id="new-invoice-attested" checked={attested} onChange={setAttested} />}
-              <button type="submit" className="btn btn--primary" disabled={submitting || !canSave || receipt.missing || (!staff && !attested)}>
+              <Button type="submit" kind="primary" disabled={submitting || !canSave || receipt.missing || (!staff && !attested)}>
                 {submitting ? 'Saving…' : 'Submit invoice'}
-              </button>
-              <button type="button" className="btn btn--outline" disabled={submitting || !canSave} onClick={() => void save(false)}>
+              </Button>
+              <Button kind="secondary" disabled={submitting || !canSave} onClick={() => void save(false)}>
                 Save as draft
-              </button>
+              </Button>
             </div>
           )}
         </Form>

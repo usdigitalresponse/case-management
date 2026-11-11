@@ -15,6 +15,13 @@ export default tseslint.config(
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXAttribute[name.name='style'] > JSXExpressionContainer > :not(CallExpression[callee.name='cssVars'])",
+          message: 'Style in src/styles/; pass a value known only at run time with cssVars().',
+        },
+      ],
     },
   },
 );

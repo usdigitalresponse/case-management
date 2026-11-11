@@ -21,18 +21,20 @@ import { useResource } from '../hooks/useResource';
 import { billableProfessionals, cases as casesResource, invoiceIntake, myInvoices } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { RecordTable } from '../components/RecordTable';
 import { Toast, useToast } from '../components/Toast';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { StatusPill, type Tone } from '../components/StatusPill';
-import { professionalLabel } from '../components/InvoiceLinesEditor';
+import { professionalLabel } from '../invoiceLines';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { DropZone, type UploadStart } from '../components/upload/UploadFiles';
 import { UPLOAD_PATH } from '../portal/useShell';
 import { MyInvoicesTable } from '../portal/MyInvoicesTable';
 import type { UploadedState } from '../portal/PortalInvoiceList';
+import { Button } from '../components/ui/Button';
+import { Tag } from '../components/ui/Tag';
 
 const STAGES: Record<IntakeItem['stage'], { label: string; tone: Tone }> = {
   reading: { label: 'Reading the file', tone: 'neutral' },
@@ -200,9 +202,9 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
         Add {providerName} and anyone else who did the work to the case if they aren't on it
       </label>
       <div className="button-row">
-        <button type="button" className="btn btn--primary" disabled={!ready || saving} onClick={() => void match()}>
+        <Button kind="primary" disabled={!ready || saving} onClick={() => void match()}>
           {caseId === ADD_NEW ? 'Add the case and match' : 'Match'}
-        </button>
+        </Button>
         {!item.caseId && item.professionalId && (
           <RouterLink to={`/cases/new?intake=${item.invoiceId}`}>Add the case with all its details instead</RouterLink>
         )}
@@ -258,9 +260,9 @@ function SendBack({ item, onSent }: { item: IntakeItem; onSent: (message: string
       <p className="field-hint">They see this on the invoice until they send it again.</p>
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="button-row">
-        <button type="button" className="btn btn--danger" disabled={saving || !reason.trim()} onClick={() => void send()}>
+        <Button kind="danger" disabled={saving || !reason.trim()} onClick={() => void send()}>
           {saving ? 'Sending…' : 'Send back'}
-        </button>
+        </Button>
         <button type="button" className="link-button" disabled={saving} onClick={() => setOpen(false)}>
           Cancel
         </button>
@@ -375,7 +377,7 @@ function AddInvoices() {
   const navigate = useNavigate();
   const start = (state: UploadStart) => navigate(UPLOAD_PATH, { state });
   return (
-    <section className="upload-card intake-add">
+    <section className="card upload-card intake-add">
       <DropZone hasFiles={false} onFiles={(files) => files.length > 0 && start({ files })} />
       <p className="manual-entry__offer">
         No file?{' '}
@@ -406,6 +408,7 @@ export default function InvoiceIntake() {
   return (
     <div>
       <PageHeader
+        list
         title="Intake"
         description="Add invoices that came in by email or from other tools."
       />
@@ -421,7 +424,7 @@ export default function InvoiceIntake() {
       <section className="detail-section">
         <h2>
           Waiting for a case
-          {data && data.length > 0 && <span className="chip chip--neutral heading-count">{data.length}</span>}
+          {data && data.length > 0 && <Tag tone="neutral" className="heading-count">{data.length}</Tag>}
         </h2>
         {error || !data ? (
           <LoadState error={error} what="invoices waiting for a case" />

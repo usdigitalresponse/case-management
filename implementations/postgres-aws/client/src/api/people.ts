@@ -1,6 +1,6 @@
 import { request } from './http';
-import type { ProfessionalRate } from './portal';
-import type { AssignedPerson } from './invoices';
+import type { ProfessionalRate } from './myInvoices';
+import type { AssignedPerson } from './reviewQueue';
 
 export interface PersonRecord {
   personId: string;

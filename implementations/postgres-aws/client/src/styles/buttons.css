@@ -1,0 +1,13 @@
+/* Buttons (.btn--secondary is the design's secondary) and link buttons. */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3); min-height: 36px; padding: var(--space-1) var(--space-6); border-radius: var(--radius-small); border: 1px solid transparent; font-weight: 600; font-size: var(--text-13); line-height: 1.25; cursor: pointer; white-space: nowrap; text-decoration: none; }
+.btn:disabled { background: var(--color-surface-container-high); border-color: var(--color-surface-container-high); color: var(--color-on-surface-muted); cursor: not-allowed; }
+.btn--primary { background: var(--color-primary); color: var(--color-on-primary); }
+.btn--primary:hover:not(:disabled) { background: var(--color-primary-hover); }
+.btn--secondary { background: var(--color-surface); color: var(--color-primary); border-color: var(--color-primary); }
+.btn--secondary:hover:not(:disabled) { background: var(--color-primary-container-low); }
+.btn--danger { background: var(--color-surface); color: var(--color-error); border-color: var(--color-error); }
+.btn--danger:hover:not(:disabled) { background: var(--color-error-container); color: var(--color-on-error-container); }
+.link-button--danger { color: var(--color-error); }
+.btn--select { color: var(--color-on-surface); font-weight: 600; }
+.btn--select .muted { font-weight: 400; }
+.btn--small { min-height: 1.8rem; padding: var(--space-3) var(--space-4); font-size: var(--text-12); }

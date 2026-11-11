@@ -1,0 +1,119 @@
+/* The invoice line editor (components/InvoiceLinesEditor.tsx). */
+.line-row { padding: var(--space-4) 0; border-top: 1px solid var(--color-outline-subtle); }
+.line-row:first-of-type { border-top: 0; }
+.line-row .line-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.line-row-note { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0 var(--space-6); font-size: var(--text-13); color: var(--color-on-surface-muted); margin: 0; }
+.line-row-note > span + span::before { content: '·'; margin-right: var(--space-6); color: var(--color-outline-variant); }
+.line-row-note .link-button { vertical-align: baseline; }
+.line-row-error { color: var(--color-error); font-weight: 700; }
+.line-row-suggested { color: var(--color-primary); }
+.line-trip { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3) var(--space-6); }
+.line-trip .usa-form-group { flex: 1 1 14rem; margin: 0; }
+.line-trip .usa-label { margin-top: 0; }
+.line-trip .usa-input { max-width: none; margin-top: var(--space-3); }
+.line-trip .usa-checkbox { margin-bottom: var(--space-3); }
+/* A trip's miles and each travel expense take a line of their own under its route. */
+.line-trip .line-trip-part { flex: 0 1 18rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-4); }
+.line-trip-part .usa-label { flex-basis: 100%; }
+.line-trip-part .usa-input { width: 7rem; }
+.line-trip-cost { flex-basis: 100%; display: flex; align-items: flex-end; gap: 0 var(--space-6); }
+.line-trip-cost .usa-form-group:last-of-type { flex: 0 1 8rem; }
+.line-trip-add, .line-trip-note { flex-basis: 100%; text-align: left; }
+.line-trip-note { margin: 0; font-size: var(--text-13); color: var(--color-on-surface-muted); }
+.line-switch-confirm { margin: var(--space-3) 0 0; font-size: var(--text-13); }
+.trip-cost { display: block; }
+.line-remove { border: 0; background: none; color: var(--color-on-surface-muted); font-size: var(--text-20); line-height: 1; cursor: pointer; height: 2.25rem; padding: 0 var(--space-3); }
+.line-remove:hover { color: var(--color-error); }
+.line-add { margin-top: var(--space-4); }
+/* A time item's amount comes from rates, so it's shown, not entered. */
+.line-amount { display: flex; align-items: center; min-height: 2.25rem; margin: 0; }
+.line-amount-missing { color: var(--color-error); font-size: var(--text-13); line-height: 1.2; }
+.line-amount-priced { display: flex; flex-direction: column; line-height: 1.2; }
+.line-amount-basis { font-size: var(--text-12); color: var(--color-on-surface-muted); white-space: nowrap; }
+.line-editor-foot { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-4) var(--space-6); }
+.line-total { margin: var(--space-4) 0 0; font-size: var(--text-15); color: var(--color-on-surface-variant); }
+.line-total strong { color: var(--color-on-surface); font-size: var(--text-15); }
+/* Recorded, unbilled time to tick onto an invoice. */
+.unbilled-time { margin: 0 0 var(--space-6); padding: var(--space-4) var(--space-5); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-small); }
+.unbilled-time .usa-legend { font-weight: 700; margin: 0 0 var(--space-3); }
+.unbilled-time .usa-checkbox { background: transparent; }
+.unbilled-time-row { display: inline-flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); }
+.unbilled-time-description { color: var(--color-on-surface-variant); }
+.rate-note { margin: 0 0 var(--space-5); font-size: var(--text-13); color: var(--color-on-surface-variant); }
+/* Invoice items: columns come from the component; labels are visually
+   hidden until rows stack. */
+.line-editor-head { display: grid; gap: var(--space-5); text-transform: uppercase; margin: 0 calc(var(--space-6) * -1); padding: var(--space-5) var(--space-6) var(--space-4); background: var(--color-surface-container-low); border-bottom: 1px solid var(--color-outline-subtle); border-radius: var(--radius-medium) var(--radius-medium) 0 0; font-size: var(--text-11); letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
+.line-editor .line-row { padding: var(--space-6) 0; border-top: 1px solid var(--color-outline-subtle); align-items: start; column-gap: var(--space-6); }
+.line-editor .line-editor-head { column-gap: var(--space-6); }
+/* The header row already draws the line above the first item. */
+.line-editor .line-editor-head + .line-row { border-top: 0; }
+.line-editor .line-amount-missing { font-size: var(--text-12); line-height: 1.3; color: var(--color-on-surface-muted); text-align: right; }
+.line-editor + .compact-hint, .line-editor ~ .compact-hint { margin-top: var(--space-4); }
+.compact-form .rate-note { margin: var(--space-3) 0 var(--space-4); color: var(--color-on-surface-variant); font-size: var(--text-13); }
+.line-editor-head .amount, .line-editor .line-amount { justify-content: flex-end; text-align: right; }
+/* Who did the work and the task code sit under the description. */
+.line-what .line-meta { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
+.line-what .line-meta .usa-select { width: auto; min-width: 0; max-width: 14rem; }
+.line-editor .line-amount { min-height: 2.25rem; align-items: center; }
+.line-editor .line-amount-priced { align-items: flex-end; }
+/* The configured rate may wrap under the stated one rather than overlap Hours. */
+.line-editor .line-rate .line-amount-basis { white-space: normal; text-align: right; }
+/* Spinners crowd the narrow hours and amount fields. */
+.line-editor input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.line-editor input[type="number"]::-webkit-inner-spin-button,
+.line-editor input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+/* Columns: kind, date, what was done, hours, rate, amount, remove. They
+   follow the editor's own width, not the window's: beside the original file
+   it is narrow, so "What was done" takes a line of its own. */
+/* Invoice line editor, styled like the staff review table. */
+.line-editor { padding: 0 var(--space-6) var(--space-4); container-type: inline-size; }
+.line-editor .line-row,
+.line-editor .line-editor-head {
+  grid-template-columns: minmax(8.75rem, 9.5rem) minmax(8.5rem, 9.5rem) minmax(12rem, 1fr) minmax(5rem, 6rem) minmax(6rem, 7rem) minmax(6rem, 7.5rem) 1.75rem;
+}
+@container (max-width: 55rem) {
+  .line-editor .line-row,
+    .line-editor .line-editor-head {
+      grid-template-columns: minmax(7.5rem, 9.5rem) minmax(8.5rem, 9.5rem) minmax(4.5rem, 6rem) minmax(5.5rem, 1fr) minmax(5.5rem, 7.5rem) 1.75rem;
+      grid-template-areas: "kind date qty rate amount remove" "what what what what what what";
+      row-gap: var(--space-4);
+    }
+  .line-editor .line-row > :nth-child(1), .line-editor .line-editor-head > :nth-child(1) { grid-area: kind; }
+  .line-editor .line-row > :nth-child(2), .line-editor .line-editor-head > :nth-child(2) { grid-area: date; }
+  .line-editor .line-row > :nth-child(3) { grid-area: what; }
+  .line-editor .line-editor-head > :nth-child(3) { display: none; }
+  .line-editor .line-row > :nth-child(4), .line-editor .line-editor-head > :nth-child(4) { grid-area: qty; }
+  .line-editor .line-row > :nth-child(5), .line-editor .line-editor-head > :nth-child(5) { grid-area: rate; }
+  .line-editor .line-row > :nth-child(6), .line-editor .line-editor-head > :nth-child(6) { grid-area: amount; }
+  .line-editor .line-row > :nth-child(7), .line-editor .line-editor-head > :nth-child(7) { grid-area: remove; }
+}
+@container (max-width: 38rem) {
+  /* Narrowest: no header row; each cell shows its own short label. */
+  .line-editor .line-editor-head { display: none; }
+  .line-editor .line-row {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) 1.75rem;
+      grid-template-areas: "kind kind date remove" "qty rate amount amount" "what what what what";
+    }
+  .line-editor .line-row > [data-label]::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: var(--space-3);
+      font-size: var(--text-11);
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--color-on-surface-variant);
+    }
+  .line-editor .line-row > .line-amount { flex-direction: column; align-items: flex-start; justify-content: flex-start; }
+  .line-editor .line-row > .line-amount .amount,
+    .line-editor .line-row > .line-amount .line-amount-basis,
+    .line-editor .line-row > .line-amount .line-amount-missing { text-align: left; }
+  .line-editor .line-amount-priced { align-items: flex-start; }
+}
+@container (max-width: 26rem) {
+  .line-editor .line-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 1.75rem;
+      grid-template-areas: "kind kind remove" "date date date" "qty rate rate" "amount amount amount" "what what what";
+    }
+}
+.line-rate-differs { color: var(--color-on-tertiary-container); }

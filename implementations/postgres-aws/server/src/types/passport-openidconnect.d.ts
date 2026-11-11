@@ -1,5 +1,5 @@
 // No upstream types ship with this package (and no @types/passport-openidconnect
-// exists); this declares only the shape ./oidcProviders.ts actually uses.
+// exists); this declares only the shape ../auth/oidcProviders.ts actually uses.
 // See node_modules/passport-openidconnect/lib/{strategy,profile}.js for the
 // real (much larger) surface.
 declare module 'passport-openidconnect' {

@@ -1,0 +1,150 @@
+/* Figma's form controls on react-uswds's class names; the only place their look is set. */
+
+/* Fields in a form: a label above its control, fields spaced apart. */
+.usa-form { font: var(--body-medium); }
+@media (min-width: 30em) {
+  .usa-form { max-width: 20rem; }
+}
+.usa-fieldset { min-width: 0; margin: 0; padding: 0; border: none; }
+.usa-form-group { margin-top: var(--space-8); }
+.usa-form-group .usa-label:first-child { margin-top: 0; }
+.usa-label, .usa-legend { display: block; max-width: 30rem; margin-top: var(--space-8); font: var(--label-large); color: var(--color-on-surface); }
+.usa-label--error { margin-top: 0; }
+.usa-hint, .field-hint { font: var(--body-small); color: var(--color-on-surface-variant); }
+.usa-error-message, .field-error { display: block; font: var(--body-small); font-weight: 600; color: var(--color-error); }
+.usa-form-group--error { position: relative; padding-left: var(--space-6); border-left: var(--space-3) solid var(--color-error); }
+
+/* Text input, select and text area. */
+.usa-input, .usa-select, .usa-textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 30rem;
+  height: var(--space-10);
+  margin-top: var(--field-gap);
+  padding: 0 var(--space-5);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-small);
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  font: var(--body-medium);
+  appearance: none;
+}
+.usa-textarea { height: var(--space-15); padding: var(--space-4) var(--space-5); }
+.usa-select {
+  padding-right: var(--space-9);
+  /* The design's ▾, drawn from two triangles so it takes a token color. */
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-on-surface-variant) 50%), linear-gradient(135deg, var(--color-on-surface-variant) 50%, transparent 50%);
+  background-position: calc(100% - var(--space-6)) 55%, calc(100% - var(--space-5)) 55%;
+  background-size: var(--space-3) var(--space-3);
+  background-repeat: no-repeat;
+}
+.usa-select[multiple] { height: auto; padding-right: 0; background-image: none; }
+.usa-select option { overflow: hidden; text-overflow: ellipsis; }
+.usa-select:-webkit-autofill { appearance: menulist; }
+input[type=search] { appearance: none; }
+/* Safari draws a date or time from the top and centred unless its line fills the field. */
+.usa-input:is([type=date], [type=time], [type=month], [type=datetime-local]) { line-height: calc(var(--space-10) - 2px); }
+.usa-input::-webkit-date-and-time-value { margin: 0; text-align: left; }
+.usa-input:focus, .usa-select:focus, .usa-textarea:focus {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary), var(--focus-ring);
+  outline: 2px solid transparent;
+}
+.usa-input--error, .usa-input[aria-invalid="true"], .usa-select[aria-invalid="true"], .usa-textarea[aria-invalid="true"] {
+  border-color: var(--color-error);
+  box-shadow: inset 0 0 0 1px var(--color-error);
+}
+.usa-input--error:focus, .usa-input[aria-invalid="true"]:focus { box-shadow: inset 0 0 0 1px var(--color-error), var(--focus-ring); }
+:is(.usa-input, .usa-select, .usa-textarea):is(:disabled, [aria-disabled=true]) {
+  background-color: var(--color-surface-container-low);
+  color: var(--color-on-surface-muted);
+  -webkit-text-fill-color: var(--color-on-surface-muted);
+  cursor: not-allowed;
+  opacity: 1;
+}
+[type=file] { margin-top: var(--field-gap); padding: 0; border: none; }
+.usa-file-input { display: block; width: 100%; max-width: 30rem; }
+
+/* Editing inside a table row: a compact size the design doesn't specify. */
+.check-lines__input, .row-edit__input, .settings-role, .line-meta .usa-select, .kind-cell .usa-select, .split-assignment .usa-select {
+  height: var(--space-9);
+  padding: 0 var(--space-4);
+}
+.settings-role, .line-meta .usa-select, .kind-cell .usa-select, .split-assignment .usa-select { padding-right: var(--space-9); }
+textarea.check-lines__input { height: auto; padding: var(--space-3) var(--space-4); }
+:is(.check-lines__input, .row-edit__input):is([type=date], [type=time], [type=month], [type=datetime-local]) { line-height: calc(var(--space-9) - 2px); }
+
+/* Plain inputs draw the mark; USWDS's hide the input and draw it before the label. */
+input[type=checkbox]:not([class*=usa-]), input[type=radio]:not([class*=usa-]),
+.usa-checkbox__label::before, .usa-radio__label::before {
+  box-sizing: border-box;
+  width: var(--mark-size);
+  height: var(--mark-size);
+  border: 2px solid var(--color-outline);
+  background: var(--color-surface);
+  color: var(--color-on-primary);
+  font: var(--label-medium);
+  font-weight: 600;
+  line-height: calc(var(--mark-size) - 4px);
+  text-align: center;
+}
+input[type=checkbox]:not([class*=usa-]), input[type=radio]:not([class*=usa-]) {
+  display: inline-block;
+  flex: none;
+  margin: 0;
+  vertical-align: middle;
+  appearance: none;
+}
+input[type=checkbox]:not([class*=usa-]), .usa-checkbox__label::before { border-radius: var(--radius-mark); }
+input[type=radio]:not([class*=usa-]), .usa-radio__label::before { border-radius: var(--radius-circle); }
+input[type=checkbox]:not([class*=usa-])::before { content: ""; }
+input[type=checkbox]:not([class*=usa-]):checked::before, .usa-checkbox__input:checked + .usa-checkbox__label::before { content: "✓"; }
+input:is([type=checkbox], [type=radio]):not([class*=usa-]):checked,
+.usa-checkbox__input:checked + .usa-checkbox__label::before, .usa-radio__input:checked + .usa-radio__label::before {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+input[type=radio]:not([class*=usa-]):checked, .usa-radio__input:checked + .usa-radio__label::before {
+  background: radial-gradient(circle, var(--color-primary) 0 var(--space-3), var(--color-surface) calc(var(--space-3) + .5px));
+}
+input:is([type=checkbox], [type=radio]):not([class*=usa-]):disabled,
+.usa-checkbox__input:disabled + .usa-checkbox__label::before, .usa-radio__input:disabled + .usa-radio__label::before {
+  border-color: var(--color-outline-variant);
+  background: var(--color-surface-container-low);
+  cursor: not-allowed;
+}
+input[type=checkbox]:not([class*=usa-]):checked:disabled, .usa-checkbox__input:checked:disabled + .usa-checkbox__label::before {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-muted);
+}
+input[type=radio]:not([class*=usa-]):checked:disabled, .usa-radio__input:checked:disabled + .usa-radio__label::before {
+  background: radial-gradient(circle, var(--color-on-surface-muted) 0 var(--space-3), var(--color-surface-container-low) calc(var(--space-3) + .5px));
+}
+input:is([type=checkbox], [type=radio]):not([class*=usa-]):focus-visible,
+.usa-checkbox__input:focus + .usa-checkbox__label::before, .usa-radio__input:focus + .usa-radio__label::before {
+  box-shadow: var(--focus-ring);
+  outline: 2px solid transparent;
+}
+.usa-checkbox, .usa-radio { background: transparent; }
+.usa-checkbox__input, .usa-radio__input { position: absolute; left: -999em; right: auto; }
+.usa-checkbox__label, .usa-radio__label {
+  position: relative;
+  display: inline-block;
+  margin-top: var(--space-5);
+  padding-left: calc(var(--mark-size) + var(--space-4));
+  font: var(--body-medium);
+  color: var(--color-on-surface);
+  cursor: pointer;
+}
+.usa-checkbox__label::before, .usa-radio__label::before { content: ""; position: absolute; top: 1px; left: 0; display: block; }
+.usa-checkbox__input:disabled + .usa-checkbox__label, .usa-radio__input:disabled + .usa-radio__label { color: var(--color-on-surface-muted); cursor: not-allowed; }
+
+/* Windows High Contrast: let the system draw what the box shadows and fills drew. */
+@media (forced-colors: active) {
+  :is(.usa-input, .usa-select, .usa-textarea):disabled { border: 2px solid GrayText; color: GrayText; }
+  .usa-select { appearance: listbox; padding-right: 0; background-image: none; }
+  input:is([type=checkbox], [type=radio]):not([class*=usa-]) { appearance: auto; }
+  .usa-checkbox__label::before, .usa-radio__label::before { outline: 2px solid transparent; outline-offset: 2px; }
+  .usa-checkbox__input:checked + .usa-checkbox__label::before, .usa-radio__input:checked + .usa-radio__label::before { background: SelectedItem; }
+}

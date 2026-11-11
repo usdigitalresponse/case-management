@@ -369,8 +369,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     submitter, allocation draws, submitter replies to decisions (planned),
     a holiday calendar, defaults by kind of invoice. Concurrent decisions
     are serialized by the invoice row lock.
-- **Drafts, submission, recall and withdrawal** (`src/billing/invoiceLifecycle.ts`,
-  `invoiceEvents.ts`; `client/src/components/InvoiceLinesEditor.tsx`):
+- **Drafts, submission, recall and withdrawal** (`src/billing/invoiceLifecycle/`:
+  `drafts.ts`, `replaceLines.ts`, `submit.ts`, `withdraw.ts`; `invoiceEvents.ts`; `client/src/components/InvoiceLinesEditor.tsx`, `invoiceLines.ts`):
   - `POST /api/portal/invoices` with `submit: false` saves a draft (the
     default still submits). `PUT /api/portal/invoices/:id` replaces a
     draft's period and lines; `POST .../submit`, `.../recall` and
@@ -620,7 +620,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     (`document.content_deleted_at`) and removes the file's bytes after
     commit; the hourly sweep retries any removal that failed. Gap: payment completion isn't recorded yet, so a live
     request's file stays until it is withdrawn or deleted.
-  - Bulk import (`client/src/portal/PortalBulkImport.tsx`, `bulkImport.ts`;
+  - Bulk import (`client/src/portal/PortalBulkImport.tsx`, its steps in
+    `portal/bulk/`, `bulkImport.ts`;
     the portal's "Upload invoices" tab) takes several files, each
     assigned a case and whom it bills (one choice, grouped by person, so a
     delegate picks both), suggested from the file name when exactly one
@@ -738,7 +739,9 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     `invoice_attestation` bound to the attempt and in its snapshot (staff
     entering a request received elsewhere don't attest for its payee; the
     older manual-entry and bulk-import screens have the tick too). The
-    submitter is emailed a receipt (`sendEmail`; logged without SES), and
+    submitter is emailed a receipt (`sendEmail`; logged without SES), its
+    time in the zone their browser sends with `submit` (`timeZone`; else the
+    reporting zone, `src/formatDate.ts`), and
     the page offers Download receipt (the invoice PDF export) and Withdraw
     (recall, behind a confirmation) until review starts. The lines lock
     once sent; Undo on the sent message withdraws it.
@@ -819,7 +822,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   a draft, writes an `audit_event` row (migration `0004`) with the actor
   and the entry's prior values; `audit_event` records nothing else yet.
 - **Billing rules** (`src/billing/billingRules.ts`, `src/routes/settings.ts`;
-  `client/src/pages/Settings.tsx`, `components/BillingRules.tsx`;
+  `client/src/pages/settings/BillingRulesSection.tsx`, `components/BillingRules.tsx`;
   `model/rules.yaml` `apply_billing_rules`; migration `0006`):
   - One agency per deployment, one set of rules. Administrators set each of
     billing codes, time increment, daily hour cap, long entry (warn only)
@@ -842,8 +845,10 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     receipts above an amount (see `docs/DECISIONS.md`).
 - **Trips, travel and waiting time, and mileage** (`src/billing/mileageRates.ts`,
   `timeCategoryRates.ts`, `routeCheck.ts`, `priceLines.ts`,
-  `invoiceLifecycle.ts`, `sameDayTravel.ts`; `client/src/components/InvoiceLinesEditor.tsx`,
-  `TripFields.tsx`, `TravelLog.tsx`, `pages/Settings.tsx`; `model/rules.yaml`
+  `invoiceLifecycle/replaceLines.ts`, `sameDayTravel.ts`; `client/src/invoiceLines.ts` (trip parts and
+  price previews), `components/InvoiceLinesEditor.tsx`,
+  `TripFields.tsx`, `TravelLog.tsx`, `pages/settings/MileageRates.tsx` and
+  `TimeCategoryRates.tsx`; `model/rules.yaml`
   `apply_mileage_rates`, `apply_time_category_rates` and the mileage
   distance and travel time rules in `apply_billing_rules`; migrations
   `0007`, `0022`–`0025`):
@@ -951,8 +956,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     a flat travel or waiting rate is general, though a person may have
     their own travel time rate; a kind has no travel time rate of its own.
 - **Rates and billing from time** (`src/billing/professionalRates.ts`,
-  `priceLines.ts`, `invoiceLifecycle.ts`; `src/routes/settings.ts`;
-  `client/src/pages/Settings.tsx`, `components/UnbilledTimePicker.tsx`;
+  `priceLines.ts`, `invoiceLifecycle/`; `src/routes/settings.ts`;
+  `client/src/pages/settings/KindRates.tsx`, `components/UnbilledTimePicker.tsx`;
   `model/rules.yaml` `apply_professional_rates`, `validate_payment_request`):
   - Administrators (`user_account.system_role_id` = the seeded
     "Administrator" role, which also counts as staff) maintain

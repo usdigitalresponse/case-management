@@ -6,8 +6,6 @@ export interface Crumb {
   to?: string;
 }
 
-// Every page's top: breadcrumb, title with an optional status, a line of
-// key facts or a description, and the page's actions on the right.
 export function PageHeader({
   crumbs,
   title,
@@ -15,6 +13,7 @@ export function PageHeader({
   meta,
   description,
   actions,
+  list = false,
 }: {
   crumbs?: Crumb[];
   title: ReactNode;
@@ -22,6 +21,8 @@ export function PageHeader({
   meta?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
+  // A list or queue page: its title is Headline/Medium (26px), not Headline/Large.
+  list?: boolean;
 }) {
   return (
     <>
@@ -36,15 +37,13 @@ export function PageHeader({
         </nav>
       )}
       <div className="page-title-row">
-        <div>
-          <h1>
-            {title}
-            {status}
-          </h1>
-          {meta && <p className="title-meta">{meta}</p>}
-          {description && <p className="page-description">{description}</p>}
-        </div>
+        <h1 className={list ? 'page-title--list' : undefined}>
+          {title}
+          {status}
+        </h1>
         {actions && <div className="title-actions">{actions}</div>}
+        {meta && <p className="title-meta">{meta}</p>}
+        {description && <p className="page-description">{description}</p>}
       </div>
     </>
   );

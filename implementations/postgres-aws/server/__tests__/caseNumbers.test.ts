@@ -6,7 +6,8 @@ import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { createInvoice } from '../src/portal/createInvoice';
 import { resolvePortalActor } from '../src/portal/portalActor';
-import { setDraftCaseNumber, submitInvoice } from '../src/billing/invoiceLifecycle';
+import { setDraftCaseNumber } from '../src/billing/invoiceLifecycle/drafts';
+import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
 import { listReviewQueue } from '../src/billing/reviewQueue';
 import { closeKey, labelledCaseNumber, matchCaseNumbers, readCaseNumber, searchMatch } from '../src/billing/caseNumbers';
 import { ValidationError } from '../src/errors';

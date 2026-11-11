@@ -1,0 +1,58 @@
+/* Tables in a .data-card, and the review queue's. */
+/* USWDS 3's table base (public domain); the design's look follows. */
+.usa-table { font-family:var(--font-sans); line-height:1.5; border-collapse:collapse; border-spacing:0; color:var(--color-on-surface); margin:var(--space-7) 0; text-align:left; }
+.usa-table thead td, .usa-table tfoot td, .usa-table th { background-clip:padding-box; line-height:1.3; background-color:var(--color-surface-container-low); color:var(--color-on-surface); }
+.usa-table th, .usa-table td { border:1px solid var(--color-outline-subtle); padding:var(--space-4) var(--space-6); }
+.usa-table td { background-color:var(--color-surface); font-weight:normal; }
+.usa-table caption { font-family:var(--font-sans); font-size:var(--text-15); font-weight:700; margin-bottom:var(--space-5); text-align:left; }
+.usa-table caption.usa-sr-only { position:static; clip:rect(0 0 0 0); clip-path:inset(50%); width:1px; height:1px; margin:calc(var(--space-1) * -1); overflow:hidden; white-space:nowrap; }
+.usa-table th[data-sortable] { padding-right:var(--space-10); position:relative; }
+.usa-table th[data-sortable]::after { border-bottom-color:transparent; border-bottom-style:solid; border-bottom-width:1px; bottom:0; content:""; height:0; left:0; position:absolute; width:100%; }
+.usa-table th[data-sortable][aria-sort=descending], .usa-table th[data-sortable][aria-sort=ascending] { background-color:var(--color-primary-container); }
+.usa-table thead th[aria-sort] { background-color:var(--color-primary-container); color:var(--color-on-surface); }
+.usa-table td[data-sort-active], .usa-table th[data-sort-active] { background-color:var(--color-primary-container-low); color:var(--color-on-surface); }
+.usa-table--borderless th, .usa-table--borderless thead td, .usa-table--borderless tfoot td { background-color:var(--color-surface); }
+.usa-table--borderless th { border-top:0; color:var(--color-on-surface); }
+.usa-table--borderless th[aria-sort] { color:var(--color-on-surface); }
+.usa-table--borderless tbody th[scope=row] { border-top:1px solid var(--color-outline-subtle); }
+.usa-table--borderless th, .usa-table--borderless td { border-left:0; border-right:0; }
+/* The single place a table gets its box: rounded/clipped corners, full
+   width, and horizontal scroll on overflow. */
+.data-card { overflow-x: auto; overflow-y: hidden; }
+.data-card .usa-table { margin: 0; width: 100%; }
+/* USWDS's base .usa-table styles every cell with a 1px var(--color-on-surface) border and
+   every <th> (including a tbody row header) with a gray background — the
+   harsh grid and stray-shaded-column look. We own this card's table
+   chrome entirely instead: no per-cell borders, a single row divider,
+   header styling applied only where we actually want it. */
+.data-card table td, .data-card table th { padding: var(--space-5) var(--space-6); border: none; border-bottom: 1px solid var(--color-outline-subtle); background: transparent; }
+.data-card table tbody tr:last-child td, .data-card table tbody tr:last-child th { border-bottom: none; }
+/* Table headers: Title/Small. */
+.data-card table thead th { text-transform: uppercase; background: var(--color-surface-container-low); font-size: var(--text-11); letter-spacing: .6px; color: var(--color-on-surface-variant); font-weight: 600; }
+.data-card table tbody tr:hover { background: var(--color-primary-container-low); }
+.data-card table th[scope="row"] a { color: var(--color-on-surface); font-weight: 700; text-decoration: none; }
+.data-card table th[scope="row"] a:hover, .data-card table th[scope="row"] a:focus { text-decoration: underline; }
+/* Queue */
+.queue-table th, .queue-table td { vertical-align: top; }
+.data-card table.queue-table th[scope="row"] { font-weight: 700; color: var(--color-on-surface); background: transparent; }
+.case-number-cell { white-space: nowrap; }
+.case-number-cell .cell-note { max-width: 12rem; white-space: normal; text-decoration: none; }
+.queue-table .late { color: var(--color-error); font-weight: 700; }
+.sort-select { display: flex; align-items: center; gap: var(--space-4); font-size: var(--text-12); color: var(--color-on-surface-variant); }
+.sort-select .usa-select { width: 190px; margin: 0; }
+/* Wide enough for "Choose a reviewer" rather than squeezed by the column. */
+.queue-table .settings-role { width: auto; min-width: 12rem; }
+.row-action { font-weight: 600; text-decoration: none; white-space: nowrap; }
+/* A row and the full-width note under it read as one (RecordTable rowNote). */
+.data-card table tr.has-note > td, .data-card table tr.has-note > th { border-bottom: 0; padding-bottom: var(--space-3); }
+.data-card table tr.note-row > td { padding-top: 0; overflow-wrap: anywhere; }
+.data-card table tbody tr.has-note:hover + tr.note-row { background: var(--color-primary-container-low); }
+.queue-table td .tag { white-space: normal; }
+/* RecordTable with column widths: tables repeated per section line up. */
+.data-card table.fixed-columns { table-layout: fixed; }
+.data-card table.fixed-columns col { width: var(--column-width); }
+.data-card table.fixed-columns td, .data-card table.fixed-columns th { overflow-wrap: anywhere; }
+.data-card table .amount { text-align: right; }
+.data-card table tr.is-retired th, .data-card table tr.is-retired td { color: var(--color-on-surface-muted); }
+.queue-table th[scope="row"] .muted { font-weight: 400; }
+.queue-table .row-actions a, .queue-table .row-actions .link-button { white-space: nowrap; }

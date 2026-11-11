@@ -11,6 +11,7 @@ import {
 } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { countOf } from '../portal/importProgress';
+import { cssVars } from './ui/cssVars';
 
 const PdfPages = lazy(() => import('./PdfPages'));
 
@@ -109,7 +110,7 @@ export function OriginalDocument({
   }, [page, row, data, highlight, focus]);
 
   return (
-    <section className="original-document" aria-label={`${heading}: ${fileName}`}>
+    <section className="card original-document" aria-label={`${heading}: ${fileName}`}>
       <div className="original-document__bar">
         <div className="original-document__name">
           <h2>{heading}</h2>
@@ -157,7 +158,7 @@ export function OriginalDocument({
           </a>
         </div>
       </div>
-      <div ref={frame} className="original-document__frame" tabIndex={0} onScroll={trackPage}>
+      <div ref={frame} className="original-document__frame" tabIndex={0} onScroll={trackPage} style={cssVars({ '--zoom': zoom })}>
         {Boolean(error) && <p className="usa-error-message">The file couldn't be shown; download it instead.</p>}
         {!data && !error && <p role="status">Loading the file…</p>}
         {data?.preview.kind === 'pdf' && data.pdf && width > 0 && (
@@ -166,12 +167,12 @@ export function OriginalDocument({
           </Suspense>
         )}
         {data?.preview.kind === 'text' && (
-          <pre className="original-text" style={{ fontSize: `${0.78 * zoom}rem` }}>
+          <pre className="original-text">
             {data.preview.text}
           </pre>
         )}
         {data?.preview.kind === 'rows' && (
-          <table className="original-rows" style={{ fontSize: `${0.8 * zoom}rem` }}>
+          <table className="original-rows">
             <tbody>
               {data.preview.rows.map((cells, rowIndex) => (
                 <tr key={rowIndex} data-row={rowIndex + 1} className={row === rowIndex + 1 ? 'original-rows__focus' : undefined}>

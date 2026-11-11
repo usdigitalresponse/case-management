@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { Table } from '@trussworks/react-uswds';
+import { cssVars } from './ui/cssVars';
 
 // The shared table: a bordered card of rows, or a message when empty.
 export interface RecordTableColumn<T> {
@@ -55,12 +56,12 @@ export function RecordTable<T>({
       .join(' ') || undefined;
 
   return (
-    <div className="data-card">
+    <div className="card data-card">
       <Table bordered fullWidth className={[fixed ? 'fixed-columns' : '', className ?? ''].join(' ').trim() || undefined} aria-label={label}>
         {fixed && (
           <colgroup>
             {columns.map((column) => (
-              <col key={column.header} style={column.width ? { width: column.width } : undefined} />
+              <col key={column.header} style={cssVars({ '--column-width': column.width ?? 'auto' })} />
             ))}
           </colgroup>
         )}

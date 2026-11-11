@@ -4,7 +4,7 @@ import { useResource } from '../hooks/useResource';
 import { cases as casesResource, recentCaseChanges } from '../resources';
 import { overviewStages } from '../overviewStages';
 import { PageHeading } from '../components/PageHeading';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { RecordTable } from '../components/RecordTable';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
@@ -31,6 +31,7 @@ export default function Overview() {
   return (
     <>
       <PageHeading
+        list
         eyebrow="Cases"
         title="Case overview"
         description={`Where every case is right now. ${cases.length} ${cases.length === 1 ? 'case' : 'cases'}, ${open} open.`}
@@ -39,7 +40,7 @@ export default function Overview() {
         {overviewStages.map((stage) => {
           const stageCases = cases.filter((record) => record.stage === stage.id);
           return (
-            <section className="stage-card" key={stage.id} aria-labelledby={`heading-${stage.id}`}>
+            <section className="card stage-card" key={stage.id} aria-labelledby={`heading-${stage.id}`}>
               <h2 id={`heading-${stage.id}`}>{stage.label}</h2>
               <p className="stage-card__count">{stageCases.length}</p>
               <p className="stage-card__what">{stage.description}</p>

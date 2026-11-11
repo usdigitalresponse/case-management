@@ -4,7 +4,7 @@ import { BillingRecordExportButton } from '../components/BillingRecordExportButt
 import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { RecordTable } from '../components/RecordTable';
 import { caseNumberColumn, countyOfInvoice, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
 import { useCountyControl } from '../components/CountyListControl';
@@ -24,6 +24,7 @@ export default function Exports() {
   return (
     <div>
       <PageHeader
+        list
         title="Exports"
         description="Signed-off invoices, with every decision and reason, to send for payment."
         actions={<BillingRecordExportButton />}

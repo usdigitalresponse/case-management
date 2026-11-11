@@ -4,10 +4,12 @@ import { useResource } from '../hooks/useResource';
 import { myCases } from '../resources';
 import { RecordTable } from '../components/RecordTable';
 import { formatDay } from '../formatDateTime';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { formatMoney } from '../formatMoney';
 import { UPLOAD_PATH } from './useShell';
+import { Tag } from '../components/ui/Tag';
+import { buttonClass } from '../components/ui/Button';
 
 interface CaseSection {
   professional: MyCaseProfessional;
@@ -54,7 +56,7 @@ function CaseTable({ professionalId, cases, label }: { professionalId: string; c
           width: '18%',
           render: (c) =>
             c.unsubmittedInvoiceProfessionalIds.includes(professionalId) ? (
-              <span className="chip chip--warning">Draft invoice</span>
+              <Tag tone="warning">Draft invoice</Tag>
             ) : (
               <span className="muted">None</span>
             ),
@@ -94,9 +96,10 @@ export default function PortalCaseList() {
   return (
     <div>
       <PageHeader
+        list
         title="Your cases"
         description={`${isDelegate ? 'Cases for you and the people you bill for' : 'Your cases'}, as the billing office matched your invoices to them. A case you don't see here can still be billed: type its number when you send the invoice.`}
-        actions={<RouterLink className="btn btn--primary" to={UPLOAD_PATH}>New invoice</RouterLink>}
+        actions={<RouterLink className={buttonClass('primary')} to={UPLOAD_PATH}>New invoice</RouterLink>}
       />
       {Boolean(error) && <Notice tone="danger">Failed to load your cases.</Notice>}
       {!data && !error && <p role="status">Loading your cases…</p>}

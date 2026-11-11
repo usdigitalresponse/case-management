@@ -10,7 +10,8 @@ import {
 } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { professionalKinds } from '../resources';
-import { Dialog } from './Dialog';
+import { Dialog } from './ui/Dialog';
+import { Button } from './ui/Button';
 
 interface Fields {
   displayName: string;
@@ -142,9 +143,9 @@ export function PersonDialog({
         {field('travelHourlyRate', 'Travel time rate, an hour', 'Leave blank to use the travel time setting.')}
         {message && <p className="field-error" role="alert">{message}</p>}
         <div className="dialog__actions">
-          <button type="submit" className="btn btn--primary" disabled={busy || !name || !fields.professionalKindId}>
+          <Button type="submit" kind="primary" disabled={busy || !name || !fields.professionalKindId}>
             {busy ? 'Saving…' : person ? 'Save changes' : `Add ${name || 'them'}`}
-          </button>
+          </Button>
           <button type="button" className="link-button" disabled={busy} onClick={onClose}>
             Cancel
           </button>
