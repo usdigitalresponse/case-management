@@ -198,6 +198,18 @@ isn't built yet. Before adopting one:
   including `pdf-letter-injected.pdf`, whose small print tries to instruct
   an AI reader.
 
+Driving distances: the mileage rule checks miles claimed against a live
+driving route only with `ROUTE_CHECK_PROVIDER=aws` (Amazon Location; optional
+`ROUTE_CHECK_COUNTRY`, default `USA`). Each lookup is billed, so they happen
+only on submission with the rule on, cached by address pair; the server warns
+past `ROUTE_CHECK_MONTHLY_CALL_WARNING` (default 1000) and stops at an
+optional `ROUTE_CHECK_MONTHLY_CALL_LIMIT`. Without it, no live calls are made:
+the seed stores approximate distances for its demo trips, unmeasured trips get
+no finding, and reviewers use the travel log's directions link. Tests use
+`setRouteProviderForTests`, never AWS. How it works is in `docs/api.md`
+("Trips, travel and waiting time, and mileage"); the decision is in
+`../../docs/DECISIONS.md`.
+
 ### Running the API server
 
 `docker compose up` already does this. Without Docker Compose, against the
@@ -332,8 +344,12 @@ or scheduled here; each links to where it is described.
    gaps", Cleanup).
 6. A second reading pass for files the in-app reader can't read ("Improving
    accuracy with AI" above), with its hosting cost agreed first.
-7. Links to the external case management system, now inert placeholders
+7. Live driving distances where AWS isn't available: a routing provider
+   beside the Amazon Location one, such as Azure Maps (also billed per
+   request), or leaving the mileage rule off ("Driving distances" above,
+   `../../docs/microsoft-platform-plan.md`), with its cost agreed first.
+8. Links to the external case management system, now inert placeholders
    (`../../docs/integration.md`).
-8. Hosting beyond the single-host demo: `terraform/` has never been applied
+9. Hosting beyond the single-host demo: `terraform/` has never been applied
    (`MAPPING.md` "Infrastructure").
-9. Duplicate review of people, and reopening closed cases ("Scope" above).
+10. Duplicate review of people, and reopening closed cases ("Scope" above).
