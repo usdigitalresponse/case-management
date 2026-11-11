@@ -43,12 +43,13 @@ export default function PortalPreauthorizations() {
   const { data, error } = useResource(myPreauthorizationRequests);
   return (
     <div>
-      <PageHeader list
+      <PageHeader
+        list
         title="Pre-authorizations"
         description="Your requests and the billing office’s answers."
         actions={
           !asking && (
-            <Button type="button" kind="primary" onClick={() => setParams({ ask: '' }, { preventScrollReset: true })}>
+            <Button kind="primary" onClick={() => setParams({ ask: '' }, { preventScrollReset: true })}>
               Ask for pre-authorization
             </Button>
           )

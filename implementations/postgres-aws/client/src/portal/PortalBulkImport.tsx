@@ -118,7 +118,8 @@ export default function PortalBulkImport() {
 
   return (
     <div>
-      <PageHeader list
+      <PageHeader
+        list
         crumbs={[{ label: newInvoiceLabel, to: newInvoicePath }, { label: 'Upload invoices' }]}
         title="Upload invoices"
         description="Upload several invoice files at once, check what was read from each, then send them together."
@@ -126,7 +127,7 @@ export default function PortalBulkImport() {
           (stagedCount > 0 || batchInProgress.length > 0) &&
           !confirmingCancel &&
           !uploadingNow && (
-            <Button type="button" kind="secondary" onClick={() => setConfirmingCancel(true)}>
+            <Button kind="secondary" onClick={() => setConfirmingCancel(true)}>
               Cancel import
             </Button>
           )
@@ -137,7 +138,7 @@ export default function PortalBulkImport() {
           tone="warning"
           action={
             <span className="row-actions">
-              <Button type="button" kind="danger" disabled={cancelling || uploadingNow} onClick={() => void cancel()}>
+              <Button kind="danger" disabled={cancelling || uploadingNow} onClick={() => void cancel()}>
                 {cancelling ? 'Cancelling…' : 'Yes, cancel'}
               </Button>
               <button type="button" className="link-button" disabled={cancelling} onClick={() => setConfirmingCancel(false)}>

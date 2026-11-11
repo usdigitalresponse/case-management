@@ -53,7 +53,6 @@ export function InvoiceStatus({
     <>
       <StatusPill code={invoice.statusCode} label={label} />
       <Button
-        type="button"
         kind="secondary" small className="completion-button"
         title={COMPLETED_EXPLAINER}
         disabled={saving}
@@ -103,7 +102,7 @@ export function CompletionNotice({
       action={
         <>
           {emailSender}
-          <Button type="button" kind="secondary" disabled={saving} onClick={onComplete}>
+          <Button kind="secondary" disabled={saving} onClick={onComplete}>
             Mark completed
           </Button>
         </>

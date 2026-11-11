@@ -95,7 +95,6 @@ export function AddProvider({
       {error && <Notice tone="danger">{error}</Notice>}
       <div className="button-row">
         <Button
-          type="button"
           kind="primary"
           disabled={saving || displayName.trim().length < 2 || !professionalKindId}
           onClick={() => void save()}

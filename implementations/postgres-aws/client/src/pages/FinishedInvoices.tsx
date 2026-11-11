@@ -62,7 +62,8 @@ export default function FinishedInvoices() {
 
   return (
     <div>
-      <PageHeader list
+      <PageHeader
+        list
         title="Finished invoices"
         description="Every line on these invoices is decided. Each one belongs to the person who sent it. Case numbers are as they typed them."
       />

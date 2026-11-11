@@ -66,23 +66,23 @@ function Requests() {
       <div className="list-controls">
         <div className="tag-filters" role="group" aria-label="Show">
           {STATUS_FILTERS.map(({ id, label }) => (
-            <FilterTag key={id || 'all'} type="button"  aria-pressed={status === id} onClick={() => setFilter({ status: id })}>
+            <FilterTag key={id || 'all'} aria-pressed={status === id} onClick={() => setFilter({ status: id })}>
               {label}
             </FilterTag>
           ))}
         </div>
         {countyId && data?.requests[0]?.countyName && (
-          <FilterTag type="button"  aria-pressed onClick={() => setFilter({ countyId: undefined })}>
+          <FilterTag aria-pressed onClick={() => setFilter({ countyId: undefined })}>
             {data.requests[0].countyName} ✕
           </FilterTag>
         )}
         {caseId && (
-          <FilterTag type="button"  aria-pressed onClick={() => setFilter({ caseId: undefined })}>
+          <FilterTag aria-pressed onClick={() => setFilter({ caseId: undefined })}>
             One case ✕
           </FilterTag>
         )}
         {!recording && (
-          <Button type="button" kind="secondary" onClick={() => setRecording(true)}>
+          <Button kind="secondary" onClick={() => setRecording(true)}>
             Record a request
           </Button>
         )}
@@ -162,7 +162,6 @@ function UsageByCounty() {
         </div>
         {data && (
           <Button
-            type="button"
             kind="secondary"
             onClick={() =>
               downloadCsv(
@@ -259,15 +258,16 @@ export default function Preauthorizations() {
   const view = params.get('view') === 'county' ? 'county' : 'requests';
   return (
     <div>
-      <PageHeader list
+      <PageHeader
+        list
         title="Pre-authorizations"
         description="Requests, and how each county’s limits are used."
       />
       <div className="tag-filters page-tabs" role="tablist" aria-label="View">
-        <FilterTag type="button" role="tab"  aria-selected={view === 'requests'} aria-pressed={view === 'requests'} onClick={() => setParams({}, { preventScrollReset: true })}>
+        <FilterTag role="tab" aria-selected={view === 'requests'} aria-pressed={view === 'requests'} onClick={() => setParams({}, { preventScrollReset: true })}>
           Requests
         </FilterTag>
-        <FilterTag type="button" role="tab"  aria-selected={view === 'county'} aria-pressed={view === 'county'} onClick={() => setParams({ view: 'county' }, { preventScrollReset: true })}>
+        <FilterTag role="tab" aria-selected={view === 'county'} aria-pressed={view === 'county'} onClick={() => setParams({ view: 'county' }, { preventScrollReset: true })}>
           By county
         </FilterTag>
       </div>

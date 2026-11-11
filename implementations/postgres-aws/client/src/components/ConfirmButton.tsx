@@ -37,7 +37,6 @@ export function ConfirmButton({
     <span className="confirm-inline" role="group" aria-label={prompt}>
       <span className="confirm-inline__prompt">{prompt}</span>
       <Button
-        type="button"
         kind="danger"
         disabled={disabled}
         ref={(element: HTMLButtonElement | null) => element?.focus()}

@@ -301,7 +301,6 @@ function DecisionForm({ request, onDecided }: { request: PreauthorizationRequest
         <textarea id="decide-reason" className="usa-textarea" maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} />
       </div>
       <Button
-        type="button"
         kind="primary"
         disabled={busy || (approving ? !(Number(amount) > 0) : !reason.trim())}
         onClick={() => {
@@ -357,7 +356,6 @@ function Questions({ detail, staff, mayAnswer, onChanged }: { detail: Preauthori
                   onChange={(event) => setAnswers({ ...answers, [row.preauthorizationQuestionId]: event.target.value })}
                 />
                 <Button
-                  type="button"
                   kind="secondary"
                   disabled={!answers[row.preauthorizationQuestionId]?.trim()}
                   onClick={() =>
@@ -378,7 +376,6 @@ function Questions({ detail, staff, mayAnswer, onChanged }: { detail: Preauthori
           <label className="usa-sr-only" htmlFor="preauth-ask">Ask the requester</label>
           <textarea id="preauth-ask" className="usa-textarea" placeholder="Ask the requester for more information" maxLength={2000} value={question} onChange={(event) => setQuestion(event.target.value)} />
           <Button
-            type="button"
             kind="secondary"
             disabled={!question.trim()}
             onClick={() =>
@@ -426,7 +423,6 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
           !staff &&
           open && (
             <Button
-              type="button"
               kind="secondary"
               onClick={() =>
                 withdrawPreauthorizationRequest(request.preauthorizationRequestId).then(changed, (err: unknown) =>

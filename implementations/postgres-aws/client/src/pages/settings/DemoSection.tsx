@@ -96,16 +96,16 @@ function DemoDataReset() {
         <>
           <Notice tone="warning">This can't be undone. Reset all data to the demo data?</Notice>
           <div className="close-case-buttons">
-            <Button type="button" kind="danger" disabled={resetting} onClick={() => void reset()}>
+            <Button kind="danger" disabled={resetting} onClick={() => void reset()}>
               {resetting ? 'Resetting…' : 'Yes, reset all data'}
             </Button>
-            <Button type="button" kind="secondary" disabled={resetting} onClick={() => setConfirming(false)}>
+            <Button kind="secondary" disabled={resetting} onClick={() => setConfirming(false)}>
               Cancel
             </Button>
           </div>
         </>
       ) : (
-        <Button type="button" kind="danger" onClick={() => setConfirming(true)}>
+        <Button kind="danger" onClick={() => setConfirming(true)}>
           Reset demo data
         </Button>
       )}

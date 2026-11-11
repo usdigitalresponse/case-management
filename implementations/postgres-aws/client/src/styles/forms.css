@@ -34,8 +34,6 @@ form.compact-form { max-width: none; }
 .import-fields { grid-template-columns: minmax(0, 1fr) auto; }
 .billed-for-field { grid-template-columns: minmax(0, 20rem); margin-bottom: var(--space-5); }
 .period-fields { grid-template-columns: 12rem 12rem; margin-bottom: var(--space-5); }
-.confirm-inline { display: inline-flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
-.confirm-inline__prompt { font-weight: 700; }
 /* The design system's Segmented control (components/ui/SegmentedChoice.tsx). */
 .segmented { display: inline-flex; overflow: hidden; border: 1px solid var(--color-outline); border-radius: var(--radius-small); background: var(--color-surface); }
 .segmented--above { margin-bottom: var(--space-5); }
@@ -57,8 +55,8 @@ form.compact-form { max-width: none; }
 .inline-pair > span { padding-bottom: var(--space-4); color: var(--color-on-surface-muted); }
 .radio-row, .checkbox-row { display: flex; align-items: center; gap: var(--space-4); margin: var(--space-3) 0; color: var(--color-on-surface); font-size: var(--text-15); cursor: pointer; }
 /* Asking before a destructive action (components/ConfirmButton.tsx). */
-.confirm-inline { padding: var(--space-3) var(--space-4); background: var(--color-error-container); border-radius: var(--radius-small); }
-.confirm-inline__prompt { color: var(--color-on-error-container); }
+.confirm-inline { display: inline-flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; padding: var(--space-3) var(--space-4); background: var(--color-error-container); border-radius: var(--radius-small); }
+.confirm-inline__prompt { font-weight: 700; color: var(--color-on-error-container); }
 .dialog-field { margin: 0; padding: 0; border: 0; min-width: 0; }
 .dialog-field .usa-label { margin: 0 0 var(--space-3); }
 .dialog-field .usa-input { max-width: none; width: 100%; margin: 0; }

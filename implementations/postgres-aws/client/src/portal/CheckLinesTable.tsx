@@ -6,9 +6,9 @@ import type { FileLine, ImportWarning } from '../api/client';
 import { emptyLine, isTimeKind, mileageItemPreview, tripParts, type DraftKind, type LineDraft } from '../invoiceLines';
 import { TripFields } from '../components/TripFields';
 import { changedFields, changeSentence, type Row } from '../fileChanges';
+import { formatDate } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
 import { formatLineRate, formatQuantity, lineKindLabel } from '../invoiceLineDisplay';
-import { formatDay } from './portalWording';
 import { priceOf, valuesOf, type PricingContext } from './checkLines';
 import { Button } from '../components/ui/Button';
 import { Tag } from '../components/ui/Tag';
@@ -235,7 +235,6 @@ function EditPanel({
       )}
       <div className="edit-line__actions">
         <Button
-          type="button"
           kind="primary"
           disabled={price.total === null}
           onClick={() => onSave(travel ? tripParts(draft, `new-${Date.now()}`) : [draft])}
@@ -350,7 +349,7 @@ export function CheckLinesTable({
               <tbody key={`removed-${read.location}`} className="check-lines__row check-lines__row--removed">
                 <tr className="check-lines__summary">
                   <td>{row.number}</td>
-                  <td><s>{formatDay(read.serviceDate)}</s></td>
+                  <td><s>{formatDate(read.serviceDate)}</s></td>
                   <td>
                     {lineKindLabel(lineType)} <Tag tone="neutral">Removed</Tag>
                   </td>
@@ -420,7 +419,7 @@ export function CheckLinesTable({
                   ) : editable && !line.serviceDate && !isEditing ? (
                     <DateToEnter number={number} onEnter={(serviceDate) => onSaveLine(index, [{ ...line, serviceDate }], number)} />
                   ) : (
-                    formatDay(line.serviceDate || null)
+                    formatDate(line.serviceDate || null)
                   )}
                 </td>
                 <td>

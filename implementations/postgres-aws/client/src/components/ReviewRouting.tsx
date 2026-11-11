@@ -58,7 +58,7 @@ export function AssignReviewer({ invoiceId, onAssigned }: { invoiceId: string; o
   const [error, setError] = useState<string | null>(null);
   if (!open) {
     return (
-      <Button type="button" kind="secondary" small onClick={() => setOpen(true)}>
+      <Button kind="secondary" small onClick={() => setOpen(true)}>
         Assign
       </Button>
     );
@@ -141,7 +141,6 @@ export function ReviewerPicker({
   return (
     <div className="popover-anchor">
       <Button
-        type="button"
         kind="secondary" className="btn--select"
         aria-expanded={open}
         disabled={!canChange}
@@ -197,7 +196,7 @@ export function ReviewerPicker({
           )}
           {error && <p className="field-error" role="alert">{error}</p>}
           <div className="button-row">
-            <Button type="button" kind="primary" disabled={!chosen || saving} onClick={() => void save()}>
+            <Button kind="primary" disabled={!chosen || saving} onClick={() => void save()}>
               Give it to {chosenName ?? '…'}
             </Button>
             <button type="button" className="link-button" onClick={() => setOpen(false)}>Cancel</button>
@@ -271,7 +270,7 @@ export function SignOffApprovers({
           <p className="cell-note">They sign off in the order you tick them.</p>
           {error && <p className="field-error" role="alert">{error}</p>}
           <div className="button-row">
-            <Button type="button" kind="primary" disabled={chosen.length === 0} onClick={() => void save()}>
+            <Button kind="primary" disabled={chosen.length === 0} onClick={() => void save()}>
               Save
             </Button>
             <button type="button" className="link-button" onClick={() => setEditing(false)}>Cancel</button>

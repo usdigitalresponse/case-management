@@ -180,7 +180,8 @@ export default function UploadInvoices() {
     .sort((a, b) => a.label.localeCompare(b.label));
   return (
     <div className="portal-narrow">
-      <PageHeader list
+      <PageHeader
+        list
         crumbs={[home, { label: entries.length > 1 ? 'New invoices' : 'New invoice' }]}
         title={entries.length > 1 ? 'Upload invoices' : 'Upload an invoice'}
       />
@@ -279,7 +280,7 @@ export default function UploadInvoices() {
         {entries.length > 0 && (
           <div className="upload-card__actions">
             {!allFailed && (
-              <Button type="button" kind="primary" disabled={busy || reading} onClick={() => void goOn(false)}>
+              <Button kind="primary" disabled={busy || reading} onClick={() => void goOn(false)}>
                 {busy ? 'Saving…' : 'Continue'}
               </Button>
             )}

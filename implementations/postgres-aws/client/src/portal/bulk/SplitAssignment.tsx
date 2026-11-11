@@ -154,7 +154,7 @@ export function SplitAssignment({
         at configured rates. You can still correct dates and hours on each draft.
       </p>
       <div className="invoice-actions">
-        <Button type="button" kind="primary" disabled={creating || unassigned > 0} onClick={() => void create()}>
+        <Button kind="primary" disabled={creating || unassigned > 0} onClick={() => void create()}>
           {creating ? 'Creating…' : `Create ${draftCount} draft ${draftCount === 1 ? 'invoice' : 'invoices'}`}
         </Button>
         <button type="button" className="link-button" disabled={creating} onClick={onCancel}>

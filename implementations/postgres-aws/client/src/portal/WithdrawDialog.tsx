@@ -21,7 +21,6 @@ export function WithdrawDialog({
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="dialog__actions">
         <Button
-          type="button"
           kind="danger"
           disabled={busy}
           onClick={() => {

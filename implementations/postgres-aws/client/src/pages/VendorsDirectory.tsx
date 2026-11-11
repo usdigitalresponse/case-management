@@ -132,7 +132,6 @@ export default function VendorsDirectory() {
       reloadKey={version}
       actions={
         <Button
-          type="button"
           kind="primary"
           onClick={() => {
             setEditing(null);
@@ -223,7 +222,6 @@ export default function VendorsDirectory() {
                     <>
                     <span className="row-actions row-edit__actions">
                       <Button
-                        type="button"
                         kind="primary" small
                         disabled={edit.saving || edit.displayName.trim().length < 2}
                         onClick={() => void saveRow(edit)}

@@ -126,7 +126,7 @@ function PreauthorizedAmount({ caseId, people, onSaved }: {
   const [saving, setSaving] = useState(false);
   if (!open) {
     return (
-      <Button type="button" kind="secondary" onClick={() => setOpen(true)}>
+      <Button kind="secondary" onClick={() => setOpen(true)}>
         Set a pre-authorized amount
       </Button>
     );
@@ -223,7 +223,7 @@ export default function CaseDetail() {
         title={detail.case.clientDisplayName ?? 'Case'}
         status={<StatusPill label={stageLabel(detail.case.stage)} />}
         actions={
-          <Button type="button" kind="secondary" disabled title="Not connected yet">
+          <Button kind="secondary" disabled title="Not connected yet">
             Open in your {EXTERNAL_SYSTEM_NAME} ↗
           </Button>
         }

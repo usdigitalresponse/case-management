@@ -113,10 +113,9 @@
 .check-lines__table .check-lines__bar td { padding-top: var(--space-2); }
 .line-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4) var(--space-6); }
 .line-bar .line-ask { padding: 0; }
-.line-bar__decide { margin-left: auto; }
 .line-bar__decide .decision-buttons { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-4) var(--space-5); }
 /* A decided line: its decision, why, who and the links to change it, across the bar. */
-.line-bar__decide { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-3) var(--space-6); }
+.line-bar__decide { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-3) var(--space-6); }
 .line-bar__decide .decision-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-5); }
 .line-bar__decide .decision-summary p, .line-bar__decide .link-row, .line-bar__decide .decision-history { margin: 0; }
 .send-back { margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--color-outline-subtle); }

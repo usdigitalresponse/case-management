@@ -427,7 +427,7 @@ How the React client is built and why. Schema mapping and gaps are in
     `PortalCaseDetail.tsx`), not deleted.
   - On the check page, "Which case is it?" offers the cases of the person
     whose work it is, or "Not listed" to type the number as before
-    (`CaseChoice` in `InvoiceSubmission.tsx`). Choosing one
+    (`CaseChoice` in `portal/submission/CaseChoice.tsx`). Choosing one
     (`PUT /api/portal/invoices/:id/case`, `setDraftCase` in
     `billing/invoiceLifecycle/drafts.ts`) sets the draft's case and its number to
     the case's and prices its lines again, so case rates apply; it is still

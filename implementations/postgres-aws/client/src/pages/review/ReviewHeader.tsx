@@ -66,7 +66,6 @@ export function ReviewHeader({ page, facts, fileShown }: { page: ReviewPage; fac
           />
           {data.fileSource?.fileAvailable && !entering && (
             <Button
-              type="button"
               kind="secondary"
               aria-pressed={fileShown}
               onClick={() => {
@@ -79,7 +78,6 @@ export function ReviewHeader({ page, facts, fileShown }: { page: ReviewPage; fac
           )}
           {facts.canDecide && !timeLog && (
             <Button
-              type="button"
               kind="secondary"
               aria-expanded={page.uploadingLog}
               onClick={() => page.setUploadingLog(!page.uploadingLog)}
@@ -89,7 +87,7 @@ export function ReviewHeader({ page, facts, fileShown }: { page: ReviewPage; fac
           )}
           {/* Everything is saved as it changes; this only leaves. */}
           {entering && (
-            <Button type="button" kind="secondary" onClick={() => page.goToNext() || navigate('/')}>
+            <Button kind="secondary" onClick={() => page.goToNext() || navigate('/')}>
               Finish later
             </Button>
           )}

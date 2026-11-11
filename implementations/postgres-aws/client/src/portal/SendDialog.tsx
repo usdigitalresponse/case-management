@@ -84,7 +84,6 @@ export function SendDialog({
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="dialog__actions">
         <Button
-          type="button"
           kind="primary"
           disabled={(statement !== null && !ticked) || !ready || !explained || busy}
           onClick={() => {

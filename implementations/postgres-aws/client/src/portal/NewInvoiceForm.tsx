@@ -242,7 +242,7 @@ export function NewInvoiceForm({
           </p>
           {caseId === null ? (
             <div className="invoice-actions">
-              <Button type="button" kind="primary" disabled={submitting || !canSave} onClick={() => void save(false)}>
+              <Button kind="primary" disabled={submitting || !canSave} onClick={() => void save(false)}>
                 {submitting ? 'Saving…' : 'Save for matching'}
               </Button>
             </div>
@@ -252,7 +252,7 @@ export function NewInvoiceForm({
               <Button type="submit" kind="primary" disabled={submitting || !canSave || receipt.missing || (!staff && !attested)}>
                 {submitting ? 'Saving…' : 'Submit invoice'}
               </Button>
-              <Button type="button" kind="secondary" disabled={submitting || !canSave} onClick={() => void save(false)}>
+              <Button kind="secondary" disabled={submitting || !canSave} onClick={() => void save(false)}>
                 Save as draft
               </Button>
             </div>

@@ -95,7 +95,8 @@ export default function PortalCaseList() {
 
   return (
     <div>
-      <PageHeader list
+      <PageHeader
+        list
         title="Your cases"
         description={`${isDelegate ? 'Cases for you and the people you bill for' : 'Your cases'}, as the billing office matched your invoices to them. A case you don't see here can still be billed: type its number when you send the invoice.`}
         actions={<RouterLink className={buttonClass('primary')} to={UPLOAD_PATH}>New invoice</RouterLink>}

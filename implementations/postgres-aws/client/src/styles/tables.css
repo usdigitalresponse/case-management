@@ -27,7 +27,8 @@
    header styling applied only where we actually want it. */
 .data-card table td, .data-card table th { padding: var(--space-5) var(--space-6); border: none; border-bottom: 1px solid var(--color-outline-subtle); background: transparent; }
 .data-card table tbody tr:last-child td, .data-card table tbody tr:last-child th { border-bottom: none; }
-.data-card table thead th { background: var(--color-surface-container); font-size: var(--text-12); text-transform: uppercase; letter-spacing: .06em; color: var(--color-on-surface-muted); }
+/* Table headers: Title/Small. */
+.data-card table thead th { text-transform: uppercase; background: var(--color-surface-container-low); font-size: var(--text-11); letter-spacing: .6px; color: var(--color-on-surface-variant); font-weight: 600; }
 .data-card table tbody tr:hover { background: var(--color-primary-container-low); }
 .data-card table th[scope="row"] a { color: var(--color-on-surface); font-weight: 700; text-decoration: none; }
 .data-card table th[scope="row"] a:hover, .data-card table th[scope="row"] a:focus { text-decoration: underline; }
@@ -47,9 +48,6 @@
 .data-card table tr.note-row > td { padding-top: 0; overflow-wrap: anywhere; }
 .data-card table tbody tr.has-note:hover + tr.note-row { background: var(--color-primary-container-low); }
 .queue-table td .tag { white-space: normal; }
-/* Table headers: Title/Small. */
-.data-card table thead th { background: var(--color-surface-container-low); font-size: var(--text-11); letter-spacing: .6px; color: var(--color-on-surface-variant); font-weight: 600; }
-.data-card table td, .data-card table th { border-bottom-color: var(--color-outline-subtle); }
 /* RecordTable with column widths: tables repeated per section line up. */
 .data-card table.fixed-columns { table-layout: fixed; }
 .data-card table.fixed-columns col { width: var(--column-width); }

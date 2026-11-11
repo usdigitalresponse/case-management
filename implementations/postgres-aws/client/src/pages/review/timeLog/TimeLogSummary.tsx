@@ -58,7 +58,7 @@ export function TimeLogSummary({
           </p>
         </div>
         <div className="link-row">
-          <Button type="button" kind="secondary" aria-pressed={logShown} onClick={() => onShowLog(!logShown)}>
+          <Button kind="secondary" aria-pressed={logShown} onClick={() => onShowLog(!logShown)}>
             {logShown ? 'Hide the log' : 'Show the log'}
           </Button>
           {canChange && !replacing && (
@@ -252,7 +252,6 @@ function WorkerMatches({
                     <option value={NOT_A_PERSON}>Not a person (an office or shared account)</option>
                   </select>
                   <Button
-                    type="button"
                     kind="secondary"
                     disabled={!chosen}
                     onClick={() => void act(() => setTimeLogWorker(invoiceId, worker.name, chosen))}

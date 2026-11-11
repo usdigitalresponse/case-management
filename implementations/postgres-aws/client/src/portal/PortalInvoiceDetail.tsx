@@ -146,7 +146,7 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
             {noCase ? 'Review without a case' : 'Submit invoice'}
           </Button>
         )}
-        <Button type="button" kind="secondary" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>
+        <Button kind="secondary" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>
           Save draft
         </Button>
         <span className="actions-end">
@@ -265,7 +265,7 @@ export default function PortalInvoiceDetail() {
                 <RouterLink className={buttonClass('primary')} to={`/billing/${invoice.invoiceId}`}>Open in review</RouterLink>
               )}
               {recallable && (
-                <Button type="button" kind="secondary" disabled={recalling} onClick={() => void recall()}>
+                <Button kind="secondary" disabled={recalling} onClick={() => void recall()}>
                   {recalling ? 'Recalling…' : 'Recall to draft'}
                 </Button>
               )}

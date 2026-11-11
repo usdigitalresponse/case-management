@@ -173,7 +173,8 @@ export default function InvoicesToReview() {
 
   return (
     <div>
-      <PageHeader list
+      <PageHeader
+        list
         title="Invoices to review"
         description="Every invoice waiting for a decision. Each one belongs to the person who sent it. Case numbers are as they typed them."
         actions={

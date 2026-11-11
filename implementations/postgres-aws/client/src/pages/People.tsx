@@ -36,11 +36,12 @@ export default function People() {
 
   return (
     <div>
-      <PageHeader list
+      <PageHeader
+        list
         title="People"
         description="Everyone who can send invoices: attorneys, investigators and experts. Every invoice is filed under one of these people."
         actions={
-          <Button type="button" kind="primary" onClick={() => setAdding(true)}>
+          <Button kind="primary" onClick={() => setAdding(true)}>
             Add a person
           </Button>
         }
@@ -48,7 +49,7 @@ export default function People() {
       <div className="list-controls">
         <div className="tag-filters" role="group" aria-label="Show">
           {[null, ...roles].map((name) => (
-            <FilterTag key={name ?? 'everyone'} type="button"  aria-pressed={role === name} onClick={() => setRole(name)}>
+            <FilterTag key={name ?? 'everyone'} aria-pressed={role === name} onClick={() => setRole(name)}>
               {name ? `${name}s` : 'Everyone'} <span className="tag-count">{count(name)}</span>
             </FilterTag>
           ))}

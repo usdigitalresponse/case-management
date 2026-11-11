@@ -114,7 +114,7 @@ export default function PersonPage() {
         actions={
           <>
             {user?.isAdmin && (
-              <Button type="button" kind="secondary" onClick={() => setEditing(true)}>
+              <Button kind="secondary" onClick={() => setEditing(true)}>
                 Edit details
               </Button>
             )}
@@ -128,7 +128,6 @@ export default function PersonPage() {
               />
             )}
             <Button
-              type="button"
               kind="secondary"
               disabled={invoices.length === 0}
               onClick={() =>
@@ -179,7 +178,7 @@ export default function PersonPage() {
       <div className="list-controls">
         <div className="tag-filters" role="group" aria-label="Show">
           {FILTERS.map(({ id, label }) => (
-            <FilterTag key={id} type="button"  aria-pressed={filter === id} onClick={() => setFilter(id)}>
+            <FilterTag key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>
               {label} <span className="tag-count">{invoices.filter((invoice) => isShown(invoice, id)).length}</span>
             </FilterTag>
           ))}

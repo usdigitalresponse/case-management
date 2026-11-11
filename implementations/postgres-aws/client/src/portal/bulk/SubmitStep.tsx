@@ -119,7 +119,6 @@ export function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]
           {!staff && <AttestationCheckbox id="bulk-attested" checked={attested} onChange={setAttested} />}
           <div className="invoice-actions">
             <Button
-              type="button"
               kind="primary"
               disabled={submitting || chosen.length === 0 || receipt.missing || (!staff && !attested)}
               onClick={() => void submitChosen()}

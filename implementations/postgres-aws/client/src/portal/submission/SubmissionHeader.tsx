@@ -58,11 +58,10 @@ export function SubmissionHeader({ s }: { s: Submission }) {
         <div className="submission__actions">
           {editable && (
             <>
-              <Button type="button" kind="secondary" onClick={() => void s.finishLater()}>
+              <Button kind="secondary" onClick={() => void s.finishLater()}>
                 Save and finish later
               </Button>
               <Button
-                type="button"
                 kind="primary"
                 // Without a sender, its time can't be priced yet; sending says to choose one.
                 disabled={(askingFor === null && !(byPerson && !invoice.professionalId)) || lines.length === 0 || Boolean(undatedRow)}
@@ -78,7 +77,7 @@ export function SubmissionHeader({ s }: { s: Submission }) {
             </a>
           )}
           {withdrawable && (
-            <Button type="button" kind="danger" onClick={() => s.setWithdrawing(true)}>
+            <Button kind="danger" onClick={() => s.setWithdrawing(true)}>
               Withdraw
             </Button>
           )}

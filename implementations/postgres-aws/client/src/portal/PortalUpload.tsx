@@ -277,7 +277,7 @@ function ManualEntry({ onCancel }: { onCancel: () => void }) {
       />
       {message && <Notice tone="danger">{message}</Notice>}
       <div className="upload-card__actions">
-        <Button type="button" kind="primary" disabled={busy || !data} onClick={() => void start()}>
+        <Button kind="primary" disabled={busy || !data} onClick={() => void start()}>
           {busy ? 'Starting…' : 'Add the lines'}
         </Button>
         <button type="button" className="link-button" disabled={busy} onClick={onCancel}>
@@ -370,7 +370,8 @@ export default function PortalUpload() {
 
   return (
     <div className="portal-narrow">
-      <PageHeader list
+      <PageHeader
+        list
         crumbs={[{ label: invoicesLabel, to: invoicesPath }, { label: many ? 'New invoices' : 'New invoice' }]}
         title={manual ? 'Enter an invoice' : many ? 'Upload invoices' : 'Upload an invoice'}
       />
@@ -441,7 +442,6 @@ export default function PortalUpload() {
         {entries.length > 0 && (
           <div className="upload-card__actions">
             <Button
-              type="button"
               kind="primary"
               disabled={busy || (!byHand && !currentRead)}
               onClick={() => (byHand ? setManual(true) : void next())}

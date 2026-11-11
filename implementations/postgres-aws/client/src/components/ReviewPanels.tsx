@@ -46,7 +46,7 @@ export function RateCheckNotice({
       tone="warning"
       action={
         canReprice && (
-          <Button type="button" kind="secondary" disabled={saving} onClick={() => onReprice(check.limit)}>
+          <Button kind="secondary" disabled={saving} onClick={() => onReprice(check.limit)}>
             Re-price at {formatMoney(check.limit)}
           </Button>
         )
@@ -112,7 +112,7 @@ export function TotalsBar({
               ? `Next, ${signers} ${approvers.length === 1 ? 'signs' : 'sign'} off. Then it can be exported for payment with every reason attached.`
               : 'Choose who signs off before finishing.'}
           </p>
-          <Button type="button" kind="primary" disabled={saving || approvers.length === 0} onClick={() => setConfirming(true)}>
+          <Button kind="primary" disabled={saving || approvers.length === 0} onClick={() => setConfirming(true)}>
             Finish review
           </Button>
         </div>
@@ -128,7 +128,6 @@ export function TotalsBar({
           </p>
           <div className="button-row">
             <Button
-              type="button"
               kind="primary"
               disabled={saving}
               ref={(element) => element?.focus()}
@@ -195,7 +194,7 @@ export function SignOffPanel({
         <div className="button-row">
           {canSignOff && (
             <>
-              <Button type="button" kind="primary" disabled={saving} onClick={() => decide('approved')}>
+              <Button kind="primary" disabled={saving} onClick={() => decide('approved')}>
                 Sign off {formatMoney(approvedCents / 100)}
               </Button>
               <ConfirmButton
@@ -205,13 +204,13 @@ export function SignOffPanel({
                 disabled={saving}
                 onConfirm={() => decide('rejected')}
               />
-              <Button type="button" kind="secondary" disabled={saving || !comment.trim()} onClick={() => decide('changes_requested')}>
+              <Button kind="secondary" disabled={saving || !comment.trim()} onClick={() => decide('changes_requested')}>
                 Send back to the reviewer
               </Button>
             </>
           )}
           {canReopen && (
-            <Button type="button" kind="secondary" disabled={saving} onClick={onReopen}>
+            <Button kind="secondary" disabled={saving} onClick={onReopen}>
               Reopen review
             </Button>
           )}

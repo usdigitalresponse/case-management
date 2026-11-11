@@ -10,10 +10,7 @@ import type { CountyValue } from '../../counties';
 import { Notice } from '../../components/ui/Notice';
 import { RecordTable } from '../../components/RecordTable';
 import { Button } from '../../components/ui/Button';
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { today } from './today';
 
 export function PreauthorizationThresholds({ isAdmin }: { isAdmin: boolean }) {
   const [version, setVersion] = useState(0);

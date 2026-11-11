@@ -590,7 +590,7 @@ function MissingRole({ disabled, error, onSave }: { disabled: boolean; error?: s
             <option key={kind.professionalKindId} value={kind.professionalKindId}>{kind.displayName}</option>
           ))}
         </select>
-        <Button type="button" kind="secondary" disabled={disabled || !kindId} onClick={() => onSave(kindId)}>
+        <Button kind="secondary" disabled={disabled || !kindId} onClick={() => onSave(kindId)}>
           Save
         </Button>
       </div>

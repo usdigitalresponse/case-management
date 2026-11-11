@@ -1,7 +1,4 @@
 /* The invoice line editor (components/InvoiceLinesEditor.tsx). */
-/* Invoice items: columns come from the component; labels are visually
-   hidden until rows stack. */
-.line-editor-head { display: grid; gap: var(--space-5); padding: 0 var(--space-2) var(--space-3); font-size: var(--text-12); text-transform: uppercase; letter-spacing: .06em; color: var(--color-on-surface-muted); }
 .line-row { padding: var(--space-4) 0; border-top: 1px solid var(--color-outline-subtle); }
 .line-row:first-of-type { border-top: 0; }
 .line-row .line-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -43,9 +40,9 @@
 .unbilled-time-row { display: inline-flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); }
 .unbilled-time-description { color: var(--color-on-surface-variant); }
 .rate-note { margin: 0 0 var(--space-5); font-size: var(--text-13); color: var(--color-on-surface-variant); }
-/* Invoice line editor, styled like the staff review table. */
-.line-editor { padding: 0 var(--space-6) var(--space-4); }
-.line-editor-head { margin: 0 calc(var(--space-6) * -1); padding: var(--space-5) var(--space-6) var(--space-4); background: var(--color-surface-container-low); border-bottom: 1px solid var(--color-outline-subtle); border-radius: var(--radius-medium) var(--radius-medium) 0 0; font-size: var(--text-11); letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
+/* Invoice items: columns come from the component; labels are visually
+   hidden until rows stack. */
+.line-editor-head { display: grid; gap: var(--space-5); text-transform: uppercase; margin: 0 calc(var(--space-6) * -1); padding: var(--space-5) var(--space-6) var(--space-4); background: var(--color-surface-container-low); border-bottom: 1px solid var(--color-outline-subtle); border-radius: var(--radius-medium) var(--radius-medium) 0 0; font-size: var(--text-11); letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
 .line-editor .line-row { padding: var(--space-6) 0; border-top: 1px solid var(--color-outline-subtle); align-items: start; column-gap: var(--space-6); }
 .line-editor .line-editor-head { column-gap: var(--space-6); }
 /* The header row already draws the line above the first item. */
@@ -68,7 +65,8 @@
 /* Columns: kind, date, what was done, hours, rate, amount, remove. They
    follow the editor's own width, not the window's: beside the original file
    it is narrow, so "What was done" takes a line of its own. */
-.line-editor { container-type: inline-size; }
+/* Invoice line editor, styled like the staff review table. */
+.line-editor { padding: 0 var(--space-6) var(--space-4); container-type: inline-size; }
 .line-editor .line-row,
 .line-editor .line-editor-head {
   grid-template-columns: minmax(8.75rem, 9.5rem) minmax(8.5rem, 9.5rem) minmax(12rem, 1fr) minmax(5rem, 6rem) minmax(6rem, 7rem) minmax(6rem, 7.5rem) 1.75rem;

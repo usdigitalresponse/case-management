@@ -134,7 +134,6 @@ export function CaseMatch({ invoice, onMatched }: { invoice: QueuedInvoice; onMa
                 {found.match === 'close' && <span className="cell-note"> Close match</span>}
               </span>
               <Button
-                type="button"
                 kind="secondary"
                 disabled={saving}
                 onClick={() => match(found.caseId, found.caseNumber ?? number)}

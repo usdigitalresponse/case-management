@@ -70,7 +70,7 @@ function AssignAllTimekeepers({
           <ProposedPersonFields idPrefix="import-assign-all-new" value={proposed} onChange={setProposed} />
         )}
       </PickOrAdd>
-      <Button type="button" kind="secondary" disabled={!chosen || unmatched === 0} onClick={() => onAssign(professionalId, 'unassigned', send)}>
+      <Button kind="secondary" disabled={!chosen || unmatched === 0} onClick={() => onAssign(professionalId, 'unassigned', send)}>
         Apply to {unmatched} unassigned
       </Button>
       <button type="button" className="link-button" disabled={!chosen} onClick={() => onAssign(professionalId, 'all', send)}>
@@ -147,7 +147,6 @@ function SuggestedItems({
             </span>
             <span className="amount">{formatMoney(suggestion.amount.value)}</span>
             <Button
-              type="button"
               kind="secondary" small
               onClick={() => onAdd(draftFrom(suggestion))}
             >
@@ -312,10 +311,10 @@ function ExtractedReview({
           </p>
         )}
         <div className="invoice-actions">
-          <Button type="button" kind="primary" disabled={busy || !hasItems} onClick={() => void run('confirm')}>
+          <Button kind="primary" disabled={busy || !hasItems} onClick={() => void run('confirm')}>
             {!afterResolve ? 'Confirm import' : hasNext ? 'Confirm and review next' : 'Confirm and go to submit'}
           </Button>
-          <Button type="button" kind="secondary" disabled={busy || !hasItems} onClick={() => void run('save')}>
+          <Button kind="secondary" disabled={busy || !hasItems} onClick={() => void run('save')}>
             Save changes
           </Button>
           <span className="actions-end">
@@ -437,7 +436,7 @@ export default function PortalImportReview() {
           </Notice>
           {discardError && <Notice tone="danger">{discardError}</Notice>}
           <p>Discard it and upload a corrected file, or enter the items by hand on the case page.</p>
-          <Button type="button" kind="danger" onClick={() => void discardImport()}>Discard import</Button>
+          <Button kind="danger" onClick={() => void discardImport()}>Discard import</Button>
         </>
       )}
 

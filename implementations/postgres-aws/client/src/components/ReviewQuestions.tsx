@@ -135,7 +135,7 @@ function AnswerForm({ staff, saving, onAnswer }: { staff: boolean; saving: boole
 
   if (!open) {
     return (
-      <Button type="button" kind="secondary" small onClick={() => setOpen(true)}>
+      <Button kind="secondary" small onClick={() => setOpen(true)}>
         Record their answer
       </Button>
     );

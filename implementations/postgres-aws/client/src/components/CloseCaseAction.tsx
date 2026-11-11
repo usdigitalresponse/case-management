@@ -27,7 +27,7 @@ export function CloseCaseAction({ caseId, onClosed }: { caseId: string; onClosed
   }
 
   if (!open) {
-    return <Button type="button" kind="secondary" onClick={() => setOpen(true)}>Close case</Button>;
+    return <Button kind="secondary" onClick={() => setOpen(true)}>Close case</Button>;
   }
 
   return (
@@ -43,7 +43,7 @@ export function CloseCaseAction({ caseId, onClosed }: { caseId: string; onClosed
       />
       <div className="close-case-buttons">
         <Button type="submit" kind="primary" disabled={submitting}>{submitting ? 'Closing…' : 'Confirm close'}</Button>
-        <Button type="button" kind="secondary" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
+        <Button kind="secondary" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
       </div>
       {error && <Notice tone="danger">{error}</Notice>}
     </form>

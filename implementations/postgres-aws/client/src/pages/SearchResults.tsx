@@ -45,7 +45,8 @@ export default function SearchResults() {
 
   return (
     <div>
-      <PageHeader list
+      <PageHeader
+        list
         crumbs={[{ label: 'Search' }, { label: query || 'Nothing yet' }]}
         title={byNumber ? `Invoices with a case number like ${query}` : `Invoices matching “${query}”`}
         description={
@@ -84,7 +85,6 @@ export default function SearchResults() {
             )}
           </div>
           <Button
-            type="button"
             kind="secondary"
             onClick={() =>
               downloadCsv(

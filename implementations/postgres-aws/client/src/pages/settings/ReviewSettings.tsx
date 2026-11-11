@@ -167,7 +167,7 @@ export function ReviewRoutingSettings({ isAdmin }: { isAdmin: boolean }) {
       <div className="settings-field">
         <span>Holiday calendar</span>
         <p className="cell-note">Working days skip weekends. Uploading a holiday calendar so holidays are skipped too is planned.</p>
-        <Button type="button" kind="secondary" disabled title="Not available yet">Upload a calendar</Button>
+        <Button kind="secondary" disabled title="Not available yet">Upload a calendar</Button>
       </div>
       {isAdmin && (
         <div className="button-row">
@@ -366,7 +366,7 @@ export function StaffRoleSettings() {
       <div className="section-title-row">
         <h3>Staff</h3>
         {!adding && (
-          <Button type="button" kind="primary" onClick={() => setAdding(true)}>Add staff</Button>
+          <Button kind="primary" onClick={() => setAdding(true)}>Add staff</Button>
         )}
       </div>
       {adding && (

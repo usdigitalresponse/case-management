@@ -56,7 +56,7 @@ export function AssignStaffForm({ caseId, onAssigned }: { caseId: string; onAssi
           }
           onSelect={(staff) => setSelectedStaff(staff ?? null)}
         />
-        <Button type="button" kind="primary" disabled={!selectedStaff || assigning} onClick={() => void handleAssign()}>
+        <Button kind="primary" disabled={!selectedStaff || assigning} onClick={() => void handleAssign()}>
           {assigning ? 'Assigning…' : 'Assign'}
         </Button>
       </div>

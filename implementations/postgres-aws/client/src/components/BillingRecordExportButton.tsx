@@ -20,7 +20,7 @@ export function BillingRecordExportButton() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button type="button" kind="secondary" onClick={() => setOpen(true)}>
+      <Button kind="secondary" onClick={() => setOpen(true)}>
         Export billing record
       </Button>
       {open && <ExportDialog userAccountId={user?.userAccountId ?? ''} onClose={() => setOpen(false)} />}

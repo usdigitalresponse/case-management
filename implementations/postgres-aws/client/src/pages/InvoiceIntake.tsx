@@ -202,7 +202,7 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
         Add {providerName} and anyone else who did the work to the case if they aren't on it
       </label>
       <div className="button-row">
-        <Button type="button" kind="primary" disabled={!ready || saving} onClick={() => void match()}>
+        <Button kind="primary" disabled={!ready || saving} onClick={() => void match()}>
           {caseId === ADD_NEW ? 'Add the case and match' : 'Match'}
         </Button>
         {!item.caseId && item.professionalId && (
@@ -260,7 +260,7 @@ function SendBack({ item, onSent }: { item: IntakeItem; onSent: (message: string
       <p className="field-hint">They see this on the invoice until they send it again.</p>
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="button-row">
-        <Button type="button" kind="danger" disabled={saving || !reason.trim()} onClick={() => void send()}>
+        <Button kind="danger" disabled={saving || !reason.trim()} onClick={() => void send()}>
           {saving ? 'Sending…' : 'Send back'}
         </Button>
         <button type="button" className="link-button" disabled={saving} onClick={() => setOpen(false)}>
@@ -407,7 +407,8 @@ export default function InvoiceIntake() {
 
   return (
     <div>
-      <PageHeader list
+      <PageHeader
+        list
         title="Intake"
         description="Add invoices that came in by email or from other tools."
       />

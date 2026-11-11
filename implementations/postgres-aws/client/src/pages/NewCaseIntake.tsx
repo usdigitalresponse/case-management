@@ -154,7 +154,7 @@ export default function NewCaseIntake() {
       )}
       {/* Placeholder: importing cases from another system is planned. */}
       <div className="import-case">
-        <Button type="button" kind="secondary" disabled title="Not available yet">
+        <Button kind="secondary" disabled title="Not available yet">
           Import a PDF or spreadsheet
         </Button>
         <span className="cell-note">Bring in a case from another system. Coming soon; enter the case below for now.</span>

@@ -21,7 +21,7 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
 
   if (!open) {
     return (
-      <Button type="button" kind="secondary" onClick={() => setOpen(true)}>
+      <Button kind="secondary" onClick={() => setOpen(true)}>
         Add person
       </Button>
     );
@@ -86,7 +86,7 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
               }
               onSelect={(vendor) => setSelected(vendor ?? null)}
             />
-            <Button type="button" kind="primary" disabled={!selected} onClick={() => void addExternal()}>
+            <Button kind="primary" disabled={!selected} onClick={() => void addExternal()}>
               Add to case
             </Button>
           </div>

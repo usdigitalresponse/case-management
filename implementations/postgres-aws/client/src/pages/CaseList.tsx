@@ -41,7 +41,8 @@ export default function CaseList() {
   return (
     <ResourceList
       heading={
-        <PageHeading list
+        <PageHeading
+          list
           eyebrow="Cases"
           title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'}
           description={`Every case invoices can be sent for. Cases may be managed in your ${EXTERNAL_SYSTEM_NAME}; they show here so invoices make sense.`}
@@ -65,8 +66,6 @@ export default function CaseList() {
               {(['all', 'open', 'closed'] as const).map((which) => (
                 <FilterTag
                   key={which}
-                  type="button"
-                  
                   aria-pressed={shown === which}
                   onClick={() => setShown(which)}
                 >

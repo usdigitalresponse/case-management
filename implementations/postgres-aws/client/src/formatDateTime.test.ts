@@ -15,4 +15,9 @@ describe('dates', () => {
   it('never shift calendar dates', () => {
     expect(formatDate('2026-11-10')).toBe('10 Nov 2026');
   });
+
+  it('show an unreadable date as given instead of failing', () => {
+    expect(formatDate('2026-13-45')).toBe('2026-13-45');
+    expect(formatDay('not a time')).toBe('not a time');
+  });
 });
