@@ -749,6 +749,8 @@ export const invoiceApprovalChain = pgTable(
     uniqueIndex('invoice_approval_chain_current_uidx')
       .on(table.invoiceId)
       .where(sql`superseded_at IS NULL`),
+    // Every attempt, superseded ones too, as the submitter's list reads them.
+    index('invoice_approval_chain_invoice_id_idx').on(table.invoiceId),
   ],
 );
 

@@ -328,7 +328,10 @@ synthetic volume in that same test database; it is not part of `npm test`.
 CI runs `npm run test:perf:queries`, failing if a check makes more queries
 than the committed `server/perf/queryCounts.json`; when a change lowers a
 count or adds a check, save it with `PERF_SAVE_QUERY_COUNTS=1 npm run
-test:perf:queries` (the only scale it saves at) and commit it. The server
+test:perf:queries` (the only scale it saves at) and commit it. `npm run
+db-report` (`src/db/databaseReport.ts`) must stay read-only and show only
+query shapes and statistics, never stored values; index findings from it
+become migrations, never indexes created on a live database. The server
 build entry point is `dist/src/app.js`. Its `MAPPING.md` holds the schema
 mapping and known gaps; how each part is built is in its `docs/`
 (`frontend.md`, `intake.md`, `api.md`). A new or changed route's access rule
