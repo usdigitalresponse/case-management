@@ -63,6 +63,8 @@ export function useResource<T>(
     if (resource) void refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey, refetch]);
+  // Read so a reload re-renders even when its data is unchanged, and so kept as the same object.
+  void query.dataUpdatedAt;
   const shown = !resource?.fresh || opened.loadedForThisVisit || updatesOf(resource) > opened.updates;
   const reload = useCallback(async () => {
     await refetch({ cancelRefetch: false });
