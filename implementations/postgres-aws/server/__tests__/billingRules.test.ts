@@ -12,12 +12,13 @@ import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import {
   addBillingCode,
+  evaluateBillingRules,
   getBillingRules,
   setBillingCodeActive,
   setBillingRule,
 } from '../src/billing/billingRules';
 import { ValidationError } from '../src/errors';
-import { caseAssignment, invoiceApprovalChain, userAccount } from '../src/db/schema';
+import { caseAssignment, invoiceApprovalChain, invoiceLine, timeEntry, userAccount } from '../src/db/schema';
 
 let fixtures: BaselineFixtureIds;
 
@@ -140,6 +141,43 @@ describe('applying billing rules', () => {
       refused(/Synthetic Attorney has 9 h billed on 2026-02-02, counting submitted invoices; the daily cap is 8 h/),
     );
     await createInvoice(testDb, actor, { attested: true, caseId, lines: [time(3)] });
+  });
+
+  it("counts another invoice's hours by its time entry, timekeeper or professional", async () => {
+    const { actor, caseId } = await setup();
+    await set('daily_hour_cap', 'warn', { hours: 8 });
+    const lineOf = async (invoiceId: string) => (await testDb.select().from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)))[0]!;
+    // Portal time lines come with a time entry; these two are left without one.
+    const withTimekeeper = await lineOf((await createInvoice(testDb, actor, { attested: true, caseId, lines: [time(1)] })).invoiceId);
+    await testDb
+      .update(invoiceLine)
+      .set({ sourceTimeEntryId: null, timekeeperProfessionalId: actor.professionalId })
+      .where(eq(invoiceLine.invoiceLineId, withTimekeeper.invoiceLineId));
+    // No timekeeper either: the invoice's professional's.
+    const unassigned = await lineOf((await createInvoice(testDb, actor, { attested: true, caseId, lines: [time(2)] })).invoiceId);
+    await testDb
+      .update(invoiceLine)
+      .set({ sourceTimeEntryId: null, timekeeperProfessionalId: null })
+      .where(eq(invoiceLine.invoiceLineId, unassigned.invoiceLineId));
+    // A time entry's date and hours, not the line's.
+    const fromEntry = await lineOf((await createInvoice(testDb, actor, { attested: true, caseId, lines: [time(1, { serviceDate: '2026-02-03' })] })).invoiceId);
+    const [entry] = await testDb
+      .insert(timeEntry)
+      .values({
+        caseId,
+        professionalId: actor.professionalId!,
+        activityTypeId: fixtures.activityTypeSampleId,
+        activityOn: '2026-02-02',
+        durationHours: '3',
+        description: 'Synthetic logged time',
+      })
+      .returning();
+    await testDb.update(invoiceLine).set({ sourceTimeEntryId: entry!.timeEntryId }).where(eq(invoiceLine.invoiceLineId, fromEntry.invoiceLineId));
+
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [time(4)] });
+    expect((await evaluateBillingRules(testDb, invoiceId)).map((finding) => finding.message)).toContain(
+      'Synthetic Attorney has 10 h billed on 2026-02-02, counting submitted invoices; the daily cap is 8 h.',
+    );
   });
 
   it('requires a billing period within one month', async () => {

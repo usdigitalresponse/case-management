@@ -2,7 +2,8 @@
 // apply_billing_rules): each off, warn or require, set by administrators.
 // Settings are insert-only; the latest per rule is in force.
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, ne, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm';
+import { unionAll } from 'drizzle-orm/pg-core';
 import type { DatabaseOrTransaction } from '../db/client';
 import {
   billingCodes,
@@ -398,6 +399,30 @@ async function hoursOnOtherInvoices(
   const dates = [...new Set(days.map((day) => day.date))];
   const who = sql<string>`coalesce(${timeEntry.professionalId}, ${invoiceLine.timekeeperProfessionalId}, ${invoice.professionalId})`;
   const when = sql<string>`coalesce(${timeEntry.activityOn}, ${invoiceLine.serviceDate})`;
+  // Lines that can match, one indexed lookup per source of worker and date; the coalesce can't use an index.
+  const candidates = unionAll(
+    db
+      .select({ invoiceLineId: invoiceLine.invoiceLineId })
+      .from(timeEntry)
+      .innerJoin(invoiceLine, eq(invoiceLine.sourceTimeEntryId, timeEntry.timeEntryId))
+      .where(and(inArray(timeEntry.professionalId, professionalIds), inArray(timeEntry.activityOn, dates))),
+    db
+      .select({ invoiceLineId: invoiceLine.invoiceLineId })
+      .from(invoiceLine)
+      .where(and(isNull(invoiceLine.sourceTimeEntryId), inArray(invoiceLine.timekeeperProfessionalId, professionalIds), inArray(invoiceLine.serviceDate, dates))),
+    db
+      .select({ invoiceLineId: invoiceLine.invoiceLineId })
+      .from(invoice)
+      .innerJoin(invoiceLine, eq(invoiceLine.invoiceId, invoice.invoiceId))
+      .where(
+        and(
+          inArray(invoice.professionalId, professionalIds),
+          isNull(invoiceLine.sourceTimeEntryId),
+          isNull(invoiceLine.timekeeperProfessionalId),
+          inArray(invoiceLine.serviceDate, dates),
+        ),
+      ),
+  );
   const rows = await db
     .select({
       professionalId: who,
@@ -411,6 +436,7 @@ async function hoursOnOtherInvoices(
     .leftJoin(timeEntry, eq(invoiceLine.sourceTimeEntryId, timeEntry.timeEntryId))
     .where(
       and(
+        inArray(invoiceLine.invoiceLineId, candidates),
         ne(invoiceLine.invoiceId, invoiceId),
         // Other drafts may be abandoned, so only submitted invoices count.
         notInArray(invoiceStatuses.code, UNSUBMITTED_INVOICE_STATUS_CODES),
