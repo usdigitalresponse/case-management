@@ -30,6 +30,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const switchUser = useCallback((next: AuthenticatedUser | null) => {
     window.history.replaceState(null, '', '/');
     queryClient.clear();
+    // No navigation happens, so drop the last user's saved scroll and start at the top.
+    try {
+      sessionStorage.removeItem('react-router-scroll-positions');
+    } catch {
+      // Unavailable, as in some private windows.
+    }
+    window.scrollTo(0, 0);
     setUser(next);
   }, []);
 
