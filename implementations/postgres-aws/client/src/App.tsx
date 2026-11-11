@@ -6,6 +6,7 @@ import { searchPath } from './staffPaths';
 import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 import { Notice } from './components/ui/Notice';
+import { buttonClass } from './components/ui/Button';
 import { queryClient, refreshCacheOnDataChange } from './queryClient';
 import { nextLoadIsFirst, portalLoaders, staffLoaders } from './routeLoaders';
 import { useResource } from './hooks/useResource';
@@ -84,8 +85,13 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
     <aside className="app-sidebar">
       <nav aria-label="Main navigation">
         <div className="nav-group">
-          <NavLink to={STAFF_UPLOAD_PATH} end className="nav-primary" title="Upload invoices received by email or from other tools">
-            <span><span aria-hidden="true">+ </span>Upload Invoices</span>
+          <NavLink
+            to={STAFF_UPLOAD_PATH}
+            end
+            className={buttonClass('primary')}
+            title="Upload invoices received by email or from other tools"
+          >
+            <span aria-hidden="true">+</span> Upload invoices
           </NavLink>
         </div>
         {/* Intake, other person records and /home-alternate still work by address. */}

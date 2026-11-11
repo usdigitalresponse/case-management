@@ -14,18 +14,13 @@
 .app-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: calc(100vh - 57px); }
 .app-sidebar { padding: 1.4rem .5rem; border-right: 1px solid var(--color-outline-subtle); background: var(--color-surface-container); }
 .app-sidebar a:not(.btn), .nav-group button { display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; padding: .45rem .75rem; text-align: left; border: 0; border-radius: 6px; text-decoration: none; color: var(--color-on-surface); background: transparent; font-size: .92rem; }
-.app-sidebar a:hover { background: var(--color-outline-subtle); }
+.app-sidebar a:not(.btn):hover { background: var(--color-outline-subtle); }
 /* Bold and a bar too, so the selection doesn't rest on color alone. */
-.app-sidebar a.active { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; box-shadow: inset 3px 0 0 var(--color-primary); }
+.app-sidebar a:not(.btn).active { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; box-shadow: inset 3px 0 0 var(--color-primary); }
 .nav-count { font-size: .78rem; color: var(--color-on-surface-variant); }
 .app-sidebar a.active .nav-count { color: var(--color-primary); }
 /* A count tag beside a section heading. */
 .heading-count { margin-left: .5rem; vertical-align: .2em; }
-/* Intake: where invoices come in, so it reads as the main action. */
-.app-sidebar a.nav-primary { background: var(--color-primary); color: var(--color-on-primary); font-weight: 700; padding: .6rem .85rem; }
-.app-sidebar a.nav-primary:hover { background: var(--color-primary-hover); }
-.app-sidebar a.nav-primary.active { background: var(--color-primary); color: var(--color-on-primary); }
-.app-sidebar a.nav-primary .nav-count { min-width: 1.4rem; padding: .05rem .4rem; border-radius: var(--radius-full); background: var(--color-on-primary); color: var(--color-primary); font-weight: 700; text-align: center; }
 .nav-group + .nav-group { margin-top: 1.6rem; }
 .nav-group h2 { padding: 0 .75rem; margin: 0 0 .35rem; font-size: .68rem; line-height: 1.5; text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
 .nav-group button:disabled { color: var(--color-on-surface-muted); cursor: not-allowed; justify-content: flex-start; gap: .4rem; }
