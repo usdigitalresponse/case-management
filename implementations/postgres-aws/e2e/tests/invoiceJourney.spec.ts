@@ -1,14 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// Signs in on the sign-in page shown at `path`, as the first seeded account with
-// this role; the page at `path` then opens without another navigation.
-async function signIn(page: Page, path: string, who: 'staff' | 'partner', role: string) {
-  await page.goto(path);
+// Through the sign-in page's demo sign-in, as the first seeded account with this role.
+async function signIn(page: Page, who: 'staff' | 'partner', role: string) {
+  await page.goto('/');
   const form = page.locator('form.login-demo').filter({ has: page.locator(`#demo-${who}`) });
   const value = await form.locator('option', { hasText: `(${role})` }).first().getAttribute('value');
   await form.locator('select').selectOption(value!);
   await form.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.locator('form.login-demo')).toHaveCount(0);
+  // Signing in opens the home page; wait for it, or the next goto races its redirect.
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible();
 }
 
 // One invoice from upload to a finished review; each step needs the one before.
@@ -17,13 +17,14 @@ test.describe.serial('an invoice from upload to review', () => {
   let invoiceId = '';
 
   test('a sender uploads an invoice, checks it and sends it', async ({ page }) => {
-    await signIn(page, '/portal/upload', 'partner', 'Attorney');
+    await signIn(page, 'partner', 'Attorney');
     const csv = [
       'invoice_number,case,date,type,timekeeper,description,hours,rate,amount,task_code,activity_code,expense_code',
       `${invoiceNumber},26-E2E-0001,2026-10-05,time,,Reviewing discovery,1.5,100,150,,,`,
       `${invoiceNumber},26-E2E-0001,2026-10-06,time,,Client meeting,1,100,100,,,`,
     ].join('\n');
 
+    await page.goto('/portal/upload');
     await page.locator('input[type="file"]').setInputFiles({ name: `${invoiceNumber}.csv`, mimeType: 'text/csv', buffer: Buffer.from(csv) });
     await page.getByRole('button', { name: 'Continue' }).click();
 
@@ -40,7 +41,8 @@ test.describe.serial('an invoice from upload to review', () => {
   });
 
   test('a reviewer decides every line and finishes the review', async ({ page }) => {
-    await signIn(page, `/billing/${invoiceId}`, 'staff', 'Staff');
+    await signIn(page, 'staff', 'Staff');
+    await page.goto(`/billing/${invoiceId}`);
     const undecided = page.getByRole('group', { name: 'Decide this line' });
     await expect(undecided).toHaveCount(2);
 
