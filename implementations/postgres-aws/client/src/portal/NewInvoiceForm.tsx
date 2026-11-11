@@ -28,6 +28,7 @@ import { AttestationCheckbox } from '../components/AttestationCheckbox';
 import { useReceipt } from './ReceivedFields';
 import { useShell } from './useShell';
 import { Button } from '../components/ui/Button';
+import { SegmentedChoice } from '../components/ui/SegmentedChoice';
 
 function draftSavedMessage(caseId: string | null, staff: boolean): string {
   if (caseId === null) return 'Saved. Match it to a case under "Waiting for a case".';
@@ -193,14 +194,16 @@ export function NewInvoiceForm({
         </div>
       )}
       {allowImport && (
-        <div className="choice-toggle" role="group" aria-label="How to add the invoice">
-          <button type="button" aria-pressed={mode === 'enter'} onClick={() => setMode('enter')}>
-            Enter items
-          </button>
-          <button type="button" aria-pressed={mode === 'import'} onClick={() => setMode('import')}>
-            Import a file
-          </button>
-        </div>
+        <SegmentedChoice
+          label="How to add the invoice"
+          className="segmented--above"
+          options={[
+            { value: 'enter', label: 'Enter items' },
+            { value: 'import', label: 'Import a file' },
+          ]}
+          value={mode}
+          onChange={setMode}
+        />
       )}
 
       {allowImport && mode === 'import' ? (

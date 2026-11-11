@@ -15,6 +15,7 @@ import { formatDate, formatPeriod } from '../formatDateTime';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { Notice } from './ui/Notice';
 import { Button, buttonClass } from './ui/Button';
+import { SegmentedChoice } from './ui/SegmentedChoice';
 
 // Checking time lines against a case time log (model/rules.yaml check_lines_against_time_log).
 
@@ -44,7 +45,7 @@ function ColumnSelect({ id, label, headers, value, onChange }: { id: string; lab
   return (
     <label htmlFor={id}>
       {label}
-      <select id={id} value={value ?? ''} onChange={(event) => onChange(event.target.value === '' ? undefined : Number(event.target.value))}>
+      <select className="usa-select" id={id} value={value ?? ''} onChange={(event) => onChange(event.target.value === '' ? undefined : Number(event.target.value))}>
         <option value="">None</option>
         {headers.map((header, index) => (
           <option key={index} value={index}>
@@ -456,7 +457,7 @@ function WorkerMatches({
                   <label className="usa-sr-only" htmlFor={`worker-${worker.name}`}>
                     Who is “{label}”?
                   </label>
-                  <select
+                  <select className="usa-select"
                     id={`worker-${worker.name}`}
                     value={chosen}
                     onChange={(event) => setChoices({ ...choices, [worker.name]: event.target.value })}
@@ -664,14 +665,16 @@ const USE_TEXT: Record<TimeLogEntryCheck['use'], string> = {
 // Which of the file and the log is beside the lines.
 export function SidePanelSwitch({ logShown, onShowLog }: { logShown: boolean; onShowLog: (shown: boolean) => void }) {
   return (
-    <div className="choice-toggle side-panel__switch" role="group" aria-label="Beside the lines">
-      <button type="button" aria-pressed={!logShown} onClick={() => onShowLog(false)}>
-        The file
-      </button>
-      <button type="button" aria-pressed={logShown} onClick={() => onShowLog(true)}>
-        Time log
-      </button>
-    </div>
+    <SegmentedChoice
+      label="Beside the lines"
+      className="segmented--above"
+      options={[
+        { value: 'file', label: 'The file' },
+        { value: 'log', label: 'Time log' },
+      ]}
+      value={logShown ? 'log' : 'file'}
+      onChange={(shown) => onShowLog(shown === 'log')}
+    />
   );
 }
 

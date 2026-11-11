@@ -12,7 +12,7 @@
 .line-row-suggested { color: var(--color-primary); }
 .line-trip { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: .25rem 1rem; }
 .line-trip .usa-form-group { flex: 1 1 14rem; margin: 0; }
-.line-trip .usa-label { margin-top: 0; font-size: .8rem; color: var(--color-on-surface-muted); }
+.line-trip .usa-label { margin-top: 0; }
 .line-trip .usa-input { max-width: none; margin-top: .2rem; }
 .line-trip .usa-checkbox { margin-bottom: .35rem; }
 /* A trip's miles and each travel expense take a line of their own under its route. */
@@ -38,7 +38,7 @@
 .line-total strong { color: var(--color-on-surface); font-size: 1rem; }
 /* Recorded, unbilled time to tick onto an invoice. */
 .unbilled-time { margin: 0 0 1rem; padding: .6rem .8rem; border: 1px solid var(--color-outline-subtle); border-radius: 6px; }
-.unbilled-time .usa-legend { font-size: .9rem; font-weight: 700; margin: 0 0 .3rem; }
+.unbilled-time .usa-legend { font-weight: 700; margin: 0 0 .3rem; }
 .unbilled-time .usa-checkbox { background: transparent; }
 .unbilled-time-row { display: inline-flex; flex-wrap: wrap; gap: .2rem 1rem; }
 .unbilled-time-description { color: var(--color-on-surface-variant); }
@@ -56,7 +56,7 @@
 .line-editor-head .amount, .line-editor .line-amount { justify-content: flex-end; text-align: right; }
 /* Who did the work and the task code sit under the description. */
 .line-what .line-meta { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; }
-.line-what .line-meta .usa-select { width: auto; min-width: 0; max-width: 14rem; height: 1.85rem; padding: 0 1.8rem 0 .5rem; font-size: .8rem; color: var(--color-on-surface-variant); }
+.line-what .line-meta .usa-select { width: auto; min-width: 0; max-width: 14rem; }
 .line-editor .line-amount { min-height: 2.25rem; align-items: center; }
 .line-editor .line-amount-priced { align-items: flex-end; }
 /* The configured rate may wrap under the stated one rather than overlap Hours. */

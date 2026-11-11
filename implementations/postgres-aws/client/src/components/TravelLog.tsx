@@ -85,7 +85,7 @@ function StopsNote({ lineId, stops }: { lineId: string; stops: StopsDismissal })
     >
       <label>
         What were the stops?
-        <input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} />
+        <input className="usa-input" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} />
       </label>
       <Button type="submit" kind="secondary" disabled={!reason.trim()}>Set the warning aside</Button>
       <button type="button" className="link-button" onClick={() => setOpen(false)}>Cancel</button>

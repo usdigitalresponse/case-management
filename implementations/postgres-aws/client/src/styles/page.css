@@ -7,7 +7,7 @@
 .list-toolbar .tag-filters { margin: 0; }
 .list-toolbar__filters { display: flex; flex: 0 1 34rem; align-items: center; gap: .75rem; }
 .list-toolbar__filters .clearable { flex: 1 1 14rem; min-width: 0; }
-.list-toolbar__filters .usa-select { height: 2.5rem; min-width: 12rem; }
+.list-toolbar__filters .usa-select { min-width: 12rem; }
 .list-count { color: var(--color-on-surface-muted); font-size: .85rem; white-space: nowrap; }
 .detail-section { margin-top: 2.2rem; }
 .detail-section h2 { font-size: 1.1rem; margin: 0 0 .85rem; }
@@ -40,6 +40,6 @@
 .list-controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem 1rem; margin: 0 0 1rem; }
 .list-controls .tag-filters { margin: 0; }
 .list-controls__search { flex: 0 1 18rem; }
-.list-controls__search .usa-input { max-width: none; width: 100%; height: 2.25rem; margin: 0; }
+.list-controls__search .usa-input { max-width: none; width: 100%; margin: 0; }
 .search-totals { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: .75rem 1rem; margin-top: 1rem; }
 .search-totals .compact-hint { margin: .2rem 0 0; }

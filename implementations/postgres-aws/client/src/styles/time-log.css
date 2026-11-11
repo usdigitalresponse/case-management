@@ -15,12 +15,11 @@
 .time-log-columns__grid label { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; font-weight: 600; color: var(--color-on-surface-variant); }
 .time-log-columns__grid .radio-choices label { flex-direction: row; font-weight: 400; color: var(--color-on-surface); }
 .time-log-columns__time { display: flex; flex-direction: column; gap: .3rem; }
-.time-log-columns select { height: 2.1rem; border: 1px solid var(--color-outline-variant); border-radius: 6px; background: var(--color-surface); }
 .time-log-summary .time-log-columns { margin-top: .7rem; }
 .time-log-workers ul { margin: 0; padding: 0; list-style: none; }
 .time-log-workers li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .4rem 1rem; padding: .4rem 0; border-top: 1px solid var(--color-outline-subtle); font-size: .9rem; }
 .time-log-workers__set, .time-log-workers__choose { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
-.time-log-workers select { height: 2.1rem; max-width: 18rem; border: 1px solid var(--color-outline-variant); border-radius: 6px; background: var(--color-surface); }
+.time-log-workers select { max-width: 18rem; }
 .time-log-details { margin-top: .7rem; font-size: .9rem; }
 .time-log-details summary { cursor: pointer; font-weight: 600; }
 .time-log-details ul { margin: .4rem 0 0; padding-left: 1.2rem; }

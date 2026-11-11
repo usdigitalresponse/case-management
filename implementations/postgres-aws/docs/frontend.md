@@ -451,8 +451,7 @@ How the React client is built and why. Schema mapping and gaps are in
   components map to code, and what to change for a new design system, is
   under "Changing the design system" below. Gaps: alert icons are not built,
   some sizes are still literal rather than on the type and spacing scales,
-  `.choice-toggle` is an older copy of the segmented control, and the gold
-  used for focus rings and for missing or flagged markers is under 3:1
+  and the gold used for focus rings and for missing or flagged markers is under 3:1
   against white, short of the non-text contrast minimum; it stays as
   specified until the design changes it.
 - **Case overview** (`/overview`, in the sidebar's Cases group since design
@@ -634,7 +633,7 @@ only layout and should not need to change.
 | Card | the `card` class | `styles/card.css` |
 | Modal | `components/ui/Dialog.tsx` | `styles/overlays.css` |
 | Segmented control | `components/ui/SegmentedChoice.tsx` | `styles/forms.css` |
-| Text input, select, text area, checkbox, radio | `@trussworks/react-uswds` markup | `styles/controls.css` |
+| Text input, select, text area, checkbox, radio | `@trussworks/react-uswds` markup, or plain elements with its class names | `styles/controls.css` (also plain checkboxes and radios, and a compact size for editing in table rows, which Figma doesn't specify) |
 | Table cell | `components/RecordTable.tsx` | `styles/tables.css` |
 | Link, breadcrumb | `components/PageHeader.tsx` | `styles/base.css`, `styles/page.css` |
 | Header, side navigation item | `App.tsx`, `portal/ExternalPortalApp.tsx` | `styles/layout.css` |

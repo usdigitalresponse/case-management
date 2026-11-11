@@ -25,9 +25,8 @@ form.compact-form { max-width: none; }
 .compact-card .notice { margin: 0 0 .6rem; }
 .inline-fields { display: grid; gap: .5rem .75rem; align-items: end; }
 .inline-fields .usa-form-group { margin: 0; min-width: 0; }
-.inline-fields .usa-label { margin: 0 0 .2rem; font-size: .85rem; max-width: none; }
-.inline-fields .usa-input, .inline-fields .usa-select { margin: 0; max-width: none; height: 2.25rem; padding: .25rem .5rem; font-size: .95rem; }
-.inline-fields .btn { height: 2.25rem; }
+.inline-fields .usa-label { margin: 0 0 .2rem; max-width: none; }
+.inline-fields .usa-input, .inline-fields .usa-select { margin: 0; max-width: none; }
 .inline-fields .usa-checkbox { grid-column: 1 / -1; background: transparent; }
 .time-entry-fields { grid-template-columns: 10rem 6rem minmax(0, 1fr) auto; }
 .time-entry-fields--with-professional { grid-template-columns: minmax(9rem, 13rem) 10rem 6rem minmax(0, 1fr) auto; }
@@ -37,21 +36,14 @@ form.compact-form { max-width: none; }
 .period-fields { grid-template-columns: 12rem 12rem; margin-bottom: .8rem; }
 .confirm-inline { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
 .confirm-inline__prompt { font-weight: 700; }
-/* The design's segmented control; the chosen option is bold, not only blue. */
-.choice-toggle { display: inline-flex; margin-bottom: .8rem; border: 1px solid var(--color-outline-variant); border-radius: var(--radius-small); background: var(--color-surface); }
-.choice-toggle button:first-child { border-radius: 3px 0 0 3px; }
-.choice-toggle button:last-child { border-radius: 0 3px 3px 0; }
-.choice-toggle button { min-height: 32px; border: 0; padding: 0 var(--space-5); background: transparent; color: var(--color-on-surface-variant); font-size: 12px; font-weight: 500; cursor: pointer; }
-.choice-toggle button + button { border-left: 1px solid var(--color-outline-variant); }
-.choice-toggle button:hover { background: var(--color-surface-container-low); }
-.choice-toggle button[aria-pressed="true"] { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; }
-/* Joined buttons for one choice of a few. */
-.segmented { display: inline-flex; border: 1px solid var(--color-outline-variant); border-radius: 6px; overflow: hidden; }
-.segmented__option { padding: .4rem .75rem; border: 0; border-left: 1px solid var(--color-outline-variant); background: var(--color-surface); color: var(--color-on-surface); font-size: .85rem; cursor: pointer; white-space: nowrap; }
+/* The design system's Segmented control (components/ui/SegmentedChoice.tsx). */
+.segmented { display: inline-flex; overflow: hidden; border: 1px solid var(--color-outline); border-radius: var(--radius-small); background: var(--color-surface); }
+.segmented--above { margin-bottom: var(--space-5); }
+.segmented__option { height: var(--space-9); padding: 0 var(--space-5); border: 0; border-left: 1px solid var(--color-outline); background: var(--color-surface); color: var(--color-on-surface); font: var(--body-medium); white-space: nowrap; cursor: pointer; }
 .segmented__option:first-child { border-left: 0; }
-.segmented__option.is-chosen { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; }
+.segmented__option.is-chosen { background: var(--color-primary-container-low); color: var(--color-primary); font: var(--label-large); }
 .segmented__option:disabled { cursor: default; }
-.segmented__option:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+.segmented .segmented__option:focus-visible { box-shadow: inset 0 0 0 2px var(--color-inverse-surface), inset 0 0 0 5px var(--color-focus); outline: 2px solid transparent; }
 @media (max-width: 760px) {
   /* Invoice item rows follow the editor's width instead (container queries in line-editor.css). */
   .inline-fields:not(.line-row) { grid-template-columns: 1fr !important; grid-auto-flow: row !important; }
@@ -60,9 +52,7 @@ form.compact-form { max-width: none; }
 .row-actions .confirm-inline { font-size: .85rem; }
 .row-actions .confirm-inline .btn { min-height: 0; padding: .3rem .6rem; font-size: 12px; }
 .list-toggle { margin: 0 0 .5rem; }
-.list-toggle .usa-checkbox__label { margin-top: 0; font-size: .9rem; }
-/* Compact selects keep USWDS's right padding clear of the arrow. */
-.inline-fields .usa-select, .assign-all .usa-select { padding-right: 2rem; }
+.list-toggle .usa-checkbox__label { margin-top: 0; }
 .inline-pair { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: .5rem; max-width: 18rem; }
 .inline-pair > span { padding-bottom: .5rem; color: var(--color-on-surface-muted); }
 .radio-row, .checkbox-row { display: flex; align-items: center; gap: .5rem; margin: .3rem 0; color: var(--color-on-surface); font-size: .9rem; cursor: pointer; }
@@ -70,7 +60,7 @@ form.compact-form { max-width: none; }
 .confirm-inline { padding: .35rem .6rem; background: var(--color-error-container); border-radius: 6px; }
 .confirm-inline__prompt { color: var(--color-on-error-container); }
 .dialog-field { margin: 0; padding: 0; border: 0; min-width: 0; }
-.dialog-field .usa-label { margin: 0 0 .35rem; font-size: .88rem; }
+.dialog-field .usa-label { margin: 0 0 .35rem; }
 .dialog-field .usa-input { max-width: none; width: 100%; margin: 0; }
 .dialog-field .field-hint, .dialog-field .field-error { margin: .3rem 0 0; }
 .dialog-field-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .9rem; }
@@ -79,6 +69,6 @@ form.compact-form { max-width: none; }
 /* Inline row editing keeps the table's layout: fields fill the columns as
    the text left them (size="1" stops an input asking for its own width),
    no taller than the row's select, with the actions on one line. */
-.row-edit__input { margin: 0; width: 100%; min-width: 0; height: 2.25rem; padding: .25rem .5rem; }
+.row-edit__input { margin: 0; width: 100%; min-width: 0; }
 .row-edit__actions { flex-wrap: nowrap; white-space: nowrap; }
 .row-edit__error { display: block; margin-top: .25rem; }

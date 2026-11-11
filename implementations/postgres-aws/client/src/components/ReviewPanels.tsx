@@ -185,7 +185,7 @@ export function SignOffPanel({
       {canSignOff && (
         <label className="send-back-form">
           Comment (needed to send it back)
-          <textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} />
+          <textarea className="usa-textarea" rows={3} value={comment} onChange={(event) => setComment(event.target.value)} />
           <span className="cell-note">
             Signing off or rejecting, everyone who sees the invoice sees it, as with line notes. Sending it back, only staff do.
           </span>

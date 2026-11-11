@@ -59,17 +59,23 @@
   --radius-medium: 8px;
   --radius-full: 999px;
 
-  /* Type roles: size, weight and face of each. */
+  /* Form fields (Figma's Text input, Checkbox and Radio button). */
+  --field-gap: 6px;
+  --mark-size: 18px;
+  /* Keyboard focus: a gold ring inside a navy one, clear of the control. */
+  --focus-ring: 0 0 0 2px var(--color-surface), 0 0 0 5px var(--color-focus), 0 0 0 7px var(--color-inverse-surface);
+
+  /* Type roles: weight, size, line height where Figma gives one, and face. */
   --headline-large: 600 32px var(--font-serif);
   --headline-medium: 600 26px var(--font-serif);
-  --headline-small: 600 20px var(--font-serif);
+  --headline-small: 600 20px/1.25 var(--font-serif);
   --title-large: 600 18px var(--font-sans);
   --title-medium: 600 15px var(--font-sans);
   --title-small: 600 11px var(--font-sans);
   --body-large: 400 15px var(--font-sans);
-  --body-medium: 400 13px var(--font-sans);
-  --body-small: 400 11px var(--font-sans);
-  --label-large: 600 13px var(--font-sans);
+  --body-medium: 400 13px/1.5 var(--font-sans);
+  --body-small: 400 11px/1.45 var(--font-sans);
+  --label-large: 600 13px/1.25 var(--font-sans);
   --label-medium: 500 12px var(--font-sans);
   --label-small: 600 11px var(--font-sans);
 

@@ -17,7 +17,7 @@
 /* A button laid out as a note keeps the link's look. */
 .link-button.trip-note { color: var(--color-primary); font-size: inherit; }
 .stops-form { display: grid; gap: .4rem; margin-top: .4rem; font-size: .85rem; }
-.stops-form input { display: block; width: 100%; box-sizing: border-box; margin-top: .2rem; padding: .35rem .5rem; border: 1px solid var(--color-outline-variant); border-radius: 6px; }
+.stops-form input { width: 100%; margin-top: .2rem; }
 .rule-findings ul { margin: .3rem 0 0; padding-left: 1.2rem; }
 /* An invoice whose lines are still being entered (EntryBadge). */
 .entry-badge { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: 0 0 1rem; }
@@ -49,7 +49,7 @@
 .icon-link { display: inline-flex; align-items: center; margin-left: .6rem; vertical-align: middle; color: var(--color-primary); }
 .question-form { margin: 0; padding: .4rem 1.5rem .6rem; border-left: 3px solid var(--color-primary); background: var(--color-primary-container-low); }
 .question-form__row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; }
-.question-form__row .usa-input { flex: 1 1 18rem; max-width: 36rem; margin: 0; padding: .35rem .6rem; height: auto; }
+.question-form__row .usa-input { flex: 1 1 18rem; max-width: 36rem; margin: 0; }
 .question-form__row .btn { padding: .35rem .9rem; }
 .question-form .cell-note { margin-top: .25rem; }
 /* A line's questions, in the full-width row under it. */
@@ -64,7 +64,7 @@
 .question-tags { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .25rem; }
 .line-question__answer { flex-basis: 100%; }
 .line-question__answer label { display: block; font-size: .85rem; color: var(--color-on-surface-variant); }
-.line-question__answer textarea { display: block; width: 100%; box-sizing: border-box; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid var(--color-outline-variant); border-radius: 6px; color: var(--color-on-surface); background: var(--color-surface); }
+.line-question__answer textarea { width: 100%; margin-top: .25rem; }
 .decision-hint { color: var(--color-primary); }
 .decision-summary__head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .decision-summary__why { margin: .3rem 0 0; font-size: .88rem; }
@@ -78,7 +78,7 @@
 .decision-panel fieldset { margin: 0; padding: 0; border: 0; }
 .decision-panel legend { margin-bottom: .5rem; font-weight: 600; font-size: .9rem; }
 .decision-panel label { font-size: .85rem; color: var(--color-on-surface-variant); }
-.decision-panel input[type="number"], .decision-panel textarea, .send-back-form textarea { display: block; width: 100%; box-sizing: border-box; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid var(--color-outline-variant); border-radius: 6px; color: var(--color-on-surface); background: var(--color-surface); }
+.decision-panel input[type="number"], .decision-panel textarea, .send-back-form textarea { width: 100%; margin-top: .25rem; }
 .decision-panel__result { margin: .8rem 0 0; }
 .decision-panel__result strong { display: block; font-size: 1.1rem; color: var(--color-on-surface); }
 .decision-panel__note { display: block; }
@@ -87,7 +87,7 @@
 .decision-panel--rate input[type="number"] { max-width: 10rem; }
 .decision-panel__case-rate { margin: .6rem 0 0 1.6rem; display: grid; gap: .6rem; }
 .decision-panel__case-rate .inline-pair { grid-template-columns: 1fr 1fr; max-width: 26rem; }
-.decision-panel select, .decision-panel input[type="date"] { display: block; width: 100%; box-sizing: border-box; margin-top: .25rem; padding: .45rem .6rem; border: 1px solid var(--color-outline-variant); border-radius: 6px; color: var(--color-on-surface); background: var(--color-surface); }
+.decision-panel select, .decision-panel input[type="date"] { width: 100%; margin-top: .25rem; }
 .case-rates { margin: 1rem 0; }
 .case-rates summary { cursor: pointer; font-size: .9rem; color: var(--color-on-surface-variant); }
 /* Totals and sign-off */

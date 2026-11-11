@@ -5,15 +5,14 @@ a { color: var(--color-primary); }
 button, input, select, textarea { font: inherit; }
 /* Matches USWDS's focus selectors so the design's ring replaces its blue one. */
 [href]:focus, [tabindex]:focus, [contenteditable]:focus, button:not([disabled]):focus, input:not([disabled]):focus, select:not([disabled]):focus, textarea:not([disabled]):focus { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary); }
-.field-hint { margin: .4rem 0 0; color: var(--color-on-surface-muted); font-size: .78rem; line-height: 1.4; }
+.field-hint { margin: var(--field-gap) 0 0; }
 .compact-hint { color: var(--color-on-surface-muted); font-size: .85rem; margin: .45rem 0 0; }
 .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .muted { color: var(--color-on-surface-muted); }
 .cell-note { display: block; margin-top: .15rem; font-size: .8rem; line-height: 1.35; color: var(--color-on-surface-muted); }
 .cell-flag { display: block; margin-top: .15rem; font-size: .8rem; line-height: 1.35; color: var(--color-on-tertiary-container); }
 .empty-note { padding: 2rem 1rem; text-align: center; color: var(--color-on-surface-muted); background: var(--color-surface); border: 1px dashed var(--color-outline-subtle); border-radius: var(--radius-medium); }
-.field-error { color: var(--color-error); font-weight: 600; margin: .5rem 0 0; }
+.field-error { margin: var(--field-gap) 0 0; }
 .link-button { border: 0; padding: 0; background: none; color: var(--color-primary); cursor: pointer; font-size: inherit; text-decoration: none; }
 .link-button:hover:not(:disabled) { text-decoration: underline; }
 .link-button:disabled { color: var(--color-on-surface-muted); cursor: not-allowed; }

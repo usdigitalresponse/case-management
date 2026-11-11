@@ -1,19 +1,21 @@
-// One choice from a few, shown as joined buttons, as in design I's Settings.
+// The design system's Segmented control: one of two or three short options.
 export function SegmentedChoice<T extends string>({
   label,
   options,
   value,
   disabled = false,
+  className,
   onChange,
 }: {
   label: string;
   options: Array<{ value: T; label: string }>;
   value: T;
   disabled?: boolean;
+  className?: string;
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="segmented" role="radiogroup" aria-label={label}>
+    <div className={className ? `segmented ${className}` : 'segmented'} role="radiogroup" aria-label={label}>
       {options.map((option) => (
         <button
           key={option.value}

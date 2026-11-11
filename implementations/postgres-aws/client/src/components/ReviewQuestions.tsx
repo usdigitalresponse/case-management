@@ -150,7 +150,7 @@ function AnswerForm({ staff, saving, onAnswer }: { staff: boolean; saving: boole
     >
       <label className="decision-panel__question">
         {staff ? 'Their answer, by phone, email or in person' : 'Your answer'}
-        <textarea rows={2} maxLength={MAX_QUESTION_LENGTH} value={answer} onChange={(event) => setAnswer(event.target.value)} />
+        <textarea className="usa-textarea" rows={2} maxLength={MAX_QUESTION_LENGTH} value={answer} onChange={(event) => setAnswer(event.target.value)} />
         <span className="cell-note">
           {staff ? 'Recorded under your name. Review continues once every question is answered.' : 'The billing office sees it, and it stays on the invoice.'}
         </span>
