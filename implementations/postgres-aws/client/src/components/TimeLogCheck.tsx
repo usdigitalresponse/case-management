@@ -16,6 +16,7 @@ import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { Notice } from './ui/Notice';
 import { Button, buttonClass } from './ui/Button';
 import { SegmentedChoice } from './ui/SegmentedChoice';
+import { Tag } from './ui/Tag';
 
 // Checking time lines against a case time log (model/rules.yaml check_lines_against_time_log).
 
@@ -338,7 +339,7 @@ export function TimeLogSummary({
           <strong>
             {checked.length - flagged.length} of {checked.length} time {checked.length === 1 ? 'line matches' : 'lines match'}
           </strong>
-          {flagged.length > 0 && <span className="time-log-flag-count">{flagged.length} flagged</span>}
+          {flagged.length > 0 && <Tag tone="warning">{flagged.length} flagged</Tag>}
           <span className="cell-note">
             {inPeriod.length} log {inPeriod.length === 1 ? 'entry' : 'entries'} in the billing period
             {count('outside_period') > 0 && `, ${count('outside_period')} outside it`}

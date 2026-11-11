@@ -24,24 +24,22 @@ progress { vertical-align:baseline; }
 ::-webkit-search-decoration { -webkit-appearance:none; }
 ::-webkit-file-upload-button { -webkit-appearance:button; font:inherit; }
 summary { display:list-item; }
-body { color:#1b1b1b; background-color:white; overflow-x:hidden; }
-input:not([disabled]):focus, select:not([disabled]):focus, textarea:not([disabled]):focus, button:not([disabled]):focus { outline:0.25rem solid #2491ff; outline-offset:0rem; }
-iframe:focus, [href]:focus, [tabindex]:focus, [contentEditable=true]:focus { outline:0.25rem solid #2491ff; outline-offset:0rem; }
+body { color:var(--color-on-surface); background-color:var(--color-surface); overflow-x:hidden; }
+input:not([disabled]):focus, select:not([disabled]):focus, textarea:not([disabled]):focus, button:not([disabled]):focus { outline:2px solid var(--color-focus); outline-offset:2px; }
+iframe:focus, [href]:focus, [tabindex]:focus, [contentEditable=true]:focus { outline:2px solid var(--color-focus); outline-offset:2px; }
 img { max-width:100%; }
 html { box-sizing:border-box; }
 *, *::before, *::after { box-sizing:inherit; }
 html { font-feature-settings:"kern" 1; font-kerning:normal; font-family:var(--font-sans); font-size:100%; }
 cite, var, address, dfn { font-style:normal; }
 .usa-sr-only { position:absolute; left:-999em; right:auto; }
-.usa-skipnav { font-family:var(--font-sans); font-size:1.06rem; line-height:1.5; color:#005ea2; text-decoration:underline; }
-.usa-skipnav:visited { color:#54278f; }
-.usa-skipnav:hover { color:#1a4480; }
-.usa-skipnav:active { color:#162e51; }
-.usa-skipnav:focus { outline:0.25rem solid #2491ff; outline-offset:0rem; }
+.usa-skipnav { font:var(--body-medium); color:var(--color-primary); text-decoration:underline; }
+.usa-skipnav:hover { color:var(--color-primary-hover); }
+.usa-skipnav:focus { outline:2px solid var(--color-focus); outline-offset:2px; }
 .usa-skipnav { transition:top 0.15s ease-in-out; }
 @media (prefers-reduced-motion) {
   .usa-skipnav { transition:none; }
 }
 .usa-skipnav { background:transparent; left:0; padding:0.5rem 1rem; position:absolute; top:-3.8rem; z-index:100; }
-.usa-skipnav:focus { background:white; left:0; position:absolute; top:0; }
+.usa-skipnav:focus { background:var(--color-surface); left:0; position:absolute; top:0; }
 .width-full { width:100%; }

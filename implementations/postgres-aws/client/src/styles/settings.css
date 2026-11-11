@@ -1,52 +1,52 @@
 /* Settings (pages/Settings.tsx). */
 /* Settings (design I): an index of its sections, then cards. */
-.page-index { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .4rem 0 1rem; font-size: .85rem; color: var(--color-on-surface-variant); }
-.page-index a { padding: .3rem .8rem; border: 1px solid var(--color-outline-variant); border-radius: var(--radius-full); background: var(--color-surface); color: var(--color-primary); font-weight: 600; text-decoration: none; }
+.page-index { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin: var(--space-4) 0 var(--space-6); font-size: var(--text-13); color: var(--color-on-surface-variant); }
+.page-index a { padding: var(--space-3) var(--space-5); border: 1px solid var(--color-outline-variant); border-radius: var(--radius-full); background: var(--color-surface); color: var(--color-primary); font-weight: 600; text-decoration: none; }
 .page-index a.is-current { background: var(--color-on-surface); border-color: var(--color-on-surface); color: var(--color-surface); }
-.settings-section { margin-bottom: 2.5rem; scroll-margin-top: 1rem; }
-.settings-section > h2 { margin: 1.2rem 0 .3rem; }
-.settings-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 1rem; align-items: start; }
+.settings-section { margin-bottom: var(--space-10); scroll-margin-top: 1rem; }
+.settings-section > h2 { margin: var(--space-7) 0 var(--space-3); }
+.settings-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: var(--space-6); align-items: start; }
 .settings-columns--even { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
 .settings-columns .compact-card { margin-top: 0; }
 .settings-columns .settings-form { max-width: none; }
 .settings-columns .settings-form select { max-width: none; width: 100%; }
 .settings-columns table th[scope="row"] { font-weight: 400; }
-.settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 1rem; align-items: start; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--space-6); align-items: start; }
 .settings-grid .compact-card { margin-top: 0; min-width: 0; }
 /* Narrow cards: the fields share a row and the button goes under them. */
-.settings-grid .rate-fields { grid-template-columns: minmax(0, .8fr) minmax(8.75rem, 1.2fr); gap: .5rem; }
-.settings-columns .rate-fields { grid-template-columns: minmax(0, 1fr) minmax(8.75rem, 1fr); gap: .5rem; }
+.settings-grid .rate-fields { grid-template-columns: minmax(0, .8fr) minmax(8.75rem, 1.2fr); gap: var(--space-4); }
+.settings-columns .rate-fields { grid-template-columns: minmax(0, 1fr) minmax(8.75rem, 1fr); gap: var(--space-4); }
 .settings-grid .rate-fields .btn, .settings-columns .rate-fields .btn, .settings-columns .rate-fields .link-button { grid-column: 1 / -1; justify-self: start; }
 .settings-grid .rate-fields .usa-input { min-width: 0; }
-.settings-kind h3 { margin: 0 0 .3rem; }
-.rate-fields { grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 1fr) auto; align-items: end; margin-top: .8rem; }
-.settings-basis { margin: .8rem 0 0; padding: 0; border: 0; }
-.settings-basis legend { font-weight: 600; font-size: .85rem; margin-bottom: .2rem; }
-.role-summary { display: grid; grid-template-columns: 10rem 1fr; gap: .4rem 1rem; margin: .5rem 0 0; font-size: .92rem; }
+.settings-kind h3 { margin: 0 0 var(--space-3); }
+.rate-fields { grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 1fr) auto; align-items: end; margin-top: var(--space-5); }
+.settings-basis { margin: var(--space-5) 0 0; padding: 0; border: 0; }
+.settings-basis legend { font-weight: 600; font-size: var(--text-13); margin-bottom: var(--space-3); }
+.role-summary { display: grid; grid-template-columns: 10rem 1fr; gap: var(--space-4) var(--space-6); margin: var(--space-4) 0 0; font-size: var(--text-15); }
 .role-summary dt { font-weight: 600; }
 .role-summary dd { margin: 0; color: var(--color-on-surface-variant); }
 .settings-rules { padding: 0; }
-.settings-rule-row { display: grid; grid-template-columns: minmax(14rem, 1.4fr) 12rem minmax(10rem, 1fr) auto; gap: .6rem 1.2rem; align-items: center; padding: .8rem 1.1rem; border-top: 1px solid var(--color-outline-subtle); }
+.settings-rule-row { display: grid; grid-template-columns: minmax(14rem, 1.4fr) 12rem minmax(10rem, 1fr) auto; gap: var(--space-4) var(--space-7); align-items: center; padding: var(--space-5) var(--space-6); border-top: 1px solid var(--color-outline-subtle); }
 .settings-rule-row:first-child { border-top: 0; }
-.settings-rule-row h3 { margin: 0; font-size: .95rem; }
-.settings-rule-row .compact-hint { margin: .15rem 0 0; }
-.settings-rule-row__fields { display: flex; flex-wrap: wrap; align-items: end; gap: .6rem; }
+.settings-rule-row h3 { margin: 0; font-size: var(--text-15); }
+.settings-rule-row .compact-hint { margin: var(--space-2) 0 0; }
+.settings-rule-row__fields { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-4); }
 .settings-rule-row__fields .usa-form-group { margin: 0; }
-.settings-rule-row__fields .usa-input { width: 6rem; margin-top: .2rem; }
-.settings-codes { margin-top: 1.5rem; }
-.settings-codes > h2 { margin: 0 0 .3rem; }
+.settings-rule-row__fields .usa-input { width: 6rem; margin-top: var(--space-3); }
+.settings-codes { margin-top: var(--space-8); }
+.settings-codes > h2 { margin: 0 0 var(--space-3); }
 @media (max-width: 64rem) {
   .settings-columns { grid-template-columns: 1fr; }
   .settings-rule-row { grid-template-columns: 1fr; }
 }
 /* Settings: review routing and roles */
-.section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.section-title-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-6); }
 .section-title-row h3 { margin: 0; }
 .settings-form { max-width: 40rem; }
-.settings-field { display: block; margin: 1rem 0 0; padding: 0; border: 0; font-weight: 600; font-size: .9rem; }
-.settings-field legend { font-weight: 600; margin-bottom: .4rem; }
-.settings-field .usa-select { max-width: 24rem; margin-top: .3rem; }
+.settings-field { display: block; margin: var(--space-6) 0 0; padding: 0; border: 0; font-weight: 600; font-size: var(--text-15); }
+.settings-field legend { font-weight: 600; margin-bottom: var(--space-4); }
+.settings-field .usa-select { max-width: 24rem; margin-top: var(--space-3); }
 .settings-field .choice-list { max-width: 24rem; font-weight: 400; }
-.settings-number { max-width: 6rem; margin-top: .3rem; }
+.settings-number { max-width: 6rem; margin-top: var(--space-3); }
 .settings-role { margin: 0; max-width: 14rem; }
-.reason-fields { grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; margin-top: .9rem; }
+.reason-fields { grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; margin-top: var(--space-6); }

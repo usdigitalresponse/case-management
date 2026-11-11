@@ -1,20 +1,20 @@
 /* Case overview, case and person pages, and pre-authorizations. */
-.close-case-form { display: flex; flex-direction: column; gap: .5rem; min-width: 240px; }
+.close-case-form { display: flex; flex-direction: column; gap: var(--space-4); min-width: 240px; }
 .close-case-form .usa-input { margin: 0; }
-.close-case-buttons { display: flex; gap: .5rem; }
-.close-here .compact-hint { margin-bottom: .75rem; }
+.close-case-buttons { display: flex; gap: var(--space-4); }
+.close-here .compact-hint { margin-bottom: var(--space-5); }
 /* Case overview (design I47): a card per stage with its count. */
-.stage-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
-.stage-card { min-width: 0; padding: 1rem 1.1rem; }
-.stage-card h2 { margin: 0; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-on-surface-variant); }
-.stage-card__count { margin: .4rem 0 0; font-family: var(--font-serif); font-size: 2rem; font-weight: 600; line-height: 1; }
-.stage-card__what { margin: .5rem 0 .9rem; font-size: .8rem; color: var(--color-on-surface-muted); }
+.stage-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-6); margin-top: var(--space-6); }
+.stage-card { min-width: 0; padding: var(--space-6) var(--space-6); }
+.stage-card h2 { margin: 0; font-size: var(--text-12); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-on-surface-variant); }
+.stage-card__count { margin: var(--space-4) 0 0; font-family: var(--font-serif); font-size: var(--text-32); font-weight: 600; line-height: 1; }
+.stage-card__what { margin: var(--space-4) 0 var(--space-6); font-size: var(--text-13); color: var(--color-on-surface-muted); }
 .stage-card ul { list-style: none; margin: 0; padding: 0; }
-.stage-card li { display: grid; margin-bottom: .6rem; }
+.stage-card li { display: grid; margin-bottom: var(--space-4); }
 .stage-card li a { font-weight: 600; }
-.view-all { display: inline-block; font-size: .85rem; font-weight: 600; text-decoration: none; }
-.assign-staff-form { margin-top: 1rem; }
-.assign-staff-row { display: flex; align-items: flex-start; gap: .75rem; }
+.view-all { display: inline-block; font-size: var(--text-13); font-weight: 600; text-decoration: none; }
+.assign-staff-form { margin-top: var(--space-6); }
+.assign-staff-row { display: flex; align-items: flex-start; gap: var(--space-5); }
 .assign-staff-row .type-ahead { flex: 1; max-width: 400px; }
 .assign-staff-row .clearable__input { margin-top: 0; }
 @media (max-width: 900px) {
@@ -26,30 +26,30 @@
 /* Case page */
 .case-list-table td, .case-list-table th { white-space: nowrap; }
 .sender-choices { margin: 0; padding: 0; border: 0; }
-.sender-choices .radio-row { display: inline-flex; margin-right: 1.5rem; }
+.sender-choices .radio-row { display: inline-flex; margin-right: var(--space-8); }
 /* A case's page (design I49). */
-.case-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-.case-columns .compact-card h2, .compact-card > h2 { margin: 0 0 .6rem; font-size: 1.05rem; }
-.preauth-billed + .preauth-billed { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--color-outline-subtle); }
+.case-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+.case-columns .compact-card h2, .compact-card > h2 { margin: 0 0 var(--space-4); font-size: var(--text-18); }
+.preauth-billed + .preauth-billed { margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--color-outline-subtle); }
 .preauth-billed dl { margin: 0; }
-.preauth-billed dl div { display: flex; justify-content: space-between; gap: 1rem; padding: .2rem 0; font-size: .9rem; }
+.preauth-billed dl div { display: flex; justify-content: space-between; gap: var(--space-6); padding: var(--space-3) 0; font-size: var(--text-15); }
 .preauth-billed dt { color: var(--color-on-surface-variant); }
 .preauth-billed dd { margin: 0; font-weight: 600; }
-.preauth-bar { display: flex; height: 8px; margin: .6rem 0 .3rem; border-radius: var(--radius-small); background: var(--color-outline-subtle); overflow: hidden; }
+.preauth-bar { display: flex; height: 8px; margin: var(--space-4) 0 var(--space-3); border-radius: var(--radius-small); background: var(--color-outline-subtle); overflow: hidden; }
 .preauth-bar__approved { width: var(--approved); background: var(--color-success); }
 .preauth-bar__waiting { width: var(--waiting); background: var(--color-primary); opacity: .45; }
 @media (max-width: 64rem) {
   .case-columns { grid-template-columns: 1fr; }
 }
-.preauth-form { margin-top: .8rem; align-items: end; }
+.preauth-form { margin-top: var(--space-5); align-items: end; }
 .preauth-request-form .inline-fields, .preauth-page .inline-fields, .list-controls .inline-fields { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
-.preauth-question { padding: .5rem 0; border-bottom: 1px solid var(--color-outline-subtle); }
-.preauth-question p { margin: .2rem 0; }
-.preauth-question .cell-note, .plain-list .cell-note { margin-left: .5rem; }
-.plain-list { margin: 0 0 .6rem; padding: 0; list-style: none; }
-.plain-list li { padding: .2rem 0; }
-.preauth-message { display: grid; gap: .5rem; justify-items: start; margin-top: .5rem; }
+.preauth-question { padding: var(--space-4) 0; border-bottom: 1px solid var(--color-outline-subtle); }
+.preauth-question p { margin: var(--space-3) 0; }
+.preauth-question .cell-note, .plain-list .cell-note { margin-left: var(--space-4); }
+.plain-list { margin: 0 0 var(--space-4); padding: 0; list-style: none; }
+.plain-list li { padding: var(--space-3) 0; }
+.preauth-message { display: grid; gap: var(--space-4); justify-items: start; margin-top: var(--space-4); }
 .preauth-message .usa-textarea { width: 100%; max-width: 40rem; margin: 0; }
 .add-person { flex-basis: 100%; max-width: 36rem; }
-.person-form { display: flex; flex-direction: column; gap: .9rem; min-width: min(34rem, 100%); }
+.person-form { display: flex; flex-direction: column; gap: var(--space-6); min-width: min(34rem, 100%); }
 .person-form > p { margin: 0; color: var(--color-on-surface-variant); }

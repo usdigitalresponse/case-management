@@ -449,9 +449,10 @@ How the React client is built and why. Schema mapping and gaps are in
   rules the pages rely on are in `styles/reset.css` and `styles/controls.css`,
   and `@trussworks/react-uswds` still renders form markup. How the Figma
   components map to code, and what to change for a new design system, is
-  under "Changing the design system" below. Gaps: alert icons are not built,
-  some sizes are still literal rather than on the type and spacing scales,
-  and the gold used for focus rings and for missing or flagged markers is under 3:1
+  under "Changing the design system" below. Every font size, margin, padding, gap,
+  radius and color in `styles/` is a token; line heights, letter spacing and
+  widths are still literal. Gaps: alert icons are not built, and the gold
+  used for focus rings and for missing or flagged markers is under 3:1
   against white, short of the non-text contrast minimum; it stays as
   specified until the design changes it.
 - **Case overview** (`/overview`, in the sidebar's Cases group since design
@@ -615,8 +616,9 @@ How the React client is built and why. Schema mapping and gaps are in
 A new design system changes three places; pages and area stylesheets hold
 only layout and should not need to change.
 
-1. **Tokens** (`client/src/styles/tokens.css`): every color, type role,
-   spacing step, radius and elevation. Map each of the new system's tokens
+1. **Tokens** (`client/src/styles/tokens.css`): every color, type size
+   (`--text-13`…) and role (`--body-medium`…), spacing step, radius,
+   elevation, and the form-field sizes and focus ring. Map each of the new system's tokens
    onto one of ours by role (its "primary" to `--color-primary`, its body
    text to `--body-medium`), or rename ours to match and replace the names
    throughout `src/styles/`.

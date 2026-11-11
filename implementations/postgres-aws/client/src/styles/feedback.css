@@ -1,21 +1,21 @@
 /* Chips, notices, toasts and flags on entered details. */
 /* Tags (components/ui/Tag.tsx), including status and filter tags. */
-.tag { display: inline-flex; align-items: center; gap: .35rem; padding: var(--space-2) var(--space-4); border-radius: var(--radius-small); font-family: var(--font-sans); font-size: 11px; font-weight: 600; letter-spacing: .2px; line-height: 1.25; background: var(--color-secondary-container); color: var(--color-on-secondary-container); white-space: nowrap; border: 0; }
+.tag { display: inline-flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-radius: var(--radius-small); font-family: var(--font-sans); font-size: var(--text-11); font-weight: 600; letter-spacing: .2px; line-height: 1.25; background: var(--color-secondary-container); color: var(--color-on-secondary-container); white-space: nowrap; border: 0; }
 .tag--success { background: var(--color-success-container); color: var(--color-on-success-container); }
 .tag--warning { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
 .tag--danger { background: var(--color-error-container); color: var(--color-on-error-container); }
 .tag--info { background: var(--color-primary-container); color: var(--color-on-primary-container); }
-.tag--filter { cursor: pointer; padding: .3rem .75rem; }
+.tag--filter { cursor: pointer; padding: var(--space-3) var(--space-5); }
 .tag--filter[aria-pressed="true"] { background: var(--color-on-surface); color: var(--color-surface); }
 .tag--filter[aria-pressed="false"]:not(.tag--warning) { background: var(--color-surface-container); color: var(--color-on-surface-variant); }
-.tag-filters { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
+.tag-filters { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: 0 0 var(--space-6); }
 .tag-count { font-weight: 400; }
 /* Notices (components/Notice.tsx): context with an optional action. */
-.notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin: 0 0 1rem; padding: .75rem 1rem; border-radius: var(--radius-small); border-left: 3px solid; font-size: .88rem; }
+.notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4) var(--space-6); margin: 0 0 var(--space-6); padding: var(--space-5) var(--space-6); border-radius: var(--radius-small); border-left: 3px solid; font-size: var(--text-15); }
 .notice__body { flex: 1 1 20rem; min-width: 0; }
-.notice__heading { display: block; margin: 0 0 .2rem; font-size: .95rem; font-weight: 700; }
-.notice__body ul { margin: .2rem 0 0; padding-left: 1.2rem; }
-.notice__action { display: flex; flex-wrap: wrap; gap: .5rem; }
+.notice__heading { display: block; margin: 0 0 var(--space-3); font-size: var(--text-15); font-weight: 700; }
+.notice__body ul { margin: var(--space-3) 0 0; padding-left: var(--space-7); }
+.notice__action { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .notice a { color: inherit; font-weight: 700; }
 .notice a.btn--secondary { color: var(--color-primary); font-weight: 600; }
 .notice--warning { background: var(--color-tertiary-container); border-color: var(--color-tertiary); color: var(--color-on-tertiary-container); }
@@ -23,10 +23,11 @@
 .notice--success { background: var(--color-success-container); border-color: var(--color-success); color: var(--color-on-success-container); }
 .notice--danger { background: var(--color-error-container); border-color: var(--color-error); color: var(--color-on-error-container); }
 /* Message with Undo, at the bottom of the screen. */
-.toast { position: fixed; z-index: 30; left: 50%; bottom: 2rem; transform: translateX(-50%); display: flex; align-items: center; gap: 1.5rem; padding: .7rem 1.1rem; border-radius: var(--radius-medium); background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); box-shadow: var(--elevation-3); font-size: .9rem; }
+.toast { position: fixed; z-index: 30; left: 50%; bottom: 2rem; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-8); padding: var(--space-5) var(--space-6); border-radius: var(--radius-medium); background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); box-shadow: var(--elevation-3); font-size: var(--text-15); }
 .toast__undo { border: 0; background: none; color: var(--color-inverse-primary); font-weight: 700; cursor: pointer; padding: 0; }
-.entered-flag { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .5rem; margin: .15rem .25rem 0 0; border-radius: var(--radius-full); border: 1px solid var(--color-tertiary); background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); font-size: .72rem; font-weight: 700; white-space: normal; }
+/* A Tag marking what a submitter entered rather than chose. */
+.entered-flag { margin: var(--space-2) var(--space-3) 0 0; white-space: normal; }
 .entered-flag::before { content: "⚑"; }
-.entered-details { margin: .4rem 0 .6rem; padding-left: 1.1rem; }
-.entered-details p { margin: .2rem 0; }
-.entered-flag--compact { padding: 0 .45rem; font-size: .7rem; white-space: nowrap; vertical-align: middle; cursor: help; }
+.entered-details { margin: var(--space-4) 0 var(--space-4); padding-left: var(--space-6); }
+.entered-details p { margin: var(--space-3) 0; }
+.entered-flag--compact { white-space: nowrap; vertical-align: middle; cursor: help; }

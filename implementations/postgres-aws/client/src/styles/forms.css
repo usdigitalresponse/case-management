@@ -4,37 +4,37 @@
    fine for a single-column form, but it squeezes .form-grid's 2-column
    layout into a sliver. Override it for the one form that needs room. */
 form.case-intake-form { max-width: 52rem; }
-.form-card { padding: 1.6rem 1.7rem; margin-bottom: 1.3rem; }
+.form-card { padding: var(--space-8) var(--space-8); margin-bottom: var(--space-7); }
 .form-card .usa-fieldset { margin: 0; }
-.form-card legend { padding: 0 0 .3rem; }
-.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1.5rem; }
-.form-grid > .usa-form-group { margin-top: 1rem; }
-.form-actions { display: flex; align-items: center; gap: 1rem; }
+.form-card legend { padding: 0 0 var(--space-3); }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-8); }
+.form-grid > .usa-form-group { margin-top: var(--space-6); }
+.form-actions { display: flex; align-items: center; gap: var(--space-6); }
 @media (max-width: 700px) {
   .form-grid { grid-template-columns: 1fr; }
 }
-.invoice-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .9rem; }
+.invoice-actions { display: flex; gap: var(--space-4); flex-wrap: wrap; margin-top: var(--space-6); }
 /* A destructive action sits apart on the right; asking to confirm takes its own row. */
 .invoice-actions .actions-end { margin-left: auto; }
-.invoice-actions .actions-end:has(.confirm-inline) { flex-basis: 100%; margin-left: 0; padding: .6rem .8rem; background: var(--color-tertiary-container); border-radius: 6px; }
-.actions-hint + .invoice-actions { margin-top: .5rem; }
+.invoice-actions .actions-end:has(.confirm-inline) { flex-basis: 100%; margin-left: 0; padding: var(--space-4) var(--space-5); background: var(--color-tertiary-container); border-radius: var(--radius-small); }
+.actions-hint + .invoice-actions { margin-top: var(--space-4); }
 form.compact-form { max-width: none; }
-.compact-card { padding: .9rem 1.1rem; margin-top: .9rem; }
-.compact-card h2 { font-size: 1.1rem; margin: 0 0 .6rem; }
-.compact-card h3 { font-size: 1rem; margin: 0 0 .6rem; }
-.compact-card .notice { margin: 0 0 .6rem; }
-.inline-fields { display: grid; gap: .5rem .75rem; align-items: end; }
+.compact-card { padding: var(--space-6) var(--space-6); margin-top: var(--space-6); }
+.compact-card h2 { font-size: var(--text-18); margin: 0 0 var(--space-4); }
+.compact-card h3 { font-size: var(--text-15); margin: 0 0 var(--space-4); }
+.compact-card .notice { margin: 0 0 var(--space-4); }
+.inline-fields { display: grid; gap: var(--space-4) var(--space-5); align-items: end; }
 .inline-fields .usa-form-group { margin: 0; min-width: 0; }
-.inline-fields .usa-label { margin: 0 0 .2rem; max-width: none; }
+.inline-fields .usa-label { margin: 0 0 var(--space-3); max-width: none; }
 .inline-fields .usa-input, .inline-fields .usa-select { margin: 0; max-width: none; }
 .inline-fields .usa-checkbox { grid-column: 1 / -1; background: transparent; }
 .time-entry-fields { grid-template-columns: 10rem 6rem minmax(0, 1fr) auto; }
 .time-entry-fields--with-professional { grid-template-columns: minmax(9rem, 13rem) 10rem 6rem minmax(0, 1fr) auto; }
-.compact-file { font-size: .9rem; max-width: 100%; }
+.compact-file { font-size: var(--text-15); max-width: 100%; }
 .import-fields { grid-template-columns: minmax(0, 1fr) auto; }
-.billed-for-field { grid-template-columns: minmax(0, 20rem); margin-bottom: .8rem; }
-.period-fields { grid-template-columns: 12rem 12rem; margin-bottom: .8rem; }
-.confirm-inline { display: inline-flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.billed-for-field { grid-template-columns: minmax(0, 20rem); margin-bottom: var(--space-5); }
+.period-fields { grid-template-columns: 12rem 12rem; margin-bottom: var(--space-5); }
+.confirm-inline { display: inline-flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
 .confirm-inline__prompt { font-weight: 700; }
 /* The design system's Segmented control (components/ui/SegmentedChoice.tsx). */
 .segmented { display: inline-flex; overflow: hidden; border: 1px solid var(--color-outline); border-radius: var(--radius-small); background: var(--color-surface); }
@@ -48,27 +48,27 @@ form.compact-form { max-width: none; }
   /* Invoice item rows follow the editor's width instead (container queries in line-editor.css). */
   .inline-fields:not(.line-row) { grid-template-columns: 1fr !important; grid-auto-flow: row !important; }
 }
-.row-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; }
-.row-actions .confirm-inline { font-size: .85rem; }
-.row-actions .confirm-inline .btn { min-height: 0; padding: .3rem .6rem; font-size: 12px; }
-.list-toggle { margin: 0 0 .5rem; }
+.row-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-6); }
+.row-actions .confirm-inline { font-size: var(--text-13); }
+.row-actions .confirm-inline .btn { min-height: 0; padding: var(--space-3) var(--space-4); font-size: var(--text-12); }
+.list-toggle { margin: 0 0 var(--space-4); }
 .list-toggle .usa-checkbox__label { margin-top: 0; }
-.inline-pair { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: .5rem; max-width: 18rem; }
-.inline-pair > span { padding-bottom: .5rem; color: var(--color-on-surface-muted); }
-.radio-row, .checkbox-row { display: flex; align-items: center; gap: .5rem; margin: .3rem 0; color: var(--color-on-surface); font-size: .9rem; cursor: pointer; }
+.inline-pair { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: var(--space-4); max-width: 18rem; }
+.inline-pair > span { padding-bottom: var(--space-4); color: var(--color-on-surface-muted); }
+.radio-row, .checkbox-row { display: flex; align-items: center; gap: var(--space-4); margin: var(--space-3) 0; color: var(--color-on-surface); font-size: var(--text-15); cursor: pointer; }
 /* Asking before a destructive action (components/ConfirmButton.tsx). */
-.confirm-inline { padding: .35rem .6rem; background: var(--color-error-container); border-radius: 6px; }
+.confirm-inline { padding: var(--space-3) var(--space-4); background: var(--color-error-container); border-radius: var(--radius-small); }
 .confirm-inline__prompt { color: var(--color-on-error-container); }
 .dialog-field { margin: 0; padding: 0; border: 0; min-width: 0; }
-.dialog-field .usa-label { margin: 0 0 .35rem; }
+.dialog-field .usa-label { margin: 0 0 var(--space-3); }
 .dialog-field .usa-input { max-width: none; width: 100%; margin: 0; }
-.dialog-field .field-hint, .dialog-field .field-error { margin: .3rem 0 0; }
-.dialog-field-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .9rem; }
-.radio-choices { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
-.radio-choices label { display: flex; align-items: center; gap: .4rem; cursor: pointer; }
+.dialog-field .field-hint, .dialog-field .field-error { margin: var(--space-3) 0 0; }
+.dialog-field-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--space-6); }
+.radio-choices { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-7); }
+.radio-choices label { display: flex; align-items: center; gap: var(--space-4); cursor: pointer; }
 /* Inline row editing keeps the table's layout: fields fill the columns as
    the text left them (size="1" stops an input asking for its own width),
    no taller than the row's select, with the actions on one line. */
 .row-edit__input { margin: 0; width: 100%; min-width: 0; }
 .row-edit__actions { flex-wrap: nowrap; white-space: nowrap; }
-.row-edit__error { display: block; margin-top: .25rem; }
+.row-edit__error { display: block; margin-top: var(--space-3); }

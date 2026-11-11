@@ -12,18 +12,23 @@ import {
 } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { referenceData } from '../resources';
+import { Tag } from './ui/Tag';
 
 // `compact` for table cells: a short pill, the full meaning on hover and for
 // screen readers.
 export function EnteredFlag({ what, matched, compact }: { what: string; matched?: boolean; compact?: boolean }) {
   const text = matched ? `${what} entered by the submitter` : `New ${what.toLowerCase()}: entered by the submitter, not in the system yet`;
   return compact ? (
-    <span className="entered-flag entered-flag--compact" title={text}>
-      <span aria-hidden="true">{matched ? 'Entered' : 'New'}</span>
+    <Tag tone="warning" className="entered-flag entered-flag--compact">
+      <span aria-hidden="true" title={text}>
+        {matched ? 'Entered' : 'New'}
+      </span>
       <span className="usa-sr-only">{text}</span>
-    </span>
+    </Tag>
   ) : (
-    <span className="entered-flag">{text}</span>
+    <Tag tone="warning" className="entered-flag">
+      {text}
+    </Tag>
   );
 }
 

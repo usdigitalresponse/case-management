@@ -1,20 +1,20 @@
 /* Lists of invoices: the portal's, and unfinished ones. */
 /* Your invoices: rows read at the design's size, lined up at the top so a
    status with a note doesn't push the rest of the row down. */
-.data-card table.portal-invoices { font-size: .9rem; }
-.data-card table.portal-invoices td, .data-card table.portal-invoices th { padding: 1rem 1.1rem; vertical-align: top; }
+.data-card table.portal-invoices { font-size: var(--text-15); }
+.data-card table.portal-invoices td, .data-card table.portal-invoices th { padding: var(--space-6) var(--space-6); vertical-align: top; }
 .data-card table.portal-invoices thead th { vertical-align: middle; }
 .portal-invoices th[scope="row"], .portal-invoices td:nth-child(3), .portal-invoices td:nth-child(4) { white-space: nowrap; }
-.portal-invoices .tag + .cell-note { margin-top: .35rem; }
+.portal-invoices .tag + .cell-note { margin-top: var(--space-3); }
 .portal-invoices__status { min-width: 11rem; }
 .portal-invoices__actions { width: 1%; white-space: nowrap; }
 .portal-invoices__actions .row-actions { flex-wrap: nowrap; }
 .portal-invoices__actions .link-button { font-weight: 600; }
-.portal-needs-changes { margin-bottom: 1.5rem; }
+.portal-needs-changes { margin-bottom: var(--space-8); }
 .portal-needs-changes h2 { color: var(--color-error); }
 .portal-invoices .text-warning, .portal-invoices .cell-note--warning { color: var(--color-on-tertiary-container); }
-.your-drafts { margin: 0 0 1rem; padding: .9rem 1.1rem; background: var(--color-primary-container-low); border-radius: var(--radius-medium); }
-.your-drafts h2 { margin: 0 0 .5rem; font-size: .95rem; }
+.your-drafts { margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-6); background: var(--color-primary-container-low); border-radius: var(--radius-medium); }
+.your-drafts h2 { margin: 0 0 var(--space-4); font-size: var(--text-15); }
 .your-drafts ul { margin: 0; padding: 0; list-style: none; }
-.your-drafts li { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .45rem 0; border-top: 1px solid var(--color-outline-subtle); }
+.your-drafts li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-6); padding: var(--space-4) 0; border-top: 1px solid var(--color-outline-subtle); }
 .your-drafts li:first-child { border-top: 0; }

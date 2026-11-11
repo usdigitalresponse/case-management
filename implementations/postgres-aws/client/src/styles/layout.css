@@ -1,30 +1,30 @@
 /* The staff and portal shells: header, sidebar, main area and page titles. */
-.app-header { display: flex; align-items: center; gap: 1rem; min-height: 56px; padding: .5rem 2rem; background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); border-bottom: 1px solid var(--color-inverse-surface); }
+.app-header { display: flex; align-items: center; gap: var(--space-6); min-height: 56px; padding: var(--space-4) var(--space-9); background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); border-bottom: 1px solid var(--color-inverse-surface); }
 .app-header .link-button { color: var(--color-inverse-primary); }
-.app-brand { color: var(--color-on-inverse-surface); text-decoration: none; font-family: var(--font-serif); font-size: 20px; font-weight: 600; letter-spacing: -.2px; white-space: nowrap; }
+.app-brand { color: var(--color-on-inverse-surface); text-decoration: none; font-family: var(--font-serif); font-size: var(--text-20); font-weight: 600; letter-spacing: -.2px; white-space: nowrap; }
 /* One row, as in the design: the search shrinks before anything wraps. The
    note sits under the name. */
 .app-brand-block { display: flex; flex: none; flex-direction: column; line-height: 1.2; }
-.header-badge { white-space: nowrap; font-size: 11px; color: var(--color-inverse-primary); }
-.header-search { flex: 0 1 26rem; min-width: 12rem; margin-left: 2rem; }
-.header-search input { width: 100%; box-sizing: border-box; height: 2.1rem; padding: 0 .9rem; border: 1px solid var(--color-outline-variant); border-radius: var(--radius-small); background: var(--color-surface); color: var(--color-on-surface); }
-.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; margin-left: auto; white-space: nowrap; }
-.user-name { display: inline-block; font-size: .9rem; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
-.header-actions .link-button { font-size: .9rem; }
+.header-badge { white-space: nowrap; font-size: var(--text-11); color: var(--color-inverse-primary); }
+.header-search { flex: 0 1 26rem; min-width: 12rem; margin-left: var(--space-9); }
+.header-search input { width: 100%; box-sizing: border-box; height: 2.1rem; padding: 0 var(--space-6); border: 1px solid var(--color-outline-variant); border-radius: var(--radius-small); background: var(--color-surface); color: var(--color-on-surface); }
+.header-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-6); margin-left: auto; white-space: nowrap; }
+.user-name { display: inline-block; font-size: var(--text-15); max-width: 12rem; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.header-actions .link-button { font-size: var(--text-15); }
 .app-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: calc(100vh - 57px); }
-.app-sidebar { padding: 1.4rem .5rem; border-right: 1px solid var(--color-outline-subtle); background: var(--color-surface-container); }
-.app-sidebar a:not(.btn), .nav-group button { display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; padding: .45rem .75rem; text-align: left; border: 0; border-radius: 6px; text-decoration: none; color: var(--color-on-surface); background: transparent; font-size: .92rem; }
+.app-sidebar { padding: var(--space-8) var(--space-4); border-right: 1px solid var(--color-outline-subtle); background: var(--color-surface-container); }
+.app-sidebar a:not(.btn), .nav-group button { display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; padding: var(--space-4) var(--space-5); text-align: left; border: 0; border-radius: var(--radius-small); text-decoration: none; color: var(--color-on-surface); background: transparent; font-size: var(--text-15); }
 .app-sidebar a:not(.btn):hover { background: var(--color-outline-subtle); }
 /* Bold and a bar too, so the selection doesn't rest on color alone. */
 .app-sidebar a:not(.btn).active { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; box-shadow: inset 3px 0 0 var(--color-primary); }
-.nav-count { font-size: .78rem; color: var(--color-on-surface-variant); }
+.nav-count { font-size: var(--text-12); color: var(--color-on-surface-variant); }
 .app-sidebar a.active .nav-count { color: var(--color-primary); }
 /* A count tag beside a section heading. */
-.heading-count { margin-left: .5rem; vertical-align: .2em; }
-.nav-group + .nav-group { margin-top: 1.6rem; }
-.nav-group h2 { padding: 0 .75rem; margin: 0 0 .35rem; font-size: .68rem; line-height: 1.5; text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
-.nav-group button:disabled { color: var(--color-on-surface-muted); cursor: not-allowed; justify-content: flex-start; gap: .4rem; }
-.app-main { min-width: 0; padding: 2rem 2rem 6rem; }
+.heading-count { margin-left: var(--space-4); vertical-align: .2em; }
+.nav-group + .nav-group { margin-top: var(--space-8); }
+.nav-group h2 { padding: 0 var(--space-5); margin: 0 0 var(--space-3); font-size: var(--text-11); line-height: 1.5; text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
+.nav-group button:disabled { color: var(--color-on-surface-muted); cursor: not-allowed; justify-content: flex-start; gap: var(--space-4); }
+.app-main { min-width: 0; padding: var(--space-9) var(--space-9) var(--space-15); }
 /* <main tabIndex={-1}> is a skip-link landing target, not an interactive
    control — once it's focused (e.g. via "Skip to main content"), the
    default outline would otherwise persist across every client-side route
@@ -37,16 +37,16 @@
   .page-loading { animation-duration: 1ms; }
 }
 /* Headline/Large. */
-.app-main h1, .portal-page h1 { font-family: var(--font-serif); font-size: 32px; font-weight: 600; letter-spacing: -.5px; margin: 0 0 .7rem; line-height: 1.2; }
-.page-heading { margin-bottom: 1.5rem; }
-.eyebrow { color: var(--color-on-surface-muted); text-transform: uppercase; font-size: 11px; font-weight: 600; letter-spacing: .6px; margin: 0 0 .65rem; }
-.page-description { margin: 0; color: var(--color-on-surface-muted); font-size: .85rem; }
+.app-main h1, .portal-page h1 { font-family: var(--font-serif); font-size: var(--text-32); font-weight: 600; letter-spacing: -.5px; margin: 0 0 var(--space-5); line-height: 1.2; }
+.page-heading { margin-bottom: var(--space-8); }
+.eyebrow { color: var(--color-on-surface-muted); text-transform: uppercase; font-size: var(--text-11); font-weight: 600; letter-spacing: .6px; margin: 0 0 var(--space-5); }
+.page-description { margin: 0; color: var(--color-on-surface-muted); font-size: var(--text-13); }
 /* The portal (portal/ExternalPortalApp.tsx): one top bar, no sidebar. */
-.portal-header { gap: .75rem; }
+.portal-header { gap: var(--space-5); }
 .portal-header .user-name { max-width: 11rem; }
-.portal-badge { padding: .15rem .55rem; border-left: 1px solid var(--color-inverse-primary); color: var(--color-on-inverse-surface); font-size: 13px; white-space: nowrap; }
-.portal-tabs { display: flex; align-self: stretch; gap: .25rem; margin-left: 1rem; }
-.portal-tabs a { display: flex; align-items: center; padding: 0 .65rem; color: var(--color-on-inverse-surface); text-decoration: none; font-size: .92rem; white-space: nowrap; border-bottom: 3px solid transparent; }
+.portal-badge { padding: var(--space-2) var(--space-4); border-left: 1px solid var(--color-inverse-primary); color: var(--color-on-inverse-surface); font-size: var(--text-13); white-space: nowrap; }
+.portal-tabs { display: flex; align-self: stretch; gap: var(--space-3); margin-left: var(--space-6); }
+.portal-tabs a { display: flex; align-items: center; padding: 0 var(--space-5); color: var(--color-on-inverse-surface); text-decoration: none; font-size: var(--text-15); white-space: nowrap; border-bottom: 3px solid transparent; }
 .portal-tabs a:hover { border-bottom-color: var(--color-inverse-primary); }
 .portal-tabs a.active { font-weight: 600; border-bottom-color: var(--color-inverse-primary); }
 @media (max-width: 52rem) {
@@ -57,32 +57,32 @@
 /* Page widths from the design: the list, and the narrower upload. */
 .portal-content { max-width: 75rem; margin: 0 auto; }
 .portal-narrow { max-width: 47.5rem; margin: 0 auto; }
-.portal-title-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem; }
-.portal-title-row h1 { margin-bottom: .3rem; }
-.portal-content > .notice { margin-bottom: 1rem; }
+.portal-title-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: var(--space-6); margin-bottom: var(--space-7); }
+.portal-title-row h1 { margin-bottom: var(--space-3); }
+.portal-content > .notice { margin-bottom: var(--space-6); }
 @media (max-width: 1250px) {
   .app-layout { grid-template-columns: 195px minmax(0, 1fr); }
-  .app-main { padding: 2rem 1.2rem; }
+  .app-main { padding: var(--space-9) var(--space-7); }
 }
 @media (max-width: 760px) {
-  .app-header { padding: 1rem; }
+  .app-header { padding: var(--space-6); }
   .header-actions { flex-wrap: wrap; justify-content: flex-start; margin: 0; }
   .app-layout { display: block; }
-  .app-sidebar { border-right: 0; border-bottom: 1px solid var(--color-outline-subtle); padding: .7rem 1rem; }
-  .app-sidebar nav { display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
-  .nav-group, .nav-group + .nav-group { display: flex; flex-wrap: wrap; gap: .2rem; margin: 0; }
-  .app-sidebar .nav-group a:not(.btn) { width: auto; gap: .4rem; }
+  .app-sidebar { border-right: 0; border-bottom: 1px solid var(--color-outline-subtle); padding: var(--space-5) var(--space-6); }
+  .app-sidebar nav { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-6); }
+  .nav-group, .nav-group + .nav-group { display: flex; flex-wrap: wrap; gap: var(--space-3); margin: 0; }
+  .app-sidebar .nav-group a:not(.btn) { width: auto; gap: var(--space-4); }
   .nav-group h2, .nav-group button { display: none; }
 }
 @media (max-width: 480px) {
-  .app-main h1, .portal-page h1 { font-size: 1.7rem; }
+  .app-main h1, .portal-page h1 { font-size: var(--text-26); }
 }
-.portal-main section { margin-top: 1.6rem; }
-.portal-main section > h2 { font-size: 1.05rem; margin: 0 0 .6rem; }
+.portal-main section { margin-top: var(--space-8); }
+.portal-main section > h2 { font-size: var(--text-18); margin: 0 0 var(--space-4); }
 /* Case page tables: amounts and row actions as in the queue. */
 .portal-main .data-card .amount { font-weight: 600; }
 .portal-main .row-actions a { font-weight: 600; text-decoration: none; }
-.portal-main .compact-card h3 { font-size: 1rem; }
+.portal-main .compact-card h3 { font-size: var(--text-15); }
 @media (max-width: 760px) {
   .header-search { flex-basis: 100%; margin: 0; order: 3; }
   .app-header { flex-wrap: wrap; }

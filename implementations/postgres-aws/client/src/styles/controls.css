@@ -95,8 +95,8 @@ input[type=checkbox]:not([class*=usa-]), input[type=radio]:not([class*=usa-]) {
   vertical-align: middle;
   appearance: none;
 }
-input[type=checkbox]:not([class*=usa-]), .usa-checkbox__label::before { border-radius: 3px; }
-input[type=radio]:not([class*=usa-]), .usa-radio__label::before { border-radius: 50%; }
+input[type=checkbox]:not([class*=usa-]), .usa-checkbox__label::before { border-radius: var(--radius-mark); }
+input[type=radio]:not([class*=usa-]), .usa-radio__label::before { border-radius: var(--radius-circle); }
 input[type=checkbox]:not([class*=usa-])::before { content: ""; }
 input[type=checkbox]:not([class*=usa-]):checked::before, .usa-checkbox__input:checked + .usa-checkbox__label::before { content: "✓"; }
 input:is([type=checkbox], [type=radio]):not([class*=usa-]):checked,
