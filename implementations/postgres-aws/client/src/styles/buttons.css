@@ -5,8 +5,8 @@
 .btn--primary:hover:not(:disabled) { background: var(--color-primary-hover); }
 .btn--secondary { background: var(--color-surface); color: var(--color-primary); border-color: var(--color-primary); }
 .btn--secondary:hover:not(:disabled) { background: var(--color-primary-container-low); }
-.btn--danger { background: var(--color-surface); color: var(--color-error); border-color: var(--color-error); }
-.btn--danger:hover:not(:disabled) { background: var(--color-error-container); color: var(--color-on-error-container); }
+.btn--danger { background: var(--color-error); color: var(--color-on-error); border-color: var(--color-error); }
+.btn--danger:hover:not(:disabled) { background: var(--color-on-error-container); border-color: var(--color-on-error-container); }
 .link-button--danger { color: var(--color-error); }
 .btn--select { color: var(--color-on-surface); font-weight: 600; }
 .btn--select .muted { font-weight: 400; }

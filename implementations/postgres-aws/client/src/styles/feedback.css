@@ -5,23 +5,27 @@
 .tag--warning { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
 .tag--danger { background: var(--color-error-container); color: var(--color-on-error-container); }
 .tag--info { background: var(--color-primary-container); color: var(--color-on-primary-container); }
+.tag--strong { background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); }
 .tag--filter { cursor: pointer; padding: var(--space-3) var(--space-5); }
 .tag--filter[aria-pressed="true"] { background: var(--color-on-surface); color: var(--color-surface); }
 .tag--filter[aria-pressed="false"]:not(.tag--warning) { background: var(--color-surface-container); color: var(--color-on-surface-variant); }
 .tag-filters { display: flex; flex-wrap: wrap; gap: var(--space-4); margin: 0 0 var(--space-6); }
 .tag-count { font-weight: 400; }
 /* Notices (components/ui/Notice.tsx): context with an optional action. */
-.notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4) var(--space-6); margin: 0 0 var(--space-6); padding: var(--space-5) var(--space-6); border-radius: var(--radius-small); border-left: 3px solid; font-size: var(--text-15); }
+/* The design system's Alert: an icon, then the message, then any action. */
+.notice { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-4) var(--space-5); margin: 0 0 var(--space-6); padding: var(--space-5) var(--space-6); border-radius: var(--radius-small); border-left: var(--space-3) solid; font: var(--body-medium); }
+.notice__icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: var(--space-7); height: var(--space-7); border-radius: var(--radius-circle); background: var(--notice-strong); color: var(--color-on-primary); font: var(--label-small); }
 .notice__body { flex: 1 1 20rem; min-width: 0; }
-.notice__heading { display: block; margin: 0 0 var(--space-3); font-size: var(--text-15); font-weight: 700; }
+.notice__heading { display: block; margin: 0 0 var(--space-2); font: var(--label-large); }
 .notice__body ul { margin: var(--space-3) 0 0; padding-left: var(--space-7); }
 .notice__action { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .notice a { color: inherit; font-weight: 700; }
 .notice a.btn--secondary { color: var(--color-primary); font-weight: 600; }
-.notice--warning { background: var(--color-tertiary-container); border-color: var(--color-tertiary); color: var(--color-on-tertiary-container); }
-.notice--info { background: var(--color-primary-container-low); border-color: var(--color-primary); color: var(--color-on-primary-container); }
-.notice--success { background: var(--color-success-container); border-color: var(--color-success); color: var(--color-on-success-container); }
-.notice--danger { background: var(--color-error-container); border-color: var(--color-error); color: var(--color-on-error-container); }
+.notice--warning { --notice-strong: var(--color-tertiary); background: var(--color-tertiary-container); border-color: var(--color-tertiary); color: var(--color-on-tertiary-container); }
+.notice--warning .notice__icon { color: var(--color-on-tertiary); }
+.notice--info { --notice-strong: var(--color-primary); background: var(--color-primary-container-low); border-color: var(--color-primary); color: var(--color-on-primary-container); }
+.notice--success { --notice-strong: var(--color-success); background: var(--color-success-container); border-color: var(--color-success); color: var(--color-on-success-container); }
+.notice--danger { --notice-strong: var(--color-error); background: var(--color-error-container); border-color: var(--color-error); color: var(--color-on-error-container); }
 /* Message with Undo, at the bottom of the screen. */
 .toast { position: fixed; z-index: 30; left: 50%; bottom: 2rem; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-8); padding: var(--space-5) var(--space-6); border-radius: var(--radius-medium); background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); box-shadow: var(--elevation-3); font-size: var(--text-15); }
 .toast__undo { border: 0; background: none; color: var(--color-inverse-primary); font-weight: 700; cursor: pointer; padding: 0; }

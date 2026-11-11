@@ -67,7 +67,7 @@ router.get(
       : undefined;
     const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 100) : undefined;
     const day = typeof req.query.day === 'string' && z.iso.date().safeParse(req.query.day).success ? req.query.day : undefined;
-    res.json(await listReviewQueue(db, view, { professionalId, q, day }));
+    res.json(await listReviewQueue(db, view, { professionalId, q, day, actorUserAccountId: actorId(req) }));
   }),
 );
 

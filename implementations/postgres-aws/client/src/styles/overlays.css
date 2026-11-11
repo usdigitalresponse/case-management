@@ -4,7 +4,7 @@
 .dialog::backdrop { background: color-mix(in srgb, var(--color-scrim) 45%, transparent); }
 /* Headline/Small. */
 .dialog__title { margin: 0 0 var(--space-6); font-family: var(--font-serif); font-size: var(--text-20); font-weight: 600; letter-spacing: -.2px; line-height: 1.25; }
-.dialog p { margin: 0 0 var(--space-5); color: var(--color-on-surface-variant); font-size: var(--text-15); line-height: 1.5; }
+.dialog p { margin: 0 0 var(--space-5); color: var(--color-on-surface-variant); font: var(--body-medium); }
 .dialog__small { font-size: var(--text-13); }
 .dialog__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); margin-top: var(--space-6); }
 .dialog--wide { width: min(40rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); overflow-y: auto; }

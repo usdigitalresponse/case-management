@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { apiErrorMessage, deleteInvoice, discardUpload, getUpload, startUpload, type UploadRead } from '../../api/client';
 import { ImportProgressNote } from '../ImportProgressNote';
 import { countOf } from '../../portal/importProgress';
+import { Tag } from '../ui/Tag';
+import { buttonClass } from '../ui/Button';
 
 export interface Entry<D> {
   key: string;
@@ -29,11 +31,10 @@ function fileSize(bytes: number): string {
 export function Steps({ reviewing = false }: { reviewing?: boolean }) {
   const steps = reviewing ? ['Upload', 'Check and review the lines', 'Finish the review'] : ['Upload', 'Check the lines', 'Send for review'];
   return (
-    <ol className="steps" aria-label="Steps">
+    <ol className="tag-steps" aria-label="Steps">
       {steps.map((step, index) => (
-        <li key={step} className={index === 0 ? 'steps__current' : undefined} aria-current={index === 0 ? 'step' : undefined}>
-          <span className="steps__number">{index + 1}</span>
-          {step}
+        <li key={step} aria-current={index === 0 ? 'step' : undefined}>
+          <Tag tone={index === 0 ? 'strong' : 'neutral'}>{index + 1} {step}</Tag>
         </li>
       ))}
     </ol>
@@ -75,8 +76,10 @@ export function DropZone({ hasFiles, onFiles }: { hasFiles: boolean; onFiles: (f
           event.target.value = '';
         }}
       />
-      <strong>{hasFiles ? 'Drop more invoices here, or choose files' : 'Drop your invoices here, or choose files'}</strong>
-      <span>PDF, Excel (.xlsx) or CSV. One invoice per file. You can add several files at once.</span>
+      <strong>{hasFiles ? 'Drop more invoice files here, or choose files' : 'Drop invoice files here, or choose files'}</strong>
+      <span>PDF, LEDES 1998B, Excel (.xlsx) or CSV. One invoice per file, up to 10 MB each.</span>
+      {/* The label opens the file picker; this only looks like the design's button. */}
+      <span className={buttonClass('secondary')} aria-hidden="true">Choose files</span>
     </label>
   );
 }

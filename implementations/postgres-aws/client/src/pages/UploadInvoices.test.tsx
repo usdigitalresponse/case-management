@@ -4,7 +4,7 @@ import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { queryClient } from '../queryClient';
 import { fakeApi } from '../test/fakeApi';
 import { renderPage } from '../test/renderPage';
-import { lineEditorRoutes, REVIEWER, SENDER } from '../test/fixtures';
+import { lineEditorRoutes, REVIEWER, SENDER, signedIn } from '../test/fixtures';
 import type { UploadRead } from '../api/client';
 import UploadInvoices from './UploadInvoices';
 
@@ -26,7 +26,7 @@ describe('uploading an invoice', () => {
   it('files a read invoice under its sender with what was read, then opens it to check', async () => {
     const api = fakeApi({
       ...lineEditorRoutes(),
-      'GET /auth/me': SENDER,
+      ...signedIn(SENDER),
       'POST /api/portal/uploads': { uploadReadId: 'read-1' },
       'GET /api/portal/uploads/:id': ready,
       'POST /api/portal/uploads/:id/draft': { invoiceId: 'inv-9' },
@@ -54,7 +54,7 @@ describe('uploading an invoice', () => {
   it('asks staff who billed it and how it arrived before filing anything', async () => {
     const api = fakeApi({
       ...lineEditorRoutes(),
-      'GET /auth/me': REVIEWER,
+      ...signedIn(REVIEWER),
       'GET /api/portal/receipt-channels': { channels: [{ code: 'email', displayName: 'Email' }] },
       'POST /api/portal/uploads': { uploadReadId: 'read-1' },
       'GET /api/portal/uploads/:id': ready,

@@ -4,7 +4,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { queryClient } from '../queryClient';
 import { fakeApi } from '../test/fakeApi';
 import { renderPage } from '../test/renderPage';
-import { lineEditorRoutes, portalInvoice, SENDER } from '../test/fixtures';
+import { lineEditorRoutes, portalInvoice, SENDER, signedIn } from '../test/fixtures';
 import InvoiceSubmission from './InvoiceSubmission';
 
 afterEach(() => {
@@ -19,7 +19,7 @@ describe('sending an invoice', () => {
   it('saves edited lines, then sends only once the sender confirms it is true and correct', async () => {
     const api = fakeApi({
       ...lineEditorRoutes(),
-      'GET /auth/me': SENDER,
+      ...signedIn(SENDER),
       'GET /api/portal/invoices/:id': portalInvoice(),
       'GET /api/portal/receipt-channels': { channels: [] },
       'GET /api/my-cases': { cases: [], professionals: [] },
@@ -48,7 +48,7 @@ describe('sending an invoice', () => {
   it('saves edited lines before leaving to save it for later', async () => {
     const api = fakeApi({
       ...lineEditorRoutes(),
-      'GET /auth/me': SENDER,
+      ...signedIn(SENDER),
       'GET /api/portal/invoices/:id': portalInvoice(),
       'GET /api/portal/receipt-channels': { channels: [] },
       'GET /api/my-cases': { cases: [], professionals: [] },

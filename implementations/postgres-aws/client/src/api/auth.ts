@@ -65,6 +65,8 @@ export interface AuthProvidersResponse {
   // Same, for signing in as a demo external partner
   // (EXTERNAL_DEMO_LOGIN_ENABLED).
   externalDemoLoginEnabled: boolean;
+  // Set per deployment (ORGANIZATION_NAME); null for none.
+  organizationName: string | null;
 }
 
 export function listAuthProviders(): Promise<AuthProvidersResponse> {

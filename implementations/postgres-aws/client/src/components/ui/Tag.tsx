@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 // The text carries the meaning; tone only adds color.
-export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'strong';
 
 export function Tag({ tone = 'neutral', className, children }: { tone?: Tone; className?: string; children?: ReactNode }) {
   return <span className={['tag', `tag--${tone}`, className].filter(Boolean).join(' ')}>{children}</span>;

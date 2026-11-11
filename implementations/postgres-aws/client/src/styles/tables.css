@@ -25,16 +25,16 @@
    harsh grid and stray-shaded-column look. We own this card's table
    chrome entirely instead: no per-cell borders, a single row divider,
    header styling applied only where we actually want it. */
-.data-card table td, .data-card table th { padding: var(--space-5) var(--space-6); border: none; border-bottom: 1px solid var(--color-outline-subtle); background: transparent; }
+.data-card table td, .data-card table th { padding: calc(var(--space-5) + var(--space-2)) var(--space-7); line-height: 1.4; border: none; border-bottom: 1px solid var(--color-outline-subtle); background: transparent; }
 .data-card table tbody tr:last-child td, .data-card table tbody tr:last-child th { border-bottom: none; }
 /* Table headers: Title/Small. */
-.data-card table thead th { text-transform: uppercase; background: var(--color-surface-container-low); font-size: var(--text-11); letter-spacing: .6px; color: var(--color-on-surface-variant); font-weight: 600; }
+.data-card table thead th { padding: calc(var(--space-4) + var(--space-2)) var(--space-7); border-bottom-color: var(--color-outline-variant); text-transform: uppercase; background: var(--color-surface-container-low); font-size: var(--text-11); letter-spacing: .6px; color: var(--color-on-surface-variant); font-weight: 600; }
 .data-card table tbody tr:hover { background: var(--color-primary-container-low); }
-.data-card table th[scope="row"] a { color: var(--color-on-surface); font-weight: 700; text-decoration: none; }
+.data-card table th[scope="row"] a { color: var(--color-primary); font-weight: 600; text-decoration: none; }
 .data-card table th[scope="row"] a:hover, .data-card table th[scope="row"] a:focus { text-decoration: underline; }
 /* Queue */
 .queue-table th, .queue-table td { vertical-align: top; }
-.data-card table.queue-table th[scope="row"] { font-weight: 700; color: var(--color-on-surface); background: transparent; }
+.data-card table.queue-table th[scope="row"] { font-weight: 600; color: var(--color-on-surface); background: transparent; }
 .case-number-cell { white-space: nowrap; }
 .case-number-cell .cell-note { max-width: 12rem; white-space: normal; text-decoration: none; }
 .queue-table .late { color: var(--color-error); font-weight: 700; }
@@ -56,3 +56,9 @@
 .data-card table tr.is-retired th, .data-card table tr.is-retired td { color: var(--color-on-surface-muted); }
 .queue-table th[scope="row"] .muted { font-weight: 400; }
 .queue-table .row-actions a, .queue-table .row-actions .link-button { white-space: nowrap; }
+/* A row's second lines, as in design I's tables. */
+.data-card table .cell-note { margin-top: var(--space-2); font-size: var(--text-11); line-height: 1.4; color: var(--color-on-surface-variant); }
+.data-card table th[scope="row"] .cell-note { font-weight: 600; }
+.data-card table a.cell-note { text-decoration: underline; }
+/* An approved total, as in design I29. */
+.data-card table tbody .approved-amount { color: var(--color-success); font-weight: 600; }

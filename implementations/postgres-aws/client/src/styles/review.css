@@ -25,7 +25,8 @@
 .entry-badge .cell-note { margin-top: 0; }
 /* Review table */
 .review-table td { vertical-align: top; }
-.review-table td.line-date-cell { white-space: nowrap; }
+.review-table .line-date, .review-table .line-description { display: block; }
+.review-table .line-date { font-weight: 600; white-space: nowrap; }
 .review-table tr.is-rejected td:not(.decision-cell) { opacity: .6; }
 .review-table tr.is-open, .review-table tr.detail-row { background: var(--color-primary-container-low); }
 .review-table tr.is-flagged { background: var(--color-tertiary-container); }
@@ -68,7 +69,9 @@
 .line-question__answer textarea { width: 100%; margin-top: var(--space-3); }
 .decision-hint { color: var(--color-primary); }
 .decision-summary__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
-.decision-summary__why { margin: var(--space-3) 0 0; font-size: var(--text-15); }
+.decision-summary__why { margin: var(--space-3) 0 0; font: var(--body-medium); }
+/* A decided line's actions, as design I16's "Add a note" and "Change". */
+.decision-cell .link-row { gap: var(--space-2) var(--space-5); margin-top: var(--space-2); font: var(--label-small); }
 .decision-history { margin-top: var(--space-3); font-size: var(--text-13); }
 .decision-history ol { margin: var(--space-3) 0 0; padding-left: var(--space-6); color: var(--color-on-surface-variant); }
 /* Approve part / reject panel */
@@ -123,9 +126,6 @@
 .case-match li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-6); padding: var(--space-4) 0; border-top: 1px solid var(--color-outline-subtle); }
 .case-match p { margin: var(--space-4) 0 0; }
 /* Finish this review? */
-.confirm-panel { flex-basis: 100%; padding: var(--space-6) var(--space-6); border-radius: var(--radius-medium); background: var(--color-primary-container-low); border-left: 3px solid var(--color-primary); }
-.confirm-panel h3 { margin: 0 0 var(--space-3); font-size: var(--text-15); }
-.confirm-panel p { margin: 0; font-size: var(--text-15); }
 .completion-button { display: flex; margin-top: var(--space-3); }
 @media (max-width: 760px) {
   .decision-cell { min-width: 12rem; }

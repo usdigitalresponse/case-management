@@ -1,10 +1,10 @@
 /* Elements and small text helpers used everywhere. */
 /* Body/Medium. */
-body { margin: 0; background: var(--color-surface); font-family: var(--font-sans); font-size: var(--text-13); line-height: 1.5; }
+body { margin: 0; background: var(--color-surface-container); font-family: var(--font-sans); font-size: var(--text-13); line-height: 1.5; }
 a { color: var(--color-primary); }
 button, input, select, textarea { font: inherit; }
 /* Matches USWDS's focus selectors so the design's ring replaces its blue one. */
-[href]:focus, [tabindex]:focus, [contenteditable]:focus, button:not([disabled]):focus, input:not([disabled]):focus, select:not([disabled]):focus, textarea:not([disabled]):focus { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+[href]:focus-visible, [tabindex]:focus-visible, [contenteditable]:focus-visible, button:not([disabled]):focus-visible, input:not([disabled]):focus-visible, select:not([disabled]):focus-visible, textarea:not([disabled]):focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .field-hint { margin: var(--field-gap) 0 0; }
 .compact-hint { color: var(--color-on-surface-muted); font-size: var(--text-13); margin: var(--space-4) 0 0; }
 .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }

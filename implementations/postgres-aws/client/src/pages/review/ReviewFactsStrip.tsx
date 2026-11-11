@@ -1,5 +1,5 @@
 import { Fact, FactsStrip, Progress } from '../../components/FactsStrip';
-import { formatDateTime, formatPeriod } from '../../formatDateTime';
+import { formatDay, formatPeriod } from '../../formatDateTime';
 import { formatMoney } from '../../formatMoney';
 import type { ReviewFacts } from './reviewFacts';
 
@@ -9,7 +9,7 @@ export function ReviewFactsStrip({ facts }: { facts: ReviewFacts }) {
   return (
     <FactsStrip>
       <Fact label="Submitted">
-        <strong>{invoice.submittedAt ? formatDateTime(invoice.submittedAt) : '—'}</strong>
+        <strong>{invoice.submittedAt ? formatDay(invoice.submittedAt) : '—'}</strong>
       </Fact>
       <Fact label="Billing period">{formatPeriod(invoice.periodStart, invoice.periodEnd)}</Fact>
       {facts.fileSaid !== null && <Fact label="File said">{formatMoney(facts.fileSaid)}</Fact>}

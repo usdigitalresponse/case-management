@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { queryClient } from './queryClient';
+import { resourceQuery } from './hooks/useResource';
+import { authProviders } from './resources';
 import {
   ApiError,
   demoLogin,
@@ -19,21 +21,32 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   // Reloads roles and permissions after they change.
   refreshUser: () => Promise<void>;
+  // Counts sign-ins and sign-outs, so saved scroll positions don't carry over.
+  signIns: number;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-// Outside the router; a new user starts at home (staff and portal pages differ) with nothing cached.
+// Outside the router; a new user starts at home (staff and portal pages differ) with only the sign-in options cached.
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [signIns, setSignIns] = useState(0);
   const switchUser = useCallback((next: AuthenticatedUser | null) => {
     window.history.replaceState(null, '', '/');
+    // The header's organization name is the same for everyone; kept so it doesn't flash.
+    const providers = queryClient.getQueryData(authProviders.key);
     queryClient.clear();
+    if (providers) queryClient.setQueryData(authProviders.key, providers);
+    // No navigation happens, so the page would keep the sign-in page's scroll.
+    window.scrollTo(0, 0);
+    setSignIns((count) => count + 1);
     setUser(next);
   }, []);
 
   useEffect(() => {
+    // Loaded before the first page, so the header shows its organization name at once.
+    const providers = queryClient.prefetchQuery(resourceQuery(authProviders));
     getCurrentUser()
       .then(setUser)
       .catch((error: unknown) => {
@@ -43,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error(error);
         }
       })
-      .finally(() => setLoading(false));
+      .finally(() => void providers.finally(() => setLoading(false)));
   }, []);
 
   const handleDemoLogin = useCallback(async (userAccountId?: string) => {
@@ -84,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithCode: handleSignInWithCode,
         logout: handleLogout,
         refreshUser,
+        signIns,
       }}
     >
       {children}

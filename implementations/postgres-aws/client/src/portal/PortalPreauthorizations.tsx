@@ -43,7 +43,7 @@ export default function PortalPreauthorizations() {
   const asking = params.has('ask');
   const { data, error } = useResource(myPreauthorizationRequests);
   return (
-    <div>
+    <div className="portal-content">
       <PageHeader
         list
         title="Pre-authorizations"

@@ -32,7 +32,6 @@ export default function Overview() {
     <>
       <PageHeading
         list
-        eyebrow="Cases"
         title="Case overview"
         description={`Where every case is right now. ${cases.length} ${cases.length === 1 ? 'case' : 'cases'}, ${open} open.`}
       />

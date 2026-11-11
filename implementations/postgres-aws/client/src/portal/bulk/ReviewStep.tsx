@@ -24,7 +24,7 @@ export function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]
     />
   );
   return (
-    <section className="bulk-step-section" id="review">
+    <section className="card compact-card bulk-step-section" id="review">
       <h2>2. Check each file</h2>
       <p className="compact-hint">
         Check what was read from each file against the original, then confirm it. Each file stays with its draft until

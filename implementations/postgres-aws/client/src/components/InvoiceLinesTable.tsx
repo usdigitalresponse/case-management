@@ -40,13 +40,14 @@ export function InvoiceLinesTable<L extends PortalInvoiceLine>({
       rowClassName={rowClassName}
       rowDetail={rowDetail}
       columns={[
-        { header: 'Date', className: 'line-date-cell', render: (line) => lineDate(line) },
         {
-          header: 'What was done',
+          // Date above what was done, as in design I15.
+          header: 'Date and what was done',
           className: 'line-what-cell',
           render: (line) => (
             <>
-              {lineDescription(line)}
+              <strong className="line-date">{lineDate(line)}</strong>
+              <span className="line-description">{lineDescription(line)}</span>
               <span className="cell-note">
                 {lineType(line)}
                 {line.timekeeperDisplayName || line.timekeeperLabel ? ` · ${lineTimekeeper(line)}` : ''}

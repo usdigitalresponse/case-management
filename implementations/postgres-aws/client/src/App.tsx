@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, ScrollRestoration, useLocation, useNavigate, useNavigation, type RouteObject } from 'react-router';
+import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, useLocation, useNavigate, useNavigation, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './AuthContext';
 import { searchPath } from './staffPaths';
@@ -7,6 +7,8 @@ import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 import { Notice } from './components/ui/Notice';
 import { buttonClass } from './components/ui/Button';
+import { Tag } from './components/ui/Tag';
+import { AppBrand, PRODUCT_NAME } from './components/AppBrand';
 import { queryClient, refreshCacheOnDataChange } from './queryClient';
 import { nextLoadIsFirst, portalLoaders, staffLoaders } from './routeLoaders';
 import { useResource } from './hooks/useResource';
@@ -14,6 +16,7 @@ import { cases as casesResource, reviewQueue } from './resources';
 import { portalRoutes } from './portal/ExternalPortalApp';
 import { page, pageWith } from './lazyPage';
 import type { AuthenticatedUser } from './api/client';
+import { ScrollRestorationPerSignIn } from './components/ScrollRestorationPerSignIn';
 
 // The landing page files invoices by who sent them; the earlier queue, led
 // by case and client, stays here.
@@ -37,10 +40,9 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
     <>
       <a className="usa-skipnav" href="#main-content">Skip to main content</a>
       <header className="app-header">
-        <div className="app-brand-block">
-          <Link className="app-brand" to="/">Invoice Review Prototype</Link>
-          <span className="header-badge">Works beside your {EXTERNAL_SYSTEM_NAME}</span>
-        </div>
+        <AppBrand to="/" section={PRODUCT_NAME}>
+          <Tag tone="info">Works beside your {EXTERNAL_SYSTEM_NAME}</Tag>
+        </AppBrand>
         <form className="header-search" role="search" onSubmit={search}>
           <label className="usa-sr-only" htmlFor="header-search-input">Search invoices</label>
           <input
@@ -152,7 +154,7 @@ function StaffShell() {
       <div className="app-layout">
         {/* Everyone has Settings on demo servers, to change their own role there. */}
         <Sidebar showSettings={Boolean(user.isAdmin || user.demoMode)} userAccountId={user.userAccountId} />
-        <ScrollRestoration />
+        <ScrollRestorationPerSignIn />
         <main id="main-content" className="app-main" tabIndex={-1} aria-busy={loadingPage}>
           {loadingPage && <div className="page-loading" aria-hidden="true" />}
           <Outlet />

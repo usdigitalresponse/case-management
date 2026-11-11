@@ -35,7 +35,7 @@ function CaseTable({ professionalId, cases, label }: { professionalId: string; c
       columns={[
         { header: 'Client', width: '22%', rowHeader: true, render: (c) => c.clientDisplayName ?? 'Unknown client' },
         { header: 'Case', width: '15%', render: (c) => c.caseNumber ?? '—' },
-        { header: 'Since', width: '13%', render: (c) => formatDay(c.assignedAt) },
+        { header: 'Assigned', width: '13%', render: (c) => formatDay(c.assignedAt) },
         {
           header: 'Pre-authorized',
           width: '22%',
@@ -94,7 +94,7 @@ export default function PortalCaseList() {
   const isDelegate = data?.some((section) => !section.professional.isSelf) ?? false;
 
   return (
-    <div>
+    <div className="portal-content">
       <PageHeader
         list
         title="Your cases"

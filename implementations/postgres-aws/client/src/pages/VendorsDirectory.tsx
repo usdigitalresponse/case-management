@@ -123,13 +123,18 @@ export default function VendorsDirectory() {
   const [changedRates, setChangedRates] = useState<Record<string, ProfessionalKind['rates']>>({});
   return (
     <SearchDirectory
-      eyebrow="Look something up"
       title={DIRECTORY_TITLE}
       description="Attorneys, experts and investigators who can be assigned to a case and bill for their work. Each one's kind sets the hourly rate their time is billed at."
       searchLabel="Search providers by name or email"
       searchPlaceholder="Search by name or email"
       loadInitially
       reloadKey={version}
+      after={
+        <Notice tone="info">
+          Rates for each kind are set in Settings, under Rates. A person's own approved rate on their People page can differ
+          from their kind's rate.
+        </Notice>
+      }
       actions={
         <Button
           kind="primary"
@@ -263,10 +268,6 @@ export default function VendorsDirectory() {
           }}
         />
       )}
-      <Notice tone="info">
-        Rates for each kind are set in Settings, under Rates. A person's own approved rate on their People page can differ
-        from their kind's rate.
-      </Notice>
       <Toast toast={toast} />
     </SearchDirectory>
   );

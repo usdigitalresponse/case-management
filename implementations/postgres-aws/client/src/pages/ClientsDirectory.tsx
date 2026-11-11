@@ -21,7 +21,7 @@ export default function ClientsDirectory() {
 
   return (
     <>
-      <PageHeading list eyebrow="Look something up" title="Clients" description="People recorded as a case's client." />
+      <PageHeading list title="Clients" description="People recorded as a case's client." />
       <div className="list-toolbar">
         <SearchInput
           id="client-filter"
@@ -38,8 +38,8 @@ export default function ClientsDirectory() {
         rowKey={(record) => record.caseId}
         emptyMessage="No clients match."
         columns={[
-          { header: 'Client', rowHeader: true, render: (record) => record.clientDisplayName ?? 'Unnamed client' },
-          { header: 'Case', render: (record) => <RouterLink to={`/cases/${record.caseId}`}>{record.caseNumber ?? 'Open the case'}</RouterLink> },
+          { header: 'Client', rowHeader: true, render: (record) => <RouterLink to={`/cases/${record.caseId}`}>{record.clientDisplayName ?? 'Unnamed client'}</RouterLink> },
+          { header: 'Case', render: (record) => record.caseNumber ?? '—' },
           { header: 'County', render: (record) => record.countyDisplayName ?? '—' },
           { header: 'Opened', render: (record) => (record.openedOn ? formatDate(record.openedOn) : '—') },
           { header: 'Status', render: (record) => record.statusDisplayName },

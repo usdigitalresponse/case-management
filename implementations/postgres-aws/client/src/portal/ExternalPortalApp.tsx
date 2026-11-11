@@ -4,19 +4,20 @@
 // out of view.
 // See ../AuthContext.tsx and ../../docs/api.md "Case assignment, two
 // workflows".
-import { Link, Navigate, Outlet, ScrollRestoration, useNavigation, type RouteObject } from 'react-router';
+import { Link, Navigate, Outlet, useNavigation, type RouteObject } from 'react-router';
 import type { portalLoaders } from '../routeLoaders';
 import { Notice } from '../components/ui/Notice';
 import { PortalTopBar } from './PortalTopBar';
 import { page } from '../lazyPage';
 import { NEW_INVOICE_PATH, PORTAL_HOME_PATH, PORTAL_PREAUTHORIZATIONS_PATH, UPLOAD_PATH } from './useShell';
+import { ScrollRestorationPerSignIn } from '../components/ScrollRestorationPerSignIn';
 
 function PortalShell() {
   const loadingPage = useNavigation().state === 'loading';
   return (
     <>
       <PortalTopBar />
-      <ScrollRestoration />
+      <ScrollRestorationPerSignIn />
       <main id="main-content" className="app-main portal-main portal-page" tabIndex={-1} aria-busy={loadingPage}>
         {loadingPage && <div className="page-loading" aria-hidden="true" />}
         <Outlet />

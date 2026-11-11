@@ -18,12 +18,13 @@ import { FilterTag } from '../components/ui/Tag';
 
 const FINISHED = ['awaiting_sign_off', ...DECIDED_STATUS_CODES];
 
+// Neutral, as in design I29.
 const FILTERS = [
-  { id: 'month', label: 'This month', tone: undefined },
-  { id: 'sign_off', label: 'Waiting for sign-off', tone: 'warning' },
-  { id: 'decided', label: 'Decided', tone: 'success' },
-  { id: 'completed', label: 'Completed', tone: undefined },
-  { id: 'all', label: 'All', tone: undefined },
+  { id: 'month', label: 'This month' },
+  { id: 'sign_off', label: 'Waiting for sign-off' },
+  { id: 'decided', label: 'Decided' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'all', label: 'All' },
 ] as const;
 type FilterId = (typeof FILTERS)[number]['id'];
 
@@ -72,8 +73,8 @@ export default function FinishedInvoices() {
       </p>
       <div className="list-controls">
         <div className="tag-filters" role="group" aria-label="Show">
-          {FILTERS.map(({ id, label, tone }) => (
-            <FilterTag key={id} tone={tone} aria-pressed={filter === id} onClick={() => setFilter(id)}>
+          {FILTERS.map(({ id, label }) => (
+            <FilterTag key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>
               {label} <span className="tag-count">{finished.filter((invoice) => matches(invoice, id)).length}</span>
             </FilterTag>
           ))}
@@ -94,7 +95,7 @@ export default function FinishedInvoices() {
               invoice.finishedAt ? (formatDay(invoice.finishedAt) === today ? 'Today' : formatDay(invoice.finishedAt)) : '—',
           },
           { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
-          { header: 'Approved', align: 'right', render: (invoice) => (invoice.approvedTotal !== null ? formatMoney(invoice.approvedTotal) : '—') },
+          { header: 'Approved', align: 'right', className: 'approved-amount', render: (invoice) => (invoice.approvedTotal !== null ? formatMoney(invoice.approvedTotal) : '—') },
           { header: 'Reviewer', render: (invoice) => invoice.reviewer?.displayName ?? '—' },
           {
             header: 'Status',

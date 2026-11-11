@@ -13,7 +13,6 @@ import { Button } from './ui/Button';
 // where showing everything up front makes sense; People/Clients leave it
 // off since those tables could be large and a query is expected first.
 export function SearchDirectory<T>({
-  eyebrow,
   title,
   description,
   searchLabel,
@@ -24,9 +23,9 @@ export function SearchDirectory<T>({
   loadInitially = false,
   actions,
   children,
+  after,
   reloadKey = 0,
 }: {
-  eyebrow: string;
   title: string;
   description?: string;
   searchLabel: string;
@@ -39,6 +38,8 @@ export function SearchDirectory<T>({
   actions?: ReactNode;
   // Above the search, e.g. the form an action opens.
   children?: ReactNode;
+  // Below the results, e.g. a note about them.
+  after?: ReactNode;
   // Changing it runs the current search again, e.g. after adding a row.
   reloadKey?: number;
 }) {
@@ -51,7 +52,7 @@ export function SearchDirectory<T>({
   const [rerunning, setRerunning] = useState(false);
   const searching = rerunning || ((loadInitially || searched !== '') && pending);
 
-  const heading = <PageHeading list eyebrow={eyebrow} title={title} description={description} />;
+  const heading = <PageHeading list title={title} description={description} />;
   return (
     <>
       {actions ? (
@@ -64,7 +65,7 @@ export function SearchDirectory<T>({
       )}
       {children}
       <form
-        className="list-toolbar"
+        className="list-toolbar list-toolbar--end"
         onSubmit={(event) => {
           event.preventDefault();
           if (query.trim() !== searched) {
@@ -90,6 +91,7 @@ export function SearchDirectory<T>({
       </form>
       {Boolean(error) && <Notice tone="danger">Failed to load results.</Notice>}
       {results && <RecordTable rows={results} rowKey={rowKey} columns={columns} emptyMessage="No results." />}
+      {after}
     </>
   );
 }

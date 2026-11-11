@@ -100,8 +100,8 @@ export function StagedFiles({
       <h2>1. Add files</h2>
       <DropZone hasFiles={staged.length > 0} onFiles={add} />
       <p className="compact-hint">
-        PDFs, LEDES 1998B files or the template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}
-        <a href={invoiceTemplateUrl('csv')} download>CSV</a>), up to 10 MB each. Then choose each file's case.
+        Using a spreadsheet? Start from the template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}
+        <a href={invoiceTemplateUrl('csv')} download>CSV</a>) so every column is read correctly. Then choose each file's case.
       </p>
       <ul className="compact-hint">
         <li>One person's spreadsheet covering several cases: choose "split by case".</li>

@@ -67,6 +67,8 @@ export interface ReviewQueueItem extends QueuedInvoice {
   decidedCount: number;
   // Its reviewer is still entering its lines.
   beingEntered: boolean;
+  // The one looking may throw it away (the server's canDiscardEntry).
+  discardable: boolean;
   // Questions to the submitter, while the round isn't finished.
   openQuestionCount: number;
   answeredQuestionCount: number;

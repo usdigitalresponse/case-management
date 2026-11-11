@@ -4,7 +4,7 @@ import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { queryClient } from '../queryClient';
 import { fakeApi, respond } from '../test/fakeApi';
 import { renderPage } from '../test/renderPage';
-import { approved, invoiceReview, lineEditorRoutes, queuedInvoice, REVIEWER, reviewLine } from '../test/fixtures';
+import { approved, invoiceReview, lineEditorRoutes, queuedInvoice, REVIEWER, reviewLine, signedIn } from '../test/fixtures';
 import InvoiceReview from './InvoiceReview';
 
 afterEach(() => {
@@ -20,7 +20,7 @@ describe('reviewing an invoice', () => {
     const line = reviewLine();
     let current = invoiceReview({ lines: [line] });
     const api = fakeApi({
-      'GET /auth/me': REVIEWER,
+      ...signedIn(REVIEWER),
       'GET /api/decision-reasons': { reasons: [] },
       'GET /api/invoices/:id': () => current,
       'PUT /api/invoices/:id/lines/:lineId/decision': () => {
@@ -44,7 +44,7 @@ describe('entering lines in review', () => {
     const line = reviewLine();
     const api = fakeApi({
       ...lineEditorRoutes(),
-      'GET /auth/me': REVIEWER,
+      ...signedIn(REVIEWER),
       'GET /api/decision-reasons': { reasons: [] },
       'GET /api/invoices/:id': () => invoiceReview({ lines: [line], entryOpen: true, invoice: queuedInvoice({ enteredInReview: true, linesVersion: 3 }) }),
       'PUT /api/invoices/:id/entered-lines': { invoiceId: 'inv-1', submittedTotal: '330.00', undecided: [], linesVersion: 4 },
@@ -70,7 +70,7 @@ describe('entering lines in review', () => {
     const line = reviewLine();
     const api = fakeApi({
       ...lineEditorRoutes(),
-      'GET /auth/me': REVIEWER,
+      ...signedIn(REVIEWER),
       'GET /api/decision-reasons': { reasons: [] },
       'GET /api/invoices/:id': () => invoiceReview({ lines: [line], entryOpen: true, invoice: queuedInvoice({ enteredInReview: true, linesVersion: 3 }) }),
       'PUT /api/invoices/:id/entered-lines': respond(409, { error: 'stale_lines', message: 'These lines changed since you opened them.' }),

@@ -1,6 +1,7 @@
 // The portal's only navigation: the brand, and once signed in, its tabs
 // (design I), who is signed in and Sign out.
-import { Link, NavLink } from 'react-router';
+import { NavLink } from 'react-router';
+import { AppBrand } from '../components/AppBrand';
 import { useAuth } from '../AuthContext';
 import { PORTAL_HOME_PATH } from './useShell';
 
@@ -10,8 +11,7 @@ export function PortalTopBar() {
     <>
       <a className="usa-skipnav" href="#main-content">Skip to main content</a>
       <header className="app-header portal-header">
-        <Link className="app-brand" to={user ? PORTAL_HOME_PATH : '/submit'}>Invoice Review Prototype</Link>
-        <span className="portal-badge">Invoice submission</span>
+        <AppBrand to={user ? PORTAL_HOME_PATH : '/submit'} section="Invoice submission" />
         {user && (
           <nav className="portal-tabs" aria-label="Main navigation">
             <NavLink to={PORTAL_HOME_PATH}>Your invoices</NavLink>
