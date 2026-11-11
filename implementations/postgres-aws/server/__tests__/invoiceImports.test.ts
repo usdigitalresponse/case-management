@@ -417,7 +417,7 @@ describe('invoice import workflow', () => {
     ]);
     expect((await warningsOf(later.invoiceImportId)).find((warning) => warning.code === 'date_from_previous_line')).toMatchObject({
       location: 'line 4',
-      message: expect.stringContaining('the line before it (2026-01-10)'),
+      message: expect.stringContaining('the line before it (10 Jan 2026)'),
     });
     expect((await listInvoiceImports(testDb, actor))[0]).toMatchObject({ undatedCount: 0, inferredDateCount: 1, otherWarningCount: 0 });
     await confirmInvoiceImport(testDb, store, actor, later.invoiceImportId);

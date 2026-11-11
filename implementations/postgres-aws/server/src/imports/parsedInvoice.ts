@@ -3,6 +3,7 @@
 import { ValidationError } from '../errors';
 import type { LineType } from '../billing/invoiceLifecycle';
 import { toCents } from '../billing/money';
+import { formatCalendarDate } from '../formatDate';
 
 // invoice_import_formats codes; 'document' is a PDF.
 export type ImportFormat = 'ledes_1998b' | 'spreadsheet' | 'document';
@@ -136,7 +137,7 @@ export function reconciliationWarnings(parsed: ParsedInvoice): ImportWarning[] {
       warnings.push({
         code: 'date_outside_period',
         location: line.location,
-        message: `${line.serviceDate} is outside the billing period ${parsed.periodStart} to ${parsed.periodEnd}.`,
+        message: `${formatCalendarDate(line.serviceDate)} is outside the billing period ${formatCalendarDate(parsed.periodStart)} to ${formatCalendarDate(parsed.periodEnd)}.`,
       });
     }
   }

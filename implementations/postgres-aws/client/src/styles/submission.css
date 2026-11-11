@@ -57,6 +57,8 @@
 .check-lines__row--editing td:first-child, .check-lines__row--focus td:first-child { box-shadow: inset 3px 0 0 var(--color-primary); }
 .check-lines__row--removed td { color: var(--color-on-surface-muted); }
 .check-lines__row--removed s { text-decoration-thickness: 1px; }
+.cell-note.check-lines__warning { color: var(--color-on-tertiary-container); }
+.cell-note.check-lines__changed { color: var(--color-primary); }
 .check-lines__actions { text-align: right; white-space: nowrap; }
 .check-lines__actions .link-button { font-weight: 600; margin-left: var(--space-6); }
 .check-lines__actions .link-button:first-child { margin-left: 0; }

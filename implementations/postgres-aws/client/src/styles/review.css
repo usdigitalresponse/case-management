@@ -3,6 +3,7 @@
 .review-file-layout { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 9fr); gap: var(--space-6); align-items: start; }
 .review-file-layout__lines { min-width: 0; }
 .change-note { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); margin-top: var(--space-3); }
+.cell-note.change-note__text { color: var(--color-primary); }
 .change-note__text .link-button { font-size: var(--text-13); font-weight: 600; }
 .change-note__show { display: block; margin-top: var(--space-3); font-weight: 600; }
 .removed-lines { margin-top: var(--space-4); }
