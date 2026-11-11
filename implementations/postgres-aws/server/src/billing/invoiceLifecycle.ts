@@ -64,6 +64,7 @@ import {
 } from './invoiceStatusCodes';
 import { optionalEmail } from '../people/emails';
 import { requireOverrunExplanation } from './overrunExplanation';
+import { formatCalendarDate, formatInstant } from '../formatDate';
 
 // Snapshot layout version (model/README.md).
 export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.12.0';
@@ -912,9 +913,9 @@ async function emailReceipt(
     row.caseNumberAsTyped
       ? `Case number: ${row.caseNumberAsTyped}`
       : `Case: ${[row.caseReference, row.clientName].filter(Boolean).join(', ') || 'not given'}`,
-    `Billing period: ${row.periodStart && row.periodEnd ? `${row.periodStart} to ${row.periodEnd}` : 'not given'}`,
+    `Billing period: ${row.periodStart && row.periodEnd ? `${formatCalendarDate(row.periodStart)} to ${formatCalendarDate(row.periodEnd)}` : 'not given'}`,
     `Amount: ${formatMoney(row.submittedTotal)}`,
-    `Sent: ${(row.submittedAt ?? new Date()).toISOString()}`,
+    `Sent: ${formatInstant(row.submittedAt ?? new Date())}`,
     '',
     'You can withdraw it until review starts. Reviewers see your original file and every change you made.',
   ];

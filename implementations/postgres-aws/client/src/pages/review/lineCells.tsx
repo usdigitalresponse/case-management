@@ -10,7 +10,8 @@ import {
 import { DecisionCell, DecisionPanel, decisionInput, type RateScope } from '../../components/LineReview';
 import { AskLink, LineQuestions, QuestionForm } from '../../components/ReviewQuestions';
 import { EmailAboutLine } from '../../components/EmailSender';
-import { TimeLogLineCell, TimeLogLinkForm } from '../../components/TimeLogCheck';
+import { TimeLogLineCell } from './timeLog/TimeLogLineCell';
+import { TimeLogLinkForm } from './timeLog/TimeLogLinkForm';
 import type { ReviewFacts } from './reviewFacts';
 import type { ReviewPage } from './useReviewPage';
 

@@ -1,4 +1,5 @@
-import { TimeLogSummary, TimeLogUpload } from '../../components/TimeLogCheck';
+import { TimeLogSummary } from './timeLog/TimeLogSummary';
+import { TimeLogUpload } from './timeLog/TimeLogUpload';
 import { EXTERNAL_SYSTEM_NAME } from '../../externalSystem';
 import type { LineCells } from './lineCells';
 import type { ReviewFacts } from './reviewFacts';

@@ -590,6 +590,7 @@ How the React client is built and why. Schema mapping and gaps are in
   is open and the action runner (`act`); `reviewFacts` works out what it
   shows and allows (unit tested); `lineCells` builds each line's decision,
   questions and open form; the rest are its sections, top to bottom.
+  Checking lines against a case time log is in `pages/review/timeLog/`.
 - **The check page** (`src/portal/InvoiceSubmission.tsx`, the portal's
   invoice page and staff's check-the-lines page) lays out its sections from
   `src/portal/submission/`: `useSubmission` holds the lines as edited, the

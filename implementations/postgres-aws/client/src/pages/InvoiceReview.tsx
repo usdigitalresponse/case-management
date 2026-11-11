@@ -2,7 +2,7 @@ import { useParams } from 'react-router';
 import { useAuth } from '../AuthContext';
 import { LoadState } from '../components/LoadState';
 import { Toast } from '../components/Toast';
-import { SidePanelSwitch, TimeLogEntries } from '../components/TimeLogCheck';
+import { SidePanelSwitch, TimeLogEntries } from './review/timeLog/TimeLogEntries';
 import { useReviewPage } from './review/useReviewPage';
 import { reviewFacts } from './review/reviewFacts';
 import { lineCells } from './review/lineCells';

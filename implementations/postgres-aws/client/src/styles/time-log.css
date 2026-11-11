@@ -1,4 +1,4 @@
-/* Checking lines against a case time log (components/TimeLogCheck.tsx). */
+/* Checking lines against a case time log (pages/review/timeLog/). */
 .time-log-summary { margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-6); }
 .time-log-summary h2 { margin: 0; font-size: var(--text-15); }
 .time-log-summary h3 { margin: var(--space-6) 0 var(--space-3); font-size: var(--text-15); }

@@ -12,3 +12,8 @@ export function calendarDateInReportingTimeZone(date: Date): string {
     day: '2-digit',
   }).format(date);
 }
+
+// The time of day in the reporting zone, named, for messages such as receipts.
+export function timeInReportingTimeZone(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone: REPORTING_TIME_ZONE, hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(date);
+}
