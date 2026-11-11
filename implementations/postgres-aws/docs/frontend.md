@@ -268,9 +268,10 @@ How the React client is built and why. Schema mapping and gaps are in
     - Gaps: reviewer names stay hidden from external users, against G13, until that rule
       changes. "Paid" waits on payment records. The old person search moved to
       `/person-records`.
-  - Hidden, not removed: the case page's lifecycle history and Close case
-    action are off the page but their code remains (design I put Case
-    overview, People, Clients and Organizations back in the sidebar). Cases come in
+  - Hidden, not removed: the case page's lifecycle history is off the page
+    but its code remains (design I put Case overview, People, Clients and
+    Organizations back in the sidebar). Closing is at the foot of the case
+    page ("Closing the case here"), only once its invoices are finished. Cases come in
     with their invoices (design I): a case is added only while matching an
     invoice ("Add a case for [number]", or on Intake), which adds its
     sender too, so the case pages have no Add case or Add person

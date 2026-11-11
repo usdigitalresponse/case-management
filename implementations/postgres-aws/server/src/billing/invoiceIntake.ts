@@ -33,6 +33,7 @@ import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { AWAITING_MATCH_INVOICE_STATUS_CODE, DRAFT_INVOICE_STATUS_CODE, LINE_REVIEW_STATUS_CODES } from './invoiceStatusCodes';
 import { releaseToReviewInTx } from './invoiceLifecycle';
 import { unmatchedTimekeeper } from './proposedDetails';
+import { reopenCase } from '../cases/closeCase';
 
 async function requireStaff(db: Database, userAccountId: string) {
   if (!(await isStaffAccount(db, userAccountId))) {
@@ -259,6 +260,8 @@ export async function returnToSubmitter(db: Database, actorUserAccountId: string
 // provider and timekeepers; one sent for matching then goes to review
 // (release_to_review). Returns whether it did. A request filed by person may
 // also be matched while it is reviewed; its sent prices stay as they are.
+export const REOPENED_BY_MATCH = 'Reopened: an invoice was matched to it';
+
 export async function matchInvoiceToCase(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   await requireStaff(db, actorUserAccountId);
   if (!z.uuid().safeParse(invoiceId).success) {
@@ -289,9 +292,6 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
   if (!target) {
     throw new ValidationError({ caseId: 'Choose a case.' });
   }
-  if (target.closedOn) {
-    throw new ValidationError({ caseId: 'That case is closed. Choose an open case.' });
-  }
 
   const billedProfessionalId = row.professionalId ?? parsed.data.professionalId;
   if (!billedProfessionalId) {
@@ -317,16 +317,20 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
     .from(caseAssignment)
     .where(and(eq(caseAssignment.caseId, caseId), isNull(caseAssignment.endedAt), inArray(caseAssignment.professionalId, billed)));
   const missing = billed.filter((id) => !onCase.some((assignment) => assignment.professionalId === id));
+  if (missing.length > 0 && !addMissing) {
+    const names = await db
+      .select({ displayName: professional.displayName })
+      .from(professional)
+      .where(inArray(professional.professionalId, missing));
+    throw new ValidationError({
+      addMissing: `${names.map((name) => name.displayName ?? 'A provider').join(', ')} ${missing.length === 1 ? "isn't" : "aren't"} on this case. Add ${missing.length === 1 ? 'them' : 'them all'} to match.`,
+    });
+  }
+  // Closed here only as a cleanup (../cases/closeCase.ts), so a later invoice reopens it.
+  if (target.closedOn) {
+    await reopenCase(db, actorUserAccountId, caseId, { reasonDetail: REOPENED_BY_MATCH });
+  }
   if (missing.length > 0) {
-    if (!addMissing) {
-      const names = await db
-        .select({ displayName: professional.displayName })
-        .from(professional)
-        .where(inArray(professional.professionalId, missing));
-      throw new ValidationError({
-        addMissing: `${names.map((name) => name.displayName ?? 'A provider').join(', ')} ${missing.length === 1 ? "isn't" : "aren't"} on this case. Add ${missing.length === 1 ? 'them' : 'them all'} to match.`,
-      });
-    }
     for (const professionalId of missing) {
       // eslint-disable-next-line no-await-in-loop
       await assignExternalSubmitterToCase(db, actorUserAccountId, caseId, { professionalId });

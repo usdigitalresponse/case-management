@@ -47,7 +47,11 @@ How case intake is handled on the server. See also [`api.md`](api.md) and
   Open / Closed chips, the county filter and a search, with design I's
   columns. A case's page has its facts, a "Pre-authorized and billed" card
   per pre-authorization (approved, waiting, what would be left, and a bar)
-  beside the people on it, then its invoices and case rates.
+  beside the people on it, then its invoices and case rates, and at the
+  foot "Closing the case here": a cleanup any staff member may do once no
+  invoice is in review and every decided one is marked completed. Matching
+  a later invoice to a closed case ("Match and reopen" on the review page,
+  or a closed case chosen on Intake) reopens it.
 - **Look-up pages** (design I, I51–I53): Providers (`/vendors`) lists each
   provider with their kind (changed inline by administrators), today's rate,
   their office and who can send their invoices: themselves once they can sign

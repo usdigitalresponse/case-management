@@ -104,6 +104,8 @@ export interface CaseDetail {
   lifecycleEvents: CaseLifecycleEvent[];
   identifiers: CaseIdentifier[];
   assignments: CaseAssignment[];
+  // What stops it closing here: invoices in review, and decided ones not marked completed.
+  unfinishedInvoices: { waiting: number; notCompleted: number };
 }
 
 export function getCase(caseId: string): Promise<CaseDetail> {

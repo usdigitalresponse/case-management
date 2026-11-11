@@ -45,10 +45,10 @@ const STAGES: Record<IntakeItem['stage'], { label: string; tone: Tone }> = {
   sent: { label: 'Sent by the submitter: match it', tone: 'warning' },
 };
 
-// Match an invoice to an open case, adding its providers to the case when
-// they aren't on it.
+// Match an invoice to a case, adding its providers to the case when they
+// aren't on it. A case closed here is reopened by matching.
 function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message: string) => void }) {
-  const { data } = useApiResource(() => listCases().then((result) => result.cases.filter((c) => !c.closedOn)), []);
+  const { data } = useApiResource(() => listCases().then((result) => result.cases), []);
   const needsProfessional = item.professionalId === null;
   const unlisted = item.unlistedTimekeepers;
   const [added, setAdded] = useState<Array<{ professionalId: string; displayName: string }>>([]);
@@ -145,7 +145,10 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
             onChange={setCaseId}
             addLabel="+ Add new case"
             placeholder={data ? 'Choose an open case' : 'Loading cases…'}
-            options={(data ?? []).map((c) => ({ value: c.caseId, label: caseDisplayLabel([c.externalReference, c.clientDisplayName], undefined) }))}
+            options={(data ?? []).map((c) => ({
+              value: c.caseId,
+              label: `${caseDisplayLabel([c.externalReference, c.clientDisplayName], undefined)}${c.closedOn ? ' (closed: matching reopens it)' : ''}`,
+            }))}
             hint={caseId && caseId === item.suggestedCaseId ? <span className="line-row-suggested">Named in the file: check it</span> : undefined}
           >
             <StaffNewCaseFields idPrefix={`match-new-${item.invoiceId}`} value={newCase} onChange={setNewCase} errors={caseErrors} />
