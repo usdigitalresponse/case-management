@@ -26,7 +26,7 @@ import { caseStageExpression } from '../cases/caseStage';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { assignExternalSubmitterToCase } from '../cases/assignExternalSubmitterToCase';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
-import { closeCase } from '../cases/closeCase';
+import { closeCase, unfinishedInvoices } from '../cases/closeCase';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -124,7 +124,7 @@ router.get(
       return;
     }
     const resultingStatuses = alias(caseStatuses, 'resulting_statuses');
-    const [participants, lifecycleEvents, identifiers, assignments] = await Promise.all([
+    const [participants, lifecycleEvents, identifiers, assignments, unfinished] = await Promise.all([
       db
         .select({
           caseParticipantId: caseParticipant.caseParticipantId,
@@ -178,8 +178,9 @@ router.get(
         .leftJoin(role, eq(caseAssignment.assignmentRoleId, role.roleId))
         .where(eq(caseAssignment.caseId, caseId))
         .orderBy(asc(caseAssignment.assignedAt)),
+      unfinishedInvoices(db, caseId),
     ]);
-    res.json({ case: caseRow, participants, lifecycleEvents, identifiers, assignments });
+    res.json({ case: caseRow, participants, lifecycleEvents, identifiers, assignments, unfinishedInvoices: unfinished });
   }),
 );
 

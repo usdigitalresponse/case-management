@@ -4,12 +4,13 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase, type CreateCaseInput } from '../src/intake/createCase';
-import { closeCase } from '../src/cases/closeCase';
+import { closeCase, reopenCase } from '../src/cases/closeCase';
+import { COMMUNICATION_COMPLETED_EVENT_CODE, recordInvoiceEvent } from '../src/billing/invoiceEvents';
 import { ValidationError } from '../src/errors';
-import { CaseAlreadyClosedError, CaseNotFoundError } from '../src/cases/errors';
+import { CaseAlreadyClosedError, CaseInvoicesUnfinishedError, CaseNotClosedError, CaseNotFoundError } from '../src/cases/errors';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { calendarDateInReportingTimeZone } from '../src/reportingTimeZone';
-import { caseTable, caseAssignment, caseLifecycleEvent, userAccount } from '../src/db/schema';
+import { caseTable, caseAssignment, caseLifecycleEvent, invoice, userAccount } from '../src/db/schema';
 
 let fixtures: BaselineFixtureIds;
 
@@ -178,4 +179,81 @@ describe('closeCase', () => {
       .where(eq(caseLifecycleEvent.caseLifecycleEventId, result.caseLifecycleEventId));
     expect(closingEvent?.sequenceNumber).toBe(2);
   });
+
+  it('waits until no invoice is in review, and every decided one is marked completed', async () => {
+    const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
+    const inReview = await invoiceOnCase(caseId, fixtures.invoiceStatusSubmittedId);
+    const decided = await invoiceOnCase(caseId, fixtures.invoiceStatusApprovedId);
+    // A sender's unsent draft doesn't stop it.
+    await invoiceOnCase(caseId, fixtures.invoiceStatusDraftId);
+
+    await expect(closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Done.' })).rejects.toThrow(
+      'Finish its invoices first: 1 invoice is still in review, and 1 decided invoice isn’t marked completed.',
+    );
+
+    await testDb.update(invoice).set({ statusId: fixtures.invoiceStatusRejectedId }).where(eq(invoice.invoiceId, inReview));
+    await markCompleted(decided);
+    await expect(closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Done.' })).rejects.toBeInstanceOf(
+      CaseInvoicesUnfinishedError,
+    );
+
+    await markCompleted(inReview);
+    await closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Done.' });
+    const [row] = await testDb.select({ closedOn: caseTable.closedOn }).from(caseTable).where(eq(caseTable.caseId, caseId));
+    expect(row?.closedOn).not.toBeNull();
+  });
 });
+
+describe('reopenCase', () => {
+  it('reopens a closed case with a reason, leaving its ended assignments ended', async () => {
+    const { caseId } = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, baseCaseInput());
+    await testDb.insert(caseAssignment).values({
+      caseId,
+      professionalId: await createProfessional(),
+      assignedAt: new Date('2026-01-16T00:00:00Z'),
+      assignmentRoleId: fixtures.externalSubmitterAssignmentRoleId,
+      assignedByUserAccountId: fixtures.staffUserAccountId,
+    });
+    await expect(reopenCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'More work.' })).rejects.toBeInstanceOf(
+      CaseNotClosedError,
+    );
+    await closeCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Done.' });
+    await expect(reopenCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: '  ' })).rejects.toBeInstanceOf(ValidationError);
+
+    await reopenCase(testDb, fixtures.staffUserAccountId, caseId, { reasonDetail: 'More work.' });
+
+    const [row] = await testDb.select({ closedOn: caseTable.closedOn, statusId: caseTable.statusId }).from(caseTable).where(eq(caseTable.caseId, caseId));
+    expect(row).toEqual({ closedOn: null, statusId: fixtures.caseStatusOpenId });
+    const events = await testDb.select().from(caseLifecycleEvent).where(eq(caseLifecycleEvent.caseId, caseId));
+    expect(events.map((event) => [event.sequenceNumber, event.reasonDetail]).at(-1)).toEqual([3, 'More work.']);
+    const assignments = await testDb.select().from(caseAssignment).where(eq(caseAssignment.caseId, caseId));
+    expect(assignments.every((assignment) => assignment.endedAt !== null)).toBe(true);
+  });
+});
+
+async function invoiceOnCase(caseId: string, statusId: string): Promise<string> {
+  const [row] = await testDb
+    .insert(invoice)
+    .values({
+      submittedByUserAccountId: fixtures.staffUserAccountId,
+      professionalId: await createProfessional(),
+      statusId,
+      submittedAt: new Date(),
+      submittedTotal: '100.00',
+      caseId,
+    })
+    .returning();
+  return row!.invoiceId;
+}
+
+async function markCompleted(invoiceId: string) {
+  const [row] = await testDb.select({ statusId: invoice.statusId }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+  await testDb.transaction((tx) =>
+    recordInvoiceEvent(tx, {
+      invoiceId,
+      eventTypeCode: COMMUNICATION_COMPLETED_EVENT_CODE,
+      statusId: row!.statusId,
+      actorUserAccountId: fixtures.staffUserAccountId,
+    }),
+  );
+}

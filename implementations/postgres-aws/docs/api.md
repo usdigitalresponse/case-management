@@ -1036,7 +1036,14 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     decided.
 - **Closing a case**: `POST /api/cases/:id/close` (`requireFullUser`,
   `src/cases/closeCase.ts`) is the counterpart to opening
-  (`src/intake/createCase.ts`): it requires a reason, records the next
+  (`src/intake/createCase.ts`). The case's real status lives in the
+  external system, so this is a cleanup: it is refused (409
+  `invoices_unfinished`) while an invoice on the case is in review or
+  decided and not marked completed; `GET /api/cases/:id` returns those
+  counts as `unfinishedInvoices`. Matching a later invoice to the case
+  reopens it (`reopenCase`, event `sample_reopened` with the reason
+  "Reopened: an invoice was matched to it"), without bringing back its
+  ended assignments. Otherwise it requires a reason, records the next
   lifecycle event, projects `case.status_id`/`closed_on`, and ends every
   open `case_assignment` at the closure's effective timestamp (always
   the server's current time — closes can't be backdated) —
@@ -1053,7 +1060,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   share-locks the case row while `closeCase` update-locks it, so a
   concurrent assignment and close can't leave an open assignment on a
   closed case (rejected with 409 `already_closed`). Deliberately not
-  implemented: reopening/corrections (a closed case stays closed).
+  implemented: corrections, and reopening by hand (only matching reopens).
 - **Demo sign-in**: `POST /auth/demo-login` logs in as the seeded
   synthetic staff account (`staff@example.invalid`, with a faker name)
   with no credentials.

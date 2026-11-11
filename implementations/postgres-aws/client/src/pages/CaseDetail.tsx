@@ -7,12 +7,14 @@ import {
   setCaseReviewer,
   setPreauthorizedAmount,
   type AssignedPerson,
+  type CaseDetail as CaseDetailRecord,
   type PreauthorizationSummary,
 } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
 import { DECIDED_STATUS_CODES, InvoiceStatus } from '../components/Completion';
 import { CaseRateTable } from '../components/CaseRates';
+import { CloseCaseAction } from '../components/CloseCaseAction';
 import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
@@ -339,6 +341,47 @@ export default function CaseDetail() {
         <p className="compact-hint">Reviewers set these while reviewing the case's invoices. A new rate is added; earlier ones stay.</p>
         {billing && <CaseRateTable rows={billing.caseRates} label="Case rates" />}
       </section>
+
+      <CloseHere detail={detail} onClosed={refresh} />
     </div>
+  );
+}
+
+// A cleanup, not a step every case needs: the case's real status lives in the
+// external system, and a later invoice matched to it reopens it.
+function CloseHere({ detail, onClosed }: { detail: CaseDetailRecord; onClosed: () => void }) {
+  const { waiting, notCompleted } = detail.unfinishedInvoices;
+  let body;
+  if (detail.case.closedOn) {
+    body = <p className="compact-hint">Closed here on {formatDate(detail.case.closedOn)}. Matching a new invoice to it reopens it.</p>;
+  } else if (waiting > 0 || notCompleted > 0) {
+    body = (
+      <p className="compact-hint">
+        You can close it here once its invoices are finished.{' '}
+        {[
+          waiting > 0 ? `${waiting} ${waiting === 1 ? 'is' : 'are'} in review` : null,
+          notCompleted > 0 ? `${notCompleted} decided ${notCompleted === 1 ? 'isn’t' : 'aren’t'} marked completed` : null,
+        ]
+          .filter(Boolean)
+          .join(', and ')}
+        .
+      </p>
+    );
+  } else {
+    body = (
+      <>
+        <p className="compact-hint">
+          Its status lives in your {EXTERNAL_SYSTEM_NAME}. Closing it here only takes it off the open lists and ends who's on it; a
+          new invoice matched to it reopens it.
+        </p>
+        <CloseCaseAction caseId={detail.case.caseId} onClosed={onClosed} />
+      </>
+    );
+  }
+  return (
+    <section className="compact-card close-here">
+      <h2>Closing the case here</h2>
+      {body}
+    </section>
   );
 }

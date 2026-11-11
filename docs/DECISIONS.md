@@ -23,6 +23,11 @@ questions, the time log check, entering an invoice in review, "Mark completed",
   It stays proposed details on the invoice (see "Adding what isn't listed"
   below). A staff member creates the case while reviewing, and the existing
   duplicate and close-match checks run first.
+- Closing a case here is an optional cleanup, since its real status lives in
+  the external system (decided 2026-11-10). Any staff member may close it
+  once no invoice on it is in review and every decided one is marked
+  completed. Closing ends who's on it, as before. Matching a later invoice
+  to it reopens it, records why, and adds the sender back.
 - Any staff member can enter a case's pre-authorized amount.
 - An invoice that takes a case over its pre-authorized amount is flagged.
   Reviewers can still approve or reject it.

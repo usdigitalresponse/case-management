@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Label, TextInput } from '@trussworks/react-uswds';
-import { ApiError, closeCase } from '../api/client';
+import { apiErrorMessage, closeCase } from '../api/client';
 import { Notice } from './Notice';
 
-// Closes an open case, from any stage (server/src/cases/closeCase.ts). A reason is required (the server
-// enforces this), so opening the form is a separate step from confirming it.
+// Closes an open case whose invoices are finished (server/src/cases/closeCase.ts). A reason is required
+// (the server enforces this), so opening the form is a separate step from confirming it.
 export function CloseCaseAction({ caseId, onClosed }: { caseId: string; onClosed: () => void }) {
   const [open, setOpen] = useState(false);
   const [reasonDetail, setReasonDetail] = useState('');
@@ -19,11 +19,7 @@ export function CloseCaseAction({ caseId, onClosed }: { caseId: string; onClosed
       await closeCase(caseId, reasonDetail);
       onClosed();
     } catch (err) {
-      setError(
-        err instanceof ApiError && err.status === 409
-          ? 'This case is already closed.'
-          : 'Failed to close case.',
-      );
+      setError(apiErrorMessage(err, 'The case could not be closed. Try again.'));
     } finally {
       setSubmitting(false);
     }

@@ -8,7 +8,8 @@ import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db
 import { createCase } from '../src/intake/createCase';
 import { priceLines } from '../src/billing/priceLines';
 import { applyLineRate } from '../src/billing/caseRates';
-import { matchInvoiceToCase } from '../src/billing/invoiceIntake';
+import { matchInvoiceToCase, REOPENED_BY_MATCH } from '../src/billing/invoiceIntake';
+import { closeCase } from '../src/cases/closeCase';
 import { recordInvoiceEvent } from '../src/billing/invoiceEvents';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { listReviewQueue } from '../src/billing/reviewQueue';
@@ -20,6 +21,8 @@ import { getReferenceId } from '../src/db/referenceLookups';
 import { ForbiddenError, ValidationError } from '../src/errors';
 import {
   caseAssignment,
+  caseLifecycleEvent,
+  caseTable,
   invoice,
   invoiceApprovalChain,
   invoiceEvent,
@@ -155,6 +158,27 @@ describe('matching an invoice filed by person while it is reviewed', () => {
     expect(detail.lines[0]).toMatchObject({ configuredRate: '100.000', rateSource: 'kind' });
     expect(detail.caseRatesChangedSinceSent).toHaveLength(1);
     expect((await loadInvoiceDetail(testDb, onCase.invoiceId, 'staff'))!.caseRatesChangedSinceSent).toEqual([]);
+  });
+
+  it('reopens a case closed here, adding the sender back', async () => {
+    const caseId = await newCase('26-CR-00211');
+    await closeCase(testDb, reviewer, caseId, { reasonDetail: 'Tidying up.' });
+    const person = await newProfessional(100);
+    const { invoiceId } = await filedByPerson(person, '26-CR-00211');
+
+    await expect(matchInvoiceToCase(testDb, reviewer, invoiceId, { caseId, addMissing: false })).rejects.toBeInstanceOf(ValidationError);
+    expect((await testDb.select({ closedOn: caseTable.closedOn }).from(caseTable).where(eq(caseTable.caseId, caseId)))[0]?.closedOn).not.toBeNull();
+
+    await matchInvoiceToCase(testDb, reviewer, invoiceId, { caseId, addMissing: true });
+
+    expect((await testDb.select({ closedOn: caseTable.closedOn }).from(caseTable).where(eq(caseTable.caseId, caseId)))[0]?.closedOn).toBeNull();
+    const events = await testDb.select({ reason: caseLifecycleEvent.reasonDetail }).from(caseLifecycleEvent).where(eq(caseLifecycleEvent.caseId, caseId));
+    expect(events.at(-1)?.reason).toBe(REOPENED_BY_MATCH);
+    const assigned = await testDb
+      .select()
+      .from(caseAssignment)
+      .where(and(eq(caseAssignment.caseId, caseId), eq(caseAssignment.professionalId, person.professionalId), isNull(caseAssignment.endedAt)));
+    expect(assigned).toHaveLength(1);
   });
 
   it('refuses an invoice that already has its case', async () => {

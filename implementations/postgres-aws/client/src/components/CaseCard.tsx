@@ -132,18 +132,14 @@ export function CaseMatch({ invoice, onMatched }: { invoice: QueuedInvoice; onMa
                 {found.countyDisplayName ? ` · ${found.countyDisplayName}` : ''}
                 {found.match === 'close' && <span className="cell-note"> Close match</span>}
               </span>
-              {found.closed ? (
-                <span className="cell-note">Closed</span>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn--outline"
-                  disabled={saving}
-                  onClick={() => match(found.caseId, found.caseNumber ?? number)}
-                >
-                  Match
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn btn--outline"
+                disabled={saving}
+                onClick={() => match(found.caseId, found.caseNumber ?? number)}
+              >
+                {found.closed ? 'Match and reopen' : 'Match'}
+              </button>
             </li>
           ))}
         </ul>

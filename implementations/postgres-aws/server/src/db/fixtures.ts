@@ -170,6 +170,7 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     .values([
       { code: 'sample_open', displayName: 'Opened' },
       { code: 'sample_closed', displayName: 'Closed' },
+      { code: 'sample_reopened', displayName: 'Reopened' },
     ])
     .returning();
   if (!eventType || !closingEventType) {
