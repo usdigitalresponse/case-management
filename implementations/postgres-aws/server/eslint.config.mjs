@@ -14,5 +14,5 @@ export default tseslint.config(
     },
   },
   // Tests and one-off scripts do their work in order.
-  { files: ['__tests__/**', 'scripts/**'], rules: { 'no-await-in-loop': 'off' } },
+  { files: ['__tests__/**', 'perf/**', 'scripts/**'], rules: { 'no-await-in-loop': 'off' } },
 );
