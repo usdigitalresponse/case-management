@@ -7,7 +7,7 @@ import { reviewPath } from '../staffPaths';
 import { checkLinesPath } from '../portal/InvoiceSubmission';
 import { INTAKE_PATH } from '../portal/useShell';
 import { useAuth } from '../AuthContext';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { invoiceIntake, reviewQueue } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
@@ -46,7 +46,7 @@ function YourUnfinished({ userAccountId, entering }: { userAccountId: string; en
   const { user } = useAuth();
   const reviews = Boolean(user?.reviewPermissions?.reviewLines);
   const [error, setError] = useState<string | null>(null);
-  const { data, reload } = useCachedResource(invoiceIntake);
+  const { data, reload } = useResource(invoiceIntake);
   const items = data?.items ?? [];
   const drafts = items.filter((item) => item.invoiceId && item.stage !== 'sent' && item.enteredByUserAccountId === userAccountId);
   const held = items.filter((item) => item.stage === 'sent');
@@ -145,7 +145,7 @@ export default function InvoicesToReview() {
   const [params, setParams] = useSearchParams();
   const filter = (params.get('show') as QueueFilterId | null) ?? 'everyone';
   const [sort, setSort] = useState<SortId>('waiting');
-  const { data, error, reload } = useCachedResource(reviewQueue('open'));
+  const { data, error, reload } = useResource(reviewQueue('open'));
   const [toast, setToast] = useToast();
   const canAssign = Boolean(user?.reviewPermissions?.reassign);
 

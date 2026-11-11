@@ -8,7 +8,7 @@ import {
   searchPeople,
   type PersonRecord,
 } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { referenceData as referenceDataResource } from '../resources';
 import { ReferenceSelect } from '../components/ReferenceSelect';
 import { CountyPicker } from '../components/CountyPicker';
@@ -33,7 +33,7 @@ export default function NewCaseIntake() {
   // An invoice filed by person, being reviewed, and the case number it gives.
   const reviewInvoiceId = searchParams.get('review');
   const invoiceCaseNumber = searchParams.get('number') ?? undefined;
-  const { data: referenceData, error: loadError } = useApiResource(referenceDataResource, []);
+  const { data: referenceData, error: loadError } = useResource(referenceDataResource);
 
   const [selectedPerson, setSelectedPerson] = useState<PersonRecord | null>(null);
   // A client not in the system yet, created with the case.

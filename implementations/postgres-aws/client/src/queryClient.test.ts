@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueryObserver } from '@tanstack/react-query';
 import { markDataChanged, queryClient } from './queryClient';
-import { resourceQuery, type Resource } from './hooks/useCachedResource';
+import { resourceQuery, type Resource } from './hooks/useResource';
 
 afterEach(() => queryClient.clear());
 
-// A resource shown on screen, as useCachedResource observes it.
+// A resource shown on screen, as useResource observes it.
 async function onScreen(resource: Resource<number>) {
   const stop = new QueryObserver(queryClient, resourceQuery(resource)).subscribe(() => {});
   await vi.waitFor(() => expect(queryClient.getQueryState(resource.key)?.status).toBe('success'));

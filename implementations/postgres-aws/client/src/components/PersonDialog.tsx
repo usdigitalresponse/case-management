@@ -6,10 +6,10 @@ import {
   editProfessional,
   fieldErrorsOf,
   apiErrorMessage,
-  listProfessionalKinds,
   type BillingPersonDetail,
 } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
+import { professionalKinds } from '../resources';
 import { Dialog } from './Dialog';
 
 interface Fields {
@@ -35,7 +35,7 @@ export function PersonDialog({
   onSaved: (saved: { professionalId: string; displayName: string }) => void;
   onClose: () => void;
 }) {
-  const { data: kinds } = useApiResource(() => listProfessionalKinds().then((result) => result.kinds.filter((kind) => kind.active)), []);
+  const kinds = useResource(professionalKinds).data?.filter((kind) => kind.active) ?? null;
   const [fields, setFields] = useState<Fields>({
     displayName: person?.displayName ?? '',
     professionalKindId: person?.professionalKindId ?? '',

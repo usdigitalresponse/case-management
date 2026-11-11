@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LoaderFunctionArgs, ShouldRevalidateFunctionArgs } from 'react-router';
 import { queryClient } from './queryClient';
-import { loadedJustNow, type Resource } from './hooks/useCachedResource';
+import { loadedJustNow, type Resource } from './hooks/useResource';
 import { nextLoadIsFirst, preload } from './routeLoaders';
 
 const args = { params: {}, request: new Request('http://localhost/page') } as unknown as LoaderFunctionArgs;
@@ -42,32 +42,25 @@ describe('preload', () => {
 
   it('shows a new router\'s first page without waiting for its data', async () => {
     let finish = (_value: number) => {};
-    const resource = { key: ['slow'], load: () => new Promise<number>((resolve) => (finish = resolve)) };
+    const resource = { key: ['slow'], load: () => new Promise<number>((resolve) => (finish = resolve)), fresh: true };
     nextLoadIsFirst();
-    await preload(() => [resource], { current: true }).loader(args);
+    await preload(() => [resource]).loader(args);
     expect(queryClient.getQueryState(resource.key)?.fetchStatus).toBe('fetching');
     expect(loadedJustNow(resource)).toBeUndefined();
     finish(1);
   });
 
-  it('always loads afresh for pages that edit what they load, even just after a load', async () => {
-    const { resource, load } = counted('edited');
+  it('always loads a fresh resource afresh, even just after a load', async () => {
+    const { resource, load } = counted('edited', { fresh: true });
     queryClient.setQueryData(resource.key, 0);
-    await preload(() => [resource], { current: true }).loader(args);
+    await preload(() => [resource]).loader(args);
     expect(load).toHaveBeenCalledTimes(1);
     expect(loadedJustNow(resource)).toBe(1);
   });
 
-  it('loads a fresh resource on every visit', async () => {
-    const { resource, load } = counted('review', { fresh: true });
-    queryClient.setQueryData(resource.key, 0);
-    await preload(() => [resource]).loader(args);
-    expect(load).toHaveBeenCalledTimes(1);
-  });
-
   it('leaves a failed load for the page to show', async () => {
-    const resource = { key: ['failing'], load: () => Promise.reject(new Error('no')) };
-    await expect(preload(() => [resource], { current: true }).loader(args)).resolves.toBeNull();
+    const resource = { key: ['failing'], load: () => Promise.reject(new Error('no')), fresh: true };
+    await expect(preload(() => [resource]).loader(args)).resolves.toBeNull();
     expect(loadedJustNow(resource)).toBeUndefined();
   });
 

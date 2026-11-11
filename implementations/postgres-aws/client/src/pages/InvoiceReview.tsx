@@ -22,7 +22,7 @@ import {
   type LineDecisionInput,
 } from '../api/client';
 import { useAuth } from '../AuthContext';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { decisionReasons, invoiceForReview } from '../resources';
 import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { RuleFindings } from '../components/BillingRules';
@@ -65,8 +65,8 @@ export default function InvoiceReview() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const { user } = useAuth();
   const permissions = user?.reviewPermissions;
-  const { data: loaded, error } = useCachedResource(invoiceForReview(invoiceId as string));
-  const { data: reasonData } = useCachedResource(decisionReasons);
+  const { data: loaded, error } = useResource(invoiceForReview(invoiceId as string));
+  const { data: reasonData } = useResource(decisionReasons);
   // Refreshed in place after each action, so open panels aren't unmounted.
   const [refreshed, setRefreshed] = useState<InvoiceReviewData | null>(null);
   const latestRequest = useRef(0);

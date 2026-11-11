@@ -35,7 +35,7 @@ import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 import { Notice } from './components/Notice';
 import { queryClient, refreshCacheOnDataChange } from './queryClient';
 import { nextLoadIsFirst, portalLoaders, staffLoaders } from './routeLoaders';
-import { useCachedResource } from './hooks/useCachedResource';
+import { useResource } from './hooks/useResource';
 import { cases as casesResource, reviewQueue } from './resources';
 import { portalRoutes } from './portal/ExternalPortalApp';
 import type { AuthenticatedUser } from './api/client';
@@ -86,8 +86,8 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
 }
 
 function useQueueCounts(userAccountId: string) {
-  const { data: queue } = useCachedResource(reviewQueue('open'));
-  const { data: caseList, error: casesError } = useCachedResource(casesResource);
+  const { data: queue } = useResource(reviewQueue('open'));
+  const { data: caseList, error: casesError } = useResource(casesResource);
   return useMemo(() => {
     if (!queue) return null;
     return {

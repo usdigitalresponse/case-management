@@ -7,15 +7,14 @@ import { NO_PROPOSED_PERSON, ProposedPersonFields, proposedPersonToSend } from '
 import {
   apiErrorMessage,
   getInvoiceImport,
-  listInvoiceImports,
   resolveInvoiceImport,
   updateDraftInvoice,
   type BillableProfessional,
   type ProposedProvider,
   type SuggestedImportLine,
 } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
-import { importReview, type ImportReviewData } from '../resources';
+import { useResource } from '../hooks/useResource';
+import { importReview, invoiceImports, type ImportReviewData } from '../resources';
 import { usePoll } from '../hooks/usePoll';
 import { ImportProgressNote } from '../components/ImportProgressNote';
 import {
@@ -351,12 +350,9 @@ export default function PortalImportReview() {
   const { casePath, newInvoicePath, newInvoiceLabel } = useShell();
   const [version, setVersion] = useState(0);
   const imported = importReview(importId as string);
-  const { data, error } = useApiResource(imported, [importId, version]);
+  const { data, error } = useResource(imported, { resetKey: version });
   // From bulk import: where this file sits in the queue still to review.
-  const { data: bulkImports } = useApiResource(
-    () => (fromBulk ? listInvoiceImports().then((result) => result.imports) : Promise.resolve(null)),
-    [fromBulk, importId],
-  );
+  const { data: bulkImports } = useResource(fromBulk ? invoiceImports : null, { resetKey: importId });
   const [discardError, setDiscardError] = useState<string | null>(null);
   // Still being read: poll for progress, then reload once it's done.
   const reading = data?.importDetail.statusCode === 'received' && data.importDetail.invoiceImportId === importId;

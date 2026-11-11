@@ -1,7 +1,7 @@
 // Default and county thresholds, and the kinds they apply to (model/rules.yaml apply_preauthorization_limit).
 import { useState, type FormEvent } from 'react';
 import { addThreshold, apiErrorMessage, setKindThresholdApplies } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { thresholdSettings } from '../resources';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
@@ -16,7 +16,7 @@ function today(): string {
 
 export function PreauthorizationThresholds({ isAdmin }: { isAdmin: boolean }) {
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(thresholdSettings, [version]);
+  const { data, error } = useResource(thresholdSettings, { resetKey: version });
   const refresh = () => setVersion((v) => v + 1);
   const [countyValue, setCountyValue] = useState<CountyValue | null>(null);
   const [amount, setAmount] = useState('');

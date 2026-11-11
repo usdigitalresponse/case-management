@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router';
 import { apiErrorMessage, transitionInvoice, type InvoiceRecord } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { myInvoices as myInvoiceList } from '../resources';
 import { useAuth } from '../AuthContext';
 import { LoadState } from '../components/LoadState';
@@ -70,7 +70,7 @@ function StatusCell({ invoice }: { invoice: InvoiceRecord }) {
 // filters: the list is one person's.
 export default function PortalInvoiceList() {
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(myInvoiceList, [version]);
+  const { data, error } = useResource(myInvoiceList, { resetKey: version });
   const { user } = useAuth();
   const uploadedCount = (useLocation().state as UploadedState | null)?.uploadedCount ?? 0;
   const [withdrawing, setWithdrawing] = useState<InvoiceRecord | null>(null);

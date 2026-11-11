@@ -1,4 +1,4 @@
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { reviewQueue } from '../resources';
 import { BillingRecordExportButton } from '../components/BillingRecordExportButton';
 import { InvoiceExportButton } from '../components/InvoiceExportButton';
@@ -13,7 +13,7 @@ import { formatMoney } from '../formatMoney';
 // Signed-off invoices, ready to export for payment. Payment itself happens
 // outside this system.
 export default function Exports() {
-  const { data, error } = useCachedResource(reviewQueue('finished'));
+  const { data, error } = useResource(reviewQueue('finished'));
   const county = useCountyControl(
     (data?.invoices ?? []).filter((invoice) => invoice.statusCode === 'approved'),
     countyOfInvoice,

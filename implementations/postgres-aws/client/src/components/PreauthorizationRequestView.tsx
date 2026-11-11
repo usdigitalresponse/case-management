@@ -6,13 +6,10 @@ import {
   addProviderServiceRate,
   answerPreauthorizationQuestion,
   apiErrorMessage,
-  getProviderDocuments,
   type RateBasis,
   askPreauthorizationQuestion,
   decidePreauthorizationRequest,
   linkedDocumentUrl,
-  listCases,
-  listVendors,
   matchPreauthorizationRequest,
   uploadProviderDocument,
   uploadRequestDocument,
@@ -22,8 +19,8 @@ import {
   type PreauthorizationRequestRow,
   type RequestOutcome,
 } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
-import { preauthorizationRequest } from '../resources';
+import { useResource } from '../hooks/useResource';
+import { cases as casesResource, preauthorizationRequest, providerDocuments, vendorSearch } from '../resources';
 import { formatDate, formatDay, formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { Fact, FactsStrip } from './FactsStrip';
@@ -124,7 +121,7 @@ function AddDocument({ onAdd, defaultPurpose }: { onAdd: (file: File, purpose: L
 
 // model/rules.yaml request_provider_documents.
 export function ProviderOnFile({ professionalId, name }: { professionalId: string; name: string }) {
-  const { data, error, reload } = useApiResource(() => getProviderDocuments(professionalId), [professionalId]);
+  const { data, error, reload } = useResource(providerDocuments(professionalId));
   const [service, setService] = useState('');
   const [rate, setRate] = useState('');
   const [basis, setBasis] = useState<RateBasis>('hourly');
@@ -197,9 +194,9 @@ export function ProviderOnFile({ professionalId, name }: { professionalId: strin
 }
 
 function MatchForm({ request, onMatched }: { request: PreauthorizationRequestRow; onMatched: (next: PreauthorizationRequestDetail) => void }) {
-  const cases = useApiResource(() => (request.caseId ? Promise.resolve(null) : listCases()), [request.caseId]);
+  const cases = useResource(request.caseId ? null : casesResource);
   const [query, setQuery] = useState(request.proposedProviderName ?? '');
-  const vendors = useApiResource(() => (request.professionalId || !query.trim() ? Promise.resolve(null) : listVendors(query.trim())), [request.professionalId, query]);
+  const vendors = useResource(request.professionalId || !query.trim() ? null : vendorSearch(query.trim()));
   const [error, setError] = useState<string | null>(null);
   const [casePick, setCasePick] = useState('');
   const [providerPick, setProviderPick] = useState('');
@@ -401,7 +398,7 @@ function Questions({ detail, staff, mayAnswer, onChanged }: { detail: Preauthori
 }
 
 export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requestId: string; staff: boolean; crumbs: Array<{ label: string; to?: string }> }) {
-  const { data, error, reload } = useApiResource(preauthorizationRequest(requestId), [requestId]);
+  const { data, error, reload } = useResource(preauthorizationRequest(requestId));
   // Each change returns the request as it now is.
   const [changedTo, setChangedTo] = useState<PreauthorizationRequestDetail | null>(null);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);

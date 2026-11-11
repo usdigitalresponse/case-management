@@ -1,24 +1,21 @@
 import { useEffect, useState } from 'react';
 import {
   apiErrorMessage,
-  listReviewPeople,
   reassignReviewer,
   setSignOffApprovers,
   type AssignedPerson,
   type ReviewPerson,
 } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
+import { reviewPeople } from '../resources';
 import { OrderedChoiceList } from './OrderedChoiceList';
 import { Notice } from './Notice';
 
 // Staff who review or sign off, with how many invoices each has waiting.
 // Loaded only once `enabled`, such as when a picker opens.
 export function useReviewPeople(enabled = true): ReviewPerson[] | null {
-  const { data, error } = useApiResource(
-    () => (enabled ? listReviewPeople().then((result) => result.people) : Promise.resolve(null)),
-    [enabled],
-  );
-  return data ?? (error ? [] : null);
+  const { data, error } = useResource(enabled ? reviewPeople : null);
+  return data?.people ?? (error ? [] : null);
 }
 
 // A dropdown of reviewers: a case's reviewer, or the default in Settings.

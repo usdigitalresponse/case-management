@@ -3,11 +3,11 @@ import {
   addProfessional,
   apiErrorMessage,
   createExternalAssignment,
-  listProfessionalKinds,
   type BillableProfessional,
   type ProposedProvider,
 } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
+import { professionalKinds } from '../resources';
 import { Notice } from './Notice';
 
 export type AddedProvider = { professionalId: string; displayName: string };
@@ -43,7 +43,7 @@ export function AddProvider({
   inline?: boolean;
   idPrefix?: string;
 }) {
-  const { data } = useApiResource(() => listProfessionalKinds().then((result) => result.kinds.filter((kind) => kind.active)), []);
+  const data = useResource(professionalKinds).data?.filter((kind) => kind.active) ?? null;
   const [displayName, setDisplayName] = useState(initial?.displayName ?? '');
   const [email, setEmail] = useState(initial?.email ?? '');
   const [professionalKindId, setKindId] = useState(initial?.professionalKindId ?? '');

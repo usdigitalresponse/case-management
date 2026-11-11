@@ -2,7 +2,7 @@
 // sign-off, decided, or completed once the sender has been told.
 import { useState } from 'react';
 import type { ReviewQueueItem } from '../api/client';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { reviewQueue } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
@@ -42,7 +42,7 @@ function matches(invoice: ReviewQueueItem, filter: FilterId): boolean {
 }
 
 export default function FinishedInvoices() {
-  const { data, error, reload } = useCachedResource(reviewQueue('all'));
+  const { data, error, reload } = useResource(reviewQueue('all'));
   const [filter, setFilter] = useState<FilterId>('month');
   const [toast, setToast] = useToast();
   const finished = (data?.invoices ?? [])

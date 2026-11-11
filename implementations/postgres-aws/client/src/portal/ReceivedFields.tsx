@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { listReceiptChannels, type InvoiceReceipt } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { receiptChannels } from '../resources';
+import { useResource } from '../hooks/useResource';
+import { type InvoiceReceipt } from '../api/client';
 import { useShell } from './useShell';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -25,7 +26,7 @@ export function ReceivedFields({
   // Two fields with hints, for a grid of fields (.upload-details), not a box of their own.
   plain?: boolean;
 }) {
-  const { data } = useApiResource(() => listReceiptChannels().then((result) => result.channels), []);
+  const { data } = useResource(receiptChannels);
   const recorded = data?.find((channel) => channel.displayName === receivedViaDisplayName)?.code;
 
   useEffect(() => {

@@ -303,9 +303,9 @@ The app is a React Router data router built per kind of signed-in user
 (`client/src/App.tsx`, the portal's routes in `portal/ExternalPortalApp.tsx`);
 pages give their route a loader over named resources (`src/routeLoaders.ts`,
 `src/resources.ts`), so they don't blank to "Loading…" while switching; add one
-for a new page that loads data. Pages that edit what they load pass their
-resource to `useApiResource`, start from their loader's data and are never
-refreshed under the user.
+for a new page that loads data. All data loads through `useResource`
+(TanStack Query); resources a page edits are `fresh`: loaded for each visit,
+never refreshed under the user, and cleared and reloaded by a save's `resetKey`.
 Run server/client `npm run typecheck` and `npm run lint`, client `npm run build` and `npm test`, and
 server `npm test` against a separate migrated test database (see its README). The server
 build entry point is `dist/src/app.js`. Its `MAPPING.md` holds the schema

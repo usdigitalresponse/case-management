@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router';
 import type { CaseListRecord } from '../api/client';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { cases as casesResource } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
@@ -21,7 +21,7 @@ function matchesQuery(caseRecord: CaseListRecord, query: string): boolean {
 
 // Every case, as design I48 lists them.
 export default function CaseList() {
-  const { data, error } = useCachedResource(casesResource);
+  const { data, error } = useResource(casesResource);
   const cases = data?.cases ?? null;
   const [query, setQuery] = useState('');
   const [shown, setShown] = useState<Shown>('all');

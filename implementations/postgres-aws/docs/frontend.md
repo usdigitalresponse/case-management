@@ -549,15 +549,21 @@ How the React client is built and why. Schema mapping and gaps are in
   so they use one cache key. Still without one: Providers and search
   (they load as you type), the out-of-view person records, earlier
   case-led queue and portal hand-entry form.
-- **Cached lists** (`src/hooks/useCachedResource.ts`, TanStack Query):
-  the sidebar's list pages and counts show what they had when opened
-  again, while they refresh. Any change (`DATA_CHANGED_EVENT`, fired by
-  every successful write and upload) refreshes lists on screen and marks
-  everything else, including `reference` data (counties, decision
-  reasons), to reload when next opened; a loader waits for a list
-  marked so. A new router's first page shows at once and loads there. The review page's invoice is
-  a `fresh` resource: loaded for each visit and never refreshed under the
-  reviewer, since the page edits it.
+- **`useResource`** (`src/hooks/useResource.ts`, TanStack Query) is how
+  every page and component loads data, from a named resource (or `null`
+  to load nothing yet, as for a picker not open).
+  - **Lists** show what they had when opened again, while they refresh.
+  - **`fresh` resources**, which their page edits (the review page,
+    Settings, case and person pages, intake and upload, the portal), show
+    only what was loaded for this visit and are never refreshed under the
+    user. A save bumps the page's `resetKey`, which clears and reloads one,
+    so forms seeded from it start again, as before.
+  - **`reference` data** (counties, decision reasons, reference lists)
+    and `discard` (the original file, dropped when not shown) round it out.
+  - Any change (`DATA_CHANGED_EVENT`, fired by every successful write and
+    upload) refreshes lists on screen and marks everything else to reload
+    when next opened; a loader waits for a list marked so. A new router's
+    first page shows at once and loads there.
 - **Leaving and scrolling**: on the review and check pages, following a
   link with lines changed in place saves them first
   (`src/hooks/useSaveBeforeLeaving.ts`, React Router's `useBlocker`), so
@@ -571,12 +577,6 @@ How the React client is built and why. Schema mapping and gaps are in
   Testing Library (`// @vitest-environment jsdom` at the top of the
   file; a router test also imports `src/testing/routerInJsdom.ts`).
   Everything else stays in Node.
-- **`useApiResource`** (`src/hooks/useApiResource.ts`) is the uncached
-  load for pages that edit what they load (Settings, case and person
-  pages, intake and upload, the portal). Given a resource, the page
-  starts with what its loader fetched for this visit; saves that reload
-  a section still clear and refetch it as before. Error *message*
-  wording stays per page.
 - **`ReferenceSelect`** and **`RecordTable`** (`src/components/`) are the
   shared "label + select + reference-data options" and "empty vs.
   bordered table" shapes used by `NewCaseIntake`/`CaseDetail`.

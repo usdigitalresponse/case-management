@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link as RouterLink } from 'react-router';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { cases } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
@@ -10,7 +10,7 @@ import { formatDate } from '../formatDateTime';
 
 // Every case's client, one row per case (design I52).
 export default function ClientsDirectory() {
-  const { data, error } = useCachedResource(cases);
+  const { data, error } = useResource(cases);
   const [query, setQuery] = useState('');
   if (error || !data) return <LoadState error={error} what="clients" />;
 

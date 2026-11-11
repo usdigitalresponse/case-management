@@ -1,8 +1,9 @@
 // Every sent invoice matching a name or case number. Close matches are
 // totalled apart from exact ones, so the wrong case isn't added up by accident.
 import { useSearchParams } from 'react-router';
-import { listReviewQueue, type ReviewQueueItem } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { type ReviewQueueItem } from '../api/client';
+import { useResource } from '../hooks/useResource';
+import { invoiceSearch } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/Notice';
@@ -18,10 +19,9 @@ import { submittedByLabel } from '../reviewTotals';
 export default function SearchResults() {
   const [params] = useSearchParams();
   const query = params.get('q')?.trim() ?? '';
-  const { data, error, reload } = useApiResource(
-    () => (query ? listReviewQueue('all', { q: query }) : Promise.resolve({ invoices: [] as ReviewQueueItem[] })),
-    [query],
-  );
+  const searched = useResource(query ? invoiceSearch(query) : null);
+  const { error, reload } = searched;
+  const data = query ? searched.data : { invoices: [] as ReviewQueueItem[] };
 
   // Totals and the export follow the county chosen.
   const county = useCountyControl(

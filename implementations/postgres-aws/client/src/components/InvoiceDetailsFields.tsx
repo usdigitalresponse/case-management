@@ -7,8 +7,6 @@ import {
   apiErrorMessage,
   correctProfessional,
   fieldErrorsOf,
-  listBillableProfessionals,
-  listProfessionalKinds,
   type BillableProfessional,
   type ImportWarning,
   type InvoiceDetailsInput,
@@ -16,7 +14,8 @@ import {
   type SenderChoice,
 } from '../api/client';
 import { useAuth } from '../AuthContext';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
+import { billableProfessionals, professionalKinds } from '../resources';
 import { Notice } from './Notice';
 import { InvoiceNumberField, UploadPeriodField } from './upload/UploadFields';
 import { useShell } from '../portal/useShell';
@@ -210,7 +209,7 @@ function joinName(givenName: string, familyName: string) {
 }
 
 function useActiveKinds() {
-  return useApiResource(() => listProfessionalKinds().then((result) => result.kinds.filter((kind) => kind.active)), []).data;
+  return useResource(professionalKinds).data?.filter((kind) => kind.active) ?? null;
 }
 
 // Someone new described on one line, to be added when the page goes on.
@@ -433,7 +432,7 @@ export function InvoiceDetailsFields({
   const { user } = useAuth();
   const reviews = staff && Boolean(user?.reviewPermissions?.reviewLines);
   const invoiceWarnings = warnings.filter((warning) => !warning.location && warning.code.startsWith('duplicate_'));
-  const { data: billable } = useApiResource(() => listBillableProfessionals(null).then((result) => result.professionals), []);
+  const { data: billable } = useResource(billableProfessionals(null));
   const [sender, setSender] = useState(invoice.professionalId ?? '');
   // Only for an invoice started without one; stays shown once chosen.
   const [asksSender] = useState(!invoice.professionalId);

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import type { CountyUsage, PreauthorizationRequestRow } from '../api/client';
-import { useCachedResource } from '../hooks/useCachedResource';
+import { useResource } from '../hooks/useResource';
 import { cases as casesResource, preauthorizationRequests, preauthorizationUsage, providers as providersResource, thisYear } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
@@ -27,8 +27,8 @@ export const preauthorizationPath = (requestId: string) => `/preauthorizations/$
 
 function RecordRequest({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate();
-  const cases = useCachedResource(casesResource);
-  const providers = useCachedResource(providersResource);
+  const cases = useResource(casesResource);
+  const providers = useResource(providersResource);
   if (!cases.data || !providers.data) return <LoadState error={cases.error ?? providers.error} what="cases" />;
   return (
     <section className="compact-card">
@@ -50,7 +50,7 @@ function Requests() {
   const countyId = params.get('countyId') ?? undefined;
   const caseId = params.get('caseId') ?? undefined;
   const [recording, setRecording] = useState(false);
-  const { data, error } = useCachedResource(preauthorizationRequests({ status, countyId, caseId }));
+  const { data, error } = useResource(preauthorizationRequests({ status, countyId, caseId }));
   const setFilter = (next: Record<string, string | undefined>) => {
     const merged = new URLSearchParams(params);
     for (const [key, value] of Object.entries(next)) {
@@ -139,7 +139,7 @@ function LimitCell({ row }: { row: PreauthorizationRequestRow }) {
 
 function UsageByCounty() {
   const [period, setPeriod] = useState(thisYear);
-  const { data, error } = useCachedResource(preauthorizationUsage(period));
+  const { data, error } = useResource(preauthorizationUsage(period));
   const requestsLink = (row: CountyUsage, status: string) =>
     `/preauthorizations?status=${status}${row.countyId ? `&countyId=${row.countyId}` : ''}`;
   const count = (row: CountyUsage, status: string, n: number) =>

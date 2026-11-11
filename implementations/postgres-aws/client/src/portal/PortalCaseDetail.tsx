@@ -11,7 +11,7 @@ import {
   type TimeEntryRecord,
 } from '../api/client';
 import { professionalLabel } from '../components/InvoiceLinesEditor';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { billableProfessionals, myCaseInvoices, myCases as myCasesResource, myTimeEntries } from '../resources';
 import { NewInvoiceForm } from './NewInvoiceForm';
 import { UPLOAD_PATH } from './useShell';
@@ -287,7 +287,7 @@ function InvoiceSection({
 }) {
   const [listVersion, setListVersion] = useState(0);
   const [showWithdrawn, setShowWithdrawn] = useState(false);
-  const { data, error } = useApiResource(myCaseInvoices(caseId), [caseId, listVersion]);
+  const { data, error } = useResource(myCaseInvoices(caseId), { resetKey: listVersion });
   const withdrawnCount = data?.filter((i) => i.statusCode === 'withdrawn').length ?? 0;
 
   return (
@@ -337,10 +337,10 @@ export default function PortalCaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
   const [timeEntryVersion, setTimeEntryVersion] = useState(0);
   // Only listMyCases() carries externalReference/clientDisplayName, needed for the heading label.
-  const { data: myCases } = useApiResource(myCasesResource, []);
-  const { data: billable } = useApiResource(billableProfessionals(caseId as string), [caseId]);
+  const { data: myCases } = useResource(myCasesResource);
+  const { data: billable } = useResource(billableProfessionals(caseId as string));
   // Shared by both sections: invoicing changes what is unbilled.
-  const { data: entries, error: entriesError } = useApiResource(myTimeEntries(caseId as string), [caseId, timeEntryVersion]);
+  const { data: entries, error: entriesError } = useResource(myTimeEntries(caseId as string), { resetKey: timeEntryVersion });
   const refreshTime = () => setTimeEntryVersion((v) => v + 1);
 
   if (!caseId) {

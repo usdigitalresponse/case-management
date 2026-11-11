@@ -1,17 +1,16 @@
 import { useState } from 'react';
+import { billableProfessionals, myTimeEntries } from '../resources';
 import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'react-router';
 import {
   answerQuestion,
   apiErrorMessage,
-  listBillableProfessionals,
-  listMyTimeEntries,
   transitionInvoice,
   updateDraftInvoice,
   type InvoiceTransition,
   type PortalInvoice,
 } from '../api/client';
 import { hasInvoiceItems, InvoiceLinesEditor, lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
 import { myInvoice } from '../resources';
 import { UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
@@ -44,19 +43,14 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
   const { invoice } = data;
   const [lines, setLines] = useState<LineDraft[]>(() => lineDraftsFrom(data.lines));
   const [period, setPeriod] = useState({ start: invoice.periodStart ?? '', end: invoice.periodEnd ?? '' });
-  const { data: loaded } = useApiResource(
-    () => listBillableProfessionals(invoice.caseId).then((result) => result.professionals),
-    [invoice.caseId],
-  );
+  const { data: loaded } = useResource(billableProfessionals(invoice.caseId));
   const { staff } = useShell();
   const providers = useAddedProviders(invoice.caseId);
   const timekeepers = loaded && [...loaded, ...providers.added];
   // Unbilled time can be ticked on; time already on this draft shows ticked.
   // Recorded time belongs to a case, so an invoice in intake has none.
-  const { data: caseTime } = useApiResource(
-    () => (invoice.caseId ? listMyTimeEntries(invoice.caseId).then((result) => result.timeEntries) : Promise.resolve([])),
-    [invoice.caseId],
-  );
+  const { data: loadedTime } = useResource(invoice.caseId ? myTimeEntries(invoice.caseId) : null);
+  const caseTime = invoice.caseId ? loadedTime : [];
   const noCase = invoice.caseId === null;
   const billableIds = new Set((timekeepers ?? []).map((p) => p.professionalId));
   const pickable = (caseTime ?? []).filter(
@@ -178,7 +172,7 @@ export default function PortalInvoiceDetail() {
   const [searchParams] = useSearchParams();
   const fromBulk = searchParams.get('from') === 'bulk';
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(myInvoice(invoiceId as string), [invoiceId, version]);
+  const { data, error } = useResource(myInvoice(invoiceId as string), { resetKey: version });
   const [recallError, setRecallError] = useState<string | null>(null);
   const [recalling, setRecalling] = useState(false);
   const [answering, setAnswering] = useState(false);

@@ -3,7 +3,6 @@ import { Select } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
   editProfessional,
-  listProfessionalKinds,
   listVendors,
   rateOn,
   setProfessionalKind,
@@ -11,7 +10,8 @@ import {
   type VendorRecord,
 } from '../api/client';
 import { useAuth } from '../AuthContext';
-import { useApiResource } from '../hooks/useApiResource';
+import { useResource } from '../hooks/useResource';
+import { professionalKinds } from '../resources';
 import { SearchDirectory } from '../components/SearchDirectory';
 import { AddProvider } from '../components/AddProvider';
 import { Notice } from '../components/Notice';
@@ -88,10 +88,7 @@ export const DIRECTORY_TITLE = 'Providers';
 export default function VendorsDirectory() {
   const { user } = useAuth();
   const isAdmin = Boolean(user?.isAdmin);
-  const { data: kinds } = useApiResource(
-    () => (isAdmin ? listProfessionalKinds().then((result) => result.kinds) : Promise.resolve(null)),
-    [isAdmin],
-  );
+  const { data: kinds } = useResource(isAdmin ? professionalKinds : null);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<RowEdit | null>(null);
   const editingRow = (vendor: VendorRecord) => (editing?.vendor.professionalId === vendor.professionalId ? editing : null);
