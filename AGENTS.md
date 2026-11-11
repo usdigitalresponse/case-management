@@ -312,6 +312,10 @@ live in `client/src/components/ui/` (use `Button`, `Tag`, `Notice`, `Dialog`, th
 values with `cssVars`. `npm run lint` enforces both (stylelint and ESLint). See "Changing the design system" in its `docs/frontend.md`. All data loads through `useResource`
 (TanStack Query); resources a page edits are `fresh`: loaded for each visit,
 never refreshed under the user, and cleared and reloaded by a save's `resetKey`.
+Page tests render one page against `client/src/test/fakeApi.ts`, which fails
+on any request it has no route for; build data with `src/test/fixtures.ts`.
+`e2e/` is the Playwright suite: it adds synthetic invoices, so run it only
+against a disposable seeded stack (CI does), never someone's demo data.
 Run server/client `npm run typecheck` and `npm run lint`, client `npm run build` and `npm test`, and
 server `npm test` against a separate migrated test database (see its README). The server
 build entry point is `dist/src/app.js`. Its `MAPPING.md` holds the schema

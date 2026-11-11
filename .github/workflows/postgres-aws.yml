@@ -127,3 +127,52 @@ jobs:
         if: always()
         working-directory: implementations/postgres-aws
         run: docker compose down -v
+  end-to-end:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: implementations/postgres-aws/e2e/package-lock.json
+      - name: docker compose up
+        working-directory: implementations/postgres-aws
+        run: docker compose up -d
+      - name: Install Playwright and its browsers
+        working-directory: implementations/postgres-aws/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium webkit
+      - name: Wait for the server to become healthy
+        run: |
+          for _ in $(seq 1 90); do
+            if curl -sf http://localhost:3000/healthz; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server did not become healthy in time" >&2
+          exit 1
+      # The suite adds synthetic invoices, so it runs only on this disposable database.
+      - name: Seed synthetic demo data
+        working-directory: implementations/postgres-aws
+        run: docker compose exec -T server npm run seed
+      - name: Run end-to-end tests
+        working-directory: implementations/postgres-aws/e2e
+        run: npx playwright test
+      - name: Keep the report and traces (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: implementations/postgres-aws/e2e/playwright-report
+          retention-days: 7
+      - name: docker compose logs (on failure)
+        if: failure()
+        working-directory: implementations/postgres-aws
+        run: docker compose logs
+      - name: docker compose down
+        if: always()
+        working-directory: implementations/postgres-aws
+        run: docker compose down -v
