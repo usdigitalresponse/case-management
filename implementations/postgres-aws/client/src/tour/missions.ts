@@ -59,7 +59,6 @@ export interface MissionDefinition {
   id: TourMission;
   title: string;
   summary: string;
-  minutes: number;
   steps: TourStep[];
 }
 
@@ -85,7 +84,6 @@ const staffFiling: MissionDefinition = {
   id: 'staff-filing',
   title: 'Staff files a mailed invoice',
   summary: 'Record a paper invoice that arrived by mail, enter its lines and decide them in one pass.',
-  minutes: 4,
   steps: [
     {
       id: 'open-upload',
@@ -163,7 +161,6 @@ const preauthSend: MissionDefinition = {
   id: 'preauth-send',
   title: 'Pre-authorize, then send an invoice',
   summary: 'As an investigator, ask for a pre-authorization; as staff, approve a limit; then send an invoice that goes over it.',
-  minutes: 5,
   steps: [
     {
       id: 'open-preauth',
@@ -270,7 +267,6 @@ const review: MissionDefinition = {
   id: 'review',
   title: 'Review an invoice, with travel and rates',
   summary: 'Match an investigator’s invoice to its case, see the checks that used to be done by hand, lower a rate and ask a question.',
-  minutes: 6,
   steps: [
     {
       id: 'queue',
@@ -360,7 +356,6 @@ const answerFinish: MissionDefinition = {
   id: 'answer-finish',
   title: 'Answer and finish',
   summary: 'Answer a reviewer’s question as the investigator, then finish the review as staff.',
-  minutes: 3,
   steps: [
     {
       id: 'open-question',
@@ -403,7 +398,6 @@ const signOff: MissionDefinition = {
   id: 'sign-off',
   title: 'Sign off',
   summary: 'As the Director, see a lowered rate, approve or send back, and see every invoice’s stage.',
-  minutes: 3,
   steps: [
     {
       id: 'open',

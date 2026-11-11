@@ -12,7 +12,7 @@ import { useAuth } from '../AuthContext';
 import { CodeSignIn } from '../portal/CodeSignIn';
 import { useTour } from '../tour/TourContext';
 import { MissionPicker } from '../tour/GuidePanel';
-import { MISSIONS, STORY } from '../tour/missions';
+import { STORY } from '../tour/missions';
 import { Button, buttonClass } from '../components/ui/Button';
 import { useProductName } from '../components/AppBrand';
 
@@ -20,23 +20,24 @@ import { useProductName } from '../components/AppBrand';
 function TourEntry() {
   const tour = useTour();
   if (!tour) return null;
-  const minutes = STORY.reduce((total, mission) => total + MISSIONS[mission].minutes, 0);
   return (
     <section className="login-tour" aria-labelledby="login-tour">
       <div className="login-tour__bar">
-        <div className="login-tour__intro">
+        <header className="login-tour__header">
           <h2 id="login-tour">New here? Take a guided tour</h2>
-          <p>
-            Take one invoice from pre-authorization to sign-off yourself, as an investigator, a reviewer and the Director. About{' '}
-            {minutes} minutes, with synthetic data.
-          </p>
-          {tour.error && <p className="field-error" role="alert">{tour.error}</p>}
-        </div>
-        <Button kind="primary" disabled={tour.busy} onClick={() => void tour.start(STORY)}>
-          {tour.busy ? 'Setting up your tour…' : 'Start the tour'}
-        </Button>
-        <div className="login-tour__parts">
-          <MissionPicker id="login-mission" label="Or try one part" busy={tour.busy} onStart={(missions) => void tour.start(missions)} />
+          <p>Uses synthetic data.</p>
+        </header>
+        {tour.error && <p className="field-error" role="alert">{tour.error}</p>}
+        <div className="login-tour__options">
+          <div className="login-tour__option">
+            <p className="login-tour__text">Take one invoice from pre-authorization to sign-off, as an investigator, a reviewer and the Director.</p>
+            <Button kind="primary" disabled={tour.busy} onClick={() => void tour.start(STORY)}>
+              {tour.busy ? 'Setting up your tour…' : 'Start the tour'}
+            </Button>
+          </div>
+          <div className="login-tour__option">
+            <MissionPicker id="login-mission" label="One part of the tour" hideLabel busy={tour.busy} onStart={(missions) => void tour.start(missions)} />
+          </div>
         </div>
       </div>
     </section>
