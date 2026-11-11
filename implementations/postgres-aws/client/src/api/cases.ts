@@ -322,3 +322,32 @@ export function closeCase(
 }
 
 // --- Pre-authorization requests (server/src/routes/preauthorizations.ts) ---
+
+// --- Possible duplicate cases (staff; never merged here) ---------------------
+
+export interface DuplicateCase {
+  caseId: string;
+  caseNumber: string | null;
+  otherNumbers: string[];
+  clientDisplayName: string | null;
+  countyDisplayName: string | null;
+  openedOn: string | null;
+  invoiceCount: number;
+}
+
+export interface PossibleDuplicateCase {
+  cases: DuplicateCase[];
+  pairs: Array<{
+    caseIds: [string, string];
+    reasons: Array<'same_number' | 'same_county' | 'flagged'>;
+    flagged: { note: string | null; byDisplayName: string; at: string } | null;
+  }>;
+}
+
+export function listPossibleDuplicateCases(): Promise<{ duplicates: PossibleDuplicateCase[] }> {
+  return request('/api/cases/possible-duplicates');
+}
+
+export function reviewPossibleDuplicateCase(input: { caseIds: [string, string]; outcome: 'possible_duplicate' | 'not_duplicate'; note?: string }) {
+  return request<void>('/api/cases/possible-duplicates', { method: 'POST', body: JSON.stringify(input) });
+}

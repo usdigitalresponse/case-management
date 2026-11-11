@@ -2,15 +2,13 @@
 // (../people/possibleDuplicates.ts) and, for administrators, merging them
 // (../people/personMerges.ts). Search never creates a person.
 import { Router } from 'express';
-import { z } from 'zod';
 import { and, ilike, isNull, or } from 'drizzle-orm';
 import { db } from '../db/client';
 import { person } from '../db/schema';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { requireAdmin } from '../auth/requireAdmin';
 import { listPossibleDuplicates, recordDuplicateReview } from '../people/possibleDuplicates';
-import { listMerges, mergePeople, previewMerge, undoMerge } from '../people/personMerges';
-import { NotFoundError, ValidationError } from '../errors';
+import { listMerges, mergePeople, previewMerge, undoMerges } from '../people/personMerges';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -52,15 +50,13 @@ router.post(
   }),
 );
 
-// Read-only, so any staff member may see what a merge would do.
+// Any staff member may see what a merge would do; nothing is kept.
 router.get(
   '/merge-preview',
   asyncHandler(async (req, res) => {
-    const { keep, retire } = req.query;
-    if (!z.uuid().safeParse(keep).success || !z.uuid().safeParse(retire).success) {
-      throw new ValidationError({ personIds: 'Choose the person to keep and the one to merge into them.' });
-    }
-    res.json(await previewMerge(db, keep as string, retire as string));
+    const keep = typeof req.query.keep === 'string' ? req.query.keep : '';
+    const retire = typeof req.query.retire === 'string' ? req.query.retire.split(',') : [];
+    res.json(await previewMerge(db, getSessionUser(req)!.userAccountId, keep, retire));
   }),
 );
 
@@ -80,13 +76,10 @@ router.post(
 );
 
 router.post(
-  '/merges/:id/undo',
+  '/merges/undo',
   requireAdmin,
   asyncHandler(async (req, res) => {
-    if (!z.uuid().safeParse(req.params.id).success) {
-      throw new NotFoundError('That merge is not in the system.');
-    }
-    res.json(await undoMerge(db, getSessionUser(req)!.userAccountId, req.params.id as string));
+    res.json(await undoMerges(db, getSessionUser(req)!.userAccountId, (req.body as { personMergeIds?: unknown }).personMergeIds));
   }),
 );
 

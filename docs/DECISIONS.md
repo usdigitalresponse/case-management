@@ -541,6 +541,13 @@ deleted. Merges that would lose something (two different sign-ins, two open
 assignments or pre-authorizations on one case) are refused until fixed by
 hand. Nothing is ever merged automatically.
 
+A person recorded three or more times shows as one group, and an
+administrator merges every extra record into the one kept in one step, all
+or none. Cases and assignments always belong to the external case
+management system, so possible duplicate cases are listed for review only:
+staff mark a pair as different or close the extra case here, and cases are
+never merged.
+
 
 ## Deferred Decisions
 

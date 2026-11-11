@@ -120,7 +120,8 @@ Only the entities needed for `model/forms.yaml:new_case` and read-only case
 list/detail views are implemented as tables:
 
 `user_account`, `county`, `organization`, `office`, `role`, `person`,
-`person_affiliation`, `person_duplicate_review`, `person_merge`, `person_merge_change`, `case`, `case_participant`, `case_lifecycle_event`,
+`person_affiliation`, `person_duplicate_review`, `person_merge`, `person_merge_change`,
+`case_duplicate_review`, `case`, `case_participant`, `case_lifecycle_event`,
 `case_identifier`, `professional`, `case_assignment`, `time_entry`,
 `professional_kind_rate`, `mileage_rate`, `time_category_rate`,
 `billing_rule_setting`, `invoice`, `invoice_line`, `trip`,
@@ -320,6 +321,14 @@ form relies on this being airtight.
   A merge reprices nothing: moved invoice lines keep the prices they had.
   The retired person keeps their email, which no longer counts as in use, so
   a later sign-in with it adds a new person rather than reopening theirs.
+- **Possible duplicate cases** (`flag_possible_duplicate_case`,
+  `src/cases/possibleDuplicateCases.ts`): review only, as cases belong to the
+  external case management system. Only number matches are found (ignoring
+  punctuation and leading zeros; numbers shorter than four characters are
+  ignored), and never across two counties; the same client in the same
+  county isn't, as one client often has several matters. Cleaning up means closing the extra case here, which
+  waits until its invoices are finished; a sent invoice can't be moved to
+  the other case.
 - **Infrastructure**: Terraform provisions a single (`sandbox`) environment
   with a single-instance (non-Multi-AZ) RDS Postgres instance. No
   staging/production promotion path, autoscaling policy, or WAF is configured

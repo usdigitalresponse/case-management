@@ -16,6 +16,7 @@ import {
   userAccount,
 } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
+import { groupPairs, pairKey, pairsByKey } from '../duplicatePairs';
 
 export type DuplicateReason = 'same_email' | 'same_name' | 'same_birth_date_and_family_name' | 'flagged';
 
@@ -29,10 +30,16 @@ export interface DuplicatePersonSummary {
   invoiceCount: number;
 }
 
-export interface PossibleDuplicate {
-  people: [DuplicatePersonSummary, DuplicatePersonSummary];
+export interface DuplicatePair {
+  personIds: [string, string];
   reasons: DuplicateReason[];
   flagged: { note: string | null; byDisplayName: string; at: Date } | null;
+}
+
+// Everyone linked by any pair: likely one person recorded several times.
+export interface PossibleDuplicate {
+  people: DuplicatePersonSummary[];
+  pairs: DuplicatePair[];
 }
 
 // Word order, punctuation, case and initials don't tell people apart.
@@ -54,7 +61,6 @@ export function familyKey(row: { displayName: string; familyName: string | null 
   return nameKey(family);
 }
 
-const pairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 // Latest staff finding per pair.
 async function latestReviews(db: DatabaseOrTransaction) {
@@ -89,27 +95,11 @@ export async function listPossibleDuplicates(db: DatabaseOrTransaction): Promise
     .leftJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
     .where(isNull(person.mergedIntoPersonId));
 
-  const reasons = new Map<string, Set<DuplicateReason>>();
-  function group(reason: DuplicateReason, keyOf: (row: (typeof rows)[number]) => (string | null)[]) {
-    const byKey = new Map<string, Set<string>>();
-    for (const row of rows) {
-      for (const key of keyOf(row)) {
-        if (key) byKey.set(key, (byKey.get(key) ?? new Set()).add(row.personId));
-      }
-    }
-    for (const ids of byKey.values()) {
-      const list = [...ids];
-      for (let i = 0; i < list.length; i += 1) {
-        for (let j = i + 1; j < list.length; j += 1) {
-          const key = pairKey(list[i]!, list[j]!);
-          reasons.set(key, (reasons.get(key) ?? new Set()).add(reason));
-        }
-      }
-    }
-  }
-  group('same_email', (row) => [row.email?.trim().toLowerCase() ?? null, row.signInEmail?.trim().toLowerCase() ?? null]);
-  group('same_name', (row) => [nameKey(row.displayName) || null]);
-  group('same_birth_date_and_family_name', (row) => [row.dateOfBirth && familyKey(row) ? `${row.dateOfBirth}|${familyKey(row)}` : null]);
+  const reasons = new Map<string, Set<string>>();
+  const idOf = (row: (typeof rows)[number]) => row.personId;
+  pairsByKey(rows, idOf, (row) => [row.email?.trim().toLowerCase() ?? null, row.signInEmail?.trim().toLowerCase() ?? null], 'same_email', reasons);
+  pairsByKey(rows, idOf, (row) => [nameKey(row.displayName) || null], 'same_name', reasons);
+  pairsByKey(rows, idOf, (row) => [row.dateOfBirth && familyKey(row) ? `${row.dateOfBirth}|${familyKey(row)}` : null], 'same_birth_date_and_family_name', reasons);
 
   const reviews = await latestReviews(db);
   const active = new Set(rows.map((row) => row.personId));
@@ -118,17 +108,21 @@ export async function listPossibleDuplicates(db: DatabaseOrTransaction): Promise
       reasons.set(key, (reasons.get(key) ?? new Set()).add('flagged'));
     }
   }
-  const pairs = [...reasons].filter(([key]) => reviews.get(key)?.outcome !== 'not_duplicate');
-  const summaries = await summarize(db, [...new Set(pairs.flatMap(([key]) => key.split('|')))]);
-  return pairs.map(([key, found]) => {
-    const [a, b] = key.split('|') as [string, string];
-    const review = reviews.get(key);
-    return {
-      people: [summaries.get(a)!, summaries.get(b)!],
-      reasons: [...found],
-      flagged: review?.outcome === 'possible_duplicate' ? { note: review.note, byDisplayName: review.byDisplayName, at: review.at } : null,
-    };
-  });
+  const pairs: DuplicatePair[] = [...reasons]
+    .filter(([key]) => reviews.get(key)?.outcome !== 'not_duplicate')
+    .map(([key, found]) => {
+      const review = reviews.get(key);
+      return {
+        personIds: key.split('|') as [string, string],
+        reasons: [...found] as DuplicateReason[],
+        flagged: review?.outcome === 'possible_duplicate' ? { note: review.note, byDisplayName: review.byDisplayName, at: review.at } : null,
+      };
+    });
+  const summaries = await summarize(db, [...new Set(pairs.flatMap((pair) => pair.personIds))]);
+  return groupPairs(pairs, (pair) => pair.personIds).map((group) => ({
+    people: [...new Set(group.flatMap((pair) => pair.personIds))].map((id) => summaries.get(id)!),
+    pairs: group,
+  }));
 }
 
 export async function summarize(db: DatabaseOrTransaction, personIds: string[]): Promise<Map<string, DuplicatePersonSummary>> {

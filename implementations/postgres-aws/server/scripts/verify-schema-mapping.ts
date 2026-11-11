@@ -26,6 +26,7 @@ const IN_SCOPE_ENTITIES = [
   'person_duplicate_review',
   'person_merge',
   'person_merge_change',
+  'case_duplicate_review',
   'case_participant',
   'case_identifier',
   'case_lifecycle_event',

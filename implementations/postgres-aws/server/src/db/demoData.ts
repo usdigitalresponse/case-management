@@ -49,6 +49,7 @@ import { pairKey } from '../billing/routeCheck';
 import { getAdminAccountRoleId, getStaffAccountRoleId } from '../auth/staffAccountRole';
 import { firstRow } from './rowHelpers';
 import { seedDemoUploads } from './demoUploads';
+import { addProfessional } from '../professionals/addProfessional';
 
 // Dev/demo data only — deliberately not part of resetAndSeedBaselineFixtures,
 // which __tests__/ also calls and relies on staying minimal (several tests
@@ -871,6 +872,23 @@ export interface DemoDataSummary {
   staffCount: number;
 }
 
+// One possible duplicate to show the page: a colleague added again by staff,
+// under another email, before anyone noticed they were already listed.
+async function seedDemoPossibleDuplicate(staffUserAccountId: string, colleague: DemoProfessional): Promise<void> {
+  const [row] = await db
+    .select({ displayName: professional.displayName, professionalKindId: professional.professionalKindId })
+    .from(professional)
+    .where(eq(professional.professionalId, colleague.professionalId));
+  if (!row?.displayName || !row.professionalKindId) {
+    throw new Error('Expected the demo colleague to have a name and a role.');
+  }
+  await addProfessional(db, staffUserAccountId, {
+    displayName: row.displayName,
+    email: 'demo-vendor-2-office@example.invalid',
+    professionalKindId: row.professionalKindId,
+  });
+}
+
 // Destructive: deletes all application data, including accounts, then
 // recreates the synthetic demo data.
 // A synthetic threshold and three requests: waiting for an answer, not needed, approved for less.
@@ -972,5 +990,6 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
     throw new Error('Expected two demo vendors for the uploads.');
   }
   await seedDemoUploads({ partner, colleague, staffUserAccountId: fixtures.staffUserAccountId });
+  await seedDemoPossibleDuplicate(fixtures.staffUserAccountId, colleague);
   return { caseCount: DEMO_CASE_COUNT, assignmentCount: assignments.length, staffCount: staffUserAccountIds.length };
 }

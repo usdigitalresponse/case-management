@@ -27,6 +27,7 @@ import { getSessionUser, requireFullUser } from '../auth/session';
 import { assignExternalSubmitterToCase } from '../cases/assignExternalSubmitterToCase';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase, unfinishedInvoices } from '../cases/closeCase';
+import { listPossibleDuplicateCases, recordCaseDuplicateReview } from '../cases/possibleDuplicateCases';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -95,6 +96,22 @@ router.get(
       .where(filters.length > 0 ? and(...filters) : undefined);
     const extras = await loadCaseListExtras(db, rows.map((row) => row.caseId));
     res.json({ cases: rows.map((row) => ({ ...row, ...extras.get(row.caseId)! })) });
+  }),
+);
+
+// Any staff member: possible duplicate cases, and flagging or clearing a pair.
+router.get(
+  '/possible-duplicates',
+  asyncHandler(async (_req, res) => {
+    res.json({ duplicates: await listPossibleDuplicateCases(db) });
+  }),
+);
+
+router.post(
+  '/possible-duplicates',
+  asyncHandler(async (req, res) => {
+    await recordCaseDuplicateReview(db, getSessionUser(req)!.userAccountId, req.body);
+    res.status(204).end();
   }),
 );
 

@@ -1146,33 +1146,50 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   `flag_possible_duplicate_client`, `merge_duplicate_people`;
   `src/people/possibleDuplicates.ts`, `src/people/personMerges.ts`,
   `src/routes/people.ts`), staff only:
-  - `GET /api/people/possible-duplicates` lists pairs of unmerged people
-    with the same email (theirs or their sign-in's), the same name ignoring
-    word order, case, punctuation and initials, or the same date of birth
-    and family name, plus pairs staff flagged, leaving out pairs whose
-    latest `person_duplicate_review` is `not_duplicate`. Each person comes
-    with their provider profile, sign-in email and case and invoice counts.
+  - `GET /api/people/possible-duplicates` lists groups: everyone linked by
+    any pair (`src/duplicatePairs.ts`), with the pairs and why. A pair is two
+    unmerged people with the same email (theirs or their sign-in's), the
+    same name ignoring word order, case, punctuation and initials, or the
+    same date of birth and family name, or a pair staff flagged; pairs whose
+    latest `person_duplicate_review` is `not_duplicate` are left out. Each
+    person comes with their provider profile, sign-in email and case and
+    invoice counts.
   - `POST /api/people/possible-duplicates` (`{ personIds, outcome:
     'possible_duplicate' | 'not_duplicate', note? }`), any staff member,
     adds a review row; the pair's latest one stands.
-  - `GET /api/people/merge-preview?keep=&retire=`, any staff member, says
-    what a merge would move (counts by kind of record), which of the kept
-    record's empty details it fills in, what it leaves behind, and what
-    blocks it. `GET /api/people/merges` lists the latest 20.
-  - `POST /api/people/merges` and `POST /api/people/merges/:id/undo`,
-    administrators only. A merge locks both people and their profiles,
-    plans again, and refuses with `merge_blocked` if anything blocks it. It
-    moves each reference to the retired person to the kept one; if only
-    the retired person has a provider profile, that profile moves whole,
-    and if both do, everything naming the retired profile moves to the kept
-    one, its sign-in too when the kept profile has none, and the retired
-    profile is made inactive. Own rates, fee schedule and invoice reviewer
-    move only when the kept profile has none. Every changed value goes in
+  - `GET /api/people/merge-preview?keep=&retire=a,b`, any staff member, runs
+    the merges in a transaction and rolls it back, so it reports exactly
+    what merging would do: for each record in turn, what moves (counts by
+    kind of record), which of the kept record's empty details it fills in,
+    what it leaves behind, and what blocks it. `case.client_id` moves with
+    the client's role but isn't listed, as it copies that role.
+    `GET /api/people/merges` lists the latest 20.
+  - `POST /api/people/merges` (`{ keptPersonId, retiredPersonIds, note? }`)
+    and `POST /api/people/merges/undo` (`{ personMergeIds }`, undone last
+    first), administrators only, each all or none. A merge locks the people
+    and their profiles and merges each record in turn as its own
+    `person_merge`, refusing with `merge_blocked` if any is blocked. It
+    moves each reference to the retired person to the kept one; if only the
+    retired person has a provider profile, that profile moves whole, and if
+    both do, everything naming the retired profile moves to the kept one,
+    its sign-in too when the kept profile has none, and the retired profile
+    is made inactive. Own rates, fee schedule and invoice reviewer move only
+    when the kept profile has none. Every changed value goes in
     `person_merge_change` in order; an undo writes each back, last first,
     only where it is still as the merge left it, and reports how many were
     left as they are. Merged-away people are left out of the people and
     provider lists, person search, email-in-use checks and sign-in matching
     (`ensureProfessional.ts`).
+- **Possible duplicate cases** (`model/rules.yaml`
+  `flag_possible_duplicate_case`; `src/cases/possibleDuplicateCases.ts`,
+  `src/routes/cases.ts`), staff only and never merged:
+  `GET /api/cases/possible-duplicates` groups open cases whose numbers or
+  identifiers share `closeKey` (`src/billing/caseNumbers.ts`), plus flagged
+  pairs, leaving out pairs found different (`case_duplicate_review`) and any
+  pair whose counties are both set and differ (a matching county is reported
+  as `same_county`); `POST /api/cases/possible-duplicates` (`{ caseIds,
+  outcome, note? }`) records a review of two open cases, refusing to flag
+  two in different counties. Closing a case takes it off the list.
 - **Indexes**: FK columns used as query filters/joins
   (`case.county_id`/`status_id`/`case_category_id`,
   `case_participant.case_id`, `case_identifier.case_id`) have plain B-tree

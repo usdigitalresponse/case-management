@@ -159,10 +159,16 @@ export interface DuplicatePerson {
   invoiceCount: number;
 }
 
-export interface PossibleDuplicate {
-  people: [DuplicatePerson, DuplicatePerson];
+export interface DuplicatePair {
+  personIds: [string, string];
   reasons: DuplicateReason[];
   flagged: { note: string | null; byDisplayName: string; at: string } | null;
+}
+
+// Everyone linked by any pair: likely one person recorded several times.
+export interface PossibleDuplicate {
+  people: DuplicatePerson[];
+  pairs: DuplicatePair[];
 }
 
 export function listPossibleDuplicates(): Promise<{ duplicates: PossibleDuplicate[] }> {
@@ -173,19 +179,25 @@ export function reviewPossibleDuplicate(input: { personIds: [string, string]; ou
   return request<void>('/api/people/possible-duplicates', { method: 'POST', body: JSON.stringify(input) });
 }
 
-export interface MergePreview {
-  kept: DuplicatePerson;
-  retired: DuplicatePerson;
+// What merging one record into the kept one would do.
+export interface RetiredPlan {
+  person: DuplicatePerson;
   moves: Array<{ label: string; count: number }>;
-  // The kept record's empty details, taken from the other.
+  // The kept record's empty details, taken from this one.
   filledIn: Array<{ label: string; value: string }>;
   notMoved: string[];
   // Why it can't be merged yet; empty when it can.
   blockers: string[];
 }
 
-export function getMergePreview(keptPersonId: string, retiredPersonId: string): Promise<MergePreview> {
-  return request(`/api/people/merge-preview?keep=${encodeURIComponent(keptPersonId)}&retire=${encodeURIComponent(retiredPersonId)}`);
+// Each record in turn, as the merge would do it.
+export interface MergePreview {
+  kept: DuplicatePerson;
+  retired: RetiredPlan[];
+}
+
+export function getMergePreview(keptPersonId: string, retiredPersonIds: string[]): Promise<MergePreview> {
+  return request(`/api/people/merge-preview?${new URLSearchParams({ keep: keptPersonId, retire: retiredPersonIds.join(',') }).toString()}`);
 }
 
 export interface PersonMerge {
@@ -196,18 +208,18 @@ export interface PersonMerge {
   mergedAt: string;
   mergedBy: string;
   undoneAt: string | null;
-  changeCount: number;
 }
 
 export function listPersonMerges(): Promise<{ merges: PersonMerge[] }> {
   return request('/api/people/merges');
 }
 
-export function mergePeople(input: { keptPersonId: string; retiredPersonId: string; note?: string }): Promise<{ personMergeId: string; changed: number }> {
+// All or none.
+export function mergePeople(input: { keptPersonId: string; retiredPersonIds: string[]; note?: string }): Promise<{ personMergeIds: string[] }> {
   return request('/api/people/merges', { method: 'POST', body: JSON.stringify(input) });
 }
 
-// Puts back what the merge moved; anything changed since stays as it is.
-export function undoPersonMerge(personMergeId: string): Promise<{ restored: number; leftAsIs: number }> {
-  return request(`/api/people/merges/${personMergeId}/undo`, { method: 'POST', body: '{}' });
+// In merge order; undone last first. Anything changed since stays as it is.
+export function undoPersonMerges(personMergeIds: string[]): Promise<{ leftAsIs: number }> {
+  return request('/api/people/merges/undo', { method: 'POST', body: JSON.stringify({ personMergeIds }) });
 }

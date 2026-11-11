@@ -281,6 +281,13 @@
       "when": 1794425225457,
       "tag": "0039_person_merges",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794426696741,
+      "tag": "0040_case_duplicate_reviews",
+      "breakpoints": true
     }
   ]
 }

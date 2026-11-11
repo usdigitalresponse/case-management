@@ -1740,6 +1740,41 @@ entities:
         required: false
         data_role: snapshot
 
+  case_duplicate_review:
+    display_name: Case Duplicate Review
+    description: Staff flagging two open cases as possibly one case recorded twice, or finding they are different
+      (flag_possible_duplicate_case). Recorded once and never changed; a pair's latest review stands. Cases are never
+      merged here.
+    primary_key: case_duplicate_review_id
+    fields:
+      case_duplicate_review_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      other_case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+        description: The pair is stored in one order, so a pair has one history.
+      outcome:
+        type: string
+        required: true
+        description: possible_duplicate or not_duplicate.
+      note:
+        type: string
+        required: false
+      recorded_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      recorded_at:
+        type: datetime
+        required: true
+
   organization:
     display_name: Organization
     description: An organization distinct from its offices, programs and payee profile.

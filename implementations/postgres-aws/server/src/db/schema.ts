@@ -1321,3 +1321,28 @@ export const personMergeChange = pgTable(
   },
   (table) => [index('person_merge_change_merge_idx').on(table.personMergeId)],
 );
+
+// Staff flagging two cases as possibly one case recorded twice, or finding
+// they are different (model/rules.yaml flag_possible_duplicate_case;
+// ../cases/possibleDuplicateCases.ts). Insert-only; a pair's latest row
+// stands. case_id sorts before other_case_id. Cases are never merged here.
+export const caseDuplicateReview = pgTable(
+  'case_duplicate_review',
+  {
+    caseDuplicateReviewId: uuid('case_duplicate_review_id').primaryKey().defaultRandom(),
+    caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+    otherCaseId: uuid('other_case_id').notNull().references(() => caseTable.caseId),
+    // possible_duplicate or not_duplicate.
+    outcome: text('outcome').notNull(),
+    note: text('note'),
+    recordedByUserAccountId: uuid('recorded_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('case_duplicate_review_pair_idx').on(table.caseId, table.otherCaseId, table.recordedAt),
+    check('case_duplicate_review_ordered_pair', sql`${table.caseId} < ${table.otherCaseId}`),
+    check('case_duplicate_review_outcome', sql`${table.outcome} in ('possible_duplicate', 'not_duplicate')`),
+  ],
+);

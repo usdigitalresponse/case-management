@@ -20,11 +20,13 @@ interface Column {
   type: PgType;
 }
 
-const ref = (table: string, column: string, label: string) => ({ table, id: `${table}_id`, column, type: 'uuid' as const, label });
+// A null label moves without being listed.
+const ref = (table: string, column: string, label: string | null) => ({ table, id: `${table}_id`, column, type: 'uuid' as const, label });
 
 const PERSON_REFERENCES = [
   ref('case_participant', 'person_id', 'Roles on cases'),
-  ref('case', 'client_id', 'Cases where they are the client'),
+  // Copies their client role on the case, listed above.
+  ref('case', 'client_id', null),
   ref('person_affiliation', 'person_id', 'Organization memberships'),
   ref('invoice_attestation', 'attestor_person_id', 'Signed true-and-correct statements'),
   ref('preauthorization_request', 'requested_for_person_id', 'Pre-authorization requests made for them'),
@@ -88,13 +90,18 @@ type Step =
 
 const cast = (value: string | null, type: PgType) => (type === 'text' ? sql`${value}` : sql`cast(${value} as ${sql.raw(type)})`);
 
-export interface MergePreview {
-  kept: DuplicatePersonSummary;
-  retired: DuplicatePersonSummary;
+// What merging one retired person into the kept one does.
+export interface RetiredPlan {
+  person: DuplicatePersonSummary;
   moves: Array<{ label: string; count: number }>;
   filledIn: Array<{ label: string; value: string }>;
   notMoved: string[];
   blockers: string[];
+}
+
+export interface MergePreview {
+  kept: DuplicatePersonSummary;
+  retired: RetiredPlan[];
 }
 
 async function lookups(db: DatabaseOrTransaction, personIds: string[]) {
@@ -138,14 +145,14 @@ async function plan(db: DatabaseOrTransaction, keptId: string, retiredId: string
   const keptProvider = found.professional(keptId);
   const retiredProvider = found.professional(retiredId);
   const steps: Step[] = [];
-  const moves: MergePreview['moves'] = [];
-  const filledIn: MergePreview['filledIn'] = [];
+  const moves: RetiredPlan['moves'] = [];
+  const filledIn: RetiredPlan['filledIn'] = [];
   const notMoved: string[] = [];
 
-  async function move(target: Column & { label: string }, from: string, to: string) {
+  async function move(target: Column & { label: string | null }, from: string, to: string) {
     const n = await count(db, target, from);
     if (n > 0) {
-      moves.push({ label: target.label, count: n });
+      if (target.label) moves.push({ label: target.label, count: n });
       steps.push({ kind: 'move', target, from, to });
     }
   }
@@ -211,8 +218,8 @@ async function plan(db: DatabaseOrTransaction, keptId: string, retiredId: string
   }
   set('person', 'merged_into_person_id', retiredId, null, keptId);
 
-  const summaries = await summarize(db, [keptId, retiredId]);
-  const preview: MergePreview = { kept: summaries.get(keptId)!, retired: summaries.get(retiredId)!, moves, filledIn, notMoved, blockers };
+  const summaries = await summarize(db, [retiredId]);
+  const preview: RetiredPlan = { person: summaries.get(retiredId)!, moves, filledIn, notMoved, blockers };
   return { preview, steps };
 }
 
@@ -228,13 +235,11 @@ async function detailText(db: DatabaseOrTransaction, key: string, value: string)
   return value;
 }
 
-export async function previewMerge(db: DatabaseOrTransaction, keptId: string, retiredId: string): Promise<MergePreview> {
-  return (await plan(db, keptId, retiredId)).preview;
-}
+const personIdsSchema = z.array(z.uuid()).min(1).max(10);
 
 const mergeSchema = z.object({
   keptPersonId: z.uuid(),
-  retiredPersonId: z.uuid(),
+  retiredPersonIds: personIdsSchema,
   note: z
     .string()
     .trim()
@@ -242,6 +247,61 @@ const mergeSchema = z.object({
     .optional()
     .transform((value) => value || null),
 });
+
+function parseMerge(rawInput: unknown) {
+  const parsed = mergeSchema.safeParse(rawInput);
+  const ids = parsed.success ? [parsed.data.keptPersonId, ...parsed.data.retiredPersonIds] : [];
+  if (!parsed.success || new Set(ids).size !== ids.length) {
+    throw new ValidationError({ personIds: 'Choose the person to keep and the others to merge into them, each once.' });
+  }
+  return parsed.data;
+}
+
+// Merges each in turn, so each plan sees the ones before it; a blocked one
+// is planned but not applied.
+async function mergeEach(tx: Transaction, actorUserAccountId: string, keptPersonId: string, retiredPersonIds: string[], note: string | null) {
+  const ids = [keptPersonId, ...retiredPersonIds];
+  // Stops a concurrent merge or undo of any of them from planning on stale rows.
+  await tx.select({ id: person.personId }).from(person).where(inArray(person.personId, ids)).for('update');
+  await tx.select({ id: professional.professionalId }).from(professional).where(inArray(professional.personId, ids)).for('update');
+  const kept = (await summarize(tx, [keptPersonId])).get(keptPersonId);
+  if (!kept) throw new NotFoundError('One of these people is not in the system.');
+  const retired: RetiredPlan[] = [];
+  const personMergeIds: string[] = [];
+  for (const retiredPersonId of retiredPersonIds) {
+    const { preview, steps } = await plan(tx, keptPersonId, retiredPersonId);
+    retired.push(preview);
+    if (preview.blockers.length > 0) continue;
+    const [merge] = await tx
+      .insert(personMerge)
+      .values({ keptPersonId, retiredPersonId, note, mergedByUserAccountId: actorUserAccountId, mergedAt: new Date() })
+      .returning({ personMergeId: personMerge.personMergeId });
+    await apply(tx, merge!.personMergeId, steps);
+    personMergeIds.push(merge!.personMergeId);
+  }
+  return { preview: { kept, retired } as MergePreview, personMergeIds };
+}
+
+class PreviewOnly extends Error {
+  constructor(readonly preview: MergePreview) {
+    super('preview');
+  }
+}
+
+// Any staff member: runs the merges and rolls them back, so the preview is
+// exactly what merging would do.
+export async function previewMerge(db: Database, viewerUserAccountId: string, keptPersonId: string, retiredPersonIds: string[]): Promise<MergePreview> {
+  const { keptPersonId: kept, retiredPersonIds: retired } = parseMerge({ keptPersonId, retiredPersonIds });
+  try {
+    await db.transaction(async (tx) => {
+      throw new PreviewOnly((await mergeEach(tx, viewerUserAccountId, kept, retired, null)).preview);
+    });
+  } catch (error) {
+    if (error instanceof PreviewOnly) return error.preview;
+    throw error;
+  }
+  throw new Error('A merge preview must roll back.');
+}
 
 async function apply(tx: Transaction, personMergeId: string, steps: Step[]) {
   const changes: Array<typeof personMergeChange.$inferInsert> = [];
@@ -259,7 +319,6 @@ async function apply(tx: Transaction, personMergeId: string, steps: Step[]) {
     }
   }
   if (changes.length > 0) await tx.insert(personMergeChange).values(changes);
-  return changes.length;
 }
 
 function conflictOnUniqueViolation(error: unknown): never {
@@ -269,65 +328,57 @@ function conflictOnUniqueViolation(error: unknown): never {
   throw error;
 }
 
-// Administrators only.
+// Administrators only. All or none: one blocked record stops the whole merge.
 export async function mergePeople(db: Database, actorUserAccountId: string, rawInput: unknown) {
-  const parsed = mergeSchema.safeParse(rawInput);
-  if (!parsed.success) {
-    throw new ValidationError({ personIds: 'Choose the person to keep and the one to merge into them.' });
-  }
-  const { keptPersonId, retiredPersonId, note } = parsed.data;
+  const { keptPersonId, retiredPersonIds, note } = parseMerge(rawInput);
   return db
     .transaction(async (tx) => {
-      // Stops a concurrent merge or undo of either from planning on stale rows.
-      await tx.select({ id: person.personId }).from(person).where(inArray(person.personId, [keptPersonId, retiredPersonId])).for('update');
-      await tx.select({ id: professional.professionalId }).from(professional).where(inArray(professional.personId, [keptPersonId, retiredPersonId])).for('update');
-      const { preview, steps } = await plan(tx, keptPersonId, retiredPersonId);
-      if (preview.blockers.length > 0) {
-        throw new ConflictError('merge_blocked', preview.blockers.join(' '));
+      const { preview, personMergeIds } = await mergeEach(tx, actorUserAccountId, keptPersonId, retiredPersonIds, note);
+      const blockers = preview.retired.flatMap((plan) => plan.blockers.map((blocker) => `${plan.person.displayName}: ${blocker}`));
+      if (blockers.length > 0) {
+        throw new ConflictError('merge_blocked', blockers.join(' '));
       }
-      const [merge] = await tx
-        .insert(personMerge)
-        .values({ keptPersonId, retiredPersonId, note, mergedByUserAccountId: actorUserAccountId, mergedAt: new Date() })
-        .returning({ personMergeId: personMerge.personMergeId });
-      const changed = await apply(tx, merge!.personMergeId, steps);
-      return { personMergeId: merge!.personMergeId, changed };
+      return { personMergeIds };
     })
     .catch(conflictOnUniqueViolation);
 }
 
-// Administrators only. Puts back each value the merge changed that is still
-// as the merge left it; anything changed since stays as it is.
-export async function undoMerge(db: Database, actorUserAccountId: string, personMergeId: string) {
+async function undoOne(tx: Transaction, actorUserAccountId: string, personMergeId: string) {
+  const [merge] = await tx.select().from(personMerge).where(eq(personMerge.personMergeId, personMergeId)).for('update');
+  if (!merge) throw new NotFoundError('That merge is not in the system.');
+  if (merge.undoneAt) throw new ConflictError('already_undone', 'This merge has already been undone.');
+  const people = await tx.select().from(person).where(inArray(person.personId, [merge.keptPersonId, merge.retiredPersonId])).for('update');
+  const kept = people.find((row) => row.personId === merge.keptPersonId)!;
+  if (kept.mergedIntoPersonId) {
+    throw new ConflictError('kept_since_merged', `${kept.displayName} has since been merged into someone else. Undo that merge first.`);
+  }
+  const changes = await tx.select().from(personMergeChange).where(eq(personMergeChange.personMergeId, personMergeId)).orderBy(desc(personMergeChange.position));
+  let restored = 0;
+  for (const change of changes) {
+    const target = CHANGEABLE.get(`${change.tableName}.${change.columnName}`);
+    if (!target) throw new Error(`Unknown merge change ${change.tableName}.${change.columnName}`);
+    const result = await tx.execute(
+      sql`update ${sql.identifier(target.table)} set ${sql.identifier(target.column)} = ${cast(change.fromValue, target.type)}
+        where ${sql.identifier(target.id)} = ${change.rowId} and ${sql.identifier(target.column)} is not distinct from ${cast(change.toValue, target.type)}`,
+    );
+    restored += result.rowCount ?? 0;
+  }
+  await tx.update(personMerge).set({ undoneByUserAccountId: actorUserAccountId, undoneAt: new Date() }).where(eq(personMerge.personMergeId, personMergeId));
+  return { restored, leftAsIs: changes.length - restored };
+}
+
+// Administrators only. Undoes the merges last first, all or none. Puts back
+// each value still as the merge left it; anything changed since stays.
+export async function undoMerges(db: Database, actorUserAccountId: string, rawIds: unknown) {
+  const parsed = personIdsSchema.safeParse(rawIds);
+  if (!parsed.success) throw new ValidationError({ personMergeIds: 'Choose the merges to undo.' });
   return db
     .transaction(async (tx) => {
-      const [merge] = await tx.select().from(personMerge).where(eq(personMerge.personMergeId, personMergeId)).for('update');
-      if (!merge) throw new NotFoundError('That merge is not in the system.');
-      if (merge.undoneAt) throw new ConflictError('already_undone', 'This merge has already been undone.');
-      const people = await tx.select().from(person).where(inArray(person.personId, [merge.keptPersonId, merge.retiredPersonId])).for('update');
-      const kept = people.find((row) => row.personId === merge.keptPersonId)!;
-      if (kept.mergedIntoPersonId) {
-        throw new ConflictError('kept_since_merged', `${kept.displayName} has since been merged into someone else. Undo that merge first.`);
+      let leftAsIs = 0;
+      for (const personMergeId of [...parsed.data].reverse()) {
+        leftAsIs += (await undoOne(tx, actorUserAccountId, personMergeId)).leftAsIs;
       }
-      const changes = await tx
-        .select()
-        .from(personMergeChange)
-        .where(eq(personMergeChange.personMergeId, personMergeId))
-        .orderBy(desc(personMergeChange.position));
-      let restored = 0;
-      for (const change of changes) {
-        const target = CHANGEABLE.get(`${change.tableName}.${change.columnName}`);
-        if (!target) throw new Error(`Unknown merge change ${change.tableName}.${change.columnName}`);
-        const result = await tx.execute(
-          sql`update ${sql.identifier(target.table)} set ${sql.identifier(target.column)} = ${cast(change.fromValue, target.type)}
-            where ${sql.identifier(target.id)} = ${change.rowId} and ${sql.identifier(target.column)} is not distinct from ${cast(change.toValue, target.type)}`,
-        );
-        restored += result.rowCount ?? 0;
-      }
-      await tx
-        .update(personMerge)
-        .set({ undoneByUserAccountId: actorUserAccountId, undoneAt: new Date() })
-        .where(eq(personMerge.personMergeId, personMergeId));
-      return { restored, leftAsIs: changes.length - restored };
+      return { leftAsIs };
     })
     .catch(conflictOnUniqueViolation);
 }
@@ -342,7 +393,6 @@ export async function listMerges(db: DatabaseOrTransaction, limit = 20) {
       mergedAt: personMerge.mergedAt,
       mergedBy: userAccount.displayName,
       undoneAt: personMerge.undoneAt,
-      changeCount: sql<number>`(select count(*)::int from ${personMergeChange} where ${personMergeChange.personMergeId} = ${personMerge.personMergeId})`,
     })
     .from(personMerge)
     .innerJoin(userAccount, eq(personMerge.mergedByUserAccountId, userAccount.userAccountId))

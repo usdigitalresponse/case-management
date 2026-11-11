@@ -83,6 +83,7 @@ const STAFF_ONLY = [
   '/api/people?q=a',
   '/api/people/possible-duplicates',
   '/api/people/merges',
+  '/api/cases/possible-duplicates',
   '/api/professionals',
   '/api/staff?q=a',
   '/api/invoices',
@@ -185,15 +186,15 @@ describe('staff without the administrator role', () => {
 describe('merging people', () => {
   it('is for administrators; any staff member may flag or dismiss a pair', async () => {
     const staff = await asStaff('staff');
-    const body = { keptPersonId: fixtures.clientPersonId, retiredPersonId: fixtures.staffPersonId };
+    const body = { keptPersonId: fixtures.clientPersonId, retiredPersonIds: [fixtures.staffPersonId] };
     expect((await staff('POST', '/api/people/merges', body)).status).toBe(403);
-    expect((await staff('POST', `/api/people/merges/${randomUUID()}/undo`, {})).status).toBe(403);
-    expect((await staff('GET', `/api/people/merge-preview?keep=${body.keptPersonId}&retire=${body.retiredPersonId}`)).status).toBe(200);
+    expect((await staff('POST', '/api/people/merges/undo', { personMergeIds: [randomUUID()] })).status).toBe(403);
+    expect((await staff('GET', `/api/people/merge-preview?keep=${body.keptPersonId}&retire=${fixtures.staffPersonId}`)).status).toBe(200);
     const pair = { personIds: [fixtures.clientPersonId, fixtures.staffPersonId] };
     expect((await staff('POST', '/api/people/possible-duplicates', { ...pair, outcome: 'possible_duplicate' })).status).toBe(204);
     expect((await staff('POST', '/api/people/possible-duplicates', { ...pair, outcome: 'not_duplicate' })).status).toBe(204);
     const admin = await asStaff('admin');
-    expect((await admin('POST', `/api/people/merges/${randomUUID()}/undo`, {})).status).toBe(404);
+    expect((await admin('POST', '/api/people/merges/undo', { personMergeIds: [randomUUID()] })).status).toBe(404);
     expect((await admin('POST', '/api/people/merges', body)).status).toBe(201);
   });
 

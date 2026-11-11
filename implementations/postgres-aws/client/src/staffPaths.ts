@@ -13,6 +13,6 @@ export function reviewPath(invoiceId: string): string {
 
 export const POSSIBLE_DUPLICATES_PATH = '/possible-duplicates';
 
-export function mergePath(keptPersonId: string, retiredPersonId: string): string {
-  return `${POSSIBLE_DUPLICATES_PATH}/merge?${new URLSearchParams({ keep: keptPersonId, retire: retiredPersonId }).toString()}`;
+export function mergePath(keptPersonId: string, retiredPersonIds: string[]): string {
+  return `${POSSIBLE_DUPLICATES_PATH}/merge?${new URLSearchParams({ keep: keptPersonId, retire: retiredPersonIds.join(',') }).toString()}`;
 }

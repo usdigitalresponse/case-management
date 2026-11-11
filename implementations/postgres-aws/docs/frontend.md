@@ -508,24 +508,37 @@ How the React client is built and why. Schema mapping and gaps are in
     way `CaseList.tsx` filters its own full case list.
   - Reports has no backend at all and stays disabled.
 - **Possible duplicates** (`/possible-duplicates`,
-  `client/src/pages/PossibleDuplicates.tsx`; sidebar, under Look something
-  up): each pair the server finds or staff flagged, side by side with why
-  (same email, same name, same date of birth and last name, flagged), each
-  person's email, sign-in, date of birth, whether they send invoices and
-  their case and invoice counts. The one with more on it is offered as the
-  one to keep. Any staff member can "Flag two people" (two person searches,
-  `TypeAheadPicker` without an add option, since flagging never adds
-  anyone) or mark a pair "Not the same person", each with an optional note.
-  "Recent merges" lists merges with Undo for administrators (an inline
-  confirmation), and after a merge the page shows it with Undo at the top.
-- **Merge review** (`/possible-duplicates/merge?keep=&retire=`,
-  `client/src/pages/MergePeople.tsx`) is the confirmation step: both people
-  under Keep and Merge in and retire (with a button to keep the other
-  instead), anything blocking the merge, a table of what moves and how
-  many, the kept record's empty details it fills in, and what doesn't
-  change. Staff see all of it; only an administrator gets the merge form,
-  whose button stays disabled until they tick that they've checked the two
-  are the same person.
+  `client/src/pages/PossibleDuplicates.tsx`; sidebar, under Administration,
+  which every staff member sees although only administrators get Settings),
+  with People and Cases tabs (`?show=cases`):
+  - People: one card per group, a person who may have several records, each
+    record with its email, sign-in, date of birth, whether it sends invoices
+    and its case and invoice counts, and each matching pair with why (same
+    email, same name, same date of birth and last name, flagged) and its
+    own "Not the same person". Records sharing a name are told apart by
+    email. The record with the most on it is offered as the one to keep and
+    the rest as the ones to merge in. Any staff member can "Flag two people"
+    (two person searches, `TypeAheadPicker` without an add option, since
+    flagging never adds anyone). "Recent merges" lists merges with Undo for
+    administrators (an inline confirmation); after a merge the page shows it
+    with one Undo for every record merged at once.
+  - Cases (`client/src/components/DuplicateCases.tsx`): one card per group
+    of open cases, each linking to its case page, with "Not the same case"
+    per pair and "Flag two cases" (a type-ahead over the open cases already
+    loaded; the second offers only cases in the first one's county, or
+    without one, as cases in different counties are never listed). There is no merge: the hint says to close the extra case from
+    its page once its invoices are finished.
+- **Merge review** (`/possible-duplicates/merge?keep=&retire=a,b`,
+  `client/src/pages/MergePeople.tsx`) is the confirmation step: the kept
+  record and each one merged in, each with "Keep this one instead" and,
+  when there are several, "Leave out"; anything blocking the merge; a table
+  of what moves, with a column per record merged in; the kept record's
+  empty details filled in and from whom; and what doesn't change. Staff see
+  all of it; only an administrator gets the merge form, whose button stays
+  disabled until they tick that the records are the same person. The demo
+  seed adds one possible duplicate, a demo provider added again under
+  another email (`seedDemoPossibleDuplicate` in
+  `server/src/db/demoData.ts`); nothing else in the demo is duplicated.
 - **Reference-data endpoint**: `GET /api/reference-data` returns every
   lookup list the intake form needs (statuses, categories, roles,
   jurisdictions, languages, identifier types, counties, organizations,

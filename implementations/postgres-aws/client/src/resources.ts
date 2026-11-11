@@ -7,6 +7,7 @@ import {
   getMergePreview,
   listPersonMerges,
   listPossibleDuplicates,
+  listPossibleDuplicateCases,
   getOwnDemoRole,
   getPerson,
   searchPeople,
@@ -193,5 +194,10 @@ export const possibleDuplicates = edited({ key: ['possible-duplicates'], load: (
 
 export const personMerges = edited({ key: ['person-merges'], load: () => listPersonMerges().then((result) => result.merges) });
 
-export const mergePreview = (keptPersonId: string, retiredPersonId: string) =>
-  edited({ key: ['merge-preview', keptPersonId, retiredPersonId], load: () => getMergePreview(keptPersonId, retiredPersonId) });
+export const possibleDuplicateCases = edited({
+  key: ['possible-duplicate-cases'],
+  load: () => listPossibleDuplicateCases().then((result) => result.duplicates),
+});
+
+export const mergePreview = (keptPersonId: string, retiredPersonIds: string[]) =>
+  edited({ key: ['merge-preview', keptPersonId, ...retiredPersonIds], load: () => getMergePreview(keptPersonId, retiredPersonIds) });

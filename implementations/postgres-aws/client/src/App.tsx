@@ -123,19 +123,18 @@ function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userA
           <NavLink to="/vendors" end>Providers</NavLink>
           <NavLink to="/clients" end>Clients</NavLink>
           <NavLink to="/organizations" end>Organizations</NavLink>
-          <NavLink to={POSSIBLE_DUPLICATES_PATH}>Possible duplicates</NavLink>
           <NavLink to="/exports" end>Exports</NavLink>
         </div>
         <div className="nav-group">
           <h2>In your {EXTERNAL_SYSTEM_NAME}</h2>
           <button type="button" disabled title="Not connected yet">Open it <span aria-hidden="true">↗</span></button>
         </div>
-        {showSettings && (
-          <div className="nav-group">
-            <h2>Administration</h2>
-            <NavLink to="/settings" end>Settings</NavLink>
-          </div>
-        )}
+        {/* Any staff member may flag possible duplicates; only Settings is for administrators. */}
+        <div className="nav-group">
+          <h2>Administration</h2>
+          <NavLink to={POSSIBLE_DUPLICATES_PATH}>Possible duplicates</NavLink>
+          {showSettings && <NavLink to="/settings" end>Settings</NavLink>}
+        </div>
       </nav>
     </aside>
   );
