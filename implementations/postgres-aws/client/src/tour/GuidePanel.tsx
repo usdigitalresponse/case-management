@@ -156,23 +156,30 @@ function StepBody({ step, ctx, onPage }: { step: TourStep; ctx: TourContextValue
   );
 }
 
-// One part of the tour: a dropdown, with what the chosen part covers beneath it.
+// One part of the tour: what the chosen part covers, above its dropdown.
 export function MissionPicker({
   id,
   label,
+  hideLabel = false,
   onStart,
   busy,
 }: {
   id: string;
   label: string;
+  hideLabel?: boolean;
   onStart: (missions: TourMission[]) => void;
   busy: boolean;
 }) {
   const [mission, setMission] = useState<TourMission>('staff-filing');
-  const chosen = MISSIONS[mission];
   return (
     <div className="mission-picker">
-      <label className="usa-label" htmlFor={id}>{label}</label>
+      <label className={hideLabel ? 'usa-sr-only' : 'mission-picker__label'} htmlFor={id}>{label}</label>
+      {/* All summaries take up room, so the tallest sets the height. */}
+      <div className="mission-picker__summaries" aria-live="polite">
+        {(Object.keys(MISSIONS) as TourMission[]).map((option) => (
+          <p key={option} className="mission-picker__summary" hidden={option !== mission}>{MISSIONS[option].summary}</p>
+        ))}
+      </div>
       <div className="mission-picker__row">
         <select id={id} className="usa-select" value={mission} onChange={(event) => setMission(event.target.value as TourMission)}>
           {(Object.keys(MISSIONS) as TourMission[]).map((option) => (
@@ -181,9 +188,6 @@ export function MissionPicker({
         </select>
         <Button kind="secondary" disabled={busy} onClick={() => onStart([mission])}>Start this part</Button>
       </div>
-      <p className="mission-picker__summary" aria-live="polite">
-        {chosen.summary}
-      </p>
     </div>
   );
 }

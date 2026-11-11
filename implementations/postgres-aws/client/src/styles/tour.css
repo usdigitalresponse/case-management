@@ -1,5 +1,5 @@
 /* The guided tour: a panel docked beside the page, never over it. */
-:root { --guide-width: 22rem; --guide-sheet-height: 45vh; --login-tour-clearance: 10rem; --login-tour-clearance-narrow: 26rem; --login-tour-max-height: 70vh; }
+:root { --guide-width: 22rem; --guide-sheet-height: 45vh; --login-tour-clearance: 11rem; --login-tour-clearance-narrow: 26rem; --login-tour-max-height: 70vh; }
 
 body:has(.guide) .app-layout,
 body:has(.guide) .portal-page { margin-right: var(--guide-width); }
@@ -53,22 +53,30 @@ body:has(.guide) .portal-page { margin-right: var(--guide-width); }
 @keyframes tour-pulse { 50% { outline-color: var(--color-primary); } }
 @media (prefers-reduced-motion: reduce) { .tour-highlight { animation: none; } }
 
-.mission-picker { display: flex; flex-direction: column; gap: var(--space-3); }
-.mission-picker .usa-label { margin: 0; font-size: var(--text-13); font-weight: 600; }
+.mission-picker { display: flex; flex-direction: column; gap: var(--space-4); }
+.mission-picker__label { font-size: var(--text-13); font-weight: 600; }
 .mission-picker__row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
 .mission-picker__row .usa-select { flex: 1 1 14rem; width: auto; max-width: none; margin-top: 0; }
-.mission-picker__summary { margin: 0; min-height: 2.6em; font-size: var(--text-13); color: var(--color-on-surface-variant); }
+.mission-picker__summaries { display: grid; margin-bottom: var(--space-3); }
+.mission-picker__summary { grid-area: 1 / 1; margin: 0; font-size: var(--text-13); color: var(--color-on-surface-variant); }
+.mission-picker__summary[hidden] { display: block; visibility: hidden; }
 
-/* Pinned along the bottom of the sign-in screen, in one row: the tour, then one part of it. */
+/* Pinned along the bottom of the sign-in screen: a heading, then two matching choices. */
 .login-page:has(.login-tour) { padding-bottom: var(--login-tour-clearance); }
 .login-tour { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; max-height: var(--login-tour-max-height); overflow-y: auto; box-sizing: border-box; padding: var(--space-6) var(--space-8); background: var(--color-surface); border-top: 1px solid var(--color-outline-variant); box-shadow: var(--elevation-3); }
-.login-tour__bar { width: 100%; max-width: 76rem; margin: 0 auto; display: flex; align-items: center; gap: var(--space-8); }
-.login-tour__intro { flex: 1 1 18rem; display: flex; flex-direction: column; gap: var(--space-3); }
-/* As tall as the dropdown beside them. */
-.login-tour__bar .btn { flex: none; min-height: 2.5rem; }
+.login-tour__bar { width: 100%; max-width: 76rem; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-5); }
+.login-tour__header { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3) var(--space-5); }
 .login-tour h2 { margin: 0; font-size: var(--text-18); }
 .login-tour p { margin: 0; color: var(--color-on-surface-variant); font-size: var(--text-13); }
-.login-tour__parts { flex: 1 1 24rem; padding-left: var(--space-8); border-left: 1px solid var(--color-outline-subtle); }
+.login-tour__options { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-9); }
+/* Description fills the column, so both columns' buttons share a bottom line. */
+.login-tour__option, .login-tour__option .mission-picker { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: var(--space-4); }
+.login-tour__option + .login-tour__option { padding-left: var(--space-9); border-left: 1px solid var(--color-outline-subtle); }
+.login-tour__option .mission-picker { align-self: stretch; }
+.login-tour__text, .login-tour__option .mission-picker__summaries { flex: 1; margin-bottom: var(--space-3); }
+.login-tour__option .mission-picker__row { align-self: stretch; }
+/* As tall as the dropdown beside them. */
+.login-tour__option .btn { flex: none; min-height: 2.5rem; }
 
 /* Phones: a sheet along the bottom, so the page stays usable above it. */
 @media (max-width: 64rem) {
@@ -77,7 +85,7 @@ body:has(.guide) .portal-page { margin-right: var(--guide-width); }
   .guide { top: auto; left: 0; width: auto; max-height: var(--guide-sheet-height); border-left: 0; border-top: 1px solid var(--color-outline-variant); padding: var(--space-6) var(--space-6); }
   .guide-pill { right: var(--space-6); bottom: var(--space-6); }
   .login-tour { padding: var(--space-6); }
-  .login-tour__bar { flex-direction: column; align-items: stretch; gap: var(--space-5); }
-  .login-tour__parts { flex-basis: auto; padding: var(--space-5) 0 0; border-left: 0; border-top: 1px solid var(--color-outline-subtle); }
+  .login-tour__options { grid-template-columns: 1fr; gap: var(--space-6); }
+  .login-tour__option + .login-tour__option { padding: var(--space-6) 0 0; border-left: 0; border-top: 1px solid var(--color-outline-subtle); }
   .login-page:has(.login-tour) { padding-bottom: var(--login-tour-clearance-narrow); }
 }
