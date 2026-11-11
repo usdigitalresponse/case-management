@@ -309,7 +309,7 @@ area, imported in order by `index.css`; put a rule in its area's file. Design
 values come only from `tokens.css` (Figma's role names), design-system components
 live in `client/src/components/ui/` (use `Button`, `Tag`, `Notice`, `Dialog`, the
 `card` class), USWDS's stylesheet is not loaded, and no inline styles: pass run-time
-values with `cssVars`. `npm run lint` enforces both (stylelint and ESLint). See "Changing the design system" in its `docs/frontend.md`. All data loads through `useResource`
+values with `cssVars`. `npm run lint` enforces both (stylelint and ESLint). See its `docs/design-system.md` for changing the design system. All data loads through `useResource`
 (TanStack Query); resources a page edits are `fresh`: loaded for each visit,
 never refreshed under the user, and cleared and reloaded by a save's `resetKey`.
 Page tests render one page against `client/src/test/fakeApi.ts`, which fails

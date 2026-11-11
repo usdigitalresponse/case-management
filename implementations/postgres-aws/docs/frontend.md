@@ -450,13 +450,15 @@ How the React client is built and why. Schema mapping and gaps are in
   `src/formatDateTime.ts`). USWDS's stylesheet is not loaded: the few of its
   rules the pages rely on are in `styles/reset.css` and `styles/controls.css`,
   and `@trussworks/react-uswds` still renders form markup. How the Figma
-  components map to code, and what to change for a new design system, is
-  under "Changing the design system" below. Every font size, margin, padding, gap,
+  components map to code, and what to change for a new design system, is in
+  `docs/design-system.md`. Every font size, margin, padding, gap,
   radius and color in `styles/` is a token; line heights, letter spacing and
-  widths are still literal. Gaps: alert icons are not built, and the gold
-  used for focus rings and for missing or flagged markers is under 3:1
-  against white, short of the non-text contrast minimum; it stays as
-  specified until the design changes it.
+  widths are still literal. The shell follows design I: a gold rule under
+  the header (with `ORGANIZATION_NAME` before the product's name when set),
+  a white sidebar on a grey page, and the senders' pages in a centred
+  1,000px column. Gaps: the gold used for focus rings and for missing or
+  flagged markers is under 3:1 against white, short of the non-text
+  contrast minimum; it stays as specified until the design changes it.
 - **Case overview** (`/overview`, in the sidebar's Cases group since design
   I): four stage cards (Needs assignment, Represented, Billing, Closing),
   each with its count and up to three cases, then "Recently changed". Cases
@@ -626,35 +628,7 @@ How the React client is built and why. Schema mapping and gaps are in
 
 ## Changing the design system
 
-A new design system changes three places; pages and area stylesheets hold
-only layout and should not need to change.
-
-1. **Tokens** (`client/src/styles/tokens.css`): every color, type size
-   (`--text-13`…) and role (`--body-medium`…), spacing step, radius,
-   elevation, and the form-field sizes and focus ring. Map each of the new system's tokens
-   onto one of ours by role (its "primary" to `--color-primary`, its body
-   text to `--body-medium`), or rename ours to match and replace the names
-   throughout `src/styles/`.
-2. **Fonts**: the Fontsource imports in `client/src/main.tsx` and the
-   `--font-sans` and `--font-serif` tokens.
-3. **Components**: each design-system component has one place in code.
-
-| Figma component | Code | Styles |
-|---|---|---|
-| Button (Primary, Secondary, Danger) | `components/ui/Button.tsx` (`buttonClass` for links) | `styles/buttons.css` |
-| Button (Ghost) | `.link-button` | `styles/base.css` |
-| Tag | `components/ui/Tag.tsx` (`StatusPill` picks a tone by status) | `styles/feedback.css` |
-| Alert | `components/ui/Notice.tsx` | `styles/feedback.css` |
-| Card | the `card` class | `styles/card.css` |
-| Modal | `components/ui/Dialog.tsx` | `styles/overlays.css` |
-| Segmented control | `components/ui/SegmentedChoice.tsx` | `styles/forms.css` |
-| Text input, select, text area, checkbox, radio | `@trussworks/react-uswds` markup, or plain elements with its class names | `styles/controls.css` (also plain checkboxes and radios, and a compact size for editing in table rows, which Figma doesn't specify) |
-| Table cell | `components/RecordTable.tsx` | `styles/tables.css` |
-| Link, breadcrumb | `components/PageHeader.tsx` | `styles/base.css`, `styles/page.css` |
-| Header, side navigation item | `App.tsx`, `portal/ExternalPortalApp.tsx` | `styles/layout.css` |
-| Decision bar | `components/lineReview/DecisionCell.tsx` | `styles/review.css` |
-
-Form controls keep USWDS's class names (`usa-input`, `usa-select`…)
-because `@trussworks/react-uswds` renders them; restyle them in
-`controls.css`, or replace those components to drop the names.
+See `docs/design-system.md`: the settings that need no code, the tokens by
+role, fonts, where each design-system component lives, and how to check the
+result.
 
