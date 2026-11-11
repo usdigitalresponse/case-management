@@ -49,6 +49,10 @@
 .check-lines__summary td:nth-child(2) { white-space: nowrap; }
 .check-lines__summary .tag { margin-left: var(--space-4); }
 .check-lines__what td { padding-top: 0; overflow-wrap: anywhere; }
+.check-lines__what td:empty { padding-bottom: 0; }
+.check-lines .line-date, .check-lines .line-description { display: block; }
+.check-lines .line-date { font-weight: 600; white-space: nowrap; }
+.check-lines .line-description { overflow-wrap: anywhere; }
 .check-lines__table .check-lines__detail-row td { padding: 0; }
 .check-lines__date { width: 9.5rem; margin-top: 0; padding: var(--space-3) var(--space-4); }
 .check-lines__row--flagged td, .check-lines__row--flagged:hover td { background: var(--color-tertiary-container); }
@@ -65,7 +69,7 @@
 .check-lines__actions .tag { margin-bottom: var(--space-3); }
 /* Decided while entered (EntryLines): its buttons wrap rather than widen
    the table past the file beside it. */
-.check-lines__actions--decide { white-space: normal; min-width: 12rem; }
+.check-lines__actions--decide { white-space: normal; min-width: 12rem; text-align: left; }
 .check-lines__actions--decide .decision-buttons { align-items: flex-end; }
 .check-lines__actions--decide .decision-bar { flex-wrap: wrap; justify-content: flex-end; }
 /* Edited in place while entered: compact fields in the cells. */
@@ -103,10 +107,10 @@
 .edit-line__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }
 .edit-line__remove { margin-left: auto; }
 .send-summary { display: grid; grid-template-columns: auto 1fr; gap: var(--space-4) var(--space-8); margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-6); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-medium); background: var(--color-surface-container-low); font-size: var(--text-15); }
-.send-summary dt { color: var(--color-on-surface-variant); }
+.send-summary dt { color: var(--color-on-surface-variant); font-size: var(--text-11); align-self: center; }
 .send-summary dd { margin: 0; }
 .send-summary__total { font-size: var(--text-18); font-weight: 700; }
-.attest { display: flex; align-items: flex-start; gap: var(--space-4); margin: var(--space-4) 0 var(--space-3); padding: var(--space-5) var(--space-6); border: 1px solid var(--color-outline-variant); border-radius: var(--radius-medium); background: var(--color-primary-container-low); font-size: var(--text-15); cursor: pointer; }
+.attest { display: flex; align-items: flex-start; gap: var(--space-4); margin: var(--space-4) 0 var(--space-3); padding: var(--space-5) var(--space-6); border: 1px solid var(--color-primary-fixed-dim); border-radius: var(--radius-medium); background: var(--color-primary-container-low); font: var(--body-medium); cursor: pointer; }
 .attest input { margin: var(--space-2) 0 0; }
 /* Entering: under a line's description, asking about it on the left and
    deciding it on the right, on one row (EntryLines). */

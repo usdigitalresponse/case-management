@@ -6,6 +6,7 @@ import type { ReviewTotals } from '../reviewTotals';
 import { ConfirmButton } from './ConfirmButton';
 import { Notice } from './ui/Notice';
 import { Button } from './ui/Button';
+import { Dialog } from './ui/Dialog';
 
 // Rate check: time lines billed above the case rate a reviewer set, else the
 // pre-authorized rate, else the person's approved rate, shown once above the
@@ -118,15 +119,24 @@ export function TotalsBar({
         </div>
       )}
       {confirming && (
-        <div className="confirm-panel" role="dialog" aria-labelledby="finish-heading">
-          <h3 id="finish-heading">Finish this review?</h3>
+        <Dialog title="Finish this review?" onClose={() => setConfirming(false)}>
+          <dl className="send-summary">
+            <dt>Requested</dt>
+            <dd>{formatMoney(requested)}</dd>
+            <dt>Approved</dt>
+            <dd><strong>{formatMoney(totals.approved / 100)}</strong></dd>
+            <dt>{totals.cut < 0 ? 'Added' : 'Cut'}</dt>
+            <dd>{formatMoney(Math.abs(totals.cut) / 100)}</dd>
+            <dt>Lines</dt>
+            <dd>{counts.approved} approved, {counts.part} in part, {counts.rejected} rejected</dd>
+          </dl>
           <p>
             {locksLines ? 'The lines lock as you entered them, and so do the decisions. ' : 'The decisions lock. '}
             The invoice goes to {signers} to sign off. You can reopen the review until
             {approvers.length === 1 ? ' they sign' : ' the first of them signs'}
             {locksLines ? ', to change decisions but not the lines.' : '.'}
           </p>
-          <div className="button-row">
+          <div className="dialog__actions">
             <Button
               kind="primary"
               disabled={saving}
@@ -140,7 +150,7 @@ export function TotalsBar({
             </Button>
             <button type="button" className="link-button" onClick={() => setConfirming(false)}>Keep reviewing</button>
           </div>
-        </div>
+        </Dialog>
       )}
       {inReview && totals.decided < lineCount && <p className="totals-bar__next cell-note">Decide every line to finish the review.</p>}
     </div>

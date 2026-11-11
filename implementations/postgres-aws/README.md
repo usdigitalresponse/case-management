@@ -267,6 +267,8 @@ project name, so its containers and data never touch the dev stack's.
 Sign-in is the staff and partner demo sign-ins (`DEMO_LOGIN_ENABLED` and
 `EXTERNAL_DEMO_LOGIN_ENABLED` in `.env.prod`); SSO and SES are not
 configured.
+Set `ORGANIZATION_NAME` there to show your organization's name in the
+header; to use your own design system, see `docs/design-system.md`.
 
 To try it locally on http://localhost:
 

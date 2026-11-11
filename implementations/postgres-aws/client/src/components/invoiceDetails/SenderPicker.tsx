@@ -86,7 +86,7 @@ export function SenderPicker({
   if (!staff && billable.length <= 6) {
     return (
       <fieldset className="sender-choices" aria-describedby={`${id}-hint`}>
-        <legend className="usa-label">Whose work is it?</legend>
+        <legend className="sender-choices__title">Whose work is it?</legend>
         {billable.map((p) => (
           <label key={p.professionalId} className="radio-row">
             <input

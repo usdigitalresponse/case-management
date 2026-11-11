@@ -104,7 +104,7 @@ export function CheckLinesTable({
         <thead>
           <tr>
             <th scope="col">#</th>
-            <th scope="col">Date</th>
+            <th scope="col">{inPlace ? 'Date' : 'Date and what was done'}</th>
             <th scope="col">Kind</th>
             <th scope="col" className="amount">Qty</th>
             <th scope="col" className="amount">Rate</th>
@@ -197,7 +197,11 @@ export function CheckLinesTable({
                   ) : editable && !line.serviceDate && !isEditing ? (
                     <DateToEnter number={number} onEnter={(serviceDate) => onSaveLine(index, [{ ...line, serviceDate }], number)} />
                   ) : (
-                    formatDate(line.serviceDate || null)
+                    <>
+                      <strong className="line-date">{formatDate(line.serviceDate || null)}</strong>
+                      {/* Under the date, as in design I6 and I13. */}
+                      <span className="line-description">{line.description || '—'}</span>
+                    </>
                   )}
                 </td>
                 <td>
@@ -321,9 +325,7 @@ export function CheckLinesTable({
                         </span>
                       )}
                     </>
-                  ) : (
-                    line.description || '—'
-                  )}
+                  ) : null}
                   {flagged &&
                     lineWarnings.map((warning) => (
                       <span key={warning.code} className="cell-note check-lines__warning">{warning.message}</span>

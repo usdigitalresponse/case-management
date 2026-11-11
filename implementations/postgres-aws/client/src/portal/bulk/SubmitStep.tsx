@@ -60,7 +60,7 @@ export function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]
   }
 
   return (
-    <section className="bulk-step-section" id="submit">
+    <section className="card compact-card bulk-step-section" id="submit">
       <h2>3. Send</h2>
       {results && results.submitted.length > 0 && (
         <Notice tone="success">

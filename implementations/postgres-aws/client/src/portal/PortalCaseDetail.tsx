@@ -355,7 +355,7 @@ export default function PortalCaseDetail() {
   );
 
   return (
-    <div>
+    <div className="portal-content">
       <PageHeader
         crumbs={[{ label: 'Your cases', to: '/portal/cases' }, { label: myCase?.clientDisplayName ?? 'Case' }]}
         title={myCase?.clientDisplayName ?? title}

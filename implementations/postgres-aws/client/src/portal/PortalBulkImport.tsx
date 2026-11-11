@@ -9,6 +9,7 @@ import { Notice } from '../components/ui/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { useShell } from './useShell';
 import { Button } from '../components/ui/Button';
+import { Tag } from '../components/ui/Tag';
 import { StagedFiles } from './bulk/StagedFiles';
 import { ReviewStep } from './bulk/ReviewStep';
 import { SubmitStep } from './bulk/SubmitStep';
@@ -20,10 +21,13 @@ function StepHeader({ step, toReview, ready }: { step: BulkStep; toReview: numbe
     [3, ready > 0 ? `Send (${ready} ready)` : 'Send'],
   ];
   return (
-    <ol className="bulk-steps" aria-label="Import steps">
+    <ol className="tag-steps" aria-label="Import steps">
       {steps.map(([number, label]) => (
-        <li key={number} className={number === step ? 'is-current' : number < step ? 'is-done' : undefined} aria-current={number === step ? 'step' : undefined}>
-          <span className="bulk-step-number">{number}</span> {label}
+        <li key={number} aria-current={number === step ? 'step' : undefined}>
+          <Tag tone={number === step ? 'strong' : number < step ? 'success' : 'neutral'}>
+            {number} {label}
+            {number < step && <span aria-label=", done"> ✓</span>}
+          </Tag>
         </li>
       ))}
     </ol>

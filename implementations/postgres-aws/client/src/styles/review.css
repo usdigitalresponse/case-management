@@ -69,7 +69,9 @@
 .line-question__answer textarea { width: 100%; margin-top: var(--space-3); }
 .decision-hint { color: var(--color-primary); }
 .decision-summary__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
-.decision-summary__why { margin: var(--space-3) 0 0; font-size: var(--text-15); }
+.decision-summary__why { margin: var(--space-3) 0 0; font: var(--body-medium); }
+/* A decided line's actions, as design I16's "Add a note" and "Change". */
+.decision-cell .link-row { gap: var(--space-2) var(--space-5); margin-top: var(--space-2); font: var(--label-small); }
 .decision-history { margin-top: var(--space-3); font-size: var(--text-13); }
 .decision-history ol { margin: var(--space-3) 0 0; padding-left: var(--space-6); color: var(--color-on-surface-variant); }
 /* Approve part / reject panel */
