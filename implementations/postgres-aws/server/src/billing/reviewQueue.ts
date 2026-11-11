@@ -1,6 +1,6 @@
 // The staff queue: invoices waiting on review or sign-off, or finished, with
 // who has each, how long it has waited and what needs care.
-import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { inIds } from '../db/inIds';
 import type { Database } from '../db/client';
 import {
@@ -21,14 +21,13 @@ import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
 import { loadPreauthorizationSummariesByCase, loadRateLimitsByCase, overPreauthorization, rateLimitFor, summaryForProfessional, type RateLimit } from './preauthorizations';
 import { evaluateBillingRules, type RuleFinding } from './billingRules';
-import { currentCaseNumber, matchCaseNumbers, searchMatch } from './caseNumbers';
+import { currentCaseNumber, searchMatch } from './caseNumbers';
+import { sentCaseNumberCounts } from './caseNumberMatches';
 import {
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
   DECIDED_INVOICE_STATUS_CODES,
-  DRAFT_INVOICE_STATUS_CODE,
   IN_REVIEW_INVOICE_STATUS_CODES,
   LINE_REVIEW_STATUS_CODES,
-  WITHDRAWN_INVOICE_STATUS_CODE,
 } from './invoiceStatusCodes';
 
 // open: waiting on review or sign-off; finished: approved or rejected;
@@ -258,34 +257,16 @@ export async function listReviewQueue(
     }),
   );
   rows.sort((a, b) => b.workingDaysWaiting - a.workingDaysWaiting || Number(a.submittedAt) - Number(b.submittedAt));
-  const matches = await sentCaseNumberMatches(db);
+  const matchesOf = await sentCaseNumberCounts(db);
   const q = options.q ?? '';
   return {
     invoices: rows
       .map((row) => ({
         ...row,
-        caseNumberMatches: matches.get(row.invoiceId) ?? { same: 0, close: 0 },
+        caseNumberMatches: matchesOf(currentCaseNumber(row) ?? row.caseNumber),
         match: q ? searchMatch(q, [row.professionalDisplayName, row.submittedByDisplayName], currentCaseNumber(row) ?? row.caseNumber) : null,
       }))
       .filter((row) => !q || row.match),
     waitingAlertWorkingDays: settings.waitingAlertWorkingDays,
   };
-}
-
-// Across every sent invoice, by its current case number, else its case's.
-export async function sentCaseNumberMatches(db: Database) {
-  const sent = await db
-    .select({
-      invoiceId: invoice.invoiceId,
-      caseId: invoice.caseId,
-      caseNumberAsTyped: invoice.caseNumberAsTyped,
-      caseNumberCorrected: invoice.caseNumberCorrected,
-    })
-    .from(invoice)
-    .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
-    .where(notInArray(invoiceStatuses.code, [DRAFT_INVOICE_STATUS_CODE, WITHDRAWN_INVOICE_STATUS_CODE]));
-  const numbers = await loadCaseNumbers(db, [...new Set(sent.map((row) => row.caseId))]);
-  return matchCaseNumbers(
-    sent.map((row) => ({ invoiceId: row.invoiceId, caseNumber: currentCaseNumber(row) ?? numbers.get(row.caseId)?.caseNumber ?? null })),
-  );
 }

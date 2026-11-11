@@ -36,7 +36,8 @@ import { reassignReviewer, setSignOffApprovers, LINE_REVIEW_STEP_TYPE_CODE } fro
 import { listReviewPeople } from '../billing/reviewAccess';
 import { allowedToSignOff, getReviewSettings } from '../billing/reviewSettings';
 import { shownRoleName } from '../auth/staffAccountRole';
-import { listReviewQueue, sentCaseNumberMatches } from '../billing/reviewQueue';
+import { listReviewQueue } from '../billing/reviewQueue';
+import { caseNumberMatchesFor } from '../billing/caseNumberMatches';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { correctCaseNumber } from '../billing/correctCaseNumber';
 import { loadPreauthorizationSummaries, overPreauthorization, summaryForProfessional } from '../billing/preauthorizations';
@@ -215,7 +216,7 @@ router.get(
     const professionalId = detail.invoice.professionalId;
     const today = new Date().toISOString().slice(0, 10);
     const approvedRate = professionalId ? (rateOn(await listRates(db, [professionalId]), professionalId, today) ?? null) : null;
-    const caseNumberMatches = (await sentCaseNumberMatches(db)).get(detail.invoice.invoiceId) ?? { same: 0, close: 0 };
+    const caseNumberMatches = await caseNumberMatchesFor(db, detail.invoice.invoiceId);
     const senderEmail = await loadSenderEmail(db, detail.invoice);
     // As canDiscardEntry decides, from what the detail already holds.
     const discardable =

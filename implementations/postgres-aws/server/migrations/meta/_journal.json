@@ -295,6 +295,20 @@
       "when": 1794431593758,
       "tag": "0041_invoice_approval_chain_invoice_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794433098998,
+      "tag": "0042_case_number_close_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794433111545,
+      "tag": "0043_case_number_close_key_indexes",
+      "breakpoints": true
     }
   ]
 }

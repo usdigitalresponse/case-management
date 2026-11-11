@@ -224,6 +224,7 @@ export const caseTable = pgTable(
     index('case_county_id_idx').on(table.countyId),
     index('case_status_id_idx').on(table.statusId),
     index('case_category_id_idx').on(table.caseCategoryId),
+    index('case_external_reference_close_key_idx').on(sql`case_number_close_key(${table.externalReference})`),
   ],
 );
 
@@ -482,7 +483,12 @@ export const invoice = pgTable(
     linesChangedAt: timestamp('lines_changed_at', { withTimezone: true }),
     linesChangedByUserAccountId: uuid('lines_changed_by_user_account_id').references(() => userAccount.userAccountId),
   },
-  (table) => [index('invoice_professional_id_idx').on(table.professionalId), index('invoice_case_id_idx').on(table.caseId)],
+  (table) => [
+    index('invoice_professional_id_idx').on(table.professionalId),
+    index('invoice_case_id_idx').on(table.caseId),
+    // For invoices by case number (src/billing/caseNumberMatches.ts).
+    index('invoice_case_number_close_key_idx').on(sql`case_number_close_key(coalesce(${table.caseNumberCorrected}, ${table.caseNumberAsTyped}))`),
+  ],
 );
 
 // One journey on a request; its travel time, mileage and costs are separate
@@ -1225,6 +1231,7 @@ export const caseIdentifier = pgTable(
     // case_id lookup (GET /api/cases/:id) — a separate plain index is
     // needed for that.
     index('case_identifier_case_id_idx').on(table.caseId),
+    index('case_identifier_close_key_idx').on(sql`case_number_close_key(${table.value})`),
   ],
 );
 

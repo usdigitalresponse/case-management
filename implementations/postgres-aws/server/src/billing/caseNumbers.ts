@@ -16,12 +16,13 @@ export function cleanCaseNumber(value: string | null | undefined): string | null
   return cleaned === '' ? null : cleaned;
 }
 
-const exactKey = (value: string) => value.toUpperCase();
+export const exactKey = (value: string) => value.toUpperCase();
 
+// ASCII letters and digits only, as the database's case_number_close_key (migration 0042) computes it.
 export function closeKey(value: string): string {
   return value
+    .replace(/[^A-Za-z0-9]+/g, '')
     .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '')
     .replace(/\d+/g, (digits) => digits.replace(/^0+(?=\d)/, ''));
 }
 
@@ -72,24 +73,4 @@ export function searchMatch(query: string, names: Array<string | null>, caseNumb
 export interface CaseNumberMatches {
   same: number;
   close: number;
-}
-
-export function matchCaseNumbers(entries: Array<{ invoiceId: string; caseNumber: string | null }>): Map<string, CaseNumberMatches> {
-  const exact = new Map<string, number>();
-  const close = new Map<string, number>();
-  const add = (counts: Map<string, number>, key: string) => counts.set(key, (counts.get(key) ?? 0) + 1);
-  for (const { caseNumber } of entries) {
-    if (caseNumber) {
-      add(exact, exactKey(caseNumber));
-      add(close, closeKey(caseNumber));
-    }
-  }
-  const result = new Map<string, CaseNumberMatches>();
-  for (const { invoiceId, caseNumber } of entries) {
-    if (caseNumber) {
-      const same = exact.get(exactKey(caseNumber))!;
-      result.set(invoiceId, { same: same - 1, close: close.get(closeKey(caseNumber))! - same });
-    }
-  }
-  return result;
 }

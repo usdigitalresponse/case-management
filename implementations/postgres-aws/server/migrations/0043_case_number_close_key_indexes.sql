@@ -1,0 +1,3 @@
+CREATE INDEX "case_identifier_close_key_idx" ON "case_identifier" USING btree (case_number_close_key("value"));--> statement-breakpoint
+CREATE INDEX "case_external_reference_close_key_idx" ON "case" USING btree (case_number_close_key("external_reference"));--> statement-breakpoint
+CREATE INDEX "invoice_case_number_close_key_idx" ON "invoice" USING btree (case_number_close_key(coalesce("case_number_corrected", "case_number_as_typed")));

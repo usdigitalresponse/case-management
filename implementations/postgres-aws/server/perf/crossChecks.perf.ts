@@ -6,7 +6,8 @@ import { invoiceImport, professional } from '../src/db/schema';
 import { addKindRate, createKind } from '../src/billing/professionalRates';
 import { createApp } from '../src/app';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
-import { listReviewQueue, sentCaseNumberMatches } from '../src/billing/reviewQueue';
+import { listReviewQueue } from '../src/billing/reviewQueue';
+import { caseNumberMatchesFor, sentCaseNumberCounts } from '../src/billing/caseNumberMatches';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { findBillingOverlaps } from '../src/billing/billingOverlaps';
 import { evaluateBillingRules, setBillingRule, BILLING_RULES, type RuleCode } from '../src/billing/billingRules';
@@ -145,9 +146,14 @@ describe('review', () => {
     expect(result).toBeInstanceOf(Array);
   });
 
-  it('case number matches across every sent invoice', async () => {
-    const { result } = await measure('review', 'sentCaseNumberMatches', () => sentCaseNumberMatches(db));
-    expect(result.size).toBeGreaterThan(0);
+  it('case number counts across every sent invoice, as the queue loads them', async () => {
+    const { result } = await measure('review', 'sentCaseNumberCounts', () => sentCaseNumberCounts(db));
+    expect(result(caseReference(caseOfInvoice(volume, inReview))).same).toBeGreaterThan(0);
+  });
+
+  it("one invoice's case number matches, as the review page loads them", async () => {
+    const { result } = await measure('review', 'caseNumberMatchesFor', () => caseNumberMatchesFor(db, perfId('invoice', inReview)));
+    expect(result.same).toBeGreaterThan(0);
   });
 
   it('cases with the typed case number', async () => {

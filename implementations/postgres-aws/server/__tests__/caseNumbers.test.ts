@@ -9,7 +9,8 @@ import { resolvePortalActor } from '../src/portal/portalActor';
 import { setDraftCaseNumber } from '../src/billing/invoiceLifecycle/drafts';
 import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
 import { listReviewQueue } from '../src/billing/reviewQueue';
-import { closeKey, labelledCaseNumber, matchCaseNumbers, readCaseNumber, searchMatch } from '../src/billing/caseNumbers';
+import { closeKey, labelledCaseNumber, readCaseNumber, searchMatch } from '../src/billing/caseNumbers';
+import { caseNumberMatchesFor } from '../src/billing/caseNumberMatches';
 import { ValidationError } from '../src/errors';
 import { invoiceApprovalChain, invoiceAttestation, userAccount } from '../src/db/schema';
 import { giveRate } from './rateHelpers';
@@ -18,15 +19,6 @@ describe('case numbers as typed', () => {
   it('compares closely, ignoring case, spaces, dashes and leading zeros', () => {
     expect(closeKey('26-CR-00418')).toBe(closeKey('26cr 0418'));
     expect(closeKey('26-CR-00418')).not.toBe(closeKey('26-CR-00419'));
-    const matches = matchCaseNumbers([
-      { invoiceId: 'a', caseNumber: '26-CR-00418' },
-      { invoiceId: 'b', caseNumber: '26-CR-00418' },
-      { invoiceId: 'c', caseNumber: '26-CR-0418' },
-      { invoiceId: 'd', caseNumber: null },
-    ]);
-    expect(matches.get('a')).toEqual({ same: 1, close: 1 });
-    expect(matches.get('c')).toEqual({ same: 0, close: 2 });
-    expect(matches.has('d')).toBe(false);
   });
 
   it('searches names and numbers exactly, then numbers closely', () => {
@@ -130,5 +122,9 @@ describe('sending an invoice filed by person', () => {
     const matchesOf = (invoiceId: string) => invoices.find((row) => row.invoiceId === invoiceId)!.caseNumberMatches;
     expect(matchesOf(ids[0]!)).toEqual({ same: 1, close: 1 });
     expect(matchesOf(ids[2]!)).toEqual({ same: 0, close: 2 });
+    // The review page's lookup by key agrees with the queue's counts.
+    for (const invoiceId of ids) {
+      expect(await caseNumberMatchesFor(testDb, invoiceId)).toEqual(matchesOf(invoiceId));
+    }
   });
 });
