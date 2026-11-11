@@ -26,6 +26,7 @@ import { caseNumberInput, cleanCaseNumber, readCaseNumber } from '../billing/cas
 import { countyChoice, listCounties, readCounty, resolveCounty } from '../cases/counties';
 import { enterInReviewInTx } from '../billing/enterInReview';
 import { receiptInputSchema, recordReceipt } from '../billing/invoiceReceipt';
+import { byCase } from '../cases/byCase';
 
 export interface SplitCase {
   caseId: string;
@@ -65,11 +66,12 @@ export async function splitCases(db: Database, actor: PortalActor, professionalI
           .select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value })
           .from(caseIdentifier)
           .where(inArray(caseIdentifier.caseId, cases.map((row) => row.caseId)));
+  const identifiersOf = byCase(identifiers);
   return cases.map((row) => ({
     ...row,
     keys: matchKeys(row.clientDisplayName, [
       row.externalReference,
-      ...identifiers.filter((id) => id.caseId === row.caseId).map((id) => id.value),
+      ...(identifiersOf.get(row.caseId) ?? []).map((id) => id.value),
     ]),
   }));
 }

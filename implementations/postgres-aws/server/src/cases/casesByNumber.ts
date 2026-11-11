@@ -6,6 +6,7 @@ import type { DatabaseOrTransaction } from '../db/client';
 import { caseIdentifier, caseTable, county, person } from '../db/schema';
 import { closeKey } from '../billing/caseNumbers';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
+import { byCase } from './byCase';
 
 export interface CaseByNumber {
   caseId: string;
@@ -33,10 +34,11 @@ export async function findCasesByNumber(db: DatabaseOrTransaction, caseNumber: s
       .leftJoin(county, eq(caseTable.countyId, county.countyId)),
     db.select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value }).from(caseIdentifier),
   ]);
+  const identifiersOf = byCase(identifiers);
   const wanted = caseNumber.toUpperCase();
   const wantedClose = closeKey(caseNumber);
   const found = cases.flatMap((row) => {
-    const numbers = [row.externalReference, ...identifiers.filter((id) => id.caseId === row.caseId).map((id) => id.value)].filter(
+    const numbers = [row.externalReference, ...(identifiersOf.get(row.caseId) ?? []).map((id) => id.value)].filter(
       (value): value is string => Boolean(value),
     );
     const match = numbers.some((value) => value.toUpperCase() === wanted)
