@@ -11,7 +11,7 @@ import { useResource } from '../hooks/useResource';
 import { invoiceIntake, reviewQueue } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { RecordTable } from '../components/RecordTable';
 import { CaseNumberCell, countyOfInvoice, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
@@ -23,6 +23,7 @@ import { formatDateTime, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
 import { useSearchParamState } from '../hooks/useSearchParamState';
+import { FilterTag } from '../components/ui/Tag';
 
 const SORTS = [
   { id: 'waiting', label: 'Waiting longest first' },
@@ -214,17 +215,16 @@ export default function InvoicesToReview() {
         </Notice>
       )}
 
-      <div className="chip-filters" role="group" aria-label="Show">
+      <div className="tag-filters" role="group" aria-label="Show">
         {QUEUE_FILTERS.map(({ id, label }) => (
-          <button
+          <FilterTag
             key={id}
-            type="button"
-            className={`chip chip--filter${id === 'flagged' ? ' chip--warning' : ''}`}
+            tone={id === 'flagged' ? 'warning' : undefined}
             aria-pressed={filter === id}
             onClick={() => setFilter(id)}
           >
-            {label} <span className="chip-count">{counts[id]}</span>
-          </button>
+            {label} <span className="tag-count">{counts[id]}</span>
+          </FilterTag>
         ))}
       </div>
 

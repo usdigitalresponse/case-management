@@ -1,6 +1,6 @@
 import { Link as RouterLink } from 'react-router';
 import { repriceInvoice } from '../../api/client';
-import { Notice } from '../../components/Notice';
+import { Notice } from '../../components/ui/Notice';
 import { EnteredFlag, proposedCaseLabel } from '../../components/NewEntryFields';
 import { SignOffApprovers } from '../../components/ReviewRouting';
 import { EmailSender } from '../../components/EmailSender';

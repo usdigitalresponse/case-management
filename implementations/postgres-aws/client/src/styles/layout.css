@@ -7,28 +7,28 @@
 .app-brand-block { display: flex; flex: none; flex-direction: column; line-height: 1.2; }
 .header-badge { white-space: nowrap; font-size: 11px; color: var(--color-inverse-primary); }
 .header-search { flex: 0 1 26rem; min-width: 12rem; margin-left: 2rem; }
-.header-search input { width: 100%; box-sizing: border-box; height: 2.1rem; padding: 0 .9rem; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); color: var(--ink); }
+.header-search input { width: 100%; box-sizing: border-box; height: 2.1rem; padding: 0 .9rem; border: 1px solid var(--color-outline-variant); border-radius: var(--radius-small); background: var(--color-surface); color: var(--color-on-surface); }
 .header-actions { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; margin-left: auto; white-space: nowrap; }
 .user-name { display: inline-block; font-size: .9rem; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .header-actions .link-button { font-size: .9rem; }
 .app-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: calc(100vh - 57px); }
-.app-sidebar { padding: 1.4rem .5rem; border-right: 1px solid var(--line); background: var(--sidebar); }
-.app-sidebar a:not(.btn), .nav-group button { display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; padding: .45rem .75rem; text-align: left; border: 0; border-radius: 6px; text-decoration: none; color: var(--ink); background: transparent; font-size: .92rem; }
-.app-sidebar a:hover { background: var(--line); }
+.app-sidebar { padding: 1.4rem .5rem; border-right: 1px solid var(--color-outline-subtle); background: var(--color-surface-container); }
+.app-sidebar a:not(.btn), .nav-group button { display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; padding: .45rem .75rem; text-align: left; border: 0; border-radius: 6px; text-decoration: none; color: var(--color-on-surface); background: transparent; font-size: .92rem; }
+.app-sidebar a:hover { background: var(--color-outline-subtle); }
 /* Bold and a bar too, so the selection doesn't rest on color alone. */
 .app-sidebar a.active { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; box-shadow: inset 3px 0 0 var(--color-primary); }
-.nav-count { font-size: .78rem; color: var(--ink-muted); }
-.app-sidebar a.active .nav-count { color: var(--primary); }
-/* A count chip beside a section heading. */
+.nav-count { font-size: .78rem; color: var(--color-on-surface-variant); }
+.app-sidebar a.active .nav-count { color: var(--color-primary); }
+/* A count tag beside a section heading. */
 .heading-count { margin-left: .5rem; vertical-align: .2em; }
 /* Intake: where invoices come in, so it reads as the main action. */
-.app-sidebar a.nav-primary { background: var(--primary); color: white; font-weight: 700; padding: .6rem .85rem; }
-.app-sidebar a.nav-primary:hover { background: var(--primary-hover); }
-.app-sidebar a.nav-primary.active { background: var(--primary); color: white; }
-.app-sidebar a.nav-primary .nav-count { min-width: 1.4rem; padding: .05rem .4rem; border-radius: 999px; background: white; color: var(--primary); font-weight: 700; text-align: center; }
+.app-sidebar a.nav-primary { background: var(--color-primary); color: var(--color-on-primary); font-weight: 700; padding: .6rem .85rem; }
+.app-sidebar a.nav-primary:hover { background: var(--color-primary-hover); }
+.app-sidebar a.nav-primary.active { background: var(--color-primary); color: var(--color-on-primary); }
+.app-sidebar a.nav-primary .nav-count { min-width: 1.4rem; padding: .05rem .4rem; border-radius: var(--radius-full); background: var(--color-on-primary); color: var(--color-primary); font-weight: 700; text-align: center; }
 .nav-group + .nav-group { margin-top: 1.6rem; }
-.nav-group h2 { padding: 0 .75rem; margin: 0 0 .35rem; font-size: .68rem; line-height: 1.5; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); font-weight: 600; }
-.nav-group button:disabled { color: var(--ink-faint); cursor: not-allowed; justify-content: flex-start; gap: .4rem; }
+.nav-group h2 { padding: 0 .75rem; margin: 0 0 .35rem; font-size: .68rem; line-height: 1.5; text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
+.nav-group button:disabled { color: var(--color-on-surface-muted); cursor: not-allowed; justify-content: flex-start; gap: .4rem; }
 .app-main { min-width: 0; padding: 2rem 2rem 6rem; }
 /* <main tabIndex={-1}> is a skip-link landing target, not an interactive
    control — once it's focused (e.g. via "Skip to main content"), the
@@ -44,8 +44,8 @@
 /* Headline/Large. */
 .app-main h1, .portal-page h1 { font-family: var(--font-serif); font-size: 32px; font-weight: 600; letter-spacing: -.5px; margin: 0 0 .7rem; line-height: 1.2; }
 .page-heading { margin-bottom: 1.5rem; }
-.eyebrow { color: var(--ink-faint); text-transform: uppercase; font-size: 11px; font-weight: 600; letter-spacing: .6px; margin: 0 0 .65rem; }
-.page-description { margin: 0; color: var(--ink-faint); font-size: .85rem; }
+.eyebrow { color: var(--color-on-surface-muted); text-transform: uppercase; font-size: 11px; font-weight: 600; letter-spacing: .6px; margin: 0 0 .65rem; }
+.page-description { margin: 0; color: var(--color-on-surface-muted); font-size: .85rem; }
 /* The portal (portal/ExternalPortalApp.tsx): one top bar, no sidebar. */
 .portal-header { gap: .75rem; }
 .portal-header .user-name { max-width: 11rem; }
@@ -58,7 +58,7 @@
   .portal-tabs { order: 3; flex-basis: 100%; margin: 0; overflow-x: auto; }
   .portal-header { flex-wrap: wrap; }
 }
-.portal-page { min-height: calc(100vh - 57px); box-sizing: border-box; background: var(--sidebar); }
+.portal-page { min-height: calc(100vh - 57px); box-sizing: border-box; background: var(--color-surface-container); }
 /* Page widths from the design: the list, and the narrower upload. */
 .portal-content { max-width: 75rem; margin: 0 auto; }
 .portal-narrow { max-width: 47.5rem; margin: 0 auto; }
@@ -73,7 +73,7 @@
   .app-header { padding: 1rem; }
   .header-actions { flex-wrap: wrap; justify-content: flex-start; margin: 0; }
   .app-layout { display: block; }
-  .app-sidebar { border-right: 0; border-bottom: 1px solid var(--line); padding: .7rem 1rem; }
+  .app-sidebar { border-right: 0; border-bottom: 1px solid var(--color-outline-subtle); padding: .7rem 1rem; }
   .app-sidebar nav { display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
   .nav-group, .nav-group + .nav-group { display: flex; flex-wrap: wrap; gap: .2rem; margin: 0; }
   .app-sidebar .nav-group a:not(.btn) { width: auto; gap: .4rem; }

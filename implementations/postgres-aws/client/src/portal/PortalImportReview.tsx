@@ -35,11 +35,13 @@ import { ConfirmButton } from '../components/ConfirmButton';
 import { OriginalDocument } from '../components/OriginalDocument';
 import { nextInQueue, reviewQueue, reviewUrl } from './bulkImport';
 import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
-import { Notice, type SaveMessage } from '../components/Notice';
+import { Notice, type SaveMessage } from '../components/ui/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
 import { useShell } from './useShell';
+import { Button } from '../components/ui/Button';
+import { Tag } from '../components/ui/Tag';
 
 function AssignAllTimekeepers({
   timekeepers,
@@ -78,9 +80,9 @@ function AssignAllTimekeepers({
           <ProposedPersonFields idPrefix="import-assign-all-new" value={proposed} onChange={setProposed} />
         )}
       </PickOrAdd>
-      <button type="button" className="btn btn--outline" disabled={!chosen || unmatched === 0} onClick={() => onAssign(professionalId, 'unassigned', send)}>
+      <Button type="button" kind="secondary" disabled={!chosen || unmatched === 0} onClick={() => onAssign(professionalId, 'unassigned', send)}>
         Apply to {unmatched} unassigned
-      </button>
+      </Button>
       <button type="button" className="link-button" disabled={!chosen} onClick={() => onAssign(professionalId, 'all', send)}>
         Apply to all items
       </button>
@@ -154,13 +156,13 @@ function SuggestedItems({
               </span>
             </span>
             <span className="amount">{formatMoney(suggestion.amount.value)}</span>
-            <button
+            <Button
               type="button"
-              className="btn btn--outline btn--small"
+              kind="secondary" small
               onClick={() => onAdd(draftFrom(suggestion))}
             >
               Add
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
@@ -320,12 +322,12 @@ function ExtractedReview({
           </p>
         )}
         <div className="invoice-actions">
-          <button type="button" className="btn btn--primary" disabled={busy || !hasItems} onClick={() => void run('confirm')}>
+          <Button type="button" kind="primary" disabled={busy || !hasItems} onClick={() => void run('confirm')}>
             {!afterResolve ? 'Confirm import' : hasNext ? 'Confirm and review next' : 'Confirm and go to submit'}
-          </button>
-          <button type="button" className="btn btn--outline" disabled={busy || !hasItems} onClick={() => void run('save')}>
+          </Button>
+          <Button type="button" kind="secondary" disabled={busy || !hasItems} onClick={() => void run('save')}>
             Save changes
-          </button>
+          </Button>
           <span className="actions-end">
             <ConfirmButton
               label="Discard import"
@@ -397,7 +399,7 @@ export default function PortalImportReview() {
           { label: importDetail.fileName },
         ]}
         title={importDetail.fileName}
-        status={<span className="chip chip--neutral">{importDetail.statusDisplayName}</span>}
+        status={<Tag tone="neutral">{importDetail.statusDisplayName}</Tag>}
         description={`${importDetail.formatDisplayName}. Check what was read before you confirm it.`}
       />
       {fromBulk && position >= 0 && (
@@ -445,7 +447,7 @@ export default function PortalImportReview() {
           </Notice>
           {discardError && <Notice tone="danger">{discardError}</Notice>}
           <p>Discard it and upload a corrected file, or enter the items by hand on the case page.</p>
-          <button type="button" className="btn btn--danger" onClick={() => void discardImport()}>Discard import</button>
+          <Button type="button" kind="danger" onClick={() => void discardImport()}>Discard import</Button>
         </>
       )}
 

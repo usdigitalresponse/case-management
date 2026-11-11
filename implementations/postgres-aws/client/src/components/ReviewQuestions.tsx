@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { MAX_QUESTION_LENGTH, type ReviewQuestion } from '../api/client';
 import { formatDateTime } from '../formatDateTime';
+import { Button } from './ui/Button';
 
 // The reviewer's brief questions to the submitter about a line, and their
 // answers, kept on the invoice (model/rules.yaml ask_review_question). Review
@@ -117,7 +118,7 @@ export function QuestionForm({
           autoFocus
           onChange={(event) => setQuestion(event.target.value)}
         />
-        <button type="submit" className="btn btn--primary" disabled={!question.trim() || saving}>Ask</button>
+        <Button type="submit" kind="primary" disabled={!question.trim() || saving}>Ask</Button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
       </div>
       <span className="cell-note">
@@ -134,9 +135,9 @@ function AnswerForm({ staff, saving, onAnswer }: { staff: boolean; saving: boole
 
   if (!open) {
     return (
-      <button type="button" className="btn btn--outline btn--small" onClick={() => setOpen(true)}>
+      <Button type="button" kind="secondary" small onClick={() => setOpen(true)}>
         Record their answer
-      </button>
+      </Button>
     );
   }
   return (
@@ -155,9 +156,9 @@ function AnswerForm({ staff, saving, onAnswer }: { staff: boolean; saving: boole
         </span>
       </label>
       <div className="button-row">
-        <button type="submit" className="btn btn--primary" disabled={!answer.trim() || saving}>
+        <Button type="submit" kind="primary" disabled={!answer.trim() || saving}>
           {staff ? 'Record answer' : 'Send answer'}
-        </button>
+        </Button>
         {staff && (
           <button type="button" className="link-button" onClick={() => setOpen(false)}>Cancel</button>
         )}

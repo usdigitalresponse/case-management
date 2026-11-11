@@ -7,6 +7,7 @@ import { formatQuantity } from '../invoiceLineDisplay';
 import { formatDate } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
 import { isMileage } from '../invoiceLineDisplay';
+import { Tag } from './ui/Tag';
 
 function lineTypeOf(line: InvoiceReviewLine): InvoiceLineType {
   return isMileage(line) ? 'mileage' : line.lineTypeCode === 'time' ? 'time' : line.lineTypeCode === 'expense' ? 'expense' : 'other';
@@ -53,7 +54,7 @@ export function ChangeNote({
   if (!read) {
     return (
       <span className="change-note">
-        <span className="chip chip--info">Added by {who}</span>
+        <Tag tone="info">Added by {who}</Tag>
       </span>
     );
   }
@@ -67,7 +68,7 @@ export function ChangeNote({
   const lineType = lineTypeOf(line);
   return (
     <span className="change-note">
-      <span className="chip chip--info">Changed by {who}</span>
+      <Tag tone="info">Changed by {who}</Tag>
       <span className="cell-note change-note__text">
         The file says {formatQuantity(lineType, read.quantity)}
         {read.amount !== null ? `, ${formatMoney(read.amount)}` : ''}
@@ -101,7 +102,7 @@ export function RemovedLines({ removed, who, when = 'before sending' }: { remove
     return null;
   }
   return (
-    <div className="data-card removed-lines">
+    <div className="card data-card removed-lines">
       <table className="usa-table usa-table--borderless">
         <caption>Removed by {who} {when}</caption>
         <tbody>
@@ -113,7 +114,7 @@ export function RemovedLines({ removed, who, when = 'before sending' }: { remove
                 <tr className="has-note">
                   <td>{read.serviceDate ? formatDate(read.serviceDate) : '—'}</td>
                   <td>
-                    <span className="chip chip--neutral">Removed by {who}</span>
+                    <Tag tone="neutral">Removed by {who}</Tag>
                   </td>
                   <td className="amount">{formatQuantity(lineType, read.quantity)}</td>
                   <td className="amount">{read.unitRate !== null ? formatRate(read.unitRate) : ''}</td>

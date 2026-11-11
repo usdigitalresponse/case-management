@@ -15,10 +15,11 @@ import { CountyPicker } from '../components/CountyPicker';
 import type { CountyValue } from '../counties';
 import { PageHeader } from '../components/PageHeader';
 import { TypeAheadPicker } from '../components/TypeAheadPicker';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { INTAKE_PATH } from '../portal/useShell';
 import { reviewPath } from '../staffPaths';
 import { ProposedPersonFields, SameNameConfirm } from '../components/NewEntryFields';
+import { Button } from '../components/ui/Button';
 
 function generateRequestId(): string {
   return crypto.randomUUID();
@@ -153,9 +154,9 @@ export default function NewCaseIntake() {
       )}
       {/* Placeholder: importing cases from another system is planned. */}
       <div className="import-case">
-        <button type="button" className="btn btn--outline" disabled title="Not available yet">
+        <Button type="button" kind="secondary" disabled title="Not available yet">
           Import a PDF or spreadsheet
-        </button>
+        </Button>
         <span className="cell-note">Bring in a case from another system. Coming soon; enter the case below for now.</span>
       </div>
     </>
@@ -182,7 +183,7 @@ export default function NewCaseIntake() {
     <>
       {heading}
       <Form className="case-intake-form" onSubmit={(event) => void handleSubmit(event)}>
-      <div className="form-card">
+      <div className="card form-card">
       <Fieldset legend="Client" legendStyle="large">
         <FormGroup error={Boolean(fieldErrors.personId)}>
           <Label htmlFor="personQuery" id="personQuery-label">{newClient ? 'Client' : 'Search for an existing person, or add one'}</Label>
@@ -223,7 +224,7 @@ export default function NewCaseIntake() {
       </Fieldset>
       </div>
 
-      <div className="form-card">
+      <div className="card form-card">
       <Fieldset legend="Case opening" legendStyle="large">
         <div className="form-grid">
           <ReferenceSelect
@@ -262,7 +263,7 @@ export default function NewCaseIntake() {
       </Fieldset>
       </div>
 
-      <div className="form-card">
+      <div className="card form-card">
       <Fieldset legend="Optional context" legendStyle="large">
         <div className="form-grid">
           <CountyPicker
@@ -334,7 +335,7 @@ export default function NewCaseIntake() {
       </Fieldset>
       </div>
 
-      <div className="form-card">
+      <div className="card form-card">
       <Fieldset legend="Case identifier (optional)" legendStyle="large">
         <div className="form-grid">
           <ReferenceSelect
@@ -381,9 +382,9 @@ export default function NewCaseIntake() {
       {submitError && <Notice tone="danger">{submitError}</Notice>}
 
       <div className="form-actions">
-        <button type="submit" className="btn btn--primary" disabled={submitting}>
+        <Button type="submit" kind="primary" disabled={submitting}>
           {submitting ? 'Creating…' : 'Create case'}
-        </button>
+        </Button>
       </div>
       </Form>
     </>

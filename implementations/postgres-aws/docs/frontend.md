@@ -438,18 +438,20 @@ How the React client is built and why. Schema mapping and gaps are in
     status waits on external completion records, which aren't built. Staff
     open portal invoice pages from Intake in their own shell, where the
     older draft editor (`PortalInvoiceDetail.tsx`) still applies.
-- **Design system** (`client/src/styles/`, imported once in order by
-  `index.css`: tokens, base, layout and shared components, then one file per
-  area such as `review.css` or `line-editor.css`): color roles, spacing,
-  elevation and type follow the team's Figma design system, itself built on
-  a Keystone-style role scheme (`--color-primary`, `--color-on-*-container`
-  and so on, named as in Figma). The older short names (`--primary`,
-  `--danger`…) alias those roles. IBM Plex Sans and Serif are self-hosted
-  through Fontsource, so no font request leaves the app. Body text is 13px.
-  Existing classes take the design's components: `.btn--outline` is its
-  secondary button, `.chip` its tag, `.notice` its alert and
-  `.choice-toggle` its segmented control, and `.decision-bar` its joined
-  Approve, Part, Rate, Reject buttons. Gap: alert icons are not built yet. The gold
+- **Design system**: color roles, type roles, spacing, radius and elevation
+  follow the team's Figma design system, itself built on a Keystone-style
+  role scheme, and keep its names (`--color-primary`,
+  `--color-on-*-container`, `--title-small`, `--space-6`…) in
+  `client/src/styles/tokens.css`. IBM Plex Sans and Serif are self-hosted
+  through Fontsource, so no font request leaves the app. Body text is 13px,
+  tables included. Dates read day, short month, year ("3 Aug 2026",
+  `src/formatDateTime.ts`). USWDS's stylesheet is not loaded: the few of its
+  rules the pages rely on are in `styles/reset.css` and `styles/controls.css`,
+  and `@trussworks/react-uswds` still renders form markup. How the Figma
+  components map to code, and what to change for a new design system, is
+  under "Changing the design system" below. Gaps: alert icons are not built,
+  some sizes are still literal rather than on the type and spacing scales,
+  `.choice-toggle` is an older copy of the segmented control, and the gold
   used for focus rings and for missing or flagged markers is under 3:1
   against white, short of the non-text contrast minimum; it stays as
   specified until the design changes it.
@@ -592,8 +594,9 @@ How the React client is built and why. Schema mapping and gaps are in
   as USWDS is, in one file per area, imported in a fixed order by
   `index.css` so later files can override earlier ones. A rule used by one
   area goes in that area's file; one shared across areas goes in the shared
-  files (`buttons`, `feedback`, `page`, `tables`, `forms`, `pickers`,
-  `overlays`).
+  files. Values come from `tokens.css`, and values known only at run time
+  reach CSS as custom properties (`components/ui/cssVars.ts`), never inline
+  styles.
 - **Tests**: hooks that need React or a router run in jsdom with React
   Testing Library (`// @vitest-environment jsdom` at the top of the
   file; a router test also imports `src/testing/routerInJsdom.ts`).
@@ -607,3 +610,37 @@ How the React client is built and why. Schema mapping and gaps are in
   the client/server boundary. Accepted as the ordinary cost of a
   boundary between two separately-deployed apps, not a reuse bug —
   revisit only if a shared-types package becomes a concrete need.
+
+## Changing the design system
+
+A new design system changes three places; pages and area stylesheets hold
+only layout and should not need to change.
+
+1. **Tokens** (`client/src/styles/tokens.css`): every color, type role,
+   spacing step, radius and elevation. Map each of the new system's tokens
+   onto one of ours by role (its "primary" to `--color-primary`, its body
+   text to `--body-medium`), or rename ours to match and replace the names
+   throughout `src/styles/`.
+2. **Fonts**: the Fontsource imports in `client/src/main.tsx` and the
+   `--font-sans` and `--font-serif` tokens.
+3. **Components**: each design-system component has one place in code.
+
+| Figma component | Code | Styles |
+|---|---|---|
+| Button (Primary, Secondary, Danger) | `components/ui/Button.tsx` (`buttonClass` for links) | `styles/buttons.css` |
+| Button (Ghost) | `.link-button` | `styles/base.css` |
+| Tag | `components/ui/Tag.tsx` (`StatusPill` picks a tone by status) | `styles/feedback.css` |
+| Alert | `components/ui/Notice.tsx` | `styles/feedback.css` |
+| Card | the `card` class | `styles/card.css` |
+| Modal | `components/ui/Dialog.tsx` | `styles/overlays.css` |
+| Segmented control | `components/ui/SegmentedChoice.tsx` | `styles/forms.css` |
+| Text input, select, text area, checkbox, radio | `@trussworks/react-uswds` markup | `styles/controls.css` |
+| Table cell | `components/RecordTable.tsx` | `styles/tables.css` |
+| Link, breadcrumb | `components/PageHeader.tsx` | `styles/base.css`, `styles/page.css` |
+| Header, side navigation item | `App.tsx`, `portal/ExternalPortalApp.tsx` | `styles/layout.css` |
+| Decision bar | `components/LineReview.tsx` | `styles/review.css` |
+
+Form controls keep USWDS's class names (`usa-input`, `usa-select`…)
+because `@trussworks/react-uswds` renders them; restyle them in
+`controls.css`, or replace those components to drop the names.
+

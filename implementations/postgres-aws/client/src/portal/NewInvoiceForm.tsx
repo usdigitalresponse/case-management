@@ -23,10 +23,11 @@ import {
 } from '../components/InvoiceLinesEditor';
 import { InvoiceImportForm } from '../components/InvoiceImportForm';
 import { PeriodFields } from '../components/PeriodFields';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { AttestationCheckbox } from '../components/AttestationCheckbox';
 import { useReceipt } from './ReceivedFields';
 import { useShell } from './useShell';
+import { Button } from '../components/ui/Button';
 
 function draftSavedMessage(caseId: string | null, staff: boolean): string {
   if (caseId === null) return 'Saved. Match it to a case under "Waiting for a case".';
@@ -154,7 +155,7 @@ export function NewInvoiceForm({
   }
 
   return (
-    <div className="compact-card" id="new-invoice">
+    <div className="card compact-card" id="new-invoice">
       <h3>New invoice</h3>
       {/* Applies to both a typed invoice and an imported file. */}
       {(billable.length > 1 || staff) && (
@@ -244,19 +245,19 @@ export function NewInvoiceForm({
           </p>
           {caseId === null ? (
             <div className="invoice-actions">
-              <button type="button" className="btn btn--primary" disabled={submitting || !canSave} onClick={() => void save(false)}>
+              <Button type="button" kind="primary" disabled={submitting || !canSave} onClick={() => void save(false)}>
                 {submitting ? 'Saving…' : 'Save for matching'}
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="invoice-actions">
               {!staff && <AttestationCheckbox id="new-invoice-attested" checked={attested} onChange={setAttested} />}
-              <button type="submit" className="btn btn--primary" disabled={submitting || !canSave || receipt.missing || (!staff && !attested)}>
+              <Button type="submit" kind="primary" disabled={submitting || !canSave || receipt.missing || (!staff && !attested)}>
                 {submitting ? 'Saving…' : 'Submit invoice'}
-              </button>
-              <button type="button" className="btn btn--outline" disabled={submitting || !canSave} onClick={() => void save(false)}>
+              </Button>
+              <Button type="button" kind="secondary" disabled={submitting || !canSave} onClick={() => void save(false)}>
                 Save as draft
-              </button>
+              </Button>
             </div>
           )}
         </Form>

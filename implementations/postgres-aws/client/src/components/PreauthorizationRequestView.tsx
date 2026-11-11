@@ -25,9 +25,11 @@ import { formatDate, formatDay, formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { Fact, FactsStrip } from './FactsStrip';
 import { LoadState } from './LoadState';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
 import { PageHeader } from './PageHeader';
 import { StatusPill, type Tone } from './StatusPill';
+import { Tag } from './ui/Tag';
+import { Button } from './ui/Button';
 
 const STATUS_TONES: Record<string, Tone> = {
   submitted: 'info',
@@ -50,11 +52,11 @@ export function rateText(request: Pick<PreauthorizationRequestRow, 'rateBasis' |
 }
 
 export function caseText(request: Pick<PreauthorizationRequestRow, 'caseNumber' | 'proposedCaseNumber'>): ReactNode {
-  return request.caseNumber ?? (request.proposedCaseNumber ? <>{request.proposedCaseNumber} <span className="chip chip--warning">Not matched</span></> : '—');
+  return request.caseNumber ?? (request.proposedCaseNumber ? <>{request.proposedCaseNumber} <Tag tone="warning">Not matched</Tag></> : '—');
 }
 
 export function providerText(request: Pick<PreauthorizationRequestRow, 'providerName' | 'proposedProviderName'>): ReactNode {
-  return request.providerName ?? (request.proposedProviderName ? <>{request.proposedProviderName} <span className="chip chip--warning">Not matched</span></> : '—');
+  return request.providerName ?? (request.proposedProviderName ? <>{request.proposedProviderName} <Tag tone="warning">Not matched</Tag></> : '—');
 }
 
 const PURPOSES: Array<{ id: LinkedDocument['purposeCode']; label: string }> = [
@@ -129,7 +131,7 @@ export function ProviderOnFile({ professionalId, name }: { professionalId: strin
   const [rateError, setRateError] = useState<string | null>(null);
   if (!data) return error ? <Notice tone="danger">Failed to load what is on file.</Notice> : null;
   return (
-    <section className="compact-card preauth-page">
+    <section className="card compact-card preauth-page">
       <h2>On file for {name}</h2>
       {data.missing.length > 0 && (
         <Notice tone="warning">Missing: {data.missing.map((code) => (code === 'cv' ? 'CV' : 'fee schedule or quote')).join(' and ')}.</Notice>
@@ -184,9 +186,9 @@ export function ProviderOnFile({ professionalId, name }: { professionalId: strin
           <label className="usa-label" htmlFor="fee-from">From</label>
           <input id="fee-from" className="usa-input" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
         </div>
-        <button type="submit" className="btn btn--outline" disabled={!service.trim() || !(Number(rate) > 0)}>
+        <Button type="submit" kind="secondary" disabled={!service.trim() || !(Number(rate) > 0)}>
           Add fee
-        </button>
+        </Button>
         {rateError && <p className="field-error" role="alert">{rateError}</p>}
       </form>
     </section>
@@ -207,7 +209,7 @@ function MatchForm({ request, onMatched }: { request: PreauthorizationRequestRow
     if (value && value !== ADD_NEW) void match(input(value));
   };
   return (
-    <section className="compact-card">
+    <section className="card compact-card">
       <h2>Match it</h2>
       <p className="compact-hint">Match what the requester entered to records before deciding. Their entries stay on the request.</p>
       {error && <Notice tone="danger">{error}</Notice>}
@@ -270,7 +272,7 @@ function DecisionForm({ request, onDecided }: { request: PreauthorizationRequest
   const [busy, setBusy] = useState(false);
   const approving = outcome === 'approved';
   return (
-    <section className="compact-card">
+    <section className="card compact-card">
       <h2>Decide</h2>
       {error && <Notice tone="danger">{error}</Notice>}
       <fieldset className="usa-fieldset">
@@ -298,9 +300,9 @@ function DecisionForm({ request, onDecided }: { request: PreauthorizationRequest
         <label className="usa-label" htmlFor="decide-reason">{approving ? 'Note (optional)' : 'Reason the requester will see'}</label>
         <textarea id="decide-reason" className="usa-textarea" maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} />
       </div>
-      <button
+      <Button
         type="button"
-        className="btn btn--primary"
+        kind="primary"
         disabled={busy || (approving ? !(Number(amount) > 0) : !reason.trim())}
         onClick={() => {
           setBusy(true);
@@ -315,7 +317,7 @@ function DecisionForm({ request, onDecided }: { request: PreauthorizationRequest
         }}
       >
         Record the decision
-      </button>
+      </Button>
     </section>
   );
 }
@@ -327,7 +329,7 @@ function Questions({ detail, staff, mayAnswer, onChanged }: { detail: Preauthori
   const open = detail.request.statusCode === 'submitted' || detail.request.statusCode === 'info_requested';
   const id = detail.request.preauthorizationRequestId;
   return (
-    <section className="compact-card">
+    <section className="card compact-card">
       <h2>Questions</h2>
       {error && <Notice tone="danger">{error}</Notice>}
       {detail.questions.length === 0 && <p className="muted">No questions asked.</p>}
@@ -354,9 +356,9 @@ function Questions({ detail, staff, mayAnswer, onChanged }: { detail: Preauthori
                   value={answers[row.preauthorizationQuestionId] ?? ''}
                   onChange={(event) => setAnswers({ ...answers, [row.preauthorizationQuestionId]: event.target.value })}
                 />
-                <button
+                <Button
                   type="button"
-                  className="btn btn--outline"
+                  kind="secondary"
                   disabled={!answers[row.preauthorizationQuestionId]?.trim()}
                   onClick={() =>
                     answerPreauthorizationQuestion(id, row.preauthorizationQuestionId, answers[row.preauthorizationQuestionId]!.trim()).then(onChanged, (err: unknown) =>
@@ -365,7 +367,7 @@ function Questions({ detail, staff, mayAnswer, onChanged }: { detail: Preauthori
                   }
                 >
                   {staff ? 'Record answer' : 'Send answer'}
-                </button>
+                </Button>
               </div>
             )
           )}
@@ -375,9 +377,9 @@ function Questions({ detail, staff, mayAnswer, onChanged }: { detail: Preauthori
         <div className="preauth-message">
           <label className="usa-sr-only" htmlFor="preauth-ask">Ask the requester</label>
           <textarea id="preauth-ask" className="usa-textarea" placeholder="Ask the requester for more information" maxLength={2000} value={question} onChange={(event) => setQuestion(event.target.value)} />
-          <button
+          <Button
             type="button"
-            className="btn btn--outline"
+            kind="secondary"
             disabled={!question.trim()}
             onClick={() =>
               askPreauthorizationQuestion(id, question.trim()).then(
@@ -390,7 +392,7 @@ function Questions({ detail, staff, mayAnswer, onChanged }: { detail: Preauthori
             }
           >
             Ask
-          </button>
+          </Button>
         </div>
       )}
     </section>
@@ -423,9 +425,9 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
         actions={
           !staff &&
           open && (
-            <button
+            <Button
               type="button"
-              className="btn btn--outline"
+              kind="secondary"
               onClick={() =>
                 withdrawPreauthorizationRequest(request.preauthorizationRequestId).then(changed, (err: unknown) =>
                   setWithdrawError(apiErrorMessage(err, 'The request could not be withdrawn.')),
@@ -433,7 +435,7 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
               }
             >
               Withdraw it
-            </button>
+            </Button>
           )
         }
       />
@@ -454,7 +456,7 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
         </Fact>
       </FactsStrip>
       <div className="case-columns">
-        <section className="compact-card">
+        <section className="card compact-card">
           <h2>The request</h2>
           <p><strong>{request.serviceDescription}</strong></p>
           <p className="preserve-lines">{request.justification}</p>
@@ -470,7 +472,7 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
             </>
           )}
         </section>
-        <section className="compact-card">
+        <section className="card compact-card">
           <h2>Provider’s limit on this case</h2>
           {limit ? (
             <div className="preauth-billed"><dl>
@@ -494,13 +496,13 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
       </div>
       <Questions detail={detail} staff={staff} mayAnswer onChanged={changed} />
       <div className="case-columns">
-        <section className="compact-card">
+        <section className="card compact-card">
           <h2>Attached to this request</h2>
           <DocumentList documents={detail.documents} />
           {open && <AddDocument defaultPurpose="supporting" onAdd={(file, purpose) => uploadRequestDocument(request.preauthorizationRequestId, file, purpose).then(refetch)} />}
         </section>
         {detail.providerDocuments && request.professionalId && (
-          <section className="compact-card">
+          <section className="card compact-card">
             <h2>On file for {request.providerName}</h2>
             {detail.providerDocuments.missing.length > 0 && (
               <Notice tone="warning">

@@ -13,9 +13,10 @@ import { useResource } from '../hooks/useResource';
 import { professionalKinds, providerList } from '../resources';
 import { SearchDirectory } from '../components/SearchDirectory';
 import { AddProvider } from '../components/AddProvider';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { Toast, useToast } from '../components/Toast';
 import { formatMoney } from '../formatMoney';
+import { Button } from '../components/ui/Button';
 
 function rateText(rates: ProfessionalKind['rates']): string {
   const rate = rateOn(rates, new Date().toISOString().slice(0, 10));
@@ -130,16 +131,16 @@ export default function VendorsDirectory() {
       loadInitially
       reloadKey={version}
       actions={
-        <button
+        <Button
           type="button"
-          className="btn btn--primary"
+          kind="primary"
           onClick={() => {
             setEditing(null);
             setAdding(true);
           }}
         >
           Add provider
-        </button>
+        </Button>
       }
       resource={providerList}
       rowKey={(vendor) => vendor.professionalId}
@@ -221,14 +222,14 @@ export default function VendorsDirectory() {
                   return edit ? (
                     <>
                     <span className="row-actions row-edit__actions">
-                      <button
+                      <Button
                         type="button"
-                        className="btn btn--primary btn--small"
+                        kind="primary" small
                         disabled={edit.saving || edit.displayName.trim().length < 2}
                         onClick={() => void saveRow(edit)}
                       >
                         {edit.saving ? 'Saving…' : 'Save'}
-                      </button>
+                      </Button>
                       <button type="button" className="link-button" disabled={edit.saving} onClick={() => setEditing(null)}>
                         Cancel
                       </button>

@@ -1,39 +1,24 @@
-/* Elements, USWDS form controls and small text helpers used everywhere. */
+/* Elements and small text helpers used everywhere. */
 /* Body/Medium. */
-body { margin: 0; background: var(--canvas); font-family: var(--font); font-size: 13px; line-height: 1.5; }
-a { color: var(--primary); }
+body { margin: 0; background: var(--color-surface); font-family: var(--font-sans); font-size: 13px; line-height: 1.5; }
+a { color: var(--color-primary); }
 button, input, select, textarea { font: inherit; }
 /* Matches USWDS's focus selectors so the design's ring replaces its blue one. */
 [href]:focus, [tabindex]:focus, [contenteditable]:focus, button:not([disabled]):focus, input:not([disabled]):focus, select:not([disabled]):focus, textarea:not([disabled]):focus { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--color-primary); }
-.field-hint { margin: .4rem 0 0; color: var(--ink-faint); font-size: .78rem; line-height: 1.4; }
-.compact-hint { color: var(--ink-faint); font-size: .85rem; margin: .45rem 0 0; }
+.field-hint { margin: .4rem 0 0; color: var(--color-on-surface-muted); font-size: .78rem; line-height: 1.4; }
+.compact-hint { color: var(--color-on-surface-muted); font-size: .85rem; margin: .45rem 0 0; }
 .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.muted { color: var(--ink-faint); }
-.cell-note { display: block; margin-top: .15rem; font-size: .8rem; line-height: 1.35; color: var(--ink-faint); }
-.cell-flag { display: block; margin-top: .15rem; font-size: .8rem; line-height: 1.35; color: var(--warning); }
-.empty-note { padding: 2rem 1rem; text-align: center; color: var(--ink-faint); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius); }
-.field-error { color: var(--danger); font-weight: 600; margin: .5rem 0 0; }
-.link-button { border: 0; padding: 0; background: none; color: var(--primary); cursor: pointer; font-size: inherit; text-decoration: none; }
+.muted { color: var(--color-on-surface-muted); }
+.cell-note { display: block; margin-top: .15rem; font-size: .8rem; line-height: 1.35; color: var(--color-on-surface-muted); }
+.cell-flag { display: block; margin-top: .15rem; font-size: .8rem; line-height: 1.35; color: var(--color-on-tertiary-container); }
+.empty-note { padding: 2rem 1rem; text-align: center; color: var(--color-on-surface-muted); background: var(--color-surface); border: 1px dashed var(--color-outline-subtle); border-radius: var(--radius-medium); }
+.field-error { color: var(--color-error); font-weight: 600; margin: .5rem 0 0; }
+.link-button { border: 0; padding: 0; background: none; color: var(--color-primary); cursor: pointer; font-size: inherit; text-decoration: none; }
 .link-button:hover:not(:disabled) { text-decoration: underline; }
-.link-button:disabled { color: var(--ink-faint); cursor: not-allowed; }
+.link-button:disabled { color: var(--color-on-surface-muted); cursor: not-allowed; }
 .link-row { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin-top: .2rem; font-size: .85rem; }
 .button-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-top: .9rem; }
 .preserve-lines { white-space: pre-wrap; }
-/* Design-system form controls take the design's look everywhere. */
-.usa-form, .usa-fieldset, .usa-label, .usa-legend, .usa-hint, .usa-input, .usa-select, .usa-textarea, .usa-checkbox__label, .usa-error-message { font-family: var(--font); }
-.usa-input, .usa-select, .usa-textarea { border: 1px solid var(--color-outline-variant); border-radius: 4px; color: var(--ink); background-color: var(--surface); }
-.usa-input:focus, .usa-select:focus, .usa-textarea:focus { border-color: var(--color-primary); outline: 2px solid var(--color-focus); outline-offset: 0; }
-.usa-input:disabled, .usa-select:disabled, .usa-textarea:disabled { background-color: var(--color-surface-container); color: var(--color-on-surface-muted); }
-.usa-input--error, .usa-input[aria-invalid="true"] { border-color: var(--color-error); }
-.usa-label, .usa-legend { font-size: .85rem; color: var(--ink-muted); font-weight: 600; }
-.usa-checkbox, .usa-radio { background: transparent; }
-.usa-checkbox__label, .usa-radio__label { color: var(--ink); }
-.usa-checkbox__input + .usa-checkbox__label::before { border-radius: 3px; box-shadow: 0 0 0 2px var(--color-outline); }
-.usa-radio__input + .usa-radio__label::before { box-shadow: 0 0 0 2px var(--color-outline); }
-.usa-checkbox__input:checked + .usa-checkbox__label::before { background-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary); }
-.usa-radio__input:checked + .usa-radio__label::before { background-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary), inset 0 0 0 2px var(--surface); }
-.usa-checkbox__input:focus + .usa-checkbox__label::before, .usa-radio__input:focus + .usa-radio__label::before { outline: 2px solid var(--color-focus); outline-offset: 3px; }
-.usa-checkbox__input:disabled + .usa-checkbox__label, .usa-radio__input:disabled + .usa-radio__label { color: var(--color-on-surface-muted); }
 .nowrap { white-space: nowrap; }
-.text-warning { color: var(--warning); }
+.text-warning { color: var(--color-on-tertiary-container); }

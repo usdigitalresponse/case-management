@@ -13,7 +13,8 @@ import type { CountyValue } from '../counties';
 import { formatMoney } from '../formatMoney';
 import { CountyPicker } from './CountyPicker';
 import { ADD_NEW, PickOrAdd } from './PickOrAdd';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button } from './ui/Button';
 
 export interface Option {
   id: string;
@@ -267,9 +268,9 @@ export function PreauthorizationRequestForm({
         </div>
       )}
       <div className="dialog__actions">
-        <button type="submit" className="btn btn--primary" disabled={saving || !(total > 0)}>
+        <Button type="submit" kind="primary" disabled={saving || !(total > 0)}>
           {saving ? 'Sending…' : staff ? 'Record the request' : 'Send the request'}
-        </button>
+        </Button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
       </div>
     </form>

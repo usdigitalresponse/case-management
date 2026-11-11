@@ -40,44 +40,45 @@
 
   --space-1: 1px;
   --space-2: 2px;
+  --space-3: 4px;
   --space-4: 8px;
   --space-5: 12px;
   --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 40px;
+  --space-11: 48px;
+  --space-12: 56px;
+  --space-13: 64px;
+  --space-14: 80px;
+  --space-15: 96px;
+  --space-16: 120px;
+
+  --radius-small: 4px;
+  --radius-medium: 8px;
+  --radius-full: 999px;
+
+  /* Type roles: size, weight and face of each. */
+  --headline-large: 600 32px var(--font-serif);
+  --headline-medium: 600 26px var(--font-serif);
+  --headline-small: 600 20px var(--font-serif);
+  --title-large: 600 18px var(--font-sans);
+  --title-medium: 600 15px var(--font-sans);
+  --title-small: 600 11px var(--font-sans);
+  --body-large: 400 15px var(--font-sans);
+  --body-medium: 400 13px var(--font-sans);
+  --body-small: 400 11px var(--font-sans);
+  --label-large: 600 13px var(--font-sans);
+  --label-medium: 500 12px var(--font-sans);
+  --label-small: 600 11px var(--font-sans);
 
   --elevation-1: 0 1px 3px 1px rgba(7, 42, 74, .3);
   --elevation-2: 0 2px 6px 1px rgba(7, 42, 74, .3);
   --elevation-3: 0 4px 6px 2px rgba(7, 42, 74, .25);
   --elevation-4: 0 6px 8px 2px rgba(7, 42, 74, .3);
 
-  /* Older names, kept as aliases of the roles above. */
-  --font: var(--font-sans);
-  --ink: var(--color-on-surface);
-  --ink-muted: var(--color-on-surface-variant);
-  --ink-faint: var(--color-on-surface-muted);
-  --line: var(--color-outline-subtle);
-  --line-strong: var(--color-outline-variant);
-  --surface: var(--color-surface);
-  --table-head: var(--color-surface-container-low);
-  --row-open: var(--color-primary-container-low);
-  --canvas: var(--color-surface);
-  --sidebar: var(--color-surface-container);
-  --primary: var(--color-primary);
-  --primary-hover: var(--color-primary-hover);
-  --primary-tint: var(--color-primary-container);
-  --danger: var(--color-error);
-  --danger-line: var(--color-error);
-  --danger-tint: var(--color-error-container);
-  --success: var(--color-success);
-  --success-tint: var(--color-success-container);
-  --warning: var(--color-on-tertiary-container);
-  --warning-line: var(--color-tertiary);
-  --warning-tint: var(--color-tertiary-container);
-  --info: var(--color-on-primary-container);
-  --info-tint: var(--color-primary-container-low);
-  --link-on-dark: var(--color-inverse-primary);
-  --neutral-tint: var(--color-surface-container);
-  --radius: 8px;
-  font-family: var(--font);
-  color: var(--ink);
-  background: var(--canvas);
+  font-family: var(--font-sans);
+  color: var(--color-on-surface);
+  background: var(--color-surface);
 }

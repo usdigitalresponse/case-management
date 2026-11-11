@@ -4,7 +4,8 @@ import { useSearchParamState } from '../hooks/useSearchParamState';
 import { PageHeading } from './PageHeading';
 import { RecordTable, type RecordTableColumn } from './RecordTable';
 import { SearchInput } from './SearchInput';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button } from './ui/Button';
 
 // Shared "search-then-list" shape for the sidebar's lookup pages (People,
 // Clients, Providers) — each just differs in what it fetches and how it
@@ -85,7 +86,7 @@ export function SearchDirectory<T>({
           // loadInitially directory, otherwise no results until a search.
           onClear={() => setSearched('')}
         />
-        <button type="submit" className="btn btn--outline" disabled={searching}>{searching ? 'Searching…' : 'Search'}</button>
+        <Button type="submit" kind="secondary" disabled={searching}>{searching ? 'Searching…' : 'Search'}</Button>
       </form>
       {Boolean(error) && <Notice tone="danger">Failed to load results.</Notice>}
       {results && <RecordTable rows={results} rowKey={rowKey} columns={columns} emptyMessage="No results." />}

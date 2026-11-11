@@ -55,7 +55,7 @@ export function RecordTable<T>({
       .join(' ') || undefined;
 
   return (
-    <div className="data-card">
+    <div className="card data-card">
       <Table bordered fullWidth className={[fixed ? 'fixed-columns' : '', className ?? ''].join(' ').trim() || undefined} aria-label={label}>
         {fixed && (
           <colgroup>

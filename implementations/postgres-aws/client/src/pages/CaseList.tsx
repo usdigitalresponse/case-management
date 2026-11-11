@@ -11,6 +11,7 @@ import { stageLabel } from '../overviewStages';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { formatMoney } from '../formatMoney';
 import { useSearchParamState, useSearchParamText } from '../hooks/useSearchParamState';
+import { FilterTag, Tag } from '../components/ui/Tag';
 
 type Shown = 'all' | 'open' | 'closed';
 
@@ -60,17 +61,17 @@ export default function CaseList() {
             </p>
           )}
           <div className="list-toolbar">
-            <div className="chip-filters" role="group" aria-label="Which cases">
+            <div className="tag-filters" role="group" aria-label="Which cases">
               {(['all', 'open', 'closed'] as const).map((which) => (
-                <button
+                <FilterTag
                   key={which}
                   type="button"
-                  className="chip chip--filter"
+                  
                   aria-pressed={shown === which}
                   onClick={() => setShown(which)}
                 >
-                  {which === 'all' ? 'All' : which === 'open' ? 'Open' : 'Closed'} <span className="chip-count">{count(which)}</span>
-                </button>
+                  {which === 'all' ? 'All' : which === 'open' ? 'Open' : 'Closed'} <span className="tag-count">{count(which)}</span>
+                </FilterTag>
               ))}
             </div>
             <div className="list-toolbar__filters">
@@ -100,7 +101,7 @@ export default function CaseList() {
                 ),
               },
               { header: 'Case', render: (caseRecord) => caseRecord.caseNumber ?? '—' },
-              { header: 'Stage', render: (caseRecord) => <span className="chip chip--neutral">{stageLabel(caseRecord.stage)}</span> },
+              { header: 'Stage', render: (caseRecord) => <Tag tone="neutral">{stageLabel(caseRecord.stage)}</Tag> },
               { header: 'County', render: (caseRecord) => county.nameOf(caseRecord.countyId) ?? '—' },
               {
                 header: 'Who works on it',

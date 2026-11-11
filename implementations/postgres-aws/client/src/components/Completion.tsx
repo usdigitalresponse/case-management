@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { apiErrorMessage, markInvoiceCompleted } from '../api/client';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { formatDay } from '../formatDateTime';
 import { StatusPill } from './StatusPill';
+import { Button } from './ui/Button';
 
 export const DECIDED_STATUS_CODES = ['approved', 'rejected'];
 
@@ -21,7 +23,7 @@ export function isCompleted(invoice: CompletableInvoice) {
 
 function completedOn(completedAt: string) {
   const when = new Date(completedAt);
-  return when.toDateString() === new Date().toDateString() ? 'today' : `on ${when.toLocaleDateString(undefined, { dateStyle: 'medium' })}`;
+  return when.toDateString() === new Date().toDateString() ? 'today' : `on ${formatDay(completedAt)}`;
 }
 
 // A table's status cell, with the button once decided.
@@ -50,9 +52,9 @@ export function InvoiceStatus({
   return (
     <>
       <StatusPill code={invoice.statusCode} label={label} />
-      <button
+      <Button
         type="button"
-        className="btn btn--outline btn--small completion-button"
+        kind="secondary" small className="completion-button"
         title={COMPLETED_EXPLAINER}
         disabled={saving}
         onClick={async () => {
@@ -69,7 +71,7 @@ export function InvoiceStatus({
         }}
       >
         Mark completed
-      </button>
+      </Button>
       {error && <span className="cell-flag">{error}</span>}
     </>
   );
@@ -101,9 +103,9 @@ export function CompletionNotice({
       action={
         <>
           {emailSender}
-          <button type="button" className="btn btn--outline" disabled={saving} onClick={onComplete}>
+          <Button type="button" kind="secondary" disabled={saving} onClick={onComplete}>
             Mark completed
-          </button>
+          </Button>
         </>
       }
     >

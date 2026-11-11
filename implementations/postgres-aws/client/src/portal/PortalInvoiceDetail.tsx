@@ -27,7 +27,7 @@ import { Fact, FactsStrip, Progress } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
 import { InvoiceLinesTable, lineRowClass } from '../components/InvoiceLinesTable';
 import { TravelLog } from '../components/TravelLog';
-import { Notice, type SaveMessage } from '../components/Notice';
+import { Notice, type SaveMessage } from '../components/ui/Notice';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
 import { useReceipt } from './ReceivedFields';
@@ -38,6 +38,7 @@ import { useAddedProviders } from '../components/AddProvider';
 import { SentBackNotice } from '../components/SentBackNotice';
 import { canWithdraw } from './portalWording';
 import { LineQuestions } from '../components/ReviewQuestions';
+import { Button, buttonClass } from '../components/ui/Button';
 
 function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onChanged: () => void; onDeleted: () => void }) {
   const { invoice } = data;
@@ -95,7 +96,7 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
   }
 
   return (
-    <div className="compact-card">
+    <div className="card compact-card">
       <h2>Edit draft</h2>
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
       {noCase && (
@@ -136,18 +137,17 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
       <div className="invoice-actions">
         {/* Who it's from is chosen when it's matched, so it can't go to review yet. */}
         {invoice.professionalId !== null && (
-          <button
-            type="button"
-            className={`btn ${noCase ? 'btn--outline' : 'btn--primary'}`}
+          <Button
+            kind={noCase ? 'secondary' : 'primary'}
             disabled={busy || !hasInvoiceItems(lines) || receipt.missing}
             onClick={() => void run('submit')}
           >
             {noCase ? 'Review without a case' : 'Submit invoice'}
-          </button>
+          </Button>
         )}
-        <button type="button" className="btn btn--outline" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>
+        <Button type="button" kind="secondary" disabled={busy || !hasInvoiceItems(lines)} onClick={() => void run('save')}>
           Save draft
-        </button>
+        </Button>
         <span className="actions-end">
           {!data.deletable ? (
             <ConfirmButton
@@ -261,12 +261,12 @@ export default function PortalInvoiceDetail() {
           (submitted || recallable || (deletable && !editing)) && (
             <>
               {shell.staff && submitted && (
-                <RouterLink className="btn btn--primary" to={`/billing/${invoice.invoiceId}`}>Open in review</RouterLink>
+                <RouterLink className={buttonClass('primary')} to={`/billing/${invoice.invoiceId}`}>Open in review</RouterLink>
               )}
               {recallable && (
-                <button type="button" className="btn btn--outline" disabled={recalling} onClick={() => void recall()}>
+                <Button type="button" kind="secondary" disabled={recalling} onClick={() => void recall()}>
                   {recalling ? 'Recalling…' : 'Recall to draft'}
-                </button>
+                </Button>
               )}
               {submitted && <InvoiceExportButton scope="portal" invoiceId={invoice.invoiceId} hasTrips={lines.some((line) => line.tripId)} />}
               {deletable && !editing && <DeleteInvoiceButton invoiceId={invoice.invoiceId} onDeleted={toInvoices} />}

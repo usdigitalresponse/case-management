@@ -28,12 +28,13 @@ import { useAuth } from '../AuthContext';
 import { PageHeading } from '../components/PageHeading';
 import { useLocation } from 'react-router';
 import { DecisionReasonSettings, ReviewRoutingSettings, RoleSummary, StaffRoleSettings } from '../components/ReviewSettings';
-import { SegmentedChoice } from '../components/SegmentedChoice';
+import { SegmentedChoice } from '../components/ui/SegmentedChoice';
 import { RecordTable } from '../components/RecordTable';
 import { formatDate } from '../formatDateTime';
 import { formatMoney, formatRate } from '../formatMoney';
-import { Notice, type SaveMessage } from '../components/Notice';
+import { Notice, type SaveMessage } from '../components/ui/Notice';
 import { PreauthorizationThresholds } from '../components/PreauthorizationThresholds';
+import { Button } from '../components/ui/Button';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -91,9 +92,9 @@ function AddRateForm({ kind, onAdded }: { kind: ProfessionalKind; onAdded: () =>
             onChange={(event) => setEffectiveFrom(event.target.value)}
           />
         </FormGroup>
-        <button type="submit" className="btn btn--outline" disabled={saving || !(Number(hourlyRate) > 0) || !effectiveFrom}>
+        <Button type="submit" kind="secondary" disabled={saving || !(Number(hourlyRate) > 0) || !effectiveFrom}>
           {saving ? 'Saving…' : 'Add rate'}
-        </button>
+        </Button>
       </div>
     </Form>
   );
@@ -102,7 +103,7 @@ function AddRateForm({ kind, onAdded }: { kind: ProfessionalKind; onAdded: () =>
 function KindCard({ kind, isAdmin, onChanged }: { kind: ProfessionalKind; isAdmin: boolean; onChanged: () => void }) {
   const current = rateOn(kind.rates, today());
   return (
-    <section className="compact-card settings-kind">
+    <section className="card compact-card settings-kind">
       <h3>{kind.displayName}</h3>
       <p className="rate-note">Hourly rate today: {current ? formatMoney(current) : 'not set'}</p>
       <RecordTable
@@ -140,7 +141,7 @@ function AddKindForm({ onAdded }: { onAdded: () => void }) {
   }
 
   return (
-    <Form className="compact-form compact-card" onSubmit={(event) => void submit(event)}>
+    <Form className="compact-form card compact-card" onSubmit={(event) => void submit(event)}>
       <h3>Add a kind of professional</h3>
       {error && <Notice tone="danger">{error}</Notice>}
       <div className="inline-fields rate-fields">
@@ -156,9 +157,9 @@ function AddKindForm({ onAdded }: { onAdded: () => void }) {
             onChange={(event) => setDisplayName(event.target.value)}
           />
         </FormGroup>
-        <button type="submit" className="btn btn--outline" disabled={saving || !displayName.trim()}>
+        <Button type="submit" kind="secondary" disabled={saving || !displayName.trim()}>
           {saving ? 'Adding…' : 'Add kind'}
-        </button>
+        </Button>
       </div>
     </Form>
   );
@@ -280,7 +281,7 @@ function OwnRoleCard() {
   }
 
   return (
-    <section className="compact-card">
+    <section className="card compact-card">
       <h3>Your role</h3>
       <p className="compact-hint">
         Switch roles to try each view. Staff review and sign off; administrators also change settings.
@@ -323,7 +324,7 @@ function DemoDataReset() {
   }
 
   return (
-    <section className="compact-card">
+    <section className="card compact-card">
       <h3>Reset demo data</h3>
       <p className="compact-hint">
         Deletes every case, invoice, account and setting, including anything entered here, and recreates the
@@ -334,18 +335,18 @@ function DemoDataReset() {
         <>
           <Notice tone="warning">This can't be undone. Reset all data to the demo data?</Notice>
           <div className="close-case-buttons">
-            <button type="button" className="btn btn--danger" disabled={resetting} onClick={() => void reset()}>
+            <Button type="button" kind="danger" disabled={resetting} onClick={() => void reset()}>
               {resetting ? 'Resetting…' : 'Yes, reset all data'}
-            </button>
-            <button type="button" className="btn btn--outline" disabled={resetting} onClick={() => setConfirming(false)}>
+            </Button>
+            <Button type="button" kind="secondary" disabled={resetting} onClick={() => setConfirming(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </>
       ) : (
-        <button type="button" className="btn btn--danger" onClick={() => setConfirming(true)}>
+        <Button type="button" kind="danger" onClick={() => setConfirming(true)}>
           Reset demo data
-        </button>
+        </Button>
       )}
     </section>
   );
@@ -377,7 +378,7 @@ function MileageRates({ isAdmin }: { isAdmin: boolean }) {
   }
 
   return (
-    <section className="compact-card settings-kind">
+    <section className="card compact-card settings-kind">
       <h3>Mileage</h3>
       <p className="rate-note">Rate per mile today: {current ? formatRate(current) : 'not set'}</p>
       {Boolean(loadError) && <Notice tone="danger">Failed to load mileage rates.</Notice>}
@@ -421,9 +422,9 @@ function MileageRates({ isAdmin }: { isAdmin: boolean }) {
                 onChange={(event) => setEffectiveFrom(event.target.value)}
               />
             </FormGroup>
-            <button type="submit" className="btn btn--outline" disabled={saving || !(Number(ratePerMile) > 0) || !effectiveFrom}>
+            <Button type="submit" kind="secondary" disabled={saving || !(Number(ratePerMile) > 0) || !effectiveFrom}>
               {saving ? 'Saving…' : 'Add rate'}
-            </button>
+            </Button>
           </div>
         </Form>
       )}
@@ -469,7 +470,7 @@ function TimeCategoryRates({ category, isAdmin }: { category: TimeCategory; isAd
   }
 
   return (
-    <section className="compact-card settings-kind">
+    <section className="card compact-card settings-kind">
       <h3>{name}</h3>
       <p className="rate-note">
         {name} today: {timeCategoryRateLabel(current)}
@@ -533,9 +534,9 @@ function TimeCategoryRates({ category, isAdmin }: { category: TimeCategory; isAd
                 onChange={(event) => setEffectiveFrom(event.target.value)}
               />
             </FormGroup>
-            <button type="submit" className="btn btn--outline" disabled={saving || (needsAmount && !(Number(amount) > 0)) || !effectiveFrom}>
+            <Button type="submit" kind="secondary" disabled={saving || (needsAmount && !(Number(amount) > 0)) || !effectiveFrom}>
               {saving ? 'Saving…' : 'Add setting'}
-            </button>
+            </Button>
           </div>
         </Form>
       )}
@@ -623,9 +624,9 @@ function RuleCard({ rule, isAdmin, onSaved }: { rule: BillingRule; isAdmin: bool
         )}
       </div>
       {isAdmin && (
-        <button type="submit" className="btn btn--outline" disabled={saving || !changed}>
+        <Button type="submit" kind="secondary" disabled={saving || !changed}>
           {saving ? 'Saving…' : 'Save'}
-        </button>
+        </Button>
       )}
     </form>
   );
@@ -706,9 +707,9 @@ function BillingCodes({ codes, isAdmin, onChanged }: { codes: BillingCode[]; isA
                 onChange={(event) => setDisplayName(event.target.value)}
               />
             </FormGroup>
-            <button type="submit" className="btn btn--outline" disabled={!code.trim() || !displayName.trim()}>
+            <Button type="submit" kind="secondary" disabled={!code.trim() || !displayName.trim()}>
               Add code
-            </button>
+            </Button>
           </div>
         </Form>
       )}
@@ -729,7 +730,7 @@ function BillingRulesSettings({ isAdmin }: { isAdmin: boolean }) {
       </p>
       {Boolean(error) && <Notice tone="danger">Failed to load billing rules.</Notice>}
       {data && (
-        <div className="compact-card settings-rules">
+        <div className="card compact-card settings-rules">
           {data.rules.map((rule) => (
             <RuleCard key={rule.code} rule={rule} isAdmin={isAdmin} onSaved={refresh} />
           ))}

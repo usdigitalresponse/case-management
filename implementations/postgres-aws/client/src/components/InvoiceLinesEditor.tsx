@@ -708,7 +708,7 @@ export function InvoiceLinesEditor({
       {lines.some((line) => line.lineType === 'waiting') && (
         <p className="rate-note">Waiting time is billed at {categoryRateNote(timeCategoryRates, 'waiting')}.</p>
       )}
-    <div className="line-editor">
+    <div className="card line-editor">
       <div className="line-editor-head" aria-hidden="true">
         {columns.map((label, index) => (
           // Hours to Amount are right-aligned figures.

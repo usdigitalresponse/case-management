@@ -19,10 +19,12 @@ import { shownCaseNumber } from '../caseNumbers';
 import { downloadCsv } from '../downloadCsv';
 import { formatMoney, sumMoney } from '../formatMoney';
 import { formatDate } from '../formatDateTime';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { personPath } from '../staffPaths';
 import { ProviderOnFile } from '../components/PreauthorizationRequestView';
 import { useSearchParamState } from '../hooks/useSearchParamState';
+import { FilterTag, Tag } from '../components/ui/Tag';
+import { Button } from '../components/ui/Button';
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -101,7 +103,7 @@ export default function PersonPage() {
       <PageHeader
         crumbs={[{ label: 'People', to: '/people' }, { label: name }]}
         title={name}
-        status={person.role && <span className="chip chip--neutral">{person.role}</span>}
+        status={person.role && <Tag tone="neutral">{person.role}</Tag>}
         meta={
           <>
             {person.email && <a href={`mailto:${person.email}`}>{person.email}</a>}
@@ -112,9 +114,9 @@ export default function PersonPage() {
         actions={
           <>
             {user?.isAdmin && (
-              <button type="button" className="btn btn--outline" onClick={() => setEditing(true)}>
+              <Button type="button" kind="secondary" onClick={() => setEditing(true)}>
                 Edit details
-              </button>
+              </Button>
             )}
             {user?.isAdmin && (
               <ConfirmButton
@@ -125,9 +127,9 @@ export default function PersonPage() {
                 onConfirm={() => void remove()}
               />
             )}
-            <button
+            <Button
               type="button"
-              className="btn btn--outline"
+              kind="secondary"
               disabled={invoices.length === 0}
               onClick={() =>
                 downloadCsv(
@@ -147,7 +149,7 @@ export default function PersonPage() {
               }
             >
               Export spreadsheet
-            </button>
+            </Button>
           </>
         }
       />
@@ -175,11 +177,11 @@ export default function PersonPage() {
         </Notice>
       )}
       <div className="list-controls">
-        <div className="chip-filters" role="group" aria-label="Show">
+        <div className="tag-filters" role="group" aria-label="Show">
           {FILTERS.map(({ id, label }) => (
-            <button key={id} type="button" className="chip chip--filter" aria-pressed={filter === id} onClick={() => setFilter(id)}>
-              {label} <span className="chip-count">{invoices.filter((invoice) => isShown(invoice, id)).length}</span>
-            </button>
+            <FilterTag key={id} type="button"  aria-pressed={filter === id} onClick={() => setFilter(id)}>
+              {label} <span className="tag-count">{invoices.filter((invoice) => isShown(invoice, id)).length}</span>
+            </FilterTag>
           ))}
         </div>
         {county.control}

@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
+import { cssVars } from './ui/cssVars';
 
 // The strip of key facts under a page's title.
 export function FactsStrip({ children }: { children: ReactNode }) {
-  return <dl className="facts-strip">{children}</dl>;
+  return <dl className="card facts-strip">{children}</dl>;
 }
 
 export function Fact({ label, note, children }: { label: string; note?: ReactNode; children: ReactNode }) {
@@ -22,8 +23,8 @@ export function Progress({ done, total }: { done: number; total: number }) {
   return (
     <>
       {done} of {total}
-      <span className="progress" aria-hidden="true">
-        <span style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+      <span className="progress" aria-hidden="true" style={cssVars({ '--done': `${total ? (done / total) * 100 : 0}%` })}>
+        <span />
       </span>
     </>
   );

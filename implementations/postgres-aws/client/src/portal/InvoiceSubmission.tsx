@@ -27,7 +27,7 @@ import { useResource } from '../hooks/useResource';
 import { myCases, myInvoice } from '../resources';
 import { useAuth } from '../AuthContext';
 import { LoadState } from '../components/LoadState';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { OriginalDocument } from '../components/OriginalDocument';
 import { RecordedDecision } from '../components/LineReview';
 import { StatusPill } from '../components/StatusPill';
@@ -51,6 +51,7 @@ import { CaseNumberBox } from '../components/CaseNumberBox';
 import { InvoiceDetailsFields } from '../components/InvoiceDetailsFields';
 import { SavedCountyPicker } from '../components/CountyPicker';
 import { countyValueOf } from '../counties';
+import { Button, buttonClass } from '../components/ui/Button';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -498,29 +499,29 @@ function Lines({
         <div className="submission__actions">
           {editable && (
             <>
-              <button type="button" className="btn btn--outline" onClick={() => void finishLater()}>
+              <Button type="button" kind="secondary" onClick={() => void finishLater()}>
                 Save and finish later
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="btn btn--primary"
+                kind="primary"
                 // Without a sender, its time can't be priced yet; sending says to choose one.
                 disabled={(askingFor === null && !(byPerson && !invoice.professionalId)) || lines.length === 0 || Boolean(undatedRow)}
                 onClick={() => void startSending()}
               >
                 Send for review
-              </button>
+              </Button>
             </>
           )}
           {sent && (
-            <a className="btn btn--outline" href={invoiceExportUrl('portal', invoice.invoiceId, 'pdf')}>
+            <a className={buttonClass('secondary')} href={invoiceExportUrl('portal', invoice.invoiceId, 'pdf')}>
               {decided ? 'Download the decisions' : 'Download receipt'}
             </a>
           )}
           {withdrawable && (
-            <button type="button" className="btn btn--danger" onClick={() => setWithdrawing(true)}>
+            <Button type="button" kind="danger" onClick={() => setWithdrawing(true)}>
               Withdraw
-            </button>
+            </Button>
           )}
           {/* A draft, or one withdrawn before review started. */}
           {data.deletable && (
@@ -617,7 +618,7 @@ function Lines({
               regions={[...fileSource.lines, ...caseNumberRegion]}
             />
           ) : (
-            <section className="original-document original-document--gone">
+            <section className="card original-document original-document--gone">
               <p>The uploaded file {fileSource.fileName} is no longer kept.</p>
             </section>
           ))}

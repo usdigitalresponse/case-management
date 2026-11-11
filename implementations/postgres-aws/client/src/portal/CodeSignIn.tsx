@@ -5,6 +5,7 @@
 import { useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { apiErrorMessage, requestSignInCode } from '../api/client';
 import { useAuth } from '../AuthContext';
+import { Button } from '../components/ui/Button';
 
 const CODE_LENGTH = 6;
 
@@ -147,9 +148,9 @@ export function CodeSignIn({ headingLevel = 'h1' }: { headingLevel?: 'h1' | 'h2'
         </div>
         {error && <p className="field-error" role="alert">{error}</p>}
         <div>
-          <button type="submit" className="btn btn--primary" disabled={busy || !email.trim()}>
+          <Button type="submit" kind="primary" disabled={busy || !email.trim()}>
             {busy ? 'Sending…' : 'Email me a code'}
-          </button>
+          </Button>
         </div>
       </form>
     );
@@ -168,9 +169,9 @@ export function CodeSignIn({ headingLevel = 'h1' }: { headingLevel?: 'h1' | 'h2'
       {error && <p className="field-error" role="alert">{error}</p>}
       {resent && !error && <p className="code-sign-in__hint" role="status">We sent a new code. Earlier codes no longer work.</p>}
       <div>
-        <button type="submit" className="btn btn--primary" disabled={busy}>
+        <Button type="submit" kind="primary" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
-        </button>
+        </Button>
       </div>
       <div className="code-sign-in__links">
         <button

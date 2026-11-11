@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Label, TextInput } from '@trussworks/react-uswds';
 import { apiErrorMessage, closeCase } from '../api/client';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button } from './ui/Button';
 
 // Closes an open case whose invoices are finished (server/src/cases/closeCase.ts). A reason is required
 // (the server enforces this), so opening the form is a separate step from confirming it.
@@ -26,7 +27,7 @@ export function CloseCaseAction({ caseId, onClosed }: { caseId: string; onClosed
   }
 
   if (!open) {
-    return <button type="button" className="btn btn--outline" onClick={() => setOpen(true)}>Close case</button>;
+    return <Button type="button" kind="secondary" onClick={() => setOpen(true)}>Close case</Button>;
   }
 
   return (
@@ -41,8 +42,8 @@ export function CloseCaseAction({ caseId, onClosed }: { caseId: string; onClosed
         required
       />
       <div className="close-case-buttons">
-        <button type="submit" className="btn btn--primary" disabled={submitting}>{submitting ? 'Closing…' : 'Confirm close'}</button>
-        <button type="button" className="btn btn--outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</button>
+        <Button type="submit" kind="primary" disabled={submitting}>{submitting ? 'Closing…' : 'Confirm close'}</Button>
+        <Button type="button" kind="secondary" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
       </div>
       {error && <Notice tone="danger">{error}</Notice>}
     </form>

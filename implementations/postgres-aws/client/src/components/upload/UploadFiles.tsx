@@ -125,7 +125,7 @@ export function FileCard({
     status = <ImportProgressNote compact progress={read?.status === 'reading' ? read.progress : null} />;
   }
   return (
-    <li className={`file-card${current && many ? ' file-card--current' : ''}`}>
+    <li className={`card file-card${current && many ? ' file-card--current' : ''}`}>
       <span className="file-card__badge" aria-hidden="true">{fileBadge(entry.file.name)}</span>
       <span className="file-card__name">
         <strong>{entry.file.name}</strong>

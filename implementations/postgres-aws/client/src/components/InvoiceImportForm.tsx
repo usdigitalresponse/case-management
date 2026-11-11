@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { Form, Label } from '@trussworks/react-uswds';
 import { apiErrorMessage, invoiceTemplateUrl, uploadInvoiceFile } from '../api/client';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button } from './ui/Button';
 
 // caseId null: the file waits on Intake for its case.
 export function InvoiceImportForm({ caseId, professionalId }: { caseId: string | null; professionalId: string }) {
@@ -44,9 +45,9 @@ export function InvoiceImportForm({ caseId, professionalId }: { caseId: string |
             onChange={(event) => setFile(event.target.files?.[0] ?? null)}
           />
         </div>
-        <button type="submit" className="btn btn--primary" disabled={uploading || !file}>
+        <Button type="submit" kind="primary" disabled={uploading || !file}>
           {uploading ? 'Uploading…' : 'Upload and review'}
-        </button>
+        </Button>
       </div>
       <p className="compact-hint" id="invoice-file-hint">
         A PDF invoice, LEDES 1998B, or the invoice template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}

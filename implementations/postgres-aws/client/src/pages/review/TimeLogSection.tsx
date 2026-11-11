@@ -35,7 +35,7 @@ export function TimeLogSection({ page, facts, cells, logBeside }: { page: Review
   }
   if (!page.uploadingLog || !canDecide) return null;
   return (
-    <section className="time-log-summary" aria-labelledby="time-log-heading">
+    <section className="card time-log-summary" aria-labelledby="time-log-heading">
       <h2 id="time-log-heading">Check a time log</h2>
       <p className="cell-note">
         Upload this case's time log, exported from your {EXTERNAL_SYSTEM_NAME} as .xlsx or .csv. Each time line is compared with it by date,

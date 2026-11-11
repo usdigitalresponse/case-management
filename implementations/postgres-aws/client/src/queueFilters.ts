@@ -1,6 +1,6 @@
 import type { ReviewQueueItem } from './api/client';
 
-// The chips over both review queues.
+// The filter tags over both review queues.
 export const QUEUE_FILTERS = [
   { id: 'everyone', label: "Everyone's" },
   { id: 'mine', label: 'Assigned to you' },

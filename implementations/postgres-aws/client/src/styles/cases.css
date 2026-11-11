@@ -5,10 +5,10 @@
 .close-here .compact-hint { margin-bottom: .75rem; }
 /* Case overview (design I47): a card per stage with its count. */
 .stage-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-top: 1rem; }
-.stage-card { min-width: 0; padding: 1rem 1.1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
-.stage-card h2 { margin: 0; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-muted); }
+.stage-card { min-width: 0; padding: 1rem 1.1rem; }
+.stage-card h2 { margin: 0; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-on-surface-variant); }
 .stage-card__count { margin: .4rem 0 0; font-family: var(--font-serif); font-size: 2rem; font-weight: 600; line-height: 1; }
-.stage-card__what { margin: .5rem 0 .9rem; font-size: .8rem; color: var(--ink-faint); }
+.stage-card__what { margin: .5rem 0 .9rem; font-size: .8rem; color: var(--color-on-surface-muted); }
 .stage-card ul { list-style: none; margin: 0; padding: 0; }
 .stage-card li { display: grid; margin-bottom: .6rem; }
 .stage-card li a { font-weight: 600; }
@@ -30,20 +30,20 @@
 /* A case's page (design I49). */
 .case-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
 .case-columns .compact-card h2, .compact-card > h2 { margin: 0 0 .6rem; font-size: 1.05rem; }
-.preauth-billed + .preauth-billed { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.preauth-billed + .preauth-billed { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--color-outline-subtle); }
 .preauth-billed dl { margin: 0; }
 .preauth-billed dl div { display: flex; justify-content: space-between; gap: 1rem; padding: .2rem 0; font-size: .9rem; }
-.preauth-billed dt { color: var(--ink-muted); }
+.preauth-billed dt { color: var(--color-on-surface-variant); }
 .preauth-billed dd { margin: 0; font-weight: 600; }
-.preauth-bar { display: flex; height: 8px; margin: .6rem 0 .3rem; border-radius: 4px; background: var(--line); overflow: hidden; }
-.preauth-bar__approved { background: var(--success); }
-.preauth-bar__waiting { background: var(--primary); opacity: .45; }
+.preauth-bar { display: flex; height: 8px; margin: .6rem 0 .3rem; border-radius: var(--radius-small); background: var(--color-outline-subtle); overflow: hidden; }
+.preauth-bar__approved { width: var(--approved); background: var(--color-success); }
+.preauth-bar__waiting { width: var(--waiting); background: var(--color-primary); opacity: .45; }
 @media (max-width: 64rem) {
   .case-columns { grid-template-columns: 1fr; }
 }
 .preauth-form { margin-top: .8rem; align-items: end; }
 .preauth-request-form .inline-fields, .preauth-page .inline-fields, .list-controls .inline-fields { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
-.preauth-question { padding: .5rem 0; border-bottom: 1px solid var(--line); }
+.preauth-question { padding: .5rem 0; border-bottom: 1px solid var(--color-outline-subtle); }
 .preauth-question p { margin: .2rem 0; }
 .preauth-question .cell-note, .plain-list .cell-note { margin-left: .5rem; }
 .plain-list { margin: 0 0 .6rem; padding: 0; list-style: none; }
@@ -52,4 +52,4 @@
 .preauth-message .usa-textarea { width: 100%; max-width: 40rem; height: 5rem; margin: 0; }
 .add-person { flex-basis: 100%; max-width: 36rem; }
 .person-form { display: flex; flex-direction: column; gap: .9rem; min-width: min(34rem, 100%); }
-.person-form > p { margin: 0; color: var(--ink-muted); }
+.person-form > p { margin: 0; color: var(--color-on-surface-variant); }

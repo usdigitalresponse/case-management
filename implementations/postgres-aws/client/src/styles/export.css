@@ -6,5 +6,5 @@
 .export-redact > summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
 .export-fields { margin: .8rem 0 0; padding: 0; border: 0; min-width: 0; }
 .export-legend { margin-bottom: .3rem; font-weight: 600; font-size: .88rem; }
-.export-count { margin-left: .35rem; color: var(--ink-faint); font-weight: 400; font-size: .82rem; }
+.export-count { margin-left: .35rem; color: var(--color-on-surface-muted); font-weight: 400; font-size: .82rem; }
 .export-fields__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); column-gap: 1rem; }

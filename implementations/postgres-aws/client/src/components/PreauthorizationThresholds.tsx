@@ -7,8 +7,9 @@ import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { CountyPicker } from './CountyPicker';
 import type { CountyValue } from '../counties';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
 import { RecordTable } from './RecordTable';
+import { Button } from './ui/Button';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -58,7 +59,7 @@ export function PreauthorizationThresholds({ isAdmin }: { isAdmin: boolean }) {
   if (!data) return null;
   return (
     <div className="settings-columns settings-columns--even">
-      <section className="compact-card">
+      <section className="card compact-card">
         <h3>In force today</h3>
         <RecordTable
           label="Thresholds in force"
@@ -89,9 +90,9 @@ export function PreauthorizationThresholds({ isAdmin }: { isAdmin: boolean }) {
                 <label className="usa-label" htmlFor="threshold-from">Applies from</label>
                 <input id="threshold-from" className="usa-input" type="date" value={effectiveFrom} onChange={(event) => setEffectiveFrom(event.target.value)} />
               </div>
-              <button type="submit" className="btn btn--outline" disabled={saving || !(Number(amount) > 0) || !effectiveFrom}>
+              <Button type="submit" kind="secondary" disabled={saving || !(Number(amount) > 0) || !effectiveFrom}>
                 Add threshold
-              </button>
+              </Button>
               {countyValue?.countyId && (
                 <button type="button" className="link-button" disabled={saving} onClick={(event) => void save(event, true)}>
                   Use the default for this county
@@ -101,7 +102,7 @@ export function PreauthorizationThresholds({ isAdmin }: { isAdmin: boolean }) {
           </form>
         )}
       </section>
-      <section className="compact-card">
+      <section className="card compact-card">
         <h3>Who thresholds apply to</h3>
         <p className="compact-hint">Not to an appointed attorney's own fees.</p>
         {data.kinds.length === 0 && <p className="muted">No kinds of professional yet.</p>}

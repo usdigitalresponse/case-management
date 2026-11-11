@@ -1,11 +1,17 @@
-// Server timestamps are raw ISO 8601 (e.g. "2026-08-18T10:24:13.465Z") —
-// fine for sorting/transport, unreadable as table content. Renders in the
-// viewer's locale/timezone, with no seconds/milliseconds.
+// The design's date: day, short month, year ("3 Aug 2026").
+function dayMonthYear(date: Date, timeZone?: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.day} ${parts.month} ${parts.year}`;
+}
+
+// Server timestamps are raw ISO 8601; shown as the viewer's local date and time, without seconds.
 export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
+  const when = new Date(iso);
+  return `${dayMonthYear(when)}, ${when.toLocaleTimeString(undefined, { timeStyle: 'short' })}`;
 }
 
 // Calendar dates ("2026-01-05") have no time zone; format them as UTC so
@@ -14,7 +20,7 @@ export function formatDate(isoDate: string | null | undefined): string {
   if (!isoDate) {
     return '—';
   }
-  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString(undefined, { dateStyle: 'medium', timeZone: 'UTC' });
+  return dayMonthYear(new Date(`${isoDate}T00:00:00Z`), 'UTC');
 }
 
 export function formatPeriod(start: string | null, end: string | null): string {
@@ -23,5 +29,5 @@ export function formatPeriod(start: string | null, end: string | null): string {
 
 // A timestamp's date in the viewer's zone, so an evening submission isn't shown as the next day.
 export function formatDay(iso: string, timeZone?: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium', timeZone });
+  return dayMonthYear(new Date(iso), timeZone);
 }

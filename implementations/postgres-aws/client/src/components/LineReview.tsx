@@ -4,6 +4,7 @@ import { formatDate, formatDateTime } from '../formatDateTime';
 import { cents, formatMoney, formatRate } from '../formatMoney';
 import { isMileage } from '../invoiceLineDisplay';
 import { StatusPill } from './StatusPill';
+import { Button } from './ui/Button';
 
 // A decision as recorded or in progress: what, how much, why, by whom, and
 // a corrected rate that differs from the line's default.
@@ -473,9 +474,9 @@ export function DecisionPanel({
       </div>
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="button-row">
-        <button
+        <Button
           type="submit"
-          className="btn btn--primary"
+          kind="primary"
           disabled={
             saving ||
             (needsReason && !reasonCode) ||
@@ -503,7 +504,7 @@ export function DecisionPanel({
                     : validAmount || raised
                       ? `Approve ${formatMoney(approvedCents / 100)}`
                       : 'Approve part'}
-        </button>
+        </Button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
         {!rateValid && <span className="cell-note">Enter a different rate first.</span>}
         {needsReason && !reasonCode && <span className="cell-note">Choose a reason first.</span>}

@@ -12,7 +12,7 @@ import {
 } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { billableProfessionals } from '../resources';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { asksWho, BILLED_BY_HINT, SenderPicker, senderLabel, type PersonDraft } from '../components/InvoiceDetailsFields';
 import { ADD_NEW } from '../components/PickOrAdd';
@@ -23,6 +23,7 @@ import { checkLinesPath, type CheckQueue } from '../portal/InvoiceSubmission';
 import { PORTAL_HOME_PATH, useShell } from '../portal/useShell';
 import { reviewPath } from '../staffPaths';
 import { useAuth } from '../AuthContext';
+import { Button } from '../components/ui/Button';
 
 // Staff who review take their own uploads straight into review.
 function useReviewsOwnUploads() {
@@ -184,7 +185,7 @@ export default function UploadInvoices() {
         title={entries.length > 1 ? 'Upload invoices' : 'Upload an invoice'}
       />
       <Steps reviewing={reviews} />
-      <div className="upload-card">
+      <div className="card upload-card">
         {(asks || staff) && (
           <div className="upload-card__about">
             <div className="upload-details">
@@ -278,9 +279,9 @@ export default function UploadInvoices() {
         {entries.length > 0 && (
           <div className="upload-card__actions">
             {!allFailed && (
-              <button type="button" className="btn btn--primary" disabled={busy || reading} onClick={() => void goOn(false)}>
+              <Button type="button" kind="primary" disabled={busy || reading} onClick={() => void goOn(false)}>
                 {busy ? 'Saving…' : 'Continue'}
-              </button>
+              </Button>
             )}
             <button type="button" className="link-button" disabled={busy} onClick={() => void cancel()}>
               Cancel

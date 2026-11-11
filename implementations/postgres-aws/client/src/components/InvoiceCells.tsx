@@ -85,7 +85,7 @@ export function QuestionChips({ invoice }: { invoice: ReviewQueueItem }) {
     return null;
   }
   return (
-    <span className="question-chips">
+    <span className="question-tags">
       {beingEntered && <StatusPill tone="info" label="Being entered" />}
       {open > 0 && <StatusPill tone="warning" label={open === 1 ? 'Question unanswered' : `${open} questions unanswered`} />}
       {answered > 0 && <StatusPill tone="info" label={answered === 1 ? 'Question answered' : `${answered} questions answered`} />}

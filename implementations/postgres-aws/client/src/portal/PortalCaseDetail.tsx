@@ -22,7 +22,9 @@ import { PageHeader } from '../components/PageHeader';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatDate, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
+import { Tag } from '../components/ui/Tag';
+import { Button, buttonClass } from '../components/ui/Button';
 
 const BILLING_LABELS: Record<string, string> = {
   draft: 'On a draft',
@@ -34,7 +36,7 @@ const BILLING_LABELS: Record<string, string> = {
 
 function BillingState({ entry }: { entry: TimeEntryRecord }) {
   if (!entry.billing) {
-    return <span className="chip chip--warning">Unbilled</span>;
+    return <Tag tone="warning">Unbilled</Tag>;
   }
   return (
     <RouterLink to={`/portal/invoices/${entry.billing.invoiceId}`}>
@@ -198,7 +200,7 @@ function TimeEntrySection({
         />
       )}
 
-      <Form className="compact-form compact-card" onSubmit={(event) => void handleSubmit(event)}>
+      <Form className="compact-form card compact-card" onSubmit={(event) => void handleSubmit(event)}>
         <h3>{editingId ? 'Edit time' : 'Log time'}</h3>
         {submitError && <Notice tone="danger">{submitError}</Notice>}
         <div className={`inline-fields time-entry-fields${billable.length > 1 ? ' time-entry-fields--with-professional' : ''}`}>
@@ -258,9 +260,9 @@ function TimeEntrySection({
             />
           </FormGroup>
           <span className="row-actions">
-            <button type="submit" className="btn btn--primary" disabled={submitting || !activityOn || !durationHours || !description.trim()}>
+            <Button type="submit" kind="primary" disabled={submitting || !activityOn || !durationHours || !description.trim()}>
               {editingId ? (submitting ? 'Saving…' : 'Save') : submitting ? 'Logging…' : 'Log time'}
-            </button>
+            </Button>
             {editingId && (
               <button type="button" className="link-button" onClick={onLogged}>
                 Cancel
@@ -363,7 +365,7 @@ export default function PortalCaseDetail() {
             {myCase && <span>Assigned {formatDay(myCase.assignedAt)}</span>}
           </>
         }
-        actions={<RouterLink className="btn btn--primary" to={UPLOAD_PATH}>New invoice</RouterLink>}
+        actions={<RouterLink className={buttonClass('primary')} to={UPLOAD_PATH}>New invoice</RouterLink>}
       />
       {SENDERS_LOG_TIME && billable && billable.length > 0 && (
         <TimeEntrySection

@@ -1,5 +1,5 @@
 import { ApiError } from '../api/client';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
 
 // What a page shows before its data arrives: loading, not found or failed.
 export function LoadState({ error, what }: { error: unknown; what: string }) {

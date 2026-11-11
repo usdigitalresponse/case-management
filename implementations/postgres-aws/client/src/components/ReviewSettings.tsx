@@ -14,13 +14,14 @@ import {
 import { StatusPill } from './StatusPill';
 import { useResource } from '../hooks/useResource';
 import { decisionReasonSettings, reviewPeople, reviewSettings, staffRoles } from '../resources';
-import { Notice, type SaveMessage } from './Notice';
+import { Notice, type SaveMessage } from './ui/Notice';
 import { LoadState } from './LoadState';
 import { OrderedChoiceList } from './OrderedChoiceList';
 import { RecordTable } from './RecordTable';
 import { ReviewerSelect } from './ReviewRouting';
-import { SegmentedChoice } from './SegmentedChoice';
+import { SegmentedChoice } from './ui/SegmentedChoice';
 import { useAuth } from '../AuthContext';
+import { Button } from './ui/Button';
 
 // Who gets new invoices, who signs off, and when a waiting invoice is called
 // out. Each save adds a setting; invoices already routed keep theirs.
@@ -65,7 +66,7 @@ export function ReviewRoutingSettings({ isAdmin }: { isAdmin: boolean }) {
   }
 
   return (
-    <form className="compact-card settings-form" onSubmit={(event) => void save(event)}>
+    <form className="card compact-card settings-form" onSubmit={(event) => void save(event)}>
       <h3>Routing new invoices</h3>
       <p className="compact-hint">
         A case can send its invoices to its own reviewer; this default covers the rest. With no default, new invoices
@@ -166,11 +167,11 @@ export function ReviewRoutingSettings({ isAdmin }: { isAdmin: boolean }) {
       <div className="settings-field">
         <span>Holiday calendar</span>
         <p className="cell-note">Working days skip weekends. Uploading a holiday calendar so holidays are skipped too is planned.</p>
-        <button type="button" className="btn btn--outline" disabled title="Not available yet">Upload a calendar</button>
+        <Button type="button" kind="secondary" disabled title="Not available yet">Upload a calendar</Button>
       </div>
       {isAdmin && (
         <div className="button-row">
-          <button type="submit" className="btn btn--primary">Save</button>
+          <Button type="submit" kind="primary">Save</Button>
         </div>
       )}
     </form>
@@ -211,7 +212,7 @@ export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
   }
 
   return (
-    <section className="compact-card">
+    <section className="card compact-card">
       <h3>Reasons for cutting or rejecting a line</h3>
       <p className="compact-hint">
         Approving part of a line, rejecting it and setting a case's default rate each have their own list. Reviewers
@@ -279,7 +280,7 @@ export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
             onChange={(event) => setDisplayName(event.target.value)}
           />
           <SegmentedChoice label="List for the new reason" options={LIST_OPTIONS} value={appliesTo} onChange={setAppliesTo} />
-          <button type="submit" className="btn btn--outline" disabled={displayName.trim().length < 3}>Add reason</button>
+          <Button type="submit" kind="secondary" disabled={displayName.trim().length < 3}>Add reason</Button>
         </form>
       )}
     </section>
@@ -328,7 +329,7 @@ function AddStaff({ roles, onAdded, onCancel }: { roles: StaffRolesResponse['rol
       <p className="compact-hint">They sign in with their organization's account, from an allowed email domain.</p>
       {error && <Notice tone="danger">{error}</Notice>}
       <div className="button-row">
-        <button type="submit" className="btn btn--primary" disabled={displayName.trim().length < 2 || !email.trim() || !roleId}>Add</button>
+        <Button type="submit" kind="primary" disabled={displayName.trim().length < 2 || !email.trim() || !roleId}>Add</Button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
       </div>
     </form>
@@ -361,11 +362,11 @@ export function StaffRoleSettings() {
   }
 
   return (
-    <section className="compact-card">
+    <section className="card compact-card">
       <div className="section-title-row">
         <h3>Staff</h3>
         {!adding && (
-          <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>Add staff</button>
+          <Button type="button" kind="primary" onClick={() => setAdding(true)}>Add staff</Button>
         )}
       </div>
       {adding && (
@@ -450,7 +451,7 @@ export function StaffRoleSettings() {
 // What each role can do (one staff role since design I; administrators also keep Settings).
 export function RoleSummary() {
   return (
-    <section className="compact-card">
+    <section className="card compact-card">
       <h3>What each role can do</h3>
       <dl className="role-summary">
         <dt>Staff</dt>

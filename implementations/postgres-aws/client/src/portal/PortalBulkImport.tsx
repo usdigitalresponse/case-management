@@ -43,11 +43,12 @@ import {
   type BulkStep,
   type ParsedChoice,
 } from './bulkImport';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { useReceipt } from './ReceivedFields';
 import { DropZone } from '../components/upload/UploadFiles';
 import { LATER, useShell } from './useShell';
+import { Button, buttonClass } from '../components/ui/Button';
 
 interface StagedFile {
   key: string;
@@ -131,7 +132,7 @@ function SplitAssignment({
   }
 
   return (
-    <section className="compact-card split-assignment">
+    <section className="card compact-card split-assignment">
       <h3>Assign each line of {staged.file.name} to a case</h3>
       <p className="compact-hint">
         Every line is recorded as {whose} work. Each case becomes its own draft invoice. Cases are suggested where
@@ -207,9 +208,9 @@ function SplitAssignment({
         at configured rates. You can still correct dates and hours on each draft.
       </p>
       <div className="invoice-actions">
-        <button type="button" className="btn btn--primary" disabled={creating || unassigned > 0} onClick={() => void create()}>
+        <Button type="button" kind="primary" disabled={creating || unassigned > 0} onClick={() => void create()}>
           {creating ? 'Creating…' : `Create ${draftCount} draft ${draftCount === 1 ? 'invoice' : 'invoices'}`}
-        </button>
+        </Button>
         <button type="button" className="link-button" disabled={creating} onClick={onCancel}>
           Cancel
         </button>
@@ -307,7 +308,7 @@ function StagedFiles({
   }
 
   return (
-    <Form className="compact-form compact-card" onSubmit={(event) => void uploadAll(event)}>
+    <Form className="compact-form card compact-card" onSubmit={(event) => void uploadAll(event)}>
       <h2>1. Add files</h2>
       <DropZone hasFiles={staged.length > 0} onFiles={add} />
       <p className="compact-hint">
@@ -384,9 +385,9 @@ function StagedFiles({
             ]}
           />
           <div className="invoice-actions">
-            <button type="submit" className="btn btn--primary" disabled={uploading || ready === 0}>
+            <Button type="submit" kind="primary" disabled={uploading || ready === 0}>
               {uploading ? 'Uploading…' : `Upload ${ready} ${ready === 1 ? 'file' : 'files'}`}
-            </button>
+            </Button>
             {staged.some((row) => !choiceOf(row)) && !uploading && (
               <span className="compact-hint">Choose a case for each file to upload it.</span>
             )}
@@ -472,7 +473,7 @@ function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]; onDis
       </p>
       {next && (
         <div className="invoice-actions">
-          <RouterLink className="btn btn--primary" to={reviewUrl(next)}>
+          <RouterLink className={buttonClass('primary')} to={reviewUrl(next)}>
             Check next: {next.fileName}
           </RouterLink>
         </div>
@@ -666,16 +667,16 @@ function SubmitStep({ imports, onChanged }: { imports: ImportInProgress[]; onCha
           {receipt.fields}
           {!staff && <AttestationCheckbox id="bulk-attested" checked={attested} onChange={setAttested} />}
           <div className="invoice-actions">
-            <button
+            <Button
               type="button"
-              className="btn btn--primary"
+              kind="primary"
               disabled={submitting || chosen.length === 0 || receipt.missing || (!staff && !attested)}
               onClick={() => void submitChosen()}
             >
               {submitting
                 ? 'Sending…'
                 : `Send ${chosen.length} ${chosen.length === 1 ? 'invoice' : 'invoices'} for review · ${formatMoney(chosenTotal.toFixed(2))}`}
-            </button>
+            </Button>
           </div>
         </>
       )}
@@ -779,9 +780,9 @@ export default function PortalBulkImport() {
           (stagedCount > 0 || batchInProgress.length > 0) &&
           !confirmingCancel &&
           !uploadingNow && (
-            <button type="button" className="btn btn--outline" onClick={() => setConfirmingCancel(true)}>
+            <Button type="button" kind="secondary" onClick={() => setConfirmingCancel(true)}>
               Cancel import
-            </button>
+            </Button>
           )
         }
       />
@@ -790,9 +791,9 @@ export default function PortalBulkImport() {
           tone="warning"
           action={
             <span className="row-actions">
-              <button type="button" className="btn btn--danger" disabled={cancelling || uploadingNow} onClick={() => void cancel()}>
+              <Button type="button" kind="danger" disabled={cancelling || uploadingNow} onClick={() => void cancel()}>
                 {cancelling ? 'Cancelling…' : 'Yes, cancel'}
-              </button>
+              </Button>
               <button type="button" className="link-button" disabled={cancelling} onClick={() => setConfirmingCancel(false)}>
                 Keep going
               </button>

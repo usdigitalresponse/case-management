@@ -1,7 +1,7 @@
 import { setEnteredDetails, setEnteredSender } from '../../api/client';
 import { EntryBadge } from '../../components/EntryBadge';
 import { EnteredCaseNumber, EntryReceipt } from '../../components/EntryLines';
-import { Notice } from '../../components/Notice';
+import { Notice } from '../../components/ui/Notice';
 import { InvoiceDetailsFields } from '../../components/InvoiceDetailsFields';
 import { CaseCard, CaseMatch } from '../../components/CaseCard';
 import { CaseNumberReview } from '../../components/CaseNumberReview';

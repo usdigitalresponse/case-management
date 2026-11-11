@@ -3,7 +3,7 @@ import { rateChanged } from '../../components/LineReview';
 import { SignOffHistory, SignOffPanel, TotalsBar } from '../../components/ReviewPanels';
 import { CompletionNotice, DECIDED_STATUS_CODES } from '../../components/Completion';
 import { EmailSender } from '../../components/EmailSender';
-import { Notice } from '../../components/Notice';
+import { Notice } from '../../components/ui/Notice';
 import { TravelLog } from '../../components/TravelLog';
 import { formatMoney, formatRate } from '../../formatMoney';
 import { reviewPath } from '../../staffPaths';

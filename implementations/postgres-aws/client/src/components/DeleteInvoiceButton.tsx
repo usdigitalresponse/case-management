@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { apiErrorMessage, deleteInvoice } from '../api/client';
 import { ConfirmButton } from './ConfirmButton';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
 
 // Show only where the server says the invoice is `deletable`.
 export function DeleteInvoiceButton({

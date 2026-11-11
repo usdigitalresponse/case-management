@@ -38,10 +38,10 @@ describe('an email to the sender', () => {
   it('dates its subject by the period, else when it was sent or came in', () => {
     const subject = (dates: Partial<QueuedInvoice>) => draft(senderMailto(null, { ...invoice, ...dates }, '26-CR-00418')).subject;
     expect(subject({ periodStart: '2026-02-01', periodEnd: '2026-02-28', submittedAt: '2026-03-02T15:00:00Z' })).toBe(
-      'Your invoice SYN-0002 · Case 26-CR-00418 · Feb 1, 2026 – Feb 28, 2026',
+      'Your invoice SYN-0002 · Case 26-CR-00418 · 1 Feb 2026 – 28 Feb 2026',
     );
-    expect(subject({ submittedAt: '2026-03-02T15:00:00Z' })).toBe('Your invoice SYN-0002 · Case 26-CR-00418 · Sent Mar 2, 2026');
-    expect(subject({ receivedOn: '2026-03-03' })).toBe('Your invoice SYN-0002 · Case 26-CR-00418 · Received Mar 3, 2026');
+    expect(subject({ submittedAt: '2026-03-02T15:00:00Z' })).toBe('Your invoice SYN-0002 · Case 26-CR-00418 · Sent 2 Mar 2026');
+    expect(subject({ receivedOn: '2026-03-03' })).toBe('Your invoice SYN-0002 · Case 26-CR-00418 · Received 3 Mar 2026');
   });
 
   it('describes each line, with any questions under it', () => {
@@ -49,7 +49,7 @@ describe('an email to the sender', () => {
     expect(href).not.toContain('+');
     expect(draft(href)).toMatchObject({
       to: 'sender@example.com',
-      body: 'Line 3: Feb 2, 2026, Time, Research, 2.00 h, $300.00\nQuestion: Which filing was this for?\n\n',
+      body: 'Line 3: 2 Feb 2026, Time, Research, 2.00 h, $300.00\nQuestion: Which filing was this for?\n\n',
     });
   });
 });

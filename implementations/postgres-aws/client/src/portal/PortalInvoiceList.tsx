@@ -5,7 +5,7 @@ import { useResource } from '../hooks/useResource';
 import { myInvoices as myInvoiceList } from '../resources';
 import { useAuth } from '../AuthContext';
 import { LoadState } from '../components/LoadState';
-import { Notice } from '../components/Notice';
+import { Notice } from '../components/ui/Notice';
 import { RecordTable, type RecordTableColumn } from '../components/RecordTable';
 import { EnteredFlag } from '../components/NewEntryFields';
 import { StatusPill } from '../components/StatusPill';
@@ -15,6 +15,7 @@ import { WithdrawDialog } from './WithdrawDialog';
 import { canWithdraw, formatDayShort, formatSpan, submissionStatus } from './portalWording';
 import { UPLOAD_PATH } from './useShell';
 import { inListOrder, listCaseNumber } from './invoiceListView';
+import { buttonClass } from '../components/ui/Button';
 
 // Set by the upload page after several files go up as drafts.
 export interface UploadedState {
@@ -146,7 +147,7 @@ export default function PortalInvoiceList() {
             Every invoice you have sent for review, and drafts you have not sent yet. Each one shows its case number.
           </p>
         </div>
-        <RouterLink className="btn btn--primary" to={UPLOAD_PATH}>Upload invoices</RouterLink>
+        <RouterLink className={buttonClass('primary')} to={UPLOAD_PATH}>Upload invoices</RouterLink>
       </div>
       {uploadedCount > 1 && (
         <Notice tone="info" heading={`${uploadedCount} invoices uploaded and saved as drafts.`}>

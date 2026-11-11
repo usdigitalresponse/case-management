@@ -1,4 +1,6 @@
-export type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+import { Tag, type Tone } from './ui/Tag';
+
+export type { Tone };
 
 const STATUS_TONE: Record<string, Tone> = {
   awaiting_match: 'warning',
@@ -13,8 +15,8 @@ const STATUS_TONE: Record<string, Tone> = {
   rejected: 'danger',
 };
 
-// A status as the design's chip, colored by status code or an explicit tone;
+// A status as the design's Tag, colored by status code or an explicit tone;
 // the text always carries the meaning.
 export function StatusPill({ code, tone, label }: { code?: string | null; tone?: Tone; label: string | null }) {
-  return <span className={`chip chip--${tone ?? ((code && STATUS_TONE[code]) || 'neutral')}`}>{label ?? 'Unknown'}</span>;
+  return <Tag tone={tone ?? ((code && STATUS_TONE[code]) || 'neutral')}>{label ?? 'Unknown'}</Tag>;
 }

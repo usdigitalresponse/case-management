@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Button } from './ui/Button';
+import { buttonClass } from './ui/Button';
 
 // Asks inline before a destructive action, never with a browser dialog.
 export function ConfirmButton({
@@ -23,7 +25,7 @@ export function ConfirmButton({
     return (
       <button
         type="button"
-        className={compact ? 'link-button link-button--danger' : 'btn btn--danger'}
+        className={compact ? 'link-button link-button--danger' : buttonClass('danger')}
         disabled={disabled}
         onClick={() => setAsking(true)}
       >
@@ -34,9 +36,9 @@ export function ConfirmButton({
   return (
     <span className="confirm-inline" role="group" aria-label={prompt}>
       <span className="confirm-inline__prompt">{prompt}</span>
-      <button
+      <Button
         type="button"
-        className="btn btn--danger"
+        kind="danger"
         disabled={disabled}
         ref={(element: HTMLButtonElement | null) => element?.focus()}
         onClick={() => {
@@ -45,7 +47,7 @@ export function ConfirmButton({
         }}
       >
         {confirmLabel}
-      </button>
+      </Button>
       <button type="button" className="link-button" onClick={() => setAsking(false)}>
         Cancel
       </button>

@@ -1,8 +1,8 @@
 /* Settings (pages/Settings.tsx). */
 /* Settings (design I): an index of its sections, then cards. */
-.page-index { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .4rem 0 1rem; font-size: .85rem; color: var(--ink-muted); }
-.page-index a { padding: .3rem .8rem; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--primary); font-weight: 600; text-decoration: none; }
-.page-index a.is-current { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.page-index { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .4rem 0 1rem; font-size: .85rem; color: var(--color-on-surface-variant); }
+.page-index a { padding: .3rem .8rem; border: 1px solid var(--color-outline-variant); border-radius: var(--radius-full); background: var(--color-surface); color: var(--color-primary); font-weight: 600; text-decoration: none; }
+.page-index a.is-current { background: var(--color-on-surface); border-color: var(--color-on-surface); color: var(--color-surface); }
 .settings-section { margin-bottom: 2.5rem; scroll-margin-top: 1rem; }
 .settings-section > h2 { margin: 1.2rem 0 .3rem; }
 .settings-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr); gap: 1rem; align-items: start; }
@@ -26,9 +26,9 @@
 .settings-basis legend { font-weight: 600; font-size: .85rem; margin-bottom: .2rem; }
 .role-summary { display: grid; grid-template-columns: 10rem 1fr; gap: .4rem 1rem; margin: .5rem 0 0; font-size: .92rem; }
 .role-summary dt { font-weight: 600; }
-.role-summary dd { margin: 0; color: var(--ink-muted); }
+.role-summary dd { margin: 0; color: var(--color-on-surface-variant); }
 .settings-rules { padding: 0; }
-.settings-rule-row { display: grid; grid-template-columns: minmax(14rem, 1.4fr) 12rem minmax(10rem, 1fr) auto; gap: .6rem 1.2rem; align-items: center; padding: .8rem 1.1rem; border-top: 1px solid var(--line); }
+.settings-rule-row { display: grid; grid-template-columns: minmax(14rem, 1.4fr) 12rem minmax(10rem, 1fr) auto; gap: .6rem 1.2rem; align-items: center; padding: .8rem 1.1rem; border-top: 1px solid var(--color-outline-subtle); }
 .settings-rule-row:first-child { border-top: 0; }
 .settings-rule-row h3 { margin: 0; font-size: .95rem; }
 .settings-rule-row .compact-hint { margin: .15rem 0 0; }

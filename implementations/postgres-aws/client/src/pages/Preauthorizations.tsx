@@ -12,6 +12,8 @@ import { caseText, PreauthorizationRequestView, providerText, rateText, RequestS
 import { downloadCsv } from '../downloadCsv';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
+import { FilterTag } from '../components/ui/Tag';
+import { Button } from '../components/ui/Button';
 
 const STATUS_FILTERS = [
   { id: 'open', label: 'Waiting' },
@@ -31,7 +33,7 @@ function RecordRequest({ onDone }: { onDone: () => void }) {
   const providers = useResource(providerList(''));
   if (!cases.data || !providers.data) return <LoadState error={cases.error ?? providers.error} what="cases" />;
   return (
-    <section className="compact-card">
+    <section className="card compact-card">
       <h2>Record an emailed request</h2>
       <PreauthorizationRequestForm
         staff
@@ -62,27 +64,27 @@ function Requests() {
   return (
     <>
       <div className="list-controls">
-        <div className="chip-filters" role="group" aria-label="Show">
+        <div className="tag-filters" role="group" aria-label="Show">
           {STATUS_FILTERS.map(({ id, label }) => (
-            <button key={id || 'all'} type="button" className="chip chip--filter" aria-pressed={status === id} onClick={() => setFilter({ status: id })}>
+            <FilterTag key={id || 'all'} type="button"  aria-pressed={status === id} onClick={() => setFilter({ status: id })}>
               {label}
-            </button>
+            </FilterTag>
           ))}
         </div>
         {countyId && data?.requests[0]?.countyName && (
-          <button type="button" className="chip chip--filter" aria-pressed onClick={() => setFilter({ countyId: undefined })}>
+          <FilterTag type="button"  aria-pressed onClick={() => setFilter({ countyId: undefined })}>
             {data.requests[0].countyName} ✕
-          </button>
+          </FilterTag>
         )}
         {caseId && (
-          <button type="button" className="chip chip--filter" aria-pressed onClick={() => setFilter({ caseId: undefined })}>
+          <FilterTag type="button"  aria-pressed onClick={() => setFilter({ caseId: undefined })}>
             One case ✕
-          </button>
+          </FilterTag>
         )}
         {!recording && (
-          <button type="button" className="btn btn--outline" onClick={() => setRecording(true)}>
+          <Button type="button" kind="secondary" onClick={() => setRecording(true)}>
             Record a request
-          </button>
+          </Button>
         )}
       </div>
       {recording && <RecordRequest onDone={() => setRecording(false)} />}
@@ -159,9 +161,9 @@ function UsageByCounty() {
           </div>
         </div>
         {data && (
-          <button
+          <Button
             type="button"
-            className="btn btn--outline"
+            kind="secondary"
             onClick={() =>
               downloadCsv(
                 `preauthorization-usage-${period.from}-to-${period.to}.csv`,
@@ -188,7 +190,7 @@ function UsageByCounty() {
             }
           >
             Download CSV
-          </button>
+          </Button>
         )}
       </div>
       <p className="compact-hint">
@@ -261,13 +263,13 @@ export default function Preauthorizations() {
         title="Pre-authorizations"
         description="Requests, and how each county’s limits are used."
       />
-      <div className="chip-filters page-tabs" role="tablist" aria-label="View">
-        <button type="button" role="tab" className="chip chip--filter" aria-selected={view === 'requests'} aria-pressed={view === 'requests'} onClick={() => setParams({}, { preventScrollReset: true })}>
+      <div className="tag-filters page-tabs" role="tablist" aria-label="View">
+        <FilterTag type="button" role="tab"  aria-selected={view === 'requests'} aria-pressed={view === 'requests'} onClick={() => setParams({}, { preventScrollReset: true })}>
           Requests
-        </button>
-        <button type="button" role="tab" className="chip chip--filter" aria-selected={view === 'county'} aria-pressed={view === 'county'} onClick={() => setParams({ view: 'county' }, { preventScrollReset: true })}>
+        </FilterTag>
+        <FilterTag type="button" role="tab"  aria-selected={view === 'county'} aria-pressed={view === 'county'} onClick={() => setParams({ view: 'county' }, { preventScrollReset: true })}>
           By county
-        </button>
+        </FilterTag>
       </div>
       {view === 'county' ? <UsageByCounty /> : <Requests />}
     </div>

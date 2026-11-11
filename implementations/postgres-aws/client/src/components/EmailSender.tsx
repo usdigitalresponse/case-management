@@ -2,6 +2,7 @@ import type { PortalInvoiceLine, QueuedInvoice } from '../api/client';
 import { formatDate, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { lineDate, lineDescription, lineHours, lineType } from '../invoiceLineDisplay';
+import { buttonClass } from './ui/Button';
 
 // A line to write about, numbered as on the page, with any questions asked about it.
 export interface EmailedLine {
@@ -60,7 +61,7 @@ export function EmailSender({
   lines?: EmailedLine[];
 }) {
   return (
-    <a className="btn btn--outline" href={senderMailto(email, invoice, caseNumber, lines)} title={email ? `Write to ${email}` : noAddress}>
+    <a className={buttonClass('secondary')} href={senderMailto(email, invoice, caseNumber, lines)} title={email ? `Write to ${email}` : noAddress}>
       Email sender
     </a>
   );

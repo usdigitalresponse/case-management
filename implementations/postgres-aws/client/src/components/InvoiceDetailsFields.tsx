@@ -16,11 +16,12 @@ import {
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
 import { billableProfessionals, professionalKinds } from '../resources';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
 import { InvoiceNumberField, UploadPeriodField } from './upload/UploadFields';
 import { useShell } from '../portal/useShell';
 import type { AddedProvider } from './AddProvider';
 import { ADD_NEW, PickOrAdd } from './PickOrAdd';
+import { Button } from './ui/Button';
 
 // Asked of staff, and of a submitter who bills for more than themselves.
 export function asksWho(staff: boolean, billable: BillableProfessional[] | null | undefined) {
@@ -506,7 +507,7 @@ export function InvoiceDetailsFields({
           : BILLED_BY_HINT;
 
   return (
-    <section className={`invoice-details${missingSender ? ' invoice-details--missing' : ''}`} aria-label="Invoice details">
+    <section className={`card invoice-details${missingSender ? ' invoice-details--missing' : ''}`} aria-label="Invoice details">
       <div className="upload-details">
         {asksSender && asksWho(staff, billable) && (
           <div className="upload-details__field">
@@ -589,9 +590,9 @@ function MissingRole({ disabled, error, onSave }: { disabled: boolean; error?: s
             <option key={kind.professionalKindId} value={kind.professionalKindId}>{kind.displayName}</option>
           ))}
         </select>
-        <button type="button" className="btn btn--outline" disabled={disabled || !kindId} onClick={() => onSave(kindId)}>
+        <Button type="button" kind="secondary" disabled={disabled || !kindId} onClick={() => onSave(kindId)}>
           Save
-        </button>
+        </Button>
       </div>
       {error && <p className="field-error">{error}</p>}
       <p className="field-hint">It is kept on their record and sets the rates their time is priced at. An administrator can change it later under People.</p>

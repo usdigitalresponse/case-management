@@ -4,7 +4,7 @@ import { formatDate, formatDateTime } from '../formatDateTime';
 import { formatRate } from '../formatMoney';
 import { reviewPath } from '../staffPaths';
 import { RATE_TYPE_LABELS } from './LineReview';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
 import { RecordTable } from './RecordTable';
 
 const forWhom = (row: CaseRate) => row.professionalDisplayName ?? `Every ${row.kindDisplayName ?? 'person of that kind'}`;

@@ -11,6 +11,7 @@ import { formatDate, formatDay, formatPeriod } from '../../formatDateTime';
 import { personPath } from '../../staffPaths';
 import type { ReviewFacts } from './reviewFacts';
 import type { ReviewPage } from './useReviewPage';
+import { Button } from '../../components/ui/Button';
 
 export function ReviewHeader({ page, facts, fileShown }: { page: ReviewPage; facts: ReviewFacts; fileShown: boolean }) {
   const { invoice, data, entering, everyLineDecided, status, reviewer, inReview, permissions, byPerson, timeLog } = facts;
@@ -64,9 +65,9 @@ export function ReviewHeader({ page, facts, fileShown }: { page: ReviewPage; fac
             beingEntered={data.entryOpen}
           />
           {data.fileSource?.fileAvailable && !entering && (
-            <button
+            <Button
               type="button"
-              className="btn btn--outline"
+              kind="secondary"
               aria-pressed={fileShown}
               onClick={() => {
                 page.setShowFile(!fileShown);
@@ -74,23 +75,23 @@ export function ReviewHeader({ page, facts, fileShown }: { page: ReviewPage; fac
               }}
             >
               {fileShown ? 'Hide the file' : 'Show the file'}
-            </button>
+            </Button>
           )}
           {facts.canDecide && !timeLog && (
-            <button
+            <Button
               type="button"
-              className="btn btn--outline"
+              kind="secondary"
               aria-expanded={page.uploadingLog}
               onClick={() => page.setUploadingLog(!page.uploadingLog)}
             >
               Check a time log
-            </button>
+            </Button>
           )}
           {/* Everything is saved as it changes; this only leaves. */}
           {entering && (
-            <button type="button" className="btn btn--outline" onClick={() => page.goToNext() || navigate('/')}>
+            <Button type="button" kind="secondary" onClick={() => page.goToNext() || navigate('/')}>
               Finish later
-            </button>
+            </Button>
           )}
           {/* A wrong upload, before its lines are frozen. */}
           {entering && data.discardable && (

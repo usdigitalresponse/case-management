@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Dialog } from '../components/Dialog';
+import { Dialog } from '../components/ui/Dialog';
+import { Button } from '../components/ui/Button';
 
 // Withdrawing a sent invoice (the recall transition): it leaves review and
 // returns to drafts with every change kept.
@@ -19,9 +20,9 @@ export function WithdrawDialog({
       <p className="dialog__small">If you do not send it again, it cannot be paid.</p>
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="dialog__actions">
-        <button
+        <Button
           type="button"
-          className="btn btn--danger"
+          kind="danger"
           disabled={busy}
           onClick={() => {
             setBusy(true);
@@ -29,7 +30,7 @@ export function WithdrawDialog({
           }}
         >
           {busy ? 'Withdrawing…' : 'Withdraw invoice'}
-        </button>
+        </Button>
         <button type="button" className="link-button" disabled={busy} onClick={onClose} autoFocus>
           Keep it in review
         </button>

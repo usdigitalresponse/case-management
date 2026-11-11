@@ -21,7 +21,7 @@ import { formatMoney } from '../formatMoney';
 import { CaseNumberBox } from './CaseNumberBox';
 import { SavedCountyPicker } from './CountyPicker';
 import { countyValueOf } from '../counties';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
 import { OriginalDocument } from './OriginalDocument';
 import type { ToastMessage } from './Toast';
 
@@ -198,7 +198,7 @@ export function EntryLines({
                   regions={fileSource.lines}
                 />
               ) : (
-                <section className="original-document original-document--gone">
+                <section className="card original-document original-document--gone">
                   <p>The uploaded file {fileSource.fileName} is no longer kept.</p>
                 </section>
               )}

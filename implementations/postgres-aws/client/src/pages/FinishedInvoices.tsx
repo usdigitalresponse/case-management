@@ -14,15 +14,16 @@ import { useCountyControl } from '../components/CountyListControl';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { useSearchParamState } from '../hooks/useSearchParamState';
+import { FilterTag } from '../components/ui/Tag';
 
 const FINISHED = ['awaiting_sign_off', ...DECIDED_STATUS_CODES];
 
 const FILTERS = [
-  { id: 'month', label: 'This month', tone: '' },
-  { id: 'sign_off', label: 'Waiting for sign-off', tone: ' chip--warning' },
-  { id: 'decided', label: 'Decided', tone: ' chip--success' },
-  { id: 'completed', label: 'Completed', tone: '' },
-  { id: 'all', label: 'All', tone: '' },
+  { id: 'month', label: 'This month', tone: undefined },
+  { id: 'sign_off', label: 'Waiting for sign-off', tone: 'warning' },
+  { id: 'decided', label: 'Decided', tone: 'success' },
+  { id: 'completed', label: 'Completed', tone: undefined },
+  { id: 'all', label: 'All', tone: undefined },
 ] as const;
 type FilterId = (typeof FILTERS)[number]['id'];
 
@@ -69,11 +70,11 @@ export default function FinishedInvoices() {
         <strong>Decided</strong> invoices still need you to tell the person who sent them. {COMPLETED_EXPLAINER}
       </p>
       <div className="list-controls">
-        <div className="chip-filters" role="group" aria-label="Show">
+        <div className="tag-filters" role="group" aria-label="Show">
           {FILTERS.map(({ id, label, tone }) => (
-            <button key={id} type="button" className={`chip chip--filter${tone}`} aria-pressed={filter === id} onClick={() => setFilter(id)}>
-              {label} <span className="chip-count">{finished.filter((invoice) => matches(invoice, id)).length}</span>
-            </button>
+            <FilterTag key={id} tone={tone} aria-pressed={filter === id} onClick={() => setFilter(id)}>
+              {label} <span className="tag-count">{finished.filter((invoice) => matches(invoice, id)).length}</span>
+            </FilterTag>
           ))}
         </div>
         {county.control}

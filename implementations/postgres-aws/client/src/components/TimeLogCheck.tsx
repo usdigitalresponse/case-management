@@ -13,7 +13,8 @@ import {
 } from '../api/client';
 import { formatDate, formatPeriod } from '../formatDateTime';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button, buttonClass } from './ui/Button';
 
 // Checking time lines against a case time log (model/rules.yaml check_lines_against_time_log).
 
@@ -115,9 +116,9 @@ function ColumnChooser({
         ))}
       </div>
       <div className="button-row">
-        <button type="submit" className="btn btn--primary" disabled={saving || missing}>
+        <Button type="submit" kind="primary" disabled={saving || missing}>
           Use these columns
-        </button>
+        </Button>
         <button type="button" className="link-button" onClick={onCancel}>
           Cancel
         </button>
@@ -184,7 +185,7 @@ export function TimeLogUpload({
 
   return (
     <div className="time-log-upload">
-      <label className="btn btn--outline time-log-upload__button">
+      <label className={buttonClass('secondary', { className: 'time-log-upload__button' })}>
         {saving ? 'Reading…' : replacing ? 'Upload another time log' : 'Upload a time log'}
         <input
           ref={input}
@@ -267,7 +268,7 @@ export function TimeLogSummary({
   }
 
   return (
-    <section className="time-log-summary" aria-labelledby="time-log-heading">
+    <section className="card time-log-summary" aria-labelledby="time-log-heading">
       <div className="time-log-summary__head">
         <div>
           <h2 id="time-log-heading">Checked against a time log</h2>
@@ -276,9 +277,9 @@ export function TimeLogSummary({
           </p>
         </div>
         <div className="link-row">
-          <button type="button" className="btn btn--outline" aria-pressed={logShown} onClick={() => onShowLog(!logShown)}>
+          <Button type="button" kind="secondary" aria-pressed={logShown} onClick={() => onShowLog(!logShown)}>
             {logShown ? 'Hide the log' : 'Show the log'}
-          </button>
+          </Button>
           {canChange && !replacing && (
             <>
               <button type="button" className="link-button" onClick={() => setReplacing(true)}>
@@ -469,14 +470,14 @@ function WorkerMatches({
                     ))}
                     <option value={NOT_A_PERSON}>Not a person (an office or shared account)</option>
                   </select>
-                  <button
+                  <Button
                     type="button"
-                    className="btn btn--outline"
+                    kind="secondary"
                     disabled={!chosen}
                     onClick={() => void act(() => setTimeLogWorker(invoiceId, worker.name, chosen))}
                   >
                     Confirm
-                  </button>
+                  </Button>
                 </span>
               ) : (
                 <span className="cell-note">Not matched</span>
@@ -635,9 +636,9 @@ export function TimeLogLinkForm({
       )}
       {error && <p className="field-error" role="alert">{error}</p>}
       <div className="button-row">
-        <button type="submit" className="btn btn--primary" disabled={saving || picked.length === 0}>
+        <Button type="submit" kind="primary" disabled={saving || picked.length === 0}>
           Link {picked.length === 1 ? 'this entry' : `${picked.length || ''} entries`}
-        </button>
+        </Button>
         {check.status === 'linked' && (
           <button type="button" className="link-button" disabled={saving} onClick={() => void save([])}>
             Remove the link
@@ -692,7 +693,7 @@ export function TimeLogEntries({
   }, [focusKeys]);
   const focused = new Set(focusKeys ?? []);
   return (
-    <aside className="original-document time-log-entries" aria-label="Time log">
+    <aside className="card original-document time-log-entries" aria-label="Time log">
       <div className="original-document__bar">
         <div className="original-document__name">
           <h2>Time log, from your {EXTERNAL_SYSTEM_NAME}</h2>

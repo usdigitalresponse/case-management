@@ -8,7 +8,8 @@ import {
 } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { professionalKinds } from '../resources';
-import { Notice } from './Notice';
+import { Notice } from './ui/Notice';
+import { Button } from './ui/Button';
 
 export type AddedProvider = { professionalId: string; displayName: string };
 
@@ -63,7 +64,7 @@ export function AddProvider({
   }
 
   return (
-    <div className={inline ? 'intake-provider' : 'compact-card intake-provider'}>
+    <div className={inline ? 'intake-provider' : 'card compact-card intake-provider'}>
       {!inline && (
         <>
           <h2>Add a provider</h2>
@@ -93,14 +94,14 @@ export function AddProvider({
       </div>
       {error && <Notice tone="danger">{error}</Notice>}
       <div className="button-row">
-        <button
+        <Button
           type="button"
-          className="btn btn--primary"
+          kind="primary"
           disabled={saving || displayName.trim().length < 2 || !professionalKindId}
           onClick={() => void save()}
         >
           {inline ? 'Add them' : 'Add'}
-        </button>
+        </Button>
         {onCancel && <button type="button" className="link-button" onClick={onCancel}>Cancel</button>}
       </div>
     </div>

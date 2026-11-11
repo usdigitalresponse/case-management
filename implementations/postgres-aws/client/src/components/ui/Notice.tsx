@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Tone } from './StatusPill';
+import type { Tone } from './Tag';
 
 // The outcome of a save, shown in a Notice.
 export interface SaveMessage {

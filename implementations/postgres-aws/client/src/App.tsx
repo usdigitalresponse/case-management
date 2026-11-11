@@ -5,7 +5,7 @@ import { AuthProvider, useAuth } from './AuthContext';
 import { searchPath } from './staffPaths';
 import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
-import { Notice } from './components/Notice';
+import { Notice } from './components/ui/Notice';
 import { queryClient, refreshCacheOnDataChange } from './queryClient';
 import { nextLoadIsFirst, portalLoaders, staffLoaders } from './routeLoaders';
 import { useResource } from './hooks/useResource';

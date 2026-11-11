@@ -10,6 +10,8 @@ import { formatMoney, formatRate } from '../formatMoney';
 import { formatLineRate, formatQuantity, lineKindLabel } from '../invoiceLineDisplay';
 import { formatDay } from './portalWording';
 import { priceOf, valuesOf, type PricingContext } from './checkLines';
+import { Button } from '../components/ui/Button';
+import { Tag } from '../components/ui/Tag';
 
 // Each line of a trip is its own row here.
 const typeLabel = (line: LineDraft) =>
@@ -232,14 +234,14 @@ function EditPanel({
         <p className="field-hint">Mileage is paid at the rate per mile set for its date.</p>
       )}
       <div className="edit-line__actions">
-        <button
+        <Button
           type="button"
-          className="btn btn--primary"
+          kind="primary"
           disabled={price.total === null}
           onClick={() => onSave(travel ? tripParts(draft, `new-${Date.now()}`) : [draft])}
         >
           {isNew ? (travel ? 'Add trip' : 'Add line') : 'Save line'}
-        </button>
+        </Button>
         <button type="button" className="link-button" onClick={onCancel}>
           Cancel
         </button>
@@ -320,7 +322,7 @@ export function CheckLinesTable({
   const columns = inPlace ? 6 : 7;
 
   return (
-    <div className="check-lines">
+    <div className="card check-lines">
       <table className="check-lines__table">
         <thead>
           <tr>
@@ -350,7 +352,7 @@ export function CheckLinesTable({
                   <td>{row.number}</td>
                   <td><s>{formatDay(read.serviceDate)}</s></td>
                   <td>
-                    {lineKindLabel(lineType)} <span className="chip chip--neutral">Removed</span>
+                    {lineKindLabel(lineType)} <Tag tone="neutral">Removed</Tag>
                   </td>
                   <td className="amount">{formatQuantity(lineType, read.quantity)}</td>
                   <td className="amount">{formatLineRate(lineType, read.unitRate)}</td>
@@ -423,7 +425,7 @@ export function CheckLinesTable({
                 </td>
                 <td>
                   {typeLabel(line)}
-                  {flagged && <span className="chip chip--warning">Check this</span>}
+                  {flagged && <Tag tone="warning">Check this</Tag>}
                 </td>
                 <td className="amount">
                   {inPlace && (isTimeKind(line.lineType) || line.lineType === 'mileage') ? (
