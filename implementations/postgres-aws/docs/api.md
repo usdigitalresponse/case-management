@@ -620,7 +620,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     (`document.content_deleted_at`) and removes the file's bytes after
     commit; the hourly sweep retries any removal that failed. Gap: payment completion isn't recorded yet, so a live
     request's file stays until it is withdrawn or deleted.
-  - Bulk import (`client/src/portal/PortalBulkImport.tsx`, `bulkImport.ts`;
+  - Bulk import (`client/src/portal/PortalBulkImport.tsx`, its steps in
+    `portal/bulk/`, `bulkImport.ts`;
     the portal's "Upload invoices" tab) takes several files, each
     assigned a case and whom it bills (one choice, grouped by person, so a
     delegate picks both), suggested from the file name when exactly one
