@@ -13,8 +13,11 @@
 .portal-needs-changes { margin-bottom: var(--space-8); }
 .portal-needs-changes h2 { color: var(--color-error); }
 .portal-invoices .text-warning, .portal-invoices .cell-note--warning { color: var(--color-on-tertiary-container); }
-.your-drafts { margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-6); background: var(--color-primary-container-low); border-radius: var(--radius-medium); }
-.your-drafts h2 { margin: 0 0 var(--space-4); font-size: var(--text-15); }
+.your-drafts { margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-7); border: 1px solid var(--color-primary-fixed-dim); background: var(--color-primary-container-low); border-radius: var(--radius-medium); }
+.your-drafts h2 { margin: 0 0 var(--space-4); font: var(--label-large); line-height: 1.4; }
+.your-drafts li > span:first-child { font-weight: 500; }
+.your-drafts li .cell-note { font-size: var(--text-11); line-height: 1.4; color: var(--color-on-surface-variant); }
+.your-drafts .row-action { font: var(--label-large); line-height: 1.4; }
 .your-drafts ul { margin: 0; padding: 0; list-style: none; }
 .your-drafts li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-6); padding: var(--space-4) 0; border-top: 1px solid var(--color-outline-subtle); }
 .your-drafts li:first-child { border-top: 0; }

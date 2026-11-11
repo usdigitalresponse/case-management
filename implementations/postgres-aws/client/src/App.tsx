@@ -7,6 +7,8 @@ import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 import { Notice } from './components/ui/Notice';
 import { buttonClass } from './components/ui/Button';
+import { Tag } from './components/ui/Tag';
+import { AppBrand, PRODUCT_NAME } from './components/AppBrand';
 import { queryClient, refreshCacheOnDataChange } from './queryClient';
 import { nextLoadIsFirst, portalLoaders, staffLoaders } from './routeLoaders';
 import { useResource } from './hooks/useResource';
@@ -37,10 +39,9 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
     <>
       <a className="usa-skipnav" href="#main-content">Skip to main content</a>
       <header className="app-header">
-        <div className="app-brand-block">
-          <Link className="app-brand" to="/">Invoice Review Prototype</Link>
-          <span className="header-badge">Works beside your {EXTERNAL_SYSTEM_NAME}</span>
-        </div>
+        <AppBrand to="/" section={PRODUCT_NAME}>
+          <Tag tone="info">Works beside your {EXTERNAL_SYSTEM_NAME}</Tag>
+        </AppBrand>
         <form className="header-search" role="search" onSubmit={search}>
           <label className="usa-sr-only" htmlFor="header-search-input">Search invoices</label>
           <input

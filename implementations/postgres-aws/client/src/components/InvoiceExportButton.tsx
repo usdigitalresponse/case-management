@@ -32,7 +32,7 @@ export function InvoiceExportButton({
   return (
     <>
       <button type="button" className={compact ? 'link-button' : buttonClass('secondary')} onClick={() => setOpen(true)}>
-        Export Invoice
+        Export invoice
       </button>
       {open && (
         <ExportDialog

@@ -9,6 +9,7 @@ import { RecordTable } from '../components/RecordTable';
 import { caseNumberColumn, countyOfInvoice, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
 import { useCountyControl } from '../components/CountyListControl';
 import { formatMoney } from '../formatMoney';
+import { formatDay } from '../formatDateTime';
 
 // Signed-off invoices, ready to export for payment. Payment itself happens
 // outside this system.
@@ -27,13 +28,15 @@ export default function Exports() {
         list
         title="Exports"
         description="Signed-off invoices, with every decision and reason, to send for payment."
-        actions={<BillingRecordExportButton />}
       />
-      <p className="compact-hint">
-        The billing record has one row per invoice: case number, client, provider, amounts requested and approved, the cut and
-        its reasons, status and who signed off. Export it for one county or billing period, and redact columns, for reports
-        outside this tool.
-      </p>
+      <section className="card export-card" aria-labelledby="billing-record-heading">
+        <h2 id="billing-record-heading">Billing record</h2>
+        <p className="cell-note">
+          One row per invoice: case number, client, provider, amounts requested and approved, the cut and its reasons, status and
+          who signed off. Export it for one county or billing period, and redact columns, for reports outside this tool.
+        </p>
+        <BillingRecordExportButton />
+      </section>
       <Notice tone="info">
         Both exports let you redact details such as the client's name before you send a file on. Check each PDF or spreadsheet for confidential information first; reasons are free text.
       </Notice>
@@ -47,8 +50,9 @@ export default function Exports() {
           caseNumberColumn,
           { header: 'Client', render: (invoice) => invoice.caseClientDisplayName ?? '—' },
           { header: 'From', render: (invoice) => <FromCell invoice={invoice} /> },
+          { header: 'Signed off', render: (invoice) => (invoice.finishedAt ? formatDay(invoice.finishedAt) : '—') },
           { header: 'Approved', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.approvedTotal ?? 0)}</strong> },
-          { header: 'Export', render: (invoice) => <InvoiceExportButton scope="staff" invoiceId={invoice.invoiceId} compact /> },
+          { header: 'Export', align: 'right', render: (invoice) => <InvoiceExportButton scope="staff" invoiceId={invoice.invoiceId} /> },
           openInvoiceColumn(() => 'View'),
         ]}
       />

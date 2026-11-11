@@ -51,7 +51,7 @@ export function createApp() {
     console.warn('No OIDC provider credentials configured; SSO sign-in is disabled.');
   }
 
-  app.use('/auth', createAuthRouter({ oidcProviders, demoLoginEnabled, externalDemoLoginEnabled }));
+  app.use('/auth', createAuthRouter({ oidcProviders, demoLoginEnabled, externalDemoLoginEnabled, organizationName: process.env.ORGANIZATION_NAME?.trim() || null }));
   app.use('/api/cases', casesRouter);
   app.use('/api/people', peopleRouter);
   app.use('/api/professionals', professionalsRouter);

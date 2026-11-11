@@ -10,6 +10,7 @@
   --color-on-secondary-container: #1f2937;
   --color-tertiary: #eab308;
   --color-tertiary-container: #fef9c3;
+  --color-on-tertiary: #111827;
   --color-on-tertiary-container: #713f12;
   --color-focus: #eab308;
   --color-error: #dc2626;
@@ -32,6 +33,7 @@
   --color-inverse-surface: #072a4a;
   --color-on-inverse-surface: #ffffff;
   --color-inverse-primary: #b9e1fe;
+  --color-primary-fixed-dim: #7bcbfe;
   --color-scrim: #030712;
 
   --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;

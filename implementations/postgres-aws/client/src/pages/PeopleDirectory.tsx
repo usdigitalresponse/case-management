@@ -4,7 +4,6 @@ import { SearchDirectory } from '../components/SearchDirectory';
 export default function PeopleDirectory() {
   return (
     <SearchDirectory
-      eyebrow="Oversight"
       title="People"
       description="Search everyone recorded in the system."
       searchLabel="Search people by name or email"

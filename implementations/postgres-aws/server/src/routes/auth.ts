@@ -31,6 +31,8 @@ export interface AuthRouterOptions {
   // Passwordless sign-in as a seeded demo vendor (an external user), who is
   // also its office's billing delegate.
   externalDemoLoginEnabled: boolean;
+  // Shown before the product's name in the header; null for none (ORGANIZATION_NAME).
+  organizationName?: string | null;
 }
 
 export function createAuthRouter(options: AuthRouterOptions): Router {
@@ -42,6 +44,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
       providers: options.oidcProviders.map(({ id, displayName }) => ({ id, displayName })),
       demoLoginEnabled: options.demoLoginEnabled,
       externalDemoLoginEnabled: options.externalDemoLoginEnabled,
+      organizationName: options.organizationName ?? null,
     });
   });
 

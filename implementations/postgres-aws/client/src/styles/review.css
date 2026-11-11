@@ -25,7 +25,8 @@
 .entry-badge .cell-note { margin-top: 0; }
 /* Review table */
 .review-table td { vertical-align: top; }
-.review-table td.line-date-cell { white-space: nowrap; }
+.review-table .line-date, .review-table .line-description { display: block; }
+.review-table .line-date { font-weight: 600; white-space: nowrap; }
 .review-table tr.is-rejected td:not(.decision-cell) { opacity: .6; }
 .review-table tr.is-open, .review-table tr.detail-row { background: var(--color-primary-container-low); }
 .review-table tr.is-flagged { background: var(--color-tertiary-container); }

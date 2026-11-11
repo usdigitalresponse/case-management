@@ -5,14 +5,15 @@
 .close-here .compact-hint { margin-bottom: var(--space-5); }
 /* Case overview (design I47): a card per stage with its count. */
 .stage-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-6); margin-top: var(--space-6); }
-.stage-card { min-width: 0; padding: var(--space-6) var(--space-6); }
-.stage-card h2 { margin: 0; font-size: var(--text-12); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--color-on-surface-variant); }
-.stage-card__count { margin: var(--space-4) 0 0; font-family: var(--font-serif); font-size: var(--text-32); font-weight: 600; line-height: 1; }
-.stage-card__what { margin: var(--space-4) 0 var(--space-6); font-size: var(--text-13); color: var(--color-on-surface-muted); }
-.stage-card ul { list-style: none; margin: 0; padding: 0; }
-.stage-card li { display: grid; margin-bottom: var(--space-4); }
-.stage-card li a { font-weight: 600; }
-.view-all { display: inline-block; font-size: var(--text-13); font-weight: 600; text-decoration: none; }
+.stage-card { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); min-width: 0; padding: var(--space-7) var(--space-8); }
+.stage-card h2 { margin: 0; font: var(--title-small); line-height: 1.25; text-transform: uppercase; letter-spacing: .6px; color: var(--color-on-surface-variant); }
+.stage-card__count { margin: 0; font: var(--headline-large); line-height: 1.2; letter-spacing: -.5px; }
+.stage-card__what { margin: 0; font: var(--body-small); color: var(--color-on-surface-variant); }
+.stage-card ul { display: flex; flex-direction: column; gap: calc(var(--space-4) + var(--space-2)); list-style: none; margin: 0; padding: var(--space-4) 0 0; }
+.stage-card li { display: grid; gap: var(--space-1); }
+.stage-card li a { font: var(--label-large); text-decoration: none; }
+.stage-card li .cell-note { margin: 0; font: var(--body-small); color: var(--color-on-surface-variant); }
+.view-all { display: inline-block; font: var(--body-medium); text-decoration: none; }
 .assign-staff-form { margin-top: var(--space-6); }
 .assign-staff-row { display: flex; align-items: flex-start; gap: var(--space-5); }
 .assign-staff-row .type-ahead { flex: 1; max-width: 400px; }

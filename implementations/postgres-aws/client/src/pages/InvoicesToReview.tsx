@@ -43,7 +43,7 @@ function sorted(rows: ReviewQueueItem[], sort: SortId): ReviewQueueItem[] {
 // anything held there. For a reviewer: invoices they're still entering, and
 // any draft from before uploads went straight into review, continued the
 // same way. For other staff: their unsent drafts.
-function YourUnfinished({ userAccountId, entering }: { userAccountId: string; entering: ReviewQueueItem[] }) {
+function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccountId: string; entering: ReviewQueueItem[]; onDeletedEntry: () => void }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const reviews = Boolean(user?.reviewPermissions?.reviewLines);
@@ -52,6 +52,10 @@ function YourUnfinished({ userAccountId, entering }: { userAccountId: string; en
   const items = data?.items ?? [];
   const drafts = items.filter((item) => item.invoiceId && item.stage !== 'sent' && item.enteredByUserAccountId === userAccountId);
   const held = items.filter((item) => item.stage === 'sent');
+  const onDeleted = () => {
+    void reload();
+    onDeletedEntry();
+  };
 
   // Who it is from must be chosen first; that is on the check page.
   async function continueDraft(invoiceId: string, hasSender: boolean) {
@@ -70,7 +74,7 @@ function YourUnfinished({ userAccountId, entering }: { userAccountId: string; en
 
   const continueLink = (
     <>
-      Continue <span aria-hidden="true">→</span>
+      Check the lines <span aria-hidden="true">→</span>
     </>
   );
   return (
@@ -83,7 +87,7 @@ function YourUnfinished({ userAccountId, entering }: { userAccountId: string; en
       )}
       {(drafts.length > 0 || (reviews && entering.length > 0)) && (
         <section className="your-drafts" aria-labelledby="your-drafts-heading">
-          <h2 id="your-drafts-heading">{reviews ? 'Your unfinished invoices' : 'Your drafts, not sent yet'}</h2>
+          <h2 id="your-drafts-heading">Your drafts, not sent yet</h2>
           {error && <Notice tone="danger">{error}</Notice>}
           <ul>
             {reviews &&
@@ -101,6 +105,10 @@ function YourUnfinished({ userAccountId, entering }: { userAccountId: string; en
                     <RouterLink className="row-action" to={reviewPath(invoice.invoiceId)}>
                       {continueLink}
                     </RouterLink>
+                    {/* As the server's canDiscardEntry: not once a question has been asked. */}
+                    {invoice.openQuestionCount + invoice.answeredQuestionCount === 0 && (
+                      <DeleteInvoiceButton compact invoiceId={invoice.invoiceId} onDeleted={onDeleted} />
+                    )}
                   </span>
                 </li>
               ))}
@@ -130,7 +138,7 @@ function YourUnfinished({ userAccountId, entering }: { userAccountId: string; en
                     </RouterLink>
                   )}
                   {/* Your own drafts, never sent, so always deletable. */}
-                  <DeleteInvoiceButton compact invoiceId={item.invoiceId!} onDeleted={() => void reload()} />
+                  <DeleteInvoiceButton compact invoiceId={item.invoiceId!} onDeleted={onDeleted} />
                 </span>
               </li>
             ))}
@@ -197,13 +205,12 @@ export default function InvoicesToReview() {
       <YourUnfinished
         userAccountId={userAccountId}
         entering={data.invoices.filter((invoice) => invoice.beingEntered && invoice.reviewer?.userAccountId === userAccountId)}
+        onDeletedEntry={() => void reload()}
       />
 
       {late.length > 0 && (
-        <Notice
-          tone="warning"
-          heading={`${late.length} ${late.length === 1 ? 'invoice has' : 'invoices have'} waited more than ${data.waitingAlertWorkingDays} working days.`}
-        >
+        <Notice tone="warning">
+          {`${late.length} ${late.length === 1 ? 'invoice has' : 'invoices have'} waited more than ${data.waitingAlertWorkingDays} working days. `}
           {late
             .map(
               (invoice) =>

@@ -11,7 +11,7 @@ import { stageLabel } from '../overviewStages';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { formatMoney } from '../formatMoney';
 import { useSearchParamState, useSearchParamText } from '../hooks/useSearchParamState';
-import { FilterTag, Tag } from '../components/ui/Tag';
+import { FilterTag, Tag, type Tone } from '../components/ui/Tag';
 
 type Shown = 'all' | 'open' | 'closed';
 
@@ -21,6 +21,11 @@ function matchesQuery(caseRecord: CaseListRecord, query: string): boolean {
 }
 
 // Every case, as design I48 lists them.
+// As design I's All cases: billing in blue, waiting on a reviewer in yellow, closed in dark.
+function stageTone(stage: string | null): Tone {
+  return stage === 'billing' ? 'info' : stage === 'needs-assignment' ? 'warning' : stage === null ? 'strong' : 'neutral';
+}
+
 export default function CaseList() {
   const { data, error } = useResource(casesResource);
   const cases = data?.cases ?? null;
@@ -43,7 +48,6 @@ export default function CaseList() {
       heading={
         <PageHeading
           list
-          eyebrow="Cases"
           title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'}
           description={`Every case invoices can be sent for. Cases may be managed in your ${EXTERNAL_SYSTEM_NAME}; they show here so invoices make sense.`}
         />
@@ -100,7 +104,7 @@ export default function CaseList() {
                 ),
               },
               { header: 'Case', render: (caseRecord) => caseRecord.caseNumber ?? '—' },
-              { header: 'Stage', render: (caseRecord) => <Tag tone="neutral">{stageLabel(caseRecord.stage)}</Tag> },
+              { header: 'Stage', render: (caseRecord) => <Tag tone={stageTone(caseRecord.stage)}>{stageLabel(caseRecord.stage)}</Tag> },
               { header: 'County', render: (caseRecord) => county.nameOf(caseRecord.countyId) ?? '—' },
               {
                 header: 'Who works on it',

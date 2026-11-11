@@ -28,7 +28,6 @@ export default function OrganizationsDirectory() {
     <>
       <PageHeading
         list
-        eyebrow="Look something up"
         title="Organizations"
         description="Organizations tracked in the system, such as the offices that represent clients."
       />
