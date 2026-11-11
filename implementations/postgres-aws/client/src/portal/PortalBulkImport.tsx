@@ -118,7 +118,7 @@ export default function PortalBulkImport() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader list
         crumbs={[{ label: newInvoiceLabel, to: newInvoicePath }, { label: 'Upload invoices' }]}
         title="Upload invoices"
         description="Upload several invoice files at once, check what was read from each, then send them together."

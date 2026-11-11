@@ -45,7 +45,7 @@ export default function SearchResults() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader list
         crumbs={[{ label: 'Search' }, { label: query || 'Nothing yet' }]}
         title={byNumber ? `Invoices with a case number like ${query}` : `Invoices matching “${query}”`}
         description={

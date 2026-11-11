@@ -180,7 +180,7 @@ export default function UploadInvoices() {
     .sort((a, b) => a.label.localeCompare(b.label));
   return (
     <div className="portal-narrow">
-      <PageHeader
+      <PageHeader list
         crumbs={[home, { label: entries.length > 1 ? 'New invoices' : 'New invoice' }]}
         title={entries.length > 1 ? 'Upload invoices' : 'Upload an invoice'}
       />

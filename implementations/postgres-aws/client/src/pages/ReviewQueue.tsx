@@ -79,7 +79,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader list
         title={open ? 'Invoices to review' : 'Finished invoices'}
         description={
           open ? 'Every invoice waiting for a decision, longest wait first.' : 'Invoices signed off or rejected. Export them from the invoice.'

@@ -23,7 +23,7 @@ export default function Exports() {
   }
   return (
     <div>
-      <PageHeader
+      <PageHeader list
         title="Exports"
         description="Signed-off invoices, with every decision and reason, to send for payment."
         actions={<BillingRecordExportButton />}

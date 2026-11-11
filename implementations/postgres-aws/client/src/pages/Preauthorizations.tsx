@@ -259,7 +259,7 @@ export default function Preauthorizations() {
   const view = params.get('view') === 'county' ? 'county' : 'requests';
   return (
     <div>
-      <PageHeader
+      <PageHeader list
         title="Pre-authorizations"
         description="Requests, and how each county’s limits are used."
       />

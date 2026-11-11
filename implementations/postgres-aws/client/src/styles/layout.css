@@ -24,7 +24,7 @@
 .nav-group + .nav-group { margin-top: var(--space-8); }
 .nav-group h2 { padding: 0 var(--space-5); margin: 0 0 var(--space-3); font-size: var(--text-11); line-height: 1.5; text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
 .nav-group button:disabled { color: var(--color-on-surface-muted); cursor: not-allowed; justify-content: flex-start; gap: var(--space-4); }
-.app-main { min-width: 0; padding: var(--space-9) var(--space-9) var(--space-15); }
+.app-main { min-width: 0; padding: calc(var(--space-8) + var(--space-3)) var(--space-9) var(--space-15); }
 /* <main tabIndex={-1}> is a skip-link landing target, not an interactive
    control — once it's focused (e.g. via "Skip to main content"), the
    default outline would otherwise persist across every client-side route
@@ -40,7 +40,7 @@
 .app-main h1, .portal-page h1 { font-family: var(--font-serif); font-size: var(--text-32); font-weight: 600; letter-spacing: -.5px; margin: 0 0 var(--space-5); line-height: 1.2; }
 .page-heading { margin-bottom: var(--space-8); }
 .eyebrow { color: var(--color-on-surface-muted); text-transform: uppercase; font-size: var(--text-11); font-weight: 600; letter-spacing: .6px; margin: 0 0 var(--space-5); }
-.page-description { margin: 0; color: var(--color-on-surface-muted); font-size: var(--text-13); }
+.page-description { margin: 0; color: var(--color-on-surface-variant); font-size: var(--text-13); line-height: 1.4; }
 /* The portal (portal/ExternalPortalApp.tsx): one top bar, no sidebar. */
 .portal-header { gap: var(--space-5); }
 .portal-header .user-name { max-width: 11rem; }
@@ -62,7 +62,7 @@
 .portal-content > .notice { margin-bottom: var(--space-6); }
 @media (max-width: 1250px) {
   .app-layout { grid-template-columns: 195px minmax(0, 1fr); }
-  .app-main { padding: var(--space-9) var(--space-7); }
+  .app-main { padding: calc(var(--space-8) + var(--space-3)) var(--space-7) var(--space-9); }
 }
 @media (max-width: 760px) {
   .app-header { padding: var(--space-6); }

@@ -370,7 +370,7 @@ export default function PortalUpload() {
 
   return (
     <div className="portal-narrow">
-      <PageHeader
+      <PageHeader list
         crumbs={[{ label: invoicesLabel, to: invoicesPath }, { label: many ? 'New invoices' : 'New invoice' }]}
         title={manual ? 'Enter an invoice' : many ? 'Upload invoices' : 'Upload an invoice'}
       />

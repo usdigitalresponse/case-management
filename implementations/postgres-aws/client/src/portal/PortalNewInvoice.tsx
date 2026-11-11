@@ -25,7 +25,7 @@ import { buttonClass } from '../components/ui/Button';
 export default function PortalNewInvoice() {
   return (
     <div>
-      <PageHeader title="New invoice" description="Enter an invoice by hand for a case, or upload invoice files." />
+      <PageHeader list title="New invoice" description="Enter an invoice by hand for a case, or upload invoice files." />
       <NewInvoiceStart />
     </div>
   );

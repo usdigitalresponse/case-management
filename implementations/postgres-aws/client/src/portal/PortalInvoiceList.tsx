@@ -142,7 +142,7 @@ export default function PortalInvoiceList() {
     <div className="portal-content">
       <div className="portal-title-row">
         <div>
-          <h1>Your invoices</h1>
+          <h1 className="page-title--list">Your invoices</h1>
           <p className="page-description">
             Every invoice you have sent for review, and drafts you have not sent yet. Each one shows its case number.
           </p>

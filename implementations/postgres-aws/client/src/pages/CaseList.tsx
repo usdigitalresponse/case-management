@@ -41,7 +41,7 @@ export default function CaseList() {
   return (
     <ResourceList
       heading={
-        <PageHeading
+        <PageHeading list
           eyebrow="Cases"
           title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'}
           description={`Every case invoices can be sent for. Cases may be managed in your ${EXTERNAL_SYSTEM_NAME}; they show here so invoices make sense.`}

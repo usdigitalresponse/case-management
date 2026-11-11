@@ -15,6 +15,7 @@ export function PageHeader({
   meta,
   description,
   actions,
+  list = false,
 }: {
   crumbs?: Crumb[];
   title: ReactNode;
@@ -22,6 +23,8 @@ export function PageHeader({
   meta?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
+  // A list or queue page: its title is Headline/Medium (26px), not Headline/Large.
+  list?: boolean;
 }) {
   return (
     <>
@@ -36,7 +39,7 @@ export function PageHeader({
         </nav>
       )}
       <div className="page-title-row">
-        <h1>
+        <h1 className={list ? 'page-title--list' : undefined}>
           {title}
           {status}
         </h1>

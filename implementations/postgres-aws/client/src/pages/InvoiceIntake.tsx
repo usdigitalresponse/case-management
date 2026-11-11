@@ -407,7 +407,7 @@ export default function InvoiceIntake() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader list
         title="Intake"
         description="Add invoices that came in by email or from other tools."
       />

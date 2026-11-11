@@ -43,7 +43,7 @@ export default function PortalPreauthorizations() {
   const { data, error } = useResource(myPreauthorizationRequests);
   return (
     <div>
-      <PageHeader
+      <PageHeader list
         title="Pre-authorizations"
         description="Your requests and the billing office’s answers."
         actions={

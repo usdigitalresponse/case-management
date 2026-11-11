@@ -36,7 +36,7 @@ export default function People() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader list
         title="People"
         description="Everyone who can send invoices: attorneys, investigators and experts. Every invoice is filed under one of these people."
         actions={

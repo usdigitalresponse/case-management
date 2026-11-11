@@ -444,7 +444,9 @@ How the React client is built and why. Schema mapping and gaps are in
   `--color-on-*-container`, `--title-small`, `--space-6`…) in
   `client/src/styles/tokens.css`. IBM Plex Sans and Serif are self-hosted
   through Fontsource, so no font request leaves the app. Body text is 13px,
-  tables included. Dates read day, short month, year ("3 Aug 2026",
+  tables included. Page titles are Headline/Medium (26px) on list, queue
+  and upload pages (`PageHeader`/`PageHeading` `list`) and Headline/Large
+  (32px) on single-record and settings pages. Dates read day, short month, year ("3 Aug 2026",
   `src/formatDateTime.ts`). USWDS's stylesheet is not loaded: the few of its
   rules the pages rely on are in `styles/reset.css` and `styles/controls.css`,
   and `@trussworks/react-uswds` still renders form markup. How the Figma

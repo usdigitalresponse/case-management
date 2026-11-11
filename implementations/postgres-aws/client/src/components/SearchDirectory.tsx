@@ -51,7 +51,7 @@ export function SearchDirectory<T>({
   const [rerunning, setRerunning] = useState(false);
   const searching = rerunning || ((loadInitially || searched !== '') && pending);
 
-  const heading = <PageHeading eyebrow={eyebrow} title={title} description={description} />;
+  const heading = <PageHeading list eyebrow={eyebrow} title={title} description={description} />;
   return (
     <>
       {actions ? (
