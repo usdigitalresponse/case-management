@@ -739,7 +739,9 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     `invoice_attestation` bound to the attempt and in its snapshot (staff
     entering a request received elsewhere don't attest for its payee; the
     older manual-entry and bulk-import screens have the tick too). The
-    submitter is emailed a receipt (`sendEmail`; logged without SES), and
+    submitter is emailed a receipt (`sendEmail`; logged without SES), its
+    time in the zone their browser sends with `submit` (`timeZone`; else the
+    reporting zone, `src/formatDate.ts`), and
     the page offers Download receipt (the invoice PDF export) and Withdraw
     (recall, behind a confirmation) until review starts. The lines lock
     once sent; Undo on the sent message withdraws it.

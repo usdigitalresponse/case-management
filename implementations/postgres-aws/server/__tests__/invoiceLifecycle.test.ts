@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { asc, eq } from 'drizzle-orm';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryStore } from './memoryStore';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
@@ -16,6 +16,8 @@ import { finishReview, signOffInvoice } from '../src/billing/reviewRounds';
 import { loadAssignments } from '../src/billing/reviewAssignment';
 import { setReviewSettings } from '../src/billing/reviewSettings';
 import { createStaff, giveRole } from './reviewHelpers';
+import { sendEmail } from '../src/email/sendEmail';
+import { formatInstant } from '../src/formatDate';
 import {
   caseAssignment,
   invoice,
@@ -26,6 +28,9 @@ import {
   invoiceStatuses,
   userAccount,
 } from '../src/db/schema';
+
+// Receipts are recorded, not sent.
+vi.mock('../src/email/sendEmail', () => ({ sendEmail: vi.fn(async () => undefined) }));
 
 let fixtures: BaselineFixtureIds;
 
@@ -77,6 +82,21 @@ async function eventCodes(invoiceId: string) {
 }
 
 describe('invoice lifecycle', () => {
+  it("emails the sender a receipt timed in their browser's zone", async () => {
+    const { actor, caseId } = await createSubmitter('receipt@example.com');
+    const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ amount: 10 }] });
+    vi.mocked(sendEmail).mockClear();
+
+    await submitInvoice(testDb, actor, invoiceId, { attested: true, timeZone: 'America/Los_Angeles' });
+
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(1));
+    const [row] = await testDb.select({ submittedAt: invoice.submittedAt }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    const [to, , body] = vi.mocked(sendEmail).mock.calls[0]!;
+    expect(to).toBe('receipt@example.com');
+    expect(body).toContain(`Sent: ${formatInstant(row!.submittedAt!, 'America/Los_Angeles')}`);
+    expect(body).toMatch(/Sent: .* P[SD]T$/m);
+  });
+
   it('saves a draft, edits it, and submits it with a frozen snapshot', async () => {
     const { actor, caseId } = await createSubmitter('lifecycle1@example.com');
     const { invoiceId, submittedTotal } = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ amount: 10 }] });

@@ -12,7 +12,25 @@ export function formatCalendarDate(isoDate: string): string {
   return `${parts.day} ${parts.month} ${parts.year}`;
 }
 
-// An exact time as the design writes it, in the reporting zone: "4 Sep 2026, 5:14 PM UTC".
-export function formatInstant(instant: Date): string {
-  return `${formatCalendarDate(calendarDateInReportingTimeZone(instant))}, ${timeInReportingTimeZone(instant)}`;
+// A zone the sender's browser named, if Intl knows it.
+function knownZone(timeZone: string | undefined): string | undefined {
+  if (!timeZone) return undefined;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone });
+    return timeZone;
+  } catch {
+    return undefined;
+  }
+}
+
+// An exact time as the design writes it, in the given zone if known, else the
+// reporting zone: "10 Nov 2026, 9:14 PM PST".
+export function formatInstant(instant: Date, timeZone?: string): string {
+  const zone = knownZone(timeZone);
+  if (!zone) {
+    return `${formatCalendarDate(calendarDateInReportingTimeZone(instant))}, ${timeInReportingTimeZone(instant)}`;
+  }
+  const calendarDate = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(instant);
+  const time = new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(instant);
+  return `${formatCalendarDate(calendarDate)}, ${time}`;
 }

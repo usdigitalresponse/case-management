@@ -10,4 +10,10 @@ describe('dates in server messages', () => {
   it('write an exact time with its zone', () => {
     expect(formatInstant(new Date('2026-11-11T05:14:29Z'))).toBe('11 Nov 2026, 5:14 AM UTC');
   });
+
+  it("write it in the sender's zone, so an evening send keeps its date", () => {
+    expect(formatInstant(new Date('2026-11-11T05:14:29Z'), 'America/Los_Angeles')).toBe('10 Nov 2026, 9:14 PM PST');
+    // An unknown zone falls back to the reporting zone.
+    expect(formatInstant(new Date('2026-11-11T05:14:29Z'), 'Not/AZone')).toBe('11 Nov 2026, 5:14 AM UTC');
+  });
 });

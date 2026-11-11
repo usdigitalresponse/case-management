@@ -291,6 +291,8 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
       attested: z.boolean().optional(),
       filedByPerson: z.boolean().optional(),
       overrunExplanation: z.string().max(4000).optional(),
+      // The sender's browser zone, for the receipt's time.
+      timeZone: z.string().max(64).optional(),
     })
     .safeParse(rawReceipt ?? {});
   if (!receipt.success) {
@@ -326,7 +328,7 @@ export async function submitInvoice(db: Database, actor: PortalActor, invoiceId:
   });
   if (!(await isStaffAccount(db, actor.userAccountId))) {
     // Not awaited: sending is a courtesy; a failure is logged, never shown.
-    emailReceipt(db, actor, invoiceId, status).catch((error: unknown) => {
+    emailReceipt(db, actor, invoiceId, status, receipt.data.timeZone).catch((error: unknown) => {
       // eslint-disable-next-line no-console
       console.error('Failed to email an invoice receipt:', error);
     });
@@ -339,6 +341,7 @@ async function emailReceipt(
   actor: PortalActor,
   invoiceId: string,
   status: 'submitted' | 'awaiting_match',
+  timeZone: string | undefined,
 ): Promise<void> {
   const [row] = await db
     .select({
@@ -369,7 +372,7 @@ async function emailReceipt(
       : `Case: ${[row.caseReference, row.clientName].filter(Boolean).join(', ') || 'not given'}`,
     `Billing period: ${row.periodStart && row.periodEnd ? `${formatCalendarDate(row.periodStart)} to ${formatCalendarDate(row.periodEnd)}` : 'not given'}`,
     `Amount: ${formatMoney(row.submittedTotal)}`,
-    `Sent: ${formatInstant(row.submittedAt ?? new Date())}`,
+    `Sent: ${formatInstant(row.submittedAt ?? new Date(), timeZone)}`,
     '',
     'You can withdraw it until review starts. Reviewers see your original file and every change you made.',
   ];

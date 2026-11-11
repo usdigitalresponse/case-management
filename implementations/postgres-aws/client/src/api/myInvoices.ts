@@ -298,9 +298,11 @@ export function transitionInvoice(
   transition: InvoiceTransition,
   receipt?: InvoiceReceipt,
 ): Promise<{ invoiceId: string; status?: SendStatus }> {
+  // Sending names the browser's zone, so the emailed receipt's time matches the sender's day.
+  const body = transition === 'submit' ? { ...receipt, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } : receipt;
   return request<{ invoiceId: string; status?: SendStatus }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
     method: 'POST',
-    body: receipt ? JSON.stringify(receipt) : undefined,
+    body: body ? JSON.stringify(body) : undefined,
   });
 }
 
