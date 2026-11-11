@@ -12,15 +12,14 @@ import {
   invoiceStatuses,
 } from '../db/schema';
 import { loadCaseNumbers, selectInvoiceHeaders } from './invoiceDetail';
-import { approvedTotal, latestRoundNumber, loadRecordedDecisions, signOffProgress } from './reviewRounds';
+import { approvedTotal, latestRoundNumber, loadRecordedDecisionsByChain, signOffProgress } from './reviewRounds';
 import { formatMoney, toCents } from './money';
-import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments } from './reviewAssignment';
+import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignmentsByInvoice } from './reviewAssignment';
 import { canDiscardEntry } from './enterInReview';
 import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
-import { loadPreauthorizationSummaries, loadRateLimits, overPreauthorization, rateLimitFor, summaryForProfessional, type RateLimit } from './preauthorizations';
+import { loadPreauthorizationSummariesByCase, loadRateLimitsByCase, overPreauthorization, rateLimitFor, summaryForProfessional, type RateLimit } from './preauthorizations';
 import { evaluateBillingRules, type RuleFinding } from './billingRules';
-import { loadThresholdTable } from './preauthorizationThresholds';
 import { currentCaseNumber, matchCaseNumbers, searchMatch } from './caseNumbers';
 import {
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
@@ -113,18 +112,12 @@ export async function listReviewQueue(
       .select({ chainId: invoiceLineWorkingDecision.invoiceApprovalChainId })
       .from(invoiceLineWorkingDecision)
       .where(inArray(invoiceLineWorkingDecision.invoiceApprovalChainId, chains.map((chain) => chain.chainId))),
-    Promise.all(caseIds.map(async (caseId) => [caseId, await loadRateLimits(db, caseId)] as const)).then((pairs) => new Map(pairs)),
+    loadRateLimitsByCase(db, caseIds.filter((caseId): caseId is string => caseId !== null)),
     db
       .select({ invoiceId: invoiceReviewQuestion.invoiceId, answeredAt: invoiceReviewQuestion.answeredAt })
       .from(invoiceReviewQuestion)
       .where(inArray(invoiceReviewQuestion.invoiceId, invoiceIds)),
-    loadThresholdTable(db).then((thresholds) =>
-      Promise.all(
-        caseIds
-          .flatMap((caseId) => (caseId ? [caseId] : []))
-          .map(async (caseId) => [caseId, await loadPreauthorizationSummaries(db, caseId, [], thresholds)] as const),
-      ).then((pairs) => new Map(pairs)),
-    ),
+    loadPreauthorizationSummariesByCase(db, caseIds.filter((caseId): caseId is string => caseId !== null)),
     db
       .selectDistinct({ invoiceId: invoiceOverrunExplanation.invoiceId })
       .from(invoiceOverrunExplanation)
@@ -133,8 +126,20 @@ export async function listReviewQueue(
   const explainedInvoiceIds = new Set(explained.map((row) => row.invoiceId));
   const linesFor = new Map<string, typeof lines>();
   for (const line of lines) {
-    linesFor.set(line.invoiceId, [...(linesFor.get(line.invoiceId) ?? []), line]);
+    const own = linesFor.get(line.invoiceId);
+    if (own) own.push(line);
+    else linesFor.set(line.invoiceId, [line]);
   }
+  const questionsFor = new Map<string, typeof questions>();
+  for (const question of questions) {
+    const own = questionsFor.get(question.invoiceId);
+    if (own) own.push(question);
+    else questionsFor.set(question.invoiceId, [question]);
+  }
+  const [assignmentsFor, decisionsFor] = await Promise.all([
+    loadAssignmentsByInvoice(db, invoiceIds),
+    loadRecordedDecisionsByChain(db, chains.map((chain) => chain.chainId)),
+  ]);
   const chainFor = new Map(chains.map((chain) => [chain.invoiceId, chain]));
   const workingCount = new Map<string, number>();
   for (const row of working) {
@@ -145,15 +150,13 @@ export async function listReviewQueue(
     headers.map(async (header) => {
       const own = linesFor.get(header.invoiceId) ?? [];
       const chain = chainFor.get(header.invoiceId);
-      const [assignments, recorded] = await Promise.all([
-        loadAssignments(db, header.invoiceId),
-        chain ? loadRecordedDecisions(db, chain.chainId) : Promise.resolve([]),
-      ]);
+      const assignments = assignmentsFor.get(header.invoiceId)!;
+      const recorded = chain ? (decisionsFor.get(chain.chainId) ?? []) : [];
       const round = latestRoundNumber(recorded, own.length);
       const inLineReview = LINE_REVIEW_STATUS_CODES.includes(header.statusCode ?? '');
       const decided = inLineReview ? (chain ? (workingCount.get(chain.chainId) ?? 0) : 0) : round === null ? 0 : own.length;
       // Until the round is finished, so the reviewer sees answers come back.
-      const ownQuestions = inLineReview ? questions.filter((question) => question.invoiceId === header.invoiceId) : [];
+      const ownQuestions = inLineReview ? (questionsFor.get(header.invoiceId) ?? []) : [];
       const answeredQuestionCount = ownQuestions.filter((question) => question.answeredAt).length;
 
       const flags: QueueFlag[] = [];
@@ -161,7 +164,7 @@ export async function listReviewQueue(
         flags.push({ kind: 'no_case', message: 'No case: the provider and case are not tracked in this system' });
       }
       // Time lines (priced lines other than mileage) billed above their limit.
-      const limits = rateLimits.get(header.caseId) ?? new Map();
+      const limits = (header.caseId ? rateLimits.get(header.caseId) : undefined) ?? new Map<string | null, string>();
       const overRate = own
         .filter((line) => line.configuredRate !== null && line.billedRate !== null && line.expenseTypeId === null)
         .map((line) => ({ line, limit: rateLimitFor(line, header.professionalId, limits) }))

@@ -14,7 +14,7 @@ import {
 import { ForbiddenError, ValidationError } from '../errors';
 import { isStaffAccount } from '../portal/portalActor';
 import { fromCents, toCents } from './money';
-import { loadPreauthorizationSummaries } from './preauthorizations';
+import { loadPreauthorizationSummariesByCase } from './preauthorizations';
 import { loadThresholdTable, thresholdFrom } from './preauthorizationThresholds';
 import { APPROVED_INVOICE_STATUS_CODE, IN_REVIEW_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
 
@@ -111,12 +111,10 @@ export async function preauthorizationUsageByCounty(
   }
 
   const thresholdsToday = await loadThresholdTable(db);
-  const summariesByCase = await Promise.all(
-    caseCounties.map(async ({ caseId }) => loadPreauthorizationSummaries(db, caseId, [], thresholdsToday)),
-  );
-  for (const [index, { caseId, countyId }] of caseCounties.entries()) {
+  const summariesByCase = await loadPreauthorizationSummariesByCase(db, caseCounties.map(({ caseId }) => caseId), [], thresholdsToday);
+  for (const { caseId, countyId } of caseCounties) {
     const row = rowFor(countyId);
-    for (const summary of summariesByCase[index]!) {
+    for (const summary of summariesByCase.get(caseId)!) {
       const used = toCents(summary.approvedSoFar) + toCents(summary.waiting);
       row.billedApproved = add(row.billedApproved, summary.approvedSoFar);
       row.billedWaiting = add(row.billedWaiting, summary.waiting);
