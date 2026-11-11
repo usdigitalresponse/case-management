@@ -1,0 +1,83 @@
+/* The guided tour: a panel docked beside the page, never over it. */
+:root { --guide-width: 22rem; --guide-sheet-height: 45vh; --login-tour-clearance: 10rem; --login-tour-clearance-narrow: 26rem; --login-tour-max-height: 70vh; }
+
+body:has(.guide) .app-layout,
+body:has(.guide) .portal-page { margin-right: var(--guide-width); }
+
+.guide { position: fixed; z-index: 30; top: 0; right: 0; bottom: 0; width: var(--guide-width); box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-8) var(--space-7); background: var(--color-surface); border-left: 1px solid var(--color-outline-variant); box-shadow: var(--elevation-2); font-size: var(--text-15); }
+.guide__header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); }
+.guide__eyebrow { margin: 0; color: var(--color-on-surface-muted); font-size: var(--text-12); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.guide__role { display: inline-block; margin: var(--space-3) 0 0; padding: var(--space-2) var(--space-4); border-radius: var(--radius-full); background: var(--color-primary-container); color: var(--color-on-primary-container); font-size: var(--text-13); font-weight: 600; }
+.guide__position { margin: 0; color: var(--color-on-surface-variant); font-size: var(--text-13); }
+.guide__goal { margin: 0; font-size: var(--text-18); font-weight: 600; line-height: 1.35; }
+.guide__why { margin: 0; color: var(--color-on-surface-variant); }
+.guide__before-now { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3) var(--space-5); margin: 0; padding: var(--space-5); border-radius: var(--radius-medium); background: var(--color-surface-container-low); }
+.guide__before-now dt { font-size: var(--text-12); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-muted); padding-top: var(--space-2); }
+.guide__before-now dd { margin: 0; }
+.guide__before-now dt:nth-of-type(2) { color: var(--color-success); }
+.guide__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); }
+.guide__note, .guide__hint { margin: 0; font-size: var(--text-13); color: var(--color-on-surface-variant); }
+.guide__hint { padding: var(--space-4) var(--space-5); border-radius: var(--radius-small); background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
+.guide__fills { display: flex; flex-direction: column; gap: var(--space-4); }
+.guide__fill-buttons { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.guide__sample { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); }
+.guide__handoff { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-5); padding: var(--space-6); border-radius: var(--radius-medium); background: var(--color-primary-container-low); border: 1px solid var(--color-primary-container); }
+.guide__checklist summary, .guide__not-yet summary { cursor: pointer; font-size: var(--text-13); font-weight: 600; }
+.guide__checklist ol { margin: var(--space-4) 0 0; padding-left: var(--space-8); font-size: var(--text-13); color: var(--color-on-surface-variant); }
+.guide__checklist li { margin-bottom: var(--space-3); }
+.guide__checklist .is-done { text-decoration: line-through; }
+.guide__checklist .is-current { color: var(--color-on-surface); font-weight: 600; }
+.guide__footer { display: flex; flex-wrap: wrap; gap: var(--space-6); margin-top: auto; padding-top: var(--space-5); border-top: 1px solid var(--color-outline-subtle); font-size: var(--text-13); }
+.guide__finished { display: flex; flex-direction: column; gap: var(--space-5); }
+.guide__seen { margin: 0; padding-left: var(--space-8); }
+.guide__seen li { margin-bottom: var(--space-4); }
+.guide__not-yet ul { margin: var(--space-4) 0 0; padding-left: var(--space-8); font-size: var(--text-13); color: var(--color-on-surface-variant); }
+
+.guide-card { padding: var(--space-6); border: 1px dashed var(--color-outline); border-radius: var(--radius-small); background: var(--color-surface-container-low); font-size: var(--text-13); }
+.guide-card h3 { margin: 0 0 var(--space-4); font-family: var(--font-serif); font-size: var(--text-15); }
+.guide-card dl { margin: 0; }
+.guide-card__row { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 0; }
+.guide-card__row dt { color: var(--color-on-surface-muted); }
+.guide-card__row dd { margin: 0; display: flex; gap: var(--space-4); text-align: right; }
+.guide-card__lines { width: 100%; margin-top: var(--space-5); border-collapse: collapse; }
+.guide-card__lines th, .guide-card__lines td { padding: var(--space-3) var(--space-2); border-top: 1px solid var(--color-outline-subtle); text-align: left; vertical-align: top; }
+.guide-card__total { margin: var(--space-5) 0 0; font-weight: 600; text-align: right; }
+
+.guide-pill { position: fixed; z-index: 30; right: var(--space-7); bottom: var(--space-7); padding: var(--space-4) var(--space-7); border: 0; border-radius: var(--radius-full); background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); box-shadow: var(--elevation-3); font: inherit; font-size: var(--text-13); font-weight: 600; cursor: pointer; }
+.guide-pill:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+
+.guide-in-dialog { margin: 0 0 var(--space-6); padding: var(--space-5); border-radius: var(--radius-medium); background: var(--color-primary-container-low); border: 1px solid var(--color-primary-container); display: flex; flex-direction: column; gap: var(--space-4); }
+.guide-in-dialog .guide__goal { font-size: var(--text-15); }
+
+.tour-highlight { outline: 3px solid var(--color-focus) !important; outline-offset: 3px; border-radius: var(--radius-small); animation: tour-pulse 1s ease-in-out 3; }
+@keyframes tour-pulse { 50% { outline-color: var(--color-primary); } }
+@media (prefers-reduced-motion: reduce) { .tour-highlight { animation: none; } }
+
+.mission-picker { display: flex; flex-direction: column; gap: var(--space-3); }
+.mission-picker .usa-label { margin: 0; font-size: var(--text-13); font-weight: 600; }
+.mission-picker__row { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; }
+.mission-picker__row .usa-select { flex: 1 1 14rem; width: auto; max-width: none; margin-top: 0; }
+.mission-picker__summary { margin: 0; min-height: 2.6em; font-size: var(--text-13); color: var(--color-on-surface-variant); }
+
+/* Pinned along the bottom of the sign-in screen, in one row: the tour, then one part of it. */
+.login-page:has(.login-tour) { padding-bottom: var(--login-tour-clearance); }
+.login-tour { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; max-height: var(--login-tour-max-height); overflow-y: auto; box-sizing: border-box; padding: var(--space-6) var(--space-8); background: var(--color-surface); border-top: 1px solid var(--color-outline-variant); box-shadow: var(--elevation-3); }
+.login-tour__bar { width: 100%; max-width: 76rem; margin: 0 auto; display: flex; align-items: center; gap: var(--space-8); }
+.login-tour__intro { flex: 1 1 18rem; display: flex; flex-direction: column; gap: var(--space-3); }
+/* As tall as the dropdown beside them. */
+.login-tour__bar .btn { flex: none; min-height: 2.5rem; }
+.login-tour h2 { margin: 0; font-size: var(--text-18); }
+.login-tour p { margin: 0; color: var(--color-on-surface-variant); font-size: var(--text-13); }
+.login-tour__parts { flex: 1 1 24rem; padding-left: var(--space-8); border-left: 1px solid var(--color-outline-subtle); }
+
+/* Phones: a sheet along the bottom, so the page stays usable above it. */
+@media (max-width: 64rem) {
+  body:has(.guide) .app-layout,
+  body:has(.guide) .portal-page { margin-right: 0; padding-bottom: var(--guide-sheet-height); }
+  .guide { top: auto; left: 0; width: auto; max-height: var(--guide-sheet-height); border-left: 0; border-top: 1px solid var(--color-outline-variant); padding: var(--space-6) var(--space-6); }
+  .guide-pill { right: var(--space-6); bottom: var(--space-6); }
+  .login-tour { padding: var(--space-6); }
+  .login-tour__bar { flex-direction: column; align-items: stretch; gap: var(--space-5); }
+  .login-tour__parts { flex-basis: auto; padding: var(--space-5) 0 0; border-left: 0; border-top: 1px solid var(--color-outline-subtle); }
+  .login-page:has(.login-tour) { padding-bottom: var(--login-tour-clearance-narrow); }
+}

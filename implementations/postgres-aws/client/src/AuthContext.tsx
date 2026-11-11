@@ -18,6 +18,8 @@ interface AuthContextValue {
   demoLogin: (userAccountId?: string) => Promise<void>;
   externalDemoLogin: (userAccountId?: string) => Promise<void>;
   signInWithCode: (email: string, code: string) => Promise<void>;
+  // After the guided tour signed in as another demo account.
+  adoptSignIn: () => Promise<void>;
   logout: () => Promise<void>;
   // Reloads roles and permissions after they change.
   refreshUser: () => Promise<void>;
@@ -73,6 +75,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     switchUser(await verifySignInCode(email, code));
   }, [switchUser]);
 
+  const adoptSignIn = useCallback(async () => {
+    switchUser(await getCurrentUser());
+  }, [switchUser]);
+
   const handleLogout = useCallback(async () => {
     // Before signing out, so nothing on screen reloads without a session.
     queryClient.clear();
@@ -95,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         demoLogin: handleDemoLogin,
         externalDemoLogin: handleExternalDemoLogin,
         signInWithCode: handleSignInWithCode,
+        adoptSignIn,
         logout: handleLogout,
         refreshUser,
         signIns,

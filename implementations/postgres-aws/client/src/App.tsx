@@ -17,6 +17,8 @@ import { portalRoutes } from './portal/ExternalPortalApp';
 import { page, pageWith } from './lazyPage';
 import type { AuthenticatedUser } from './api/client';
 import { ScrollRestorationPerSignIn } from './components/ScrollRestorationPerSignIn';
+import { TourProvider } from './tour/TourContext';
+import { TourChrome } from './tour/GuidePanel';
 
 // The landing page files invoices by who sent them; the earlier queue, led
 // by case and client, stays here.
@@ -160,6 +162,7 @@ function StaffShell() {
           <Outlet />
         </main>
       </div>
+      <TourChrome app="staff" />
     </>
   );
 }
@@ -268,7 +271,9 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppRouter />
+        <TourProvider>
+          <AppRouter />
+        </TourProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

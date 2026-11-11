@@ -185,6 +185,8 @@ describe('invoice import workflow', () => {
     await expect(submitInvoice(testDb, actor, invoiceId, { attested: true })).rejects.toThrow(InvoiceStateError);
 
     await confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId);
+    // Again, as a send retried after a refusal does: nothing changes.
+    await expect(confirmInvoiceImport(testDb, store, actor, uploaded.invoiceImportId)).resolves.toEqual({ invoiceImportId: uploaded.invoiceImportId });
     // Kept with the request, for the submitter and reviewers to see.
     expect(store.files.size).toBe(1);
     const [doc] = await testDb.select().from(document);

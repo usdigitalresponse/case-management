@@ -16,6 +16,30 @@ export class ApiError extends Error {
 // other pages' data (the sidebar counts) can reload.
 export const DATA_CHANGED_EVENT = 'api:data-changed';
 
+// Dispatched on window after any successful change, with what was sent and
+// returned, so the guided tour can follow what the visitor does.
+export const REQUEST_SUCCEEDED_EVENT = 'api:request-succeeded';
+
+export interface RequestSucceeded {
+  method: string;
+  path: string;
+  body: unknown;
+  response: unknown;
+}
+
+function announce(detail: RequestSucceeded): void {
+  window.dispatchEvent(new CustomEvent<RequestSucceeded>(REQUEST_SUCCEEDED_EVENT, { detail }));
+}
+
+function parsedBody(body: BodyInit | null | undefined): unknown {
+  if (typeof body !== 'string') return undefined;
+  try {
+    return JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+}
+
 // `notifies`: false for a POST that only reads, so summaries aren't reloaded.
 export async function request<T>(path: string, init?: RequestInit, { notifies = Boolean(init?.method && init.method !== 'GET') } = {}): Promise<T> {
   const response = await fetch(path, {
@@ -29,6 +53,9 @@ export async function request<T>(path: string, init?: RequestInit, { notifies = 
   }
   if (notifies) {
     window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
+  }
+  if (init?.method && init.method !== 'GET') {
+    announce({ method: init.method, path, body: parsedBody(init.body), response: body });
   }
   return body as T;
 }
@@ -54,6 +81,7 @@ export async function sendFile<T>(path: string, file: File): Promise<T> {
     throw new ApiError(response.status, body);
   }
   window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
+  announce({ method: 'POST', path, body: undefined, response: body });
   return body as T;
 }
 

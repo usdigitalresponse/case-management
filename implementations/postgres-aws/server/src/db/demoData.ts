@@ -420,6 +420,8 @@ async function seedDemoMileage(
     enforcement: 'warn',
     parameters: { tolerancePercent: 10 },
   });
+  // Warns, so the guided tour's day billed on two cases is flagged.
+  await setBillingRule(db, fixtures.staffUserAccountId, 'daily_hour_cap', { enforcement: 'warn', parameters: { hours: 10 } });
   if (process.env.ROUTE_CHECK_PROVIDER !== 'aws') {
     await db.insert(routeCheck).values(
       DEMO_TRIP_MILES.map(([destination, miles]) => ({

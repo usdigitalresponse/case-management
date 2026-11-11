@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { TourDialogHint } from '../../tour/GuidePanel';
 
 // A modal confirmation over the page, as in the design: a native <dialog>,
 // so focus stays inside and Escape closes it.
@@ -32,6 +33,7 @@ export function Dialog({
       }}
     >
       <h2 id="dialog-title" className="dialog__title">{title}</h2>
+      <TourDialogHint />
       {children}
     </dialog>
   );

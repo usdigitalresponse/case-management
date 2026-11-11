@@ -612,6 +612,26 @@ How the React client is built and why. Schema mapping and gaps are in
   (`client/.stylelintrc.json`) rejects a literal color, font size or family,
   margin, padding, gap or radius outside `tokens.css` and `reset.css`, and
   ESLint rejects a `style` prop not built with `cssVars`.
+- **Guided tour** (`src/tour/`): on demo servers with both demo sign-ins
+  on, the sign-in page offers a tour beside the usual demo dropdowns,
+  which stay as they were; nothing starts it by itself. Missions are data
+  (`missions.ts`): each step names a goal, the problem it answers as
+  "Before → Now" in generic terms, where it happens and what completes
+  it — reaching a page, or a change the visitor made, seen through
+  `REQUEST_SUCCEEDED_EVENT` in `src/api/http.ts`, never a Next button
+  except for steps that only ask the visitor to look. `TourProvider`
+  (`TourContext.tsx`) sits above both apps and keeps its state in
+  `sessionStorage` (`tourState.ts`, unit tested), so it survives the
+  sign-in switches between roles and a reload. `TourChrome`
+  (`GuidePanel.tsx`) docks the guide beside the page in both shells (a
+  bottom sheet on phones), never over it; "Show me" outlines a control,
+  and "Fill in a suggestion" sets a field through its own events
+  (`dom.ts`), so the page behaves as if typed. Native dialogs make the
+  page behind them inert, so `Dialog` shows the step's fill-ins inside
+  (`TourDialogHint`). The full story runs four missions in order, each
+  on fresh material; the finish card lists what each step replaced and
+  the must-haves not built yet. "Skip step" only moves the guide on: it
+  does not do the step, so a later step may need it done by hand.
 - **Tests**: hooks that need React or a router run in jsdom with React
   Testing Library (`// @vitest-environment jsdom` at the top of the
   file; a router test also imports `src/testing/routerInJsdom.ts`).

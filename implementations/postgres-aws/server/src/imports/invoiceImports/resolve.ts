@@ -125,6 +125,10 @@ export async function confirmImportInTx(
   row: { invoiceImportId: string; statusCode: string; invoiceId: string | null; documentId: string },
 ): Promise<string | undefined> {
   const importId = row.invoiceImportId;
+  // Confirming again, as a send retried after a refusal does, changes nothing.
+  if (row.statusCode === CONFIRMED_IMPORT_STATUS_CODE) {
+    return undefined;
+  }
   if (row.statusCode !== 'extracted' || !row.invoiceId) {
     throw new InvoiceStateError('Only an import that was read successfully and not yet resolved can be confirmed.');
   }
