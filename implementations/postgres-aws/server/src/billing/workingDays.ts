@@ -13,8 +13,13 @@ function utcDay(isoDate: string): number {
 export function workingDaysBetween(from: Date, to: Date): number {
   const start = utcDay(calendarDateInReportingTimeZone(from));
   const end = utcDay(calendarDateInReportingTimeZone(to));
-  let days = 0;
-  for (let day = start + DAY_MS; day <= end; day += DAY_MS) {
+  if (end <= start) {
+    return 0;
+  }
+  // Every whole week has five working days; only the days left over are walked.
+  const weeks = Math.floor((end - start) / (7 * DAY_MS));
+  let days = weeks * 5;
+  for (let day = start + weeks * 7 * DAY_MS + DAY_MS; day <= end; day += DAY_MS) {
     const weekday = new Date(day).getUTCDay();
     if (weekday !== 0 && weekday !== 6) {
       days += 1;

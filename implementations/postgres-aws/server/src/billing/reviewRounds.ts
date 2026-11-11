@@ -2,7 +2,8 @@
 // signs off in turn or sends it back (model/rules.yaml decide_invoice_lines,
 // enforce_invoice_approval_sequence; model/workflows.yaml payment_request).
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, isNull, max } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, max } from 'drizzle-orm';
+import { inIds } from '../db/inIds';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { getReferenceId } from '../db/referenceLookups';
 import { ConflictError, ForbiddenError, ValidationError } from '../errors';
@@ -89,7 +90,7 @@ function recordedDecisions(db: DatabaseOrTransaction, chainIds: string[]) {
     .innerJoin(invoiceApprovalStepTypes, eq(invoiceApprovalDecision.stepTypeId, invoiceApprovalStepTypes.id))
     .innerJoin(invoiceApprovalOutcomes, eq(invoiceApprovalDecision.outcomeId, invoiceApprovalOutcomes.id))
     .leftJoin(invoiceDecisionReasons, eq(invoiceApprovalDecision.reasonCodeId, invoiceDecisionReasons.id))
-    .where(inArray(invoiceApprovalDecision.invoiceApprovalChainId, chainIds))
+    .where(inIds(invoiceApprovalDecision.invoiceApprovalChainId, chainIds))
     .orderBy(asc(invoiceApprovalDecision.sequenceNumber), asc(invoiceApprovalDecision.decidedAt));
 }
 

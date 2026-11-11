@@ -3,6 +3,7 @@
 // decisions only: never working decisions or internal comments
 // (model/rules.yaml limit_review_comment_visibility).
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { inIds } from '../db/inIds';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import {
   caseIdentifier,
@@ -110,11 +111,11 @@ export async function loadCaseNumbers(db: DatabaseOrTransaction, maybeCaseIds: A
     db
       .select({ caseId: caseTable.caseId, externalReference: caseTable.externalReference })
       .from(caseTable)
-      .where(inArray(caseTable.caseId, caseIds)),
+      .where(inIds(caseTable.caseId, caseIds)),
     db
       .select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value, isPrimary: caseIdentifier.isPrimary })
       .from(caseIdentifier)
-      .where(inArray(caseIdentifier.caseId, caseIds)),
+      .where(inIds(caseIdentifier.caseId, caseIds)),
   ]);
   const identifiersOf = byCase(identifiers);
   for (const row of cases) {

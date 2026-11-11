@@ -1,6 +1,7 @@
 // model/rules.yaml apply_preauthorization_limit. Insert-only; the latest on or before a date is in force.
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, lte } from 'drizzle-orm';
+import { inIds } from '../db/inIds';
 import type { DatabaseOrTransaction } from '../db/client';
 import { county, preauthorizationThreshold, professional, professionalKinds } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
@@ -48,7 +49,7 @@ export async function thresholdBoundProfessionalIds(db: DatabaseOrTransaction, p
     .select({ professionalId: professional.professionalId })
     .from(professional)
     .innerJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
-    .where(and(inArray(professional.professionalId, professionalIds), eq(professionalKinds.thresholdApplies, true)));
+    .where(and(inIds(professional.professionalId, professionalIds), eq(professionalKinds.thresholdApplies, true)));
   return new Set(rows.map((row) => row.professionalId));
 }
 

@@ -2,7 +2,8 @@
 // assign_invoice_review). Reassigning ends the current row and starts
 // another, so who held the invoice stays in history.
 import { z } from 'zod';
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
+import { inIds } from '../db/inIds';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { getReferenceId } from '../db/referenceLookups';
 import {
@@ -55,7 +56,7 @@ export async function loadAssignmentsByInvoice(db: DatabaseOrTransaction, invoic
     .from(invoiceReviewAssignment)
     .innerJoin(invoiceApprovalStepTypes, eq(invoiceReviewAssignment.stepTypeId, invoiceApprovalStepTypes.id))
     .innerJoin(userAccount, eq(invoiceReviewAssignment.assignedUserAccountId, userAccount.userAccountId))
-    .where(and(inArray(invoiceReviewAssignment.invoiceId, invoiceIds), isNull(invoiceReviewAssignment.endedAt)))
+    .where(and(inIds(invoiceReviewAssignment.invoiceId, invoiceIds), isNull(invoiceReviewAssignment.endedAt)))
     .orderBy(asc(invoiceReviewAssignment.position));
   for (const { invoiceId, stepCode, position, userAccountId, displayName } of rows) {
     const assignments = byInvoice.get(invoiceId)!;
@@ -80,7 +81,7 @@ export async function loadLineReviewerNames(db: DatabaseOrTransaction, invoiceId
     .innerJoin(userAccount, eq(invoiceReviewAssignment.assignedUserAccountId, userAccount.userAccountId))
     .where(
       and(
-        inArray(invoiceReviewAssignment.invoiceId, invoiceIds),
+        inIds(invoiceReviewAssignment.invoiceId, invoiceIds),
         isNull(invoiceReviewAssignment.endedAt),
         eq(invoiceApprovalStepTypes.code, LINE_REVIEW_STEP_TYPE_CODE),
       ),

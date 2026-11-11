@@ -1,6 +1,7 @@
 // The staff queue: invoices waiting on review or sign-off, or finished, with
 // who has each, how long it has waited and what needs care.
 import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm';
+import { inIds } from '../db/inIds';
 import type { Database } from '../db/client';
 import {
   invoice,
@@ -94,7 +95,7 @@ export async function listReviewQueue(
         timekeeperProfessionalId: invoiceLine.timekeeperProfessionalId,
       })
       .from(invoiceLine)
-      .where(inArray(invoiceLine.invoiceId, invoiceIds)),
+      .where(inIds(invoiceLine.invoiceId, invoiceIds)),
     db
       .select({
         invoiceId: invoiceApprovalChain.invoiceId,
@@ -102,7 +103,7 @@ export async function listReviewQueue(
         snapshot: invoiceApprovalChain.submissionSnapshot,
       })
       .from(invoiceApprovalChain)
-      .where(and(inArray(invoiceApprovalChain.invoiceId, invoiceIds), isNull(invoiceApprovalChain.supersededAt))),
+      .where(and(inIds(invoiceApprovalChain.invoiceId, invoiceIds), isNull(invoiceApprovalChain.supersededAt))),
     loadCaseNumbers(db, [...new Set(headers.map((header) => header.caseId))]),
     getReviewSettings(db),
   ]);
@@ -111,17 +112,17 @@ export async function listReviewQueue(
     db
       .select({ chainId: invoiceLineWorkingDecision.invoiceApprovalChainId })
       .from(invoiceLineWorkingDecision)
-      .where(inArray(invoiceLineWorkingDecision.invoiceApprovalChainId, chains.map((chain) => chain.chainId))),
+      .where(inIds(invoiceLineWorkingDecision.invoiceApprovalChainId, chains.map((chain) => chain.chainId))),
     loadRateLimitsByCase(db, caseIds.filter((caseId): caseId is string => caseId !== null)),
     db
       .select({ invoiceId: invoiceReviewQuestion.invoiceId, answeredAt: invoiceReviewQuestion.answeredAt })
       .from(invoiceReviewQuestion)
-      .where(inArray(invoiceReviewQuestion.invoiceId, invoiceIds)),
+      .where(inIds(invoiceReviewQuestion.invoiceId, invoiceIds)),
     loadPreauthorizationSummariesByCase(db, caseIds.filter((caseId): caseId is string => caseId !== null)),
     db
       .selectDistinct({ invoiceId: invoiceOverrunExplanation.invoiceId })
       .from(invoiceOverrunExplanation)
-      .where(inArray(invoiceOverrunExplanation.invoiceId, invoiceIds)),
+      .where(inIds(invoiceOverrunExplanation.invoiceId, invoiceIds)),
   ]);
   const explainedInvoiceIds = new Set(explained.map((row) => row.invoiceId));
   const linesFor = new Map<string, typeof lines>();

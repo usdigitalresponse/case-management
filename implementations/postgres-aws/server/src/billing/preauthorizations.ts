@@ -2,6 +2,7 @@
 // and waiting. "Approved so far" sums signed-off invoices, not allocation draws (../../MAPPING.md).
 import { z } from 'zod';
 import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { inIds } from '../db/inIds';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { getReferenceId } from '../db/referenceLookups';
@@ -44,11 +45,11 @@ async function approvedCentsByInvoice(db: DatabaseOrTransaction, invoiceIds: str
     db
       .select({ invoiceId: invoiceApprovalChain.invoiceId, chainId: invoiceApprovalChain.invoiceApprovalChainId })
       .from(invoiceApprovalChain)
-      .where(and(inArray(invoiceApprovalChain.invoiceId, invoiceIds), isNull(invoiceApprovalChain.supersededAt))),
+      .where(and(inIds(invoiceApprovalChain.invoiceId, invoiceIds), isNull(invoiceApprovalChain.supersededAt))),
     db
       .select({ invoiceId: invoiceLine.invoiceId, lines: count() })
       .from(invoiceLine)
-      .where(inArray(invoiceLine.invoiceId, invoiceIds))
+      .where(inIds(invoiceLine.invoiceId, invoiceIds))
       .groupBy(invoiceLine.invoiceId),
   ]);
   const decisions = await loadRecordedDecisionsByChain(db, chains.map((chain) => chain.chainId));
@@ -86,7 +87,7 @@ export async function loadRateLimitsByCase(db: DatabaseOrTransaction, caseIds: s
     .innerJoin(preauthorizationStatuses, eq(preauthorization.statusId, preauthorizationStatuses.id))
     .innerJoin(preauthorizationDecision, eq(preauthorizationDecision.preauthorizationId, preauthorization.preauthorizationId))
     .innerJoin(preauthorizationOutcomes, eq(preauthorizationDecision.outcomeId, preauthorizationOutcomes.id))
-    .where(and(inArray(preauthorization.caseId, caseIds), eq(preauthorizationStatuses.code, 'approved')))
+    .where(and(inIds(preauthorization.caseId, caseIds), eq(preauthorizationStatuses.code, 'approved')))
     .orderBy(desc(preauthorizationDecision.sequenceNumber));
   const seen = new Set<string>();
   for (const row of rows) {
@@ -155,7 +156,7 @@ export async function loadPreauthorizationSummariesByCase(
       })
       .from(preauthorization)
       .innerJoin(preauthorizationStatuses, eq(preauthorization.statusId, preauthorizationStatuses.id))
-      .where(and(inArray(preauthorization.caseId, caseIds), eq(preauthorizationStatuses.code, 'approved')))
+      .where(and(inIds(preauthorization.caseId, caseIds), eq(preauthorizationStatuses.code, 'approved')))
       .orderBy(asc(preauthorization.requestedAt)),
     db
       .select({
@@ -167,7 +168,7 @@ export async function loadPreauthorizationSummariesByCase(
       })
       .from(invoice)
       .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
-      .where(and(inArray(invoice.caseId, caseIds), inArray(invoiceStatuses.code, [APPROVED_INVOICE_STATUS_CODE, ...IN_REVIEW_INVOICE_STATUS_CODES]))),
+      .where(and(inIds(invoice.caseId, caseIds), inArray(invoiceStatuses.code, [APPROVED_INVOICE_STATUS_CODE, ...IN_REVIEW_INVOICE_STATUS_CODES]))),
   ]);
   const decisions =
     authorizations.length === 0
@@ -180,7 +181,7 @@ export async function loadPreauthorizationSummariesByCase(
           })
           .from(preauthorizationDecision)
           .innerJoin(preauthorizationOutcomes, eq(preauthorizationDecision.outcomeId, preauthorizationOutcomes.id))
-          .where(inArray(preauthorizationDecision.preauthorizationId, authorizations.map((row) => row.preauthorizationId)))
+          .where(inIds(preauthorizationDecision.preauthorizationId, authorizations.map((row) => row.preauthorizationId)))
           .orderBy(desc(preauthorizationDecision.sequenceNumber));
   // Ceilings replace each other; the latest decision sets it.
   const latestDecision = new Map<string, (typeof decisions)[number]>();
@@ -225,7 +226,7 @@ export async function loadPreauthorizationSummariesByCase(
     const [bound, table, caseRows] = await Promise.all([
       thresholdBoundProfessionalIds(db, [...new Set([...unauthorizedOf.values()].flat())]),
       thresholds ?? loadThresholdTable(db),
-      db.select({ caseId: caseTable.caseId, countyId: caseTable.countyId }).from(caseTable).where(inArray(caseTable.caseId, [...unauthorizedOf.keys()])),
+      db.select({ caseId: caseTable.caseId, countyId: caseTable.countyId }).from(caseTable).where(inIds(caseTable.caseId, [...unauthorizedOf.keys()])),
     ]);
     const countyOf = new Map(caseRows.map((row) => [row.caseId, row.countyId]));
     for (const [caseId, unauthorized] of unauthorizedOf) {
