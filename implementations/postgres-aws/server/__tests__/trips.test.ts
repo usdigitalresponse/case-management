@@ -7,7 +7,7 @@ import { createCase } from '../src/intake/createCase';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { resolvePortalActor, type PortalActor } from '../src/portal/portalActor';
 import { createInvoice } from '../src/portal/createInvoice';
-import { updateDraftInvoice } from '../src/billing/invoiceLifecycle';
+import { updateDraftInvoice } from '../src/billing/invoiceLifecycle/drafts';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { listReviewQueue } from '../src/billing/reviewQueue';
 import { addMileageRate } from '../src/billing/mileageRates';

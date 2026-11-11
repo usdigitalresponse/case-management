@@ -10,7 +10,7 @@ import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { createInvoice } from '../src/portal/createInvoice';
 import { resolvePortalActor } from '../src/portal/portalActor';
-import { recallInvoice } from '../src/billing/invoiceLifecycle';
+import { recallInvoice } from '../src/billing/invoiceLifecycle/withdraw';
 import { repriceLines, reviewInvoiceLine } from '../src/billing/reviewInvoiceLine';
 import { finishReview } from '../src/billing/reviewRounds';
 import { reassignReviewer, setSignOffApprovers } from '../src/billing/reviewAssignment';

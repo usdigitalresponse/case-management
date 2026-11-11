@@ -369,8 +369,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     submitter, allocation draws, submitter replies to decisions (planned),
     a holiday calendar, defaults by kind of invoice. Concurrent decisions
     are serialized by the invoice row lock.
-- **Drafts, submission, recall and withdrawal** (`src/billing/invoiceLifecycle.ts`,
-  `invoiceEvents.ts`; `client/src/components/InvoiceLinesEditor.tsx`, `invoiceLines.ts`):
+- **Drafts, submission, recall and withdrawal** (`src/billing/invoiceLifecycle/`:
+  `drafts.ts`, `replaceLines.ts`, `submit.ts`, `withdraw.ts`; `invoiceEvents.ts`; `client/src/components/InvoiceLinesEditor.tsx`, `invoiceLines.ts`):
   - `POST /api/portal/invoices` with `submit: false` saves a draft (the
     default still submits). `PUT /api/portal/invoices/:id` replaces a
     draft's period and lines; `POST .../submit`, `.../recall` and
@@ -843,7 +843,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     receipts above an amount (see `docs/DECISIONS.md`).
 - **Trips, travel and waiting time, and mileage** (`src/billing/mileageRates.ts`,
   `timeCategoryRates.ts`, `routeCheck.ts`, `priceLines.ts`,
-  `invoiceLifecycle.ts`, `sameDayTravel.ts`; `client/src/invoiceLines.ts` (trip parts and
+  `invoiceLifecycle/replaceLines.ts`, `sameDayTravel.ts`; `client/src/invoiceLines.ts` (trip parts and
   price previews), `components/InvoiceLinesEditor.tsx`,
   `TripFields.tsx`, `TravelLog.tsx`, `pages/settings/MileageRates.tsx` and
   `TimeCategoryRates.tsx`; `model/rules.yaml`
@@ -954,7 +954,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     a flat travel or waiting rate is general, though a person may have
     their own travel time rate; a kind has no travel time rate of its own.
 - **Rates and billing from time** (`src/billing/professionalRates.ts`,
-  `priceLines.ts`, `invoiceLifecycle.ts`; `src/routes/settings.ts`;
+  `priceLines.ts`, `invoiceLifecycle/`; `src/routes/settings.ts`;
   `client/src/pages/settings/KindRates.tsx`, `components/UnbilledTimePicker.tsx`;
   `model/rules.yaml` `apply_professional_rates`, `validate_payment_request`):
   - Administrators (`user_account.system_role_id` = the seeded

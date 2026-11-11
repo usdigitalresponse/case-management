@@ -1,4 +1,4 @@
-import { ApiError, DATA_CHANGED_EVENT, request, sendFile } from './http';
+import { DATA_CHANGED_EVENT, request, sendFile } from './http';
 import type { PreauthorizationSummary } from './cases';
 
 export type RateBasis = 'hourly' | 'flat' | 'per_unit';
@@ -114,17 +114,7 @@ export interface RequestPreview {
 }
 
 export function previewPreauthorizationRequest(input: { caseId?: string | null; professionalId?: string | null; countyId?: string | null; requestedAmount?: number }) {
-  // A read, so the sidebar's counts aren't reloaded.
-  return fetch('/api/preauthorizations/requests/preview', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  }).then(async (response) => {
-    const body = await response.json().catch(() => undefined);
-    if (!response.ok) throw new ApiError(response.status, body);
-    return body as RequestPreview;
-  });
+  return request<RequestPreview>('/api/preauthorizations/requests/preview', { method: 'POST', body: JSON.stringify(input) }, { notifies: false });
 }
 
 export function listRequestableProviders() {

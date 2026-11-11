@@ -7,13 +7,10 @@ import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db
 import { createCase } from '../src/intake/createCase';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { createInvoice } from '../src/portal/createInvoice';
-import {
-  InvoiceStateError,
-  recallInvoice,
-  submitInvoice,
-  updateDraftInvoice,
-  withdrawInvoice,
-} from '../src/billing/invoiceLifecycle';
+import { InvoiceStateError } from '../src/billing/invoiceLifecycle/lineInput';
+import { recallInvoice, withdrawInvoice } from '../src/billing/invoiceLifecycle/withdraw';
+import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
+import { updateDraftInvoice } from '../src/billing/invoiceLifecycle/drafts';
 import { reviewInvoiceLine, InvoiceNotFoundError } from '../src/billing/reviewInvoiceLine';
 import { finishReview, signOffInvoice } from '../src/billing/reviewRounds';
 import { loadAssignments } from '../src/billing/reviewAssignment';

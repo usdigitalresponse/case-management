@@ -16,7 +16,8 @@ export class ApiError extends Error {
 // other pages' data (the sidebar counts) can reload.
 export const DATA_CHANGED_EVENT = 'api:data-changed';
 
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+// `notifies`: false for a POST that only reads, so summaries aren't reloaded.
+export async function request<T>(path: string, init?: RequestInit, { notifies = Boolean(init?.method && init.method !== 'GET') } = {}): Promise<T> {
   const response = await fetch(path, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -26,10 +27,19 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     throw new ApiError(response.status, body);
   }
-  if (init?.method && init.method !== 'GET') {
+  if (notifies) {
     window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
   }
   return body as T;
+}
+
+// A stored file's bytes, as for showing a PDF.
+export async function fileBytes(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url, { credentials: 'include' });
+  if (!response.ok) {
+    throw new ApiError(response.status, undefined);
+  }
+  return response.arrayBuffer();
 }
 
 // A file as the raw request body, its name in a header.

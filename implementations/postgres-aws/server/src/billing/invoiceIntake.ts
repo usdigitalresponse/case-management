@@ -31,7 +31,7 @@ import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
 import { priceLines } from './priceLines';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
 import { AWAITING_MATCH_INVOICE_STATUS_CODE, DRAFT_INVOICE_STATUS_CODE, LINE_REVIEW_STATUS_CODES } from './invoiceStatusCodes';
-import { releaseToReviewInTx } from './invoiceLifecycle';
+import { releaseToReviewInTx } from './invoiceLifecycle/submit';
 import { unmatchedTimekeeper } from './proposedDetails';
 import { reopenCase } from '../cases/closeCase';
 

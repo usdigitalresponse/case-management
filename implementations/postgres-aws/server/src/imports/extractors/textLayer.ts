@@ -4,7 +4,7 @@
 // with an amount, items written as sentences in a letter, or a fill-in
 // form's labelled blanks. Other layouts fail.
 import { createHash } from 'node:crypto';
-import type { LineType } from '../../billing/invoiceLifecycle';
+import type { LineType } from '../../billing/invoiceLifecycle/lineInput';
 import {
   checkLineCount,
   lineTotalCents,

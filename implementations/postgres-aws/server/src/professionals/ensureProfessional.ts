@@ -13,7 +13,7 @@ import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
 
 // Read-only lookup, used wherever a route needs "the current session's
 // professional, if any" without creating one (../routes/myCases.ts,
-// ../routes/portal.ts) — unlike ensureProfessionalForUserAccount below,
+// ../routes/portal/) — unlike ensureProfessionalForUserAccount below,
 // which only the email-code verify route should call.
 export async function getProfessionalIdForUserAccount(
   db: DatabaseOrTransaction,

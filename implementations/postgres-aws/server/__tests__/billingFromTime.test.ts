@@ -9,7 +9,9 @@ import { ensureProfessionalForUserAccount } from '../src/professionals/ensurePro
 import { resolvePortalActor, type PortalActor } from '../src/portal/portalActor';
 import { createTimeEntry } from '../src/portal/createTimeEntry';
 import { createInvoice } from '../src/portal/createInvoice';
-import { submitInvoice, updateDraftInvoice, withdrawInvoice } from '../src/billing/invoiceLifecycle';
+import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
+import { updateDraftInvoice } from '../src/billing/invoiceLifecycle/drafts';
+import { withdrawInvoice } from '../src/billing/invoiceLifecycle/withdraw';
 import { addKindRate, createKind, listRates, rateOn, setProfessionalKind } from '../src/billing/professionalRates';
 import { isAdmin } from '../src/auth/requireAdmin';
 import { getAdminAccountRoleId } from '../src/auth/staffAccountRole';

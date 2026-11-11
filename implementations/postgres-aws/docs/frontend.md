@@ -154,7 +154,7 @@ How the React client is built and why. Schema mapping and gaps are in
         A bound provider with no pre-authorization on a case has the case county's
         threshold, in force today, as their limit (`PreauthorizationSummary.source
         'threshold'`; the case list's pre-authorized total leaves these out).
-      - Requests (`billing/preauthorizationRequests.ts`, `routes/preauthorizations.ts`):
+      - Requests (`billing/preauthorizationRequests/`, `routes/preauthorizations.ts`):
         submitters ask from the portal's Pre-authorizations tab for a case they or someone
         they bill for is on, naming a provider on their cases or typing one (proposed
         details, as for invoices); staff record emailed ones from the staff
@@ -356,7 +356,7 @@ How the React client is built and why. Schema mapping and gaps are in
     with the invoice to Intake. Naming someone not listed on one line
     offers to use them for every other item. Sending an invoice whose
     case, provider or any line's worker is still unknown
-    (`invoiceLifecycle.ts` `submitInTx`) attests as usual but sets status
+    (`invoiceLifecycle/submit.ts` `submitInTx`) attests as usual but sets status
     `awaiting_match` ("Waiting for its case") with a `sent_for_matching`
     event, pricing strictly first when its provider is known; import
     confirmation no longer needs every line matched, keeping a named but
@@ -429,7 +429,7 @@ How the React client is built and why. Schema mapping and gaps are in
     whose work it is, or "Not listed" to type the number as before
     (`CaseChoice` in `InvoiceSubmission.tsx`). Choosing one
     (`PUT /api/portal/invoices/:id/case`, `setDraftCase` in
-    `billing/invoiceLifecycle.ts`) sets the draft's case and its number to
+    `billing/invoiceLifecycle/drafts.ts`) sets the draft's case and its number to
     the case's and prices its lines again, so case rates apply; it is still
     sent as filed by person and goes straight to review with its case.
     An invoice opens on its own page (see "Checking the lines" and

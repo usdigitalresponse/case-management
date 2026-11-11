@@ -18,7 +18,8 @@ import preauthorizationsRouter from './routes/preauthorizations';
 import { AppError } from './errors';
 import { db } from './db/client';
 import { documentStore } from './imports/documentStore';
-import { expireInvoiceImports, failInterruptedExtractions, removeUnreferencedFiles } from './imports/invoiceImports';
+import { expireInvoiceImports, removeUnreferencedFiles } from './imports/invoiceImports/resolve';
+import { failInterruptedExtractions } from './imports/invoiceImports/read';
 import { expireCaseSplitReads } from './imports/splitByCase';
 
 const isProduction = process.env.NODE_ENV === 'production';

@@ -12,7 +12,7 @@ import { createCase } from '../src/intake/createCase';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { createInvoice } from '../src/portal/createInvoice';
 import { resolvePortalActor } from '../src/portal/portalActor';
-import { setDraftCounty } from '../src/billing/invoiceLifecycle';
+import { setDraftCounty } from '../src/billing/invoiceLifecycle/drafts';
 import { changeInvoiceCounty } from '../src/billing/invoiceCounty';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { countyKey, listCounties, readCounty, type CountyOption } from '../src/cases/counties';

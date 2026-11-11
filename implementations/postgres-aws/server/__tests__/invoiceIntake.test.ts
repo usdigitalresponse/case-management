@@ -8,7 +8,8 @@ import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db
 import { createCase } from '../src/intake/createCase';
 import { createInvoice } from '../src/portal/createInvoice';
 import { resolvePortalActor } from '../src/portal/portalActor';
-import { recallInvoice, submitInvoice } from '../src/billing/invoiceLifecycle';
+import { recallInvoice } from '../src/billing/invoiceLifecycle/withdraw';
+import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
 import { listInvoiceIntake, matchInvoiceToCase, returnToSubmitter } from '../src/billing/invoiceIntake';
 import { listPortalInvoices } from '../src/portal/listPortalInvoices';
 import { listReviewQueue } from '../src/billing/reviewQueue';

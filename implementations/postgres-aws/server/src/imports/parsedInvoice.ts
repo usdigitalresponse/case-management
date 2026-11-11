@@ -1,7 +1,7 @@
 // What every parser produces: supplier-stated values and where each came
 // from, before matching to this system's records.
 import { ValidationError } from '../errors';
-import type { LineType } from '../billing/invoiceLifecycle';
+import type { LineType } from '../billing/invoiceLifecycle/lineInput';
 import { toCents } from '../billing/money';
 import { formatCalendarDate } from '../formatDate';
 

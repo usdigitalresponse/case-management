@@ -1,5 +1,5 @@
 import { request } from './http';
-import type { AssignedPerson, ReviewQueueItem } from './invoices';
+import type { AssignedPerson, ReviewQueueItem } from './reviewQueue';
 
 // Mirrors server/src/cases/caseStage.ts's CASE_STAGES; null once a case
 // is closed (case.closedOn set) — it has left the working board.

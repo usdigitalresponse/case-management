@@ -25,7 +25,8 @@ import {
   setEnteredReceipt,
   setEnteredSender,
 } from '../src/billing/enterInReview';
-import { recallInvoice, setDraftDetails, setDraftSender } from '../src/billing/invoiceLifecycle';
+import { recallInvoice } from '../src/billing/invoiceLifecycle/withdraw';
+import { setDraftDetails, setDraftSender } from '../src/billing/invoiceLifecycle/drafts';
 import { createDraftFromUpload, startUploadRead } from '../src/imports/splitByCase';
 import { correctCaseNumber } from '../src/billing/correctCaseNumber';
 import { listReviewQueue } from '../src/billing/reviewQueue';

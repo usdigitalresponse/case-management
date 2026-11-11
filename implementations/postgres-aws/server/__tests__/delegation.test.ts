@@ -17,7 +17,7 @@ import {
   resolvePortalActor,
   timeReadableProfessionalIds,
 } from '../src/portal/portalActor';
-import { recallInvoice } from '../src/billing/invoiceLifecycle';
+import { recallInvoice } from '../src/billing/invoiceLifecycle/withdraw';
 import { canPortalReaderReadInvoice } from '../src/billing/invoiceAccess';
 import { listPortalCases } from '../src/portal/listPortalCases';
 import { loadProviderOffices } from '../src/professionals/providerOffices';

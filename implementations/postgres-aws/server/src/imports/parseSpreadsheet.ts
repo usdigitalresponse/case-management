@@ -9,7 +9,7 @@ import {
   type ParsedInvoice,
   type ParsedLine,
 } from './parsedInvoice';
-import type { LineType } from '../billing/invoiceLifecycle';
+import type { LineType } from '../billing/invoiceLifecycle/lineInput';
 
 export const TEMPLATE_COLUMNS = [
   'invoice_number',

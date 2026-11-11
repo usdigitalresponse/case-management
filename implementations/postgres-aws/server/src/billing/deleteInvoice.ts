@@ -25,7 +25,7 @@ import type { DocumentStore } from '../imports/documentStore';
 import { releaseDocumentIfUnneeded } from '../imports/documentRetention';
 import type { PortalActor } from '../portal/portalActor';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
-import { InvoiceStateError } from './invoiceLifecycle';
+import { InvoiceStateError } from './invoiceLifecycle/lineInput';
 import { UNSUBMITTED_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
 import { canDiscardEntry } from './enterInReview';
 import { removeTimeLog } from './reviewTimeLog';
