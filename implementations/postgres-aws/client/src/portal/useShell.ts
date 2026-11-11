@@ -1,4 +1,5 @@
 import { useAuth } from '../AuthContext';
+import { reviewPath } from '../staffPaths';
 
 // The new-invoice and import pages serve both apps: external submitters, and
 // staff entering invoices received outside the system (model/rules.yaml
@@ -20,6 +21,7 @@ export function useShell() {
   return {
     staff,
     casePath: (caseId: string) => (staff ? `/cases/${caseId}` : `/portal/cases/${caseId}`),
+    invoicePath: (invoiceId: string) => (staff ? reviewPath(invoiceId) : `/portal/invoices/${invoiceId}`),
     newInvoicePath: staff ? INTAKE_PATH : UPLOAD_PATH,
     newInvoiceLabel: staff ? 'Intake' : 'New invoice',
     invoicesPath: staff ? INTAKE_PATH : PORTAL_HOME_PATH,

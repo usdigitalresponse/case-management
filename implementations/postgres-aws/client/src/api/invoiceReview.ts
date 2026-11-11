@@ -145,6 +145,8 @@ export interface InvoiceReview {
   // Days this invoice claims travel that the same professional's invoices
   // on other cases also do.
   sameDayTravel: Array<{ date: string; otherInvoiceCount: number }>;
+  // Possible double billing: see ../components/BillingOverlaps.tsx.
+  billingOverlaps: BillingOverlap[];
   // Entered in review and not yet frozen: its reviewer may still edit lines.
   entryOpen: boolean;
   linesChangedByDisplayName: string | null;
@@ -329,4 +331,32 @@ export function reassignReviewer(
 
 export function setSignOffApprovers(invoiceId: string, userAccountIds: string[]): Promise<unknown> {
   return request(`/api/invoices/${invoiceId}/sign-off-approvers`, { method: 'PUT', body: JSON.stringify({ userAccountIds }) });
+}
+
+// As server/src/billing/billingOverlaps.ts sends it.
+export interface BillingOverlap {
+  invoiceId: string;
+  sameCase: boolean;
+  caseId: string | null;
+  caseNumber: string | null;
+  invoiceNumber: string | null;
+  professionalDisplayName: string | null;
+  statusCode: string;
+  statusDisplayName: string;
+  submittedAt: string | null;
+  // Its billing period and line dates together.
+  periodStart: string | null;
+  periodEnd: string | null;
+  submittedTotal: string;
+  lines: Array<{
+    invoiceLineId: string;
+    serviceDate: string | null;
+    lineTypeCode: string;
+    description: string | null;
+    quantity: string | null;
+    amount: string;
+    workerDisplayName: string | null;
+    // Lines here with the same date, person, type and quantity.
+    sameAsLineIds: string[];
+  }>;
 }

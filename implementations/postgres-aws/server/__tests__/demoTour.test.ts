@@ -108,6 +108,14 @@ describe('guided tour', () => {
     expect(new Set(tripLines.map((line) => line.tripId)).size).toBe(1);
     expect(earlierInvoiceId).toBeTruthy();
     expect(otherCaseInvoiceId).toBeTruthy();
+    // Flagged as possible double billing: the earlier weeks on its case, and the same day on another.
+    const { billingOverlaps } = (await (await call('GET', `/api/invoices/${invoiceId}`)).json()) as {
+      billingOverlaps: Array<{ invoiceId: string; sameCase: boolean; lines: unknown[] }>;
+    };
+    expect(billingOverlaps).toEqual([
+      expect.objectContaining({ invoiceId: earlierInvoiceId, sameCase: true }),
+      expect.objectContaining({ invoiceId: otherCaseInvoiceId, sameCase: false, lines: [expect.anything()] }),
+    ]);
     const [cached] = await testDb.select().from(routeCheck);
     expect(cached?.apiCalls).toBe(0);
     expect(lookups).toBe(0);

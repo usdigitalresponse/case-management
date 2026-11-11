@@ -1,0 +1,2 @@
+CREATE INDEX "invoice_line_timekeeper_date_idx" ON "invoice_line" USING btree ("timekeeper_professional_id","service_date");--> statement-breakpoint
+CREATE INDEX "invoice_line_source_time_entry_idx" ON "invoice_line" USING btree ("source_time_entry_id");

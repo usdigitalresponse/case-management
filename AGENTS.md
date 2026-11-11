@@ -344,6 +344,8 @@ from them into Git, fixtures or docs; describe findings generically.
 PDF imports are read in a background queue in the server process (one
 instance only), entirely in-process on the demo server's 1 GB; any model or
 service added to reading needs its hosting cost agreed first.
+Possible double billing (`src/billing/billingOverlaps.ts`) only warns, never
+refuses; a submitter sees only invoices they may read, and only on a draft.
 Pre-authorization limits are per provider per case: the ceiling of their one
 pre-authorization (asking for more revises it; never add ceilings), else the
 case county's configured threshold for kinds it applies to. Going over is

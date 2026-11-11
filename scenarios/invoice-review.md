@@ -318,5 +318,28 @@ configuration defaults.
       stay as they were. A request already sent keeps the rates it was sent
       with.
 
+23. **Possible double billing:** An investigator sent a request on a case for
+    the 1st to the 15th, with 1.5 hours on the 12th. They now send one on the
+    same case for the 10th to the 31st, also with 1.5 hours on the 12th, and
+    5.5 hours on the 20th. On another case they sent 6 hours on the 20th
+    (`flag_overlapping_invoice_period`).
+    - While it is a draft, the investigator is warned that both earlier
+      requests cover some of the same dates, with a link to each. A request
+      someone else sent that they may not read is not shown to them.
+    - The reviewer sees both: the same case's request with its line on the
+      12th, named as the same date, person and hours as this request's line,
+      and the other case's request with its 6 hours on the 20th. A request
+      on another case with time only on other dates in the month is not
+      flagged.
+    - The earlier request on the same case flags the new one in turn.
+    - A withdrawn or rejected request, or a draft never sent, is not
+      compared; a request sent back to its sender for changes is. A line on
+      the earlier request that a finished round rejected is not listed.
+    - A line dated 28 February on a March request is compared with
+      February's requests.
+    - A request filed by person with the case number typed as `26CR418` is
+      on the same case as `26-CR-00418`.
+    - Nothing is refused: the reviewer decides each line as usual.
+
 An implementation must document any step it cannot enforce, such as
 concurrent decisions, as a gap.

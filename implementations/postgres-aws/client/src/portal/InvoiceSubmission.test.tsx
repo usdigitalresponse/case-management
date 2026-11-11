@@ -64,3 +64,38 @@ describe('sending an invoice', () => {
     expect(api.unhandled).toEqual([]);
   });
 });
+
+describe('dates already billed', () => {
+  it('warns the sender on a draft and links to their earlier invoice', async () => {
+    const api = fakeApi({
+      ...lineEditorRoutes(),
+      ...signedIn(SENDER),
+      'GET /api/portal/invoices/:id': portalInvoice({
+        billingOverlaps: [
+          {
+            invoiceId: 'inv-2',
+            sameCase: true,
+            caseId: 'case-1',
+            caseNumber: '26-CR-0001',
+            invoiceNumber: 'INV-0042',
+            professionalDisplayName: 'Synthetic Investigator',
+            statusCode: 'submitted',
+            statusDisplayName: 'Submitted',
+            submittedAt: '2026-03-16T15:00:00Z',
+            periodStart: '2026-03-01',
+            periodEnd: '2026-03-15',
+            submittedTotal: '300.00',
+            lines: [],
+          },
+        ],
+      }),
+      'GET /api/portal/receipt-channels': { channels: [] },
+      'GET /api/my-cases': { cases: [], professionals: [] },
+    });
+    await openCheck();
+
+    expect(await screen.findByText('Some of these dates are already billed')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /invoice INV-0042/ }).getAttribute('href')).toBe('/portal/invoices/inv-2');
+    expect(api.unhandled).toEqual([]);
+  });
+});

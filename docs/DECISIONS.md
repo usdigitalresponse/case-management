@@ -484,6 +484,27 @@ it. The approved amount may then exceed what was requested. Every changed
 rate is shown to the sign-off approvers, with the billed and default rates,
 before they sign off, so a second person checks it.
 
+### Possible double billing flagged, never refused
+
+- **Status:** Active
+- **Decided:** 2026-11-11
+
+A request is compared with the same professional's other sent requests
+(`flag_overlapping_invoice_period`). On the same case, overlapping dates are
+enough to flag it, since that is where one piece of work is most likely billed
+twice. On another case, only time on the same dates is flagged: a
+professional's monthly requests on different cases always share a period, so
+a period-wide flag there would be noise. Each listed line with the same date,
+person, kind and quantity as one on the request is named. Rejected requests,
+and lines a finished round rejected, are not compared, so a corrected request
+sent again isn't flagged; a request sent back to its sender still is, since it
+will likely return. The flags
+are a warning to the submitter while it is a draft (only requests they may
+read) and to reviewers throughout; nothing is refused, since only a reviewer
+can tell a split day from a duplicate. Daily hour totals across cases stay
+with the daily hour cap, and travel the same day on another case with the
+same-day travel note.
+
 ### Firm-added professionals with staff approval
 
 - **Status:** Planned, not built

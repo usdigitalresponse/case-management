@@ -153,6 +153,7 @@ export function invoiceReview(overrides: Partial<InvoiceReview> = {}): InvoiceRe
     approvedRate: null,
     caseNumberMatches: { same: 0, close: 0 },
     sameDayTravel: [],
+    billingOverlaps: [],
     entryOpen: false,
     linesChangedByDisplayName: null,
     discardable: false,
@@ -204,6 +205,7 @@ export function portalInvoice(overrides: Partial<PortalInvoice> = {}): PortalInv
     questions: [],
     canAnswer: false,
     overrun: null,
+    billingOverlaps: [],
     overrunExplanations: [],
     ...overrides,
   };

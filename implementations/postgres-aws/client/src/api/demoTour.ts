@@ -4,7 +4,7 @@ import type { AuthenticatedUser } from './auth';
 export type TourMission = 'staff-filing' | 'preauth-send' | 'review' | 'answer-finish' | 'sign-off';
 export type TourRole = 'staff' | 'director' | 'vendor';
 
-// Mirrors server/src/demoTour/tourMaterial.ts TourRun.
+// Mirrors server/src/demoTour/tourMaterial.ts TourRun, less ids only its tests read.
 export interface TourRun {
   runId: string;
   mission: TourMission;
@@ -13,8 +13,6 @@ export interface TourRun {
   clientName?: string;
   vendorName: string;
   invoiceId?: string;
-  earlierInvoiceId?: string;
-  otherCaseInvoiceId?: string;
   sample?: { invoiceNumber: string; periodStart: string; periodEnd: string };
 }
 

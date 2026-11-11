@@ -7,9 +7,10 @@ import { EmailSender } from '../../components/EmailSender';
 import { InvoiceCaseRates } from '../../components/CaseRates';
 import { RateCheckNotice } from '../../components/ReviewPanels';
 import { RuleFindings } from '../../components/BillingRules';
+import { BillingOverlaps } from '../../components/BillingOverlaps';
 import { formatDate, formatDateTime } from '../../formatDateTime';
 import { formatMoney } from '../../formatMoney';
-import { personPath } from '../../staffPaths';
+import { personPath, reviewPath } from '../../staffPaths';
 import type { ReviewFacts } from './reviewFacts';
 import type { ReviewPage } from './useReviewPage';
 
@@ -158,6 +159,7 @@ export function ReviewNotices({ page, facts }: { page: ReviewPage; facts: Review
           </ul>
         </Notice>
       )}
+      <BillingOverlaps overlaps={data.billingOverlaps} lineNumbers={facts.lineNumber} invoicePath={reviewPath} />
       {page.actionError && <Notice tone="danger">{page.actionError}</Notice>}
       {facts.changedCount > 0 && !facts.entering && (
         <Notice tone="info">

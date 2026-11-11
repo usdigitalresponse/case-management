@@ -844,6 +844,32 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     required or warned on. Hours are flagged, never rounded.
   - Not built: rates by kind of work and other expense rules, such as
     receipts above an amount (see `docs/DECISIONS.md`).
+- **Possible double billing** (`src/billing/billingOverlaps.ts`;
+  `model/rules.yaml` `flag_overlapping_invoice_period`): `GET
+  /api/invoices/:id` returns `billingOverlaps`, and `GET
+  /api/portal/invoices/:id` does for a draft (otherwise `[]`), limited
+  for a submitter to invoices `portalReadableInvoiceCondition` lets them
+  read; staff on the check page see all. Each entry is another sent
+  invoice (not withdrawn, rejected or a draft never sent; one sent back
+  to its sender counts) with its case number, invoice number, status,
+  total, sent time and dates (its period and line dates together; this
+  invoice's are taken the same way):
+  - `sameCase`: billed by the same professional on the same case (same
+    `case_id`, or a close match of its case number, as typed, corrected
+    or the case's own) with overlapping dates. Its lines in this
+    invoice's dates by the same people are listed; it is listed even
+    with none.
+  - Another case: listed only when it bills time by a person this
+    invoice bills time for on the same date, with those time lines.
+  - Each listed line's `sameAsLineIds` names this invoice's lines with
+    the same date, person (as the daily hour cap counts them), line type
+    and quantity. Lines whose latest recorded decision rejected them are
+    left out. Nothing is refused; the client shows it in
+    `components/BillingOverlaps.tsx`.
+  - Candidates are found through indexed columns first (the invoice's
+    professional, `invoice_line_timekeeper_date_idx`, and time entries
+    by professional joined on `invoice_line_source_time_entry_idx`,
+    migration `0038`); only their lines get the full comparison.
 - **Trips, travel and waiting time, and mileage** (`src/billing/mileageRates.ts`,
   `timeCategoryRates.ts`, `routeCheck.ts`, `priceLines.ts`,
   `invoiceLifecycle/replaceLines.ts`, `sameDayTravel.ts`; `client/src/invoiceLines.ts` (trip parts and
