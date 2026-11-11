@@ -263,8 +263,7 @@ function AppRouter() {
   signedInUser = user;
   if (loading) return null;
   const audience: Audience = !user ? 'signed-out' : user.authType === 'email-code' ? 'portal' : 'staff';
-  // Keyed: RouterProvider keeps its first router's state, so a new router needs a new mount.
-  return <RouterProvider key={audience} router={routerFor(audience)} />;
+  return <RouterProvider router={routerFor(audience)} />;
 }
 
 export default function App() {
