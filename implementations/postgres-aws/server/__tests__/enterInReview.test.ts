@@ -262,6 +262,18 @@ describe('entering an upload in review', () => {
     expect(await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId))).toEqual([]);
   });
 
+  it('tells the queue who may discard it, as canDiscardEntry does', async () => {
+    const invoiceId = await upload([{ amount: 40, description: 'Copies' }]);
+    const discardableFor = async (actorUserAccountId: string) =>
+      (await listReviewQueue(testDb, 'open', { actorUserAccountId })).invoices.find((row) => row.invoiceId === invoiceId)?.discardable;
+    expect(await discardableFor(reviewer)).toBe(true);
+    expect(await discardableFor(approver)).toBe(false);
+
+    const [copies] = await savedLines(invoiceId);
+    await askQuestion(testDb, reviewer, invoiceId, { question: 'Which hearing?', invoiceLineId: copies!.invoiceLineId });
+    expect(await discardableFor(reviewer)).toBe(false);
+  });
+
   it('is entered by hand by staff, and otherwise not made at all', async () => {
     const professionalId = await sender();
     const typed = { caseId: null, professionalId, submit: false, enterInReview: true, invoiceNumber: 'INV-0042', lines: [] };

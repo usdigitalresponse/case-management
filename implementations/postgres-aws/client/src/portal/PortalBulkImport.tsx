@@ -26,7 +26,12 @@ function StepHeader({ step, toReview, ready }: { step: BulkStep; toReview: numbe
         <li key={number} aria-current={number === step ? 'step' : undefined}>
           <Tag tone={number === step ? 'strong' : number < step ? 'success' : 'neutral'}>
             {number} {label}
-            {number < step && <span aria-label=", done"> ✓</span>}
+            {number < step && (
+              <>
+                <span aria-hidden="true"> ✓</span>
+                <span className="usa-sr-only">, done</span>
+              </>
+            )}
           </Tag>
         </li>
       ))}

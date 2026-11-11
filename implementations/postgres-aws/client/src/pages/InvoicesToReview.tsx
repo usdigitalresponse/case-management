@@ -87,7 +87,7 @@ function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccou
       )}
       {(drafts.length > 0 || (reviews && entering.length > 0)) && (
         <section className="your-drafts" aria-labelledby="your-drafts-heading">
-          <h2 id="your-drafts-heading">Your drafts, not sent yet</h2>
+          <h2 id="your-drafts-heading">Your unfinished drafts</h2>
           {error && <Notice tone="danger">{error}</Notice>}
           <ul>
             {reviews &&
@@ -105,8 +105,7 @@ function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccou
                     <RouterLink className="row-action" to={reviewPath(invoice.invoiceId)}>
                       {continueLink}
                     </RouterLink>
-                    {/* As the server's canDiscardEntry: not once a question has been asked. */}
-                    {invoice.openQuestionCount + invoice.answeredQuestionCount === 0 && (
+                    {invoice.discardable && (
                       <DeleteInvoiceButton compact invoiceId={invoice.invoiceId} onDeleted={onDeleted} />
                     )}
                   </span>

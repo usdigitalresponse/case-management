@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { AssignedPerson, InvoiceReviewLine, SignOff, SignOffOutcome } from '../api/client';
 import { formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
@@ -60,6 +60,18 @@ export function RateCheckNotice({
   );
 }
 
+// Requested, approved, cut and line counts, for the totals bar and the Finish dialog.
+function totalsFigures(requested: string, totals: ReviewTotals) {
+  const { counts } = totals;
+  return [
+    { term: 'Requested', value: formatMoney(requested), tone: '' },
+    { term: 'Approved', value: formatMoney(totals.approved / 100), tone: 'good' },
+    // Raised rates can approve more than was asked for.
+    { term: totals.cut < 0 ? 'Added' : 'Cut', value: formatMoney(Math.abs(totals.cut) / 100), tone: 'cut' },
+    { term: 'Lines', value: `${counts.approved} approved, ${counts.part} in part, ${counts.rejected} rejected`, tone: null },
+  ];
+}
+
 // Requested, approved and cut so far, and Finish review once every line is
 // decided.
 export function TotalsBar({
@@ -87,23 +99,18 @@ export function TotalsBar({
   // What is still needed before finishing, shown in place of the button.
   needs?: string | null;
 }) {
-  const { counts } = totals;
+  const figures = totalsFigures(requested, totals);
   const [confirming, setConfirming] = useState(false);
   const signers = approvers.map((approver) => approver.displayName).join(', then ');
   return (
     <div className="card totals-bar">
       <dl>
-        <div><dt>Requested</dt><dd className="total-figure">{formatMoney(requested)}</dd></div>
-        <div><dt>Approved</dt><dd className="total-figure total-figure--good">{formatMoney(totals.approved / 100)}</dd></div>
-        {/* Raised rates can approve more than was asked for. */}
-        <div>
-          <dt>{totals.cut < 0 ? 'Added' : 'Cut'}</dt>
-          <dd className="total-figure total-figure--cut">{formatMoney(Math.abs(totals.cut) / 100)}</dd>
-        </div>
-        <div>
-          <dt>Lines</dt>
-          <dd>{counts.approved} approved, {counts.part} in part, {counts.rejected} rejected</dd>
-        </div>
+        {figures.map(({ term, value, tone }) => (
+          <div key={term}>
+            <dt>{term}</dt>
+            <dd className={tone === null ? undefined : `total-figure${tone ? ` total-figure--${tone}` : ''}`}>{value}</dd>
+          </div>
+        ))}
       </dl>
       {inReview && totals.decided === lineCount && canFinish && needs && <p className="totals-bar__next cell-note">{needs}</p>}
       {inReview && totals.decided === lineCount && canFinish && !needs && !confirming && (
@@ -121,14 +128,12 @@ export function TotalsBar({
       {confirming && (
         <Dialog title="Finish this review?" onClose={() => setConfirming(false)}>
           <dl className="send-summary">
-            <dt>Requested</dt>
-            <dd>{formatMoney(requested)}</dd>
-            <dt>Approved</dt>
-            <dd><strong>{formatMoney(totals.approved / 100)}</strong></dd>
-            <dt>{totals.cut < 0 ? 'Added' : 'Cut'}</dt>
-            <dd>{formatMoney(Math.abs(totals.cut) / 100)}</dd>
-            <dt>Lines</dt>
-            <dd>{counts.approved} approved, {counts.part} in part, {counts.rejected} rejected</dd>
+            {figures.map(({ term, value, tone }) => (
+              <Fragment key={term}>
+                <dt>{term}</dt>
+                <dd>{tone === 'good' ? <strong>{value}</strong> : value}</dd>
+              </Fragment>
+            ))}
           </dl>
           <p>
             {locksLines ? 'The lines lock as you entered them, and so do the decisions. ' : 'The decisions lock. '}

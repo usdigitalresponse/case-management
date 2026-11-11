@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, ScrollRestoration, useLocation, useNavigate, useNavigation, type RouteObject } from 'react-router';
+import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, useLocation, useNavigate, useNavigation, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './AuthContext';
 import { searchPath } from './staffPaths';
@@ -16,6 +16,7 @@ import { cases as casesResource, reviewQueue } from './resources';
 import { portalRoutes } from './portal/ExternalPortalApp';
 import { page, pageWith } from './lazyPage';
 import type { AuthenticatedUser } from './api/client';
+import { ScrollRestorationPerSignIn } from './components/ScrollRestorationPerSignIn';
 
 // The landing page files invoices by who sent them; the earlier queue, led
 // by case and client, stays here.
@@ -153,7 +154,7 @@ function StaffShell() {
       <div className="app-layout">
         {/* Everyone has Settings on demo servers, to change their own role there. */}
         <Sidebar showSettings={Boolean(user.isAdmin || user.demoMode)} userAccountId={user.userAccountId} />
-        <ScrollRestoration />
+        <ScrollRestorationPerSignIn />
         <main id="main-content" className="app-main" tabIndex={-1} aria-busy={loadingPage}>
           {loadingPage && <div className="page-loading" aria-hidden="true" />}
           <Outlet />

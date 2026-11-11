@@ -194,11 +194,13 @@ export function CheckLinesTable({
                       value={line.serviceDate}
                       onChange={(event) => onEditLine!(index, { serviceDate: event.target.value })}
                     />
-                  ) : editable && !line.serviceDate && !isEditing ? (
-                    <DateToEnter number={number} onEnter={(serviceDate) => onSaveLine(index, [{ ...line, serviceDate }], number)} />
                   ) : (
                     <>
-                      <strong className="line-date">{formatDate(line.serviceDate || null)}</strong>
+                      {editable && !line.serviceDate && !isEditing ? (
+                        <DateToEnter number={number} onEnter={(serviceDate) => onSaveLine(index, [{ ...line, serviceDate }], number)} />
+                      ) : (
+                        <strong className="line-date">{formatDate(line.serviceDate || null)}</strong>
+                      )}
                       {/* Under the date, as in design I6 and I13. */}
                       <span className="line-description">{line.description || '—'}</span>
                     </>

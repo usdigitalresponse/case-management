@@ -11,6 +11,7 @@ import { authProviders, demoAccounts as demoAccountsResource } from '../resource
 import { useAuth } from '../AuthContext';
 import { CodeSignIn } from '../portal/CodeSignIn';
 import { Button, buttonClass } from '../components/ui/Button';
+import { useProductName } from '../components/AppBrand';
 
 // Demos only: sign in as any seeded synthetic account, to try each view.
 function DemoSignIn({
@@ -59,11 +60,12 @@ export default function LoginPage() {
   const demoEnabled = Boolean(data?.demoLoginEnabled || data?.externalDemoLoginEnabled);
   const { data: demoAccounts } = useResource(demoEnabled ? demoAccountsResource : null);
   const { demoLogin, externalDemoLogin } = useAuth();
+  const productName = useProductName();
 
   return (
     <div className="login-page">
       <header className="login-intro">
-        <h1>Invoice Review Prototype</h1>
+        <h1>{productName}</h1>
       </header>
       <div className="login-panels">
         <section className="card login-panel" aria-labelledby="login-staff">

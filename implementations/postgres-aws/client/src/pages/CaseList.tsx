@@ -20,12 +20,12 @@ function matchesQuery(caseRecord: CaseListRecord, query: string): boolean {
   return haystack.includes(query.toLowerCase());
 }
 
-// Every case, as design I48 lists them.
 // As design I's All cases: billing in blue, waiting on a reviewer in yellow, closed in dark.
 function stageTone(stage: string | null): Tone {
   return stage === 'billing' ? 'info' : stage === 'needs-assignment' ? 'warning' : stage === null ? 'strong' : 'neutral';
 }
 
+// Every case, as design I48 lists them.
 export default function CaseList() {
   const { data, error } = useResource(casesResource);
   const cases = data?.cases ?? null;

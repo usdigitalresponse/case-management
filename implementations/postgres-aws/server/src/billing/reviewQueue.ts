@@ -15,6 +15,7 @@ import { loadCaseNumbers, selectInvoiceHeaders } from './invoiceDetail';
 import { approvedTotal, latestRoundNumber, loadRecordedDecisions, signOffProgress } from './reviewRounds';
 import { formatMoney, toCents } from './money';
 import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignments } from './reviewAssignment';
+import { canDiscardEntry } from './enterInReview';
 import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
 import { loadPreauthorizationSummaries, loadRateLimits, overPreauthorization, rateLimitFor, summaryForProfessional, type RateLimit } from './preauthorizations';
@@ -50,7 +51,8 @@ export async function listReviewQueue(
   view: QueueView,
   // q: only invoices matching it by name or case number, each with how;
   // day: only invoices with an item on that date.
-  options: { caseId?: string; professionalId?: string; q?: string; day?: string; now?: Date } = {},
+  // actorUserAccountId: who is looking, for whether they may discard what they are entering.
+  options: { caseId?: string; professionalId?: string; q?: string; day?: string; now?: Date; actorUserAccountId?: string } = {},
 ) {
   const now = options.now ?? new Date();
   const statusCodes =
@@ -234,6 +236,11 @@ export async function listReviewQueue(
         reviewer: assignments.reviewer,
         // Its reviewer is still entering its lines (./enterInReview.ts).
         beingEntered,
+        discardable:
+          beingEntered &&
+          options.actorUserAccountId !== undefined &&
+          assignments.reviewer?.userAccountId === options.actorUserAccountId &&
+          (await canDiscardEntry(db, options.actorUserAccountId, header.invoiceId)),
         // Who must act now: the next approver while awaiting sign-off.
         holder: nextApprover ?? assignments.reviewer,
         // A staff-entered invoice waits from the day it was received.

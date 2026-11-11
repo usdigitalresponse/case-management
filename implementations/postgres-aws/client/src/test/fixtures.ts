@@ -208,3 +208,11 @@ export function portalInvoice(overrides: Partial<PortalInvoice> = {}): PortalInv
     ...overrides,
   };
 }
+
+// What AuthProvider loads first: the user, and sign-in options with no organization name.
+export function signedIn(user: AuthenticatedUser) {
+  return {
+    'GET /auth/me': user,
+    'GET /auth/providers': { providers: [], demoLoginEnabled: false, externalDemoLoginEnabled: false, organizationName: null },
+  };
+}
