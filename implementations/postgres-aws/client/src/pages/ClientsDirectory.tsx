@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link as RouterLink } from 'react-router';
-import { listCases } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { cases } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
 import { RecordTable } from '../components/RecordTable';
@@ -10,7 +10,7 @@ import { formatDate } from '../formatDateTime';
 
 // Every case's client, one row per case (design I52).
 export default function ClientsDirectory() {
-  const { data, error } = useApiResource(listCases, []);
+  const { data, error } = useCachedResource(cases);
   const [query, setQuery] = useState('');
   if (error || !data) return <LoadState error={error} what="clients" />;
 

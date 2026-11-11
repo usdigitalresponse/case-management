@@ -9,7 +9,6 @@ import {
   setMileageWarning,
   finishReview,
   getInvoiceForReview,
-  listDecisionReasons,
   markInvoiceCompleted,
   reopenReview,
   repriceInvoice,
@@ -23,7 +22,8 @@ import {
   type LineDecisionInput,
 } from '../api/client';
 import { useAuth } from '../AuthContext';
-import { useApiResource } from '../hooks/useApiResource';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { decisionReasons, invoiceForReview } from '../resources';
 import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { RuleFindings } from '../components/BillingRules';
 import { overRouteNote, TravelLog } from '../components/TravelLog';
@@ -58,14 +58,15 @@ import { countOf } from '../portal/importProgress';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { SidePanelSwitch, TimeLogEntries, TimeLogLineCell, TimeLogLinkForm, TimeLogSummary, TimeLogUpload } from '../components/TimeLogCheck';
 import type { CheckQueue } from '../portal/InvoiceSubmission';
+import { DISCARD_EDITS } from '../hooks/useSaveBeforeLeaving';
 import { personPath, reviewPath } from '../staffPaths';
 
 export default function InvoiceReview() {
   const { invoiceId } = useParams<{ invoiceId: string }>();
   const { user } = useAuth();
   const permissions = user?.reviewPermissions;
-  const { data: loaded, error } = useApiResource(() => getInvoiceForReview(invoiceId as string), [invoiceId]);
-  const { data: reasonData } = useApiResource(() => listDecisionReasons(), []);
+  const { data: loaded, error } = useCachedResource(invoiceForReview(invoiceId as string));
+  const { data: reasonData } = useCachedResource(decisionReasons);
   // Refreshed in place after each action, so open panels aren't unmounted.
   const [refreshed, setRefreshed] = useState<InvoiceReviewData | null>(null);
   const latestRequest = useRef(0);
@@ -619,7 +620,7 @@ export default function InvoiceReview() {
                 Finish later
               </button>
             )}
-            {entering && data.discardable && <DeleteInvoiceButton invoiceId={invoice.invoiceId} onDeleted={() => navigate('/')} />}
+            {entering && data.discardable && <DeleteInvoiceButton invoiceId={invoice.invoiceId} onDeleted={() => navigate('/', { state: DISCARD_EDITS })} />}
             {emailSender}
             <InvoiceExportButton scope="staff" invoiceId={invoice.invoiceId} hasTrips={lines.some((line) => line.tripId)} />
           </>

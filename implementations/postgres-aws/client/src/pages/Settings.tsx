@@ -8,11 +8,6 @@ import {
   apiErrorMessage,
   categoryRateIn,
   createProfessionalKind,
-  getBillingRuleSettings,
-  getOwnDemoRole,
-  listMileageRates,
-  listProfessionalKinds,
-  listTimeCategoryRates,
   mileageRateOn,
   rateOn,
   resetDemoData,
@@ -28,6 +23,7 @@ import {
 } from '../api/client';
 import { timeCategoryRateLabel } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
+import { billingRuleSettings, mileageRates, ownDemoRole, professionalKinds, timeCategoryRates } from '../resources';
 import { useAuth } from '../AuthContext';
 import { PageHeading } from '../components/PageHeading';
 import { useLocation } from 'react-router';
@@ -170,7 +166,7 @@ function AddKindForm({ onAdded }: { onAdded: () => void }) {
 
 export default function Settings({ isAdmin }: { isAdmin: boolean }) {
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(() => listProfessionalKinds().then((result) => result.kinds), [version]);
+  const { data, error } = useApiResource(professionalKinds, [version]);
   const refresh = () => setVersion((v) => v + 1);
   const demoMode = Boolean(useAuth().user?.demoMode);
 
@@ -262,7 +258,7 @@ function DemoSettings({ isAdmin }: { isAdmin: boolean }) {
 function OwnRoleCard() {
   const { refreshUser } = useAuth();
   const [version, setVersion] = useState(0);
-  const { data, error: loadError } = useApiResource(() => getOwnDemoRole(), [version]);
+  const { data, error: loadError } = useApiResource(ownDemoRole, [version]);
   const [message, setMessage] = useState<SaveMessage | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -356,7 +352,7 @@ function DemoDataReset() {
 // Mileage is priced at the rate per mile in force on the trip's date.
 function MileageRates({ isAdmin }: { isAdmin: boolean }) {
   const [version, setVersion] = useState(0);
-  const { data, error: loadError } = useApiResource(() => listMileageRates().then((result) => result.rates), [version]);
+  const { data, error: loadError } = useApiResource(mileageRates, [version]);
   const [ratePerMile, setRatePerMile] = useState('');
   const [effectiveFrom, setEffectiveFrom] = useState(today);
   const [error, setError] = useState<string | null>(null);
@@ -437,7 +433,7 @@ function MileageRates({ isAdmin }: { isAdmin: boolean }) {
 // percent of it or one flat rate (model/rules.yaml apply_time_category_rates).
 function TimeCategoryRates({ category, isAdmin }: { category: TimeCategory; isAdmin: boolean }) {
   const [version, setVersion] = useState(0);
-  const { data, error: loadError } = useApiResource(() => listTimeCategoryRates().then((result) => result.rates), [version]);
+  const { data, error: loadError } = useApiResource(timeCategoryRates, [version]);
   const [basis, setBasis] = useState<TimeCategoryBasis>('percent_of_hourly_rate');
   const [amount, setAmount] = useState('');
   const [effectiveFrom, setEffectiveFrom] = useState(today);
@@ -720,7 +716,7 @@ function BillingCodes({ codes, isAdmin, onChanged }: { codes: BillingCode[]; isA
 
 function BillingRulesSettings({ isAdmin }: { isAdmin: boolean }) {
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(() => getBillingRuleSettings(), [version]);
+  const { data, error } = useApiResource(billingRuleSettings, [version]);
   const refresh = () => setVersion((v) => v + 1);
   return (
     <section className="settings-section" id="settings-rules">

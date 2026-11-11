@@ -7,18 +7,15 @@ import { NO_PROPOSED_PERSON, ProposedPersonFields, proposedPersonToSend } from '
 import {
   apiErrorMessage,
   getInvoiceImport,
-  getMyInvoice,
-  listBillableProfessionals,
   listInvoiceImports,
   resolveInvoiceImport,
   updateDraftInvoice,
   type BillableProfessional,
   type ProposedProvider,
-  type InvoiceImportDetail,
-  type PortalInvoice,
   type SuggestedImportLine,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { importReview, type ImportReviewData } from '../resources';
 import { usePoll } from '../hooks/usePoll';
 import { ImportProgressNote } from '../components/ImportProgressNote';
 import {
@@ -44,22 +41,6 @@ import { PageHeader } from '../components/PageHeader';
 import { Fact, FactsStrip } from '../components/FactsStrip';
 import { LoadState } from '../components/LoadState';
 import { useShell } from './useShell';
-
-interface Loaded {
-  importDetail: InvoiceImportDetail;
-  invoice: PortalInvoice | null;
-  timekeepers: BillableProfessional[];
-}
-
-async function load(importId: string): Promise<Loaded> {
-  const importDetail = await getInvoiceImport(importId);
-  const [invoice, timekeepers] = await Promise.all([
-    importDetail.invoiceId ? getMyInvoice(importDetail.invoiceId) : Promise.resolve(null),
-    // A file held in intake has no case: staff may match any provider.
-    listBillableProfessionals(importDetail.caseId).then((result) => result.professionals),
-  ]);
-  return { importDetail, invoice, timekeepers };
-}
 
 function AssignAllTimekeepers({
   timekeepers,
@@ -194,7 +175,7 @@ function ExtractedReview({
   hasNext,
   onChanged,
 }: {
-  data: Loaded;
+  data: ImportReviewData;
   // From bulk import: where to go once confirmed or discarded.
   afterResolve?: string;
   hasNext: boolean;
@@ -369,7 +350,8 @@ export default function PortalImportReview() {
   const navigate = useNavigate();
   const { casePath, newInvoicePath, newInvoiceLabel } = useShell();
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(() => load(importId as string), [importId, version]);
+  const imported = importReview(importId as string);
+  const { data, error } = useApiResource(imported, [importId, version]);
   // From bulk import: where this file sits in the queue still to review.
   const { data: bulkImports } = useApiResource(
     () => (fromBulk ? listInvoiceImports().then((result) => result.imports) : Promise.resolve(null)),

@@ -5,10 +5,6 @@ import {
   apiErrorMessage,
   createTimeEntry,
   deleteTimeEntry,
-  listBillableProfessionals,
-  listMyCases,
-  listMyInvoices,
-  listMyTimeEntries,
   rateOn,
   updateTimeEntry,
   type BillableProfessional,
@@ -16,6 +12,7 @@ import {
 } from '../api/client';
 import { professionalLabel } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
+import { billableProfessionals, myCaseInvoices, myCases as myCasesResource, myTimeEntries } from '../resources';
 import { NewInvoiceForm } from './NewInvoiceForm';
 import { UPLOAD_PATH } from './useShell';
 import { MyInvoicesTable } from './MyInvoicesTable';
@@ -290,7 +287,7 @@ function InvoiceSection({
 }) {
   const [listVersion, setListVersion] = useState(0);
   const [showWithdrawn, setShowWithdrawn] = useState(false);
-  const { data, error } = useApiResource(() => listMyInvoices(caseId).then((result) => result.invoices), [caseId, listVersion]);
+  const { data, error } = useApiResource(myCaseInvoices(caseId), [caseId, listVersion]);
   const withdrawnCount = data?.filter((i) => i.statusCode === 'withdrawn').length ?? 0;
 
   return (
@@ -340,23 +337,17 @@ export default function PortalCaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
   const [timeEntryVersion, setTimeEntryVersion] = useState(0);
   // Only listMyCases() carries externalReference/clientDisplayName, needed for the heading label.
-  const { data: myCases } = useApiResource(() => listMyCases().then((result) => result.cases), []);
-  const { data: billable } = useApiResource(
-    () => (caseId ? listBillableProfessionals(caseId).then((result) => result.professionals) : Promise.resolve([])),
-    [caseId],
-  );
+  const { data: myCases } = useApiResource(myCasesResource, []);
+  const { data: billable } = useApiResource(billableProfessionals(caseId as string), [caseId]);
   // Shared by both sections: invoicing changes what is unbilled.
-  const { data: entries, error: entriesError } = useApiResource(
-    () => (caseId ? listMyTimeEntries(caseId).then((result) => result.timeEntries) : Promise.resolve([])),
-    [caseId, timeEntryVersion],
-  );
+  const { data: entries, error: entriesError } = useApiResource(myTimeEntries(caseId as string), [caseId, timeEntryVersion]);
   const refreshTime = () => setTimeEntryVersion((v) => v + 1);
 
   if (!caseId) {
     return null;
   }
 
-  const myCase = myCases?.find((c) => c.caseId === caseId);
+  const myCase = myCases?.cases.find((c) => c.caseId === caseId);
   const title = caseDisplayLabel(
     [myCase?.externalReference, myCase?.clientDisplayName],
     myCase ? { label: 'Case assigned', date: myCase.assignedAt } : undefined,

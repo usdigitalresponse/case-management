@@ -3,13 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { Checkbox, ErrorMessage, Fieldset, Form, FormGroup, Label, TextInput } from '@trussworks/react-uswds';
 import {
   createCase,
-  getReferenceData,
   fieldErrorsOf,
   matchInvoiceToCase,
   searchPeople,
   type PersonRecord,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { referenceData as referenceDataResource } from '../resources';
 import { ReferenceSelect } from '../components/ReferenceSelect';
 import { CountyPicker } from '../components/CountyPicker';
 import type { CountyValue } from '../counties';
@@ -33,7 +33,7 @@ export default function NewCaseIntake() {
   // An invoice filed by person, being reviewed, and the case number it gives.
   const reviewInvoiceId = searchParams.get('review');
   const invoiceCaseNumber = searchParams.get('number') ?? undefined;
-  const { data: referenceData, error: loadError } = useApiResource(getReferenceData, []);
+  const { data: referenceData, error: loadError } = useApiResource(referenceDataResource, []);
 
   const [selectedPerson, setSelectedPerson] = useState<PersonRecord | null>(null);
   // A client not in the system yet, created with the case.

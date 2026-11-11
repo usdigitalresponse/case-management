@@ -1,15 +1,9 @@
 // The request log and usage by county (model/rules.yaml request_preauthorization, report_preauthorization_usage).
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import {
-  getPreauthorizationUsage,
-  listCases,
-  listPreauthorizationRequests,
-  listVendors,
-  type CountyUsage,
-  type PreauthorizationRequestRow,
-} from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import type { CountyUsage, PreauthorizationRequestRow } from '../api/client';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { cases as casesResource, preauthorizationRequests, preauthorizationUsage, providers as providersResource, thisYear } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
@@ -33,8 +27,8 @@ export const preauthorizationPath = (requestId: string) => `/preauthorizations/$
 
 function RecordRequest({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate();
-  const cases = useApiResource(() => listCases(), []);
-  const providers = useApiResource(() => listVendors(''), []);
+  const cases = useCachedResource(casesResource);
+  const providers = useCachedResource(providersResource);
   if (!cases.data || !providers.data) return <LoadState error={cases.error ?? providers.error} what="cases" />;
   return (
     <section className="compact-card">
@@ -56,14 +50,14 @@ function Requests() {
   const countyId = params.get('countyId') ?? undefined;
   const caseId = params.get('caseId') ?? undefined;
   const [recording, setRecording] = useState(false);
-  const { data, error } = useApiResource(() => listPreauthorizationRequests({ status, countyId, caseId }), [status, countyId, caseId]);
+  const { data, error } = useCachedResource(preauthorizationRequests({ status, countyId, caseId }));
   const setFilter = (next: Record<string, string | undefined>) => {
     const merged = new URLSearchParams(params);
     for (const [key, value] of Object.entries(next)) {
       if (value === undefined) merged.delete(key);
       else merged.set(key, value);
     }
-    setParams(merged);
+    setParams(merged, { preventScrollReset: true });
   };
   return (
     <>
@@ -143,14 +137,9 @@ function LimitCell({ row }: { row: PreauthorizationRequestRow }) {
   );
 }
 
-function thisYear() {
-  const year = new Date().getFullYear();
-  return { from: `${year}-01-01`, to: `${year}-12-31` };
-}
-
 function UsageByCounty() {
   const [period, setPeriod] = useState(thisYear);
-  const { data, error } = useApiResource(() => getPreauthorizationUsage(period), [period.from, period.to]);
+  const { data, error } = useCachedResource(preauthorizationUsage(period));
   const requestsLink = (row: CountyUsage, status: string) =>
     `/preauthorizations?status=${status}${row.countyId ? `&countyId=${row.countyId}` : ''}`;
   const count = (row: CountyUsage, status: string, n: number) =>
@@ -273,10 +262,10 @@ export default function Preauthorizations() {
         description="Requests, and how each county’s limits are used."
       />
       <div className="chip-filters page-tabs" role="tablist" aria-label="View">
-        <button type="button" role="tab" className="chip chip--filter" aria-selected={view === 'requests'} aria-pressed={view === 'requests'} onClick={() => setParams({})}>
+        <button type="button" role="tab" className="chip chip--filter" aria-selected={view === 'requests'} aria-pressed={view === 'requests'} onClick={() => setParams({}, { preventScrollReset: true })}>
           Requests
         </button>
-        <button type="button" role="tab" className="chip chip--filter" aria-selected={view === 'county'} aria-pressed={view === 'county'} onClick={() => setParams({ view: 'county' })}>
+        <button type="button" role="tab" className="chip chip--filter" aria-selected={view === 'county'} aria-pressed={view === 'county'} onClick={() => setParams({ view: 'county' }, { preventScrollReset: true })}>
           By county
         </button>
       </div>

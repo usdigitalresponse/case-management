@@ -274,8 +274,8 @@ member's upload goes straight into their own review (`enter_request_in_review`,
 `src/billing/enterInReview.ts`): they enter and decide its lines on the review
 page until the first finished round freezes them. There, and on the check
 page, lines are edited in place with no save button; the page's next action
-(deciding, sending, saving for later, finishing) saves them first, so nothing
-acts on unsaved values. After that freeze, lines never change,
+(deciding, sending, saving for later, finishing, leaving for another page)
+saves them first, so nothing acts on unsaved values. After that freeze, lines never change,
 even after reopening or a send-back. Line saves keep each line's id, so a
 decision or question stays on its line; never go back to deleting and
 reinserting lines. Entry saves, and decisions while entry is open, carry
@@ -299,6 +299,13 @@ single-host production-mode stack; its seed command is equally destructive.
 Settings' Demo section (anyone switching their own role; administrators'
 "Reset demo data", the same reset) must stay unavailable unless the staff
 demo sign-in is enabled.
+The app is a React Router data router built per kind of signed-in user
+(`client/src/App.tsx`, the portal's routes in `portal/ExternalPortalApp.tsx`);
+pages give their route a loader over named resources (`src/routeLoaders.ts`,
+`src/resources.ts`), so they don't blank to "Loading…" while switching; add one
+for a new page that loads data. Pages that edit what they load pass their
+resource to `useApiResource`, start from their loader's data and are never
+refreshed under the user.
 Run server/client `npm run typecheck` and `npm run lint`, client `npm run build` and `npm test`, and
 server `npm test` against a separate migrated test database (see its README). The server
 build entry point is `dist/src/app.js`. Its `MAPPING.md` holds the schema

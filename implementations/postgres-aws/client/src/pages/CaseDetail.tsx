@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import {
   apiErrorMessage,
-  getCase,
-  getCaseInvoices,
   setCaseReviewer,
   setPreauthorizedAmount,
   type AssignedPerson,
@@ -12,6 +10,7 @@ import {
 } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useApiResource } from '../hooks/useApiResource';
+import { caseDetail, caseInvoices } from '../resources';
 import { DECIDED_STATUS_CODES, InvoiceStatus } from '../components/Completion';
 import { CaseRateTable } from '../components/CaseRates';
 import { CloseCaseAction } from '../components/CloseCaseAction';
@@ -184,12 +183,12 @@ export default function CaseDetail() {
   const { user } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey((key) => key + 1);
-  const { data: detail, error } = useApiResource(() => getCase(caseId as string), [caseId, refreshKey]);
+  const { data: detail, error } = useApiResource(caseDetail(caseId as string), [caseId, refreshKey]);
   const {
     data: billing,
     error: billingError,
     reload: reloadBilling,
-  } = useApiResource(() => getCaseInvoices(caseId as string), [caseId, refreshKey]);
+  } = useApiResource(caseInvoices(caseId as string), [caseId, refreshKey]);
 
   if (error || !detail) {
     return <LoadState error={error} what="case" />;

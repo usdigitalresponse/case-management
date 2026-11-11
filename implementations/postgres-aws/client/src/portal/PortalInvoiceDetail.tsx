@@ -3,7 +3,6 @@ import { useNavigate, useParams, useSearchParams, Link as RouterLink } from 'rea
 import {
   answerQuestion,
   apiErrorMessage,
-  getMyInvoice,
   listBillableProfessionals,
   listMyTimeEntries,
   transitionInvoice,
@@ -13,6 +12,7 @@ import {
 } from '../api/client';
 import { hasInvoiceItems, InvoiceLinesEditor, lineDraftsFrom, linesFromDrafts, type LineDraft } from '../components/InvoiceLinesEditor';
 import { useApiResource } from '../hooks/useApiResource';
+import { myInvoice } from '../resources';
 import { UnbilledTimePicker } from '../components/UnbilledTimePicker';
 import { RuleFindings, RulesInForce, usePortalBillingRules } from '../components/BillingRules';
 import { useAuth } from '../AuthContext';
@@ -178,7 +178,7 @@ export default function PortalInvoiceDetail() {
   const [searchParams] = useSearchParams();
   const fromBulk = searchParams.get('from') === 'bulk';
   const [version, setVersion] = useState(0);
-  const { data, error } = useApiResource(() => getMyInvoice(invoiceId as string), [invoiceId, version]);
+  const { data, error } = useApiResource(myInvoice(invoiceId as string), [invoiceId, version]);
   const [recallError, setRecallError] = useState<string | null>(null);
   const [recalling, setRecalling] = useState(false);
   const [answering, setAnswering] = useState(false);

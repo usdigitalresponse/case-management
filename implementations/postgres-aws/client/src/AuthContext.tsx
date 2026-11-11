@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router';
+import { queryClient } from './queryClient';
 import {
   ApiError,
   demoLogin,
@@ -23,12 +23,15 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-// Inside the router: signing in or out starts again at home, since the
-// staff app and the portal have different pages at different addresses.
+// Outside the router; a new user starts at home (staff and portal pages differ) with nothing cached.
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const switchUser = useCallback((next: AuthenticatedUser | null) => {
+    window.history.replaceState(null, '', '/');
+    queryClient.clear();
+    setUser(next);
+  }, []);
 
   useEffect(() => {
     getCurrentUser()
@@ -46,30 +49,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const handleDemoLogin = useCallback(async (userAccountId?: string) => {
     await demoLogin(userAccountId);
     // The login response lacks isAdmin; /auth/me has it.
-    setUser(await getCurrentUser());
-    navigate('/', { replace: true });
-  }, [navigate]);
+    switchUser(await getCurrentUser());
+  }, [switchUser]);
 
   const handleExternalDemoLogin = useCallback(async (userAccountId?: string) => {
-    const nextUser = await externalDemoLogin(userAccountId);
-    setUser(nextUser);
-    navigate('/', { replace: true });
-  }, [navigate]);
+    switchUser(await externalDemoLogin(userAccountId));
+  }, [switchUser]);
 
   const handleSignInWithCode = useCallback(async (email: string, code: string) => {
-    const nextUser = await verifySignInCode(email, code);
-    setUser(nextUser);
-    navigate('/', { replace: true });
-  }, [navigate]);
+    switchUser(await verifySignInCode(email, code));
+  }, [switchUser]);
 
   const handleLogout = useCallback(async () => {
+    // Before signing out, so nothing on screen reloads without a session.
+    queryClient.clear();
     await apiLogout();
-    setUser(null);
-    navigate('/', { replace: true });
-  }, [navigate]);
+    switchUser(null);
+  }, [switchUser]);
 
+  // New roles can see different data: refresh what is cached.
   const refreshUser = useCallback(async () => {
     setUser(await getCurrentUser());
+    queryClient.removeQueries({ type: 'inactive' });
+    await queryClient.invalidateQueries();
   }, []);
 
   return (

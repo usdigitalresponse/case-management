@@ -10,7 +10,6 @@ import {
   type RateBasis,
   askPreauthorizationQuestion,
   decidePreauthorizationRequest,
-  getPreauthorizationRequest,
   linkedDocumentUrl,
   listCases,
   listVendors,
@@ -24,6 +23,7 @@ import {
   type RequestOutcome,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { preauthorizationRequest } from '../resources';
 import { formatDate, formatDay, formatDateTime } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { Fact, FactsStrip } from './FactsStrip';
@@ -401,7 +401,7 @@ function Questions({ detail, staff, mayAnswer, onChanged }: { detail: Preauthori
 }
 
 export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requestId: string; staff: boolean; crumbs: Array<{ label: string; to?: string }> }) {
-  const { data, error, reload } = useApiResource(() => getPreauthorizationRequest(requestId), [requestId]);
+  const { data, error, reload } = useApiResource(preauthorizationRequest(requestId), [requestId]);
   // Each change returns the request as it now is.
   const [changedTo, setChangedTo] = useState<PreauthorizationRequestDetail | null>(null);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);

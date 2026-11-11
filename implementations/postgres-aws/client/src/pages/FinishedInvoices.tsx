@@ -1,8 +1,9 @@
 // Every invoice with all its lines decided, newest first: waiting for
 // sign-off, decided, or completed once the sender has been told.
 import { useState } from 'react';
-import { listReviewQueue, type ReviewQueueItem } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import type { ReviewQueueItem } from '../api/client';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { reviewQueue } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
@@ -41,7 +42,7 @@ function matches(invoice: ReviewQueueItem, filter: FilterId): boolean {
 }
 
 export default function FinishedInvoices() {
-  const { data, error, reload } = useApiResource(() => listReviewQueue('all'), []);
+  const { data, error, reload } = useCachedResource(reviewQueue('all'));
   const [filter, setFilter] = useState<FilterId>('month');
   const [toast, setToast] = useToast();
   const finished = (data?.invoices ?? [])

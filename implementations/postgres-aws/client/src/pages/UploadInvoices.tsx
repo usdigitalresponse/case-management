@@ -8,10 +8,10 @@ import {
   createInvoice,
   createUploadDraft,
   invoiceTemplateUrl,
-  listBillableProfessionals,
   type InvoiceReceipt,
 } from '../api/client';
 import { useApiResource } from '../hooks/useApiResource';
+import { billableProfessionals } from '../resources';
 import { Notice } from '../components/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { asksWho, BILLED_BY_HINT, SenderPicker, senderLabel, type PersonDraft } from '../components/InvoiceDetailsFields';
@@ -45,7 +45,7 @@ export default function UploadInvoices() {
   const home = staff ? { label: 'To review', to: '/' } : { label: 'Your invoices', to: PORTAL_HOME_PATH };
   // A file's own sender; '' is the one chosen above.
   const { entries, update, addFiles, remove, discardAll } = useUploadEntries(() => '');
-  const { data: billable } = useApiResource(() => listBillableProfessionals(null).then((result) => result.professionals), []);
+  const { data: billable } = useApiResource(billableProfessionals(null), []);
   const self = billable?.find((p) => p.isSelf);
   const asks = asksWho(staff, billable);
   const [sender, setSender] = useState('');

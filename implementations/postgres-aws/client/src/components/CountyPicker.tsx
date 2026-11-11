@@ -1,8 +1,9 @@
 // Every county picker; a county typed in is added when the caller saves it (countyChoiceOf).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useCombobox } from 'downshift';
-import { apiErrorMessage, listCounties, type CountyChoice, type CountyOption, type SavedCounty } from '../api/client';
-import { useApiResource } from '../hooks/useApiResource';
+import { apiErrorMessage, type CountyChoice, type CountyOption, type SavedCounty } from '../api/client';
+import { useCachedResource } from '../hooks/useCachedResource';
+import { counties as countiesResource } from '../resources';
 import { countyChoiceOf, countyMatches, type CountyValue } from '../counties';
 
 type Item = { option: CountyOption } | { add: string };
@@ -26,7 +27,7 @@ export function CountyPicker({
   error?: string | null;
   disabled?: boolean;
 }) {
-  const { data } = useApiResource(() => listCounties().then((result) => result.counties), []);
+  const { data } = useCachedResource(countiesResource);
   // A county just added isn't in the list fetched before it.
   const options =
     value?.countyId && data && !data.some((option) => option.countyId === value.countyId)
