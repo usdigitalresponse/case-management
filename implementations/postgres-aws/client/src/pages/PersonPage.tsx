@@ -21,7 +21,7 @@ import { formatMoney, sumMoney } from '../formatMoney';
 import { formatDate } from '../formatDateTime';
 import { Notice } from '../components/ui/Notice';
 import { personPath } from '../staffPaths';
-import { ProviderOnFile } from '../components/PreauthorizationRequestView';
+import { ProviderOnFile } from '../components/preauthorizationRequest/ProviderOnFile';
 import { useSearchParamState } from '../hooks/useSearchParamState';
 import { FilterTag, Tag } from '../components/ui/Tag';
 import { Button } from '../components/ui/Button';

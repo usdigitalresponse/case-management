@@ -6,7 +6,8 @@ import { LoadState } from '../components/LoadState';
 import { PageHeader } from '../components/PageHeader';
 import { RecordTable } from '../components/RecordTable';
 import { PreauthorizationRequestForm } from '../components/PreauthorizationRequestForm';
-import { caseText, PreauthorizationRequestView, providerText, rateText, RequestStatus } from '../components/PreauthorizationRequestView';
+import { caseText, providerText, rateText, RequestStatus } from '../components/preauthorizationRequest/requestText';
+import { PreauthorizationRequestView } from '../components/PreauthorizationRequestView';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 

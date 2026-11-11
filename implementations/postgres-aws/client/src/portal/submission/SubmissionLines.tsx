@@ -1,6 +1,6 @@
 import { Notice } from '../../components/ui/Notice';
 import { OriginalDocument } from '../../components/OriginalDocument';
-import { RecordedDecision } from '../../components/LineReview';
+import { RecordedDecision } from '../../components/lineReview/DecisionCell';
 import { LineQuestions } from '../../components/ReviewQuestions';
 import { SentBackNotice } from '../../components/SentBackNotice';
 import { formatDateTime } from '../../formatDateTime';

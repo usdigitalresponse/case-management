@@ -138,7 +138,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     at a changed rate, or adds a `case_rate` row for the person or their
     kind from a date and approves the lines on this invoice it governs.
     The Rate panel offers both once the rate changed
-    (`client/src/components/LineReview.tsx`), and "Return to the configured
+    (`client/src/components/lineReview/DecisionPanel.tsx`), and "Return to the configured
     rate instead" stores a row with no rate. Pricing (`priceLines.ts`) takes
     each line's default from `defaultRates.ts` and records
     `invoice_line.rate_source` and `case_rate_id`. A case rate changes only

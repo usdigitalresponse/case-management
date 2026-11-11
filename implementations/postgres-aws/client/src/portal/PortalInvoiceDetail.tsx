@@ -20,7 +20,7 @@ import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { InvoiceExportButton } from '../components/InvoiceExportButton';
 import { invoiceReference, isSubmittedStatus } from '../components/InvoiceSummary';
 import { StatusPill } from '../components/StatusPill';
-import { RecordedDecision } from '../components/LineReview';
+import { RecordedDecision } from '../components/lineReview/DecisionCell';
 import { ConfirmButton } from '../components/ConfirmButton';
 import { PeriodFields } from '../components/PeriodFields';
 import { PageHeader } from '../components/PageHeader';

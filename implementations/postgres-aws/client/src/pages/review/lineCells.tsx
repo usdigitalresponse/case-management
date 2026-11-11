@@ -7,7 +7,9 @@ import {
   type InvoiceReviewLine,
   type LineDecisionInput,
 } from '../../api/client';
-import { DecisionCell, DecisionPanel, decisionInput, type RateScope } from '../../components/LineReview';
+import { DecisionCell } from '../../components/lineReview/DecisionCell';
+import { DecisionPanel, decisionInput } from '../../components/lineReview/DecisionPanel';
+import { type RateScope } from '../../components/lineReview/lineRates';
 import { AskLink, LineQuestions, QuestionForm } from '../../components/ReviewQuestions';
 import { EmailAboutLine } from '../../components/EmailSender';
 import { TimeLogLineCell } from './timeLog/TimeLogLineCell';
