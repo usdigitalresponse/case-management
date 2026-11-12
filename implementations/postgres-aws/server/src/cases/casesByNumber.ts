@@ -7,7 +7,7 @@ import type { DatabaseOrTransaction } from '../db/client';
 import { caseIdentifier, caseTable, county, person } from '../db/schema';
 import { closeKey } from '../billing/caseNumbers';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
-import { byCase } from './byCase';
+import { groupBy } from '../groupBy';
 
 export interface CaseByNumber {
   caseId: string;
@@ -22,13 +22,11 @@ export interface CaseByNumber {
 export async function findCasesByNumber(db: DatabaseOrTransaction, caseNumber: string | null): Promise<CaseByNumber[]> {
   if (!caseNumber) return [];
   const wantedClose = closeKey(caseNumber);
-  // An exact match has the same key too; without one, every case is read.
-  const keyed = wantedClose
-    ? unionAll(
-        db.select({ caseId: caseTable.caseId }).from(caseTable).where(eq(sql`case_number_close_key(${caseTable.externalReference})`, wantedClose)),
-        db.select({ caseId: caseIdentifier.caseId }).from(caseIdentifier).where(eq(sql`case_number_close_key(${caseIdentifier.value})`, wantedClose)),
-      )
-    : undefined;
+  // An exact match has the same key too, even an empty one.
+  const keyed = unionAll(
+    db.select({ caseId: caseTable.caseId }).from(caseTable).where(eq(sql`case_number_close_key(${caseTable.externalReference})`, wantedClose)),
+    db.select({ caseId: caseIdentifier.caseId }).from(caseIdentifier).where(eq(sql`case_number_close_key(${caseIdentifier.value})`, wantedClose)),
+  );
   const [cases, identifiers] = await Promise.all([
     db
       .select({
@@ -41,13 +39,13 @@ export async function findCasesByNumber(db: DatabaseOrTransaction, caseNumber: s
       .from(caseTable)
       .leftJoin(person, eq(caseTable.clientId, person.personId))
       .leftJoin(county, eq(caseTable.countyId, county.countyId))
-      .where(keyed ? inArray(caseTable.caseId, keyed) : undefined),
+      .where(inArray(caseTable.caseId, keyed)),
     db
       .select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value })
       .from(caseIdentifier)
-      .where(keyed ? inArray(caseIdentifier.caseId, keyed) : undefined),
+      .where(inArray(caseIdentifier.caseId, keyed)),
   ]);
-  const identifiersOf = byCase(identifiers);
+  const identifiersOf = groupBy(identifiers, (row) => row.caseId);
   const wanted = caseNumber.toUpperCase();
   const found = cases.flatMap((row) => {
     const numbers = [row.externalReference, ...(identifiersOf.get(row.caseId) ?? []).map((id) => id.value)].filter(

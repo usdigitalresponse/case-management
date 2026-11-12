@@ -39,7 +39,7 @@ import { loadReviewQuestions, type ReviewQuestionView } from './reviewQuestions'
 import { caseRatesChangedSince, loadCaseRateViews, rateProfessionalId, type CaseRateView } from './caseRates';
 import { rateTypeOf, type RateType } from './defaultRates';
 import { loadMileageDismissals, type MileageWarningDismissal } from './mileageWarnings';
-import { byCase } from '../cases/byCase';
+import { groupBy } from '../groupBy';
 
 export type Audience = 'staff' | 'submitter';
 
@@ -117,7 +117,7 @@ export async function loadCaseNumbers(db: DatabaseOrTransaction, maybeCaseIds: A
       .from(caseIdentifier)
       .where(inIds(caseIdentifier.caseId, caseIds)),
   ]);
-  const identifiersOf = byCase(identifiers);
+  const identifiersOf = groupBy(identifiers, (row) => row.caseId);
   for (const row of cases) {
     const own = identifiersOf.get(row.caseId) ?? [];
     const primary = own.find((identifier) => identifier.isPrimary)?.value ?? row.externalReference;

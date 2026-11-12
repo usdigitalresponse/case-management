@@ -49,9 +49,8 @@ export async function caseNumberMatchesFor(db: DatabaseOrTransaction, invoiceId:
     .groupBy(effectiveNumber);
   const number = own?.number;
   if (!number) return { same: 0, close: 0 };
+  // Empty for a number with no letters or digits, which matches other such numbers.
   const key = closeKey(number);
-  // Nothing to look up by: no letters or digits.
-  if (!key) return (await sentCaseNumberCounts(db))(number);
   // Cases whose own number has the key: their primary identifier, else their reference.
   const casesWithKey = unionAll(
     db.select({ caseId: caseIdentifier.caseId }).from(caseIdentifier).where(and(eq(caseIdentifier.isPrimary, true), eq(keyOf(caseIdentifier.value), key))),

@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { inIds } from '../db/inIds';
+import { groupBy } from '../groupBy';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { getReferenceId } from '../db/referenceLookups';
@@ -142,10 +143,10 @@ export async function loadPreauthorizationSummariesByCase(
   alsoProfessionalIds: string[] = [],
   thresholds?: ThresholdTable,
 ): Promise<Map<string, PreauthorizationSummary[]>> {
-  const summaries = new Map(caseIds.map((caseId) => [caseId, new Map<string | null, PreauthorizationSummary>()]));
   if (caseIds.length === 0) {
     return new Map();
   }
+  const summaries = new Map(caseIds.map((caseId) => [caseId, new Map<string | null, PreauthorizationSummary>()]));
   const [authorizations, invoices] = await Promise.all([
     db
       .select({
@@ -188,10 +189,7 @@ export async function loadPreauthorizationSummariesByCase(
   for (const decision of decisions) {
     if (!latestDecision.has(decision.preauthorizationId)) latestDecision.set(decision.preauthorizationId, decision);
   }
-  const invoicesOf = new Map<string, typeof invoices>(caseIds.map((caseId) => [caseId, []]));
-  for (const row of invoices) {
-    invoicesOf.get(row.caseId!)!.push(row);
-  }
+  const invoicesOf = groupBy(invoices, (row) => row.caseId!);
 
   for (const authorization of authorizations) {
     const byProfessional = summaries.get(authorization.caseId)!;
@@ -218,7 +216,7 @@ export async function loadPreauthorizationSummariesByCase(
   for (const [caseId, byProfessional] of summaries) {
     if (byProfessional.has(null)) continue;
     const unauthorized = [
-      ...new Set([...invoicesOf.get(caseId)!.flatMap((row) => (row.professionalId ? [row.professionalId] : [])), ...alsoProfessionalIds]),
+      ...new Set([...(invoicesOf.get(caseId) ?? []).flatMap((row) => (row.professionalId ? [row.professionalId] : [])), ...alsoProfessionalIds]),
     ].filter((id) => !byProfessional.has(id));
     if (unauthorized.length > 0) unauthorizedOf.set(caseId, unauthorized);
   }
@@ -247,7 +245,7 @@ export async function loadPreauthorizationSummariesByCase(
   }
 
   const ownOf = (caseId: string, summary: PreauthorizationSummary) =>
-    invoicesOf.get(caseId)!.filter((row) => summary.professionalId === null || row.professionalId === summary.professionalId);
+    (invoicesOf.get(caseId) ?? []).filter((row) => summary.professionalId === null || row.professionalId === summary.professionalId);
   const approvedIds = new Set<string>();
   for (const [caseId, byProfessional] of summaries) {
     for (const summary of byProfessional.values()) {

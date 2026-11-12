@@ -7,7 +7,7 @@ import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { representedProfessionalIds, type PortalActor } from '../portal/portalActor';
 import { exactKeys, matchKeys, namedIn, normalize, type MatchKeys } from './caseMatching';
 import type { ParsedInvoice } from './parsedInvoice';
-import { byCase } from '../cases/byCase';
+import { groupBy } from '../groupBy';
 
 export interface UploadCase {
   caseId: string;
@@ -52,7 +52,7 @@ export async function uploadCases(db: DatabaseOrTransaction, actor: PortalActor)
       ? Promise.resolve([])
       : db.select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value }).from(caseIdentifier).where(inArray(caseIdentifier.caseId, caseIds)),
   ]);
-  const identifiersOf = byCase(identifiers);
+  const identifiersOf = groupBy(identifiers, (row) => row.caseId);
   return rows.flatMap((row) =>
     row.professionalId
       ? [

@@ -23,8 +23,8 @@ async function slowestQueries(client: PoolClient): Promise<string> {
     const { rows } = await client.query<{ total: number; calls: string; mean: number; rows: string; query: string }>(
       `select total_exec_time as total, calls, mean_exec_time as mean, rows, query
        from pg_stat_statements where dbid = (select oid from pg_database where datname = current_database())
-         -- Only these have their values replaced; other commands keep theirs as written.
-         and query ~* '^\\s*(select|insert|update|delete|with)\\M'
+         -- Only these have their values replaced; other commands keep theirs as written. They can start with comments or a parenthesis.
+         and query ~* '^(\\s|\\(|/\\*.*?\\*/)*(select|insert|update|delete|with)\\M'
        order by total_exec_time desc limit $1`,
       [SLOWEST_SHOWN],
     );

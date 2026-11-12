@@ -18,7 +18,7 @@ import {
 import { portalReadableInvoiceCondition } from '../billing/invoiceAccess';
 import { UNSUBMITTED_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
-import { loadPreauthorizationSummaries, type PreauthorizationSummary } from '../billing/preauthorizations';
+import { loadPreauthorizationSummariesByCase, type PreauthorizationSummary } from '../billing/preauthorizations';
 import { representedProfessionalIds, resolvePortalActor, type PortalActor } from './portalActor';
 
 export interface PortalCaseProfessional {
@@ -174,7 +174,7 @@ export async function listPortalCases(
       unsubmittedTime(db, professionalIds, caseIds),
       unsubmittedInvoices(db, actor, professionalIds, caseIds),
       loadCaseNumbers(db, caseIds),
-      Promise.all(caseIds.map(async (caseId) => [caseId, await loadPreauthorizationSummaries(db, caseId)] as const)),
+      loadPreauthorizationSummariesByCase(db, caseIds),
     ]);
     for (const [caseId, summaries] of preauthorized) {
       byCase.get(caseId)!.preauthorizations = summaries.filter(

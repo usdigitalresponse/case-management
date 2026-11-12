@@ -98,6 +98,15 @@ describe('case number matches', () => {
     expect(await caseNumberMatchesFor(testDb, none)).toEqual({ same: 0, close: 0 });
   });
 
+  it('counts numbers with no letters or digits among themselves', async () => {
+    const dashes = await addInvoice('submitted', { typed: '---' });
+    await addInvoice('submitted', { typed: '---' });
+    await addInvoice('approved', { typed: '#' });
+    await addInvoice('submitted', { typed: '26-CR-00418' });
+    expect(await caseNumberMatchesFor(testDb, dashes)).toEqual({ same: 1, close: 1 });
+    expect(await caseNumberMatchesFor(testDb, dashes)).toEqual((await sentCaseNumberCounts(testDb))('---'));
+  });
+
   it('finds cases by their reference or any identifier, exactly or closely', async () => {
     const byReference = await addCase('26-CR-00418');
     const byIdentifier = await addCase('OTHER-1', '26 cr 418');
@@ -108,5 +117,7 @@ describe('case number matches', () => {
       { caseId: byIdentifier, match: 'close' },
     ]);
     expect(await findCasesByNumber(testDb, '---')).toEqual([]);
+    const dashes = await addCase('---');
+    expect((await findCasesByNumber(testDb, '---')).map(({ caseId, match }) => ({ caseId, match }))).toEqual([{ caseId: dashes, match: 'exact' }]);
   });
 });

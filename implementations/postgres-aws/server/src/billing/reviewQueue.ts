@@ -2,6 +2,7 @@
 // who has each, how long it has waited and what needs care.
 import { and, count, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { inIds } from '../db/inIds';
+import { groupBy } from '../groupBy';
 import type { Database } from '../db/client';
 import {
   invoice,
@@ -146,18 +147,8 @@ export async function listReviewQueue(
   const mismatchOf = new Map(mismatches.map((line) => [line.invoiceId, line]));
   const billedRateOf = new Map(decidedRates.map((line) => [line.invoiceLineId, line.billedRate]));
   const explainedInvoiceIds = new Set(explained.map((row) => row.invoiceId));
-  const linesFor = new Map<string, typeof lineGroups>();
-  for (const group of lineGroups) {
-    const own = linesFor.get(group.invoiceId);
-    if (own) own.push(group);
-    else linesFor.set(group.invoiceId, [group]);
-  }
-  const questionsFor = new Map<string, typeof questions>();
-  for (const question of questions) {
-    const own = questionsFor.get(question.invoiceId);
-    if (own) own.push(question);
-    else questionsFor.set(question.invoiceId, [question]);
-  }
+  const linesFor = groupBy(lineGroups, (group) => group.invoiceId);
+  const questionsFor = groupBy(questions, (question) => question.invoiceId);
   const [assignmentsFor, decisionsFor] = await Promise.all([
     loadAssignmentsByInvoice(db, invoiceIds),
     loadRecordedDecisionsByChain(db, chainIds),
@@ -186,12 +177,13 @@ export async function listReviewQueue(
       if (header.caseId === null && !header.caseNumberAsTyped) {
         flags.push({ kind: 'no_case', message: 'No case: the provider and case are not tracked in this system' });
       }
-      // Time lines (priced lines other than mileage) billed above their limit.
+      // The highest rate on a time line (a priced line other than mileage) billed above its limit.
       const limits = (header.caseId ? rateLimits.get(header.caseId) : undefined) ?? new Map<string | null, string>();
       const overRate = own
         .filter((line) => line.billedRate !== null)
         .map((line) => ({ line, limit: rateLimitFor(line, header.professionalId, limits) }))
-        .find(({ line, limit }) => limit && Number(line.billedRate) > Number(limit.rate));
+        .filter(({ line, limit }) => limit && Number(line.billedRate) > Number(limit.rate))
+        .sort((a, b) => Number(b.line.billedRate) - Number(a.line.billedRate) || Number(a.limit!.rate) - Number(b.limit!.rate))[0];
       if (overRate?.limit) {
         flags.push({
           kind: 'rate',

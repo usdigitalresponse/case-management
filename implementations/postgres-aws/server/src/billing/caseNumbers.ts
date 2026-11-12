@@ -18,7 +18,7 @@ export function cleanCaseNumber(value: string | null | undefined): string | null
 
 export const exactKey = (value: string) => value.toUpperCase();
 
-// ASCII letters and digits only, as the database's case_number_close_key (migration 0042) computes it.
+// ASCII letters and digits only, as the database's case_number_close_key (migration 0042) computes it, so ß and ﬁ are dropped.
 export function closeKey(value: string): string {
   return value
     .replace(/[^A-Za-z0-9]+/g, '')

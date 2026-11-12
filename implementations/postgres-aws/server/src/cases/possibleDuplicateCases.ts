@@ -12,7 +12,7 @@ import { NotFoundError, ValidationError } from '../errors';
 import { closeKey } from '../billing/caseNumbers';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { groupPairs, pairKey, pairsByKey } from '../duplicatePairs';
-import { byCase } from './byCase';
+import { groupBy } from '../groupBy';
 
 export type DuplicateCaseReason = 'same_number' | 'same_county' | 'flagged';
 
@@ -65,7 +65,7 @@ export async function listPossibleDuplicateCases(db: DatabaseOrTransaction): Pro
   const countyOf = new Map(cases.map((row) => [row.caseId, row.countyId]));
   const ids = cases.map((row) => row.caseId);
   const identifiers = ids.length ? await db.select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value }).from(caseIdentifier).where(inArray(caseIdentifier.caseId, ids)) : [];
-  const identifiersOf = byCase(identifiers);
+  const identifiersOf = groupBy(identifiers, (row) => row.caseId);
   const numbersOf = (caseId: string, externalReference: string | null) =>
     [externalReference, ...(identifiersOf.get(caseId) ?? []).map((row) => row.value)]
       .filter((value): value is string => Boolean(value))
