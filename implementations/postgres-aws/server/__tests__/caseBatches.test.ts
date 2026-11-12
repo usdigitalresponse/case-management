@@ -4,7 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { caseAssignment, caseTable, person, professional, county } from '../src/db/schema';
-import { caseCounts, listCaseBatch, type CaseBatchRequest } from '../src/cases/caseBatches';
+import { caseCounts, caseOverview, listCaseBatch, type CaseBatchRequest } from '../src/cases/caseBatches';
 
 let fixtures: BaselineFixtureIds;
 
@@ -68,5 +68,15 @@ describe('cases a batch at a time', () => {
     const counts = await caseCounts(testDb);
     expect(summary?.counts).toEqual({ all: counts.all, open: counts.open, closed: counts.closed });
     expect(summary?.counties.find((row) => row.countyId === other!.countyId)?.count).toBe(1);
+  });
+
+  it('counts each stage of the overview as its list does', async () => {
+    await addCase('Avery');
+    await addCase('Blake', { closedOn: '2026-01-05' });
+    const overview = await caseOverview(testDb);
+    expect(overview.stages.reduce((sum, stage) => sum + stage.count, 0)).toBe(overview.open);
+    for (const stage of overview.stages) {
+      expect(stage.count).toBe((await listCaseBatch(testDb, { stage: stage.stage }, { limit: 200, after: null }, { summarized: false })).items.length);
+    }
   });
 });
