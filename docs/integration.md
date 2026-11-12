@@ -22,9 +22,9 @@ each feature is built, and its
 
 | Feature | Why it exists | With case data |
 | --- | --- | --- |
-| Local cases, added while matching an invoice, with its sender | Review needs case details, and submitters' access follows case assignment | Use the real cases and assignments. Keep local creation only for cases not entered yet |
+| Local cases, added by staff outside invoice matching | Review needs case details, and submitters' access follows case assignment | Use the real cases and assignments. Keep local creation only for cases not entered yet |
 | Filing invoices by person, with the case number as typed | Submitters bill for cases the tool doesn't know | Look up the number on sending. Keep filing by person for numbers not found |
-| Case number matching and correction, "Add a case for [number]" | Staff match each invoice to a case by hand | Search the real cases. Keep the sender's typed number beside the match |
+| Case number matching and correction, to existing cases only | Staff match each invoice to a case by hand | Search the real cases. Keep the sender's typed number beside the match |
 | Proposed details for an unlisted case, provider or timekeeper | The tool's own lists are incomplete | Needed less often. Keep for records not entered yet |
 | A submitter's "Your cases" list | The tool can't see real assignments | List the provider's actual assignments |
 | People, providers, clients and organizations | Review needs names, roles and offices | Use the real records. Keep only what they lack, such as rates, CVs and fee schedules |

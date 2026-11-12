@@ -197,7 +197,7 @@ describe('long lists', () => {
       '/api/professionals?q=a',
       '/api/professionals/people?role=none',
       '/api/people?q=a',
-      '/api/preauthorizations/requests?status=open',
+      '/api/preauthorizations/requests?status=submitted',
     ]) {
       const response = await staff('GET', path);
       const text = await response.text();

@@ -18,7 +18,7 @@ import { loadOverrunExplanations } from '../src/billing/overrunExplanation';
 import { addDocument, providerDocumentStatus } from '../src/billing/preauthorizationRequests/providerRecords';
 import { answerRequestQuestion, askRequestQuestion, decidePreauthorizationRequest, withdrawPreauthorizationRequest } from '../src/billing/preauthorizationRequests/decide';
 import { createPreauthorizationRequest, previewRequest } from '../src/billing/preauthorizationRequests/submit';
-import { getPreauthorizationRequest, listOwnPreauthorizationRequests } from '../src/billing/preauthorizationRequests/read';
+import { getPreauthorizationRequest, listOwnPreauthorizationRequests, listPreauthorizationRequests } from '../src/billing/preauthorizationRequests/read';
 import { preauthorizationUsageByCounty } from '../src/billing/preauthorizationUsage';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../src/errors';
 import { caseAssignment, county, preauthorizationDecision, userAccount } from '../src/db/schema';
@@ -169,6 +169,27 @@ describe('requests', () => {
     expect(withdrawn.request.statusCode).toBe('withdrawn');
   });
 
+  it('are counted by status for staff, whichever status is listed', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const expert = await newProvider(caseId, { bound: true });
+    const waiting = await createPreauthorizationRequest(testDb, attorney, request(caseId, expert.professionalId, 900));
+    const asked = await createPreauthorizationRequest(testDb, attorney, request(caseId, expert.professionalId, 1200));
+    const approved = await createPreauthorizationRequest(testDb, attorney, request(caseId, expert.professionalId, 1500));
+    await askRequestQuestion(testDb, staff, asked.preauthorizationRequestId, { question: 'Why is it needed?' });
+    await decidePreauthorizationRequest(testDb, staff, approved.preauthorizationRequestId, { outcome: 'approved', approvedAmount: 1500 });
+
+    const first = await listPreauthorizationRequests(testDb, staff, { status: 'approved' }, { limit: 1, after: null });
+    expect(first.items.map((row) => row.preauthorizationRequestId)).toEqual([approved.preauthorizationRequestId]);
+    expect('summary' in first && first.summary.counts).toEqual({ submitted: 1, info_requested: 1, approved: 1, not_needed: 0, denied: 0, withdrawn: 0, all: 3 });
+
+    const more = await createPreauthorizationRequest(testDb, attorney, request(caseId, expert.professionalId, 700));
+    const open = await listPreauthorizationRequests(testDb, staff, { status: 'submitted' }, { limit: 1, after: null });
+    const rest = await listPreauthorizationRequests(testDb, staff, { status: 'submitted' }, { limit: 1, after: JSON.parse(Buffer.from(open.next!, 'base64url').toString()) as string[] });
+    expect([...open.items, ...rest.items].map((row) => row.preauthorizationRequestId).sort()).toEqual([waiting.preauthorizationRequestId, more.preauthorizationRequestId].sort());
+    expect('summary' in rest).toBe(false);
+  });
+
   it('keep a proposed case and provider until staff match them', async () => {
     const caseId = await newCase();
     const attorney = await newProvider(caseId, { bound: false });
@@ -231,7 +252,7 @@ describe('usage by county', () => {
     expect(usage.counties[0]).toMatchObject({
       countyId: fixtures.countyId,
       threshold: '1000.00',
-      requests: { open: 1, approved: 1 },
+      requests: { submitted: 1, approved: 1 },
       requested: '2400.00',
       approved: '1500.00',
       billedWaiting: '1700.00',

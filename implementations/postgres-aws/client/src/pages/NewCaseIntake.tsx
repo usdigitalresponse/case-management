@@ -4,7 +4,6 @@ import { Checkbox, ErrorMessage, Fieldset, Form, FormGroup, Label, TextInput } f
 import {
   createCase,
   fieldErrorsOf,
-  matchInvoiceToCase,
   searchPeople,
   type PersonRecord,
 } from '../api/client';
@@ -16,8 +15,6 @@ import type { CountyValue } from '../counties';
 import { PageHeader } from '../components/PageHeader';
 import { TypeAheadPicker } from '../components/TypeAheadPicker';
 import { Notice } from '../components/ui/Notice';
-import { INTAKE_PATH } from '../portal/useShell';
-import { reviewPath } from '../staffPaths';
 import { ProposedPersonFields, SameNameConfirm } from '../components/NewEntryFields';
 import { Button } from '../components/ui/Button';
 
@@ -28,12 +25,8 @@ function generateRequestId(): string {
 export default function NewCaseIntake() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const intakeInvoiceId = searchParams.get('intake');
-  // Whom that invoice bills, when it was saved without one.
-  const intakeProfessionalId = searchParams.get('from') ?? undefined;
-  // An invoice filed by person, being reviewed, and the case number it gives.
-  const reviewInvoiceId = searchParams.get('review');
-  const invoiceCaseNumber = searchParams.get('number') ?? undefined;
+  // The number a pre-authorization request gave for a case not listed.
+  const givenCaseNumber = searchParams.get('number') ?? undefined;
   const { data: referenceData, error: loadError } = useResource(referenceDataResource);
 
   const [selectedPerson, setSelectedPerson] = useState<PersonRecord | null>(null);
@@ -80,7 +73,7 @@ export default function NewCaseIntake() {
         participantRoleId,
         statusId,
         effectiveAt: effectiveAt ? new Date(effectiveAt).toISOString() : '',
-        caseNumber: identifierProvided ? undefined : invoiceCaseNumber,
+        caseNumber: identifierProvided ? undefined : givenCaseNumber,
         countyId: county?.countyId ?? undefined,
         countyName: county && !county.countyId ? county.displayName : undefined,
         caseCategoryId: caseCategoryId || undefined,
@@ -102,30 +95,6 @@ export default function NewCaseIntake() {
         pendingRequest.current = { payload, requestId: generateRequestId() };
       }
       const result = await createCase({ ...input, requestId: pendingRequest.current.requestId });
-      // Started from a review: match that invoice to the new case and go back to it.
-      if (reviewInvoiceId) {
-        try {
-          await matchInvoiceToCase(reviewInvoiceId, { caseId: result.caseId, addMissing: true });
-        } catch {
-          // The case exists; the invoice can still be matched from its review.
-        }
-        navigate(reviewPath(reviewInvoiceId));
-        return;
-      }
-      // Started from Intake: match that invoice to the new case, adding its provider.
-      if (intakeInvoiceId) {
-        try {
-          await matchInvoiceToCase(intakeInvoiceId, {
-            caseId: result.caseId,
-            addMissing: true,
-            professionalId: intakeProfessionalId,
-          });
-          navigate(`${INTAKE_PATH}?matched=${intakeInvoiceId}`);
-          return;
-        } catch {
-          // The case exists; the invoice can still be matched from Intake.
-        }
-      }
       navigate(`/cases/${result.caseId}`);
     } catch (error) {
       if (Object.keys(fieldErrorsOf(error)).length > 0) {
@@ -141,17 +110,6 @@ export default function NewCaseIntake() {
   const heading = (
     <>
       <PageHeader crumbs={[{ label: 'Cases', to: '/cases' }, { label: 'New case' }]} title="Start a new case" />
-      {reviewInvoiceId && (
-        <Notice tone="info">
-          {invoiceCaseNumber ? `The case gets the number ${invoiceCaseNumber}, as the invoice gives it, unless you add one below. ` : ''}
-          The invoice you're reviewing is matched to it when you create it, and its sender is added to the case.
-        </Notice>
-      )}
-      {intakeInvoiceId && (
-        <Notice tone="info">
-          The invoice from intake is matched to this case when you create it, and its provider is added to the case.
-        </Notice>
-      )}
       {/* Placeholder: importing cases from another system is planned. */}
       <div className="import-case">
         <Button kind="secondary" disabled title="Not available yet">

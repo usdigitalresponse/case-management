@@ -4,7 +4,7 @@ import { queryClient } from './queryClient';
 import { resourceQuery, type Resource } from './hooks/useResource';
 import { batchedQuery, type BatchedResource } from './hooks/useBatchedResource';
 import * as resources from './resources';
-import { caseListRequest, clientsRequest, peopleRequest } from './caseRequests';
+import { caseListRequest, clientsRequest, peopleRequest, preauthorizationRequestsRequest } from './caseRequests';
 import { alternateRequest, exportsRequest, finishedRequest, personRequest, searchRequest, toReviewRequest } from './queueRequests';
 
 // Past this, a slow load shows the new page with its own loading state instead of holding the old one.
@@ -67,13 +67,7 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
     preauthorizations: preload(({ request }) => {
       const params = new URL(request.url).searchParams;
       if (params.get('view') === 'county') return [resources.preauthorizationUsage(resources.thisYear())];
-      return [
-        resources.preauthorizationRequests({
-          status: params.get('status') ?? 'open',
-          countyId: params.get('countyId') ?? undefined,
-          caseId: params.get('caseId') ?? undefined,
-        }),
-      ];
+      return [resources.preauthorizationRequests(preauthorizationRequestsRequest(params).filter)];
     }, { searchParams: ['view'] }),
     alternateOpen: preload((args) => [resources.reviewQueue(alternateRequest('open', searchOf(args))), resources.counties]),
     alternateFinished: preload((args) => [resources.reviewQueue(alternateRequest('finished', searchOf(args))), resources.counties]),

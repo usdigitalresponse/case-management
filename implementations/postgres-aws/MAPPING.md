@@ -294,6 +294,14 @@ form relies on this being airtight.
   that partner's *production* login, versus their own separate IdP
   decision, remains open — matching the Dataverse comparison plan's
   "intake roles and permitted actions" gap.
+- **No case started from an invoice** (design J): `match_invoice_to_case`
+  lets staff add the case while matching, but the review page and Intake
+  here only match to an existing case, or the invoice is reviewed without
+  one. `/cases/new` remains, off the menu, for a pre-authorization request
+  whose case wasn't listed. The earlier case-based new-invoice form and
+  upload (`portal/PortalNewInvoice.tsx`, `portal/PortalUpload.tsx`, off the
+  sidebar) still let staff add a case with an invoice. How a case should be
+  added at all is under discussion with design.
 - **Guided tour material**: each tour run makes its own synthetic case
   and invoices (`server/src/demoTour/`), which show in the shared demo's
   queues beside the seeded ones, unlabelled, and are kept until the next

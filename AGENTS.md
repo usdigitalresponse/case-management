@@ -101,7 +101,9 @@ generic requirement in the repository.
   implementation gaps; `model/workflows.yaml` is authoritative for transitions.
 - A submitter's "new" case, provider or timekeeper is proposed details on the
   request, never a record; staff match or create records on Intake, and the
-  details stay flagged through review.
+  details stay flagged through review. Whether staff may still create a
+  *case* this way is under discussion (see the Postgres/AWS notes below);
+  do not change this principle or `model/rules.yaml` until it is decided.
 - Invoice line decisions are working decisions until the reviewer finishes a
   round; only finished rounds are recorded and never changed. A sign-off
   send-back comment is internal-only and never reaches submitters or
@@ -240,14 +242,24 @@ role's from their effective date, and reviewers correct a case number beside
 the typed one, never over it. Design I brings cases back: the sidebar has Case
 overview and All cases, and People, Providers, Clients and Organizations; a request
 filed by person may be matched to a case while it is reviewed, keeping its
-sent prices; a matched request's review page is led by its case card. The
+sent prices; a matched request's review page is led by its case card. Design J
+puts starting a case from an invoice out of scope: the review page and Intake
+match an invoice to an existing case only, or it is reviewed without one, and
+`/cases/new` is reached only from matching a pre-authorization request.
+Under discussion with design, so leave as they are until decided: how a case
+gets added at all (no sync with the external system is assumed), whether
+staff may add one in the earlier case-based new-invoice form and upload
+(they still can), and whether a pre-authorization request should keep its
+route to `/cases/new`; `MAPPING.md` lists these under known gaps. The
 earlier case-led queue and Intake (with the case-based upload) are
 off the sidebar but still work by address. The portal's tabs are Your invoices, Your
 cases, Pre-authorizations and Upload invoices; Your cases lists only cases staff matched or
 assigned a sender to, and senders don't log time here (it stays in the
 external system). Every case and
 person picker is `client/src/components/PickOrAdd.tsx` (first option adds
-one), except a submitter choosing among the people they bill for. Every
+one), except a submitter choosing among the people they bill for, staff
+matching an invoice to a case, which only searches, and "Billed by", whose
+"+ Add new person" is a link under the field. Every
 county picker is `client/src/components/CountyPicker.tsx`: settings such as
 post-conviction (`county.is_county` false) first, and a typed county is
 matched by name before one is added (`server/src/cases/counties.ts`). In the

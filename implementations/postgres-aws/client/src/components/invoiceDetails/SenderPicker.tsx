@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { BillableProfessional } from '../../api/client';
 import { useShell } from '../../portal/useShell';
 import type { AddedProvider } from '../AddProvider';
-import { ADD_NEW, PickOrAdd } from '../PickOrAdd';
+import { ADD_NEW } from '../PickOrAdd';
 import { AddSender, NewSenderFields, PersonDraft } from './AddSender';
 
 // Asked of staff, and of a submitter who bills for more than themselves.
@@ -29,7 +29,7 @@ export function senderLabel(p: {
 
 export type Added = AddedProvider & { kindDisplayName?: string };
 
-export const BILLED_BY_HINT = 'Their rates determine the line item pricing.';
+export const BILLED_BY_HINT = 'Their rates set the line prices.';
 
 export function SenderPicker({
   id,
@@ -132,24 +132,40 @@ export function SenderPicker({
   }
   return (
     <>
-      <PickOrAdd
+      {/* Adding is a link under the field (J60), not the list's first option. */}
+      <label className="usa-label" htmlFor={id}>Billed by</label>
+      <select
         id={id}
-        label="Billed by"
+        className="usa-select"
         value={shown}
-        onChange={(next) => {
-          if (next === ADD_NEW) {
-            setCurrent(null);
-            setRound((count) => count + 1);
-          }
-          onChange(next);
-        }}
-        addLabel="+ Add new person"
-        placeholder="Choose whose work it is"
-        options={people}
-        error={error}
-        hint={shown === ADD_NEW ? undefined : hint}
         disabled={disabled}
-      />
+        aria-describedby={shown === ADD_NEW ? undefined : `${id}-hint`}
+        aria-invalid={Boolean(error) || undefined}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {shown === ADD_NEW ? <option value={ADD_NEW}>A new person, entered below</option> : <option value="">Choose whose work it is</option>}
+        {people.map((person) => (
+          <option key={person.value} value={person.value}>{person.label}</option>
+        ))}
+      </select>
+      {error && <p className="field-error">{error}</p>}
+      {shown !== ADD_NEW && (
+        <>
+          <p id={`${id}-hint`} className="field-hint">{hint}</p>
+          <button
+            type="button"
+            className="link-button sender-add"
+            disabled={disabled}
+            onClick={() => {
+              setCurrent(null);
+              setRound((count) => count + 1);
+              onChange(ADD_NEW);
+            }}
+          >
+            + Add new person
+          </button>
+        </>
+      )}
       {shown === ADD_NEW && onDraft && placeAddRow(<NewSenderFields key={round} id={`${id}-new`} onChange={onDraft} />)}
       {shown === ADD_NEW && !onDraft && placeAddRow(
         <AddSender

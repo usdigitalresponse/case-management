@@ -71,8 +71,9 @@ How the React client is built and why. Schema mapping and gaps are in
     the invoice number does not, as they compare numbers read from files.
     A reviewer may give a sender who has no role theirs from the panel
     (`professionalKindId` on the sender save), which prices the lines; only
-    administrators change a role once set. "+ Add new person" (and "+ Add
-    new case", in every picker) opens one line under the fields: first and
+    administrators change a role once set. "+ Add new person" (a link under
+    "Billed by" since design J, J60; the first option of the other person
+    pickers) opens one line under the fields: first and
     last name (kept as the person's parts and joined for the whole name),
     an optional email and a role. On the upload page they are added only
     when it goes on, before the invoice, and reused if that then fails. In
@@ -128,9 +129,10 @@ How the React client is built and why. Schema mapping and gaps are in
       `server/src/cases/casesByNumber.ts`; `client/src/components/CaseCard.tsx`). Matching
       uses the intake match (`POST /api/invoices/intake/:id/case`), which now also takes an
       invoice filed by person while its lines are reviewed: it sets the case, adds the
-      sender to it and records `matched_to_case`, but doesn't price lines again. "Add a case
-      for [number]" opens the new case page with that number, then matches the invoice and
-      returns to it. Every review page is titled with the sender, as in I15; a matched
+      sender to it and records `matched_to_case`, but doesn't price lines again. The cases
+      are radio buttons with one Match button, an exact match chosen to start with and
+      a close one never, and a close match says so (design J, J61). A case is never started from an invoice: with no case to match,
+      the card says the invoice can be reviewed without one. Every review page is titled with the sender, as in I15; a matched
       invoice then has a case card: "Client · case number", the number the invoice gave,
       one line with the pre-authorized amount and what's approved so far, and "Open the
       case". A mileage line over the driving route is highlighted in the line table with
@@ -166,7 +168,11 @@ How the React client is built and why. Schema mapping and gaps are in
         they bill for is on, naming a provider on their cases or typing one (proposed
         details, as for invoices); staff record emailed ones from the staff
         Pre-authorizations page with how and when they arrived. Each gets `YY-NNN` on
-        receipt. The form previews the limit and says when the total is within the
+        receipt. That page's views (Requests, By county) and its status filters are
+        tabs (design J, `components/ui/Tabs.tsx`); each status tab shows its count (Waiting is
+        `submitted` only, so the counts add up to All), which
+        the first batch of `GET /api/preauthorizations/requests` carries as
+        `summary.counts` whichever status is listed. The form previews the limit and says when the total is within the
         threshold. Staff ask questions (recorded once), match a proposed case or provider,
         and decide once: approved (a `recordCeilingInTx` decision on the provider's single
         pre-authorization; ceilings replace), denied, not needed, duplicate or moot, each
@@ -278,11 +284,13 @@ How the React client is built and why. Schema mapping and gaps are in
   - Hidden, not removed: the case page's lifecycle history is off the page
     but its code remains (design I put Case overview, People, Clients and
     Organizations back in the sidebar). Closing is at the foot of the case
-    page ("Closing the case here"), only once its invoices are finished. Cases come in
-    with their invoices (design I): a case is added only while matching an
-    invoice ("Add a case for [number]", or on Intake), which adds its
-    sender too, so the case pages have no Add case or Add person
-    (`AddPersonToCase.tsx` stays, unused).
+    page ("Closing the case here"), only once its invoices are finished. Starting a
+    case from an invoice is out of scope (design J): the review page and Intake
+    match an invoice to an existing case only, which adds its sender to it. The
+    new case page (`/cases/new`, `NewCaseIntake.tsx`) is off the menu and reached
+    only when staff match a pre-authorization request whose case wasn't listed.
+    The case pages have no Add case or Add person (`AddPersonToCase.tsx` stays,
+    unused).
   - Links to the external case management system ("Open the case in…",
     the sidebar link) are disabled placeholders; nothing is integrated.
   - Staff "Intake" (`/intake`, off the sidebar since design G;
@@ -325,9 +333,10 @@ How the React client is built and why. Schema mapping and gaps are in
     and its import, and who did the work on lines naming someone not listed
     (`timekeepers`, by line), records `matched_to_case`, and with
     `addMissing` assigns missing providers as external submitters. Its
-    case, "From" and per-line pickers can add a case or provider on the
-    spot (below); "Add the case with all its details instead" opens New
-    case with `?intake=`, which matches after creating it.
+    case picker searches existing cases only (design J); the "From" and
+    per-line pickers can still add a provider on the spot (below). The
+    waiting list follows J66: From, Case number as typed, Sent, Amount,
+    What's missing (in words) and "Match it to a case".
     A held file's draft keeps the case and professional its reading
     suggested (`invoice_import.suggested_case_id` and
     `suggested_professional_id`, migration `0017`, by the upload rules

@@ -23,7 +23,7 @@ export interface CountyUsage {
   countyName: string;
   isCounty: boolean;
   threshold: string | null;
-  requests: Record<'open' | 'approved' | 'not_needed' | 'denied' | 'withdrawn', number>;
+  requests: Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn', number>;
   requested: string;
   approved: string;
   billedApproved: string;
@@ -104,7 +104,7 @@ export async function preauthorizationUsageByCounty(
 
   for (const request of requests) {
     const row = rowFor(request.countyId ?? request.proposedCountyId ?? null);
-    const bucket = request.statusCode === 'submitted' || request.statusCode === 'info_requested' ? 'open' : (request.statusCode as keyof CountyUsage['requests']);
+    const bucket = request.statusCode as keyof CountyUsage['requests'];
     row.requests[bucket] = (row.requests[bucket] ?? 0) + 1;
     row.requested = add(row.requested, request.requestedAmount);
     if (request.approvedAmount) row.approved = add(row.approved, request.approvedAmount);
@@ -142,7 +142,7 @@ function emptyUsage(countyId: string | null, countyName: string, isCounty: boole
     countyName,
     isCounty,
     threshold,
-    requests: { open: 0, approved: 0, not_needed: 0, denied: 0, withdrawn: 0 },
+    requests: { submitted: 0, info_requested: 0, approved: 0, not_needed: 0, denied: 0, withdrawn: 0 },
     requested: '0.00',
     approved: '0.00',
     billedApproved: '0.00',

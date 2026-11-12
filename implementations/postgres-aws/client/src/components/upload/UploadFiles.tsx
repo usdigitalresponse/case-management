@@ -3,8 +3,8 @@ import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { apiErrorMessage, deleteInvoice, discardUpload, getUpload, startUpload, type UploadRead } from '../../api/client';
 import { ImportProgressNote } from '../ImportProgressNote';
 import { countOf } from '../../portal/importProgress';
-import { Tag } from '../ui/Tag';
-import { buttonClass } from '../ui/Button';
+import { Button } from '../ui/Button';
+import { Steps as StepList } from '../ui/Steps';
 
 export interface Entry<D> {
   key: string;
@@ -29,15 +29,12 @@ function fileSize(bytes: number): string {
 // A reviewer's own upload goes straight into their review, so there is
 // nothing to send.
 export function Steps({ reviewing = false }: { reviewing?: boolean }) {
-  const steps = reviewing ? ['Upload', 'Check and review the lines', 'Finish the review'] : ['Upload', 'Check the lines', 'Send for review'];
   return (
-    <ol className="tag-steps" aria-label="Steps">
-      {steps.map((step, index) => (
-        <li key={step} aria-current={index === 0 ? 'step' : undefined}>
-          <Tag tone={index === 0 ? 'strong' : 'neutral'}>{index + 1} {step}</Tag>
-        </li>
-      ))}
-    </ol>
+    <StepList
+      label="Steps"
+      current={0}
+      steps={reviewing ? ['Upload', 'Check and review the lines', 'Finish the review'] : ['Upload', 'Check the lines', 'Send for review']}
+    />
   );
 }
 
@@ -47,40 +44,58 @@ export interface UploadStart {
   manual?: boolean;
 }
 
+const READABLE = ['.pdf', '.xlsx', '.xls', '.csv', '.txt', '.ledes'];
+
 export function DropZone({ hasFiles, onFiles }: { hasFiles: boolean; onFiles: (files: File[]) => void }) {
   const [over, setOver] = useState(false);
+  const [refused, setRefused] = useState<string[]>([]);
   const input = useRef<HTMLInputElement>(null);
-  const drop = (event: DragEvent) => {
-    event.preventDefault();
-    setOver(false);
-    onFiles([...event.dataTransfer.files]);
+  const add = (files: File[]) => {
+    const readable = files.filter((file) => READABLE.some((ending) => file.name.toLowerCase().endsWith(ending)));
+    setRefused(files.filter((file) => !readable.includes(file)).map((file) => file.name));
+    if (readable.length > 0) onFiles(readable);
   };
   return (
-    <label
-      className={`drop-zone${over ? ' drop-zone--over' : ''}`}
+    <div
+      className={`drop-zone${over ? ' drop-zone--over' : ''}${refused.length > 0 ? ' drop-zone--error' : ''}`}
       onDragOver={(event) => {
         event.preventDefault();
         setOver(true);
       }}
-      onDragLeave={() => setOver(false)}
-      onDrop={drop}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(false);
+      }}
+      onClick={() => input.current?.click()}
+      onDrop={(event: DragEvent) => {
+        event.preventDefault();
+        setOver(false);
+        add([...event.dataTransfer.files]);
+      }}
     >
       <input
         ref={input}
-        className="usa-sr-only"
+        hidden
         type="file"
+        aria-label="Invoice files"
+        onClick={(event) => event.stopPropagation()}
         multiple
-        accept=".pdf,.xlsx,.xls,.csv,.txt,.ledes"
+        accept={READABLE.join(',')}
         onChange={(event) => {
-          onFiles([...(event.target.files ?? [])]);
+          add([...(event.target.files ?? [])]);
           event.target.value = '';
         }}
       />
-      <strong>{hasFiles ? 'Drop more invoice files here, or choose files' : 'Drop invoice files here, or choose files'}</strong>
+      <strong>{over ? 'Drop the files to add them' : hasFiles ? 'Drop more invoice files here, or choose files' : 'Drop invoice files here, or choose files'}</strong>
       <span>PDF, LEDES 1998B, Excel (.xlsx) or CSV. One invoice per file, up to 10 MB each.</span>
-      {/* The label opens the file picker; this only looks like the design's button. */}
-      <span className={buttonClass('secondary')} aria-hidden="true">Choose files</span>
-    </label>
+      {/* Its click reaches the zone, which opens the picker. */}
+      <Button kind="secondary">Choose files</Button>
+      {refused.length > 0 && (
+        <p className="drop-zone__error" role="alert">
+          <span aria-hidden="true">×</span> {refused.join(', ')} {refused.length === 1 ? 'is not a file type' : 'are not file types'} this tool can
+          read. Choose a PDF, LEDES, Excel or CSV file.
+        </p>
+      )}
+    </div>
   );
 }
 
