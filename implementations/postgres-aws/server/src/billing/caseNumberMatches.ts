@@ -1,14 +1,14 @@
 // Other sent invoices with the same or a close case number (./caseNumbers.ts): its current one, else its case's.
-import { aliasedTable, and, count, eq, inArray, isNull, notInArray, sql, type SQLWrapper } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, notInArray, sql, type SQLWrapper } from 'drizzle-orm';
 import { unionAll } from 'drizzle-orm/pg-core';
 import type { DatabaseOrTransaction } from '../db/client';
 import { caseIdentifier, caseTable, invoice, invoiceStatuses } from '../db/schema';
 import { closeKey, exactKey, type CaseNumberMatches } from './caseNumbers';
+import { isPrimaryIdentifierOf, joinedInvoiceCaseNumber, primaryIdentifier, typedCaseNumber } from '../cases/caseNumberSql';
 import { DRAFT_INVOICE_STATUS_CODE, WITHDRAWN_INVOICE_STATUS_CODE } from './invoiceStatusCodes';
 
-const primaryIdentifier = aliasedTable(caseIdentifier, 'primary_identifier');
-const typedNumber = sql<string | null>`coalesce(${invoice.caseNumberCorrected}, ${invoice.caseNumberAsTyped})`;
-const effectiveNumber = sql<string | null>`coalesce(${typedNumber}, ${primaryIdentifier.value}, ${caseTable.externalReference})`;
+const typedNumber = typedCaseNumber;
+const effectiveNumber = joinedInvoiceCaseNumber;
 // Matches the expression indexes in ../db/schema.ts.
 const keyOf = (value: SQLWrapper) => sql`case_number_close_key(${value})`;
 
@@ -18,7 +18,7 @@ function sentInvoiceNumbers(db: DatabaseOrTransaction) {
     .from(invoice)
     .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
     .leftJoin(caseTable, eq(invoice.caseId, caseTable.caseId))
-    .leftJoin(primaryIdentifier, and(eq(primaryIdentifier.caseId, invoice.caseId), eq(primaryIdentifier.isPrimary, true)))
+    .leftJoin(primaryIdentifier, isPrimaryIdentifierOf(invoice.caseId))
     .$dynamic();
 }
 

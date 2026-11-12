@@ -3,6 +3,7 @@
 // decisions only: never working decisions or internal comments
 // (model/rules.yaml limit_review_comment_visibility).
 import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { withoutCursor } from '../lists/batches';
 import { inIds } from '../db/inIds';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import {
@@ -99,7 +100,8 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction, cursor?: SQL<str
     .leftJoin(invoiceReceiptChannels, eq(invoice.receivedViaId, invoiceReceiptChannels.id));
 }
 
-export type InvoiceHeader = Awaited<ReturnType<typeof selectInvoiceHeaders>>[number];
+// As sent: without the list cursor.
+export type InvoiceHeader = Omit<Awaited<ReturnType<typeof selectInvoiceHeaders>>[number], 'cursor'>;
 
 // A case's number is its primary identifier, else its external reference;
 // its other identifiers (such as court numbers) are listed after it.
@@ -343,10 +345,11 @@ export async function loadInvoiceDetail(
   invoiceId: string,
   audience: Audience = 'submitter',
 ): Promise<InvoiceDetail | undefined> {
-  const [header] = await selectInvoiceHeaders(db).where(eq(invoice.invoiceId, invoiceId));
-  if (!header) {
+  const [row] = await selectInvoiceHeaders(db).where(eq(invoice.invoiceId, invoiceId));
+  if (!row) {
     return undefined;
   }
+  const header = withoutCursor(row);
   const [lineRows, [attempt], caseNumbers, rateLimits, assignments, fileSource, caseRates] = await Promise.all([
     selectLines(db, invoiceId),
     db

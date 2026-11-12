@@ -61,6 +61,7 @@ export function readCaseNumber(
 }
 
 // A search hit: exact on a name or the number as written, else close.
+// Also in SQL (./reviewQueueBatches.ts searchedIds, exactMatch); change both together.
 export function searchMatch(query: string, names: Array<string | null>, caseNumber: string | null): 'exact' | 'close' | null {
   const words = query.trim().toLowerCase();
   if (!words) return null;

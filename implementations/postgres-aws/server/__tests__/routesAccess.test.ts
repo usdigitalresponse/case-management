@@ -167,6 +167,7 @@ describe('an external submitter', () => {
     const staffView = await (await (await asStaff('staff'))('GET', `/api/invoices/${invoiceId}`)).text();
     expect(staffView).toContain('Internal: check the duplicate.');
     expect(JSON.parse(staffView)).toHaveProperty('timeLog');
+    expect(staffView).not.toContain('"cursor"');
 
     const response = await submitter.call('GET', `/api/portal/invoices/${invoiceId}`);
     const submitterView = await response.text();
@@ -199,8 +200,11 @@ describe('long lists', () => {
       '/api/preauthorizations/requests?status=open',
     ]) {
       const response = await staff('GET', path);
-      const body = (await response.json()) as { items?: unknown[]; next?: unknown };
+      const text = await response.text();
+      const body = JSON.parse(text) as { items?: unknown[]; next?: unknown };
       expect([path, response.status, Array.isArray(body.items), 'next' in body]).toEqual([path, 200, true, true]);
+      // A row's cursor only makes `next`; it is never sent.
+      expect([path, text.includes('"cursor"')]).toEqual([path, false]);
     }
     for (const path of ['/api/invoices?caseId=nope', '/api/invoices?limit=0', '/api/invoices?after=nope', '/api/cases?county=nope']) {
       expect([path, (await staff('GET', path)).status]).toEqual([path, 400]);

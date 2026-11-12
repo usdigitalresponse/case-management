@@ -71,7 +71,7 @@ router.get(
     const ids = rows.map((row) => row.professionalId);
     const [rates, offices] = await Promise.all([listRates(db, ids), loadProviderOffices(db, ids)]);
     res.json({
-      items: rows.map(({ cursor: _cursor, ...row }) => ({
+      items: rows.map((row) => ({
         ...row,
         ...offices.get(row.professionalId)!,
         rates: rates

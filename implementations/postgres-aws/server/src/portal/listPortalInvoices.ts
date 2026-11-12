@@ -5,7 +5,7 @@
 // The portal's pages read it a batch at a time.
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { groupBy } from '../groupBy';
-import { afterCursor, cursorColumn, newestFirst, oneBatch, orderByKeys, sortKey, type BatchRequest, type SortKey } from '../lists/batches';
+import { afterCursor, cursorColumn, newestFirst, oneBatch, orderByKeys, sortKey, withoutCursor, type BatchRequest, type SortKey } from '../lists/batches';
 import type { Database } from '../db/client';
 import {
   caseTable,
@@ -73,7 +73,8 @@ export async function listPortalInvoices(db: Database, reader: PortalActor, case
   if (caseId) {
     conditions.push(eq(invoice.caseId, caseId));
   }
-  return describePortalInvoices(db, await selectPortalInvoices(db, reader).where(and(...conditions)).orderBy(...orderByKeys(IN_LIST_ORDER)));
+  const rows = await selectPortalInvoices(db, reader).where(and(...conditions)).orderBy(...orderByKeys(IN_LIST_ORDER));
+  return describePortalInvoices(db, rows.map(withoutCursor));
 }
 
 // list: all but withdrawn and sent-back ones (the summary's); current: all but withdrawn;
@@ -103,15 +104,14 @@ export async function listPortalInvoiceBatch(db: Database, reader: PortalActor, 
   const [returned, [counted]] = await Promise.all([
     show === 'list'
       ? selectPortalInvoices(db, reader).where(and(base, sql`not ${withdrawn}`, sql`${returnedReason} is not null`)).orderBy(...orderByKeys(IN_LIST_ORDER))
-      : Promise.resolve([]),
+      : Promise.resolve([] as Awaited<ReturnType<ReturnType<typeof selectPortalInvoices>['where']>>),
     db.select({ withdrawn: sql<number>`count(*)::int` }).from(invoice).innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id)).where(and(base, withdrawn)),
   ]);
-  return { items, next, summary: { needsChanges: await describePortalInvoices(db, returned), withdrawn: counted!.withdrawn } };
+  return { items, next, summary: { needsChanges: await describePortalInvoices(db, returned.map(withoutCursor)), withdrawn: counted!.withdrawn } };
 }
 
 // The case number, a draft's import and changes, the reviewer while in review, and the outcome once decided.
-async function describePortalInvoices(db: Database, selected: Awaited<ReturnType<ReturnType<typeof selectPortalInvoices>['where']>>) {
-  const rows = selected.map(({ cursor: _cursor, ...row }) => row);
+async function describePortalInvoices(db: Database, rows: Array<Omit<Awaited<ReturnType<ReturnType<typeof selectPortalInvoices>['where']>>[number], 'cursor'>>) {
   const ids = (codes: readonly string[]) => rows.filter((row) => codes.includes(row.statusCode)).map((row) => row.invoiceId);
   const draftIds = ids([DRAFT_INVOICE_STATUS_CODE]);
   const decidedIds = ids(DECIDED_INVOICE_STATUS_CODES);

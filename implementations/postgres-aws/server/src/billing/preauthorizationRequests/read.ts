@@ -7,7 +7,7 @@ import { ForbiddenError, NotFoundError } from '../../errors';
 import { isStaffAccount, type PortalActor } from '../../portal/portalActor';
 import { loadCaseNumbers } from '../invoiceDetail';
 import { loadPreauthorizationSummariesByCase } from '../preauthorizations';
-import { afterCursor, cursorColumn, newestFirst, oneBatch, orderByKeys, sortKey, type BatchRequest } from '../../lists/batches';
+import { afterCursor, cursorColumn, newestFirst, oneBatch, orderByKeys, sortKey, withoutCursor, type BatchRequest } from '../../lists/batches';
 import { OPEN_STATUSES } from './requestRules';
 import { listLinkedDocuments, providerDocumentStatus } from './providerRecords';
 
@@ -88,7 +88,7 @@ async function requestBatch(db: DatabaseOrTransaction, where: SQL | undefined, b
   return { items: await withCaseFacts(db, rows), next };
 }
 
-type RequestRow = Awaited<ReturnType<typeof fetchRequests>>[number];
+type RequestRow = Omit<Awaited<ReturnType<typeof fetchRequests>>[number], 'cursor'>;
 
 export interface RequestListFilter {
   status?: string;
@@ -105,7 +105,7 @@ async function withCaseFacts(db: DatabaseOrTransaction, rows: RequestRow[]) {
   // Every matched provider on each case, so each has a limit to show.
   const professionals = [...new Set(rows.flatMap((row) => (row.professionalId ? [row.professionalId] : [])))];
   const [numbers, summaries] = await Promise.all([loadCaseNumbers(db, caseIds), loadPreauthorizationSummariesByCase(db, caseIds, professionals)]);
-  return rows.map(({ cursor: _cursor, ...row }) => {
+  return rows.map((row) => {
     const proposed = (row.proposedDetails ?? {}) as { case?: { caseNumber?: string }; provider?: { name?: string } };
     const limit = row.caseId && row.professionalId ? ((summaries.get(row.caseId) ?? []).find((s) => s.professionalId === row.professionalId) ?? null) : null;
     return {
@@ -146,7 +146,7 @@ export async function loadRequestRow(db: DatabaseOrTransaction, requestId: strin
   if (!z.uuid().safeParse(requestId).success) throw new NotFoundError('Request not found.');
   const [row] = await fetchRequests(db, eq(preauthorizationRequest.preauthorizationRequestId, requestId));
   if (!row) throw new NotFoundError('Request not found.');
-  return row;
+  return withoutCursor(row);
 }
 
 // Staff, or the account that sent it.

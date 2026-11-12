@@ -35,7 +35,7 @@ router.get(
         .orderBy(...orderByKeys(keys))
         .limit(limit),
     );
-    res.json({ items: rows.map(({ cursor: _cursor, ...row }) => row), next });
+    res.json({ items: rows, next });
   }),
 );
 

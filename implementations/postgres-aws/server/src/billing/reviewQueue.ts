@@ -1,6 +1,7 @@
 // The staff queue: invoices waiting on review or sign-off, or finished, with
 // who has each, how long it has waited and what needs care.
 import { and, count, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
+import { withoutCursor } from '../lists/batches';
 import { inIds } from '../db/inIds';
 import { groupBy } from '../groupBy';
 import type { Database } from '../db/client';
@@ -71,8 +72,6 @@ export function scopeConditions(db: Database, view: QueueView, scope: QueueScope
       : []),
   ];
 }
-
-const withoutCursor = ({ cursor: _cursor, ...header }: InvoiceHeader) => header;
 
 // Each invoice's queue row, in the order given: who has it, its progress, how long it has waited and its flags.
 // actorUserAccountId: who is looking, for whether they may discard what they are entering.
@@ -227,7 +226,7 @@ export async function describeQueue(db: Database, headers: InvoiceHeader[], { no
         header.statusCode === AWAITING_SIGN_OFF_INVOICE_STATUS_CODE ? signOffProgress(recorded, round, assignments.signOff).next : null;
       const numbers = caseNumbers.get(header.caseId);
       return {
-        ...withoutCursor(header),
+        ...header,
         caseNumber: numbers?.caseNumber ?? null,
         otherCaseNumbers: numbers?.otherNumbers ?? [],
         lineCount,
@@ -285,7 +284,7 @@ export async function listReviewQueue(
   options: QueueScope & { q?: string; now?: Date; actorUserAccountId?: string } = {},
 ) {
   const [headers, settings] = await Promise.all([selectInvoiceHeaders(db).where(and(...scopeConditions(db, view, options))), getReviewSettings(db)]);
-  const rows = await describeQueue(db, headers, { now: options.now ?? new Date(), actorUserAccountId: options.actorUserAccountId });
+  const rows = await describeQueue(db, headers.map(withoutCursor), { now: options.now ?? new Date(), actorUserAccountId: options.actorUserAccountId });
   rows.sort((a, b) => b.workingDaysWaiting - a.workingDaysWaiting || Number(a.submittedAt) - Number(b.submittedAt));
   const q = options.q ?? '';
   return {

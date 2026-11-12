@@ -1,6 +1,7 @@
 // The review queue's derived columns in SQL, per invoice row, for filtering,
 // counting and sorting in the database. Each matches its code in
-// ./reviewRounds.ts and ./reviewAssignment.ts (__tests__/queueSql.test.ts).
+// ./reviewRounds.ts and ./reviewAssignment.ts: change both together. "the queue
+// a batch at a time" in __tests__/reviewInvoiceLine.test.ts checks they agree.
 import { sql, type SQL } from 'drizzle-orm';
 import { invoice } from '../db/schema';
 import { LINE_REVIEW_STEP_TYPE_CODE, SIGN_OFF_STEP_TYPE_CODE } from './reviewAssignment';

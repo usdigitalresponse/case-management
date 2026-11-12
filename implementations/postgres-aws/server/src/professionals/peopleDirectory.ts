@@ -11,7 +11,7 @@ import { listOwnTravelRates, listRates, rateOn } from '../billing/professionalRa
 import { mileageRateOn, mileageRatesForEach } from '../billing/mileageRates';
 import { loadPersonReviewer } from '../billing/reviewAssignment';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
-import { afterCursor, cursorColumn, oneBatch, orderByKeys, sortKey, type BatchRequest, type SortKey } from '../lists/batches';
+import { afterCursor, cursorColumn, oneBatch, orderByKeys, sortKey, withoutCursor, type BatchRequest, type SortKey } from '../lists/batches';
 
 // Not staff accounts' own profiles; a vendor account has no system role, and plain `not in` would drop NULLs.
 async function notStaff(db: DatabaseOrTransaction): Promise<SQL> {
@@ -73,7 +73,7 @@ export async function listPeopleBatch(db: DatabaseOrTransaction, request: People
   const { rows, next } = await oneBatch(batch, (after, limit) =>
     peopleRows(db).where(and(base, inRole, afterCursor(BY_NAME, after))).orderBy(...orderByKeys(BY_NAME)).limit(limit),
   );
-  const items = (await withActivity(db, await withRates(db, rows))).map(({ cursor: _cursor, ...row }) => row);
+  const items = await withActivity(db, await withRates(db, rows));
   if (batch.after) return { items, next };
   // Whatever the role chosen, so every role's tag has its count.
   const roles = await db
@@ -90,7 +90,7 @@ export async function listPeopleBatch(db: DatabaseOrTransaction, request: People
 async function selectPeople(db: DatabaseOrTransaction, professionalId: string) {
   // A merged-away profile is still found by its own id.
   const rows = await peopleRows(db).where(and(await notStaff(db), eq(professional.professionalId, professionalId)));
-  return withRates(db, rows.map(({ cursor: _cursor, ...row }) => row));
+  return withRates(db, rows.map(withoutCursor));
 }
 
 // What each is waiting on and when they last sent one.

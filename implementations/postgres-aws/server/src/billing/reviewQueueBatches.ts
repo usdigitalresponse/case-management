@@ -1,11 +1,13 @@
 // The review queue a batch at a time (../lists/batches.ts): filtered, counted
 // and sorted in the database, each batch described as the whole queue is
 // (./reviewQueue.ts). Filters read only the invoice row, so counts need no joins.
-import { aliasedTable, and, count, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { invoiceCaseNumber, isPrimaryIdentifierOf, joinedInvoiceCaseNumber, primaryIdentifier } from '../cases/caseNumberSql';
+import { countyOrderKeys } from '../cases/counties';
 import type { Database } from '../db/client';
 import { inIds } from '../db/inIds';
-import { caseIdentifier, caseTable, county, invoice, professional, userAccount } from '../db/schema';
-import { selectInvoiceHeaders } from './invoiceDetail';
+import { caseTable, county, invoice, professional, userAccount } from '../db/schema';
+import { selectInvoiceHeaders, type InvoiceHeader } from './invoiceDetail';
 import { completionMarkedAt } from './invoiceEvents';
 import { closeKey } from './caseNumbers';
 import { sentCaseNumberCountsFor } from './caseNumberMatches';
@@ -14,7 +16,7 @@ import { workingDaysBetween } from './workingDays';
 import { approvedTotalOf, finishedAt, holderOf, reviewerOf } from './queueSql';
 import { describeQueue, scopeConditions, withMatches, type QueueRow, type QueueScope, type QueueView } from './reviewQueue';
 import { APPROVED_INVOICE_STATUS_CODE, AWAITING_SIGN_OFF_INVOICE_STATUS_CODE, DECIDED_INVOICE_STATUS_CODES, IN_REVIEW_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
-import { afterCursor, cursorColumn, filledBatch, newestFirst, oldestFirst, oneBatch, orderByKeys, sortKey, type Batch, type BatchRequest, type SortKey } from '../lists/batches';
+import { afterCursor, cursorColumn, filledBatch, newestFirst, oldestFirst, oneBatch, orderByKeys, sortKey, withoutCursor, type Batch, type BatchRequest, type SortKey } from '../lists/batches';
 
 // The pages' filters: To review's, Finished's, then Exports'; 'all' is everything.
 // A person's: 'waiting' (in review) and 'done' (decided).
@@ -38,17 +40,13 @@ export interface QueueBatchRequest extends QueueScope {
 }
 
 const statusCode = sql<string>`(select code from invoice_statuses where id = ${invoice.statusId})`;
-const primaryIdentifier = aliasedTable(caseIdentifier, 'primary_identifier');
 const decided = sql`${statusCode} in (${sql.join(
   DECIDED_INVOICE_STATUS_CODES.map((code) => sql`${code}`),
   sql`, `,
 )})`;
 // Its own, else its case's.
 const countyIdOf = sql<string | null>`coalesce(${invoice.countyId}, (select county_id from "case" where case_id = ${invoice.caseId}))`;
-// A reviewer's correction, else as typed, else its case's: its primary identifier, else its reference.
-const caseNumber = sql<string | null>`coalesce(${invoice.caseNumberCorrected}, ${invoice.caseNumberAsTyped},
-  (select value from case_identifier where case_id = ${invoice.caseId} and is_primary limit 1),
-  (select external_reference from "case" where case_id = ${invoice.caseId}))`;
+const caseNumber = invoiceCaseNumber;
 // As a staff-entered invoice's wait is counted: from noon on the day it was received.
 const waitingSince = sql`coalesce((${invoice.receivedOn} + time '12:00') at time zone 'UTC', ${invoice.submittedAt})`;
 
@@ -81,7 +79,7 @@ async function searchedIds(db: Database, request: QueueBatchRequest): Promise<SQ
   const words = request.q?.trim().toLowerCase();
   if (!words) return undefined;
   const key = closeKey(words);
-  const number = sql`coalesce(${invoice.caseNumberCorrected}, ${invoice.caseNumberAsTyped}, ${primaryIdentifier.value}, ${caseTable.externalReference})`;
+  const number = joinedInvoiceCaseNumber;
   const names = sql`lower(coalesce(${professional.displayName}, '') || ' ' || coalesce(${userAccount.displayName}, ''))`;
   const rows = await db
     .select({ invoiceId: invoice.invoiceId })
@@ -89,7 +87,7 @@ async function searchedIds(db: Database, request: QueueBatchRequest): Promise<SQ
     .leftJoin(professional, eq(professional.professionalId, invoice.professionalId))
     .leftJoin(userAccount, eq(userAccount.userAccountId, invoice.submittedByUserAccountId))
     .leftJoin(caseTable, eq(caseTable.caseId, invoice.caseId))
-    .leftJoin(primaryIdentifier, and(eq(primaryIdentifier.caseId, invoice.caseId), eq(primaryIdentifier.isPrimary, true)))
+    .leftJoin(primaryIdentifier, isPrimaryIdentifierOf(invoice.caseId))
     .where(
       and(
         ...scopeConditions(db, request.view, request),
@@ -137,15 +135,7 @@ function inCounty(choice: string | undefined): SQL | undefined {
   return choice === 'none' ? sql`${countyIdOf} is null` : sql`${countyIdOf} = ${choice}::uuid`;
 }
 
-// As the county list orders them: settings, then counties by name, then retired ones, then none.
-const countyColumn = (column: string) => sql.raw(`(select ${column} from county where county_id = `);
-const BY_COUNTY: SortKey[] = [
-  sortKey(sql`(${countyIdOf} is null)::int`, 'integer'),
-  sortKey(sql`(not coalesce(${countyColumn('active')}${countyIdOf}), true))::int`, 'integer'),
-  sortKey(sql`coalesce(${countyColumn('is_county')}${countyIdOf}), true)::int`, 'integer'),
-  sortKey(sql`coalesce(${countyColumn('display_name')}${countyIdOf}), '')`, 'text'),
-  sortKey(sql`coalesce(${countyIdOf}, '00000000-0000-0000-0000-000000000000'::uuid)`, 'uuid'),
-];
+const BY_COUNTY = countyOrderKeys(countyIdOf);
 
 function sortKeys(sort: QueueSort, grouped: boolean, q: string): SortKey[] {
   const id = sortKey(sql`${invoice.invoiceId}`, 'uuid');
@@ -217,7 +207,7 @@ export async function listReviewQueueBatch(
       .where(and(base, showing ?? undefined, inCounty(request.county), afterCursor(keys, after)))
       .orderBy(...orderByKeys(keys))
       .limit(limit);
-  const describe = async (rows: Awaited<ReturnType<typeof read>>) => {
+  const describe = async (rows: InvoiceHeader[]) => {
     const described = await describeQueue(db, rows, { now, actorUserAccountId: request.actorUserAccountId });
     const matchesOf = await sentCaseNumberCountsFor(db, described.map((row) => row.caseNumberCorrected ?? row.caseNumberAsTyped ?? row.caseNumber));
     return withMatches(described, matchesOf, request.q ?? '');
@@ -325,7 +315,7 @@ async function summarize(db: Database, request: QueueBatchRequest, base: SQL | u
             sql`exists (select 1 from invoice_approval_chain c where c.invoice_id = ${invoice.invoiceId} and c.superseded_at is null and c.submission_snapshot is null)`,
           ),
         )
-      : Promise.resolve([]),
+      : Promise.resolve([] as Awaited<ReturnType<typeof selectInvoiceHeaders>>),
     request.view === 'open'
       ? db
           .select({
@@ -344,7 +334,7 @@ async function summarize(db: Database, request: QueueBatchRequest, base: SQL | u
           .orderBy(sql`${waitingSince}`)
       : Promise.resolve([]),
   ]);
-  const enteringRows = await describeQueue(db, entering, { now, actorUserAccountId: request.actorUserAccountId });
+  const enteringRows = await describeQueue(db, entering.map(withoutCursor), { now, actorUserAccountId: request.actorUserAccountId });
   const [search, person] = await Promise.all([
     request.q?.trim() ? searchSummary(db, request.q, and(base, inCounty(request.county))) : undefined,
     request.professionalId ? personSummary(db, and(...scopeConditions(db, request.view, request)), now) : undefined,

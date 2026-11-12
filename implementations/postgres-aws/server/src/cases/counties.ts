@@ -1,6 +1,7 @@
 // Counties and settings in a county's place (model/rules.yaml record_case_county).
 import { z } from 'zod';
-import { asc, eq, sql } from 'drizzle-orm';
+import { asc, eq, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { sortKey, type SortKey } from '../lists/batches';
 import type { DatabaseOrTransaction, Transaction } from '../db/client';
 import { auditEvent, caseTable, county, invoice } from '../db/schema';
 import { ValidationError } from '../errors';
@@ -70,6 +71,19 @@ export async function ensureDefaultSettings(db: DatabaseOrTransaction): Promise<
       await db.update(county).set({ isCounty: false }).where(eq(county.countyId, row.countyId));
     }
   }
+}
+
+// A list grouped by county, as listCounties orders them: settings, then counties by name,
+// then retired ones, then none; countyId: the row's county, read with nothing joined.
+export function countyOrderKeys(countyId: AnyColumn | SQL): SortKey[] {
+  const ofCounty = (column: string) => sql`(select ${sql.raw(column)} from county where county_id = ${countyId})`;
+  return [
+    sortKey(sql`(${countyId} is null)::int`, 'integer'),
+    sortKey(sql`(not coalesce(${ofCounty('active')}, true))::int`, 'integer'),
+    sortKey(sql`coalesce(${ofCounty('is_county')}, true)::int`, 'integer'),
+    sortKey(sql`coalesce(${ofCounty('display_name')}, '')`, 'text'),
+    sortKey(sql`coalesce(${countyId}, '00000000-0000-0000-0000-000000000000'::uuid)`, 'uuid'),
+  ];
 }
 
 export async function listCounties(db: DatabaseOrTransaction): Promise<CountyOption[]> {

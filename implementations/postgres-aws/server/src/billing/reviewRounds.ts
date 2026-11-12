@@ -107,6 +107,7 @@ export async function loadRecordedDecisionsByChain(db: DatabaseOrTransaction, ch
   return byChain;
 }
 
+// Also in SQL (./queueSql.ts latestRound); change both together.
 // The latest sequence number at which every line was decided. An
 // incomplete round (from before rounds existed) doesn't count.
 export function latestRoundNumber(decisions: RecordedDecision[], lineCount: number): number | null {
@@ -120,6 +121,7 @@ export function latestRoundNumber(decisions: RecordedDecision[], lineCount: numb
   return complete.length === 0 ? null : Math.max(...complete.map(([sequence]) => sequence));
 }
 
+// Also in SQL (./queueSql.ts approvedTotalOf); change both together.
 // What the latest finished round approved; null until a round is finished,
 // nothing once the invoice was rejected at sign-off.
 export function approvedTotal(decisions: RecordedDecision[], round: number | null): string | null {
@@ -133,6 +135,7 @@ export function approvedTotal(decisions: RecordedDecision[], round: number | nul
   return fromCents(cents);
 }
 
+// Also in SQL (./queueSql.ts holderOf); change both together.
 // Sign-off after the latest round: who signs next, in order, and whether
 // anyone has signed yet.
 export function signOffProgress<T extends { userAccountId: string }>(

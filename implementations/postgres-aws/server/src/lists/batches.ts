@@ -55,10 +55,26 @@ export const newestFirst = (time: SQL | AnyColumn): SortKey => sortKey(sql`coale
 // A time sorted earliest first, with no time last.
 export const oldestFirst = (time: SQL | AnyColumn): SortKey => sortKey(sql`coalesce(${time}, 'infinity'::timestamptz)`, 'timestamptz');
 
+// What each type's text must look like, so a changed cursor is refused here, not by Postgres.
+const VALID: Record<SortKey['type'], (value: string) => boolean> = {
+  text: () => true,
+  integer: (value) => /^-?\d{1,9}$/.test(value),
+  numeric: (value) => /^-?\d+(\.\d+)?$/.test(value) || value === 'Infinity',
+  uuid: (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value),
+  // As Postgres writes it ("2026-03-04 05:06:07.123456+00"); JavaScript reads the offset only with its minutes.
+  timestamptz: (value) =>
+    value === 'infinity' ||
+    value === '-infinity' ||
+    (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?[+-]\d{2}(:\d{2})?$/.test(value) &&
+      !Number.isNaN(Date.parse(value.replace(' ', 'T').replace(/([+-]\d{2})$/, '$1:00')))),
+};
+
 // Rows after the cursor's.
 export function afterCursor(keys: SortKey[], after: string[] | null): SQL | undefined {
   if (!after) return undefined;
-  if (after.length !== keys.length) throw new ValidationError({ after: 'That list position is not valid. Reload the list.' });
+  if (after.length !== keys.length || after.some((value, index) => !VALID[keys[index]!.type](value))) {
+    throw new ValidationError({ after: 'That list position is not valid. Reload the list.' });
+  }
   const row = sql.join(keys.map((key) => key.value), sql`, `);
   const values = sql.join(after.map((value, index) => sql`${value}::${sql.raw(keys[index]!.type)}`), sql`, `);
   return sql`(${row}) > (${values})`;
@@ -77,22 +93,27 @@ export function cursorColumn(keys: SortKey[]): SQL<string[]> {
 }
 
 // One batch of `limit` rows, reading `limit + 1` to know whether more follow.
-// Rows carry their cursorColumn; null only where a query was read without one.
+// A row as sent: its cursor is only for making `next`.
+export function withoutCursor<Row extends { cursor: unknown }>({ cursor: _cursor, ...row }: Row): Omit<Row, 'cursor'> {
+  return row;
+}
+
+// Rows carry their cursorColumn (null only where a query was read without one), and come back without it.
 export async function oneBatch<Row extends { cursor: string[] | null }>(
   request: BatchRequest,
   read: (after: string[] | null, limit: number) => Promise<Row[]>,
-): Promise<{ rows: Row[]; next: string | null }> {
+): Promise<{ rows: Array<Omit<Row, 'cursor'>>; next: string | null }> {
   const rows = await read(request.after, request.limit + 1);
   const more = rows.length > request.limit;
   const kept = more ? rows.slice(0, request.limit) : rows;
-  return { rows: kept, next: more ? encodeCursor(kept[kept.length - 1]!.cursor!) : null };
+  return { rows: kept.map(withoutCursor), next: more ? encodeCursor(kept[kept.length - 1]!.cursor!) : null };
 }
 
 // For a filter only code can apply: reads on in batches until `limit` rows are kept or none are left.
 export async function filledBatch<Row extends { cursor: string[] | null }, Item>(
   request: BatchRequest,
   read: (after: string[] | null, limit: number) => Promise<Row[]>,
-  expand: (rows: Row[]) => Promise<Item[]>,
+  expand: (rows: Array<Omit<Row, 'cursor'>>) => Promise<Item[]>,
   keep: (item: Item) => boolean,
   // Rows read at a time; more than the batch when few are kept.
   readSize = request.limit,
@@ -104,7 +125,7 @@ export async function filledBatch<Row extends { cursor: string[] | null }, Item>
     // eslint-disable-next-line no-await-in-loop
     const rows = await read(after, readSize);
     // eslint-disable-next-line no-await-in-loop
-    const expanded = await expand(rows);
+    const expanded = await expand(rows.map(withoutCursor));
     for (const [index, item] of expanded.entries()) {
       if (!keep(item)) continue;
       items.push(item);
