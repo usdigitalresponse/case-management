@@ -1,7 +1,7 @@
-// Open cases that may be one case recorded twice. Cases belong to the
+// Open cases that may be one case recorded twice, a tab of All cases. Cases belong to the
 // external case management system, so they are never merged here: staff mark
 // a pair as different, or close the extra case from its page as a cleanup.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { apiErrorMessage, reviewPossibleDuplicateCase, searchCases, type CaseListRecord, type DuplicateCase } from '../api/client';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
@@ -47,10 +47,22 @@ function DuplicateCaseDetails({ record }: { record: DuplicateCase }) {
   );
 }
 
-export function DuplicateCases() {
+// The flag dialog is opened from All cases' header.
+export function DuplicateCases({
+  flagging,
+  onFlaggingDone,
+  onCount,
+}: {
+  flagging: boolean;
+  onFlaggingDone: () => void;
+  // Each time the list loads, for the tab's count.
+  onCount: (groups: number) => void;
+}) {
   const [version, setVersion] = useState(0);
   const { data: groups, error } = useResource(possibleDuplicateCases, { resetKey: version });
-  const [flagging, setFlagging] = useState(false);
+  useEffect(() => {
+    if (groups) onCount(groups.length);
+  }, [groups, onCount]);
   const [dismissing, setDismissing] = useState<{ caseIds: [string, string]; names: [string, string] } | null>(null);
   const [message, setMessage] = useState<SaveMessage | null>(null);
 
@@ -64,16 +76,11 @@ export function DuplicateCases() {
 
   return (
     <>
-      <div className="section-heading-row">
-        <p className="compact-hint">
-          Open cases whose numbers match, ignoring punctuation and leading zeros, or that staff flagged. Cases in different counties are never
-          listed. Cases come from your {EXTERNAL_SYSTEM_NAME} and
-          aren’t merged here: to clean up, close the extra case from its page once its invoices are finished, or mark them as different cases.
-        </p>
-        <Button kind="secondary" onClick={() => setFlagging(true)}>
-          Flag two cases
-        </Button>
-      </div>
+      <p className="compact-hint">
+        Open cases whose numbers match, ignoring punctuation and leading zeros, or that staff flagged. Cases in different counties are never
+        listed. Cases come from your {EXTERNAL_SYSTEM_NAME} and
+        aren’t merged here: to clean up, close the extra case from its page once its invoices are finished, or mark them as different cases.
+      </p>
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
       {groups.length === 0 ? (
         <p className="empty-note">No possible duplicate cases right now.</p>
@@ -122,9 +129,9 @@ export function DuplicateCases() {
       )}
       {flagging && (
         <FlagCasesDialog
-          onClose={() => setFlagging(false)}
+          onClose={onFlaggingDone}
           onFlagged={() => {
-            setFlagging(false);
+            onFlaggingDone();
             changed('Flagged. They are listed here until one is closed or someone marks them as different cases.');
           }}
         />

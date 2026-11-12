@@ -329,12 +329,16 @@ form relies on this being airtight.
   always a candidate, so a long history of such invoices is read in full.
 - **Possible duplicate people** (`flag_possible_duplicate_client`,
   `merge_duplicate_people`; `src/people/possibleDuplicates.ts`,
-  `src/people/personMerges.ts`): found after the fact on the Possible
-  duplicates page, not warned of while someone is being added (adding a
+  `src/people/personMerges.ts`): found after the fact in People's Review
+  duplicates tab, not warned of while someone is being added (adding a
   provider still refuses a used email, and a new client a same-name person
   unless confirmed). Every unmerged person is read and compared on each
-  load, fine at prototype scale but needing an indexed name key for a large
-  directory. Matching is exact on a normalized name, so spelling variants
+  load of the tab, fine at prototype scale but needing an indexed name key,
+  or a stored list of open pairs, for a large directory. Whether People and
+  All cases show the tab comes from a count kept in the server process for
+  five minutes (`src/duplicateCounts.ts`): one instance only, and a person
+  or case added meanwhile may not show in the count until it expires or the
+  tab is opened. Matching is exact on a normalized name, so spelling variants
   and nicknames are caught only when flagged. A merge is refused while both
   profiles sign in with different accounts, as one would lose their
   invoices; there is no way yet to move a second sign-in onto a person.

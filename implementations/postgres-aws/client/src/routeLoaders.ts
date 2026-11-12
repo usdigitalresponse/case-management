@@ -60,8 +60,16 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
     exports: preload((args) => [resources.reviewQueue(exportsRequest(searchOf(args))), resources.counties]),
     review: preload(({ params }) => [resources.invoiceForReview(params.invoiceId as string), resources.decisionReasons]),
     overview: preload(() => [resources.caseOverview, resources.recentCaseChanges]),
-    cases: preload((args) => [resources.cases(caseListRequest(searchOf(args))), resources.counties]),
-    people: preload((args) => [resources.people(peopleRequest(searchOf(args)))]),
+    cases: preload((args) =>
+      searchOf(args).get('tab') === 'duplicates'
+        ? [resources.possibleDuplicateCases]
+        : [resources.cases(caseListRequest(searchOf(args))), resources.counties, resources.possibleDuplicateCaseCount],
+    ),
+    people: preload((args) =>
+      searchOf(args).get('tab') === 'duplicates'
+        ? [resources.possibleDuplicates, resources.personMerges]
+        : [resources.people(peopleRequest(searchOf(args))), resources.possibleDuplicateCount],
+    ),
     clients: preload((args) => [resources.cases(clientsRequest(searchOf(args)))]),
     organizations: preload(() => [resources.referenceData, resources.caseCounts]),
     preauthorizations: preload(({ request }) => {
@@ -73,11 +81,6 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
     alternateFinished: preload((args) => [resources.reviewQueue(alternateRequest('finished', searchOf(args))), resources.counties]),
     search: preload((args) => (searched(args) ? [resources.reviewQueue(searchRequest(searchOf(args))), resources.counties] : []), { searchParams: ['q'] }),
     providers: preload((args) => [resources.providerList(searched(args))], { searchParams: ['q'] }),
-    possibleDuplicates: preload(({ request }) =>
-      new URL(request.url).searchParams.get('show') === 'cases'
-        ? [resources.possibleDuplicateCases]
-        : [resources.possibleDuplicates, resources.personMerges],
-    { searchParams: ['show'] }),
     mergePeople: preload(
       ({ request }) => {
         const params = new URL(request.url).searchParams;

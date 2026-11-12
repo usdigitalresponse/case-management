@@ -1,11 +1,14 @@
-// Everyone who can send invoices, in place of Cases and Providers.
+// Everyone who can send invoices, in place of Cases and Providers, and a tab
+// of possible duplicate people while there are any.
 import { useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import type { BillingPerson } from '../api/client';
 import { useBatchedResource } from '../hooks/useBatchedResource';
 import { MoreOnScroll } from '../components/MoreOnScroll';
 import { peopleRequest } from '../caseRequests';
-import { people } from '../resources';
+import { people, possibleDuplicateCount } from '../resources';
+import { DuplicatePeople } from '../components/DuplicatePeople';
+import { DuplicatesTabs, useDuplicateCount, useListTab } from '../components/DuplicatesTabs';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
@@ -19,31 +22,66 @@ import { FilterTag } from '../components/ui/Tag';
 
 export default function People() {
   const navigate = useNavigate();
+  const [tab, setTab] = useListTab();
   const [role, setRole] = useSearchParamState<string>('role', '');
   const [query, setQuery] = useSearchParamText('q');
   const [params] = useSearchParams();
-  const list = useBatchedResource(people(peopleRequest(params)));
+  const list = useBatchedResource(tab === 'list' ? people(peopleRequest(params)) : null);
+  const [listed, setListed] = useState<number | null>(null);
+  const toReview = useDuplicateCount(tab, possibleDuplicateCount, listed);
   const { summary } = list;
   const [adding, setAdding] = useState(false);
+  const [flagging, setFlagging] = useState(false);
 
+  const header = (
+    <>
+      <PageHeader
+        list
+        title="People"
+        description="Everyone who can send invoices: attorneys, investigators and experts. Every invoice is filed under one of these people."
+        actions={
+          <>
+            <Button
+              kind="secondary"
+              onClick={() => {
+                setTab('duplicates');
+                setFlagging(true);
+              }}
+            >
+              Flag possible duplicates
+            </Button>
+            <Button kind="primary" onClick={() => setAdding(true)}>
+              Add a person
+            </Button>
+          </>
+        }
+      />
+      <DuplicatesTabs listLabel="People" toReview={toReview} show={(toReview ?? 0) > 0} tab={tab} onSelect={setTab} />
+    </>
+  );
+
+  if (tab === 'duplicates') {
+    return (
+      <div>
+        {header}
+        <DuplicatePeople flagging={flagging} onFlaggingDone={() => setFlagging(false)} onCount={setListed} />
+      </div>
+    );
+  }
   if (list.error || !list.items || !summary) {
-    return <LoadState error={list.error} what="people" />;
+    return (
+      <div>
+        {header}
+        <LoadState error={list.error} what="people" />
+      </div>
+    );
   }
   const roles = summary.roles.map((row) => ({ value: row.role ?? 'none', label: row.role ?? 'No role', count: row.count })).sort((a, b) => a.label.localeCompare(b.label));
   const total = summary.roles.reduce((sum, row) => sum + row.count, 0);
 
   return (
     <div>
-      <PageHeader
-        list
-        title="People"
-        description="Everyone who can send invoices: attorneys, investigators and experts. Every invoice is filed under one of these people."
-        actions={
-          <Button kind="primary" onClick={() => setAdding(true)}>
-            Add a person
-          </Button>
-        }
-      />
+      {header}
       <div className="list-controls">
         <div className="tag-filters" role="group" aria-label="Show">
           <FilterTag aria-pressed={role === ''} onClick={() => setRole('')}>

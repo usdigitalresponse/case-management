@@ -11,8 +11,8 @@ import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { Button } from '../components/ui/Button';
 import { Notice } from '../components/ui/Notice';
-import { mergePath, POSSIBLE_DUPLICATES_PATH } from '../staffPaths';
-import { DuplicatePersonDetails, personLabels } from './PossibleDuplicates';
+import { duplicatePeoplePath, mergePath } from '../staffPaths';
+import { DuplicatePersonDetails, personLabels } from '../components/DuplicatePeople';
 
 export default function MergePeople() {
   const { user } = useAuth();
@@ -25,10 +25,10 @@ export default function MergePeople() {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const crumbs = [{ label: 'Possible duplicates', to: POSSIBLE_DUPLICATES_PATH }, { label: 'Merge' }];
+  const crumbs = [{ label: 'People', to: '/people' }, { label: 'Review duplicates', to: duplicatePeoplePath() }, { label: 'Merge' }];
 
   if (!keep || retire.length === 0) {
-    return <Notice tone="danger">Choose the records to merge from Possible duplicates.</Notice>;
+    return <Notice tone="danger">Choose the records to merge from People’s Review duplicates tab.</Notice>;
   }
   if (error || !preview) {
     return <LoadState error={error} what="what this merge would do" />;
@@ -53,7 +53,7 @@ export default function MergePeople() {
     setSaveError(null);
     try {
       const { personMergeIds } = await mergePeople({ keptPersonId: kept.personId, retiredPersonIds: retired.map((plan) => plan.person.personId), note });
-      navigate(`${POSSIBLE_DUPLICATES_PATH}?merged=${personMergeIds.join(',')}`);
+      navigate(duplicatePeoplePath({ merged: personMergeIds.join(',') }));
     } catch (err) {
       setSaveError(apiErrorMessage(err, 'They could not be merged.'));
       setSaving(false);
@@ -71,7 +71,7 @@ export default function MergePeople() {
               ? `Merge ${retired.length} records into ${kept.displayName}`
               : `Merge ${retired[0]!.person.displayName} into ${kept.displayName}`
         }
-        description="Check that these are all the same person and what will move. The merge can be undone from Possible duplicates."
+        description="Check that these are all the same person and what will move. The merge can be undone from People’s Review duplicates tab."
       />
       <div className="merge-sides">
         <section className="card merge-side">
@@ -172,13 +172,13 @@ export default function MergePeople() {
             <Button kind="danger" disabled={!confirmed || blocked || saving} onClick={() => void merge()}>
               {saving ? 'Merging…' : `Merge into ${keptName}`}
             </Button>
-            <button type="button" className="link-button" onClick={() => navigate(POSSIBLE_DUPLICATES_PATH)}>
+            <button type="button" className="link-button" onClick={() => navigate(duplicatePeoplePath())}>
               Cancel
             </button>
           </div>
         </section>
       ) : (
-        <Notice tone="info">Only an administrator can merge people. You can flag them, or mark them as different people, from Possible duplicates.</Notice>
+        <Notice tone="info">Only an administrator can merge people. You can mark them as different people from People’s Review duplicates tab.</Notice>
       )}
     </div>
   );

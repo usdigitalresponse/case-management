@@ -530,7 +530,7 @@ them. Delegates adding colleagues, and the approval step, are still planned.
 
 People get recorded twice: staff add a provider who later signs in with
 another email, or a client is typed in again. Staff see possible duplicates
-on one page, matched by email, name or date of birth and family name, or
+in a tab of the People list, shown only while there are any, matched by email, name or date of birth and family name, or
 flagged by a colleague, and any staff member may flag a pair or record that
 they are different people. Merging moves cases, invoices, assignments,
 sign-ins and documents onto one record, so only an administrator does it,
