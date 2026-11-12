@@ -9,7 +9,7 @@ import { recordCeilingInTx } from '../preauthorizations';
 import { CLOSING_STATUS, DECISION_OUTCOMES, OPEN_STATUSES, money, parse } from './requestRules';
 import { currentPreauthorizationId } from './submit';
 import { getPreauthorizationRequest } from './read';
-import { addCaseFromRequest } from '../../cases/caseStep';
+import { addCaseFromRequest, requireChoosableCase } from '../../cases/caseStep';
 
 // --- changes ---------------------------------------------------------------
 
@@ -127,9 +127,11 @@ export async function matchPreauthorizationRequest(db: Database, actorUserAccoun
     }
     let caseId = locked.caseId;
     let notForCase = locked.notForCase;
+    const proposedCounty = (locked.proposedDetails as { case?: { countyId?: string | null } } | null)?.case?.countyId ?? null;
     if (input.caseId) {
       const [row] = await tx.select({ id: caseTable.caseId, closedAsMistake: caseTable.closedAsMistake }).from(caseTable).where(eq(caseTable.caseId, input.caseId));
       if (!row || row.closedAsMistake) throw new NotFoundError('Case not found.');
+      await requireChoosableCase(tx, input.caseId, locked.countyId ?? proposedCounty);
       caseId = input.caseId;
       notForCase = false;
     } else if (input.newCase) {
@@ -140,7 +142,6 @@ export async function matchPreauthorizationRequest(db: Database, actorUserAccoun
       caseId = null;
       notForCase = input.notForCase;
     }
-    const proposedCounty = (locked.proposedDetails as { case?: { countyId?: string | null } } | null)?.case?.countyId ?? null;
     await tx
       .update(preauthorizationRequest)
       .set({

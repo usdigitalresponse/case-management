@@ -1,7 +1,7 @@
 // The case step (model/rules.yaml match_invoice_to_case, add_case_from_request):
 // a case found by its number within the county, or one added from them with
 // nothing else asked. Shared by requests for payment and pre-authorizations.
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { DatabaseOrTransaction, Transaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { getReferenceId } from '../db/referenceLookups';
@@ -28,6 +28,17 @@ export async function caseStepMatches(db: DatabaseOrTransaction, caseNumber: str
   );
   const exact = (countyId && found.find((row) => row.match === 'exact' && row.countyId === countyId)) || null;
   return { exact, similar: found.filter((row) => row !== exact) };
+}
+
+// A chosen case must be listed and, where both have one, in the request's county.
+export async function requireChoosableCase(db: DatabaseOrTransaction, caseId: string, countyId: string | null) {
+  const [row] = await db.select({ closedAsMistake: caseTable.closedAsMistake, countyId: caseTable.countyId }).from(caseTable).where(eq(caseTable.caseId, caseId));
+  if (!row || row.closedAsMistake) {
+    throw new ValidationError({ caseId: 'Choose a listed case.' });
+  }
+  if (countyId && row.countyId && row.countyId !== countyId) {
+    throw new ValidationError({ caseId: 'That case is in another county. Choose one in this county, or correct the county.' });
+  }
 }
 
 export interface NewCaseInput {
@@ -64,6 +75,10 @@ export async function addCaseFromRequest(
   input: NewCaseInput,
   addedFrom: { invoiceId: string } | { preauthorizationRequestId: string },
 ): Promise<string> {
+  // One at a time per county, so two staff can't both add the same number.
+  if (input.countyId) {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`case-step:${input.countyId}`}))`);
+  }
   const { caseNumber, countyId } = await checkNewCase(tx, input);
   const [countyRow] = await tx.select({ active: county.active }).from(county).where(eq(county.countyId, countyId));
   if (!countyRow?.active) {

@@ -28,8 +28,8 @@ export async function findCasesByNumber(db: DatabaseOrTransaction, caseNumber: s
     db.select({ caseId: caseTable.caseId }).from(caseTable).where(eq(sql`case_number_close_key(${caseTable.externalReference})`, wantedClose)),
     db.select({ caseId: caseIdentifier.caseId }).from(caseIdentifier).where(eq(sql`case_number_close_key(${caseIdentifier.value})`, wantedClose)),
   );
-  const [cases, identifiers] = await Promise.all([
-    db
+  // One at a time: a transaction's client runs its queries in turn.
+  const cases = await db
       .select({
         caseId: caseTable.caseId,
         externalReference: caseTable.externalReference,
@@ -41,12 +41,11 @@ export async function findCasesByNumber(db: DatabaseOrTransaction, caseNumber: s
       .from(caseTable)
       .leftJoin(person, eq(caseTable.clientId, person.personId))
       .leftJoin(county, eq(caseTable.countyId, county.countyId))
-      .where(and(inArray(caseTable.caseId, keyed), eq(caseTable.closedAsMistake, false))),
-    db
+      .where(and(inArray(caseTable.caseId, keyed), eq(caseTable.closedAsMistake, false)));
+  const identifiers = await db
       .select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value })
       .from(caseIdentifier)
-      .where(inArray(caseIdentifier.caseId, keyed)),
-  ]);
+      .where(inArray(caseIdentifier.caseId, keyed));
   const identifiersOf = groupBy(identifiers, (row) => row.caseId);
   const wanted = caseNumber.toUpperCase();
   const found = cases.flatMap((row) => {

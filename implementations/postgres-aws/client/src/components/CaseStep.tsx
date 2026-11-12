@@ -138,9 +138,9 @@ function CaseLookup({
     if (saving) return;
     if (expected && !settled) void save(expected);
     else if (stale) void save({ choice: null });
-    // Only when what the number finds changes.
+    // Only when what the number finds, or the kept answer, changes (a new number or county clears it).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exact?.caseId, nothingFound, stale]);
+  }, [exact?.caseId, nothingFound, stale, invoice.caseChoice, invoice.chosenCaseId]);
 
   return (
     <>

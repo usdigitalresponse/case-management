@@ -1112,6 +1112,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     submitters may send only `none` or `null` (403 otherwise). `new` needs
     the draft's number and county, is refused for a number already used in
     that county, and needs `confirmedNew` when a similar one is listed.
+    `existing` is refused for a case in another county. Changing a draft's
+    case number or county clears an `existing` or `new` answer.
   - Sending (`POST /api/portal/invoices/:id/submit`, `filedByPerson`)
     refuses a staff draft with no answer (field `caseChoice`); an external
     one needs neither a number nor an answer. Once a staff member's is sent,
@@ -1122,7 +1124,10 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     applies the same answers at once, matching through `matchInvoiceToCase`
     (prices kept as sent, providers assigned, a closed case reopened) and
     returning `{ caseId, addedCaseId, caseProblem }`. Finishing the first
-    round of an entry in review refuses one with no answer.
+    round of an entry in review refuses one with no answer. Adding a case
+    takes a per-county advisory lock, so one number is never added twice in
+    a county; if matching fails after the case was added, a retry matches the
+    case added from that invoice rather than adding another.
   - `POST /api/preauthorizations/requests/:id/match` also takes `newCase: {
     caseNumber, countyId, clientName?, confirmedNew? }` or `notForCase` (with
     `countyId`). Approving one not for one case records `approved_amount`
@@ -1141,7 +1146,10 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   mistake records a lifecycle event and sets `case.closed_as_mistake`, which
   every case list, count and lookup leaves out. `GET /api/edit-data/fixes`
   lists recent fixes; `POST /api/edit-data/fixes/:id/undo` restores each
-  value still as the fix left it and reopens a closed case.
+  value still as the fix left it and reopens a closed case, without bringing
+  back assignments it ended. A corrected client's name renames their person
+  only when nothing else refers to them; otherwise a new person becomes the
+  client. Taking requests off a case asks again on any draft that chose it.
 - **Closing a case**: `POST /api/cases/:id/close` (`requireFullUser`,
   `src/cases/closeCase.ts`) is the counterpart to opening
   (`src/intake/createCase.ts`). The case's real status lives in the

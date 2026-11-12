@@ -13,7 +13,7 @@ import { preauthorizationUsageByCounty } from '../billing/preauthorizationUsage'
 import { asyncHandler } from './asyncHandler';
 import { batchRequest } from '../lists/batches';
 import { sendFileDownload } from './sendUploadedFile';
-import { tagTourRecord } from '../demoTour/tourRuns';
+import { tagTourCase, tagTourRecord } from '../demoTour/tourRuns';
 
 const router = Router();
 router.use(requireAuth);
@@ -106,7 +106,7 @@ router.post(
   '/requests/:id/match',
   asyncHandler(async (req, res) => {
     const matched = await matchPreauthorizationRequest(db, (await sessionActor(req)).userAccountId, req.params.id as string, req.body);
-    await tagTourRecord(req, 'case', matched.addedCaseId ?? undefined);
+    await tagTourCase(req, matched.addedCaseId);
     res.json(matched);
   }),
 );

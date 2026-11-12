@@ -25,7 +25,7 @@ import { asyncHandler } from '../asyncHandler';
 import { sendFileDownload, sendFilePreview } from '../sendUploadedFile';
 import { parseExportFormat, parseExportOmit, sendInvoiceExport } from '../sendInvoiceExport';
 import { sessionActor } from './sessionActor';
-import { tagTourRecord } from '../../demoTour/tourRuns';
+import { tagTourCase, tagTourRecord } from '../../demoTour/tourRuns';
 
 const router = Router();
 
@@ -115,7 +115,7 @@ router.post(
       return;
     }
     const matched = await applyCaseChoiceAfterSend(db, actor.userAccountId, invoiceId);
-    await tagTourRecord(req, 'case', matched.addedCaseId ?? undefined);
+    await tagTourCase(req, matched.addedCaseId);
     res.json({ ...sent, caseId: matched.caseId, caseProblem: matched.caseProblem });
   }),
 );

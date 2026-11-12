@@ -3,13 +3,13 @@
 // and county (../cases/caseStep.ts), or not for one case. A draft keeps the
 // answer and is matched when sent; in review it applies at once.
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import type { Database, DatabaseOrTransaction } from '../db/client';
+import { and, eq } from 'drizzle-orm';
+import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { caseTable, invoice, invoiceStatuses, type CaseChoice } from '../db/schema';
 import { ForbiddenError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { isStaffAccount, type PortalActor } from '../portal/portalActor';
-import { addCaseFromRequest, caseStepMatches, checkNewCase } from '../cases/caseStep';
+import { addCaseFromRequest, caseStepMatches, checkNewCase, requireChoosableCase, type NewCaseInput } from '../cases/caseStep';
 import { caseNumberInput, currentCaseNumber } from './caseNumbers';
 import { lockOwnDraft } from './invoiceLifecycle/drafts';
 import { matchInvoiceToCase } from './invoiceIntake';
@@ -40,11 +40,14 @@ function parseChoice(rawInput: unknown): ChoiceInput {
   return parsed.data;
 }
 
-async function requireListedCase(db: DatabaseOrTransaction, caseId: string) {
-  const [row] = await db.select({ closedAsMistake: caseTable.closedAsMistake }).from(caseTable).where(eq(caseTable.caseId, caseId));
-  if (!row || row.closedAsMistake) {
-    throw new ValidationError({ caseId: 'Choose a listed case.' });
-  }
+// The case this invoice added before, if matching it failed: a retry matches it rather than adding another.
+async function addOnce(tx: Transaction, actorUserAccountId: string, invoiceId: string, input: NewCaseInput): Promise<{ caseId: string; added: boolean }> {
+  const [earlier] = await tx
+    .select({ caseId: caseTable.caseId })
+    .from(caseTable)
+    .where(and(eq(caseTable.addedFromInvoiceId, invoiceId), eq(caseTable.closedAsMistake, false)));
+  if (earlier) return { caseId: earlier.caseId, added: false };
+  return { caseId: await addCaseFromRequest(tx, actorUserAccountId, input, { invoiceId }), added: true };
 }
 
 // The invoice's number, or one typed in review, and its county, and the cases they find.
@@ -71,7 +74,7 @@ export async function setDraftCaseChoice(db: Database, actor: PortalActor, invoi
       throw new ValidationError({ caseChoice: 'It is under one of your cases. Take it off that case first.' });
     }
     if (input.choice === 'existing') {
-      await requireListedCase(tx, input.caseId);
+      await requireChoosableCase(tx, input.caseId, locked.countyId);
     }
     if (input.choice === 'new') {
       await checkNewCase(tx, { caseNumber: currentCaseNumber(locked), countyId: locked.countyId, confirmedNew: input.confirmedNew });
@@ -116,17 +119,19 @@ export async function applyCaseChoiceAfterSend(db: Database, actorUserAccountId:
   }
   let addedCaseId: string | null = null;
   try {
-    const caseId =
-      row.caseChoice === 'existing'
-        ? row.chosenCaseId!
-        : (addedCaseId = await db.transaction((tx) =>
-            addCaseFromRequest(
-              tx,
-              actorUserAccountId,
-              { caseNumber: currentCaseNumber(row), countyId: row.countyId, clientName: row.newCaseClientName, confirmedNew: true },
-              { invoiceId },
-            ),
-          ));
+    let caseId: string;
+    if (row.caseChoice === 'existing') {
+      if (!row.chosenCaseId) return { caseId: null, addedCaseId: null, caseProblem: 'Say which case it is for.' };
+      caseId = row.chosenCaseId;
+      await requireChoosableCase(db, caseId, row.countyId);
+    } else {
+      // A number or county changed since clears the answer (drafts.ts), so a similar case was already confirmed as different.
+      const added = await db.transaction((tx) =>
+        addOnce(tx, actorUserAccountId, invoiceId, { caseNumber: currentCaseNumber(row), countyId: row.countyId, clientName: row.newCaseClientName, confirmedNew: true }),
+      );
+      caseId = added.caseId;
+      addedCaseId = added.added ? caseId : null;
+    }
     await matchTo(db, actorUserAccountId, invoiceId, caseId, row.caseChoice);
     return { caseId, addedCaseId, caseProblem: null };
   } catch (error) {
@@ -159,27 +164,23 @@ export async function chooseCaseInReview(db: Database, actorUserAccountId: strin
     return { caseId: null, addedCaseId: null, caseProblem: null };
   }
   if (input.choice === 'existing') {
-    await requireListedCase(db, input.caseId);
+    await requireChoosableCase(db, input.caseId, row.invoice.countyId);
     await matchTo(db, actorUserAccountId, invoiceId, input.caseId, 'existing');
     return { caseId: input.caseId, addedCaseId: null, caseProblem: null };
   }
-  const caseId = await db.transaction((tx) =>
-    addCaseFromRequest(
-      tx,
-      actorUserAccountId,
-      {
-        caseNumber: input.caseNumber ?? currentCaseNumber(row.invoice),
-        countyId: row.invoice.countyId,
-        clientName: input.clientName,
-        confirmedNew: input.confirmedNew,
-      },
-      { invoiceId },
-    ),
+  const added = await db.transaction((tx) =>
+    addOnce(tx, actorUserAccountId, invoiceId, {
+      caseNumber: input.caseNumber ?? currentCaseNumber(row.invoice),
+      countyId: row.invoice.countyId,
+      clientName: input.clientName,
+      confirmedNew: input.confirmedNew,
+    }),
   );
+  const addedCaseId = added.added ? added.caseId : null;
   try {
-    await matchTo(db, actorUserAccountId, invoiceId, caseId, 'new');
-    return { caseId, addedCaseId: caseId, caseProblem: null };
+    await matchTo(db, actorUserAccountId, invoiceId, added.caseId, 'new');
+    return { caseId: added.caseId, addedCaseId, caseProblem: null };
   } catch (error) {
-    return { caseId: null, addedCaseId: caseId, caseProblem: problemOf(error) };
+    return { caseId: null, addedCaseId, caseProblem: problemOf(error) };
   }
 }

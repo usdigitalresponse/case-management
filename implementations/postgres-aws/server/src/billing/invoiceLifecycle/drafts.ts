@@ -96,9 +96,12 @@ export async function setDraftCaseNumber(db: Database, actor: PortalActor, invoi
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
   return db.transaction(async (tx) => {
-    await lockOwnDraft(tx, actor, invoiceId);
+    const locked = await lockOwnDraft(tx, actor, invoiceId);
     const caseNumber = cleanCaseNumber(parsed.data.caseNumber);
-    await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
+    await tx
+      .update(invoice)
+      .set({ caseNumberAsTyped: caseNumber, ...(caseNumber === locked.caseNumberAsTyped ? {} : askCaseAgain(locked)) })
+      .where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, caseNumber };
   });
 }
@@ -140,11 +143,19 @@ export async function setDraftCase(db: Database, actor: PortalActor, invoiceId: 
 export async function setDraftCounty(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
   const choice = parseCountyChoice(rawInput);
   return db.transaction(async (tx) => {
-    await lockOwnDraft(tx, actor, invoiceId);
+    const locked = await lockOwnDraft(tx, actor, invoiceId);
     const countyId = await resolveCountyChange(tx, actor.userAccountId, choice);
-    await tx.update(invoice).set({ countyId }).where(eq(invoice.invoiceId, invoiceId));
+    await tx
+      .update(invoice)
+      .set({ countyId, ...(countyId === locked.countyId ? {} : askCaseAgain(locked)) })
+      .where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, county: await shownInvoiceCounty(tx, invoiceId) };
   });
+}
+
+// A case found or added from the old number or county no longer answers; "not for one case" still does.
+function askCaseAgain(locked: { caseChoice: string | null }) {
+  return locked.caseChoice === 'existing' || locked.caseChoice === 'new' ? { caseChoice: null, chosenCaseId: null } : {};
 }
 
 export async function lockOwnDraft(tx: Transaction, actor: PortalActor, invoiceId: string) {

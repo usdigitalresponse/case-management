@@ -21,7 +21,8 @@ import { createPreauthorizationRequest, previewRequest } from '../src/billing/pr
 import { getPreauthorizationRequest, listOwnPreauthorizationRequests, listPreauthorizationRequests } from '../src/billing/preauthorizationRequests/read';
 import { preauthorizationUsageByCounty } from '../src/billing/preauthorizationUsage';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../src/errors';
-import { caseAssignment, caseTable, county, preauthorizationDecision, userAccount } from '../src/db/schema';
+import { caseAssignment, caseTable, county, preauthorizationDecision, preauthorizationRequest, userAccount } from '../src/db/schema';
+import { fixCase, undoCaseFix } from '../src/cases/caseCorrections';
 
 let fixtures: BaselineFixtureIds;
 let admin: string;
@@ -226,6 +227,35 @@ describe('requests', () => {
     await decidePreauthorizationRequest(testDb, staff, preauthorizationRequestId, { outcome: 'approved', approvedAmount: 1200 });
     const [limit] = await loadPreauthorizationSummaries(testDb, matched.addedCaseId!, [attorney.professionalId]);
     expect(limit).toMatchObject({ source: 'preauthorized', ceiling: '1200.00' });
+  });
+
+  it('refuse a case in another county than the request’s', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const [other] = await testDb.insert(county).values({ displayName: 'Synthetic County C' }).returning();
+    const elsewhere = await newCase(other!.countyId);
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, {
+      ...request(caseId, attorney.professionalId, 1200),
+      caseId: null,
+      proposedCase: { caseNumber: 'SYN-406', countyId: fixtures.countyId },
+    });
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId: elsewhere })).rejects.toThrow(ValidationError);
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId })).resolves.toMatchObject({ request: { caseId } });
+  });
+
+  it('keep their own county when an administrator takes them off a case added by mistake', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const [other] = await testDb.insert(county).values({ displayName: 'Synthetic County D' }).returning();
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, request(caseId, attorney.professionalId, 900));
+    await testDb.update(preauthorizationRequest).set({ countyId: other!.countyId }).where(eq(preauthorizationRequest.preauthorizationRequestId, preauthorizationRequestId));
+
+    const { caseCorrectionId } = await fixCase(testDb, admin, { kind: 'not_for_case', caseId });
+    const [taken] = await testDb.select().from(preauthorizationRequest).where(eq(preauthorizationRequest.preauthorizationRequestId, preauthorizationRequestId));
+    expect(taken).toMatchObject({ caseId: null, notForCase: true, countyId: other!.countyId });
+    await undoCaseFix(testDb, admin, caseCorrectionId);
+    const [back] = await testDb.select().from(preauthorizationRequest).where(eq(preauthorizationRequest.preauthorizationRequestId, preauthorizationRequestId));
+    expect(back).toMatchObject({ caseId, notForCase: false, countyId: other!.countyId });
   });
 
   it('record only the decision for work not for one case, setting no limit', async () => {

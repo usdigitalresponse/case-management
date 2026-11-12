@@ -310,7 +310,8 @@ form relies on this being airtight.
   optional client. A staff draft's answer is applied right after it is sent,
   outside the sending transaction: if matching then fails, the invoice stays
   in review without a case, its choice kept, and the sender is told to choose
-  it on the review page. Changing the case question in review records no
+  it on the review page; a case added before the failure is kept, and the
+  next try matches it rather than adding another. Changing the case question in review records no
   request event of its own (matching does, `matched_to_case`). The
   pre-authorization match form has the same choices in its own layout rather
   than the shared component. The case-based new-invoice form and upload,

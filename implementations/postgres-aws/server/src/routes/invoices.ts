@@ -9,7 +9,7 @@ import { listDecisionReasons } from '../billing/decisionReasons';
 import { billingRecordCsv, billingRecordXlsx, loadBillingRecord, OMITTABLE_BILLING_RECORD_COLUMNS } from '../billing/billingRecord';
 import { listInvoiceIntake, matchInvoiceToCase, returnToSubmitter } from '../billing/invoiceIntake';
 import { caseStepFor, chooseCaseInReview } from '../billing/caseChoice';
-import { tagTourRecord } from '../demoTour/tourRuns';
+import { tagTourCase } from '../demoTour/tourRuns';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { loadInvoiceDetail, loadSenderEmail } from '../billing/invoiceDetail';
 import { findBillingOverlaps } from '../billing/billingOverlaps';
@@ -240,7 +240,7 @@ router.put(
   '/:id/case-choice',
   asyncHandler(async (req, res) => {
     const result = await chooseCaseInReview(db, actorId(req), req.params.id as string, req.body);
-    await tagTourRecord(req, 'case', result.addedCaseId ?? undefined);
+    await tagTourCase(req, result.addedCaseId);
     res.json(result);
   }),
 );

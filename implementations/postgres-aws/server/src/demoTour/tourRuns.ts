@@ -6,7 +6,7 @@
 import type { Request } from 'express';
 import { and, eq, isNull, lt, sql } from 'drizzle-orm';
 import { db as defaultDb, type Database, type DatabaseOrTransaction } from '../db/client';
-import { auditEvent, demoTourRecord, demoTourRun, document } from '../db/schema';
+import { auditEvent, caseTable, demoTourRecord, demoTourRun, document } from '../db/schema';
 import type { DocumentStore } from '../imports/documentStore';
 
 export type TourRecordTable = 'case' | 'invoice' | 'preauthorization_request' | 'professional' | 'person';
@@ -39,6 +39,19 @@ export async function tagTourRecord(req: Request, table: TourRecordTable, id: st
       on conflict do nothing`);
   } catch (error) {
     // Tagging is housekeeping; the visitor's change has already been made.
+    // eslint-disable-next-line no-console
+    console.error('Tour record tagging failed', error);
+  }
+}
+
+// A case the case step added, with the client it was made with (../cases/caseStep.ts).
+export async function tagTourCase(req: Request, caseId: string | null | undefined, db: Database = defaultDb): Promise<void> {
+  if (!caseId || !(req.session?.tour as { runId?: string } | undefined)?.runId) return;
+  await tagTourRecord(req, 'case', caseId, db);
+  try {
+    const [row] = await db.select({ clientId: caseTable.clientId }).from(caseTable).where(eq(caseTable.caseId, caseId));
+    await tagTourRecord(req, 'person', row?.clientId ?? undefined, db);
+  } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Tour record tagging failed', error);
   }

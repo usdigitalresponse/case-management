@@ -1,5 +1,5 @@
 // Settings, Edit data: fixing cases added by mistake (scenarios/cases-from-invoices.md 8-10).
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
 import { giveRate } from './rateHelpers';
@@ -15,7 +15,8 @@ import { fixCase, listAddedCases, listCaseFixes, previewCaseFix, undoCaseFix } f
 import { listCaseBatch } from '../src/cases/caseBatches';
 import { recordCeilingInTx } from '../src/billing/preauthorizations';
 import { ConflictError, ValidationError } from '../src/errors';
-import { caseTable, county, invoice, invoiceLine, preauthorization, userAccount } from '../src/db/schema';
+import { caseAssignment, caseTable, county, invoice, invoiceLine, person, preauthorization, userAccount } from '../src/db/schema';
+import { firstRow } from '../src/db/rowHelpers';
 
 let fixtures: BaselineFixtureIds;
 let countyB: string;
@@ -67,6 +68,8 @@ describe('cases added from requests', () => {
     expect(all[1]).toMatchObject({ addedFrom: 'invoice', invoices: 1, similar: [{ caseId: kept.caseId }] });
     const similar = await listAddedCases(testDb, { similarOnly: true });
     expect(similar.map((row) => row.caseId).sort()).toEqual([kept.caseId, extra.caseId].sort());
+    // Narrowed before the limit, so a newer case with no close number doesn't hide them.
+    expect((await listAddedCases(testDb, { similarOnly: true, limit: 1 })).map((row) => row.caseId)).toEqual([extra.caseId]);
   });
 });
 
@@ -158,6 +161,62 @@ describe('not for one case', () => {
     expect(row).toMatchObject({ caseId: null, caseChoice: 'none', countyId: countyB });
     const [closed] = await testDb.select({ closedAsMistake: caseTable.closedAsMistake }).from(caseTable).where(eq(caseTable.caseId, added.caseId));
     expect(closed?.closedAsMistake).toBe(true);
+  });
+});
+
+describe('correcting a client other records share', () => {
+  it('adds a new client rather than renaming the person everywhere, and undo puts the earlier one back', async () => {
+    const added = await sentWithNewCase('CR-26-6000', countyB);
+    const other = await sentWithNewCase('CR-26-6001', countyB);
+    const sharedId = firstRow(await testDb.insert(person).values({ displayName: 'M. Sample' }).returning()).personId;
+    await testDb.update(caseTable).set({ clientId: sharedId }).where(inArray(caseTable.caseId, [added.caseId, other.caseId]));
+
+    const { caseCorrectionId } = await fixCase(testDb, admin(), { kind: 'corrected', caseId: added.caseId, clientName: 'N. Sample' });
+    const [shared] = await testDb.select().from(person).where(eq(person.personId, sharedId));
+    expect(shared?.displayName).toBe('M. Sample');
+    const [row] = await testDb.select().from(caseTable).where(eq(caseTable.caseId, added.caseId));
+    expect(row!.clientId).not.toBe(sharedId);
+
+    await undoCaseFix(testDb, admin(), caseCorrectionId);
+    const [undone] = await testDb.select().from(caseTable).where(eq(caseTable.caseId, added.caseId));
+    expect(undone?.clientId).toBe(sharedId);
+  });
+
+  it('renames a client only this case has', async () => {
+    const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const { invoiceId } = await createInvoice(testDb, staff, { caseId: null, professionalId: await sender('own@example.com'), submit: false, lines: [] });
+    const caseId = await testDb.transaction((tx) => addCaseFromRequest(tx, admin(), { caseNumber: 'CR-26-6002', countyId: countyB, clientName: 'O. Sampel' }, { invoiceId }));
+    const [before] = await testDb.select({ clientId: caseTable.clientId }).from(caseTable).where(eq(caseTable.caseId, caseId));
+    await fixCase(testDb, admin(), { kind: 'corrected', caseId, clientName: 'O. Sample' });
+    const [renamed] = await testDb.select().from(person).where(eq(person.personId, before!.clientId!));
+    expect(renamed?.displayName).toBe('O. Sample');
+  });
+});
+
+describe('undoing a fix that closed a case', () => {
+  it('leaves the assignments it ended ended', async () => {
+    const added = await sentWithNewCase('CR-26-6100', countyB);
+    const open = () => testDb.select().from(caseAssignment).where(and(eq(caseAssignment.caseId, added.caseId), isNull(caseAssignment.endedAt)));
+    expect(await open()).toHaveLength(1);
+    const { caseCorrectionId } = await fixCase(testDb, admin(), { kind: 'not_for_case', caseId: added.caseId });
+    expect(await open()).toHaveLength(0);
+    expect(await undoCaseFix(testDb, admin(), caseCorrectionId)).toMatchObject({ leftAsIs: 1 });
+    expect(await open()).toHaveLength(0);
+  });
+});
+
+describe('a draft that chose a case taken off', () => {
+  it('is asked again', async () => {
+    const added = await sentWithNewCase('CR-26-6200', countyB);
+    const staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+    const { invoiceId } = await createInvoice(testDb, staff, { caseId: null, professionalId: await sender('draft@example.com'), submit: false, lines: [] });
+    await setDraftCaseNumber(testDb, staff, invoiceId, { caseNumber: 'CR-26-6200' });
+    await setDraftCounty(testDb, staff, invoiceId, { countyId: countyB });
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'existing', caseId: added.caseId });
+
+    await fixCase(testDb, admin(), { kind: 'not_for_case', caseId: added.caseId });
+    const [draft] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(draft).toMatchObject({ caseChoice: null, chosenCaseId: null });
   });
 });
 

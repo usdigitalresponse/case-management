@@ -14,6 +14,7 @@ import {
   caseAssignment,
   caseCorrection,
   caseCorrectionChange,
+  caseIdentifier,
   caseLifecycleEvent,
   caseLifecycleEventTypes,
   caseParticipant,
@@ -169,6 +170,22 @@ async function closingChanges(tx: DatabaseOrTransaction, row: typeof caseTable.$
   ];
 }
 
+// Whether nothing but this case refers to the person, so renaming them changes nothing else.
+async function onlyThisCases(tx: DatabaseOrTransaction, personId: string, caseId: string): Promise<boolean> {
+  const keys = await tx.execute<{ child: string; column: string }>(sql`
+    select cls.relname::text as child, a.attname::text as column
+    from pg_constraint con
+    join pg_class cls on cls.oid = con.conrelid
+    join pg_attribute a on a.attrelid = con.conrelid and a.attnum = any(con.conkey)
+    where con.contype = 'f' and con.confrelid = 'person'::regclass`);
+  for (const key of keys.rows) {
+    const elsewhere = key.child === 'case' || key.child === 'case_participant' ? sql` and case_id <> ${caseId}` : sql``;
+    const found = await tx.execute(sql`select 1 from ${sql.identifier(key.child)} where ${sql.identifier(key.column)} = ${personId}${elsewhere} limit 1`);
+    if (found.rows.length > 0) return false;
+  }
+  return true;
+}
+
 async function plan(tx: DatabaseOrTransaction, input: FixInput, now: Date): Promise<Change[]> {
   const row = await loadCase(tx, input.caseId);
   if (row.closedAsMistake) throw new ConflictError('already_fixed', 'This case was already closed as added by mistake.');
@@ -185,7 +202,7 @@ async function plan(tx: DatabaseOrTransaction, input: FixInput, now: Date): Prom
       changes.push({ table: 'case', column: 'external_reference', rowId: caseId, from: row.externalReference, to: caseNumber });
       changes.push({ table: 'case', column: 'county_id', rowId: caseId, from: row.countyId, to: countyId });
     }
-    if (input.clientName && row.clientId) {
+    if (input.clientName && row.clientId && (await onlyThisCases(tx, row.clientId, caseId))) {
       const [client] = await tx.select({ displayName: person.displayName }).from(person).where(eq(person.personId, row.clientId));
       if (client && client.displayName !== input.clientName) {
         changes.push({ table: 'person', column: 'display_name', rowId: row.clientId, from: client.displayName, to: input.clientName });
@@ -239,8 +256,12 @@ async function plan(tx: DatabaseOrTransaction, input: FixInput, now: Date): Prom
   }
   // Not for one case: its requests keep their own county, or take the case's.
   const invoices = await tx.select({ invoiceId: invoice.invoiceId, countyId: invoice.countyId, caseChoice: invoice.caseChoice }).from(invoice).where(eq(invoice.caseId, caseId));
+  const drafts = await tx
+    .select({ invoiceId: invoice.invoiceId, caseChoice: invoice.caseChoice })
+    .from(invoice)
+    .where(and(eq(invoice.chosenCaseId, caseId), isNull(invoice.caseId)));
   const requests = await tx
-    .select({ id: preauthorizationRequest.preauthorizationRequestId })
+    .select({ id: preauthorizationRequest.preauthorizationRequestId, countyId: preauthorizationRequest.countyId })
     .from(preauthorizationRequest)
     .where(eq(preauthorizationRequest.caseId, caseId));
   return [
@@ -249,13 +270,17 @@ async function plan(tx: DatabaseOrTransaction, input: FixInput, now: Date): Prom
       { table: 'invoice', column: 'case_choice', rowId: one.invoiceId, from: one.caseChoice, to: 'none' },
       ...(one.countyId ? [] : [{ table: 'invoice', column: 'county_id', rowId: one.invoiceId, from: null, to: row.countyId }]),
     ]),
-    ...(await moveAll(tx, 'invoice', 'chosen_case_id', caseId, null)),
+    // A draft that chose it is asked again.
+    ...drafts.flatMap((draft) => [
+      { table: 'invoice', column: 'chosen_case_id', rowId: draft.invoiceId, from: caseId, to: null },
+      { table: 'invoice', column: 'case_choice', rowId: draft.invoiceId, from: draft.caseChoice, to: null },
+    ]),
     ...(await moveAll(tx, 'invoice_line', 'case_id', caseId, null)),
     ...(await moveAll(tx, 'invoice_import', 'case_id', caseId, null)),
     ...requests.flatMap((request) => [
       { table: 'preauthorization_request', column: 'case_id', rowId: request.id, from: caseId, to: null },
       { table: 'preauthorization_request', column: 'not_for_case', rowId: request.id, from: 'false', to: 'true' },
-      { table: 'preauthorization_request', column: 'county_id', rowId: request.id, from: null, to: row.countyId },
+      ...(request.countyId ? [] : [{ table: 'preauthorization_request', column: 'county_id', rowId: request.id, from: null, to: row.countyId }]),
     ]),
     ...(await closingChanges(tx, row, now)),
   ];
@@ -298,23 +323,39 @@ async function recordLifecycle(tx: Transaction, actorUserAccountId: string, case
 
 const closes = (input: FixInput) => input.kind !== 'corrected';
 
-// A client named where the case has none: a new person in the client role.
-async function addClient(tx: Transaction, caseId: string, clientName: string, now: Date): Promise<Change[]> {
+// A client named where the case has none, or has one other records share: a
+// new person in the client role, the earlier one's role on this case ended.
+async function addClient(tx: Transaction, caseId: string, earlierClientId: string | null, clientName: string, now: Date): Promise<Change[]> {
   const [clientRole] = await tx
     .select({ roleId: role.roleId })
     .from(role)
     .where(and(eq(role.roleContext, 'case_participant'), eq(role.displayName, 'Client'), eq(role.active, true)));
   const added = firstRow(await tx.insert(person).values({ displayName: clientName }).returning({ personId: person.personId }));
-  if (!clientRole) return [{ table: 'case', column: 'client_id', rowId: caseId, from: null, to: added.personId }];
+  const clientChange: Change = { table: 'case', column: 'client_id', rowId: caseId, from: earlierClientId, to: added.personId };
+  if (!clientRole) return [clientChange];
+  const ended = earlierClientId
+    ? await tx
+        .select({ id: caseParticipant.caseParticipantId })
+        .from(caseParticipant)
+        .where(
+          and(
+            eq(caseParticipant.caseId, caseId),
+            eq(caseParticipant.personId, earlierClientId),
+            eq(caseParticipant.participantRoleId, clientRole.roleId),
+            isNull(caseParticipant.endedAt),
+          ),
+        )
+    : [];
   const participant = firstRow(
     await tx
       .insert(caseParticipant)
       .values({ caseId, personId: added.personId, participantRoleId: clientRole.roleId, startedAt: now })
       .returning({ id: caseParticipant.caseParticipantId }),
   );
-  // Undoing ends the role rather than deleting it (undoCaseFix).
+  // Undoing ends the new role rather than deleting it, and restarts the earlier one (undoCaseFix).
   return [
-    { table: 'case', column: 'client_id', rowId: caseId, from: null, to: added.personId },
+    clientChange,
+    ...ended.map((one) => ({ table: 'case_participant', column: 'ended_at', rowId: one.id, from: null, to: now.toISOString() })),
     { table: 'case_participant', column: 'ended_at', rowId: participant.id, from: null, to: null },
   ];
 }
@@ -339,7 +380,13 @@ export async function fixCase(db: Database, actorUserAccountId: string, rawInput
         .returning({ id: caseCorrection.caseCorrectionId }),
     );
     const row = await loadCase(tx, input.caseId);
-    const clientChanges = input.kind === 'corrected' && input.clientName && !row.clientId ? await addClient(tx, input.caseId, input.clientName, now) : [];
+    const [client] = row.clientId ? await tx.select({ displayName: person.displayName }).from(person).where(eq(person.personId, row.clientId)) : [];
+    const newClient =
+      input.kind === 'corrected' &&
+      input.clientName &&
+      client?.displayName !== input.clientName &&
+      (!row.clientId || !(await onlyThisCases(tx, row.clientId, input.caseId)));
+    const clientChanges = newClient ? await addClient(tx, input.caseId, row.clientId, input.clientName!, now) : [];
     changes.push(...clientChanges);
     await apply(tx, correction.id, changes);
     if (closes(input)) {
@@ -365,7 +412,9 @@ export async function undoCaseFix(db: Database, actorUserAccountId: string, case
     let restored = 0;
     for (const change of changes) {
       const { table, id, column: name, type } = target({ table: change.tableName, column: change.columnName });
-      if (table === 'case_participant' && name === 'ended_at') {
+      // Reopening never reactivates an assignment (AGENTS.md); it stays ended.
+      if (table === 'case_assignment' && name === 'ended_at') continue;
+      if (table === 'case_participant' && name === 'ended_at' && change.toValue === null) {
         // A client added by the fix: their role ends now.
         const result = await tx.execute(sql`update case_participant set ended_at = ${now.toISOString()}::timestamptz where case_participant_id = ${change.rowId} and ended_at is null`);
         restored += result.rowCount ?? 0;
@@ -404,8 +453,22 @@ export interface AddedCase {
   similar: Array<{ caseId: string; caseNumber: string | null; clientDisplayName: string | null }>;
 }
 
-// Cases added from requests, newest first; `similar` narrows to those with a close number in their county.
+// Cases added from requests, newest first; `similarOnly` narrows to those with a close number in their county.
 export async function listAddedCases(db: DatabaseOrTransaction, options: { similarOnly?: boolean; limit?: number } = {}): Promise<AddedCase[]> {
+  // As caseStepMatches finds them: the same close key, in the same county or with none.
+  const similar = sql<AddedCase['similar']>`coalesce((
+    select json_agg(json_build_object('caseId', other.case_id, 'caseNumber', other.external_reference, 'clientDisplayName', other_client.display_name)
+      order by other.external_reference)
+    from ${caseTable} other
+    left join ${person} other_client on other_client.person_id = other.client_id
+    where other.case_id <> ${caseTable.caseId}
+      and not other.closed_as_mistake
+      and case_number_close_key(${caseTable.externalReference}) <> ''
+      and (${caseTable.countyId} is null or other.county_id is null or other.county_id = ${caseTable.countyId})
+      and (case_number_close_key(other.external_reference) = case_number_close_key(${caseTable.externalReference})
+        or exists (select 1 from ${caseIdentifier} identifier where identifier.case_id = other.case_id
+          and case_number_close_key(identifier.value) = case_number_close_key(${caseTable.externalReference})))
+  ), '[]'::json)`;
   const rows = await db
     .select({
       caseId: caseTable.caseId,
@@ -418,6 +481,7 @@ export async function listAddedCases(db: DatabaseOrTransaction, options: { simil
       fromInvoice: caseTable.addedFromInvoiceId,
       invoices: sql<number>`(select count(*)::int from ${invoice} where ${invoice.caseId} = ${caseTable.caseId})`,
       preauthorizationRequests: sql<number>`(select count(*)::int from ${preauthorizationRequest} where ${preauthorizationRequest.caseId} = ${caseTable.caseId})`,
+      similar,
     })
     .from(caseTable)
     .innerJoin(caseLifecycleEvent, and(eq(caseLifecycleEvent.caseId, caseTable.caseId), eq(caseLifecycleEvent.sequenceNumber, 1)))
@@ -428,23 +492,12 @@ export async function listAddedCases(db: DatabaseOrTransaction, options: { simil
       and(
         eq(caseTable.closedAsMistake, false),
         sql`(${caseTable.addedFromInvoiceId} is not null or ${caseTable.addedFromPreauthorizationRequestId} is not null)`,
+        options.similarOnly ? sql`json_array_length(${similar}) > 0` : undefined,
       ),
     )
     .orderBy(desc(caseLifecycleEvent.recordedAt))
     .limit(options.limit ?? 100);
-  const listed = await Promise.all(
-    rows.map(async (row) => {
-      const { exact, similar } = await caseStepMatches(db, row.caseNumber, row.countyId);
-      const others = [...(exact ? [exact] : []), ...similar].filter((other) => other.caseId !== row.caseId);
-      const { fromInvoice, ...rest } = row;
-      return {
-        ...rest,
-        addedFrom: fromInvoice ? ('invoice' as const) : ('preauthorization_request' as const),
-        similar: others.map((other) => ({ caseId: other.caseId, caseNumber: other.caseNumber, clientDisplayName: other.clientDisplayName })),
-      };
-    }),
-  );
-  return options.similarOnly ? listed.filter((row) => row.similar.length > 0) : listed;
+  return rows.map(({ fromInvoice, ...rest }) => ({ ...rest, addedFrom: fromInvoice ? ('invoice' as const) : ('preauthorization_request' as const) }));
 }
 
 // Exactly what a fix would change, in words, before the administrator confirms.

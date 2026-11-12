@@ -163,6 +163,42 @@ describe('staff answering the case question', () => {
   });
 });
 
+describe('a kept answer', () => {
+  it('is asked again when the draft’s number or county changes, unless it is not for one case', async () => {
+    const caseId = await addCase('CR-24-0477', fixtures.countyId);
+    const { invoiceId } = await staffDraft('CR-24-0477', fixtures.countyId);
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'existing', caseId });
+    await setDraftCaseNumber(testDb, staff, invoiceId, { caseNumber: 'CR-24-0477' });
+    const answer = async () => (await testDb.select({ caseChoice: invoice.caseChoice, chosenCaseId: invoice.chosenCaseId }).from(invoice).where(eq(invoice.invoiceId, invoiceId)))[0];
+    expect(await answer()).toEqual({ caseChoice: 'existing', chosenCaseId: caseId });
+
+    await setDraftCounty(testDb, staff, invoiceId, { countyId: countyB });
+    expect(await answer()).toEqual({ caseChoice: null, chosenCaseId: null });
+
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'new', confirmedNew: true });
+    await setDraftCaseNumber(testDb, staff, invoiceId, { caseNumber: 'CR240477' });
+    expect(await answer()).toEqual({ caseChoice: null, chosenCaseId: null });
+
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'none' });
+    await setDraftCounty(testDb, staff, invoiceId, { countyId: fixtures.countyId });
+    expect((await answer())?.caseChoice).toBe('none');
+  });
+
+  it('never chooses a case in another county', async () => {
+    const elsewhere = await addCase('CR-24-0477', countyB);
+    const { invoiceId } = await staffDraft('CR-24-0477', fixtures.countyId);
+    await expect(setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'existing', caseId: elsewhere })).rejects.toThrow(ValidationError);
+  });
+});
+
+describe('adding the same case at once', () => {
+  it('adds it only once in a county', async () => {
+    const results = await Promise.allSettled([addCase('CR-26-7000', countyB), addCase('CR-26-7000', countyB)]);
+    expect(results.map((result) => result.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(await testDb.select().from(caseTable).where(and(eq(caseTable.externalReference, 'CR-26-7000'), eq(caseTable.countyId, countyB)))).toHaveLength(1);
+  });
+});
+
 describe('external submitters', () => {
   it('may send without a case or number, and answer only “not for one case”', async () => {
     const attorney = await sender('attorney@example.com');
@@ -215,6 +251,19 @@ describe('a reviewer choosing the case in review', () => {
     expect(row).toMatchObject({ caseId: null, caseChoice: 'none' });
     // Once it has its case, it is not chosen again here.
     await expect(chooseCaseInReview(testDb, fixtures.staffUserAccountId, added, { choice: 'none' })).rejects.toThrow(ValidationError);
+  });
+
+  it('refuses a case in another county, and matches the case it added on a second try', async () => {
+    const elsewhere = await addCase('CR-26-2100', countyB);
+    const invoiceId = await sentExternally('CR-26-2100');
+    await expect(chooseCaseInReview(testDb, fixtures.staffUserAccountId, invoiceId, { choice: 'existing', caseId: elsewhere })).rejects.toThrow(ValidationError);
+
+    // As if matching failed after the case was added.
+    const earlier = await testDb.transaction((tx) =>
+      addCaseFromRequest(tx, fixtures.staffUserAccountId, { caseNumber: 'CR-26-2100', countyId: fixtures.countyId }, { invoiceId }),
+    );
+    const retried = await chooseCaseInReview(testDb, fixtures.staffUserAccountId, invoiceId, { choice: 'new' });
+    expect(retried).toEqual({ caseId: earlier, addedCaseId: null, caseProblem: null });
   });
 
   it('is staff only', async () => {
