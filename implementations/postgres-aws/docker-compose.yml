@@ -40,8 +40,6 @@ services:
       MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
       MICROSOFT_CALLBACK_URL: ${MICROSOFT_CALLBACK_URL:-}
       MICROSOFT_ALLOWED_DOMAINS: ${MICROSOFT_ALLOWED_DOMAINS:-}
-      # Comma-separated external emails — see .env.example.
-      EXTERNAL_EMAIL_WHITELIST: ${EXTERNAL_EMAIL_WHITELIST:-}
       # The client (browser-facing) origin, not this server's own — see
       # .env.example.
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:5173}

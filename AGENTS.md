@@ -374,6 +374,11 @@ is withdrawn or deleted (`src/imports/documentRetention.ts`); drafts never
 expire. Never commit or back them up.
 External submitters sign in with an emailed 6-digit code and must tick the
 true-and-correct statement to send (recorded as `invoice_attestation`).
+Only people an administrator turned on in Settings → External users
+(`person.external_sign_in_enabled`, `src/people/externalUsers.ts`) may sign
+in; there is no environment allowlist, tests turn it on for the accounts
+they create, and turning it off ends open sessions. Say "external" for
+these users everywhere, so they are never confused with internal staff.
 Real invoice files for local extraction testing go in the gitignored
 `implementations/postgres-aws/local-samples/`, with hand-written expected
 figures in its `expected.json`; score them with `npm run extraction-accuracy

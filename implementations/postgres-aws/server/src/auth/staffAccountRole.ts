@@ -5,7 +5,7 @@
 // from the presence/absence of a professional row. reviewPermissions maps
 // each role to review actions (model/rules.yaml authorize_invoice_review).
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import { getSeededRoleId } from '../db/referenceLookups';
 import { firstRow } from '../db/rowHelpers';
@@ -54,6 +54,13 @@ export function getStaffAccountRoleId(db: DatabaseOrTransaction): Promise<string
 
 export function getAdminAccountRoleId(db: DatabaseOrTransaction): Promise<string> {
   return getSeededRoleId(db, ADMIN_ACCOUNT_ROLE_DISPLAY_NAME, 'user_account');
+}
+
+// A condition on an account's system_role_id column: true for an external (non-staff) account.
+export function isNotStaffRole(roleIdColumn: SQL): SQL {
+  const names = sql.join(STAFF_ROLE_DISPLAY_NAMES.map((name) => sql`${name}`), sql`, `);
+  return sql`(${roleIdColumn} is null or not exists (select 1 from role staff_role
+    where staff_role.role_id = ${roleIdColumn} and staff_role.display_name in (${names})))`;
 }
 
 // Every role that makes an account staff.

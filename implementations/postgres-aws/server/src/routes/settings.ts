@@ -1,5 +1,5 @@
 // Administrator settings: professional kinds and their rates, mileage rates
-// and travel and waiting time rates, billing rules with their codes, review routing, staff roles and, on demo
+// and travel and waiting time rates, billing rules with their codes, review routing, staff roles, external users' sign-in and, on demo
 // servers, demo tools. Staff can read most of them; only administrators
 // change them, except their own role in the demo tools.
 import { Router, type NextFunction, type Request, type Response } from 'express';
@@ -31,6 +31,8 @@ import { demoLoginEnabled } from '../auth/demoSettings';
 import { resetToDemoData } from '../db/demoData';
 import { documentStore } from '../imports/documentStore';
 import { removeUnreferencedFiles } from '../imports/invoiceImports/resolve';
+import { addDelegateOffice, endDelegateOffice, listDelegateOffices, listExternalUsers, searchExternalUsers, setExternalSignIn, turnOnExternalSignIn } from '../people/externalUsers';
+import { batchRequest } from '../lists/batches';
 import { ConflictError, NotFoundError } from '../errors';
 import { asyncHandler } from './asyncHandler';
 
@@ -230,6 +232,63 @@ router.put(
   requireAdmin,
   asyncHandler(async (req, res) => {
     res.json(await setBillingCodeActive(db, req.params.id as string, req.body));
+  }),
+);
+
+// External users who may sign in with an emailed code; staff read, administrators change.
+router.get(
+  '/external-users',
+  asyncHandler(async (req, res) => {
+    const q = typeof req.query.q === 'string' ? req.query.q : undefined;
+    res.json(await listExternalUsers(db, q, batchRequest(req.query)));
+  }),
+);
+
+router.get(
+  '/external-users/candidates',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.json({ people: await searchExternalUsers(db, typeof req.query.q === 'string' ? req.query.q : undefined) });
+  }),
+);
+
+router.get(
+  '/external-users/offices',
+  requireAdmin,
+  asyncHandler(async (_req, res) => {
+    res.json({ offices: await listDelegateOffices(db) });
+  }),
+);
+
+router.post(
+  '/external-users',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await turnOnExternalSignIn(db, getSessionUser(req)!.userAccountId, req.body));
+  }),
+);
+
+router.put(
+  '/external-users/:personId',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.json(await setExternalSignIn(db, getSessionUser(req)!.userAccountId, req.params.personId as string, req.body));
+  }),
+);
+
+router.post(
+  '/external-users/:personId/offices',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.status(201).json(await addDelegateOffice(db, getSessionUser(req)!.userAccountId, req.params.personId as string, req.body));
+  }),
+);
+
+router.post(
+  '/external-users/:personId/offices/:officeId/end',
+  requireAdmin,
+  asyncHandler(async (req, res) => {
+    res.json(await endDelegateOffice(db, getSessionUser(req)!.userAccountId, req.params.personId as string, req.params.officeId as string));
   }),
 );
 

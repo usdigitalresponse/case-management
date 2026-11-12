@@ -293,7 +293,12 @@ form relies on this being airtight.
   whose staff sign in with Microsoft instead. Whether either is actually
   that partner's *production* login, versus their own separate IdP
   decision, remains open — matching the Dataverse comparison plan's
-  "intake roles and permitted actions" gap.
+  "intake roles and permitted actions" gap. External users sign in with an
+  emailed code only once an administrator turns it on in Settings → External
+  users (`person.external_sign_in_enabled`, `manage_external_sign_in`); there
+  is no environment allowlist and no sync with the external case management
+  system. Administrators can add a delegate, or make an existing provider
+  one, only for an existing office; adding offices is not built.
 - **No case started from an invoice** (design J): `match_invoice_to_case`
   lets staff add the case while matching, but the review page and Intake
   here only match to an existing case, or the invoice is reviewed without

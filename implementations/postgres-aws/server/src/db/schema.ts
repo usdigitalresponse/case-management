@@ -131,6 +131,8 @@ export const person = pgTable('person', {
   displayName: text('display_name').notNull(),
   dateOfBirth: date('date_of_birth'),
   email: text('email'),
+  // May sign in with an emailed code (../auth/externalSignIn.ts); only administrators change it.
+  externalSignInEnabled: boolean('external_sign_in_enabled').notNull().default(false),
   // Set when an administrator merged them into another person
   // (../people/personMerges.ts); cleared if the merge is undone.
   mergedIntoPersonId: uuid('merged_into_person_id').references((): AnyPgColumn => person.personId),

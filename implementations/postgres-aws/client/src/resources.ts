@@ -20,6 +20,8 @@ import {
   getPreauthorizationRequest,
   getReviewSettings,
   getStaffRoles,
+  listDelegateOffices,
+  listExternalUsers,
   getThresholdSettings,
   listBillableProfessionals,
   listDecisionReasonSettings,
@@ -133,6 +135,11 @@ export const reviewPeople = edited({ key: ['review-people'], load: listReviewPeo
 export const decisionReasonSettings = edited({ key: ['decision-reason-settings'], load: listDecisionReasonSettings });
 
 export const staffRoles = edited({ key: ['staff-roles'], load: getStaffRoles });
+
+// External users who may sign in (Settings), a batch at a time.
+export const externalUsers = (q: string) => batched({ key: ['external-users', q.trim()], load: (after) => listExternalUsers(q, after), fresh: true, keepPrevious: true });
+
+export const delegateOffices = resource({ key: ['delegate-offices'], load: () => listDelegateOffices().then((result) => result.offices), reference: true });
 
 export const thresholdSettings = edited({ key: ['threshold-settings'], load: getThresholdSettings });
 

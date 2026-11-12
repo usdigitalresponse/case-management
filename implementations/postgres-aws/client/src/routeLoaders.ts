@@ -88,7 +88,8 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
       { searchParams: ['keep', 'retire'] },
     ),
     personRecords: preload((args) => (searched(args) ? [resources.personRecords(searched(args))] : []), { searchParams: ['q'] }),
-    settings: preload(() => [
+    settings: preload((args) => [
+      resources.externalUsers(searchOf(args).get('externalQ') ?? ''),
       resources.professionalKinds,
       resources.reviewSettings,
       resources.reviewPeople,
@@ -97,9 +98,9 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
       resources.timeCategoryRates,
       resources.thresholdSettings,
       resources.billingRuleSettings,
-      ...(user()?.isAdmin ? [resources.staffRoles] : []),
+      ...(user()?.isAdmin ? [resources.staffRoles, resources.delegateOffices] : []),
       ...(user()?.demoMode ? [resources.ownDemoRole] : []),
-    ]),
+    ], { searchParams: ['externalQ'] }),
     caseDetail: preload((args) => [resources.caseDetail(param(args, 'caseId')), resources.caseInvoices(param(args, 'caseId')), resources.caseInvoiceList(param(args, 'caseId'))]),
     person: preload((args) => {
       const professionalId = param(args, 'professionalId');

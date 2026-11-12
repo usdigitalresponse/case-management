@@ -9,11 +9,11 @@ import { isAdmin } from '../auth/requireAdmin';
 import { loadReviewPermissions } from '../billing/reviewAccess';
 import type { AuthenticatedUser, OidcProviderConfig } from '../auth/oidcProviders';
 import { passportStrategyName } from '../auth/oidcProviders';
-import { isWhitelistedExternalEmail } from '../auth/externalEmailWhitelist';
+import { externalSignInPersonId } from '../auth/externalSignIn';
 import { normalizeEmail } from '../auth/emailLists';
 import { issueSignInCode, verifySignInCode } from '../auth/signInCode';
 import { RateLimiter, SIGN_IN_LIMITS } from '../auth/rateLimit';
-import { ensureUserAccountForEmail } from '../auth/userAccounts';
+import { ensureUserAccountForEmail, linkAccountToPerson } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
 import { delegateOfficeIds, isStaffAccount } from '../portal/portalActor';
 import { EXTERNAL_DEMO_EMAIL } from '../db/demoAccounts';
@@ -75,10 +75,8 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
         res.status(429).json({ error: 'Too many codes asked for. Wait an hour, or use the last code we sent.' });
         return;
       }
-      // Always respond the same way whether or not the email is
-      // whitelisted, so this endpoint can't be used to enumerate which
-      // external addresses are allowed in.
-      if (email && isWhitelistedExternalEmail(email)) {
+      // The same response whether or not they may sign in, so it can't be used to find out who may.
+      if (email && (await externalSignInPersonId(db, email))) {
         const code = await issueSignInCode(db, email);
         // Not awaited: the response below is identical either way, so
         // there's no reason to hold the request open for an SES round
@@ -107,13 +105,15 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
       const email = typeof req.body?.email === 'string' ? req.body.email : '';
       const code = typeof req.body?.code === 'string' ? req.body.code : '';
       const verified = email && code ? await verifySignInCode(db, email, code) : undefined;
-      // Rechecked: the address may have been taken off the list since.
-      if (!verified || !isWhitelistedExternalEmail(verified)) {
+      // Rechecked: their sign-in may have been turned off since.
+      const personId = verified ? await externalSignInPersonId(db, verified) : undefined;
+      if (!verified || !personId) {
         res.status(401).json({ error: 'That code is wrong or has expired. After 5 wrong codes you need a new one.' });
         return;
       }
 
       const account = await ensureUserAccountForEmail(db, verified);
+      await linkAccountToPerson(db, account.userAccountId, personId);
       // A delegate acts for others and needs no professional profile of
       // their own (model/rules.yaml authorize_delegated_submission).
       if ((await delegateOfficeIds(db, account.userAccountId)).length === 0) {
@@ -148,8 +148,11 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
         res.status(401).json({ error: 'Not signed in.' });
         return;
       }
-      // A session outlives deactivation; end it on the next load.
-      const [account] = await db.select({ active: userAccount.active }).from(userAccount).where(eq(userAccount.userAccountId, user.userAccountId));
+      // A session outlives deactivation; end it on the next load. An external one was checked already (../auth/externalSignIn.ts).
+      const [account] =
+        user.authType === 'email-code'
+          ? [{ active: true }]
+          : await db.select({ active: userAccount.active }).from(userAccount).where(eq(userAccount.userAccountId, user.userAccountId));
       if (!account?.active) {
         req.session = null;
         res.status(401).json({ error: 'This account has been deactivated.' });

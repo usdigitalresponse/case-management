@@ -76,6 +76,8 @@ export interface BillingPerson {
   active: boolean;
   email: string | null;
   signedIn: boolean;
+  // Turned on in Settings → External users.
+  externalSignInEnabled: boolean;
   phone: string | null;
   paidThrough: string | null;
   professionalKindId: string | null;

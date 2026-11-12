@@ -33,6 +33,8 @@ In scope, with the acceptance scenarios this implementation targets:
   `../../scenarios/invoice-import-export.md`);
 - pre-authorization requests, county thresholds and overruns
   (`../../scenarios/preauthorization.md`);
+- administrators turning on external users' sign-in in Settings
+  (`../../scenarios/external-sign-in.md`);
 - cases as review needs them: created from an invoice or directly, matched to
   invoices, with their providers, rates and pre-authorized amounts. The
   earlier direct case intake (`../../scenarios/new-case.md`) still works by
@@ -418,8 +420,9 @@ Docker Compose is the runnable development environment.
 What the notes already record as not built, nearest first. None is decided
 or scheduled here; each links to where it is described.
 
-1. Production sign-in: which identity provider staff use, and how external
-   senders are allowed in (`MAPPING.md` "Known gaps", Auth).
+1. Production sign-in: which identity provider staff use (`MAPPING.md`
+   "Known gaps", Auth). External users are let in by administrators in
+   Settings → External users.
 2. Scan uploaded files for malware before reading them, which
    `validate_invoice_import` requires (`MAPPING.md` "Known gaps", Upload
    scanning).

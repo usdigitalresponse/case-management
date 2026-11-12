@@ -316,6 +316,20 @@
       "when": 1794463979982,
       "tag": "0044_demo_tour_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794466536300,
+      "tag": "0045_external_sign_in",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1794501513173,
+      "tag": "0046_link_accounts_to_people",
+      "breakpoints": true
     }
   ]
 }

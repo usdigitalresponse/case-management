@@ -1,7 +1,5 @@
-// One-time 6-digit codes for external-user sign-in. Access is gated by
-// EXTERNAL_EMAIL_WHITELIST (see ./externalEmailWhitelist.ts) one layer up in
-// the route; this module only issues and checks codes for an email a caller
-// has already decided may have one.
+// One-time 6-digit codes for external-user sign-in. Who may have one is
+// decided by the route (./externalSignIn.ts); this only issues and checks them.
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 import { and, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Database } from '../db/client';

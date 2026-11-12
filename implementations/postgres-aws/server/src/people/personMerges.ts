@@ -6,7 +6,7 @@
 import { z } from 'zod';
 import { desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
-import { office, person, personMerge, personMergeChange, professional, professionalKinds, userAccount } from '../db/schema';
+import { auditEvent, office, person, personMerge, personMergeChange, professional, professionalKinds, userAccount } from '../db/schema';
 import { ConflictError, NotFoundError, ValidationError } from '../errors';
 import { uniqueViolationConstraint } from '../db/rowHelpers';
 import { summarize, type DuplicatePersonSummary } from './possibleDuplicates';
@@ -78,6 +78,7 @@ const CHANGEABLE = new Map<string, Column>(
     ...PERSON_DETAILS.map((detail) => ({ table: 'person', id: 'person_id', column: detail.column, type: detail.type })),
     ...PROFESSIONAL_DETAILS.map((detail) => ({ table: 'professional', id: 'professional_id', column: detail.column, type: detail.type })),
     { table: 'person', id: 'person_id', column: 'merged_into_person_id', type: 'uuid' as const },
+    { table: 'person', id: 'person_id', column: 'external_sign_in_enabled', type: 'boolean' as const },
     { table: 'professional', id: 'professional_id', column: 'person_id', type: 'uuid' as const },
     { table: 'professional', id: 'professional_id', column: 'user_account_id', type: 'uuid' as const },
     { table: 'professional', id: 'professional_id', column: 'active', type: 'boolean' as const },
@@ -165,6 +166,23 @@ async function plan(db: DatabaseOrTransaction, keptId: string, retiredId: string
     if (!kept[detail.key] && value) {
       filledIn.push({ label: detail.label, value });
       set('person', detail.column, keptId, null, value);
+    }
+  }
+  // Their sign-in account moves to the kept person, so its sign-in goes too, unless an administrator turned the kept person's off.
+  if (retired.externalSignInEnabled && !kept.externalSignInEnabled) {
+    const retiredAccount =
+      Boolean(retiredProvider?.row.userAccountId) || (await exists(db, sql`select 1 from user_account where person_id = ${retiredId} limit 1`));
+    const lastSignInChange = await db.execute<{ event_type: string }>(sql`select event_type from audit_event
+      where entity_type = 'person' and entity_id = ${keptId} and event_type in ('external_sign_in_enabled', 'external_sign_in_disabled')
+      order by occurred_at desc limit 1`);
+    const keptTurnedOff = lastSignInChange.rows[0]?.event_type === 'external_sign_in_disabled';
+    if (!retiredAccount) {
+      notMoved.push(`External sign-in: ${retired.displayName} has never signed in, so ${kept.displayName}'s stays off.`);
+    } else if (keptTurnedOff) {
+      notMoved.push(`External sign-in: an administrator turned ${kept.displayName}'s off, so it stays off.`);
+    } else {
+      filledIn.push({ label: 'External sign-in', value: 'On' });
+      set('person', 'external_sign_in_enabled', keptId, 'false', 'true');
     }
   }
 
@@ -277,6 +295,7 @@ async function mergeEach(tx: Transaction, actorUserAccountId: string, keptPerson
       .values({ keptPersonId, retiredPersonId, note, mergedByUserAccountId: actorUserAccountId, mergedAt: new Date() })
       .returning({ personMergeId: personMerge.personMergeId });
     await apply(tx, merge!.personMergeId, steps);
+    await auditSignInChange(tx, actorUserAccountId, merge!.personMergeId, keptPersonId, steps.some(isSignInStep), true);
     personMergeIds.push(merge!.personMergeId);
   }
   return { preview: { kept, retired } as MergePreview, personMergeIds };
@@ -301,6 +320,21 @@ export async function previewMerge(db: Database, viewerUserAccountId: string, ke
     throw error;
   }
   throw new Error('A merge preview must roll back.');
+}
+
+const isSignInStep = (step: { target: Column }) => step.target.table === 'person' && step.target.column === 'external_sign_in_enabled';
+
+// Kept with the administrator's own sign-in changes (../people/externalUsers.ts), so the list shows it.
+async function auditSignInChange(tx: Transaction, actorUserAccountId: string, personMergeId: string, personId: string, changed: boolean, enabled: boolean) {
+  if (!changed) return;
+  await tx.insert(auditEvent).values({
+    entityType: 'person',
+    entityId: personId,
+    eventType: enabled ? 'external_sign_in_enabled' : 'external_sign_in_disabled',
+    actorUserAccountId,
+    occurredAt: new Date(),
+    priorValues: { externalSignInEnabled: !enabled, personMergeId },
+  });
 }
 
 async function apply(tx: Transaction, personMergeId: string, steps: Step[]) {
@@ -354,6 +388,7 @@ async function undoOne(tx: Transaction, actorUserAccountId: string, personMergeI
   }
   const changes = await tx.select().from(personMergeChange).where(eq(personMergeChange.personMergeId, personMergeId)).orderBy(desc(personMergeChange.position));
   let restored = 0;
+  let signInRestored = false;
   for (const change of changes) {
     const target = CHANGEABLE.get(`${change.tableName}.${change.columnName}`);
     if (!target) throw new Error(`Unknown merge change ${change.tableName}.${change.columnName}`);
@@ -362,7 +397,9 @@ async function undoOne(tx: Transaction, actorUserAccountId: string, personMergeI
         where ${sql.identifier(target.id)} = ${change.rowId} and ${sql.identifier(target.column)} is not distinct from ${cast(change.toValue, target.type)}`,
     );
     restored += result.rowCount ?? 0;
+    if ((result.rowCount ?? 0) > 0 && isSignInStep({ target })) signInRestored = true;
   }
+  await auditSignInChange(tx, actorUserAccountId, personMergeId, merge.keptPersonId, signInRestored, false);
   await tx.update(personMerge).set({ undoneByUserAccountId: actorUserAccountId, undoneAt: new Date() }).where(eq(personMerge.personMergeId, personMergeId));
   return { restored, leftAsIs: changes.length - restored };
 }
