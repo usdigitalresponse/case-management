@@ -1,8 +1,7 @@
-// People and cases that may have been recorded more than once. Any staff
-// member flags a pair or marks it as different; an administrator merges
-// people (./MergePeople.tsx) and may undo a merge here. Cases are never
-// merged here (../components/DuplicateCases.tsx).
-import { useState } from 'react';
+// People who may have been recorded more than once, a tab of People. Any staff
+// member flags a pair or marks it as different; an administrator merges them
+// (../pages/MergePeople.tsx) and may undo a merge here.
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {
   apiErrorMessage,
@@ -16,19 +15,16 @@ import {
 } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
-import { useSearchParamState } from '../hooks/useSearchParamState';
 import { personMerges, possibleDuplicates } from '../resources';
-import { PageHeader } from '../components/PageHeader';
-import { LoadState } from '../components/LoadState';
-import { RecordTable } from '../components/RecordTable';
-import { TypeAheadPicker } from '../components/TypeAheadPicker';
-import { ConfirmButton } from '../components/ConfirmButton';
-import { DuplicateCases } from '../components/DuplicateCases';
-import { NotDuplicateDialog, plural } from '../components/NotDuplicateDialog';
-import { Button, buttonClass } from '../components/ui/Button';
-import { Dialog } from '../components/ui/Dialog';
-import { Notice, type SaveMessage } from '../components/ui/Notice';
-import { FilterTag, Tag } from '../components/ui/Tag';
+import { LoadState } from './LoadState';
+import { RecordTable } from './RecordTable';
+import { TypeAheadPicker } from './TypeAheadPicker';
+import { ConfirmButton } from './ConfirmButton';
+import { NotDuplicateDialog, plural } from './NotDuplicateDialog';
+import { Button, buttonClass } from './ui/Button';
+import { Dialog } from './ui/Dialog';
+import { Notice, type SaveMessage } from './ui/Notice';
+import { Tag } from './ui/Tag';
 import { formatDate, formatDateTime } from '../formatDateTime';
 import { mergePath, personPath } from '../staffPaths';
 
@@ -84,38 +80,26 @@ function keepFirst(people: DuplicatePerson[]): DuplicatePerson[] {
   return [...people].sort((a, b) => weight(b) - weight(a));
 }
 
-const TABS = ['people', 'cases'] as const;
-
-export default function PossibleDuplicates() {
-  const [show, setShow] = useSearchParamState<(typeof TABS)[number]>('show', 'people', [...TABS]);
-  return (
-    <div>
-      <PageHeader
-        list
-        title="Possible duplicates"
-        description="People and cases that may have been added more than once. Anyone on staff can flag them or mark them as different; an administrator merges people."
-      />
-      <div className="tag-filters page-tabs" role="tablist" aria-label="Show">
-        <FilterTag role="tab" aria-selected={show === 'people'} aria-pressed={show === 'people'} onClick={() => setShow('people')}>
-          People
-        </FilterTag>
-        <FilterTag role="tab" aria-selected={show === 'cases'} aria-pressed={show === 'cases'} onClick={() => setShow('cases')}>
-          Cases
-        </FilterTag>
-      </div>
-      {show === 'cases' ? <DuplicateCases /> : <DuplicatePeople />}
-    </div>
-  );
-}
-
-function DuplicatePeople() {
+// The flag dialog is opened from the People page's header.
+export function DuplicatePeople({
+  flagging,
+  onFlaggingDone,
+  onCount,
+}: {
+  flagging: boolean;
+  onFlaggingDone: () => void;
+  // Each time the list loads, for the tab's count.
+  onCount: (groups: number) => void;
+}) {
   const { user } = useAuth();
   const [version, setVersion] = useState(0);
   const { data: groups, error } = useResource(possibleDuplicates, { resetKey: version });
+  useEffect(() => {
+    if (groups) onCount(groups.length);
+  }, [groups, onCount]);
   const { data: merges, error: mergesError } = useResource(personMerges, { resetKey: version });
   const [searchParams, setSearchParams] = useSearchParams();
   const justMerged = searchParams.get('merged')?.split(',') ?? [];
-  const [flagging, setFlagging] = useState(false);
   const [dismissing, setDismissing] = useState<{ pair: DuplicatePair; labels: Map<string, string> } | null>(null);
   const [message, setMessage] = useState<SaveMessage | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -133,7 +117,14 @@ function DuplicatePeople() {
         tone: 'success',
         text: leftAsIs > 0 ? `Merge undone. ${plural(leftAsIs, 'record')} changed since the merge stayed as they are.` : 'Merge undone.',
       });
-      setSearchParams({}, { replace: true });
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.delete('merged');
+          return next;
+        },
+        { replace: true },
+      );
       setVersion((value) => value + 1);
     } catch (err) {
       setMessage({ tone: 'danger', text: apiErrorMessage(err, 'The merge could not be undone.') });
@@ -147,12 +138,10 @@ function DuplicatePeople() {
 
   return (
     <>
-      <div className="section-heading-row">
-        <p className="compact-hint">Found by matching names, emails and dates of birth, or flagged by staff. Each card is one person who may have several records.</p>
-        <Button kind="secondary" onClick={() => setFlagging(true)}>
-          Flag two people
-        </Button>
-      </div>
+      <p className="compact-hint">
+        Found by matching names, emails and dates of birth, or flagged by staff, clients included. Each card is one person who may have several
+        records. Anyone on staff can mark them as different people; an administrator merges them.
+      </p>
       {merged.length > 0 && (
         <Notice
           tone="success"
@@ -258,9 +247,9 @@ function DuplicatePeople() {
 
       {flagging && (
         <FlagDialog
-          onClose={() => setFlagging(false)}
+          onClose={onFlaggingDone}
           onFlagged={() => {
-            setFlagging(false);
+            onFlaggingDone();
             setMessage({ tone: 'success', text: 'Flagged. They are listed here until someone merges them or marks them as different people.' });
             setVersion((value) => value + 1);
           }}

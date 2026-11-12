@@ -11,8 +11,13 @@ export function reviewPath(invoiceId: string): string {
   return `/billing/${invoiceId}`;
 }
 
-export const POSSIBLE_DUPLICATES_PATH = '/possible-duplicates';
+export const MERGE_PEOPLE_PATH = '/people/merge';
+
+// People's Review duplicates tab, with any of its own parameters, such as `merged`.
+export function duplicatePeoplePath(params: Record<string, string> = {}): string {
+  return `/people?${new URLSearchParams({ tab: 'duplicates', ...params }).toString()}`;
+}
 
 export function mergePath(keptPersonId: string, retiredPersonIds: string[]): string {
-  return `${POSSIBLE_DUPLICATES_PATH}/merge?${new URLSearchParams({ keep: keptPersonId, retire: retiredPersonIds.join(',') }).toString()}`;
+  return `${MERGE_PEOPLE_PATH}?${new URLSearchParams({ keep: keptPersonId, retire: retiredPersonIds.join(',') }).toString()}`;
 }

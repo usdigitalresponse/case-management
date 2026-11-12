@@ -8,6 +8,8 @@ import {
   listPersonMerges,
   listPossibleDuplicates,
   listPossibleDuplicateCases,
+  countPossibleDuplicates,
+  countPossibleDuplicateCases,
   getOwnDemoRole,
   getPerson,
   searchPeople,
@@ -219,6 +221,14 @@ export const providerList = (query: string) =>
 
 export const personRecords = (query: string) =>
   batched({ key: ['person-records', query], load: (after) => searchPeople(query, after), keepPrevious: true });
+
+// How many groups each Review duplicates tab has, for whether to show it; its list loads only when opened.
+export const possibleDuplicateCount = edited({ key: ['possible-duplicate-count'], load: () => countPossibleDuplicates().then((result) => result.groups) });
+
+export const possibleDuplicateCaseCount = edited({
+  key: ['possible-duplicate-case-count'],
+  load: () => countPossibleDuplicateCases().then((result) => result.groups),
+});
 
 // Possible duplicate people and merges; acted on from their pages.
 export const possibleDuplicates = edited({ key: ['possible-duplicates'], load: () => listPossibleDuplicates().then((result) => result.duplicates) });

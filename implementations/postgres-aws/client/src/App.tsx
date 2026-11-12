@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, useLocation, useNavigate, useNavigation, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './AuthContext';
-import { POSSIBLE_DUPLICATES_PATH, searchPath } from './staffPaths';
+import { MERGE_PEOPLE_PATH, searchPath } from './staffPaths';
 import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 import { Notice } from './components/ui/Notice';
@@ -122,18 +122,32 @@ function Sidebar({ showSettings }: { showSettings: boolean }) {
           <h2>In your {EXTERNAL_SYSTEM_NAME}</h2>
           <button type="button" disabled title="Not connected yet">Open it <span aria-hidden="true">↗</span></button>
         </div>
-        {/* Any staff member may flag possible duplicates; only Settings is for administrators. */}
-        <div className="nav-group">
-          <h2>Administration</h2>
-          <NavLink to={POSSIBLE_DUPLICATES_PATH}>Possible duplicates</NavLink>
-          {showSettings && <NavLink to="/settings" end>Settings</NavLink>}
-        </div>
+        {showSettings && (
+          <div className="nav-group">
+            <h2>Administration</h2>
+            <NavLink to="/settings" end>Settings</NavLink>
+          </div>
+        )}
       </nav>
     </aside>
   );
 }
 
 // Old staff /new-invoice links, ?case= included, open Intake.
+// Possible duplicates were once their own page; they are now tabs of People and All cases.
+function PossibleDuplicatesRedirect() {
+  const params = new URLSearchParams(useLocation().search);
+  const cases = params.get('show') === 'cases';
+  params.delete('show');
+  params.set('tab', 'duplicates');
+  return <Navigate to={`${cases ? '/cases' : '/people'}?${params.toString()}`} replace />;
+}
+
+function OldMergeRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={`${MERGE_PEOPLE_PATH}${search}`} replace />;
+}
+
 function NewInvoiceRedirect() {
   const { search } = useLocation();
   return <Navigate to={`${INTAKE_PATH}${search}`} replace />;
@@ -182,6 +196,7 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
             { path: '/finished', ...page(() => import('./pages/FinishedInvoices')), ...loaders.finished },
             { path: '/search', ...page(() => import('./pages/SearchResults')), ...loaders.search },
             { path: '/people', ...page(() => import('./pages/People')), ...loaders.people },
+            { path: MERGE_PEOPLE_PATH, ...page(() => import('./pages/MergePeople')), ...loaders.mergePeople },
             { path: '/people/:professionalId', ...page(() => import('./pages/PersonPage')), ...loaders.person },
             { path: '/billing/:invoiceId', ...page(() => import('./pages/InvoiceReview')), ...loaders.review },
             { path: '/exports', ...page(() => import('./pages/Exports')), ...loaders.exports },
@@ -207,9 +222,8 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
             { path: '/preauthorizations/:requestId', lazy: async () => ({ Component: (await import('./pages/Preauthorizations')).StaffPreauthorizationRequest }), ...loaders.preauthorizationRequest },
             { path: '/settings', ...page(() => import('./pages/Settings')), ...loaders.settings },
             { path: '/overview', ...page(() => import('./pages/Overview')), ...loaders.overview },
-            // Off the sidebar; still reachable.
-            { path: POSSIBLE_DUPLICATES_PATH, ...page(() => import('./pages/PossibleDuplicates')), ...loaders.possibleDuplicates },
-            { path: `${POSSIBLE_DUPLICATES_PATH}/merge`, ...page(() => import('./pages/MergePeople')), ...loaders.mergePeople },
+            { path: '/possible-duplicates', element: <PossibleDuplicatesRedirect /> },
+            { path: '/possible-duplicates/merge', element: <OldMergeRedirect /> },
             { path: '/person-records', ...page(() => import('./pages/PeopleDirectory')), ...loaders.personRecords },
             { path: '/clients', ...page(() => import('./pages/ClientsDirectory')), ...loaders.clients },
             { path: '/organizations', ...page(() => import('./pages/OrganizationsDirectory')), ...loaders.organizations },

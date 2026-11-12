@@ -5,9 +5,8 @@ import { queryClient } from '../queryClient';
 import { fakeApi } from '../test/fakeApi';
 import { renderPage } from '../test/renderPage';
 import { REVIEWER, signedIn } from '../test/fixtures';
-import type { DuplicatePerson, MergePreview, PossibleDuplicate, PossibleDuplicateCase, RetiredPlan } from '../api/client';
+import type { DuplicatePerson, MergePreview, RetiredPlan } from '../api/client';
 import MergePeople from './MergePeople';
-import PossibleDuplicates from './PossibleDuplicates';
 
 afterEach(() => {
   cleanup();
@@ -39,7 +38,7 @@ const preview: MergePreview = {
   retired: [plan({ moves: [{ label: 'Invoices filed under them', count: 1 }], filledIn: [{ label: 'Date of birth', value: '1980-02-03' }] })],
 };
 
-const MERGE_URL = '/possible-duplicates/merge';
+const MERGE_URL = '/people/merge';
 
 describe('merging people', () => {
   it('shows what moves and merges only once an administrator confirms', async () => {
@@ -58,7 +57,7 @@ describe('merging people', () => {
 
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(merge);
-    await waitFor(() => expect(page.elsewhere()).toBe('/possible-duplicates'));
+    await waitFor(() => expect(page.elsewhere()).toBe('/people'));
     expect(api.callsTo('POST', '/api/people/merges')[0]?.body).toMatchObject({ keptPersonId: 'person-a', retiredPersonIds: ['person-b'] });
     expect(api.unhandled).toEqual([]);
   });
@@ -91,57 +90,5 @@ describe('merging people', () => {
     expect(await screen.findByText('Both are assigned to the same case.')).toBeTruthy();
     expect(screen.getByText(/Only an administrator can merge people/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Merge into/ })).toBeNull();
-  });
-});
-
-describe('possible duplicates', () => {
-  it('shows one card for a person recorded three times, and lets any staff member separate a pair', async () => {
-    const group: PossibleDuplicate = {
-      people: [retired, kept, third],
-      pairs: [
-        { personIds: ['person-a', 'person-b'], reasons: ['same_name'], flagged: null },
-        { personIds: ['person-a', 'person-c'], reasons: ['same_name'], flagged: null },
-      ],
-    };
-    const api = fakeApi({
-      ...signedIn(REVIEWER),
-      'GET /api/people/possible-duplicates': { duplicates: [group] },
-      'GET /api/people/merges': { merges: [] },
-      'POST /api/people/possible-duplicates': {},
-    });
-    await renderPage(<PossibleDuplicates />, { path: '/possible-duplicates', url: '/possible-duplicates' });
-
-    const review = await screen.findByRole('link', { name: 'See what a merge would do' });
-    expect(review.getAttribute('href')).toBe('/possible-duplicates/merge?keep=person-a&retire=person-b%2Cperson-c');
-    fireEvent.click(screen.getAllByRole('button', { name: 'Not the same person' })[1]!);
-    fireEvent.click(await screen.findByRole('button', { name: 'They are different people' }));
-
-    await screen.findByText(/are recorded as different people/);
-    expect(api.callsTo('POST', '/api/people/possible-duplicates')[0]?.body).toMatchObject({ personIds: ['person-a', 'person-c'], outcome: 'not_duplicate' });
-    expect(api.unhandled).toEqual([]);
-  });
-
-  it('lists possible duplicate cases without offering to merge them', async () => {
-    const caseGroup: PossibleDuplicateCase = {
-      cases: [
-        { caseId: 'case-1', caseNumber: '26-CR-0418', otherNumbers: [], clientDisplayName: 'Alex Client', countyDisplayName: 'North', openedOn: '2026-01-02', invoiceCount: 2 },
-        { caseId: 'case-2', caseNumber: '26CR418', otherNumbers: [], clientDisplayName: 'Alex Client', countyDisplayName: 'North', openedOn: '2026-03-04', invoiceCount: 0 },
-      ],
-      pairs: [{ caseIds: ['case-1', 'case-2'], reasons: ['same_number'], flagged: null }],
-    };
-    const api = fakeApi({
-      ...signedIn(REVIEWER),
-      'GET /api/cases/possible-duplicates': { duplicates: [caseGroup] },
-      'POST /api/cases/possible-duplicates': {},
-    });
-    await renderPage(<PossibleDuplicates />, { path: '/possible-duplicates', url: '/possible-duplicates?show=cases' });
-
-    expect(await screen.findByRole('link', { name: '26CR418' })).toBeTruthy();
-    expect(screen.queryByRole('link', { name: /merge/i })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Not the same case' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'They are different cases' }));
-    await screen.findByText(/are recorded as different cases/);
-    expect(api.callsTo('POST', '/api/cases/possible-duplicates')[0]?.body).toMatchObject({ caseIds: ['case-1', 'case-2'], outcome: 'not_duplicate' });
-    expect(api.unhandled).toEqual([]);
   });
 });

@@ -196,6 +196,11 @@ export function listPossibleDuplicates(): Promise<{ duplicates: PossibleDuplicat
   return request('/api/people/possible-duplicates');
 }
 
+// Remembered by the server for a few minutes; the list is always worked out afresh.
+export function countPossibleDuplicates(): Promise<{ groups: number }> {
+  return request('/api/people/possible-duplicates/count');
+}
+
 export function reviewPossibleDuplicate(input: { personIds: [string, string]; outcome: 'possible_duplicate' | 'not_duplicate'; note?: string }) {
   return request<void>('/api/people/possible-duplicates', { method: 'POST', body: JSON.stringify(input) });
 }

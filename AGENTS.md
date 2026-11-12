@@ -387,8 +387,14 @@ from them into Git, fixtures or docs; describe findings generically.
 PDF imports are read in a background queue in the server process (one
 instance only), entirely in-process on the demo server's 1 GB; any model or
 service added to reading needs its hosting cost agreed first.
-Possible duplicate people (`src/people/possibleDuplicates.ts`) are listed
-for staff only; any staff member flags a pair or records they are different
+Possible duplicate people (`src/people/possibleDuplicates.ts`) and cases
+are reviewed in a "Review duplicates" tab of People and of All cases, shown
+only while there is something to review, for administrators too; there is
+no separate page. The pages load only a count the server keeps for five
+minutes (`src/duplicateCounts.ts`, forgotten on any review, merge, undo or
+case close, so a new person or case may take that long to count); working
+the count out runs the full comparison, as opening the tab does.
+Possible duplicate people are listed for staff only; any staff member flags a pair or records they are different
 people, and only an administrator merges, after a preview of exactly what
 moves (`src/people/personMerges.ts`). A merge never deletes the retired
 person or replaces a detail on the kept one, records every value it changes

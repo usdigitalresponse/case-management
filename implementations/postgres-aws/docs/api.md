@@ -1201,7 +1201,12 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     same date of birth and family name, or a pair staff flagged; pairs whose
     latest `person_duplicate_review` is `not_duplicate` are left out. Each
     person comes with their provider profile, sign-in email and case and
-    invoice counts.
+    invoice counts. `GET /api/people/possible-duplicates/count` returns
+    `{ groups }` for whether People shows its Review duplicates tab; the
+    count is kept in the server process for five minutes
+    (`src/duplicateCounts.ts`), replaced whenever the list is read, and
+    forgotten on a review, merge or undo, so a person added meanwhile may
+    take up to five minutes to show in it.
   - `POST /api/people/possible-duplicates` (`{ personIds, outcome:
     'possible_duplicate' | 'not_duplicate', note? }`), any staff member,
     adds a review row; the pair's latest one stands.
@@ -1238,6 +1243,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   as `same_county`); `POST /api/cases/possible-duplicates` (`{ caseIds,
   outcome, note? }`) records a review of two open cases, refusing to flag
   two in different counties. Closing a case takes it off the list.
+  `GET /api/cases/possible-duplicates/count` is the same count for All
+  cases' tab, kept the same way and also forgotten when a case is closed.
 - **Indexes**: FK columns used as query filters/joins
   (`case.county_id`/`status_id`/`case_category_id`,
   `case_participant.case_id`, `case_identifier.case_id`) have plain B-tree
