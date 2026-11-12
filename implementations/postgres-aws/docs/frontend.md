@@ -518,6 +518,18 @@ How the React client is built and why. Schema mapping and gaps are in
     `OrganizationsDirectory.tsx` just filters that client-side, the same
     way `CaseList.tsx` filters its own full case list.
   - Reports has no backend at all and stays disabled.
+- **External users** (Settings, `#settings-external-users`,
+  `client/src/pages/settings/ExternalUsers.tsx`), apart from internal staff:
+  who may sign in with an emailed code, on or off, searched by name or email
+  (`?externalQ=`) and loaded a batch at a time. Administrators get "Let an
+  external user sign in": a `PickOrAdd` search over providers and office
+  delegates, then turning on someone with an email, adding an email for
+  someone without one, or adding a new external user who sends for their
+  own work (kind) or an office's providers (office). The confirmation gives
+  the `/submit` address to pass on; nothing is emailed. Each row's
+  "Offices…" (administrators) opens a dialog to make them, provider or not,
+  a billing delegate for another office, or stop one. A person's page
+  shows "External sign-in: On/Off" read-only.
 - **Possible duplicates** (`/possible-duplicates`,
   `client/src/pages/PossibleDuplicates.tsx`; sidebar, under Administration,
   which every staff member sees although only administrators get Settings),

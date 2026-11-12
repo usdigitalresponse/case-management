@@ -6,6 +6,7 @@ import { configureOidcProviders } from './auth/oidcProviders';
 import { demoLoginEnabled, externalDemoLoginEnabled } from './auth/demoSettings';
 import { sweepTourRuns } from './demoTour/tourRuns';
 import { createAuthRouter } from './routes/auth';
+import { endTurnedOffExternalSessions } from './auth/externalSignIn';
 import casesRouter from './routes/cases';
 import peopleRouter from './routes/people';
 import professionalsRouter from './routes/professionals';
@@ -52,6 +53,7 @@ export function createApp() {
     console.warn('No OIDC provider credentials configured; SSO sign-in is disabled.');
   }
 
+  app.use(['/api', '/auth/me'], endTurnedOffExternalSessions(db));
   app.use('/auth', createAuthRouter({ oidcProviders, demoLoginEnabled, externalDemoLoginEnabled, organizationName: process.env.ORGANIZATION_NAME?.trim() || null }));
   app.use('/api/cases', casesRouter);
   app.use('/api/people', peopleRouter);

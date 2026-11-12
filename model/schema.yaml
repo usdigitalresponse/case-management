@@ -1627,6 +1627,11 @@ entities:
       email:
         type: string
         required: false
+      external_sign_in_enabled:
+        type: boolean
+        required: false
+        description: Whether this external user may sign in with an emailed code (manage_external_sign_in); absent or
+          false until an administrator turns it on. Every change is audited.
       merged_into_person_id:
         type: uuid
         required: false

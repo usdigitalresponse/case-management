@@ -33,7 +33,7 @@ rules:
     outcome: blocking
     requirements:
       - Only an administrator merges, one or more records into the one kept, all or none. Before merging, show any staff user exactly what would move to the kept person from each record, which of the kept record's empty details would be filled in, what is not moved, and anything that prevents the merge; the administrator confirms the two are the same person.
-      - Move every reference to the retired person, and to their provider profile, to the kept person and their profile. Never replace a detail the kept record has. Their own rates, fee schedule and invoice reviewer move only when the kept profile has none.
+      - Move every reference to the retired person, and to their provider profile, to the kept person and their profile. Never replace a detail the kept record has. Their own rates, fee schedule and invoice reviewer move only when the kept profile has none. If the retired person's external sign-in is on and the kept person's is off, turn it on, since their account moves with them (manage_external_sign_in).
       - Refuse the merge while both profiles sign in with different accounts, both hold the same open role on a case, both are assigned to the same case, or both have a pre-authorization on the same case.
       - Keep the retired person, hidden from lists and searches, marked as merged into the kept person. Sent invoices keep their submission snapshots, and recorded actors stay as recorded.
       - Record every value the merge changed with its prior value, the administrator and the time. An administrator may undo a merge, or every merge made at once, restoring each value still as the merge left it and leaving anything changed since; an undo is refused while the kept person has since been merged into someone else.
@@ -635,12 +635,26 @@ rules:
     outcome: blocking
     requirements:
       - A submitter acts either for their own professional profile or as a delegate. A delegate needs an effective person_affiliation with a configured delegate role (role_context person_affiliation) in the same office as each professional they act for, effective when they upload, edit, recall or submit.
-      - Office membership, an account or a case participant role alone never grants delegate authority; a delegate needs no professional profile or case assignment of their own.
+      - Office membership, an account or a case participant role alone never grants delegate authority; a delegate needs no professional profile or case assignment of their own. An administrator may add a delegate for an office under manage_external_sign_in.
       - Every professional a request relies on, including matched timekeepers, must have been assigned to the request case on the relevant service date; delegation does not substitute for assignment.
       - On a delegated request every line identifies its professional through timekeeper_professional_id; those are the represented professionals.
       - Record the actual delegate as submitter and actor on every request event, distinct from the professionals whose time is billed and from any attestor.
       - Represented professionals need not attest or approve before review. They may view and export the request like its submitter.
       - A delegate may read the time entries of each professional they act for on cases that professional is assigned to, and record time for that professional there; the entry's professional is the one whose work it is and recorded_by_user_account_id is the delegate.
+
+  manage_external_sign_in:
+    description: Let an administrator turn emailed-code sign-in on or off for an external user, adding their email or the person first where needed.
+    applies_to: person
+    trigger: before_change
+    outcome: blocking
+    requirements:
+      - External users are people outside the agency who send invoices: professionals, and delegates under authorize_delegated_submission. Only those whose external sign-in an administrator turned on may sign in; no other list or setting admits anyone. Staff accounts never sign in this way.
+      - Only an administrator turns external sign-in on or off. Any staff user may see who can sign in.
+      - Turning it on needs the email they will sign in with. For someone with none, the administrator adds it, refused if it is already used by an account or another person. Once someone has signed in, their account's email stays.
+      - An administrator may add a new external user with sign-in on - a professional with a name, email and professional kind (as add_professional_without_login), or a delegate with a name, email and the office they send for, from that day - refusing an email already in use. Adding one assigns them to no case.
+      - An administrator may make an existing external user, such as a professional, a delegate for an office from that day, or end that delegation; an ending is recorded, never deleted, and a professional keeps their own profile either way.
+      - Turning it off ends any session they have open and refuses new sign-ins. Their account, profile, requests and history are kept, and it can be turned on again.
+      - Record the actor, time and prior value of every change, and of any email added. No email is sent to the person.
 
   authorize_staff_invoice_entry:
     description: Allow staff to enter a request that a professional sent outside the system, such as by email or from another tool.
@@ -682,7 +696,7 @@ rules:
       - Any active staff user may add a professional with a name (optionally as given and family name, kept on the person), a professional kind and optionally an email; this creates a person and a professional profile with no user account. Record the actor.
       - Refuse an email already used by a user account or another professional rather than creating a probable duplicate.
       - When someone later signs in with that email, they receive the existing profile instead of a new one.
-      - Adding a professional assigns them to no case and grants no access.
+      - Adding a professional assigns them to no case and grants no access; they cannot sign in until an administrator turns on their external sign-in (manage_external_sign_in).
       - An administrator may correct the professional's name, and add or change the email of one who hasn't signed in, refusing an email already used in the same way; once they sign in, their account's email stays. Record the actor and the values replaced.
       - Whoever added a professional may correct their name (its given and family parts where entered separately), email and professional kind, on that same record rather than by adding them again, until removal would be refused as below, refusing an email already in use as above. Record the actor and the values replaced.
       - An administrator may remove a professional added by mistake, such as a sender added while entering a request never finished, recording the actor and the values removed. Removal is refused once they have signed in, are assigned to a case, have recorded time or a pre-authorization, have a role on a case, signed a request, or are named on a request that was sent or whose first round was finished. A request naming them that was never sent (a draft, a withdrawn draft or an open entry) is left with no one chosen in their place, its lines matched and priced again as on any save, and an open entry's working decision removed from each line that changed. The removed values, including their own rates and the requests changed, are kept with the record of removal.

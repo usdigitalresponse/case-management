@@ -2,8 +2,8 @@
 // (email-code verify in ../routes/auth.ts, the SSO verify callback in
 // ./oidcProviders.ts) — real accounts are created on first login,
 // matched by email, never seeded with real addresses (../../MAPPING.md).
-import { sql } from 'drizzle-orm';
-import type { Database } from '../db/client';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import type { Database, DatabaseOrTransaction } from '../db/client';
 import { userAccount } from '../db/schema';
 import { firstRow } from '../db/rowHelpers';
 import { normalizeEmail } from './emailLists';
@@ -30,4 +30,9 @@ export async function ensureUserAccountForEmail(
       })
       .returning(),
   );
+}
+
+// The person an account signs in as, through which delegation and sign-in are read; set once, then moved only by a merge.
+export async function linkAccountToPerson(db: DatabaseOrTransaction, userAccountId: string, personId: string): Promise<void> {
+  await db.update(userAccount).set({ personId }).where(and(eq(userAccount.userAccountId, userAccountId), isNull(userAccount.personId)));
 }

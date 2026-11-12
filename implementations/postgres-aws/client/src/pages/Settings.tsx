@@ -12,6 +12,7 @@ import { MileageRates } from './settings/MileageRates';
 import { TimeCategoryRates } from './settings/TimeCategoryRates';
 import { BillingRulesSettings } from './settings/BillingRulesSection';
 import { DemoSettings } from './settings/DemoSection';
+import { ExternalUserSettings } from './settings/ExternalUsers';
 
 export default function Settings() {
   const [version, setVersion] = useState(0);
@@ -37,6 +38,14 @@ export default function Settings() {
         <h2>People who use this tool</h2>
         <RoleSummary />
         {isAdmin && <StaffRoleSettings />}
+      </section>
+      <section className="settings-section" id="settings-external-users">
+        <h2>External users</h2>
+        <p className="compact-hint">
+          Attorneys, providers and office billing staff outside the agency. They sign in with a code emailed to them, and only
+          those turned on here can sign in.
+        </p>
+        <ExternalUserSettings isAdmin={isAdmin} />
       </section>
       <section className="settings-section" id="settings-rates">
         <h2>Rates</h2>
@@ -72,6 +81,7 @@ export default function Settings() {
 const SECTIONS = [
   { id: 'settings-review', label: 'Invoice review' },
   { id: 'settings-people', label: 'People who use this tool' },
+  { id: 'settings-external-users', label: 'External users' },
   { id: 'settings-rates', label: 'Rates' },
   { id: 'settings-preauthorization', label: 'Pre-authorization thresholds' },
   { id: 'settings-rules', label: 'Billing rules and codes' },

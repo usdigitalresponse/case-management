@@ -10,6 +10,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import { person, professional, PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT, userAccount } from '../db/schema';
 import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
+import { linkAccountToPerson } from '../auth/userAccounts';
 
 // Read-only lookup, used wherever a route needs "the current session's
 // professional, if any" without creating one (../routes/myCases.ts,
@@ -32,36 +33,48 @@ export async function ensureProfessionalForUserAccount(
   displayName: string,
 ): Promise<string> {
   const [existing] = await db
-    .select({ professionalId: professional.professionalId })
+    .select({ professionalId: professional.professionalId, personId: professional.personId })
     .from(professional)
     .where(eq(professional.userAccountId, userAccountId));
   if (existing) {
+    await linkAccountToPerson(db, userAccountId, existing.personId);
     return existing.professionalId;
   }
 
   // Staff may have added them before they signed in (./addProfessional.ts):
-  // the same email takes over that profile.
-  const [account] = await db.select({ email: userAccount.email }).from(userAccount).where(eq(userAccount.userAccountId, userAccountId));
+  // their person's profile, else the same email's, is taken over.
+  const [account] = await db
+    .select({ email: userAccount.email, personId: userAccount.personId })
+    .from(userAccount)
+    .where(eq(userAccount.userAccountId, userAccountId));
   if (account?.email) {
     const [added] = await db
-      .select({ professionalId: professional.professionalId })
+      .select({ professionalId: professional.professionalId, personId: professional.personId })
       .from(professional)
       .innerJoin(person, eq(professional.personId, person.personId))
-      .where(and(isNull(professional.userAccountId), isNull(person.mergedIntoPersonId), sql`lower(${person.email}) = ${account.email.toLowerCase()}`));
+      .where(
+        and(
+          isNull(professional.userAccountId),
+          isNull(person.mergedIntoPersonId),
+          account.personId ? eq(person.personId, account.personId) : sql`lower(${person.email}) = ${account.email.toLowerCase()}`,
+        ),
+      );
     if (added) {
       await db.update(professional).set({ userAccountId }).where(eq(professional.professionalId, added.professionalId));
+      await linkAccountToPerson(db, userAccountId, added.personId);
       return added.professionalId;
     }
   }
 
   try {
-    const personRow = firstRow(await db.insert(person).values({ displayName }).returning());
+    const personId = account?.personId ?? firstRow(await db.insert(person).values({ displayName }).returning()).personId;
     const professionalRow = firstRow(
       await db
         .insert(professional)
-        .values({ userAccountId, personId: personRow.personId, displayName, active: true })
+        .values({ userAccountId, personId, displayName, active: true })
         .returning(),
     );
+    await linkAccountToPerson(db, userAccountId, personId);
     return professionalRow.professionalId;
   } catch (error) {
     // Lost the race to a concurrent first-login bootstrap for the same

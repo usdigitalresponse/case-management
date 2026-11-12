@@ -109,6 +109,15 @@ export default function PersonPage() {
             {person.email && <a href={`mailto:${person.email}`}>{person.email}</a>}
             {person.phone && <span>{person.phone}</span>}
             {person.paidThrough && <span>Paid to {person.paidThrough}</span>}
+            <span>
+              External sign-in: {person.externalSignInEnabled ? 'On' : 'Off'}
+              {user?.isAdmin && (
+                <>
+                  {' '}
+                  (<Link to="/settings#settings-external-users">change in Settings</Link>)
+                </>
+              )}
+            </span>
           </>
         }
         actions={

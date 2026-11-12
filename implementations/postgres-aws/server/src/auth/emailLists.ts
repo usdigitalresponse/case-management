@@ -1,6 +1,6 @@
 // Email address normalization and shared parsing for comma-separated
 // allowlists configured via env vars (GOOGLE_ALLOWED_DOMAINS,
-// MICROSOFT_ALLOWED_DOMAINS, EXTERNAL_EMAIL_WHITELIST — see .env.example).
+// MICROSOFT_ALLOWED_DOMAINS — see .env.example).
 
 // Every email stored or compared goes through this, so the same address
 // from different login paths (an IdP may return mixed case) matches.

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { faker } from '@faker-js/faker';
 import { db } from './client';
 import { resetAndSeedBaselineFixtures } from './fixtures';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import {
   person,
   personAffiliation,
@@ -117,6 +117,11 @@ async function seedDemoProfessionals(): Promise<DemoProfessional[]> {
     const account = await ensureUserAccountForEmail(db, email, displayName);
     // eslint-disable-next-line no-await-in-loop
     const professionalId = await ensureProfessionalForUserAccount(db, account.userAccountId, displayName);
+    // eslint-disable-next-line no-await-in-loop
+    await db
+      .update(person)
+      .set({ externalSignInEnabled: true })
+      .where(sql`${person.personId} = (select person_id from professional where professional_id = ${professionalId})`);
     professionals.push({ professionalId, userAccountId: account.userAccountId });
   }
   return professionals;

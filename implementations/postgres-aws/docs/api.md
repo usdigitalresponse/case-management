@@ -39,9 +39,10 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   a deployment with real users.
 - **Emailed-code sign-in for external users**: `POST /auth/code/request`
   (body: `{ email }`) emails a 6-digit code (`src/auth/signInCode.ts`) if
-  `email` is in `EXTERNAL_EMAIL_WHITELIST`
-  (`src/auth/externalEmailWhitelist.ts`) — it responds identically either
-  way, so the endpoint can't be used to enumerate whitelisted addresses.
+  an administrator turned on sign-in for the external user with that email
+  in Settings → External users (`src/auth/externalSignIn.ts`) — it responds
+  identically either way, so the endpoint can't be used to find out who may
+  sign in.
   The code works once, for 10 minutes; a new request stops earlier codes
   working, and it allows 5 tries, each counted before the code is compared
   so tries sent at once can't exceed it. Both routes are rate-limited in
@@ -49,8 +50,9 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   address an hour, and tries per address; enough for the single server
   instance, but several would need a shared store. Only a keyed hash
   (HMAC with `SESSION_SECRET`) is stored, in `sign_in_code`. `POST
-  /auth/code/verify` (body: `{ email, code }`) rechecks the whitelist,
-  consumes the code, creates/reuses the `user_account`, bootstraps a
+  /auth/code/verify` (body: `{ email, code }`) rechecks that sign-in is on,
+  consumes the code, creates/reuses the `user_account` (linking it to their
+  person, through which delegation is read), bootstraps a
   `professional` profile for it (`src/professionals/ensureProfessional.ts`),
   and sets the session, which lasts 24 hours. A code typed in, unlike a
   link, can't be consumed by an email link scanner. The client's code
@@ -328,6 +330,30 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     admin checks already require an active account. Gap: until that reload,
     an existing session can still read staff pages (sessions are signed
     cookies with no per-request account lookup).
+  - External users (`src/people/externalUsers.ts`, model rule
+    `manage_external_sign_in`): Settings → External users lists who may sign
+    in with an emailed code (`GET /api/settings/external-users`, any staff
+    member, a batch at a time; `q` searches name and email). Administrators
+    search providers and office delegates (`GET .../candidates?q=`), list
+    offices a new delegate may send for (`GET .../offices`), turn sign-in on
+    for an existing person, adding an email if they have none, or add a new
+    provider or delegate with it on (`POST /api/settings/external-users`
+    with `{ personId, email? }`, `{ newProvider }` or `{ newDelegate }`), and
+    turn it on or off (`PUT .../:personId`, `{ signInEnabled }`). They also
+    make anyone listed, such as a provider, an office's billing delegate from
+    now (`POST .../:personId/offices`, `{ officeId }`, linking a signed-in
+    account to the person so delegation is read), or end it
+    (`POST .../:personId/offices/:officeId/end`, setting `ended_at`, never
+    deleting). Each change is audited on the person
+    (`external_sign_in_enabled`/`_disabled`, `person_email_added`,
+    `external_delegate_added`, `external_delegate_office_added`/`_ended`);
+    nothing is emailed.
+    `person.external_sign_in_enabled` is the only gate: migration `0045`
+    turned it on for everyone with an external account, replacing the old
+    `EXTERNAL_EMAIL_WHITELIST`. Unlike staff deactivation, turning it off
+    ends an open session at once: every `/api` request and `/auth/me` from an
+    email-code session checks it (`endTurnedOffExternalSessions`). Tests turn
+    it on for the accounts they create; no server has an allowlist.
   - Visibility: the portal's invoice detail has no working decisions, no
     names on decisions and no internal comments (`loadInvoiceDetail`
     `audience`). The portal's invoice list names the assigned line

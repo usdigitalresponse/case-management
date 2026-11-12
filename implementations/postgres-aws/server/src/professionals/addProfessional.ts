@@ -4,7 +4,7 @@
 // never merged.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
-import type { Database } from '../db/client';
+import type { Database, DatabaseOrTransaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { auditEvent, person, professional, professionalKinds } from '../db/schema';
 import { ValidationError } from '../errors';
@@ -35,41 +35,43 @@ export const nameParts = {
   familyName: optionalText,
 };
 
-const inputSchema = personDetailsSchema.extend({ professionalKindId: z.uuid('Choose what kind of provider they are.'), ...nameParts });
+export const addProfessionalSchema = personDetailsSchema.extend({ professionalKindId: z.uuid('Choose what kind of provider they are.'), ...nameParts });
 
 export async function addProfessional(db: Database, actorUserAccountId: string, rawInput: unknown) {
-  const parsed = inputSchema.safeParse(rawInput);
+  const parsed = addProfessionalSchema.safeParse(rawInput);
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   }
-  const { displayName, email, professionalKindId, phone, paidThrough, hourlyRate, ratePerMile, travelHourlyRate, givenName, familyName } = parsed.data;
-  const [kind] = await db.select({ id: professionalKinds.id }).from(professionalKinds).where(eq(professionalKinds.id, professionalKindId));
+  return db.transaction((tx) => insertProfessional(tx, actorUserAccountId, parsed.data));
+}
+
+export async function insertProfessional(tx: DatabaseOrTransaction, actorUserAccountId: string, input: z.infer<typeof addProfessionalSchema>) {
+  const { displayName, email, professionalKindId, phone, paidThrough, hourlyRate, ratePerMile, travelHourlyRate, givenName, familyName } = input;
+  const [kind] = await tx.select({ id: professionalKinds.id }).from(professionalKinds).where(eq(professionalKinds.id, professionalKindId));
   if (!kind) {
     throw new ValidationError({ professionalKindId: 'Choose what kind of provider they are.' });
   }
-  if (email && (await emailInUse(db, email, 'professionals'))) {
+  if (email && (await emailInUse(tx, email, 'professionals'))) {
     throw new ValidationError({ email: 'Someone with this email is already in the system. Find them in the list instead.' });
   }
-  return db.transaction(async (tx) => {
-    const personRow = firstRow(await tx.insert(person).values({ displayName, email, givenName, familyName }).returning());
-    const row = firstRow(
-      await tx
-        .insert(professional)
-        .values({ personId: personRow.personId, displayName, professionalKindId, active: true, phone, paidThrough })
-        .returning(),
-    );
-    // A new person's first rates cover all their work, however far back.
-    if (hourlyRate !== undefined || ratePerMile !== undefined || travelHourlyRate !== undefined) {
-      await addOwnRates(tx, actorUserAccountId, row.professionalId, { hourlyRate, ratePerMile, travelHourlyRate, effectiveFrom: '2000-01-01' });
-    }
-    // A new record has no prior values; who added it is the point.
-    await tx.insert(auditEvent).values({
-      entityType: 'professional',
-      entityId: row.professionalId,
-      eventType: 'professional_added',
-      actorUserAccountId,
-      occurredAt: new Date(),
-    });
-    return { professionalId: row.professionalId, displayName: row.displayName };
+  const personRow = firstRow(await tx.insert(person).values({ displayName, email, givenName, familyName }).returning());
+  const row = firstRow(
+    await tx
+      .insert(professional)
+      .values({ personId: personRow.personId, displayName, professionalKindId, active: true, phone, paidThrough })
+      .returning(),
+  );
+  // A new person's first rates cover all their work, however far back.
+  if (hourlyRate !== undefined || ratePerMile !== undefined || travelHourlyRate !== undefined) {
+    await addOwnRates(tx, actorUserAccountId, row.professionalId, { hourlyRate, ratePerMile, travelHourlyRate, effectiveFrom: '2000-01-01' });
+  }
+  // A new record has no prior values; who added it is the point.
+  await tx.insert(auditEvent).values({
+    entityType: 'professional',
+    entityId: row.professionalId,
+    eventType: 'professional_added',
+    actorUserAccountId,
+    occurredAt: new Date(),
   });
+  return { professionalId: row.professionalId, personId: personRow.personId, displayName: row.displayName };
 }

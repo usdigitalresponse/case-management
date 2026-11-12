@@ -30,6 +30,7 @@ function peopleRows(db: DatabaseOrTransaction) {
       // Someone added who hasn't signed in has it on their person record.
       email: sql<string | null>`coalesce(${userAccount.email}, ${person.email})`,
       signedIn: sql<boolean>`${professional.userAccountId} is not null`,
+      externalSignInEnabled: person.externalSignInEnabled,
       phone: professional.phone,
       paidThrough: professional.paidThrough,
       professionalKindId: professional.professionalKindId,

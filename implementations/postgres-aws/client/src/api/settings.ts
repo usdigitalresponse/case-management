@@ -1,4 +1,5 @@
 import { request } from './http';
+import { batchParams, type Batch } from './batches';
 
 // The deployment's billing rules (server/src/billing/billingRules.ts).
 export type RuleEnforcement = 'off' | 'warn' | 'require';
@@ -193,4 +194,53 @@ export function getOwnDemoRole(): Promise<{ roles: StaffRolesResponse['roles']; 
 
 export function setOwnDemoRole(roleId: string): Promise<unknown> {
   return request('/api/settings/demo/role', { method: 'PUT', body: JSON.stringify({ roleId }) });
+}
+
+// An external user who may sign in with an emailed code (server/src/people/externalUsers.ts).
+export interface ExternalUser {
+  personId: string;
+  displayName: string;
+  email: string | null;
+  kind: string | null;
+  // Offices they send invoices for, as a billing delegate.
+  delegateFor: Array<{ officeId: string; displayName: string }>;
+  signInEnabled: boolean;
+  hasSignedIn: boolean;
+  signInChangedAt: string | null;
+}
+
+export function listExternalUsers(q: string, after: string | null): Promise<Batch<ExternalUser>> {
+  const params = new URLSearchParams();
+  if (q.trim()) params.set('q', q.trim());
+  return request(`/api/settings/external-users?${batchParams(params, after)}`);
+}
+
+export function searchExternalUserCandidates(q: string): Promise<{ people: ExternalUser[] }> {
+  return request(`/api/settings/external-users/candidates?${new URLSearchParams({ q: q.trim() })}`);
+}
+
+export function listDelegateOffices(): Promise<{ offices: Array<{ officeId: string; displayName: string }> }> {
+  return request('/api/settings/external-users/offices');
+}
+
+export type TurnOnExternalSignIn =
+  | { personId: string; email?: string }
+  | { newProvider: { displayName: string; email: string; professionalKindId: string } }
+  | { newDelegate: { displayName: string; email: string; officeId: string } };
+
+export function turnOnExternalSignIn(input: TurnOnExternalSignIn): Promise<ExternalUser> {
+  return request('/api/settings/external-users', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function setExternalSignIn(personId: string, signInEnabled: boolean): Promise<ExternalUser> {
+  return request(`/api/settings/external-users/${personId}`, { method: 'PUT', body: JSON.stringify({ signInEnabled }) });
+}
+
+// Lets them also send invoices for an office's providers, from today.
+export function addDelegateOffice(personId: string, officeId: string): Promise<ExternalUser> {
+  return request(`/api/settings/external-users/${personId}/offices`, { method: 'POST', body: JSON.stringify({ officeId }) });
+}
+
+export function endDelegateOffice(personId: string, officeId: string): Promise<ExternalUser> {
+  return request(`/api/settings/external-users/${personId}/offices/${officeId}/end`, { method: 'POST' });
 }
