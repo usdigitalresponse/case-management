@@ -321,7 +321,8 @@ real app, and its "Before" lines restate research problems generically.
 Tour runs are the one exception to keeping history: a run records the cases,
 invoices, pre-authorization requests and people it made or its visitor added
 (`server/src/demoTour/tourRuns.ts`, tagged from the visitor's own session,
-never by demo account), and an hourly sweep, only where the tour is on,
+never by demo account, until they close the tour or sign in another way;
+a case's client only if made new with it), and an hourly sweep, only where the tour is on,
 deletes runs a day old with everything that references them through foreign
 keys, their audit events and the files only they used. A run that reaches
 another visitor's case, invoice, request or person is kept and marked, never

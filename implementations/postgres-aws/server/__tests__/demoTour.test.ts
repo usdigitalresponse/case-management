@@ -31,7 +31,7 @@ import { askQuestion } from '../src/billing/reviewQuestions';
 import { matchInvoiceToCase } from '../src/billing/invoiceIntake';
 import { createCase } from '../src/intake/createCase';
 import { ROLE_IDS } from '../src/db/syntheticIds';
-import { caseDuplicateReview, caseStatuses, demoTourRun, invoiceApprovalDecision, invoiceReviewQuestion, person, professional, professionalKinds } from '../src/db/schema';
+import { caseDuplicateReview, caseStatuses, demoTourRecord, demoTourRun, personDuplicateReview, invoiceApprovalDecision, invoiceReviewQuestion, person, professional, professionalKinds } from '../src/db/schema';
 
 let server: TestServer;
 let fixtures: BaselineFixtureIds;
@@ -309,6 +309,58 @@ describe('removing old tour runs', () => {
     const names = (await testDb.select().from(person)).map((row) => row.displayName);
     expect(names).toContain('Kept Person');
     expect(names).not.toContain('Tour Added');
+  });
+
+  it('stops tagging once the visitor signs in another way or closes the tour', async () => {
+    const [kind] = await testDb.select().from(professionalKinds).limit(1);
+    const cookieOf = (response: Response) => response.headers.getSetCookie().map((value) => value.split(';')[0]).join('; ');
+    const addPerson = (cookie: string, displayName: string) => caller(server, cookie)('POST', '/api/professionals', { displayName, professionalKindId: kind!.id });
+    // As a browser keeps it: each response's cookie replaces the last.
+    const closed = await (await start('staff-filing')).call('POST', '/auth/demo-tour/end');
+    expect((await addPerson(cookieOf(closed), 'After Closing')).status).toBe(201);
+    const touring = await caller(server)('POST', '/auth/demo-tour/start', { mission: 'staff-filing' });
+    const signedIn = await caller(server, cookieOf(touring))('POST', '/auth/demo-login', { userAccountId: fixtures.staffUserAccountId });
+    expect((await addPerson(cookieOf(signedIn), 'After Signing In')).status).toBe(201);
+    expect(await testDb.select().from(demoTourRecord).where(eq(demoTourRecord.tableName, 'professional'))).toHaveLength(0);
+  });
+
+  it('never removes an existing client a tour case was made for', async () => {
+    const { body } = await start('preauth-send');
+    const [open] = await testDb.select().from(caseStatuses).limit(1);
+    const made = await createCase(testDb, { userAccountId: fixtures.staffUserAccountId }, {
+      requestId: crypto.randomUUID(),
+      personId: fixtures.clientPersonId,
+      participantRoleId: ROLE_IDS.CLIENT_PARTICIPANT,
+      statusId: open!.id,
+      effectiveAt: new Date(),
+    });
+    await recordTourRecords(testDb, body.run.runId!, [{ table: 'case', id: made.caseId }]);
+    expect(await sweepTourRuns(testDb, store, dayLater())).toEqual({ removed: 1, kept: 0 });
+    expect(await testDb.select().from(person).where(eq(person.personId, fixtures.clientPersonId))).toHaveLength(1);
+  });
+
+  it('keeps a run whose person is paired with someone outside it', async () => {
+    const { body } = await start('preauth-send');
+    const [tourCase] = await testDb.select().from(caseTable).where(eq(caseTable.caseId, body.run.caseId!));
+    const [first, second] = [tourCase!.clientId!, fixtures.clientPersonId].sort();
+    await testDb.insert(personDuplicateReview).values({
+      personId: first!,
+      otherPersonId: second!,
+      outcome: 'possible_duplicate',
+      recordedByUserAccountId: fixtures.staffUserAccountId,
+      recordedAt: new Date(),
+    });
+    expect(await sweepTourRuns(testDb, store, dayLater())).toEqual({ removed: 0, kept: 1 });
+    expect(await testDb.select().from(personDuplicateReview)).toHaveLength(1);
+  });
+
+  it('marks a run that fails to remove and goes on to the next', async () => {
+    const { body: failing } = await start('preauth-send');
+    await testDb.insert(demoTourRecord).values({ demoTourRunId: failing.run.runId!, tableName: 'no_such_table', recordId: crypto.randomUUID() });
+    await start('preauth-send');
+    expect(await sweepTourRuns(testDb, store, dayLater())).toEqual({ removed: 1, kept: 1 });
+    const [left] = await testDb.select().from(demoTourRun);
+    expect(left?.keptReason).toMatch(/failed/);
   });
 
   it('keeps a run that reaches records outside it, and says why', async () => {

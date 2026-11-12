@@ -5,7 +5,7 @@ import { randomInt, randomUUID } from 'node:crypto';
 import { faker } from '@faker-js/faker';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../db/client';
-import { caseAssignment, caseStatuses, county, demoTourRun, invoiceLine, routeCheck } from '../db/schema';
+import { caseAssignment, caseStatuses, caseTable, county, demoTourRun, invoiceLine, routeCheck } from '../db/schema';
 import { ROLE_IDS } from '../db/syntheticIds';
 import { createCase } from '../intake/createCase';
 import { createInvoice } from '../portal/createInvoice';
@@ -94,7 +94,12 @@ async function tourCase(db: Database, accounts: TourAccounts, runId: string) {
     assignmentRoleId: await getExternalSubmitterRoleId(db),
     assignedByUserAccountId: accounts.staff,
   });
-  await recordTourRecords(db, runId, [{ table: 'case', id: caseId }]);
+  const [made] = await db.select({ clientId: caseTable.clientId }).from(caseTable).where(eq(caseTable.caseId, caseId));
+  await recordTourRecords(db, runId, [
+    { table: 'case', id: caseId },
+    // A new client, made for this case.
+    ...(made?.clientId ? [{ table: 'person' as const, id: made.clientId }] : []),
+  ]);
   return { caseId, caseNumber, clientName };
 }
 

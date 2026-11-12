@@ -251,7 +251,7 @@ export function SignOffHistory({ signOffs }: { signOffs: SignOff[] }) {
             {formatDateTime(signOff.decidedAt)}
             {signOff.comment && (
               <span className="cell-note">
-                “{signOff.comment}” ({signOff.outcomeCode === 'changes_requested' ? 'staff only' : 'the sender sees it'})
+                “{signOff.comment}” ({signOff.internalOnly ? 'staff only' : 'the sender sees it'})
               </span>
             )}
           </li>

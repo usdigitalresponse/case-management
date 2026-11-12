@@ -96,8 +96,9 @@ export interface InvoiceReviewLine {
 export interface SignOff {
   displayName: string | null;
   outcomeCode: string;
-  // Staff only.
   comment: string | null;
+  // A send-back comment: staff only. Others are shared with the sender.
+  internalOnly: boolean;
   decidedAt: string;
 }
 

@@ -9,7 +9,7 @@ import { db as defaultDb, type Database, type DatabaseOrTransaction } from '../d
 import { auditEvent, demoTourRecord, demoTourRun, document } from '../db/schema';
 import type { DocumentStore } from '../imports/documentStore';
 
-export type TourRecordTable = 'case' | 'invoice' | 'preauthorization_request' | 'professional';
+export type TourRecordTable = 'case' | 'invoice' | 'preauthorization_request' | 'professional' | 'person';
 
 export const TOUR_RUN_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
@@ -50,6 +50,8 @@ interface ForeignKey {
   parent: string;
 }
 
+type SchemaGraph = Awaited<ReturnType<typeof schemaGraph>>;
+
 async function schemaGraph(tx: DatabaseOrTransaction) {
   const keys = await tx.execute<{ child: string; column: string; parent: string }>(sql`
     select con.conrelid::regclass::text as child, a.attname::text as column, con.confrelid::regclass::text as parent
@@ -79,18 +81,14 @@ const table = (name: string) => sql.identifier(name);
 class KeepRun extends Error {}
 
 // Everything under the run's records, checked to stay within the run.
-async function collectRun(tx: DatabaseOrTransaction, runId: string) {
-  const { foreignKeys, primaryKey } = await schemaGraph(tx);
+async function collectRun(tx: DatabaseOrTransaction, runId: string, { foreignKeys, primaryKey }: SchemaGraph) {
   const tagged = await tx.select().from(demoTourRecord).where(eq(demoTourRecord.demoTourRunId, runId));
   const roots = new Map<string, Set<string>>();
   const addRoot = (name: string, id: string) => roots.set(name, (roots.get(name) ?? new Set()).add(id));
   for (const record of tagged) addRoot(record.tableName, record.recordId);
-  // A run's case comes with its own client, and an added person with their person record.
+  // An added person always comes with a new person record; a case's client is
+  // the run's only when tagged, since a case may be made for an existing one.
   const rootIds = (name: string) => [...(roots.get(name) ?? [])];
-  if (rootIds('case').length > 0) {
-    const clients = await tx.execute<{ id: string }>(sql`select client_id as id from "case" where case_id = any(${ids(rootIds('case'))}) and client_id is not null`);
-    for (const row of clients.rows) addRoot('person', row.id);
-  }
   if (rootIds('professional').length > 0) {
     const people = await tx.execute<{ id: string }>(sql`select person_id as id from professional where professional_id = any(${ids(rootIds('professional'))})`);
     for (const row of people.rows) addRoot('person', row.id);
@@ -142,8 +140,15 @@ async function collectRun(tx: DatabaseOrTransaction, runId: string) {
       where ${table(primaryKey.get(name)!)} = any(${ids(reached)}) and (case_id is null or case_id <> all(${ids(runCases)}))`);
     if ((elsewhere.rows[0]?.n ?? 0) > 0) throw new KeepRun(`it reaches ${name} records on other cases`);
   }
+  // Records about a pair of people (a merge, a duplicate review) count both sides.
+  const pairsPeople = (name: string) => name === 'person' || foreignKeys.filter((key) => key.child === name && key.parent === 'person').length > 1;
   for (const [name, set] of found) {
-    for (const key of foreignKeys.filter((candidate) => candidate.child === name && ['case', 'invoice', 'preauthorization_request'].includes(candidate.parent))) {
+    const checked = foreignKeys.filter(
+      (candidate) =>
+        candidate.child === name &&
+        (['case', 'invoice', 'preauthorization_request'].includes(candidate.parent) || (candidate.parent === 'person' && pairsPeople(name))),
+    );
+    for (const key of checked) {
       // eslint-disable-next-line no-await-in-loop
       const loose = await tx.execute<{ n: number }>(sql`
         select count(*)::int as n from ${table(name)}
@@ -172,13 +177,18 @@ function deletionOrder(found: Map<string, Set<string>>, foreignKeys: ForeignKey[
   return order;
 }
 
-export async function removeTourRun(db: Database, store: DocumentStore, runId: string): Promise<{ removed: boolean; keptReason?: string }> {
+export async function removeTourRun(
+  db: Database,
+  store: DocumentStore,
+  runId: string,
+  graph?: SchemaGraph,
+): Promise<{ removed: boolean; keptReason?: string }> {
   const [run] = await db.select().from(demoTourRun).where(eq(demoTourRun.demoTourRunId, runId));
   if (!run) return { removed: false };
   let files: string[];
   try {
     files = await db.transaction(async (tx) => {
-      const { found, foreignKeys, primaryKey } = await collectRun(tx, runId);
+      const { found, foreignKeys, primaryKey } = await collectRun(tx, runId, graph ?? (await schemaGraph(tx)));
       // Files the run's rows point at, removed below once nothing else does.
       const documentIds = new Set<string>();
       for (const key of foreignKeys.filter((candidate) => candidate.parent === 'document' && found.has(candidate.child))) {
@@ -236,9 +246,19 @@ export async function sweepTourRuns(db: Database, store: DocumentStore, now = ne
     .limit(50);
   let removed = 0;
   let kept = 0;
+  const graph = due.length > 0 ? await schemaGraph(db) : undefined;
   for (const { id } of due) {
-    // eslint-disable-next-line no-await-in-loop
-    const result = await removeTourRun(db, store, id);
+    let result: { removed: boolean; keptReason?: string };
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      result = await removeTourRun(db, store, id, graph);
+    } catch (error) {
+      // One run failing never holds up the others; it is marked and left.
+      const keptReason = `removing it failed: ${error instanceof Error ? error.message : String(error)}`;
+      // eslint-disable-next-line no-await-in-loop
+      await db.update(demoTourRun).set({ keptReason }).where(eq(demoTourRun.demoTourRunId, id));
+      result = { removed: false, keptReason };
+    }
     if (result.removed) removed += 1;
     if (result.keptReason) {
       kept += 1;

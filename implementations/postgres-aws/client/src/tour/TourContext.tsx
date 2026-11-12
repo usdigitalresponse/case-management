@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   apiErrorMessage,
+  endTour,
   REQUEST_SUCCEEDED_EVENT,
   startTour,
   switchTourRole,
@@ -119,7 +120,11 @@ export function TourProvider({ children }: { children: ReactNode }) {
       setCollapsed: (collapsed) => setState((previous) => (previous ? { ...previous, collapsed } : previous)),
       leave: () => setState((previous) => (previous ? { ...previous, hidden: true } : previous)),
       resume: () => setState((previous) => (previous ? { ...previous, hidden: false, collapsed: false } : previous)),
-      end: () => setState(() => null),
+      end: () => {
+        setState(() => null);
+        // Best effort: the run also ends at the next sign-in or sign-out.
+        void endTour().catch(() => undefined);
+      },
       reportLocation: (pathname) => setState((previous) => (previous && !previous.hidden ? onLocation(previous, pathname) : previous)),
       pendingPath,
       clearPendingPath: () => setPendingPath(null),

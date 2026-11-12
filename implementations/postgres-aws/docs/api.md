@@ -1141,18 +1141,22 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   the mileage check never makes a billed lookup, and the tour never
   changes rule settings; the demo seed sets the daily hour cap to warn.
   Each start records a run (`demo_tour_run`) and the cases and invoices it
-  made (`demo_tour_record`); while a visitor's session holds the run,
+  made (`demo_tour_record`), with each case's new client; while a visitor's
+  session holds the run (until `POST /auth/demo-tour/end`, sent when they
+  close the tour, or any sign-in but the tour's own switches),
   `POST /api/portal/invoices`, `POST /api/portal/uploads/:id/draft`,
   `POST /api/preauthorizations/requests`, `POST /api/professionals` and
-  `POST /api/cases` tag what they create to it (`tagTourRecord` in
+  `POST /api/cases` (and its client, if made new) tag what they create to it (`tagTourRecord` in
   `src/demoTour/tourRuns.ts`). An hourly sweep in the server process, only
   where the tour is mounted, deletes runs over a day old: their records,
   everything referencing them by foreign key (found from the database's own
   constraints, children first, in one transaction per run), their client
   and person records, audit events about them, and files only they used
   (after commit). It checks first that the run reaches no case, invoice,
-  request or person outside it; if it does, the run is kept with
-  `kept_reason` and not tried again. This is the one deletion of history,
+  request or person outside it, counting both people in a merge or
+  duplicate review; if it does, or removing it fails, the run is kept with
+  `kept_reason`, logged, and not tried again, so it never holds up the
+  rest. This is the one deletion of history,
   for synthetic tour material on demo servers only (see "Known gaps" in
   `../MAPPING.md`).
 - **Routes**: `src/routes/cases.ts` (`POST /`, `GET /`, `GET /:id`) and

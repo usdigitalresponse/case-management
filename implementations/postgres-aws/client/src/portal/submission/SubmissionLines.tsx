@@ -14,7 +14,7 @@ import { DecisionComments } from './DecisionComments';
 export function SubmissionLines({ s }: { s: Submission }) {
   const { data, staff, user, focus, setFocus } = s;
   const { invoicePath } = useShell();
-  const { invoice, isDraft, editable, awaiting, sent } = s.facts;
+  const { invoice, isDraft, editable, awaiting, sent, decided } = s.facts;
   const { fileSource } = data;
   const { lines, rows, context, askingFor, duplicates, notice, undatedRow, fileSays, error, handlers, edited, editLine } = s.entry;
   const decisionFor = (index: number) => {
@@ -84,12 +84,12 @@ export function SubmissionLines({ s }: { s: Submission }) {
         {(invoice.statusCode === 'under_review' || invoice.statusCode === 'awaiting_sign_off') && (
           <Notice tone="info">Review has started, so the invoice can no longer be withdrawn. Contact the billing office to change it.</Notice>
         )}
-        {(invoice.statusCode === 'approved' || invoice.statusCode === 'rejected') && data.approvedTotal !== null && (
+        {decided && data.approvedTotal !== null && (
           <Notice tone="success">
             Decided: {formatMoney(data.approvedTotal)} approved of {formatMoney(invoice.submittedTotal)}. Each line shows why.
           </Notice>
         )}
-        {(invoice.statusCode === 'approved' || invoice.statusCode === 'rejected') && <DecisionComments comments={data.decisionComments} />}
+        {decided && <DecisionComments comments={data.decisionComments} />}
         {isDraft && notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
         {editable && undatedRow && <Notice tone="warning">Line {undatedRow.number} has no date in your file. Enter its date before you send.</Notice>}
         <CheckLinesTable

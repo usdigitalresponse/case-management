@@ -28,7 +28,7 @@ async function signInAs(req: Request, run: TourRun, role: TourRole): Promise<Aut
     displayName: account.displayName,
     authType: role === 'vendor' ? 'email-code' : 'sso',
   };
-  setSessionUser(req, user);
+  setSessionUser(req, user, { keepTour: true });
   return user;
 }
 
@@ -101,6 +101,12 @@ export function addDemoTourRoutes(router: Router, limiter = new RateLimiter()): 
       res.json(await signInAs(req, run, role.data));
     }),
   );
+
+  // Closing the tour: what the visitor does from here on is theirs, not the run's.
+  router.post('/demo-tour/end', (req, res) => {
+    if (req.session) delete req.session.tour;
+    res.status(204).end();
+  });
 
   router.get(
     '/demo-tour/sample-invoice.pdf',

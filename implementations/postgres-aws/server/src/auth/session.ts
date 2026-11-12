@@ -10,9 +10,12 @@ export function getSessionUser(req: Request): AuthenticatedUser | undefined {
   return user?.authType === 'magic-link' ? { ...user, authType: 'email-code' } : (user as AuthenticatedUser | undefined);
 }
 
-export function setSessionUser(req: Request, user: AuthenticatedUser): void {
+// Any sign-in but a tour's own switch ends the guided tour run, so what is
+// done afterwards isn't tagged to it (../demoTour/tourRuns.ts).
+export function setSessionUser(req: Request, user: AuthenticatedUser, { keepTour = false } = {}): void {
   if (req.session) {
     req.session.user = user;
+    if (!keepTour) delete req.session.tour;
   }
 }
 

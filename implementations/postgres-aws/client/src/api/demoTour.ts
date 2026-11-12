@@ -35,4 +35,9 @@ export function switchTourRole(role: TourRole): Promise<AuthenticatedUser> {
   return request<AuthenticatedUser>('/auth/demo-tour/switch', { method: 'POST', body: JSON.stringify({ role }) }, { notifies: false });
 }
 
+// Ends the run, so what the visitor does afterwards stays when old runs are removed.
+export function endTour(): Promise<void> {
+  return request<void>('/auth/demo-tour/end', { method: 'POST' }, { notifies: false });
+}
+
 export const TOUR_SAMPLE_INVOICE_URL = '/auth/demo-tour/sample-invoice.pdf';

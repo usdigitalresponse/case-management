@@ -50,6 +50,11 @@ router.post(
     }
     const result = await createCase(db, { userAccountId: actor.userAccountId }, req.body);
     await tagTourRecord(req, 'case', result.caseId);
+    // Only a client made with the case; an existing one was never the tour's.
+    if ((req.body as { newClient?: unknown } | undefined)?.newClient) {
+      const [made] = await db.select({ clientId: caseTable.clientId }).from(caseTable).where(eq(caseTable.caseId, result.caseId));
+      await tagTourRecord(req, 'person', made?.clientId ?? undefined);
+    }
     res.status(201).json(result);
   }),
 );
