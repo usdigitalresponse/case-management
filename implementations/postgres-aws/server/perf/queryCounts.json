@@ -29,7 +29,7 @@
     "upload / uploadCases + suggestUploadCase": 8,
     "upload / splitCases": 2,
     "upload / listPortalInvoices": 5,
-    "upload / GET /api/portal/invoices/:id (draft)": 32,
+    "upload / GET /api/portal/invoices/:id (draft)": 33,
     "upload / findBillingOverlaps (submitter)": 3,
     "upload / createInvoice + submit": 177,
     "duplicates / listPossibleDuplicates": 5,

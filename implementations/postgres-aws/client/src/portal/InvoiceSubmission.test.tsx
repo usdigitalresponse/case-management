@@ -30,7 +30,10 @@ describe('sending an invoice', () => {
     await openCheck();
     fireEvent.change(await screen.findByDisplayValue('Client meeting'), { target: { value: 'Client meeting and call' } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }));
+    // Enabled once the rates arrive, which may be after the lines.
+    const start = screen.getByRole('button', { name: 'Send for review' }) as HTMLButtonElement;
+    await waitFor(() => expect(start.disabled).toBe(false));
+    fireEvent.click(start);
 
     const dialog = await screen.findByRole('dialog');
     const send = within(dialog).getByRole('button', { name: 'Send for review' }) as HTMLButtonElement;
