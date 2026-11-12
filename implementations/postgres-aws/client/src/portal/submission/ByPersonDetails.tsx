@@ -1,15 +1,15 @@
 import { setDraftCounty, setDraftDetails, setDraftSender } from '../../api/client';
-import { Notice } from '../../components/ui/Notice';
 import { InvoiceDetailsFields } from '../../components/InvoiceDetailsFields';
 import { SavedCountyPicker } from '../../components/CountyPicker';
 import { countyValueOf } from '../../counties';
-import { CaseChoice } from './CaseChoice';
+import { CaseChoice, NotForOneCase } from './CaseChoice';
+import { CaseStep } from '../../components/CaseStep';
 import { DecisionTotals } from './DecisionTotals';
 import { TypedCaseNumber } from './TypedCaseNumber';
 import { CASE_NUMBER_LOCATION, type Submission } from './useSubmission';
 
 export function ByPersonDetails({ s }: { s: Submission }) {
-  const { data, staff, onChanged, typedCaseNumber, setTypedCaseNumber, caseNumberMissing } = s;
+  const { data, staff, onChanged, typedCaseNumber, setTypedCaseNumber, caseAnswerMissing } = s;
   const { invoice, editable, decided, fromName } = s.facts;
   const { flush } = s.entry;
   return (
@@ -32,7 +32,8 @@ export function ByPersonDetails({ s }: { s: Submission }) {
           }}
         />
       )}
-      {editable && !staff && (
+      {editable && !staff && <NotForOneCase invoice={invoice} beforeChange={flush} onChanged={onChanged} />}
+      {editable && !staff && invoice.caseChoice !== 'none' && (
         <CaseChoice
           invoice={invoice}
           beforeChange={flush}
@@ -42,28 +43,31 @@ export function ByPersonDetails({ s }: { s: Submission }) {
           }}
         />
       )}
-      {caseNumberMissing && !typedCaseNumber.trim() && (
-        <Notice tone="warning">This invoice needs a case number before it can be sent. Type it in the box below.</Notice>
-      )}
       <TypedCaseNumber
         invoiceId={invoice.invoiceId}
         value={typedCaseNumber}
         onChange={setTypedCaseNumber}
         editable={editable && !invoice.caseId}
         chosenCase={invoice.caseId ? (data.caseNumber ?? typedCaseNumber) : null}
-        missing={caseNumberMissing && !typedCaseNumber.trim()}
+        missing={false}
         fromName={fromName}
         hasFile={Boolean(data.fileSource)}
         readFromFile={s.readFromFile}
         corrected={invoice.caseNumberCorrected}
         own={!staff}
         onFocus={() => s.caseNumberRegion.length > 0 && s.setFocus({ location: CASE_NUMBER_LOCATION })}
+        onSaved={staff ? onChanged : undefined}
         county={
           editable ? (
             <SavedCountyPicker
               id="county"
               initial={countyValueOf(invoice)}
-              save={(choice) => setDraftCounty(invoice.invoiceId, choice)}
+              save={(choice) =>
+                setDraftCounty(invoice.invoiceId, choice).then((saved) => {
+                  if (staff) onChanged();
+                  return saved;
+                })
+              }
               hint="Or post-conviction or prison, if that is what it is for."
             />
           ) : (
@@ -71,6 +75,7 @@ export function ByPersonDetails({ s }: { s: Submission }) {
           )
         }
       />
+      {editable && staff && !invoice.caseId && <CaseStep invoice={invoice} mode="draft" missing={caseAnswerMissing} beforeChange={flush} onChanged={onChanged} />}
       {decided && data.approvedTotal !== null && <DecisionTotals data={data} />}
     </>
   );

@@ -4,6 +4,8 @@ import type { CountyChoice, SavedCounty } from './cases';
 import type { ProposedCase, ProposedProvider } from './myInvoices';
 
 // One invoice's header, as the staff queue and the portal both show it.
+export type CaseChoice = 'existing' | 'new' | 'none';
+
 export interface QueuedInvoice {
   invoiceId: string;
   // Null while held in intake, or when staff reviewed it without a case.
@@ -40,6 +42,11 @@ export interface QueuedInvoice {
   countyDisplayName: string | null;
   // A staff upload, under review from the start.
   enteredInReview: boolean;
+  // Which case it is for: existing, new or none (not for one case); null while unanswered.
+  caseChoice: CaseChoice | null;
+  // On a draft: the existing case it is matched to, or the client of the case added, when sent.
+  chosenCaseId: string | null;
+  newCaseClientName: string | null;
   // While its lines are being entered: their version, sent back with each
   // save, and who changed them last, when.
   linesVersion: number;

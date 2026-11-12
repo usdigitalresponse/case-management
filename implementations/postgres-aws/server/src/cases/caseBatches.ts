@@ -47,8 +47,10 @@ const caseNumber = caseNumberOfCase(caseTable.caseId);
 const workers = sql<string>`coalesce((select string_agg(p.display_name, ' ') from case_assignment a
   join professional p on p.professional_id = a.professional_id where a.case_id = ${caseTable.caseId} and a.ended_at is null), '')`;
 
+// A case closed as added by mistake is never shown (../cases/caseCorrections.ts).
 function shown(show: CaseShow): SQL | undefined {
-  return show === 'open' ? isNull(caseTable.closedOn) : show === 'closed' ? isNotNull(caseTable.closedOn) : undefined;
+  const listed = eq(caseTable.closedAsMistake, false);
+  return show === 'open' ? and(listed, isNull(caseTable.closedOn)) : show === 'closed' ? and(listed, isNotNull(caseTable.closedOn)) : listed;
 }
 
 function filters(request: CaseBatchRequest): SQL | undefined {
@@ -120,7 +122,7 @@ export async function caseCounts(db: DatabaseOrTransaction): Promise<Record<Case
   const [[row], organizations] = await Promise.all([
     db
       .select({
-        all: sql<number>`count(*)::int`,
+        all: sql<number>`(count(*) filter (where ${shown('all')}))::int`,
         open: sql<number>`(count(*) filter (where ${shown('open')}))::int`,
         closed: sql<number>`(count(*) filter (where ${shown('closed')}))::int`,
       })
@@ -128,7 +130,7 @@ export async function caseCounts(db: DatabaseOrTransaction): Promise<Record<Case
     db
       .select({ organizationId: caseTable.organizationId, count: sql<number>`count(*)::int` })
       .from(caseTable)
-      .where(isNotNull(caseTable.organizationId))
+      .where(and(isNotNull(caseTable.organizationId), shown('all')))
       .groupBy(caseTable.organizationId),
   ]);
   return { ...row!, byOrganization: Object.fromEntries(organizations.map((org) => [org.organizationId!, org.count])) };

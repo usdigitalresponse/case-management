@@ -50,3 +50,8 @@
 .settings-number { max-width: 6rem; margin-top: var(--space-3); }
 .settings-role { margin: 0; max-width: 14rem; }
 .reason-fields { grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; margin-top: var(--space-6); }
+/* Settings, Edit data (pages/settings/EditData.tsx). */
+.edit-data__fix { display: flex; flex-direction: column; gap: var(--space-5); margin: var(--space-4) 0; padding: var(--space-6); }
+.edit-data__fix h3 { margin: 0; font: var(--title-small); }
+.edit-data__preview { padding: var(--space-5) var(--space-6); border-radius: var(--radius-small); background: var(--color-surface-container); }
+.edit-data__preview ul { margin: var(--space-3) 0 0; padding-left: var(--space-7); }

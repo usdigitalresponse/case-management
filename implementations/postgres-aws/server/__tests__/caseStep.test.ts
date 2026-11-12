@@ -1,0 +1,225 @@
+// The case step: cases found by number within a county, added from an
+// invoice, or not for one case (scenarios/cases-from-invoices.md).
+import { and, eq, isNull } from 'drizzle-orm';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { testDb, testPool } from './testDb';
+import { giveRate } from './rateHelpers';
+import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
+import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
+import { createInvoice } from '../src/portal/createInvoice';
+import { resolvePortalActor, type PortalActor } from '../src/portal/portalActor';
+import { setDraftCaseNumber, setDraftCounty } from '../src/billing/invoiceLifecycle/drafts';
+import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
+import { applyCaseChoiceAfterSend, caseStepFor, chooseCaseInReview, setDraftCaseChoice } from '../src/billing/caseChoice';
+import { addCaseFromRequest, caseStepMatches } from '../src/cases/caseStep';
+import { ForbiddenError, ValidationError } from '../src/errors';
+import { caseAssignment, caseLifecycleEvent, caseParticipant, caseTable, county, invoice, invoiceLine, userAccount } from '../src/db/schema';
+
+let fixtures: BaselineFixtureIds;
+let staff: PortalActor;
+let countyB: string;
+
+beforeEach(async () => {
+  fixtures = await resetAndSeedBaselineFixtures(testDb);
+  staff = await resolvePortalActor(testDb, fixtures.staffUserAccountId);
+  const [row] = await testDb.select({ countyId: county.countyId }).from(county).where(eq(county.displayName, 'County B'));
+  countyB = row!.countyId;
+});
+
+afterAll(async () => {
+  await testPool.end();
+});
+
+async function sender(email: string) {
+  const [account] = await testDb.insert(userAccount).values({ displayName: email, email, active: true }).returning();
+  const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, email);
+  await giveRate(testDb, fixtures.staffUserAccountId, professionalId, 100);
+  return { actor: await resolvePortalActor(testDb, account!.userAccountId), professionalId };
+}
+
+async function addCase(caseNumber: string, countyId: string) {
+  return testDb.transaction((tx) => addCaseFromRequest(tx, fixtures.staffUserAccountId, { caseNumber, countyId, confirmedNew: true }, { invoiceId: placeholder }));
+}
+
+let placeholder: string;
+
+// A staff draft filed by person, with its number and county as read from the file.
+async function staffDraft(caseNumber: string | null, countyId: string | null) {
+  const { professionalId } = await sender(`sender-${Math.random()}@example.com`);
+  const { invoiceId } = await createInvoice(testDb, staff, {
+    caseId: null,
+    professionalId,
+    submit: false,
+    lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 3, description: 'Court observation' }],
+  });
+  if (caseNumber) await setDraftCaseNumber(testDb, staff, invoiceId, { caseNumber });
+  if (countyId) await setDraftCounty(testDb, staff, invoiceId, { countyId });
+  return { invoiceId, professionalId };
+}
+
+const send = { filedByPerson: true, receivedVia: 'email', receivedOn: '2026-02-03' };
+
+async function sendAsStaff(invoiceId: string) {
+  await submitInvoice(testDb, staff, invoiceId, send);
+  return applyCaseChoiceAfterSend(testDb, fixtures.staffUserAccountId, invoiceId);
+}
+
+beforeEach(async () => {
+  placeholder = (await staffDraft(null, null)).invoiceId;
+});
+
+describe('finding a case by number within its county', () => {
+  it('chooses the same number in the same county, offers close ones, and never another county’s', async () => {
+    const exact = await addCase('CR-24-0477', fixtures.countyId);
+    await addCase('CR-24-0477', countyB);
+
+    const same = await caseStepMatches(testDb, 'cr-24-0477', fixtures.countyId);
+    expect(same.exact?.caseId).toBe(exact);
+    expect(same.similar).toEqual([]);
+
+    const close = await caseStepMatches(testDb, 'CR240477', fixtures.countyId);
+    expect(close.exact).toBeNull();
+    expect(close.similar.map((row) => row.caseId)).toEqual([exact]);
+  });
+});
+
+describe('adding a case from an invoice', () => {
+  it('refuses a number already used in that county, and asks about a close one', async () => {
+    await addCase('CR-24-0477', fixtures.countyId);
+    const add = (caseNumber: string, countyId: string, confirmedNew = false) =>
+      testDb.transaction((tx) => addCaseFromRequest(tx, fixtures.staffUserAccountId, { caseNumber, countyId, confirmedNew }, { invoiceId: placeholder }));
+
+    await expect(add('cr-24-0477', fixtures.countyId, true)).rejects.toThrow(ValidationError);
+    await expect(add('CR240477', fixtures.countyId)).rejects.toThrow(ValidationError);
+    await expect(add('CR240477', fixtures.countyId, true)).resolves.toBeTruthy();
+    // Another county's number is another case.
+    await expect(add('CR-24-0477', countyB)).resolves.toBeTruthy();
+  });
+
+  it('records who added it and from which invoice, with a client only when named', async () => {
+    const caseId = await testDb.transaction((tx) =>
+      addCaseFromRequest(tx, fixtures.staffUserAccountId, { caseNumber: 'CR-26-1312', countyId: countyB, clientName: 'J. Sample' }, { invoiceId: placeholder }),
+    );
+    const [row] = await testDb.select().from(caseTable).where(eq(caseTable.caseId, caseId));
+    expect(row).toMatchObject({ externalReference: 'CR-26-1312', countyId: countyB, addedFromInvoiceId: placeholder, closedOn: null });
+    const [opened] = await testDb.select().from(caseLifecycleEvent).where(eq(caseLifecycleEvent.caseId, caseId));
+    expect(opened).toMatchObject({ sequenceNumber: 1, actorUserAccountId: fixtures.staffUserAccountId });
+    expect(await testDb.select().from(caseParticipant).where(eq(caseParticipant.caseId, caseId))).toHaveLength(1);
+
+    const bare = await addCase('CR-26-1313', countyB);
+    expect(await testDb.select().from(caseParticipant).where(eq(caseParticipant.caseId, bare))).toHaveLength(0);
+  });
+});
+
+describe('staff answering the case question', () => {
+  it('must answer before sending', async () => {
+    const { invoiceId } = await staffDraft('CR-26-1312', countyB);
+    await expect(submitInvoice(testDb, staff, invoiceId, send)).rejects.toThrow(ValidationError);
+  });
+
+  it('match a found case when sent, adding its provider and keeping its prices', async () => {
+    const caseId = await addCase('CR-24-0477', fixtures.countyId);
+    const { invoiceId, professionalId } = await staffDraft('CR-24-0477', fixtures.countyId);
+    expect((await caseStepFor(testDb, invoiceId)).exact?.caseId).toBe(caseId);
+
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'existing', caseId });
+    expect(await sendAsStaff(invoiceId)).toEqual({ caseId, addedCaseId: null, caseProblem: null });
+
+    const [sent] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(sent).toMatchObject({ caseId, caseChoice: 'existing', chosenCaseId: null, submittedTotal: '300.00' });
+    const [line] = await testDb.select({ caseId: invoiceLine.caseId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
+    expect(line?.caseId).toBe(caseId);
+    const assigned = await testDb
+      .select()
+      .from(caseAssignment)
+      .where(and(eq(caseAssignment.caseId, caseId), eq(caseAssignment.professionalId, professionalId), isNull(caseAssignment.endedAt)));
+    expect(assigned).toHaveLength(1);
+  });
+
+  it('add a new case when sent, only after saying a close one is different', async () => {
+    await addCase('CR-24-0477', fixtures.countyId);
+    const { invoiceId } = await staffDraft('CR240477', fixtures.countyId);
+    await expect(setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'new' })).rejects.toThrow(ValidationError);
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'new', confirmedNew: true, clientName: 'K. Sample' });
+
+    const result = await sendAsStaff(invoiceId);
+    expect(result.caseProblem).toBeNull();
+    const [added] = await testDb.select().from(caseTable).where(eq(caseTable.caseId, result.caseId!));
+    expect(added).toMatchObject({ externalReference: 'CR240477', countyId: fixtures.countyId, addedFromInvoiceId: invoiceId });
+    expect(result.addedCaseId).toBe(result.caseId);
+  });
+
+  it('needs a number and county to add a case', async () => {
+    const { invoiceId } = await staffDraft(null, fixtures.countyId);
+    await expect(setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'new' })).rejects.toThrow(ValidationError);
+  });
+
+  it('send work not for one case to review with only its county', async () => {
+    const { invoiceId } = await staffDraft(null, countyB);
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'none' });
+    expect(await sendAsStaff(invoiceId)).toEqual({ caseId: null, addedCaseId: null, caseProblem: null });
+    const [sent] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(sent).toMatchObject({ caseId: null, caseChoice: 'none', countyId: countyB });
+  });
+});
+
+describe('external submitters', () => {
+  it('may send without a case or number, and answer only “not for one case”', async () => {
+    const attorney = await sender('attorney@example.com');
+    const { invoiceId } = await createInvoice(testDb, attorney.actor, {
+      caseId: null,
+      submit: false,
+      lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 3, description: 'Court observation' }],
+    });
+    const caseId = await addCase('CR-24-0477', fixtures.countyId);
+    await expect(setDraftCaseChoice(testDb, attorney.actor, invoiceId, { choice: 'existing', caseId })).rejects.toThrow(ForbiddenError);
+    await setDraftCaseChoice(testDb, attorney.actor, invoiceId, { choice: 'none' });
+    expect(await submitInvoice(testDb, attorney.actor, invoiceId, { filedByPerson: true, attested: true })).toEqual({ invoiceId, status: 'submitted' });
+  });
+});
+
+describe('a reviewer choosing the case in review', () => {
+  async function sentExternally(caseNumber: string) {
+    const attorney = await sender(`attorney-${caseNumber}@example.com`);
+    const { invoiceId } = await createInvoice(testDb, attorney.actor, {
+      caseId: null,
+      submit: false,
+      lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Review' }],
+    });
+    await setDraftCaseNumber(testDb, attorney.actor, invoiceId, { caseNumber });
+    await setDraftCounty(testDb, attorney.actor, invoiceId, { countyId: fixtures.countyId });
+    await submitInvoice(testDb, attorney.actor, invoiceId, { filedByPerson: true, attested: true });
+    return invoiceId;
+  }
+
+  it('suggests the same number in the county, and matches it when chosen', async () => {
+    const caseId = await addCase('CR-24-0477', fixtures.countyId);
+    const invoiceId = await sentExternally('CR-24-0477');
+    const [before] = await testDb.select({ caseId: invoice.caseId }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(before?.caseId).toBeNull();
+    expect((await caseStepFor(testDb, invoiceId)).exact?.caseId).toBe(caseId);
+
+    await chooseCaseInReview(testDb, fixtures.staffUserAccountId, invoiceId, { choice: 'existing', caseId });
+    const [after] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(after).toMatchObject({ caseId, caseChoice: 'existing', caseNumberAsTyped: 'CR-24-0477' });
+  });
+
+  it('adds a case from the invoice’s number, or records that it is not for one case', async () => {
+    const added = await sentExternally('CR-26-2000');
+    const result = await chooseCaseInReview(testDb, fixtures.staffUserAccountId, added, { choice: 'new' });
+    expect(result.caseId).toBe(result.addedCaseId);
+
+    const none = await sentExternally('CR-26-2001');
+    await chooseCaseInReview(testDb, fixtures.staffUserAccountId, none, { choice: 'none' });
+    const [row] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, none));
+    expect(row).toMatchObject({ caseId: null, caseChoice: 'none' });
+    // Once it has its case, it is not chosen again here.
+    await expect(chooseCaseInReview(testDb, fixtures.staffUserAccountId, added, { choice: 'none' })).rejects.toThrow(ValidationError);
+  });
+
+  it('is staff only', async () => {
+    const attorney = await sender('outsider@example.com');
+    const invoiceId = await sentExternally('CR-26-3000');
+    await expect(chooseCaseInReview(testDb, attorney.actor.userAccountId, invoiceId, { choice: 'none' })).rejects.toThrow(ForbiddenError);
+  });
+});

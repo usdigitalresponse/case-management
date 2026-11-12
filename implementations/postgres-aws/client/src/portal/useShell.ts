@@ -9,8 +9,9 @@ export const NEW_INVOICE_PATH = '/new-invoice';
 export const PORTAL_HOME_PATH = '/portal/invoices';
 export const PORTAL_PREAUTHORIZATIONS_PATH = '/portal/preauthorizations';
 export const UPLOAD_PATH = '/portal/upload';
-// Staff enter invoices, finish drafts and match invoices to cases here.
-export const INTAKE_PATH = '/intake';
+export const STAFF_UPLOAD_PATH = '/upload';
+// Intake's old address, retired with the case-based form: it goes to To review.
+export const RETIRED_INTAKE_PATH = '/intake';
 // The case (or professional) choice meaning "not known yet; match it later".
 export const LATER = 'later';
 
@@ -22,9 +23,9 @@ export function useShell() {
     staff,
     casePath: (caseId: string) => (staff ? `/cases/${caseId}` : `/portal/cases/${caseId}`),
     invoicePath: (invoiceId: string) => (staff ? reviewPath(invoiceId) : `/portal/invoices/${invoiceId}`),
-    newInvoicePath: staff ? INTAKE_PATH : UPLOAD_PATH,
-    newInvoiceLabel: staff ? 'Intake' : 'New invoice',
-    invoicesPath: staff ? INTAKE_PATH : PORTAL_HOME_PATH,
-    invoicesLabel: staff ? 'Intake' : 'Your invoices',
+    newInvoicePath: staff ? STAFF_UPLOAD_PATH : UPLOAD_PATH,
+    newInvoiceLabel: staff ? 'Upload invoices' : 'New invoice',
+    invoicesPath: staff ? '/' : PORTAL_HOME_PATH,
+    invoicesLabel: staff ? 'To review' : 'Your invoices',
   };
 }

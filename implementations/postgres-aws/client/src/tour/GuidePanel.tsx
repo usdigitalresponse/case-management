@@ -46,6 +46,7 @@ function PaperCard({ ctx }: { ctx: TourContextValues }) {
         <CopyValue label="Received" value={String(s.receivedOn)} />
         <CopyValue label="Invoice number" value={String(s.invoiceNumber)} />
         <CopyValue label="Case number" value={String(s.caseNumber)} />
+        {s.county ? <CopyValue label="County" value={String(s.county)} /> : null}
       </dl>
       <table className="guide-card__lines">
         <thead>

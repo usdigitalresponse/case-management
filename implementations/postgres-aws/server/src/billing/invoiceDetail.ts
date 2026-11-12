@@ -77,6 +77,10 @@ const headerColumns = {
   countyDisplayName: county.displayName,
   // A staff upload, under review from the start (./enterInReview.ts).
   enteredInReview: invoice.enteredInReview,
+  // The case question (./caseChoice.ts), and on a draft the answer it is sent with.
+  caseChoice: invoice.caseChoice,
+  chosenCaseId: invoice.chosenCaseId,
+  newCaseClientName: invoice.newCaseClientName,
   linesVersion: invoice.linesVersion,
   linesChangedAt: invoice.linesChangedAt,
   linesChangedByUserAccountId: invoice.linesChangedByUserAccountId,

@@ -29,10 +29,10 @@ import { CaseAlreadyClosedError, CaseInvoicesUnfinishedError, CaseNotClosedError
 // reference data in the canonical model, not fixed app constants, so
 // these codes exist only in ../db/fixtures.ts (test/dev), not
 // ../db/ensureReferenceData.ts; see docs/api.md "Closing a case".
-const CLOSING_EVENT_TYPE_CODE = 'sample_closed';
-const CLOSED_CASE_STATUS_CODE = 'sample_closed';
-const REOPENING_EVENT_TYPE_CODE = 'sample_reopened';
-const OPEN_CASE_STATUS_CODE = 'sample_open';
+export const CLOSING_EVENT_TYPE_CODE = 'sample_closed';
+export const CLOSED_CASE_STATUS_CODE = 'sample_closed';
+export const REOPENING_EVENT_TYPE_CODE = 'sample_reopened';
+export const OPEN_CASE_STATUS_CODE = 'sample_open';
 
 export const closeCaseInputSchema = z.object({
   // model/rules.yaml: closing requires a reason.
@@ -125,7 +125,7 @@ export async function unfinishedInvoices(db: DatabaseOrTransaction, caseId: stri
   };
 }
 
-async function nextLifecycleSequence(tx: Transaction, caseId: string): Promise<number> {
+export async function nextLifecycleSequence(tx: Transaction, caseId: string): Promise<number> {
   const [latestEvent] = await tx
     .select({ sequenceNumber: caseLifecycleEvent.sequenceNumber })
     .from(caseLifecycleEvent)

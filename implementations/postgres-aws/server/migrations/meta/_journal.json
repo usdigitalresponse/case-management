@@ -330,6 +330,13 @@
       "when": 1794501513173,
       "tag": "0046_link_accounts_to_people",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794508902493,
+      "tag": "0047_cases_through_invoices",
+      "breakpoints": true
     }
   ]
 }

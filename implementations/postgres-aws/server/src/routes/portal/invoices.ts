@@ -17,6 +17,7 @@ import { decisionCommentsOf, loadInvoiceDetail, type InvoiceDetail } from '../..
 import { recallInvoice, withdrawInvoice } from '../../billing/invoiceLifecycle/withdraw';
 import { setDraftCase, setDraftCaseNumber, setDraftCounty, setDraftDetails, setDraftSender, updateDraftInvoice } from '../../billing/invoiceLifecycle/drafts';
 import { submitInvoice } from '../../billing/invoiceLifecycle/submit';
+import { applyCaseChoiceAfterSend, caseStepFor, setDraftCaseChoice } from '../../billing/caseChoice';
 import { listCounties } from '../../cases/counties';
 import { InvoiceNotFoundError } from '../../billing/reviewInvoiceLine';
 import { answerQuestionAsSubmitter, mayAnswerAsSubmitter } from '../../billing/reviewQuestions';
@@ -101,16 +102,50 @@ router.post(
   }),
 );
 
-const transitions = { submit: submitInvoice, recall: recallInvoice };
-for (const [action, transition] of Object.entries(transitions)) {
-  router.post(
-    `/invoices/:id/${action}`,
-    asyncHandler(async (req, res) => {
-      // Submit takes how and when a staff-entered invoice was received.
-      res.json(await transition(db, await sessionActor(req), req.params.id as string, req.body));
-    }),
-  );
-}
+// Takes how and when a staff-entered invoice was received; a staff member's
+// is then matched to the case they chose, or added (../../billing/caseChoice.ts).
+router.post(
+  '/invoices/:id/submit',
+  asyncHandler(async (req, res) => {
+    const actor = await sessionActor(req);
+    const invoiceId = req.params.id as string;
+    const sent = await submitInvoice(db, actor, invoiceId, req.body);
+    if (sent.status !== 'submitted' || !(await isStaffAccount(db, actor.userAccountId))) {
+      res.json(sent);
+      return;
+    }
+    const matched = await applyCaseChoiceAfterSend(db, actor.userAccountId, invoiceId);
+    await tagTourRecord(req, 'case', matched.addedCaseId ?? undefined);
+    res.json({ ...sent, caseId: matched.caseId, caseProblem: matched.caseProblem });
+  }),
+);
+
+router.post(
+  '/invoices/:id/recall',
+  asyncHandler(async (req, res) => {
+    res.json(await recallInvoice(db, await sessionActor(req), req.params.id as string));
+  }),
+);
+
+// Staff: the cases the draft's number and county find.
+router.get(
+  '/invoices/:id/case-matches',
+  asyncHandler(async (req, res) => {
+    const actor = await sessionActor(req);
+    if (!(await isStaffAccount(db, actor.userAccountId))) {
+      throw new InvoiceNotFoundError();
+    }
+    await loadReadableOrThrow(req);
+    res.json(await caseStepFor(db, req.params.id as string));
+  }),
+);
+
+router.put(
+  '/invoices/:id/case-choice',
+  asyncHandler(async (req, res) => {
+    res.json(await setDraftCaseChoice(db, await sessionActor(req), req.params.id as string, req.body));
+  }),
+);
 
 router.get(
   '/invoices',

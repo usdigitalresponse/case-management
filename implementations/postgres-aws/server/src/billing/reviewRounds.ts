@@ -37,6 +37,7 @@ import { OTHER_REASON_CODE } from './decisionReasons';
 import { fromCents, toCents } from './money';
 import { closeEntry, entryIsOpen } from './enterInReview';
 import { receiptInputSchema } from './invoiceReceipt';
+import { requireCaseAnswered } from './proposedDetails';
 import { keepsBilledHours, linesBlockedByTimeLog, removeTimeLog } from './reviewTimeLog';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 
@@ -217,6 +218,8 @@ export async function finishReview(db: Database, actorUserAccountId: string, inv
     }
     const chainId = (await currentChainId(tx, invoiceId)) as string;
     if (await entryIsOpen(tx, invoiceId)) {
+      const [entered] = await tx.select({ caseId: invoice.caseId, caseChoice: invoice.caseChoice }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+      requireCaseAnswered(entered!);
       await closeEntry(tx, actorUserAccountId, invoiceId, chainId, receipt.data);
     }
     const [lines, working, otherReasonId] = await Promise.all([

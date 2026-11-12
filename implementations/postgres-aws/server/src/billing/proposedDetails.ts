@@ -1,11 +1,12 @@
 // Details a submitter enters when the case, provider or a line's timekeeper
 // isn't listed (model/rules.yaml match_invoice_to_case). They never create
-// records; a request carrying any unresolved one waits in intake.
+// records; a request carrying any unresolved one sent before the case step waits in intake.
 import { z } from 'zod';
 import { and, eq, isNotNull, isNull, type SQL } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
 import { invoiceLine } from '../db/schema';
 import { optionalEmail } from '../people/emails';
+import { ValidationError } from '../errors';
 
 const text = (max: number) => z.string().trim().max(max);
 const optionalText = (max: number) =>
@@ -41,14 +42,22 @@ export async function hasUnmatchedTimekeepers(tx: Transaction, invoiceId: string
 }
 
 // What staff still have to match before the request can go to review. One
-// filed by person (with a typed case number) needs no case.
+// filed by person needs no case: it says which case it is for, or not.
 export async function needsMatching(
   tx: Transaction,
   row: { invoiceId: string; caseId: string | null; professionalId: string | null; caseNumberAsTyped: string | null },
-  options: { withoutCase?: boolean } = {},
+  options: { withoutCase?: boolean; filedByPerson?: boolean } = {},
 ): Promise<boolean> {
-  if ((row.caseId === null && !row.caseNumberAsTyped && !options.withoutCase) || row.professionalId === null) {
+  const caseKnown = row.caseId !== null || Boolean(row.caseNumberAsTyped) || options.withoutCase || options.filedByPerson;
+  if (!caseKnown || row.professionalId === null) {
     return true;
   }
   return hasUnmatchedTimekeepers(tx, row.invoiceId);
+}
+
+// Staff must answer the case question (../billing/caseChoice.ts) before sending, or finishing an entry's first round.
+export function requireCaseAnswered(row: { caseId: string | null; caseChoice: string | null }) {
+  if (!row.caseId && !row.caseChoice) {
+    throw new ValidationError({ caseChoice: 'Say which case this invoice is for, or that it isn’t for one case.' });
+  }
 }

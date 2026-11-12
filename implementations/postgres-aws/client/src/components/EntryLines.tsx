@@ -26,7 +26,8 @@ import { OriginalDocument } from './OriginalDocument';
 import type { ToastMessage } from './Toast';
 
 // Needed to finish the review.
-export function EnteredCaseNumber({ invoice }: { invoice: InvoiceReview['invoice'] }) {
+// onSaved: so the case step looks again for the number and county.
+export function EnteredCaseNumber({ invoice, onSaved }: { invoice: InvoiceReview['invoice']; onSaved: () => void }) {
   const [value, setValue] = useState(invoice.caseNumberAsTyped ?? '');
   const missing = !value.trim();
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +37,7 @@ export function EnteredCaseNumber({ invoice }: { invoice: InvoiceReview['invoice
     const previous = saved.current;
     saved.current = value;
     setError(null);
-    setEnteredCaseNumber(invoice.invoiceId, value).catch((err: unknown) => {
+    setEnteredCaseNumber(invoice.invoiceId, value).then(onSaved, (err: unknown) => {
       saved.current = previous;
       setError(apiErrorMessage(err, 'The case number could not be saved. Try again.'));
     });
@@ -48,7 +49,7 @@ export function EnteredCaseNumber({ invoice }: { invoice: InvoiceReview['invoice
       placeholder="For example, 26-CR-00418"
       value={value}
       readOnly={false}
-      hint={missing ? 'Add the case number before you finish.' : 'As written on the invoice. It is not checked against a list of cases.'}
+      hint={missing ? 'Type the case number, if the invoice gives one.' : 'As written on the invoice. Below, say which case it is for.'}
       error={error}
       missing={missing}
       onChange={setValue}
@@ -57,7 +58,12 @@ export function EnteredCaseNumber({ invoice }: { invoice: InvoiceReview['invoice
         <SavedCountyPicker
           id="entered-county"
           initial={countyValueOf(invoice)}
-          save={(choice) => setEnteredCounty(invoice.invoiceId, choice)}
+          save={(choice) =>
+            setEnteredCounty(invoice.invoiceId, choice).then((saved) => {
+              onSaved();
+              return saved;
+            })
+          }
           hint="Or post-conviction or prison, if that is what it is for."
         />
       }

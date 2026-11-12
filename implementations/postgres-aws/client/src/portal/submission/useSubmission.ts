@@ -16,7 +16,7 @@ import { formatMoney } from '../../formatMoney';
 import type { useToast } from '../../components/Toast';
 import { useReceipt } from '../ReceivedFields';
 import { useLineEntry } from '../useLineEntry';
-import { INTAKE_PATH, PORTAL_HOME_PATH, useShell } from '../useShell';
+import { PORTAL_HOME_PATH, useShell } from '../useShell';
 import { checkLinesPath, type CheckQueue } from '../checkQueue';
 import { linesSummary, submissionFacts } from './submissionFacts';
 
@@ -83,7 +83,8 @@ export function useSubmission({
   const [sendError, setSendError] = useState<string | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
-  const [caseNumberMissing, setCaseNumberMissing] = useState(false);
+  // Staff tried to send without saying which case it is for.
+  const [caseAnswerMissing, setCaseAnswerMissing] = useState(false);
   const [answering, setAnswering] = useState(false);
   // From the latest load, so choosing a case shows it; a refused send's note
   // holds only until the next load.
@@ -117,19 +118,18 @@ export function useSubmission({
       if (fileSource && fileSource.importStatusCode !== 'confirmed') {
         await resolveInvoiceImport(fileSource.invoiceImportId, 'confirm');
       }
-      const { status: sentAs } = await transitionInvoice(
+      const { status: sentAs, caseProblem } = await transitionInvoice(
         invoice.invoiceId,
         'submit',
         { ...(byPerson ? { ...receipt.payload, attested: !staff, filedByPerson: true } : { attested: true }), ...extra },
       );
       setSending(false);
       setToast({
-        message:
-          sentAs !== 'awaiting_match'
+        message: caseProblem
+          ? `Invoice sent for review, without its case: ${caseProblem} Choose it on the review page.`
+          : sentAs !== 'awaiting_match'
             ? 'Invoice sent for review.'
-            : byPerson
-              ? 'Invoice sent. Who billed it isn’t chosen, so it waits on Intake first.'
-              : 'Invoice sent. The billing office will match its case, then review it.',
+            : 'Invoice sent. Who billed it isn’t chosen, so it waits to be matched first.',
         undo: () => transitionInvoice(invoice.invoiceId, 'recall').then(onChanged),
       });
       if (!goOn()) {
@@ -160,10 +160,11 @@ export function useSubmission({
 
   async function startSending() {
     const noSender = byPerson && !invoice.professionalId;
-    const noCaseNumber = byPerson && !invoice.caseId && !typedCaseNumber.trim();
+    // External senders may leave the case question unanswered (model/rules.yaml match_invoice_to_case).
+    const noCaseAnswer = byPerson && staff && !invoice.caseId && !invoice.caseChoice;
     setSenderMissing(noSender);
-    if (noCaseNumber) setCaseNumberMissing(true);
-    if (noSender || noCaseNumber) return;
+    if (noCaseAnswer) setCaseAnswerMissing(true);
+    if (noSender || noCaseAnswer) return;
     // The case number box otherwise saves only on losing focus.
     if (!(await flush())) return;
     try {
@@ -176,7 +177,7 @@ export function useSubmission({
 
   async function finishLater() {
     if (!(await flush())) return;
-    if (!goOn()) navigate(byPerson && staff ? INTAKE_PATH : PORTAL_HOME_PATH);
+    if (!goOn()) navigate(byPerson && staff ? '/' : PORTAL_HOME_PATH);
   }
 
   async function answer(questionId: string, text: string) {
@@ -220,7 +221,7 @@ export function useSubmission({
     setWithdrawing,
     withdrawError,
     setWithdrawError,
-    caseNumberMissing,
+    caseAnswerMissing,
     answering,
     overrun,
     receipt,

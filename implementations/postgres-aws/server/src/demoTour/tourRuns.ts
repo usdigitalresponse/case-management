@@ -48,13 +48,15 @@ interface ForeignKey {
   child: string;
   column: string;
   parent: string;
+  nullable: boolean;
 }
 
 type SchemaGraph = Awaited<ReturnType<typeof schemaGraph>>;
 
 async function schemaGraph(tx: DatabaseOrTransaction) {
-  const keys = await tx.execute<{ child: string; column: string; parent: string }>(sql`
-    select con.conrelid::regclass::text as child, a.attname::text as column, con.confrelid::regclass::text as parent
+  const keys = await tx.execute<{ child: string; column: string; parent: string; nullable: boolean }>(sql`
+    select con.conrelid::regclass::text as child, a.attname::text as column, con.confrelid::regclass::text as parent,
+      not a.attnotnull as nullable
     from pg_constraint con
     join pg_namespace n on n.oid = con.connamespace and n.nspname = 'public'
     join pg_attribute a on a.attrelid = con.conrelid and a.attnum = con.conkey[1]
@@ -69,7 +71,7 @@ async function schemaGraph(tx: DatabaseOrTransaction) {
   // regclass quotes reserved names ("case"); use the bare name throughout.
   const bare = (name: string) => name.replace(/^"|"$/g, '');
   const foreignKeys: ForeignKey[] = keys.rows
-    .map((row) => ({ child: bare(row.child), column: row.column, parent: bare(row.parent) }))
+    .map((row) => ({ child: bare(row.child), column: row.column, parent: bare(row.parent), nullable: row.nullable }))
     .filter((key) => !key.child.startsWith('demo_tour_'));
   const primaryKey = new Map(primaries.rows.map((row) => [bare(row.table), row.column]));
   return { foreignKeys, primaryKey };
@@ -160,21 +162,28 @@ async function collectRun(tx: DatabaseOrTransaction, runId: string, { foreignKey
   return { found, foreignKeys, primaryKey };
 }
 
-// Children before parents; a table referencing itself is one statement.
-function deletionOrder(found: Map<string, Set<string>>, foreignKeys: ForeignKey[]): string[] {
+// Children before parents; a table referencing itself is one statement. Where
+// tables point at each other (a case and the invoice it was added from), the
+// optional references among them are cleared first instead of ordering it.
+function deletionOrder(found: Map<string, Set<string>>, foreignKeys: ForeignKey[]): { order: string[]; clear: ForeignKey[] } {
   const pending = new Set(found.keys());
   const order: string[] = [];
+  const clear: ForeignKey[] = [];
+  const blocks = (key: ForeignKey) => !clear.includes(key) && key.child !== key.parent && pending.has(key.child);
   while (pending.size > 0) {
-    const ready = [...pending].filter(
-      (name) => !foreignKeys.some((key) => key.parent === name && key.child !== name && pending.has(key.child)),
-    );
-    if (ready.length === 0) throw new KeepRun(`its tables reference each other in a cycle: ${[...pending].join(', ')}`);
+    const ready = [...pending].filter((name) => !foreignKeys.some((key) => key.parent === name && blocks(key)));
+    if (ready.length === 0) {
+      const breakable = foreignKeys.filter((key) => key.nullable && pending.has(key.parent) && blocks(key));
+      if (breakable.length === 0) throw new KeepRun(`its tables reference each other in a cycle: ${[...pending].join(', ')}`);
+      clear.push(...breakable);
+      continue;
+    }
     for (const name of ready) {
       pending.delete(name);
       order.push(name);
     }
   }
-  return order;
+  return { order, clear };
 }
 
 export async function removeTourRun(
@@ -198,7 +207,14 @@ export async function removeTourRun(
           where ${table(primaryKey.get(key.child)!)} = any(${ids(found.get(key.child)!)}) and ${table(key.column)} is not null`);
         for (const row of rows.rows) documentIds.add(row.id);
       }
-      for (const name of deletionOrder(found, foreignKeys)) {
+      const { order, clear } = deletionOrder(found, foreignKeys);
+      for (const key of clear) {
+        // eslint-disable-next-line no-await-in-loop
+        await tx.execute(sql`
+          update ${table(key.child)} set ${table(key.column)} = null
+          where ${table(primaryKey.get(key.child)!)} = any(${ids(found.get(key.child)!)}) and ${table(key.column)} = any(${ids(found.get(key.parent)!)})`);
+      }
+      for (const name of order) {
         // eslint-disable-next-line no-await-in-loop
         await tx.execute(sql`delete from ${table(name)} where ${table(primaryKey.get(name)!)} = any(${ids(found.get(name)!)})`);
       }

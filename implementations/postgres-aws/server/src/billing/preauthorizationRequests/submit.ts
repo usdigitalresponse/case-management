@@ -41,8 +41,12 @@ const requestInputSchema = z
     receivedVia: z.string().trim().max(100).optional(),
     receivedOn: z.iso.date().optional(),
     requestedForPersonId: z.uuid().nullable().optional(),
+    // Work not for one case, such as court observation, in this county.
+    notForCase: z.boolean().optional(),
+    countyId: z.uuid().nullable().optional(),
   })
-  .refine((input) => input.caseId || input.proposedCase, { path: ['caseId'], message: 'Choose the case, or enter its number.' })
+  .refine((input) => input.caseId || input.proposedCase || input.notForCase, { path: ['caseId'], message: 'Choose the case, enter its number, or say it isn’t for one case.' })
+  .refine((input) => !input.notForCase || input.countyId, { path: ['countyId'], message: 'Choose the county.' })
   .refine((input) => input.professionalId || input.proposedProvider, { path: ['professionalId'], message: 'Choose the provider, or enter their name.' })
   .refine((input) => input.rateBasis === 'flat' || input.requestedRate, { path: ['requestedRate'], message: 'Enter the rate.' });
 
@@ -98,7 +102,8 @@ export async function listRequestableProviders(db: DatabaseOrTransaction, actor:
 export async function createPreauthorizationRequest(db: Database, actor: PortalActor, rawInput: unknown) {
   const input = parse(requestInputSchema, rawInput);
   const staff = await isStaffAccount(db, actor.userAccountId);
-  const caseId = input.caseId ?? null;
+  const notForCase = Boolean(input.notForCase);
+  const caseId = notForCase ? null : (input.caseId ?? null);
   const professionalId = input.professionalId ?? null;
   if (!staff) {
     if (caseId) await requireRequesterOnCase(db, actor, caseId);
@@ -121,9 +126,11 @@ export async function createPreauthorizationRequest(db: Database, actor: PortalA
           caseId,
           professionalId,
           proposedDetails:
-            input.proposedCase || input.proposedProvider
-              ? { case: caseId ? undefined : input.proposedCase, provider: professionalId ? undefined : input.proposedProvider }
+            (input.proposedCase && !notForCase) || input.proposedProvider
+              ? { case: caseId || notForCase ? undefined : input.proposedCase, provider: professionalId ? undefined : input.proposedProvider }
               : null,
+          notForCase,
+          countyId: notForCase ? (input.countyId ?? null) : null,
           preauthorizationId,
           professionalKindId: input.professionalKindId ?? null,
           serviceDescription: input.serviceDescription,

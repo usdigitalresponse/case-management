@@ -307,10 +307,11 @@ export function transitionInvoice(
   invoiceId: string,
   transition: InvoiceTransition,
   receipt?: InvoiceReceipt,
-): Promise<{ invoiceId: string; status?: SendStatus }> {
+  // Sent by staff: why the case they chose couldn't be matched, if it couldn't.
+): Promise<{ invoiceId: string; status?: SendStatus; caseProblem?: string | null }> {
   // Sending names the browser's zone, so the emailed receipt's time matches the sender's day.
   const body = transition === 'submit' ? { ...receipt, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } : receipt;
-  return request<{ invoiceId: string; status?: SendStatus }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
+  return request<{ invoiceId: string; status?: SendStatus; caseProblem?: string | null }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
     method: 'POST',
     body: body ? JSON.stringify(body) : undefined,
   });

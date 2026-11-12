@@ -92,8 +92,12 @@ model but not yet a product priority.
 ### Case Intake and Management (later scope, except as review needs it)
 
 Review keeps a lightweight case record: case numbers, client, county or other
-setting, the providers on the case, and pre-authorized amounts. Staff create
-cases from invoices during review, after duplicate and close-match checks.
+setting, the providers on the case, and pre-authorized amounts. Cases are
+added only through invoices and pre-authorization requests: staff confirm a
+case number and county already on the request, and the case is found or added
+from them, never by re-entering it from the case management system. Work that
+isn't for one case, such as court observation, says so and is counted by its
+county. Administrators fix cases added by mistake.
 
 - Structured client and case information
 - Duplicate detection

@@ -314,8 +314,8 @@ export async function matchInvoiceToCase(db: Database, actorUserAccountId: strin
   if (row.caseId !== null && row.caseId !== caseId) {
     throw new ValidationError({ caseId: 'This invoice already has its case.' });
   }
-  const [target] = await db.select({ closedOn: caseTable.closedOn }).from(caseTable).where(eq(caseTable.caseId, caseId));
-  if (!target) {
+  const [target] = await db.select({ closedOn: caseTable.closedOn, closedAsMistake: caseTable.closedAsMistake }).from(caseTable).where(eq(caseTable.caseId, caseId));
+  if (!target || target.closedAsMistake) {
     throw new ValidationError({ caseId: 'Choose a case.' });
   }
 

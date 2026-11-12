@@ -17,8 +17,11 @@ export function TypedCaseNumber({
   corrected,
   chosenCase = null,
   onFocus,
+  onSaved,
   county,
 }: {
+  // Once a changed number is saved, so the case it finds is looked up again.
+  onSaved?: () => void;
   invoiceId: string;
   county: ReactNode;
   // The sender's case it is under, instead of a typed number.
@@ -43,7 +46,7 @@ export function TypedCaseNumber({
     const previous = saved.current;
     saved.current = value;
     setError(null);
-    setDraftCaseNumber(invoiceId, value).catch((err: unknown) => {
+    setDraftCaseNumber(invoiceId, value).then(onSaved, (err: unknown) => {
       saved.current = previous;
       setError(apiErrorMessage(err, 'The case number could not be saved. Try again.'));
     });

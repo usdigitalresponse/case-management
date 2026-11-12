@@ -60,9 +60,9 @@ How the React client is built and why. Schema mapping and gaps are in
     the file's timekeeper names; a line matching no one falls back to the
     person most of the invoice's other lines matched, else the sender, when
     the draft is made and again on sending (`billing/timekeeperFallback.ts`).
-    So every invoice filed by person goes to review, and none waits on
-    Intake. A submitter's true-and-correct statement names the
-    case number (`attestationStatement`), and the receipt email shows it.
+    So every invoice filed by person goes to review. A submitter's
+    true-and-correct statement names the case number, if they gave one
+    (`attestationStatement`), and the receipt email shows it.
     Several files are checked one after another, by staff and submitters
     alike. With no file, or when none could be read, "Enter an invoice by
     hand" makes an empty draft filed the same way. Changing the sender re-runs
@@ -89,16 +89,13 @@ How the React client is built and why. Schema mapping and gaps are in
     anything lasting names them; unsent drafts and open entries naming them
     are left with no one chosen. The typed number is `invoice.case_number_as_typed`
     (migration `0020`), never checked against cases; close matches ignore
-    case, spaces, dashes and leading zeros. Intake's own drop zone and
-    manual entry still open the case-based upload
-    (`client/src/portal/PortalUpload.tsx`).
+    case, spaces, dashes and leading zeros.
   - The rest of design G (G13, G15–G24):
     - **Sidebar**, as G: To review, Assigned to you, Finished; People, Exports; the external
       system link. It keeps "+ Upload Invoices" and, for administrators, Settings. Design I
       adds a Cases group (Case overview, All cases with the open count) and Providers, Clients
-      and Organizations; Intake and the case-led queue are off it but work by address. A staff
-      member's unsent drafts lead To review (from `GET /api/invoices/intake`), with a notice
-      linking to Intake if anything is ever held there.
+      and Organizations; the case-led queue is off it but works by address. A staff
+      member's unsent drafts lead To review (from `GET /api/invoices/intake`).
     - **People** (`/people`, `client/src/pages/People.tsx`) replaces Cases and Providers in the
       sidebar. It lists everyone who can send invoices, with their role, who they are paid
       through, today's approved rate, what is waiting and their last invoice
@@ -125,20 +122,9 @@ How the React client is built and why. Schema mapping and gaps are in
       counts and "See all invoices with this case number". The facts show the person's
       approved rate.
     - **Cases on review** (design I; `match_invoice_to_case`): below the case number box,
-      "Match it to a case" lists cases whose number, or any other number they have, matches
-      the invoice's exactly or closely (`GET /api/invoices/:id/case-matches`,
-      `server/src/cases/casesByNumber.ts`; `client/src/components/CaseCard.tsx`). Matching
-      uses the intake match (`POST /api/invoices/intake/:id/case`), which now also takes an
-      invoice filed by person while its lines are reviewed: it sets the case, adds the
-      sender to it and records `matched_to_case`, but doesn't price lines again. The cases
-      are radio buttons with one Match button, an exact match chosen to start with and
-      a close one never, and a close match says so (design J, J61). A case is never started from an invoice: with no case to match,
-      the card says the invoice can be reviewed without one. Every review page is titled with the sender, as in I15; a matched
-      invoice then has a case card: "Client · case number", the number the invoice gave,
-      one line with the pre-authorized amount and what's approved so far, and "Open the
-      case". A mileage line over the driving route is highlighted in the line table with
-      the route and the miles over, as in the travel log (I20). Case rates that would now apply are flagged as
-      changed since it was sent (`caseRatesChangedSince`).
+      the case step (see "The case step" below) suggests, finds or adds the invoice's
+      case; matching keeps its sent prices, adds the sender to the case and records
+      `matched_to_case`.
     - **Possible double billing** (`flag_overlapping_invoice_period`;
       `client/src/components/BillingOverlaps.tsx`): a warning on the review page, and on the
       check page while it's a draft ("Some of these dates are already billed" for a
@@ -285,128 +271,42 @@ How the React client is built and why. Schema mapping and gaps are in
   - Hidden, not removed: the case page's lifecycle history is off the page
     but its code remains (design I put Case overview, People, Clients and
     Organizations back in the sidebar). Closing is at the foot of the case
-    page ("Closing the case here"), only once its invoices are finished. Starting a
-    case from an invoice is out of scope (design J): the review page and Intake
-    match an invoice to an existing case only, which adds its sender to it. The
-    new case page (`/cases/new`, `NewCaseIntake.tsx`) is off the menu and reached
-    only when staff match a pre-authorization request whose case wasn't listed.
+    page ("Closing the case here"), only once its invoices are finished. Cases are
+    added only through invoices and pre-authorization requests (the case step, below).
     The case pages have no Add case or Add person (`AddPersonToCase.tsx` stays,
     unused).
   - Links to the external case management system ("Open the case in…",
     the sidebar link) are disabled placeholders; nothing is integrated.
-  - Staff "Intake" (`/intake`, off the sidebar since design G;
-    `client/src/pages/InvoiceIntake.tsx`) is one page for invoices a
-    professional sent by email or from another tool (`model/rules.yaml`
-    `authorize_staff_invoice_entry`). It starts the same way as external submitters: dropping or
-    choosing files opens the upload (`client/src/portal/PortalUpload.tsx` at
-    `/portal/upload`) with them, and "Enter an invoice by hand" opens its
-    manual entry. There the case list offers every open case with an
-    assigned provider, a new case, or none yet with an optional "From"
-    provider; one held with no case waits under "Waiting for a case".
-    One file goes on to the import review page to check its lines; several
-    return to Intake with a banner. The older bulk import page
-    (`/portal/imports`) is no longer linked but still works. "Waiting for a
-    case" and "Drafts to finish" follow below. The old staff
-    `/new-invoice` redirects here. It reuses the portal's pages at the same
-    paths (`/portal/upload`, `/portal/imports/:id`, `/portal/invoices/:id`);
-    `portal/useShell.ts` switches the few links that differ, such as the
-    case page and where "back" goes, using `isStaff` from `/auth/me` (the
-    server's `isStaffAccount` role check, not the sign-in method). Staff-only
-    receipt fields come from `portal/ReceivedFields.tsx` `useReceipt`, and
-    every billing entry point checks `portalActor.ts` `authorizeBilling`. Any active
-    staff role may bill any professional assigned to the case:
-    `server/src/portal/portalActor.ts` treats a staff account as
-    representing every assigned professional, so time, invoice, import and
-    case-list checks all apply unchanged. Submitting requires how and when it
-    was received (`invoice.received_via_id`, `received_on`;
-    `server/src/billing/invoiceReceipt.ts`), and queue waiting time counts
-    from `received_on`. Staff finish their drafts on Intake; a submitted
-    one links to its review page.
-  - Intake's "Waiting for a case" (`server/src/billing/invoiceIntake.ts`)
-    lists staff drafts with no case (migration `0012` makes
-    `invoice.case_id` and `invoice_line.case_id` nullable) and caseless
-    imports still being read (`model/rules.yaml` `match_invoice_to_case`).
-    "Billing for" may be left blank (migration `0013` makes
-    `invoice.professional_id` nullable); Match then asks "From" and
-    reprices the time. With no case, any active professional can be chosen
-    and there is no unbilled-time picker. "Match to a case" (`POST
-    /api/invoices/intake/:id/case`) sets the case on the invoice, its lines
-    and its import, and who did the work on lines naming someone not listed
-    (`timekeepers`, by line), records `matched_to_case`, and with
-    `addMissing` assigns missing providers as external submitters. Its
-    case picker searches existing cases only (design J); the "From" and
-    per-line pickers can still add a provider on the spot (below). The
-    waiting list follows J66: From, Case number as typed, Sent, Amount,
-    What's missing (in words) and "Match it to a case".
-    A held file's draft keeps the case and professional its reading
-    suggested (`invoice_import.suggested_case_id` and
-    `suggested_professional_id`, migration `0017`, by the upload rules
-    below), and Match starts with them selected, marked "Named in the file:
-    check it", while the case is open and the provider active.
-    The invoice page's "Review without a case" submits with `withoutCase`;
-    then no time entries are created, the default reviewer applies (no
-    per-case reviewer), pre-authorization and case-rate limits are skipped,
-    and the queue (`no_case` flag), review page, exports and billing record
-    warn. Adding a provider (`POST /api/professionals`,
-    `server/src/professionals/addProfessional.ts`) creates a person and
-    professional with no account (`add_professional_without_login`);
-    `ensureProfessional.ts` links it on first sign-in by email.
-  - Adding what isn't listed (`model/rules.yaml` `match_invoice_to_case`):
-    every case and person picker is `client/src/components/PickOrAdd.tsx`,
-    whose first option adds one, showing its fields; given `search`, as for
-    staff's cases and providers (lists too long to load), it is a type-ahead
-    on the server's search with the same first option
-    (`components/NewEntryFields.tsx`; the type-ahead searches on New case
-    offer it first too). Nothing has to be
-    chosen to continue: what isn't known waits on Intake. A submitter's
-    entry is only details on the invoice (`invoice.proposed_case`,
-    `proposed_provider`, `invoice_line.proposed_timekeeper_name`, migration
-    `0018`, and `proposed_timekeeper_email`, `0019`; `server/src/billing/proposedDetails.ts`), kept after matching
-    and flagged "entered by the submitter" on Intake, their own page, the
-    review page and line tables. Staff create the record instead: a
-    provider through `AddProvider` inline (on an invoice with a case, also
-    assigned to it: `useAddedProviders`, used by "Billing for", the line
-    pickers and "Set work done by for several items"), a case through `POST /api/cases`
-    with `newClient` and `caseNumber` (kept as `external_reference`),
-    refusing an email or name already in the system unless confirmed as
-    someone else, and an existing case number. On the upload and manual
-    entry, a staff member's new case is created on continuing once whom it
-    bills is known, and the invoice matched to it; otherwise its details go
-    with the invoice to Intake. Naming someone not listed on one line
-    offers to use them for every other item. Sending an invoice whose
-    case, provider or any line's worker is still unknown
-    (`invoiceLifecycle/submit.ts` `submitInTx`) attests as usual but sets status
-    `awaiting_match` ("Waiting for its case") with a `sent_for_matching`
-    event, pricing strictly first when its provider is known; import
-    confirmation no longer needs every line matched, keeping a named but
-    unchosen timekeeper as `proposed_timekeeper_name`, and prices strictly
-    only once nothing is left to match. Intake lists these as "Sent by the
-    submitter"; matching the last of them releases it to review
-    (`releaseToReviewInTx`, `released_to_review` event): time entries,
-    strict pricing, rules, snapshot and routing run as on submission, and
-    the attestation is recorded with the sending time. The submitter may
-    recall it to draft until then; exports skip it. Staff may instead send
-    any of these back (`POST /api/invoices/intake/:id/return`, a reason
-    required; `returnToSubmitter`): it returns to draft with a
-    `returned_to_submitter` event holding the reason, and the latest such
-    event's reason (`invoiceEvents.ts` `returnedReason`) is shown on the
-    invoice, as a red "Needs changes" status, and under "Needs your
-    changes" at the top of Your invoices, until it's sent again. Intake's
-    held drafts are only those staff entered, so a returned or unsent
-    submitter's draft stays theirs. With no case, a
-    submitter may bill themselves or those they act for
-    (`billableProfessionalIds`), and anyone who may bill on a case may leave
-    its provider unknown.
-    Gaps: only the staff member who entered a draft can submit it; a
-    request whose lines fail strict pricing at release (e.g. a time line
-    with no hours for someone new) is matched but stays waiting, with the
-    reason shown, until staff send it back; the inline new case takes only the
-    client's name and email, the case number, role and status (the rest is
-    added on the case page; an existing client is chosen on New case); a
-    one-person file split across cases
-    needs a case for every line; added assignments start on matching,
-    which passes because assignment is checked as of now, not on each
-    line's service date (as for delegates, below).
+  - **Retired**: staff Intake (`/intake`), the case-based new-invoice form
+    (`/new-invoice`, `NewInvoiceForm`) and upload (staff `/portal/upload`), and the
+    new case page (`/cases/new`) were deleted once cases came to be added through
+    invoices; their addresses redirect to To review, the upload filed by person and
+    All cases. Staff enter invoices by person on the upload page, and a staff
+    member's unsent drafts lead To review.
+  - **The case step** (`client/src/components/CaseStep.tsx`; `match_invoice_to_case`,
+    `add_case_from_request`): one "Which case is it for?" card with a For a case / Not
+    for one case segmented choice, under the case number and county on the staff check
+    page, and on the review page for an invoice in review without a case (including
+    a staff upload still being entered). For a case, it looks up the invoice's number
+    in its county (`caseMatches` resource): on a draft, the same number is chosen
+    without asking and a number nothing matches becomes a new case, added when sent,
+    with an optional client name; a close number lists the similar cases and "Add case
+    … in …" as radio buttons with none chosen. In review, the same number is only a
+    "Suggested" case with "Use this case", a reviewer may type a number for an invoice
+    that gives none, and choosing applies at once. Not for one case says the county
+    counts it. Staff can't send, or finish an entry's first round, without an answer;
+    a match that fails after sending is reported in the sent toast. External senders
+    get only the segmented choice (`NotForOneCase` in
+    `portal/submission/CaseChoice.tsx`) beside their own case list. The
+    pre-authorization match form (`preauthorizationRequest/StaffForms.tsx`) asks the
+    same question, choosing a case by search or adding one from its number, county and
+    client.
+  - **Settings, Edit data** (`pages/settings/EditData.tsx`, administrators only, a
+    `?tab=edit-data` tab beside Settings): cases added from requests (or only those with
+    a similar number), each with a Fix row: what's wrong (the same case as another,
+    its number, county or client, or its invoices aren't for one case), "See what
+    changes" (the server's preview, with any pre-authorization to keep), then the fix.
+    Recent fixes can be undone.
   - The external portal follows the invoice submission design: one top
     bar (the brand, design I's tabs Your invoices, Your cases and Import
     invoices, which opens the several-files import at `/portal/imports`,
@@ -455,8 +355,8 @@ How the React client is built and why. Schema mapping and gaps are in
     "Sending" under "Invoice import" in `api.md`); a draft's row says what
     the submitter changed from the file so far. Gap: the design's "Paid"
     status waits on external completion records, which aren't built. Staff
-    open portal invoice pages from Intake in their own shell, where the
-    older draft editor (`PortalInvoiceDetail.tsx`) still applies.
+    may still open portal invoice pages by address in their own shell, where
+    the older draft editor (`PortalInvoiceDetail.tsx`) still applies.
 - **Design system**: color roles, type roles, spacing, radius and elevation
   follow the team's Figma design system, itself built on a Keystone-style
   role scheme, and keep its names (`--color-primary`,
@@ -483,7 +383,7 @@ How the React client is built and why. Schema mapping and gaps are in
   each with its count and up to three cases, then "Recently changed". Cases
   are bucketed by their derived stage (`server/src/cases/caseStage.ts`;
   see the case pages in `intake.md`). A case is never started here: cases
-  come in with their invoices. Each card's "View all" goes to
+  are added through their invoices. Each card's "View all" goes to
   `/cases?stage=<id>`, which `client/src/pages/CaseList.tsx` filters to that
   stage. The sidebar
   condenses on small screens and columns wrap into a vertical layout. The
@@ -583,8 +483,7 @@ How the React client is built and why. Schema mapping and gaps are in
   `personDisplayName` alongside the raw `person_id` — added specifically so
   the client shows a readable name instead of a UUID (the Faker-generated
   synthetic names are otherwise invisible in the UI).
-- **Type-ahead pickers**: the person picker (`NewCaseIntake`) and the
-  staff picker (`AssignStaffForm`) share
+- **Type-ahead pickers**: the person and staff pickers (`AssignStaffForm`) share
   `client/src/components/TypeAheadPicker.tsx`, built on Downshift's
   `useCombobox` (keyboard handling and ARIA wiring) with its own minimal
   styling. It searches the server (`GET /api/people?q=` /
@@ -712,7 +611,7 @@ How the React client is built and why. Schema mapping and gaps are in
   Everything else stays in Node.
 - **`ReferenceSelect`** and **`RecordTable`** (`src/components/`) are the
   shared "label + select + reference-data options" and "empty vs.
-  bordered table" shapes used by `NewCaseIntake`/`CaseDetail`.
+  bordered table" shapes used by `CaseDetail` and others.
 - **Client/server type duplication**: `client/src/api/`'s
   `CaseRecord`/`CaseParticipant`/etc. mirror shapes from
   `server/src/db/schema.ts` by hand, with no shared types package across

@@ -147,7 +147,7 @@ export async function setDraftCounty(db: Database, actor: PortalActor, invoiceId
   });
 }
 
-async function lockOwnDraft(tx: Transaction, actor: PortalActor, invoiceId: string) {
+export async function lockOwnDraft(tx: Transaction, actor: PortalActor, invoiceId: string) {
   const { locked } = await lockOwnInvoice(tx, actor, invoiceId);
   if (locked.statusId !== (await statusId(tx, DRAFT_INVOICE_STATUS_CODE))) {
     throw new InvoiceStateError('Only a draft can be edited.');

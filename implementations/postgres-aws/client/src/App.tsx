@@ -3,7 +3,7 @@ import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, u
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './AuthContext';
 import { MERGE_PEOPLE_PATH, searchPath } from './staffPaths';
-import { INTAKE_PATH, NEW_INVOICE_PATH, UPLOAD_PATH } from './portal/useShell';
+import { RETIRED_INTAKE_PATH, NEW_INVOICE_PATH, STAFF_UPLOAD_PATH, UPLOAD_PATH } from './portal/useShell';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 import { Notice } from './components/ui/Notice';
 import { buttonClass } from './components/ui/Button';
@@ -23,7 +23,6 @@ import { TourChrome } from './tour/GuidePanel';
 // The landing page files invoices by who sent them; the earlier queue, led
 // by case and client, stays here.
 const ALTERNATE_HOME_PATH = '/home-alternate';
-const STAFF_UPLOAD_PATH = '/upload';
 
 // Only in StaffShell; the signed-out screen is LoginPage's.
 function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () => void }) {
@@ -148,10 +147,6 @@ function OldMergeRedirect() {
   return <Navigate to={`${MERGE_PEOPLE_PATH}${search}`} replace />;
 }
 
-function NewInvoiceRedirect() {
-  const { search } = useLocation();
-  return <Navigate to={`${INTAKE_PATH}${search}`} replace />;
-}
 
 function StaffShell() {
   const { user, logout } = useAuth();
@@ -200,12 +195,10 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
             { path: '/people/:professionalId', ...page(() => import('./pages/PersonPage')), ...loaders.person },
             { path: '/billing/:invoiceId', ...page(() => import('./pages/InvoiceReview')), ...loaders.review },
             { path: '/exports', ...page(() => import('./pages/Exports')), ...loaders.exports },
-            // Intake and the portal invoice and import pages it links to, in the staff shell.
+            // The upload and the portal invoice and import pages it links to, in the staff shell.
             {
               element: <div className="portal-main"><Outlet /></div>,
               children: [
-                { path: INTAKE_PATH, ...page(() => import('./pages/InvoiceIntake')), ...loaders.intake },
-                { path: UPLOAD_PATH, ...page(() => import('./portal/PortalUpload')), ...loaders.uploadByCase },
                 { path: STAFF_UPLOAD_PATH, ...page(() => import('./pages/UploadInvoices')), ...loaders.uploadByPerson },
                 { path: '/invoices/:invoiceId/check', ...pageWith(() => import('./portal/InvoiceSubmission'), { byPerson: true }), ...loaders.invoiceDetail },
                 { path: '/portal/invoices/:invoiceId', ...page(() => import('./portal/PortalInvoiceDetail')), ...loaders.invoiceDetail },
@@ -213,9 +206,12 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
                 { path: '/portal/imports/:importId', ...page(() => import('./portal/PortalImportReview')), ...loaders.importReview },
               ],
             },
-            { path: NEW_INVOICE_PATH, element: <NewInvoiceRedirect /> },
+            // Retired with the case-based form and upload: cases are added through invoices.
+            { path: RETIRED_INTAKE_PATH, element: <Navigate to="/" replace /> },
+            { path: NEW_INVOICE_PATH, element: <Navigate to={STAFF_UPLOAD_PATH} replace /> },
+            { path: UPLOAD_PATH, element: <Navigate to={STAFF_UPLOAD_PATH} replace /> },
+            { path: '/cases/new', element: <Navigate to="/cases" replace /> },
             { path: '/cases', ...page(() => import('./pages/CaseList')), ...loaders.cases },
-            { path: '/cases/new', ...page(() => import('./pages/NewCaseIntake')), ...loaders.newCase },
             { path: '/cases/:caseId', ...page(() => import('./pages/CaseDetail')), ...loaders.caseDetail },
             { path: '/vendors', ...page(() => import('./pages/VendorsDirectory')), ...loaders.providers },
             { path: '/preauthorizations', ...page(() => import('./pages/Preauthorizations')), ...loaders.preauthorizations },

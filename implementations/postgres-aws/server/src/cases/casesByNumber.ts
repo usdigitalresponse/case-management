@@ -1,7 +1,7 @@
 // Cases whose number, or any of their other numbers, is the one an invoice
 // gives: exactly, else closely (../billing/caseNumbers.ts closeKey). For
 // matching an invoice filed by person to its case.
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { unionAll } from 'drizzle-orm/pg-core';
 import type { DatabaseOrTransaction } from '../db/client';
 import { caseIdentifier, caseTable, county, person } from '../db/schema';
@@ -14,6 +14,7 @@ export interface CaseByNumber {
   caseNumber: string | null;
   otherNumbers: string[];
   clientDisplayName: string | null;
+  countyId: string | null;
   countyDisplayName: string | null;
   closed: boolean;
   match: 'exact' | 'close';
@@ -33,13 +34,14 @@ export async function findCasesByNumber(db: DatabaseOrTransaction, caseNumber: s
         caseId: caseTable.caseId,
         externalReference: caseTable.externalReference,
         clientDisplayName: person.displayName,
+        countyId: caseTable.countyId,
         countyDisplayName: county.displayName,
         closedOn: caseTable.closedOn,
       })
       .from(caseTable)
       .leftJoin(person, eq(caseTable.clientId, person.personId))
       .leftJoin(county, eq(caseTable.countyId, county.countyId))
-      .where(inArray(caseTable.caseId, keyed)),
+      .where(and(inArray(caseTable.caseId, keyed), eq(caseTable.closedAsMistake, false))),
     db
       .select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value })
       .from(caseIdentifier)
@@ -65,6 +67,7 @@ export async function findCasesByNumber(db: DatabaseOrTransaction, caseNumber: s
       caseNumber: numbers.get(row.caseId)?.caseNumber ?? null,
       otherNumbers: numbers.get(row.caseId)?.otherNumbers ?? [],
       clientDisplayName: row.clientDisplayName,
+      countyId: row.countyId,
       countyDisplayName: row.countyDisplayName,
       closed: row.closedOn !== null,
       match,

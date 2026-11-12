@@ -16,6 +16,9 @@ import {
   getPortalBillingRules,
   getProviderDocuments,
   findCaseMatches,
+  findDraftCaseMatches,
+  listAddedCases,
+  listCaseFixes,
   listAuthProviders,
   listDemoAccounts,
   listReceiptChannels,
@@ -204,8 +207,12 @@ export const preauthorizationRequest = (requestId: string) =>
 export const providerDocuments = (professionalId: string) =>
   edited({ key: ['provider-documents', professionalId], load: () => getProviderDocuments(professionalId) });
 
-export const caseMatches = (invoiceId: string, caseNumber: string) =>
-  edited({ key: ['case-matches', invoiceId, caseNumber], load: () => findCaseMatches(invoiceId) });
+// Keyed by what they look for, so a changed number or county looks again.
+export const caseMatches = (invoiceId: string, caseNumber: string, countyId: string | null, draft = false) =>
+  edited({
+    key: ['case-matches', invoiceId, caseNumber, countyId, draft],
+    load: () => (draft ? findDraftCaseMatches(invoiceId) : findCaseMatches(invoiceId, caseNumber)),
+  });
 
 
 export const receiptChannels = resource({ key: ['receipt-channels'], load: () => listReceiptChannels().then((result) => result.channels), reference: true });
@@ -242,3 +249,7 @@ export const possibleDuplicateCases = edited({
 
 export const mergePreview = (keptPersonId: string, retiredPersonIds: string[]) =>
   edited({ key: ['merge-preview', keptPersonId, ...retiredPersonIds], load: () => getMergePreview(keptPersonId, retiredPersonIds) });
+
+// Settings, Edit data: administrators only.
+export const addedCases = (show: 'added' | 'similar') => edited({ key: ['edit-data-cases', show], load: () => listAddedCases(show).then((result) => result.cases) });
+export const caseFixes = edited({ key: ['edit-data-fixes'], load: () => listCaseFixes().then((result) => result.fixes) });

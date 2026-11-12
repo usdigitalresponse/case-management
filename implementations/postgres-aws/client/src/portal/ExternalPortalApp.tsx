@@ -46,8 +46,9 @@ export function portalRoutes(loaders: typeof portalLoaders): RouteObject[] {
             { path: '/portal/imports/:importId', ...page(() => import('./PortalImportReview')), ...loaders.importReview },
             { path: PORTAL_PREAUTHORIZATIONS_PATH, ...page(() => import('./PortalPreauthorizations')), ...loaders.preauthorizations },
             { path: `${PORTAL_PREAUTHORIZATIONS_PATH}/:requestId`, lazy: async () => ({ Component: (await import('./PortalPreauthorizations')).PortalPreauthorizationRequest }), ...loaders.preauthorizationRequest },
+            // The case-based form is retired; its old address goes to the upload.
+            { path: NEW_INVOICE_PATH, element: <Navigate to={UPLOAD_PATH} replace /> },
             // Out of view; reachable by address.
-            { path: NEW_INVOICE_PATH, ...page(() => import('./PortalNewInvoice')), ...loaders.newInvoice },
             { path: '/portal/imports', ...page(() => import('./PortalBulkImport')), ...loaders.imports },
             { path: '*', element: <><h1>Page not found</h1><Link to={PORTAL_HOME_PATH}>Back to your invoices</Link></> },
           ],

@@ -6,7 +6,8 @@ import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { createInvoice } from '../src/portal/createInvoice';
 import { resolvePortalActor } from '../src/portal/portalActor';
-import { setDraftCaseNumber } from '../src/billing/invoiceLifecycle/drafts';
+import { setDraftCaseNumber, setDraftCounty } from '../src/billing/invoiceLifecycle/drafts';
+import { setDraftCaseChoice } from '../src/billing/caseChoice';
 import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
 import { listReviewQueue } from '../src/billing/reviewQueue';
 import { closeKey, labelledCaseNumber, readCaseNumber, searchMatch } from '../src/billing/caseNumbers';
@@ -70,7 +71,7 @@ describe('sending an invoice filed by person', () => {
 
   const send = { filedByPerson: true, receivedVia: 'email', receivedOn: '2026-02-03' };
 
-  it('lets an attorney send their own straight to review, attesting to the case number', async () => {
+  it('lets an attorney send their own straight to review, attesting to the case number they give', async () => {
     const email = 'attorney@example.com';
     const [account] = await testDb.insert(userAccount).values({ displayName: email, email, active: true }).returning();
     const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, email);
@@ -81,8 +82,6 @@ describe('sending an invoice filed by person', () => {
       submit: false,
       lines: [{ lineType: 'expense', amount: 80, serviceDate: '2026-02-02' }],
     });
-    await expect(submitInvoice(testDb, attorney, invoiceId, { filedByPerson: true, attested: true })).rejects.toThrow(ValidationError);
-
     await setDraftCaseNumber(testDb, attorney, invoiceId, { caseNumber: '26-CR-00418' });
     expect(await submitInvoice(testDb, attorney, invoiceId, { filedByPerson: true, attested: true })).toEqual({ invoiceId, status: 'submitted' });
     const [attestation] = await testDb
@@ -93,14 +92,16 @@ describe('sending an invoice filed by person', () => {
     expect(attestation?.statement).toBe('I confirm this invoice is true and correct, and the work was done for case 26-CR-00418.');
   });
 
-  it('needs the case number, then goes straight to review with it', async () => {
+  it('needs staff to say which case it is for, then goes straight to review with its number', async () => {
     const { staff, invoiceId } = await draftFrom('sender@example.com');
-    await expect(submitInvoice(testDb, staff, invoiceId, send)).rejects.toThrow(ValidationError);
-
     expect(await setDraftCaseNumber(testDb, staff, invoiceId, { caseNumber: '  26-CR-00418 ' })).toEqual({
       invoiceId,
       caseNumber: '26-CR-00418',
     });
+    await setDraftCounty(testDb, staff, invoiceId, { countyId: fixtures.countyId });
+    await expect(submitInvoice(testDb, staff, invoiceId, send)).rejects.toThrow(ValidationError);
+
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'new' });
     expect(await submitInvoice(testDb, staff, invoiceId, send)).toEqual({ invoiceId, status: 'submitted' });
 
     const { invoices } = await listReviewQueue(testDb, 'open');
@@ -115,6 +116,7 @@ describe('sending an invoice filed by person', () => {
     for (const [index, caseNumber] of numbers.entries()) {
       const { staff, invoiceId } = await draftFrom(`sender${index}@example.com`);
       await setDraftCaseNumber(testDb, staff, invoiceId, { caseNumber });
+      await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'none' });
       await submitInvoice(testDb, staff, invoiceId, send);
       ids.push(invoiceId);
     }

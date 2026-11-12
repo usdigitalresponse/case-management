@@ -105,7 +105,9 @@ router.post(
 router.post(
   '/requests/:id/match',
   asyncHandler(async (req, res) => {
-    res.json(await matchPreauthorizationRequest(db, (await sessionActor(req)).userAccountId, req.params.id as string, req.body));
+    const matched = await matchPreauthorizationRequest(db, (await sessionActor(req)).userAccountId, req.params.id as string, req.body);
+    await tagTourRecord(req, 'case', matched.addedCaseId ?? undefined);
+    res.json(matched);
   }),
 );
 

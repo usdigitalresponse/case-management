@@ -32,7 +32,7 @@ import { Notice, type SaveMessage } from '../components/ui/Notice';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { formatDate, formatDateTime, formatPeriod } from '../formatDateTime';
 import { useReceipt } from './ReceivedFields';
-import { INTAKE_PATH, useShell } from './useShell';
+import { useShell } from './useShell';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
 import { useAddedProviders } from '../components/AddProvider';
@@ -102,17 +102,8 @@ function DraftEditor({ data, onChanged, onDeleted }: { data: PortalInvoice; onCh
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
       {noCase && (
         <Notice tone="warning" heading="This invoice isn't linked to a case.">
-          {invoice.professionalId === null ? (
-            <>
-              Match it to a case on <RouterLink to={INTAKE_PATH}>Intake</RouterLink>, where you also choose who it's from.
-            </>
-          ) : (
-            <>
-              Match it to a case on <RouterLink to={INTAKE_PATH}>Intake</RouterLink>. You can still send it to review without
-              one, but this system won't check the case, the provider's assignment or any pre-authorization, and its
-              documents will say so.
-            </>
-          )}
+          It can be sent to review without one, but this system won't check the case, the provider's assignment or any
+          pre-authorization, and its documents will say so.
         </Notice>
       )}
       <RulesInForce rules={billingRules.rules} />

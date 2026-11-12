@@ -19,7 +19,6 @@ import { loadPreauthorizationSummaries, setPreauthorizedAmount } from '../billin
 import { loadCaseRateViews } from '../billing/caseRates';
 import { loadCaseReviewer, setCaseReviewer } from '../billing/reviewAssignment';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
-import { createCase } from '../intake/createCase';
 import { loadRecentCaseChanges } from '../cases/caseSummaries';
 import { CASE_STAGES } from '../cases/caseStage';
 import { caseColumnsWithClientName, caseCounts, caseOverview, CASE_SHOWS, listCaseBatch } from '../cases/caseBatches';
@@ -32,7 +31,6 @@ import { listPossibleDuplicateCases, recordCaseDuplicateReview } from '../cases/
 import { duplicateGeneration, duplicateGroupCount, forgetDuplicateGroups, rememberDuplicateGroups } from '../duplicateCounts';
 import { asyncHandler } from './asyncHandler';
 import { ValidationError } from '../errors';
-import { tagTourRecord } from '../demoTour/tourRuns';
 
 const router = Router();
 // Full staff access only: external (email-code) users get their own
@@ -40,25 +38,7 @@ const router = Router();
 // only via a full user) rather than this general case list/detail API.
 router.use(requireFullUser);
 
-router.post(
-  '/',
-  asyncHandler(async (req, res) => {
-    const actor = getSessionUser(req);
-    if (!actor) {
-      // requireFullUser already guards this; satisfies the type checker.
-      res.status(401).json({ error: 'Authentication required.' });
-      return;
-    }
-    const result = await createCase(db, { userAccountId: actor.userAccountId }, req.body);
-    await tagTourRecord(req, 'case', result.caseId);
-    // Only a client made with the case; an existing one was never the tour's.
-    if ((req.body as { newClient?: unknown } | undefined)?.newClient) {
-      const [made] = await db.select({ clientId: caseTable.clientId }).from(caseTable).where(eq(caseTable.caseId, result.caseId));
-      await tagTourRecord(req, 'person', made?.clientId ?? undefined);
-    }
-    res.status(201).json(result);
-  }),
-);
+// Cases are added only through a request's case step (../cases/caseStep.ts), never here.
 
 // A batch of cases by client name, with its summary on the first (../cases/caseBatches.ts).
 // show: all, open or closed; stage; county: an id, 'none' or 'grouped'; q: client, case number or worker.

@@ -13,6 +13,9 @@ import { TimeCategoryRates } from './settings/TimeCategoryRates';
 import { BillingRulesSettings } from './settings/BillingRulesSection';
 import { DemoSettings } from './settings/DemoSection';
 import { ExternalUserSettings } from './settings/ExternalUsers';
+import { EditData } from './settings/EditData';
+import { Tabs } from '../components/ui/Tabs';
+import { useSearchParamState } from '../hooks/useSearchParamState';
 
 export default function Settings() {
   const [version, setVersion] = useState(0);
@@ -22,9 +25,24 @@ export default function Settings() {
   const isAdmin = Boolean(user?.isAdmin);
   const demoMode = Boolean(user?.demoMode);
 
+  // Edit data is for administrators only (pages/settings/EditData.tsx).
+  const [tab, setTab] = useSearchParamState('tab', 'settings', TABS);
+  if (isAdmin && tab === 'edit-data') {
+    return (
+      <div>
+        <PageHeading eyebrow="Administration" title="Settings" />
+        <SettingsTabs tab={tab} setTab={setTab} />
+        <div id="settings-tab">
+          <EditData />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeading eyebrow="Administration" title="Settings" />
+      {isAdmin && <SettingsTabs tab="settings" setTab={setTab} />}
       <PageIndex sections={SECTIONS.filter((section) => section.id !== 'settings-demo' || demoMode)} />
       <Notice tone="info">Only administrators can change settings. Everyone on staff can read this page.</Notice>
       <section className="settings-section" id="settings-review">
@@ -75,6 +93,23 @@ export default function Settings() {
       <BillingRulesSettings isAdmin={isAdmin} />
       {demoMode && <DemoSettings isAdmin={isAdmin} />}
     </div>
+  );
+}
+
+const TABS = ['settings', 'edit-data'] as const;
+
+function SettingsTabs({ tab, setTab }: { tab: (typeof TABS)[number]; setTab: (tab: (typeof TABS)[number]) => void }) {
+  return (
+    <Tabs
+      label="Settings"
+      controls="settings-tab"
+      tabs={[
+        { id: 'settings', label: 'Settings' },
+        { id: 'edit-data', label: 'Edit data' },
+      ]}
+      selected={tab}
+      onSelect={setTab}
+    />
   );
 }
 
