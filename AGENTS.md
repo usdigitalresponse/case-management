@@ -317,7 +317,12 @@ live in `client/src/components/ui/` (use `Button`, `Tag`, `Notice`, `Dialog`, th
 values with `cssVars`. `npm run lint` enforces both (stylelint and ESLint). See its `docs/design-system.md` for changing the design system. All data loads through `useResource`
 (TanStack Query); resources a page edits are `fresh`: loaded for each visit,
 never refreshed under the user, and cleared and reloaded by a save's `resetKey`.
-Page tests render one page against `client/src/test/fakeApi.ts`, which fails
+Long lists load a batch at a time as they scroll (server
+`src/lists/batches.ts`, client `useBatchedResource` and `MoreOnScroll`), with
+filters, counts and sorting on the server; never filter or count a batched
+list in the browser, and build a page's request in `queueRequests.ts` or
+`caseRequests.ts` so its loader matches. Staff case and provider pickers search
+the server (`PickOrAdd`'s `search`). Page tests render one page against `client/src/test/fakeApi.ts`, which fails
 on any request it has no route for; build data with `src/test/fixtures.ts`.
 `e2e/` is the Playwright suite: it adds synthetic invoices, so run it only
 against a disposable seeded stack (CI does), never someone's demo data.

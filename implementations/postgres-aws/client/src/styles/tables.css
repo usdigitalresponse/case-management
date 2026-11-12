@@ -62,3 +62,6 @@
 .data-card table a.cell-note { text-decoration: underline; }
 /* An approved total, as in design I29. */
 .data-card table tbody .approved-amount { color: var(--color-success); font-weight: 600; }
+
+/* After a list loaded a batch at a time (MoreOnScroll): says when more is loading or failed. */
+.more-on-scroll { min-height: var(--space-6); margin-top: var(--space-4); text-align: center; font-size: var(--text-13); color: var(--color-on-surface-muted); }

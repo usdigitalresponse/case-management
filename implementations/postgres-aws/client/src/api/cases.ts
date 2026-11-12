@@ -1,5 +1,6 @@
 import { request } from './http';
-import type { AssignedPerson, ReviewQueueItem } from './reviewQueue';
+import type { AssignedPerson, CountyCount } from './reviewQueue';
+import { batchParams, type Batch } from './batches';
 
 // Mirrors server/src/cases/caseStage.ts's CASE_STAGES; null once a case
 // is closed (case.closedOn set) — it has left the working board.
@@ -33,8 +34,50 @@ export interface CaseListRecord extends CaseRecord {
   waiting: { count: number; total: string };
 }
 
-export function listCases(): Promise<{ cases: CaseListRecord[] }> {
-  return request<{ cases: CaseListRecord[] }>('/api/cases');
+// q: a client, case number or who works on it; county: a county's id, 'none' or 'grouped'.
+export interface CaseRequest {
+  show?: 'all' | 'open' | 'closed';
+  stage?: CaseStage;
+  county?: string;
+  q?: string;
+}
+
+export interface CaseSummary {
+  // Every case's, whatever the filters.
+  counts: { all: number; open: number; closed: number };
+  // With the filters applied.
+  counties: CountyCount[];
+}
+
+// By client name, a batch at a time; limit as listReviewQueue's.
+export function listCases(query: CaseRequest, after: string | null, limit?: number): Promise<Batch<CaseListRecord, CaseSummary>> {
+  const params = new URLSearchParams();
+  for (const name of ['show', 'stage', 'county'] as const) {
+    const value = query[name];
+    if (value) params.set(name, value);
+  }
+  if (query.q?.trim()) params.set('q', query.q.trim());
+  if (limit) params.set('limit', String(limit));
+  return request(`/api/cases?${batchParams(params, after)}`);
+}
+
+// Cases matching what was typed, for a picker: open ones, or closed too.
+export async function searchCases(q: string, show: 'open' | 'all' = 'open'): Promise<CaseListRecord[]> {
+  return (await listCases({ show, q }, null, 20)).items;
+}
+
+// A case as pickers show it.
+export const caseOptionLabel = (row: Pick<CaseListRecord, 'caseNumber' | 'clientDisplayName'>) =>
+  [row.caseNumber, row.clientDisplayName].filter(Boolean).join(' · ');
+
+// Every case's counts, and each organization's.
+export function getCaseCounts(): Promise<{ all: number; open: number; closed: number; byOrganization: Record<string, number> }> {
+  return request('/api/cases/counts');
+}
+
+// The Case overview: each stage's count and first few cases by client.
+export function getCaseOverview(): Promise<{ all: number; open: number; stages: Array<{ stage: CaseStage; count: number; cases: CaseListRecord[] }> }> {
+  return request('/api/cases/overview');
 }
 
 export interface CaseChange {
@@ -149,8 +192,8 @@ export interface CaseRate {
   inForce: boolean;
 }
 
+// Its invoices come a batch at a time from listReviewQueue({ caseId }).
 export interface CaseInvoices {
-  invoices: ReviewQueueItem[];
   preauthorizations: PreauthorizationSummary[];
   caseRates: CaseRate[];
   // Where this case's new invoices go, ahead of the default.

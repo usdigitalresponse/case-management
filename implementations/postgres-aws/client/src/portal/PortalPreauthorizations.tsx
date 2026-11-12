@@ -1,6 +1,8 @@
 // A requester's pre-authorization requests (model/rules.yaml request_preauthorization).
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useResource } from '../hooks/useResource';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
 import { myCases, myPreauthorizationRequests, requestableProviders } from '../resources';
 import { LoadState } from '../components/LoadState';
 import { PageHeader } from '../components/PageHeader';
@@ -41,7 +43,7 @@ function AskForm({ caseId, onCancel }: { caseId: string | undefined; onCancel: (
 export default function PortalPreauthorizations() {
   const [params, setParams] = useSearchParams();
   const asking = params.has('ask');
-  const { data, error } = useResource(myPreauthorizationRequests);
+  const list = useBatchedResource(myPreauthorizationRequests);
   return (
     <div className="portal-content">
       <PageHeader
@@ -59,13 +61,13 @@ export default function PortalPreauthorizations() {
       {asking && (
         <AskForm caseId={params.get('case') ?? undefined} onCancel={() => setParams({}, { preventScrollReset: true })} />
       )}
-      {!data ? (
-        <LoadState error={error} what="requests" />
+      {!list.items ? (
+        <LoadState error={list.error} what="requests" />
       ) : (
         <RecordTable
           className="queue-table"
           label="Your pre-authorization requests"
-          rows={data.requests}
+          rows={list.items}
           rowKey={(row) => row.preauthorizationRequestId}
           emptyMessage="You haven’t asked for any yet."
           columns={[
@@ -79,6 +81,7 @@ export default function PortalPreauthorizations() {
           ]}
         />
       )}
+      <MoreOnScroll list={list} what="requests" />
     </div>
   );
 }

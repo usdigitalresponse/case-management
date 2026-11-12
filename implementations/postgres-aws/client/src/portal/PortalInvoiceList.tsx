@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router';
 import { apiErrorMessage, transitionInvoice, type InvoiceRecord } from '../api/client';
-import { useResource } from '../hooks/useResource';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
 import { myInvoices as myInvoiceList } from '../resources';
 import { useAuth } from '../AuthContext';
 import { LoadState } from '../components/LoadState';
@@ -14,7 +15,7 @@ import { formatMoney } from '../formatMoney';
 import { WithdrawDialog } from './WithdrawDialog';
 import { canWithdraw, formatDayShort, formatSpan, submissionStatus } from './portalWording';
 import { UPLOAD_PATH } from './useShell';
-import { inListOrder, listCaseNumber } from './invoiceListView';
+import { listCaseNumber } from './invoiceListView';
 import { buttonClass } from '../components/ui/Button';
 
 // Set by the upload page after several files go up as drafts.
@@ -67,23 +68,23 @@ function StatusCell({ invoice }: { invoice: InvoiceRecord }) {
   );
 }
 
-// The submitter's drafts and sent invoices, drafts first. No search or
-// filters: the list is one person's.
+// The submitter's drafts and sent invoices, drafts first, a batch at a time.
+// No search or filters: the list is one person's.
 export default function PortalInvoiceList() {
-  const { data, error, reload } = useResource(myInvoiceList);
+  const list = useBatchedResource(myInvoiceList());
+  const { summary, reload } = list;
   const { user } = useAuth();
   const uploadedCount = (useLocation().state as UploadedState | null)?.uploadedCount ?? 0;
   const [withdrawing, setWithdrawing] = useState<InvoiceRecord | null>(null);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [toast, setToast] = useToast();
 
-  if (error || !data) {
-    return <LoadState error={error} what="your invoices" />;
+  if (list.error || !list.items || !summary) {
+    return <LoadState error={list.error} what="your invoices" />;
   }
-  const shown = inListOrder(data.filter((invoice) => invoice.statusCode !== 'withdrawn'));
   // Sent back by the billing office: first, until they're sent again.
-  const needsChanges = shown.filter((invoice) => invoice.returnedReason);
-  const others = shown.filter((invoice) => !invoice.returnedReason);
+  const { needsChanges } = summary;
+  const others = list.items;
 
   async function withdraw(invoice: InvoiceRecord) {
     setWithdrawError(null);
@@ -169,6 +170,7 @@ export default function PortalInvoiceList() {
         emptyMessage={needsChanges.length > 0 ? 'Nothing else yet.' : 'No invoices yet. Upload one to get started.'}
         columns={columns}
       />
+      <MoreOnScroll list={list} what="invoices" />
       <p className="compact-hint">
         Your invoices are filed under your name. You do not need to set up cases or clients here. You can withdraw an
         invoice until review starts; it then comes back here as a draft.

@@ -20,6 +20,16 @@ globalThis.ResizeObserver ??= class {
   disconnect() {}
 };
 
+// Nor IntersectionObserver, which loads a list's next batch on scroll; nothing scrolls here.
+globalThis.IntersectionObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+} as unknown as typeof IntersectionObserver;
+
 function SignedIn({ children }: { children: ReactNode }) {
   const { loading } = useAuth();
   return loading ? null : <>{children}</>;

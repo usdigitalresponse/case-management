@@ -1,6 +1,6 @@
 import type { NamedOption } from '../api/client';
 import { useResource } from '../hooks/useResource';
-import { cases as casesResource, referenceData } from '../resources';
+import { caseCounts, referenceData } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
 import { RecordTable } from '../components/RecordTable';
@@ -13,7 +13,7 @@ import { useSearchParamText } from '../hooks/useSearchParamState';
 // round trip per keystroke.
 export default function OrganizationsDirectory() {
   const { data, error } = useResource(referenceData);
-  const { data: cases } = useResource(casesResource);
+  const { data: counts } = useResource(caseCounts);
   const [query, setQuery] = useSearchParamText('q');
 
   if (error) return <Notice tone="danger">Failed to load organizations.</Notice>;
@@ -21,8 +21,7 @@ export default function OrganizationsDirectory() {
 
   const filtered = data.organizations.filter((org: NamedOption) =>
     org.displayName.toLowerCase().includes(query.toLowerCase()));
-  const caseCount = (organizationId: string | undefined) =>
-    cases ? cases.cases.filter((record) => record.organizationId === organizationId).length : null;
+  const caseCount = (organizationId: string | undefined) => (counts ? (organizationId ? (counts.byOrganization[organizationId] ?? 0) : 0) : null);
 
   return (
     <>

@@ -164,7 +164,7 @@ describe('requests', () => {
     await expect(getPreauthorizationRequest(testDb, outsider.userAccountId, preauthorizationRequestId)).rejects.toThrow(NotFoundError);
     await expect(createPreauthorizationRequest(testDb, outsider, request(caseId, attorney.professionalId, 900))).rejects.toThrow(ForbiddenError);
     await expect(askRequestQuestion(testDb, attorney.userAccountId, preauthorizationRequestId, { question: 'Mine?' })).rejects.toThrow(ForbiddenError);
-    expect(await listOwnPreauthorizationRequests(testDb, outsider)).toHaveLength(0);
+    expect((await listOwnPreauthorizationRequests(testDb, outsider, undefined, { limit: 50, after: null })).items).toHaveLength(0);
     const withdrawn = await withdrawPreauthorizationRequest(testDb, attorney.userAccountId, preauthorizationRequestId);
     expect(withdrawn.request.statusCode).toBe('withdrawn');
   });

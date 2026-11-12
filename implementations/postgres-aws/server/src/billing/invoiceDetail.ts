@@ -2,7 +2,7 @@
 // portal and exports. Callers check access first. Submitters see recorded
 // decisions only: never working decisions or internal comments
 // (model/rules.yaml limit_review_comment_visibility).
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { inIds } from '../db/inIds';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import {
@@ -43,48 +43,51 @@ import { groupBy } from '../groupBy';
 
 export type Audience = 'staff' | 'submitter';
 
-export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
+const headerColumns = {
+  invoiceId: invoice.invoiceId,
+  caseId: invoice.caseId,
+  caseClientDisplayName: person.displayName,
+  caseExternalReference: caseTable.externalReference,
+  professionalId: invoice.professionalId,
+  professionalDisplayName: professional.displayName,
+  professionalKindDisplayName: professionalKinds.displayName,
+  submittedByUserAccountId: invoice.submittedByUserAccountId,
+  submittedByDisplayName: userAccount.displayName,
+  statusId: invoice.statusId,
+  statusCode: invoiceStatuses.code,
+  statusDisplayName: invoiceStatuses.displayName,
+  submittedAt: invoice.submittedAt,
+  submittedTotal: invoice.submittedTotal,
+  currencyCode: invoice.currencyCode,
+  periodStart: invoice.periodStart,
+  periodEnd: invoice.periodEnd,
+  // Set when staff entered an invoice received outside the system.
+  receivedViaDisplayName: invoiceReceiptChannels.displayName,
+  receivedOn: invoice.receivedOn,
+  // Entered by the submitter rather than chosen; shown flagged.
+  proposedCase: invoice.proposedCase,
+  proposedProvider: invoice.proposedProvider,
+  caseNumberAsTyped: invoice.caseNumberAsTyped,
+  caseNumberCorrected: invoice.caseNumberCorrected,
+  // The number on the sender's own invoice.
+  invoiceNumber: sql<string | null>`(select ${supportingInvoice.invoiceNumber} from ${supportingInvoice} where ${supportingInvoice.invoiceId} = ${invoice.invoiceId} limit 1)`,
+  // Its own, else its case's.
+  countyId: county.countyId,
+  countyDisplayName: county.displayName,
+  // A staff upload, under review from the start (./enterInReview.ts).
+  enteredInReview: invoice.enteredInReview,
+  linesVersion: invoice.linesVersion,
+  linesChangedAt: invoice.linesChangedAt,
+  linesChangedByUserAccountId: invoice.linesChangedByUserAccountId,
+  // Shown to the submitter until they send it again.
+  returnedReason,
+  completedAt,
+};
+
+// cursor: a list's cursor column (../lists/batches.ts).
+export function selectInvoiceHeaders(db: DatabaseOrTransaction, cursor?: SQL<string[]>) {
   return db
-    .select({
-      invoiceId: invoice.invoiceId,
-      caseId: invoice.caseId,
-      caseClientDisplayName: person.displayName,
-      caseExternalReference: caseTable.externalReference,
-      professionalId: invoice.professionalId,
-      professionalDisplayName: professional.displayName,
-      professionalKindDisplayName: professionalKinds.displayName,
-      submittedByUserAccountId: invoice.submittedByUserAccountId,
-      submittedByDisplayName: userAccount.displayName,
-      statusId: invoice.statusId,
-      statusCode: invoiceStatuses.code,
-      statusDisplayName: invoiceStatuses.displayName,
-      submittedAt: invoice.submittedAt,
-      submittedTotal: invoice.submittedTotal,
-      currencyCode: invoice.currencyCode,
-      periodStart: invoice.periodStart,
-      periodEnd: invoice.periodEnd,
-      // Set when staff entered an invoice received outside the system.
-      receivedViaDisplayName: invoiceReceiptChannels.displayName,
-      receivedOn: invoice.receivedOn,
-      // Entered by the submitter rather than chosen; shown flagged.
-      proposedCase: invoice.proposedCase,
-      proposedProvider: invoice.proposedProvider,
-      caseNumberAsTyped: invoice.caseNumberAsTyped,
-      caseNumberCorrected: invoice.caseNumberCorrected,
-      // The number on the sender's own invoice.
-      invoiceNumber: sql<string | null>`(select ${supportingInvoice.invoiceNumber} from ${supportingInvoice} where ${supportingInvoice.invoiceId} = ${invoice.invoiceId} limit 1)`,
-      // Its own, else its case's.
-      countyId: county.countyId,
-      countyDisplayName: county.displayName,
-      // A staff upload, under review from the start (./enterInReview.ts).
-      enteredInReview: invoice.enteredInReview,
-      linesVersion: invoice.linesVersion,
-      linesChangedAt: invoice.linesChangedAt,
-      linesChangedByUserAccountId: invoice.linesChangedByUserAccountId,
-      // Shown to the submitter until they send it again.
-      returnedReason,
-      completedAt,
-    })
+    .select({ ...headerColumns, cursor: cursor ?? sql<string[] | null>`null` })
     .from(invoice)
     .leftJoin(caseTable, eq(invoice.caseId, caseTable.caseId))
     .leftJoin(person, eq(caseTable.clientId, person.personId))

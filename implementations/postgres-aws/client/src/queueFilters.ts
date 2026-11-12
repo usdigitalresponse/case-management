@@ -1,5 +1,4 @@
-import type { ReviewQueueItem } from './api/client';
-
+// To review's filters; the server applies them (its reviewQueueBatches.ts).
 export const QUEUE_FILTERS = [
   { id: 'everyone', label: "Everyone's" },
   { id: 'mine', label: 'Assigned to you' },
@@ -7,16 +6,3 @@ export const QUEUE_FILTERS = [
   { id: 'flagged', label: 'Has a flag' },
 ] as const;
 export type QueueFilterId = (typeof QUEUE_FILTERS)[number]['id'];
-
-export function matchesQueueFilter(invoice: ReviewQueueItem, filter: QueueFilterId, userAccountId: string): boolean {
-  switch (filter) {
-    case 'mine':
-      return invoice.holder?.userAccountId === userAccountId;
-    case 'unassigned':
-      return !invoice.reviewer;
-    case 'flagged':
-      return invoice.flags.length > 0;
-    default:
-      return true;
-  }
-}

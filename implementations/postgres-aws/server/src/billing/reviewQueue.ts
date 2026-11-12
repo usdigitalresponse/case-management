@@ -1,6 +1,6 @@
 // The staff queue: invoices waiting on review or sign-off, or finished, with
 // who has each, how long it has waited and what needs care.
-import { and, count, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import { inIds } from '../db/inIds';
 import { groupBy } from '../groupBy';
 import type { Database } from '../db/client';
@@ -14,7 +14,7 @@ import {
   invoiceReviewQuestion,
   invoiceStatuses,
 } from '../db/schema';
-import { loadCaseNumbers, selectInvoiceHeaders } from './invoiceDetail';
+import { loadCaseNumbers, selectInvoiceHeaders, type InvoiceHeader } from './invoiceDetail';
 import { approvedTotal, latestRoundNumber, loadRecordedDecisionsByChain, signOffProgress } from './reviewRounds';
 import { formatMoney } from './money';
 import { LINE_REVIEW_STEP_TYPE_CODE, loadAssignmentsByInvoice } from './reviewAssignment';
@@ -23,7 +23,7 @@ import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
 import { loadPreauthorizationSummariesByCase, loadRateLimitsByCase, overPreauthorization, rateLimitFor, summaryForProfessional, type RateLimit } from './preauthorizations';
 import { evaluateBillingRules, type RuleFinding } from './billingRules';
-import { currentCaseNumber, searchMatch } from './caseNumbers';
+import { currentCaseNumber, searchMatch, type CaseNumberMatches } from './caseNumbers';
 import { sentCaseNumberCounts } from './caseNumberMatches';
 import {
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
@@ -33,8 +33,15 @@ import {
 } from './invoiceStatusCodes';
 
 // open: waiting on review or sign-off; finished: approved or rejected;
-// all: every submitted invoice (one case's list).
-export type QueueView = 'open' | 'finished' | 'all';
+// lines_decided: awaiting sign-off, approved or rejected; all: every submitted invoice.
+export type QueueView = 'open' | 'finished' | 'lines_decided' | 'all';
+
+const STATUS_CODES: Record<QueueView, string[]> = {
+  open: IN_REVIEW_INVOICE_STATUS_CODES,
+  finished: DECIDED_INVOICE_STATUS_CODES,
+  lines_decided: [AWAITING_SIGN_OFF_INVOICE_STATUS_CODE, ...DECIDED_INVOICE_STATUS_CODES],
+  all: [...IN_REVIEW_INVOICE_STATUS_CODES, ...DECIDED_INVOICE_STATUS_CODES],
+};
 
 const RATE_LIMIT_NAMES: Record<RateLimit['source'], string> = {
   case: 'case rate',
@@ -47,45 +54,36 @@ export interface QueueFlag {
   message: string;
 }
 
-export async function listReviewQueue(
-  db: Database,
-  view: QueueView,
-  // q: only invoices matching it by name or case number, each with how;
-  // day: only invoices with an item on that date.
-  // actorUserAccountId: who is looking, for whether they may discard what they are entering.
-  options: { caseId?: string; professionalId?: string; q?: string; day?: string; now?: Date; actorUserAccountId?: string } = {},
-) {
-  const now = options.now ?? new Date();
-  const statusCodes =
-    view === 'open'
-      ? IN_REVIEW_INVOICE_STATUS_CODES
-      : view === 'finished'
-        ? DECIDED_INVOICE_STATUS_CODES
-        : [...IN_REVIEW_INVOICE_STATUS_CODES, ...DECIDED_INVOICE_STATUS_CODES];
-  const headers = await selectInvoiceHeaders(db).where(
-    and(
-      inArray(invoiceStatuses.code, statusCodes),
-      ...(options.caseId ? [eq(invoice.caseId, options.caseId)] : []),
-      ...(options.professionalId ? [eq(invoice.professionalId, options.professionalId)] : []),
-      ...(options.day
-        ? [
-            inArray(
-              invoice.invoiceId,
-              db.select({ invoiceId: invoiceLine.invoiceId }).from(invoiceLine).where(eq(invoiceLine.serviceDate, options.day)),
-            ),
-          ]
-        : []),
-    ),
-  );
+// caseId, professionalId: one case's or person's; day: with an item on that date.
+export interface QueueScope {
+  caseId?: string;
+  professionalId?: string;
+  day?: string;
+}
+
+export function scopeConditions(db: Database, view: QueueView, scope: QueueScope): SQL[] {
+  return [
+    inArray(invoice.statusId, db.select({ id: invoiceStatuses.id }).from(invoiceStatuses).where(inArray(invoiceStatuses.code, STATUS_CODES[view]))),
+    ...(scope.caseId ? [eq(invoice.caseId, scope.caseId)] : []),
+    ...(scope.professionalId ? [eq(invoice.professionalId, scope.professionalId)] : []),
+    ...(scope.day
+      ? [inArray(invoice.invoiceId, db.select({ invoiceId: invoiceLine.invoiceId }).from(invoiceLine).where(eq(invoiceLine.serviceDate, scope.day)))]
+      : []),
+  ];
+}
+
+const withoutCursor = ({ cursor: _cursor, ...header }: InvoiceHeader) => header;
+
+// Each invoice's queue row, in the order given: who has it, its progress, how long it has waited and its flags.
+// actorUserAccountId: who is looking, for whether they may discard what they are entering.
+export async function describeQueue(db: Database, headers: InvoiceHeader[], { now, actorUserAccountId }: { now: Date; actorUserAccountId?: string }) {
+  if (headers.length === 0) return [];
   const invoiceIds = headers.map((header) => header.invoiceId);
-  if (invoiceIds.length === 0) {
-    return { invoices: [], waitingAlertWorkingDays: (await getReviewSettings(db)).waitingAlertWorkingDays };
-  }
   const rateChecked = and(isNotNull(invoiceLine.configuredRate), isNotNull(invoiceLine.billedRate), isNull(invoiceLine.expenseTypeId));
   // Postgres rounds the exact product half away from zero, as invoices do; floats can round 151.575 down.
   const doesNotAddUp = sql`round(${invoiceLine.quantity} * ${invoiceLine.unitRate}, 2) <> ${invoiceLine.statedAmount}`;
   // One row per invoice and rate a line is checked against, with its count and highest rate billed.
-  const [lineGroups, mismatches, chains, caseNumbers, settings] = await Promise.all([
+  const [lineGroups, mismatches, chains, caseNumbers] = await Promise.all([
     db
       .select({
         invoiceId: invoiceLine.invoiceId,
@@ -118,7 +116,6 @@ export async function listReviewQueue(
       .from(invoiceApprovalChain)
       .where(and(inIds(invoiceApprovalChain.invoiceId, invoiceIds), isNull(invoiceApprovalChain.supersededAt))),
     loadCaseNumbers(db, [...new Set(headers.map((header) => header.caseId))]),
-    getReviewSettings(db),
   ]);
   const caseIds = [...new Set(headers.map((header) => header.caseId))];
   const chainIds = chains.map((chain) => chain.chainId);
@@ -230,7 +227,7 @@ export async function listReviewQueue(
         header.statusCode === AWAITING_SIGN_OFF_INVOICE_STATUS_CODE ? signOffProgress(recorded, round, assignments.signOff).next : null;
       const numbers = caseNumbers.get(header.caseId);
       return {
-        ...header,
+        ...withoutCursor(header),
         caseNumber: numbers?.caseNumber ?? null,
         otherCaseNumbers: numbers?.otherNumbers ?? [],
         lineCount,
@@ -250,9 +247,9 @@ export async function listReviewQueue(
         beingEntered,
         discardable:
           beingEntered &&
-          options.actorUserAccountId !== undefined &&
-          assignments.reviewer?.userAccountId === options.actorUserAccountId &&
-          (await canDiscardEntry(db, options.actorUserAccountId, header.invoiceId)),
+          actorUserAccountId !== undefined &&
+          assignments.reviewer?.userAccountId === actorUserAccountId &&
+          (await canDiscardEntry(db, actorUserAccountId, header.invoiceId)),
         // Who must act now: the next approver while awaiting sign-off.
         holder: nextApprover ?? assignments.reviewer,
         // A staff-entered invoice waits from the day it was received.
@@ -265,17 +262,34 @@ export async function listReviewQueue(
       };
     }),
   );
+  return rows;
+}
+
+export const withMatches = <Row extends Awaited<ReturnType<typeof describeQueue>>[number]>(
+  rows: Row[],
+  matchesOf: (caseNumber: string | null) => CaseNumberMatches,
+  q: string,
+) =>
+  rows.map((row) => ({
+    ...row,
+    caseNumberMatches: matchesOf(currentCaseNumber(row) ?? row.caseNumber),
+    match: q ? searchMatch(q, [row.professionalDisplayName, row.submittedByDisplayName], currentCaseNumber(row) ?? row.caseNumber) : null,
+  }));
+
+export type QueueRow = ReturnType<typeof withMatches>[number];
+
+// Every invoice at once, waiting longest first; q: only those matching it by name or case number, each with how.
+export async function listReviewQueue(
+  db: Database,
+  view: QueueView,
+  options: QueueScope & { q?: string; now?: Date; actorUserAccountId?: string } = {},
+) {
+  const [headers, settings] = await Promise.all([selectInvoiceHeaders(db).where(and(...scopeConditions(db, view, options))), getReviewSettings(db)]);
+  const rows = await describeQueue(db, headers, { now: options.now ?? new Date(), actorUserAccountId: options.actorUserAccountId });
   rows.sort((a, b) => b.workingDaysWaiting - a.workingDaysWaiting || Number(a.submittedAt) - Number(b.submittedAt));
-  const matchesOf = await sentCaseNumberCounts(db);
   const q = options.q ?? '';
   return {
-    invoices: rows
-      .map((row) => ({
-        ...row,
-        caseNumberMatches: matchesOf(currentCaseNumber(row) ?? row.caseNumber),
-        match: q ? searchMatch(q, [row.professionalDisplayName, row.submittedByDisplayName], currentCaseNumber(row) ?? row.caseNumber) : null,
-      }))
-      .filter((row) => !q || row.match),
+    invoices: withMatches(rows, rows.length === 0 ? () => ({ same: 0, close: 0 }) : await sentCaseNumberCounts(db), q).filter((row) => !q || row.match),
     waitingAlertWorkingDays: settings.waitingAlertWorkingDays,
   };
 }

@@ -1,6 +1,7 @@
 import { Link as RouterLink, useSearchParams } from 'react-router';
-import type { CaseListRecord } from '../api/client';
-import { useResource } from '../hooks/useResource';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
+import { caseListRequest, CASE_SHOWS, type CaseShow } from '../caseRequests';
 import { cases as casesResource } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
@@ -13,13 +14,6 @@ import { formatMoney } from '../formatMoney';
 import { useSearchParamState, useSearchParamText } from '../hooks/useSearchParamState';
 import { FilterTag, Tag, type Tone } from '../components/ui/Tag';
 
-type Shown = 'all' | 'open' | 'closed';
-
-function matchesQuery(caseRecord: CaseListRecord, query: string): boolean {
-  const haystack = `${caseRecord.clientDisplayName ?? ''} ${caseRecord.caseNumber ?? ''} ${caseRecord.workers.join(' ')}`.toLowerCase();
-  return haystack.includes(query.toLowerCase());
-}
-
 // As design I's All cases: billing in blue, waiting on a reviewer in yellow, closed in dark.
 function stageTone(stage: string | null): Tone {
   return stage === 'billing' ? 'info' : stage === 'needs-assignment' ? 'warning' : stage === null ? 'strong' : 'neutral';
@@ -27,21 +21,14 @@ function stageTone(stage: string | null): Tone {
 
 // Every case, as design I48 lists them.
 export default function CaseList() {
-  const { data, error } = useResource(casesResource);
-  const cases = data?.cases ?? null;
-  const [query, setQuery] = useSearchParamText('q');
-  const [shown, setShown] = useSearchParamState<Shown>('show', 'all', ['all', 'open', 'closed']);
-  // ?stage=<id> narrows to one stage (the Case overview's "View all" links set it).
   const [searchParams] = useSearchParams();
+  const request = caseListRequest(searchParams);
+  const list = useBatchedResource(casesResource(request));
+  const { summary } = list;
+  const [query, setQuery] = useSearchParamText('q');
+  const [shown, setShown] = useSearchParamState<CaseShow>('show', 'all', CASE_SHOWS);
   const stageParam = searchParams.get('stage');
-  const listed = (cases ?? []).filter(
-    (caseRecord) =>
-      (!stageParam || caseRecord.stage === stageParam) &&
-      (shown === 'all' || (shown === 'open') === !caseRecord.closedOn) &&
-      matchesQuery(caseRecord, query),
-  );
-  const county = useCountyControl(listed, (caseRecord) => ({ countyId: caseRecord.countyId }), { hideLabel: true });
-  const count = (which: Shown) => (cases ?? []).filter((caseRecord) => which === 'all' || (which === 'open') === !caseRecord.closedOn).length;
+  const county = useCountyControl(summary?.counties ?? null, { hideLabel: true });
 
   return (
     <ResourceList
@@ -52,8 +39,9 @@ export default function CaseList() {
           description={`Every case invoices can be sent for. Cases may be managed in your ${EXTERNAL_SYSTEM_NAME}; they show here so invoices make sense.`}
         />
       }
-      error={error}
-      data={cases}
+      error={list.error}
+      data={summary ? list.items : null}
+      empty={summary?.counts.all === 0}
       errorMessage="Failed to load cases."
       loadingMessage="Loading cases…"
       emptyMessage="No cases yet."
@@ -73,7 +61,7 @@ export default function CaseList() {
                   aria-pressed={shown === which}
                   onClick={() => setShown(which)}
                 >
-                  {which === 'all' ? 'All' : which === 'open' ? 'Open' : 'Closed'} <span className="tag-count">{count(which)}</span>
+                  {which === 'all' ? 'All' : which === 'open' ? 'Open' : 'Closed'} {summary && <span className="tag-count">{summary.counts[which]}</span>}
                 </FilterTag>
               ))}
             </div>
@@ -92,7 +80,7 @@ export default function CaseList() {
           <RecordTable
             label="Cases"
             className="queue-table case-list-table"
-            rows={county.shown}
+            rows={list.items ?? []}
             rowKey={(caseRecord) => caseRecord.caseId}
             emptyMessage="No cases match."
             columns={[
@@ -125,6 +113,7 @@ export default function CaseList() {
               },
             ]}
           />
+          <MoreOnScroll list={list} what="cases" />
         </>
       )}
     </ResourceList>

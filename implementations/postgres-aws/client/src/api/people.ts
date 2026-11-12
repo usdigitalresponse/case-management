@@ -1,4 +1,5 @@
 import { request } from './http';
+import { batchParams, type Batch } from './batches';
 import type { ProfessionalRate } from './myInvoices';
 import type { AssignedPerson } from './reviewQueue';
 
@@ -12,8 +13,9 @@ export interface PersonRecord {
   email: string | null;
 }
 
-export function searchPeople(query: string): Promise<{ people: PersonRecord[] }> {
-  return request<{ people: PersonRecord[] }>(`/api/people?q=${encodeURIComponent(query)}`);
+// By name, a batch at a time.
+export function searchPeople(query: string, after: string | null): Promise<Batch<PersonRecord>> {
+  return request(`/api/people?${batchParams(new URLSearchParams({ q: query }), after)}`);
 }
 
 // Providers (attorneys, experts and vendors): the sidebar's Providers list.
@@ -87,8 +89,17 @@ export interface BillingPerson {
   lastInvoiceAt: string | null;
 }
 
-export function listPeople(): Promise<{ people: BillingPerson[] }> {
-  return request('/api/professionals/people');
+// role: a kind's name, or 'none'; q: a name or email. By name, a batch at a time, with each role's count first.
+export interface PeopleRequest {
+  role?: string;
+  q?: string;
+}
+
+export function listPeople(query: PeopleRequest, after: string | null): Promise<Batch<BillingPerson, { roles: Array<{ role: string | null; count: number }> }>> {
+  const params = new URLSearchParams();
+  if (query.role) params.set('role', query.role);
+  if (query.q?.trim()) params.set('q', query.q.trim());
+  return request(`/api/professionals/people?${batchParams(params, after)}`);
 }
 
 export type BillingPersonDetail = Omit<BillingPerson, 'waiting' | 'lastInvoiceAt'> & { reviewer: AssignedPerson | null };
@@ -97,8 +108,16 @@ export function getPerson(professionalId: string): Promise<BillingPersonDetail> 
   return request(`/api/professionals/people/${professionalId}`);
 }
 
-export function listVendors(query: string): Promise<{ professionals: VendorRecord[] }> {
-  return request<{ professionals: VendorRecord[] }>(`/api/professionals?q=${encodeURIComponent(query)}`);
+// By name, a batch at a time; limit as listReviewQueue's.
+export function listVendors(query: string, after: string | null, limit?: number): Promise<Batch<VendorRecord>> {
+  const params = new URLSearchParams({ q: query });
+  if (limit) params.set('limit', String(limit));
+  return request(`/api/professionals?${batchParams(params, after)}`);
+}
+
+// Providers matching what was typed, for a picker.
+export async function searchProviders(query: string): Promise<VendorRecord[]> {
+  return (await listVendors(query, null, 20)).items;
 }
 
 // --- Settings (administrators change them; staff can read) -----------------

@@ -1,4 +1,5 @@
 import { DATA_CHANGED_EVENT, request, sendFile } from './http';
+import { batchParams, type Batch } from './batches';
 import type { PreauthorizationSummary } from './cases';
 
 export type RateBasis = 'hourly' | 'flat' | 'per_unit';
@@ -88,9 +89,13 @@ export interface NewPreauthorizationRequest {
   receivedOn?: string;
 }
 
-export function listPreauthorizationRequests(filter: { status?: string; countyId?: string; caseId?: string; from?: string; to?: string } = {}) {
+// Latest received first, a batch at a time; staff filter them, a requester gets their own.
+export function listPreauthorizationRequests(
+  filter: { status?: string; countyId?: string; caseId?: string; from?: string; to?: string },
+  after: string | null,
+): Promise<Batch<PreauthorizationRequestRow>> {
   const query = new URLSearchParams(Object.entries(filter).filter((entry): entry is [string, string] => Boolean(entry[1])));
-  return request<{ requests: PreauthorizationRequestRow[] }>(`/api/preauthorizations/requests?${query}`);
+  return request(`/api/preauthorizations/requests?${batchParams(query, after)}`);
 }
 
 export function getPreauthorizationRequest(requestId: string) {

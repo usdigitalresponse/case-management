@@ -18,7 +18,8 @@ import { reassignReviewer, setSignOffApprovers } from '../src/billing/reviewAssi
 import { setReviewSettings } from '../src/billing/reviewSettings';
 import { decisionCommentsOf, loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { invoiceExportContent } from '../src/billing/exportInvoice';
-import { listReviewQueue } from '../src/billing/reviewQueue';
+import { listReviewQueue, type QueueRow, type QueueView } from '../src/billing/reviewQueue';
+import { listReviewQueueBatch, type QueueBatchRequest, type QueueShow } from '../src/billing/reviewQueueBatches';
 import { loadBillingRecord } from '../src/billing/billingRecord';
 import { ConflictError, ForbiddenError, ValidationError } from '../src/errors';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
@@ -590,3 +591,119 @@ describe('finishing and sign-off', () => {
     expect(decisionCommentsOf(staffView.signOffs)).toEqual([]);
   });
 });
+
+describe('the queue a batch at a time', () => {
+  // Every batch, two at a time, so each cursor is used.
+  async function allBatches(request: Omit<QueueBatchRequest, 'actorUserAccountId'>, actorUserAccountId: string) {
+    const items: QueueRow[] = [];
+    let after: string | null = null;
+    let batches = 0;
+    do {
+      const batch: Awaited<ReturnType<typeof listReviewQueueBatch>> = await listReviewQueueBatch(
+        testDb,
+        { ...request, actorUserAccountId },
+        { limit: 2, after: after ? JSON.parse(Buffer.from(after, 'base64url').toString()) : null },
+      );
+      items.push(...batch.items);
+      after = batch.next;
+      batches += 1;
+    } while (after && batches < 50);
+    return items;
+  }
+
+  it('lists, filters and counts the same invoices as the whole queue', async () => {
+    const second = await createStaff('approver', 'Approver Two');
+    const unassigned = await createInvoiceWithLines(['10.00']);
+    const flagged = await createInvoiceWithLines([{ amount: '15.00', quantity: '1.00', billedRate: '10.00', unitRate: '10.00', statedAmount: '12.00' }]);
+    const reviewing = await createInvoiceWithLines(['20.00', '30.00']);
+    await reviewInvoiceLine(testDb, reviewer, reviewing.invoiceId, reviewing.lineIds[0]!, { outcome: 'approved' });
+    // Waiting on the second approver once the first signed off.
+    const signing = await createInvoiceWithLines(['40.00']);
+    await setSignOffApprovers(testDb, reviewer, signing.invoiceId, { userAccountIds: [approver, second] });
+    await reviewInvoiceLine(testDb, reviewer, signing.invoiceId, signing.lineIds[0]!, { outcome: 'approved' });
+    await finishReview(testDb, reviewer, signing.invoiceId);
+    await signOffInvoice(testDb, approver, signing.invoiceId, { outcome: 'approved' });
+    const signedOff = await createInvoiceWithLines(['50.00']);
+    await setSignOffApprovers(testDb, reviewer, signedOff.invoiceId, { userAccountIds: [approver] });
+    await reviewInvoiceLine(testDb, reviewer, signedOff.invoiceId, signedOff.lineIds[0]!, { outcome: 'approved' });
+    await finishReview(testDb, reviewer, signedOff.invoiceId);
+    await signOffInvoice(testDb, approver, signedOff.invoiceId, { outcome: 'approved' });
+    const completed = await createInvoiceWithLines(['60.00']);
+    await setSignOffApprovers(testDb, reviewer, completed.invoiceId, { userAccountIds: [approver] });
+    await reviewInvoiceLine(testDb, reviewer, completed.invoiceId, completed.lineIds[0]!, { outcome: 'approved' });
+    await finishReview(testDb, reviewer, completed.invoiceId);
+    await signOffInvoice(testDb, approver, completed.invoiceId, { outcome: 'approved' });
+    await markCompleted(testDb, reviewer, completed.invoiceId);
+    // Received by staff a while ago, so it waits longest.
+    await testDb.update(invoice).set({ receivedOn: '2026-01-05' }).where(eq(invoice.invoiceId, unassigned.invoiceId));
+
+    const month = new Date().toISOString().slice(0, 7);
+    const views: Array<[QueueView, QueueShow[]]> = [
+      ['open', ['all', 'mine', 'unassigned', 'flagged']],
+      ['lines_decided', ['all', 'month', 'sign_off', 'decided', 'completed', 'approved']],
+      ['all', ['all', 'waiting', 'done']],
+    ];
+    for (const actor of [reviewer, second]) {
+      for (const [view, shows] of views) {
+        const whole = (await listReviewQueue(testDb, view, { actorUserAccountId: actor })).invoices;
+        const expected: Record<QueueShow, (row: QueueRow) => boolean> = {
+          all: () => true,
+          mine: (row) => row.holder?.userAccountId === actor,
+          unassigned: (row) => !row.reviewer,
+          flagged: (row) => row.flags.length > 0,
+          month: (row) => Boolean(row.finishedAt?.toISOString().startsWith(month)),
+          sign_off: (row) => row.statusCode === 'awaiting_sign_off',
+          decided: (row) => row.statusCode !== 'awaiting_sign_off' && !row.completedAt,
+          completed: (row) => row.statusCode !== 'awaiting_sign_off' && Boolean(row.completedAt),
+          approved: (row) => row.statusCode === 'approved',
+          waiting: (row) => !['approved', 'rejected'].includes(row.statusCode ?? ''),
+          done: (row) => ['approved', 'rejected'].includes(row.statusCode ?? ''),
+        };
+        const first = await listReviewQueueBatch(testDb, { view, counts: shows, actorUserAccountId: actor }, { limit: 50, after: null });
+        for (const show of shows) {
+          const wanted = whole.filter(expected[show]).map((row) => row.invoiceId);
+          const sort = view === 'open' ? 'waiting' : 'finished';
+          const got = await allBatches({ view, show, sort }, actor);
+          expect(got.map((row) => row.invoiceId).sort(), `${view} ${show}`).toEqual([...wanted].sort());
+          expect(got.map((row) => withoutVolatile(row)).sort(byId)).toEqual(whole.filter(expected[show]).map(withoutVolatile).sort(byId));
+          if (show !== 'flagged') expect(first.summary?.counts[show], `${view} ${show} count`).toBe(wanted.length);
+        }
+      }
+    }
+    const waiting = await allBatches({ view: 'open', sort: 'waiting' }, reviewer);
+    expect(waiting[0]?.invoiceId).toBe(unassigned.invoiceId);
+    expect(waiting.map((row) => row.workingDaysWaiting)).toEqual([...waiting.map((row) => row.workingDaysWaiting)].sort((a, b) => b - a));
+    const newest = await allBatches({ view: 'all', sort: 'newest' }, reviewer);
+    expect(newest.map((row) => row.submittedAt?.getTime())).toEqual(newest.map((row) => row.submittedAt?.getTime()).sort((a, b) => b! - a!));
+    expect((await allBatches({ view: 'open', q: 'nobody-matches-this' }, reviewer)).length).toBe(0);
+    const whole = (await listReviewQueue(testDb, 'all')).invoices;
+    for (const row of whole) {
+      const { summary } = await listReviewQueueBatch(testDb, { view: 'all', professionalId: row.professionalId!, actorUserAccountId: reviewer }, { limit: 1, after: null });
+      expect(summary?.person, row.statusCode ?? undefined).toEqual({
+        total: 1,
+        thisYear: { count: 1, requested: row.submittedTotal, approved: row.approvedTotal ?? '0.00' },
+        waiting: { count: ['approved', 'rejected'].includes(row.statusCode ?? '') ? 0 : 1, requested: ['approved', 'rejected'].includes(row.statusCode ?? '') ? '0.00' : row.submittedTotal },
+      });
+    }
+    const { summary: searched } = await listReviewQueueBatch(testDb, { view: 'all', q: 'vendor', actorUserAccountId: reviewer }, { limit: 1, after: null });
+    expect(searched?.search).toMatchObject({ exact: { count: whole.length }, close: { count: 0, invoices: [] }, people: whole.length });
+    await testDb.update(invoice).set({ caseNumberAsTyped: '26-CR-00418' }).where(eq(invoice.invoiceId, flagged.invoiceId));
+    await testDb.update(invoice).set({ caseNumberAsTyped: '26 cr 418' }).where(eq(invoice.invoiceId, reviewing.invoiceId));
+    const byNumber = await allBatches({ view: 'all', q: '26-CR-00418', sort: 'search' }, reviewer);
+    expect(byNumber.map((row) => [row.invoiceId, row.match])).toEqual([
+      [flagged.invoiceId, 'exact'],
+      [reviewing.invoiceId, 'close'],
+    ]);
+    const { summary: numbered } = await listReviewQueueBatch(testDb, { view: 'all', q: '26-CR-00418', actorUserAccountId: reviewer }, { limit: 1, after: null });
+    expect(numbered?.search).toMatchObject({
+      exact: { count: 1, requested: '15.00' },
+      close: { count: 1, requested: '50.00', invoices: [expect.objectContaining({ invoiceId: reviewing.invoiceId, caseNumber: '26 cr 418' })] },
+      people: 2,
+    });
+    expect(flagged.invoiceId).toBeTruthy();
+  });
+});
+
+const byId = (a: { invoiceId: string }, b: { invoiceId: string }) => a.invoiceId.localeCompare(b.invoiceId);
+// Each batch counts case numbers among only its own rows' keys, the same totals.
+const withoutVolatile = ({ caseNumberMatches: _matches, ...row }: QueueRow) => row;

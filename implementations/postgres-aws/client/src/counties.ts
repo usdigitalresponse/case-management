@@ -1,5 +1,5 @@
 // County choices for the pickers and list controls (model/rules.yaml record_case_county).
-import type { CountyChoice, CountyOption } from './api/client';
+import type { CountyChoice, CountyCount, CountyOption } from './api/client';
 
 // countyId null: a county typed in, added when it is saved.
 export interface CountyValue {
@@ -34,54 +34,27 @@ export const ALL_COUNTIES = 'all';
 export const GROUPED_BY_COUNTY = 'grouped';
 export const NO_COUNTY = 'none';
 
-export interface CountyRow {
-  countyId: string | null;
-  displayName?: string | null;
-}
-
-// Grouped: settings, counties as listed, then none, each keeping the list's order.
-export function applyCountyControl<T>(rows: T[], countyOf: (row: T) => CountyRow, choice: string, options: CountyOption[]): T[] {
-  if (choice === ALL_COUNTIES) return rows;
-  if (choice === NO_COUNTY) return rows.filter((row) => !countyOf(row).countyId);
-  if (choice !== GROUPED_BY_COUNTY) return rows.filter((row) => countyOf(row).countyId === choice);
-  // Counties no longer listed come after the rest, each kept together.
-  const unlisted = [...new Set(rows.map((row) => countyOf(row).countyId))].filter(
-    (countyId): countyId is string => Boolean(countyId) && !options.some((option) => option.countyId === countyId),
-  );
-  const rank = (row: T) => {
-    const { countyId } = countyOf(row);
-    if (!countyId) return options.length + unlisted.length;
-    const index = options.findIndex((option) => option.countyId === countyId);
-    return index < 0 ? options.length + unlisted.indexOf(countyId) : index;
-  };
-  return [...rows].sort((a, b) => rank(a) - rank(b));
-}
-
-// Every setting, the rows' counties and the chosen one even with no rows, with counts.
-export function countyControlOptions<T>(
-  rows: T[],
-  countyOf: (row: T) => CountyRow,
+// Every setting, the counties with rows and the chosen one even with none,
+// with the server's counts (null: not known, so every county is offered).
+export function countyControlOptions(
+  counts: CountyCount[] | null,
   options: CountyOption[],
   chosen?: string,
-): { settings: Array<CountyOption & { count: number }>; counties: Array<CountyOption & { count: number }>; none: number } {
-  const counts = new Map<string, number>();
-  const unlisted = new Map<string, string>();
-  for (const row of rows) {
-    const { countyId, displayName } = countyOf(row);
-    if (!countyId) continue;
-    counts.set(countyId, (counts.get(countyId) ?? 0) + 1);
-    if (!options.some((option) => option.countyId === countyId)) unlisted.set(countyId, displayName ?? 'Unlisted county');
-  }
-  const withCount = (option: CountyOption) => ({ ...option, count: counts.get(option.countyId) ?? 0 });
+): { settings: CountyOffer[]; counties: CountyOffer[]; none: number | null } {
+  const countOf = new Map((counts ?? []).flatMap((row) => (row.countyId ? [[row.countyId, row.count] as const] : [])));
+  const withCount = (option: CountyOption) => ({ ...option, count: counts ? (countOf.get(option.countyId) ?? 0) : null });
+  const unlisted = (counts ?? []).filter((row) => row.countyId && !options.some((option) => option.countyId === row.countyId));
   return {
     settings: options.filter((option) => !option.isCounty).map(withCount),
     counties: [
-      ...options.filter((option) => option.isCounty && (counts.has(option.countyId) || option.countyId === chosen)),
-      ...[...unlisted].map(([countyId, displayName]) => ({ countyId, displayName, isCounty: true })),
+      ...options.filter((option) => option.isCounty && (!counts || countOf.has(option.countyId) || option.countyId === chosen)),
+      ...unlisted.map((row) => ({ countyId: row.countyId!, displayName: row.displayName ?? 'Unlisted county', isCounty: true })),
     ].map(withCount),
-    none: rows.filter((row) => !countyOf(row).countyId).length,
+    none: counts ? (counts.find((row) => !row.countyId)?.count ?? 0) : null,
   };
 }
+
+export type CountyOffer = CountyOption & { count: number | null };
 
 export function countyChoiceOf(value: CountyValue | null): CountyChoice {
   if (!value) return { countyId: null };

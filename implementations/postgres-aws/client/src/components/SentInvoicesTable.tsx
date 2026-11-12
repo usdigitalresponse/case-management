@@ -7,7 +7,7 @@ import { CaseNumberCell, FromCell, openInvoiceColumn, QuestionChips } from './In
 import { formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
-export const IN_REVIEW = ['submitted', 'under_review', 'awaiting_answer', 'awaiting_sign_off'];
+const IN_REVIEW = ['submitted', 'under_review', 'awaiting_answer', 'awaiting_sign_off'];
 
 export function SentInvoicesTable({
   invoices,

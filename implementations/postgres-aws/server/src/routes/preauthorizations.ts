@@ -11,6 +11,7 @@ import { createPreauthorizationRequest, listRequestableProviders, previewRequest
 import { getPreauthorizationRequest, listOwnPreauthorizationRequests, listPreauthorizationRequests } from '../billing/preauthorizationRequests/read';
 import { preauthorizationUsageByCounty } from '../billing/preauthorizationUsage';
 import { asyncHandler } from './asyncHandler';
+import { batchRequest } from '../lists/batches';
 import { sendFileDownload } from './sendUploadedFile';
 
 const router = Router();
@@ -27,21 +28,22 @@ function query(req: Request, name: string): string | undefined {
   return typeof value === 'string' && value ? value : undefined;
 }
 
-// Staff see every request (filtered); a requester sees their own.
+// Staff see every request (filtered); a requester sees their own; latest first, a batch at a time.
 router.get(
   '/requests',
   asyncHandler(async (req, res) => {
     const actor = await sessionActor(req);
-    const requests = (await isStaffAccount(db, actor.userAccountId))
-      ? await listPreauthorizationRequests(db, actor.userAccountId, {
-          status: query(req, 'status'),
-          countyId: query(req, 'countyId'),
-          caseId: query(req, 'caseId'),
-          from: query(req, 'from'),
-          to: query(req, 'to'),
-        })
-      : await listOwnPreauthorizationRequests(db, actor, query(req, 'caseId'));
-    res.json({ requests });
+    const batch = batchRequest(req.query);
+    res.json(
+      (await isStaffAccount(db, actor.userAccountId))
+        ? await listPreauthorizationRequests(
+            db,
+            actor.userAccountId,
+            { status: query(req, 'status'), countyId: query(req, 'countyId'), caseId: query(req, 'caseId'), from: query(req, 'from'), to: query(req, 'to') },
+            batch,
+          )
+        : await listOwnPreauthorizationRequests(db, actor, query(req, 'caseId'), batch),
+    );
   }),
 );
 

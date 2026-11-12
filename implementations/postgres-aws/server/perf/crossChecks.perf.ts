@@ -7,6 +7,10 @@ import { addKindRate, createKind } from '../src/billing/professionalRates';
 import { createApp } from '../src/app';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { listReviewQueue } from '../src/billing/reviewQueue';
+import { listReviewQueueBatch, type QueueBatchRequest } from '../src/billing/reviewQueueBatches';
+import { listCaseBatch } from '../src/cases/caseBatches';
+import { listPeopleBatch } from '../src/professionals/peopleDirectory';
+import { BATCH_SIZE } from '../src/lists/batches';
 import { caseNumberMatchesFor, sentCaseNumberCounts } from '../src/billing/caseNumberMatches';
 import { loadInvoiceDetail } from '../src/billing/invoiceDetail';
 import { findBillingOverlaps } from '../src/billing/billingOverlaps';
@@ -186,6 +190,41 @@ describe('review', () => {
     expect(result.invoices.length).toBeGreaterThan(0);
   });
 
+  // As the pages load them now: a first batch with its summary (../src/lists/batches.ts).
+  const toReview = ['all', 'mine', 'unassigned', 'flagged'] as const;
+  const batches: Array<[string, Omit<QueueBatchRequest, 'actorUserAccountId'>]> = [
+    ['open', { view: 'open', counts: [...toReview] }],
+    ['open flagged', { view: 'open', show: 'flagged', counts: [...toReview] }],
+    ['open mine', { view: 'open', show: 'mine', counts: [...toReview] }],
+    ['finished this month', { view: 'lines_decided', show: 'month', sort: 'finished', counts: ['month', 'sign_off', 'decided', 'completed', 'all'] }],
+  ];
+  for (const [name, request] of batches) {
+    it(`queue batch: ${name}`, async () => {
+      const { result } = await measure('review', `listReviewQueueBatch ${name}`, () =>
+        listReviewQueueBatch(db, { ...request, actorUserAccountId: fixtures.staffUserAccountId }, { limit: BATCH_SIZE, after: null }),
+      );
+      expect(result.summary).toBeDefined();
+    });
+  }
+
+  it('queue batch: searched by case number', async () => {
+    const q = caseReference(caseOfInvoice(volume, inReview));
+    const { result } = await measure('review', 'listReviewQueueBatch search', () =>
+      listReviewQueueBatch(db, { view: 'all', q, sort: 'search', actorUserAccountId: fixtures.staffUserAccountId }, { limit: BATCH_SIZE, after: null }),
+    );
+    expect(result.items.length).toBeGreaterThan(0);
+  });
+
+  it('cases, first batch', async () => {
+    const { result } = await measure('review', 'listCaseBatch', () => listCaseBatch(db, {}, { limit: BATCH_SIZE, after: null }));
+    expect(result.items.length).toBeGreaterThan(0);
+  });
+
+  it('people, first batch', async () => {
+    const { result } = await measure('review', 'listPeopleBatch', () => listPeopleBatch(db, {}, { limit: BATCH_SIZE, after: null }));
+    expect(result.items.length).toBeGreaterThan(0);
+  });
+
   it('queue, as the route loads it', async () => {
     await measure('review', 'GET /api/invoices', async () => json(await staffCall('GET', '/api/invoices')));
   });
@@ -305,7 +344,7 @@ describe('duplicate detection', () => {
 
   it('person search', async () => {
     const { result } = await measure('duplicates', 'GET /api/people?q=', async () => json(await staffCall('GET', '/api/people?q=Alder')));
-    expect((result.people as unknown[]).length).toBeGreaterThan(0);
+    expect((result.items as unknown[]).length).toBeGreaterThan(0);
   });
 });
 

@@ -12,6 +12,8 @@ import {
 } from '../api/client';
 import { professionalLabel } from '../invoiceLines';
 import { useResource } from '../hooks/useResource';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
 import { billableProfessionals, myCaseInvoices, myCases as myCasesResource, myTimeEntries } from '../resources';
 import { NewInvoiceForm } from './NewInvoiceForm';
 import { UPLOAD_PATH } from './useShell';
@@ -288,8 +290,9 @@ function InvoiceSection({
   onInvoiced: () => void;
 }) {
   const [showWithdrawn, setShowWithdrawn] = useState(false);
-  const { data, error, reload } = useResource(myCaseInvoices(caseId));
-  const withdrawnCount = data?.filter((i) => i.statusCode === 'withdrawn').length ?? 0;
+  const list = useBatchedResource(myCaseInvoices(caseId, showWithdrawn));
+  const { items: data, error, reload } = list;
+  const withdrawnCount = list.summary?.withdrawn ?? 0;
 
   return (
     <section>
@@ -309,11 +312,12 @@ function InvoiceSection({
         <MyInvoicesTable
           label="Invoices on this case"
           showClient={false}
-          rows={showWithdrawn ? data : data.filter((i) => i.statusCode !== 'withdrawn')}
+          rows={data}
           emptyMessage={withdrawnCount > 0 && !showWithdrawn ? 'No invoices besides withdrawn ones.' : 'No invoices yet.'}
           onDeleted={() => void reload()}
         />
       )}
+      <MoreOnScroll list={list} what="invoices" />
 
       {SENDERS_LOG_TIME && (
         <NewInvoiceForm

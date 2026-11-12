@@ -1,7 +1,7 @@
 // Everyone who can send invoices, with who is paid, today's approved rates and
 // what is waiting. Staff accounts' own profiles are left out, as in
 // ../routes/professionals.ts.
-import { and, count, eq, inArray, isNull, max, notInArray, or, sql, sum } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, max, notInArray, or, sql, sum, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import type { DatabaseOrTransaction } from '../db/client';
 import { invoice, invoiceStatuses, person, professional, professionalKinds, userAccount } from '../db/schema';
@@ -11,10 +11,18 @@ import { listOwnTravelRates, listRates, rateOn } from '../billing/professionalRa
 import { mileageRateOn, mileageRatesForEach } from '../billing/mileageRates';
 import { loadPersonReviewer } from '../billing/reviewAssignment';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
+import { afterCursor, cursorColumn, oneBatch, orderByKeys, sortKey, type BatchRequest, type SortKey } from '../lists/batches';
 
-async function selectPeople(db: DatabaseOrTransaction, professionalId?: string) {
+// Not staff accounts' own profiles; a vendor account has no system role, and plain `not in` would drop NULLs.
+async function notStaff(db: DatabaseOrTransaction): Promise<SQL> {
   const staffAccountRoleIds = await getStaffAccountRoleIds(db);
-  const people = await db
+  return or(isNull(userAccount.systemRoleId), notInArray(userAccount.systemRoleId, staffAccountRoleIds))!;
+}
+
+const BY_NAME: SortKey[] = [sortKey(sql`coalesce(${professional.displayName}, '')`, 'text'), sortKey(sql`${professional.professionalId}`, 'uuid')];
+
+function peopleRows(db: DatabaseOrTransaction) {
+  return db
     .select({
       professionalId: professional.professionalId,
       displayName: professional.displayName,
@@ -26,22 +34,15 @@ async function selectPeople(db: DatabaseOrTransaction, professionalId?: string) 
       paidThrough: professional.paidThrough,
       professionalKindId: professional.professionalKindId,
       role: professionalKinds.displayName,
+      cursor: cursorColumn(BY_NAME),
     })
     .from(professional)
     .innerJoin(person, eq(professional.personId, person.personId))
     .leftJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
-    .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
-    .where(
-      and(
-        // A vendor account has no system role; plain `not in` would drop NULLs.
-        or(isNull(userAccount.systemRoleId), notInArray(userAccount.systemRoleId, staffAccountRoleIds)),
-        // A merged-away profile is still found by its own id.
-        ...(professionalId ? [] : [isNull(person.mergedIntoPersonId)]),
-        ...(professionalId ? [eq(professional.professionalId, professionalId)] : []),
-      ),
-    )
-    .orderBy(professional.displayName);
+    .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id));
+}
 
+async function withRates<Row extends { professionalId: string }>(db: DatabaseOrTransaction, people: Row[]) {
   const ids = people.map((row) => row.professionalId);
   const today = new Date().toISOString().slice(0, 10);
   const [rates, mileage, travel] = await Promise.all([listRates(db, ids), mileageRatesForEach(db, ids), listOwnTravelRates(db, ids)]);
@@ -54,8 +55,46 @@ async function selectPeople(db: DatabaseOrTransaction, professionalId?: string) 
   }));
 }
 
-export async function listPeople(db: DatabaseOrTransaction) {
-  const people = await selectPeople(db);
+// role: a kind's name, or 'none' for those without one; q: their name or email.
+export interface PeopleRequest {
+  role?: string;
+  q?: string;
+}
+
+// Everyone who can send invoices, by name, a batch at a time; with each role's count on the first.
+export async function listPeopleBatch(db: DatabaseOrTransaction, request: PeopleRequest, batch: BatchRequest) {
+  const words = request.q?.trim().toLowerCase();
+  const base = and(
+    await notStaff(db),
+    isNull(person.mergedIntoPersonId),
+    words ? sql`strpos(lower(coalesce(${professional.displayName}, '') || ' ' || coalesce(${userAccount.email}, ${person.email}, '')), ${words}) > 0` : undefined,
+  );
+  const inRole = request.role ? (request.role === 'none' ? isNull(professionalKinds.displayName) : eq(professionalKinds.displayName, request.role)) : undefined;
+  const { rows, next } = await oneBatch(batch, (after, limit) =>
+    peopleRows(db).where(and(base, inRole, afterCursor(BY_NAME, after))).orderBy(...orderByKeys(BY_NAME)).limit(limit),
+  );
+  const items = (await withActivity(db, await withRates(db, rows))).map(({ cursor: _cursor, ...row }) => row);
+  if (batch.after) return { items, next };
+  // Whatever the role chosen, so every role's tag has its count.
+  const roles = await db
+    .select({ role: professionalKinds.displayName, count: count() })
+    .from(professional)
+    .innerJoin(person, eq(professional.personId, person.personId))
+    .leftJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
+    .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
+    .where(base)
+    .groupBy(professionalKinds.displayName);
+  return { items, next, summary: { roles } };
+}
+
+async function selectPeople(db: DatabaseOrTransaction, professionalId: string) {
+  // A merged-away profile is still found by its own id.
+  const rows = await peopleRows(db).where(and(await notStaff(db), eq(professional.professionalId, professionalId)));
+  return withRates(db, rows.map(({ cursor: _cursor, ...row }) => row));
+}
+
+// What each is waiting on and when they last sent one.
+async function withActivity<Row extends { professionalId: string }>(db: DatabaseOrTransaction, people: Row[]) {
   const ids = people.map((row) => row.professionalId);
   const [waiting, latest] =
     ids.length === 0

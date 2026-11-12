@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { and, asc, eq, type SQL } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { db } from '../db/client';
 import {
@@ -15,49 +15,28 @@ import {
   county,
   role,
 } from '../db/schema';
-import { listReviewQueue } from '../billing/reviewQueue';
 import { loadPreauthorizationSummaries, setPreauthorizedAmount } from '../billing/preauthorizations';
 import { loadCaseRateViews } from '../billing/caseRates';
 import { loadCaseReviewer, setCaseReviewer } from '../billing/reviewAssignment';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
 import { createCase } from '../intake/createCase';
-import { loadCaseListExtras, loadRecentCaseChanges } from '../cases/caseSummaries';
-import { caseStageExpression } from '../cases/caseStage';
+import { loadRecentCaseChanges } from '../cases/caseSummaries';
+import { CASE_STAGES } from '../cases/caseStage';
+import { caseColumnsWithClientName, caseCounts, caseOverview, CASE_SHOWS, listCaseBatch } from '../cases/caseBatches';
+import { batchRequest } from '../lists/batches';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { assignExternalSubmitterToCase } from '../cases/assignExternalSubmitterToCase';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase, unfinishedInvoices } from '../cases/closeCase';
 import { listPossibleDuplicateCases, recordCaseDuplicateReview } from '../cases/possibleDuplicateCases';
 import { asyncHandler } from './asyncHandler';
+import { ValidationError } from '../errors';
 
 const router = Router();
 // Full staff access only: external (email-code) users get their own
 // narrower endpoints (GET /api/my-cases, POST .../external-assignments
 // only via a full user) rather than this general case list/detail API.
 router.use(requireFullUser);
-
-// Shared between the list and detail routes below. clientDisplayName is
-// joined in for display only (e.g. the case list's "Client" column) —
-// client_id is a compatibility field, case_participant is authoritative
-// (model/schema.yaml).
-const caseColumnsWithClientName = {
-  caseId: caseTable.caseId,
-  clientId: caseTable.clientId,
-  clientDisplayName: person.displayName,
-  countyId: caseTable.countyId,
-  countyDisplayName: county.displayName,
-  externalReference: caseTable.externalReference,
-  caseCategoryId: caseTable.caseCategoryId,
-  statusId: caseTable.statusId,
-  statusDisplayName: caseStatuses.displayName,
-  openedOn: caseTable.openedOn,
-  closedOn: caseTable.closedOn,
-  organizationId: caseTable.organizationId,
-  officeId: caseTable.officeId,
-  jurisdictionId: caseTable.jurisdictionId,
-  preferredLanguageId: caseTable.preferredLanguageId,
-  stage: caseStageExpression,
-};
 
 router.post(
   '/',
@@ -73,29 +52,44 @@ router.post(
   }),
 );
 
+// A batch of cases by client name, with its summary on the first (../cases/caseBatches.ts).
+// show: all, open or closed; stage; county: an id, 'none' or 'grouped'; q: client, case number or worker.
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const filters: SQL[] = [];
-    if (typeof req.query.countyId === 'string') {
-      filters.push(eq(caseTable.countyId, req.query.countyId));
+    const stage = CASE_STAGES.find((value) => value === req.query.stage);
+    const county = req.query.county === undefined || req.query.county === '' ? undefined : String(req.query.county);
+    if (county !== undefined && county !== 'none' && county !== 'grouped' && !z.uuid().safeParse(county).success) {
+      throw new ValidationError({ county: 'That is not a county.' });
     }
-    if (typeof req.query.statusId === 'string') {
-      filters.push(eq(caseTable.statusId, req.query.statusId));
-    }
-    if (typeof req.query.caseCategoryId === 'string') {
-      filters.push(eq(caseTable.caseCategoryId, req.query.caseCategoryId));
-    }
+    res.json(
+      await listCaseBatch(
+        db,
+        {
+          show: CASE_SHOWS.find((value) => value === req.query.show) ?? 'all',
+          stage,
+          county,
+          q: typeof req.query.q === 'string' ? req.query.q.slice(0, 100) : undefined,
+        },
+        batchRequest(req.query),
+      ),
+    );
+  }),
+);
 
-    const rows = await db
-      .select(caseColumnsWithClientName)
-      .from(caseTable)
-      .leftJoin(person, eq(caseTable.clientId, person.personId))
-      .leftJoin(caseStatuses, eq(caseTable.statusId, caseStatuses.id))
-      .leftJoin(county, eq(caseTable.countyId, county.countyId))
-      .where(filters.length > 0 ? and(...filters) : undefined);
-    const extras = await loadCaseListExtras(db, rows.map((row) => row.caseId));
-    res.json({ cases: rows.map((row) => ({ ...row, ...extras.get(row.caseId)! })) });
+// Every case's counts: the sidebar's open cases and Organizations' cases each.
+router.get(
+  '/counts',
+  asyncHandler(async (_req, res) => {
+    res.json(await caseCounts(db));
+  }),
+);
+
+// The Case overview's stages, each with its count and first few cases.
+router.get(
+  '/overview',
+  asyncHandler(async (_req, res) => {
+    res.json(await caseOverview(db));
   }),
 );
 
@@ -257,16 +251,14 @@ router.get(
       res.status(404).json({ error: 'not_found' });
       return;
     }
-    const [{ invoices: rows }, preauthorizations, caseRates, reviewer, numbers] = await Promise.all([
-      listReviewQueue(db, 'all', { caseId }),
+    // Its invoices themselves come a batch at a time from GET /api/invoices?caseId=.
+    const [preauthorizations, caseRates, reviewer, numbers] = await Promise.all([
       loadPreauthorizationSummaries(db, caseId),
       loadCaseRateViews(db, caseId),
       loadCaseReviewer(db, caseId),
       loadCaseNumbers(db, [caseId]),
     ]);
-    rows.sort((a, b) => Number(b.submittedAt) - Number(a.submittedAt));
     res.json({
-      invoices: rows,
       preauthorizations,
       caseRates,
       reviewer,

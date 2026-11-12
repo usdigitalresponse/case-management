@@ -116,12 +116,17 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   `enforce_invoice_approval_sequence`; `src/billing/reviewInvoiceLine.ts`,
   `reviewRounds.ts`, `reviewAssignment.ts`, `reviewQueue.ts`,
   `src/routes/invoices.ts`, `client/src/pages/InvoiceReview.tsx`):
-  - `GET /api/invoices?view=open|finished` is the queue: case number,
-    client, who submitted it, lines decided, who holds it (the reviewer,
-    or the next approver while it waits for sign-off), working days waited
-    (`workingDays.ts`, weekends skipped, no holiday calendar yet) and flags
-    (rate differs from the configured rate, a stated amount that doesn't
-    add up, billing rule findings). It never includes drafts.
+  - `GET /api/invoices?view=open|finished|lines_decided|all` is the queue,
+    a batch at a time (see Long lists): case number, client, who submitted
+    it, lines decided, who holds it (the reviewer, or the next approver while
+    it waits for sign-off), working days waited (`workingDays.ts`, weekends
+    skipped, no holiday calendar yet) and flags (rate differs from the
+    configured rate, a stated amount that doesn't add up, billing rule
+    findings). It never includes drafts. `show`, `sort`, `county`, `q`,
+    `professionalId`, `caseId` and `day` filter and order it
+    (`src/billing/reviewQueueBatches.ts`, with the derived columns in SQL in
+    `queueSql.ts`); `counts` names the filters whose counts the first
+    batch's summary carries. `GET /api/invoices/counts` is the sidebar's.
   - `PUT|DELETE /api/invoices/:id/lines/:lineId/decision` sets or undoes a
     working decision (`invoice_line_working_decision`): approve, approve
     in part (corrected hours or rate on a line with hours, otherwise the
@@ -1201,3 +1206,21 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   index would be needed, since leading-wildcard `ilike` can't use a plain
   B-tree) — deferred since the person table is a handful of seeded rows in
   this scope; revisit if that search becomes real-data-sized.
+
+- **Long lists** come a batch at a time (`src/lists/batches.ts`): the queue
+  and its pages, cases (`GET /api/cases`, with `/counts` and `/overview`),
+  people (`GET /api/professionals/people`), providers (`GET
+  /api/professionals`), person search (`GET /api/people`), pre-authorization
+  requests and a sender's invoices (`GET /api/portal/invoices`). Each takes
+  `limit` (50 by default, at most 200) and `after`, and returns `{ items,
+  next }`, `next` being `after` for the following batch or null after the
+  last; the first batch adds a `summary` with what the page shows of the
+  whole list (counts, county counts, totals). Order is fixed per list and
+  ends in the row's id, and `after` holds the last row's sort keys as exact
+  text, so rows added meanwhile never repeat or shift. Filters, counts and
+  sorting are the server's; a filter only code can apply (the queue's "Has a
+  flag") reads on until the batch is full and has no count. An id parameter
+  that isn't one is refused, never read as no filter. Lists bounded by the
+  work itself stay whole: Intake, possible duplicates, a sender's cases and
+  bulk imports. Connections run with `jit=off` (`src/db/client.ts`): JIT
+  compiling these queries took hundreds of milliseconds against tens to run.

@@ -10,7 +10,7 @@ import { auditEvent, invoice, userAccount } from '../src/db/schema';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
 import { addProfessional } from '../src/professionals/addProfessional';
 import { editProfessional } from '../src/professionals/editProfessional';
-import { getPerson, listPeople } from '../src/professionals/peopleDirectory';
+import { getPerson, listPeopleBatch } from '../src/professionals/peopleDirectory';
 import { createInvoice } from '../src/portal/createInvoice';
 import { resolvePortalActor } from '../src/portal/portalActor';
 import { addKindRate, addOwnRates, createKind, listRates, rateOn } from '../src/billing/professionalRates';
@@ -99,7 +99,7 @@ describe('People', () => {
   it('lists senders with their rate and what is waiting, not staff', async () => {
     const { actor, professionalId } = await createSender('people@example.com', 120);
     await send(actor, '26-CR-00101');
-    const people = await listPeople(testDb);
+    const people = (await listPeopleBatch(testDb, {}, { limit: 200, after: null })).items;
     expect(people.map((person) => person.professionalId)).toEqual([professionalId]);
     expect(people[0]).toMatchObject({ hourlyRate: '120.00', waiting: { count: 1, total: '240.00' } });
   });

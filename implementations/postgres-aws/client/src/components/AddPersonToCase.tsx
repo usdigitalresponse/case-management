@@ -76,8 +76,8 @@ export function AddPersonToCase({ caseId, onAdded }: { caseId: string; onAdded: 
               noResults="No one found."
               addOption={{ label: '+ Add a new provider', onAdd: (query) => setAdding(query) }}
               search={(query) =>
-                listVendors(query).then((result) =>
-                  result.professionals.map((vendor) => ({
+                listVendors(query, null).then((result) =>
+                  result.items.map((vendor) => ({
                     value: vendor.professionalId,
                     label: `${vendor.displayName ?? vendor.email}${vendor.professionalKindDisplayName ? `, ${vendor.professionalKindDisplayName}` : ''}`,
                     item: vendor,

@@ -343,7 +343,9 @@ How the React client is built and why. Schema mapping and gaps are in
     `ensureProfessional.ts` links it on first sign-in by email.
   - Adding what isn't listed (`model/rules.yaml` `match_invoice_to_case`):
     every case and person picker is `client/src/components/PickOrAdd.tsx`,
-    whose first option adds one, showing its fields
+    whose first option adds one, showing its fields; given `search`, as for
+    staff's cases and providers (lists too long to load), it is a type-ahead
+    on the server's search with the same first option
     (`components/NewEntryFields.tsx`; the type-ahead searches on New case
     offer it first too). Nothing has to be
     chosen to continue: what isn't known waits on Intake. A submitter's
@@ -483,10 +485,10 @@ How the React client is built and why. Schema mapping and gaps are in
   Organizations (`/organizations`). People and Providers share
   `client/src/components/SearchDirectory.tsx` (search box + results table):
   - People and Providers hit a server search endpoint (`GET /api/people`,
-    `/api/professionals`, both `requireFullUser`); Clients and
-    Organizations are built from `GET /api/cases` and reference data (see
-    Look-up pages below). People requires a query first (the person table
-    could be large); Providers loads everything up front (a small table).
+    `/api/professionals`, both `requireFullUser`), a batch at a time;
+    Clients is `GET /api/cases` by client and Organizations counts cases from
+    `GET /api/cases/counts` (see Look-up pages below). People requires a
+    query first; Providers lists everyone before one.
   - `GET /api/professionals` (`src/routes/professionals.ts`) used to
     return `[]` without a query and was otherwise unused by the client;
     it now also backs the Providers list, listing everyone when no query is
@@ -684,6 +686,18 @@ How the React client is built and why. Schema mapping and gaps are in
   the client/server boundary. Accepted as the ordinary cost of a
   boundary between two separately-deployed apps, not a reuse bug —
   revisit only if a shared-types package becomes a concrete need.
+
+- Long lists load a batch at a time as they scroll: `useBatchedResource`
+  (`src/hooks/useBatchedResource.ts`, TanStack Query's infinite queries,
+  with useResource's `fresh` and `resetKey`) over a resource made by
+  `batched()` in `src/resources.ts`, and `components/MoreOnScroll.tsx` after
+  the table, which loads the next batch as it nears the screen and, after a
+  failure, waits to be scrolled to again. A page builds its request from the
+  address in `src/queueRequests.ts` or `src/caseRequests.ts`, so its route
+  loader prefetches the same first batch. Filters, counts, the county
+  control's counts and sorting come from the server (the first batch's
+  `summary`); never filter or count a batched list in the browser. Exports of
+  a whole list read every batch first (`loadAllBatches`).
 
 ## Changing the design system
 

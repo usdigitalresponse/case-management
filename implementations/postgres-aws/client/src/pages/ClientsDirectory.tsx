@@ -1,5 +1,7 @@
-import { Link as RouterLink } from 'react-router';
-import { useResource } from '../hooks/useResource';
+import { Link as RouterLink, useSearchParams } from 'react-router';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
+import { clientsRequest } from '../caseRequests';
 import { cases } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { SearchInput } from '../components/SearchInput';
@@ -10,14 +12,10 @@ import { useSearchParamText } from '../hooks/useSearchParamState';
 
 // Every case's client, one row per case (design I52).
 export default function ClientsDirectory() {
-  const { data, error } = useResource(cases);
+  const [params] = useSearchParams();
+  const list = useBatchedResource(cases(clientsRequest(params)));
   const [query, setQuery] = useSearchParamText('q');
-  if (error || !data) return <LoadState error={error} what="clients" />;
-
-  const wanted = query.trim().toLowerCase();
-  const rows = data.cases
-    .filter((record) => !wanted || `${record.clientDisplayName ?? ''} ${record.caseNumber ?? ''}`.toLowerCase().includes(wanted))
-    .sort((a, b) => (a.clientDisplayName ?? '').localeCompare(b.clientDisplayName ?? ''));
+  if (list.error || !list.items) return <LoadState error={list.error} what="clients" />;
 
   return (
     <>
@@ -34,7 +32,7 @@ export default function ClientsDirectory() {
       </div>
       <RecordTable
         label="Clients"
-        rows={rows}
+        rows={list.items}
         rowKey={(record) => record.caseId}
         emptyMessage="No clients match."
         columns={[
@@ -45,6 +43,7 @@ export default function ClientsDirectory() {
           { header: 'Status', render: (record) => record.statusDisplayName },
         ]}
       />
+      <MoreOnScroll list={list} what="clients" />
     </>
   );
 }

@@ -8,7 +8,7 @@ import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db
 import { createKind } from '../src/billing/professionalRates';
 import { addProfessional } from '../src/professionals/addProfessional';
 import { ensureProfessionalForUserAccount } from '../src/professionals/ensureProfessional';
-import { listPeople } from '../src/professionals/peopleDirectory';
+import { listPeopleBatch } from '../src/professionals/peopleDirectory';
 import { createCase } from '../src/intake/createCase';
 import { familyKey, listPossibleDuplicates, nameKey, recordDuplicateReview } from '../src/people/possibleDuplicates';
 import { listMerges, mergePeople, previewMerge, undoMerges } from '../src/people/personMerges';
@@ -127,14 +127,14 @@ describe('merging', () => {
     expect((await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId)))[0]!.professionalId).toBe(kept.professionalId);
     // Their sign-in now opens the kept profile, with its rate.
     expect(await ensureProfessionalForUserAccount(testDb, retired.userAccountId, 'Jordan Example')).toBe(kept.professionalId);
-    expect((await listPeople(testDb)).map((one) => one.professionalId)).toEqual([kept.professionalId]);
+    expect(((await listPeopleBatch(testDb, {}, { limit: 200, after: null })).items).map((one) => one.professionalId)).toEqual([kept.professionalId]);
     expect(await listPossibleDuplicates(testDb)).toEqual([]);
     expect((await listMerges(testDb))[0]).toMatchObject({ personMergeId, kept: { personId: kept.personId }, retired: { personId: retired.personId }, undoneAt: null });
 
     expect((await undoMerges(testDb, admin, [personMergeId])).leftAsIs).toBe(0);
     expect((await testDb.select().from(invoice).where(eq(invoice.invoiceId, invoiceId)))[0]!.professionalId).toBe(retired.professionalId);
     expect(await ensureProfessionalForUserAccount(testDb, retired.userAccountId, 'Jordan Example')).toBe(retired.professionalId);
-    expect((await listPeople(testDb)).map((one) => one.professionalId).sort()).toEqual([kept.professionalId, retired.professionalId].sort());
+    expect(((await listPeopleBatch(testDb, {}, { limit: 200, after: null })).items).map((one) => one.professionalId).sort()).toEqual([kept.professionalId, retired.professionalId].sort());
     await expect(undoMerges(testDb, admin, [personMergeId])).rejects.toMatchObject({ code: 'already_undone' });
   });
 
