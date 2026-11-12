@@ -13,6 +13,7 @@ import { preauthorizationUsageByCounty } from '../billing/preauthorizationUsage'
 import { asyncHandler } from './asyncHandler';
 import { batchRequest } from '../lists/batches';
 import { sendFileDownload } from './sendUploadedFile';
+import { tagTourRecord } from '../demoTour/tourRuns';
 
 const router = Router();
 router.use(requireAuth);
@@ -50,7 +51,9 @@ router.get(
 router.post(
   '/requests',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createPreauthorizationRequest(db, await sessionActor(req), req.body));
+    const created = await createPreauthorizationRequest(db, await sessionActor(req), req.body);
+    await tagTourRecord(req, 'preauthorization_request', created.preauthorizationRequestId);
+    res.status(201).json(created);
   }),
 );
 

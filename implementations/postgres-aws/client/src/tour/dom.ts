@@ -11,7 +11,7 @@ export function findTarget(target: Target, root: ParentNode = document): HTMLEle
   const wanted = target.text.toLowerCase();
   // The name a screen reader hears: a short label's aria-label, else its text.
   const name = (element: Element) => (element.getAttribute('aria-label') ?? element.textContent ?? '').trim().toLowerCase();
-  const candidates = [...root.querySelectorAll('a, button, label, summary, [role="button"]')].filter(
+  const candidates = [...root.querySelectorAll('a, button, label, summary, [role="button"], .notice__heading')].filter(
     (element) => !element.closest('.guide') && visible(element),
   );
   return (

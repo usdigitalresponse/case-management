@@ -60,8 +60,10 @@ export function ReviewOutcome({ page, facts }: { page: ReviewPage; facts: Review
 
       {status === 'awaiting_sign_off' && data.decidedByEnterer && (
         <Notice tone="warning" heading="Entered and decided by the same person.">
-          {invoice.submittedByDisplayName ?? 'The reviewer'} entered this invoice's lines from the file and decided them. Compare them with the
-          file before signing off.
+          {invoice.submittedByDisplayName ?? 'The reviewer'} typed in this invoice's lines and also decided them.{' '}
+          {data.fileSource
+            ? 'Check the lines against the file shown on this page before you sign off.'
+            : 'Check the lines against the paper or emailed invoice before you sign off.'}
         </Notice>
       )}
 

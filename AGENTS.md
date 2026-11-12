@@ -82,6 +82,8 @@ generic requirement in the repository.
 - Separate entity structure, business rules, workflows, forms, reference data,
   and acceptance scenarios rather than burying them in prose or platform code.
 - Preserve audit history for important state, assignment, and financial changes.
+  The one exception is synthetic guided-tour material on demo servers (see
+  the Postgres/AWS notes below); never extend it to other data.
 - Use `person` for identity and `case_participant` for case roles. Client and
   professional records are profiles; do not restore flattened client identity.
 - The stable `invoice` key denotes a payment request; extend its review chain
@@ -316,7 +318,17 @@ the visitor beside the usual demo dropdowns, and makes its own synthetic
 material per run: it never resets data, changes shared settings or makes
 billed route lookups. Its steps complete from what the visitor does in the
 real app, and its "Before" lines restate research problems generically.
-The app is a React Router data router built per kind of signed-in user
+Tour runs are the one exception to keeping history: a run records the cases,
+invoices, pre-authorization requests and people it made or its visitor added
+(`server/src/demoTour/tourRuns.ts`, tagged from the visitor's own session,
+never by demo account, until they close the tour or sign in another way;
+a case's client only if made new with it), and an hourly sweep, only where the tour is on,
+deletes runs a day old with everything that references them through foreign
+keys, their audit events and the files only they used. A run that reaches
+another visitor's case, invoice, request or person is kept and marked, never
+partly deleted. A new create route a tour visitor can reach tags its record
+with `tagTourRecord`; never use this deletion for anything but tour runs.
+The app is a React Router data router rebuilt at each sign-in
 (`client/src/App.tsx`, the portal's routes in `portal/ExternalPortalApp.tsx`);
 pages give their route a loader over named resources (`src/routeLoaders.ts`,
 `src/resources.ts`), so they don't blank to "Loading…" while switching; add one

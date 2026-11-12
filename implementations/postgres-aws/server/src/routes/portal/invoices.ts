@@ -24,6 +24,7 @@ import { asyncHandler } from '../asyncHandler';
 import { sendFileDownload, sendFilePreview } from '../sendUploadedFile';
 import { parseExportFormat, parseExportOmit, sendInvoiceExport } from '../sendInvoiceExport';
 import { sessionActor } from './sessionActor';
+import { tagTourRecord } from '../../demoTour/tourRuns';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ router.post(
   '/invoices',
   asyncHandler(async (req, res) => {
     const result = await createInvoice(db, await sessionActor(req), req.body);
+    await tagTourRecord(req, 'invoice', result.invoiceId);
     res.status(201).json(result);
   }),
 );

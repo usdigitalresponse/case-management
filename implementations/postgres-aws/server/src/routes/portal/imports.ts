@@ -12,6 +12,7 @@ import { db } from '../../db/client';
 import { asyncHandler } from '../asyncHandler';
 import { sendFileDownload, sendFilePreview } from '../sendUploadedFile';
 import { sessionActor } from './sessionActor';
+import { tagTourRecord } from '../../demoTour/tourRuns';
 
 const router = Router();
 
@@ -129,7 +130,9 @@ router.delete(
 router.post(
   '/uploads/:id/draft',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await createDraftFromUpload(db, await sessionActor(req), { ...req.body, uploadReadId: req.params.id }));
+    const draft = await createDraftFromUpload(db, await sessionActor(req), { ...req.body, uploadReadId: req.params.id });
+    await tagTourRecord(req, 'invoice', draft.invoiceId);
+    res.status(201).json(draft);
   }),
 );
 

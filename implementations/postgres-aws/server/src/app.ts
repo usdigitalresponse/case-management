@@ -4,6 +4,7 @@ import cookieSession from 'cookie-session';
 import passport from 'passport';
 import { configureOidcProviders } from './auth/oidcProviders';
 import { demoLoginEnabled, externalDemoLoginEnabled } from './auth/demoSettings';
+import { sweepTourRuns } from './demoTour/tourRuns';
 import { createAuthRouter } from './routes/auth';
 import casesRouter from './routes/cases';
 import peopleRouter from './routes/people';
@@ -111,6 +112,16 @@ if (require.main === module) {
     });
   void sweepImports();
   setInterval(() => void sweepImports(), 60 * 60 * 1000).unref();
+  // Guided tour runs a day old, where the tour is on (both demo sign-ins).
+  if (demoLoginEnabled && externalDemoLoginEnabled) {
+    const sweepTours = () =>
+      sweepTourRuns(db, documentStore).catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error('Guided tour sweep failed', error);
+      });
+    void sweepTours();
+    setInterval(() => void sweepTours(), 60 * 60 * 1000).unref();
+  }
   // Case-split reads nobody went on with, an hour after they started.
   setInterval(
     () =>
