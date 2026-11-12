@@ -3,6 +3,7 @@ import { Link as RouterLink } from 'react-router';
 import {
   apiErrorMessage,
   matchInvoiceToCase,
+  type CaseByNumber,
   type OverrunExplanation,
   type PreauthorizationSummary,
   type QueuedInvoice,
@@ -86,28 +87,27 @@ export function CaseCard({
   );
 }
 
-// An invoice filed by person, matched to its case while it is reviewed:
-// cases with its number, or a new one added from it.
+// Matches to an existing case only: a case is never started from an invoice (design J).
 export function CaseMatch({ invoice, onMatched }: { invoice: QueuedInvoice; onMatched: (message: string) => void }) {
   const number = invoice.caseNumberCorrected ?? invoice.caseNumberAsTyped;
   const { data } = useResource(number ? caseMatches(invoice.invoiceId, number) : null);
+  const [picked, setPicked] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!number) {
     return null;
   }
   const who = invoice.professionalDisplayName ?? 'the sender';
-  const addPath = `/cases/new?${new URLSearchParams({
-    review: invoice.invoiceId,
-    number,
-    ...(invoice.professionalId ? { from: invoice.professionalId } : {}),
-  })}`;
+  const cases = data?.cases ?? [];
+  const exact = cases.find((found) => found.match === 'exact');
+  // A close match is never chosen for the reviewer.
+  const chosen = cases.find((found) => found.caseId === picked) ?? exact;
 
-  function match(caseId: string, label: string) {
+  function match(found: CaseByNumber) {
     setSaving(true);
     setError(null);
-    matchInvoiceToCase(invoice.invoiceId, { caseId, addMissing: true }).then(
-      () => onMatched(`Matched to case ${label}.`),
+    matchInvoiceToCase(invoice.invoiceId, { caseId: found.caseId, addMissing: true }).then(
+      () => onMatched(`Matched to case ${found.caseNumber ?? number}.`),
       (err: unknown) => {
         setError(apiErrorMessage(err, 'The invoice could not be matched.'));
         setSaving(false);
@@ -120,35 +120,43 @@ export function CaseMatch({ invoice, onMatched }: { invoice: QueuedInvoice; onMa
       <h2 id="case-match-heading">Match it to a case</h2>
       {!data ? (
         <p className="cell-note">Looking for case {number}…</p>
-      ) : data.cases.length === 0 ? (
-        <p>No case in this tool has the number {number}.</p>
+      ) : cases.length === 0 ? (
+        <p>No case in this tool has the number {number}, or one close to it.</p>
       ) : (
-        <ul>
-          {data.cases.map((found) => (
-            <li key={found.caseId}>
-              <span>
-                <RouterLink to={`/cases/${found.caseId}`}>Case {found.caseNumber ?? '—'}</RouterLink>
-                {' · '}
-                {found.clientDisplayName ?? 'Unnamed client'}
-                {found.countyDisplayName ? ` · ${found.countyDisplayName}` : ''}
-                {found.match === 'close' && <span className="cell-note"> Close match</span>}
-              </span>
-              <Button
-                kind="secondary"
-                disabled={saving}
-                onClick={() => match(found.caseId, found.caseNumber ?? number)}
-              >
-                {found.closed ? 'Match and reopen' : 'Match'}
-              </Button>
-            </li>
-          ))}
-        </ul>
+        <>
+          {!exact && (
+            <p>
+              No case in this tool has the number {number}. {cases.length === 1 ? 'This one is close.' : 'These are close.'}
+            </p>
+          )}
+          <fieldset className="case-match__choices">
+            <legend className="usa-sr-only">Case to match it to</legend>
+            {cases.map((found) => (
+              <label key={found.caseId} className="radio-row">
+                <input
+                  type="radio"
+                  name="case-match"
+                  checked={found.caseId === chosen?.caseId}
+                  onChange={() => setPicked(found.caseId)}
+                />
+                <span>
+                  {found.caseNumber ?? '—'} · {found.clientDisplayName ?? 'Unnamed client'}
+                  {found.countyDisplayName ? `, ${found.countyDisplayName}` : ''}
+                  {found.match === 'close' ? ' (close match)' : ''}
+                  {found.closed ? ' (closed)' : ''}{' '}
+                  <RouterLink to={`/cases/${found.caseId}`}>Open the case</RouterLink>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          <Button kind="primary" disabled={saving || !chosen} onClick={() => chosen && match(chosen)}>
+            {chosen?.closed ? 'Match and reopen' : 'Match'}
+          </Button>
+        </>
       )}
-      <p>
-        <RouterLink to={addPath}>Add a case for {number}</RouterLink>
-      </p>
       <p className="cell-note">
-        Matching adds {who} to the case if they aren't on it. The invoice keeps the prices it was sent with.
+        Matching adds {who} to the case if they aren't on it. The invoice keeps the prices it was sent with, and the number as typed
+        stays beside the case. If no case here is right, you can review the invoice without a case.
       </p>
       {error && <p className="field-error" role="alert">{error}</p>}
     </section>

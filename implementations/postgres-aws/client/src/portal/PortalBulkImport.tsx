@@ -9,34 +9,14 @@ import { Notice } from '../components/ui/Notice';
 import { PageHeader } from '../components/PageHeader';
 import { useShell } from './useShell';
 import { Button } from '../components/ui/Button';
-import { Tag } from '../components/ui/Tag';
+import { Steps } from '../components/ui/Steps';
 import { StagedFiles } from './bulk/StagedFiles';
 import { ReviewStep } from './bulk/ReviewStep';
 import { SubmitStep } from './bulk/SubmitStep';
 
 function StepHeader({ step, toReview, ready }: { step: BulkStep; toReview: number; ready: number }) {
-  const steps: Array<[BulkStep, string]> = [
-    [1, 'Add files'],
-    [2, toReview > 0 ? `Check each (${toReview} left)` : 'Check each'],
-    [3, ready > 0 ? `Send (${ready} ready)` : 'Send'],
-  ];
-  return (
-    <ol className="tag-steps" aria-label="Import steps">
-      {steps.map(([number, label]) => (
-        <li key={number} aria-current={number === step ? 'step' : undefined}>
-          <Tag tone={number === step ? 'strong' : number < step ? 'success' : 'neutral'}>
-            {number} {label}
-            {number < step && (
-              <>
-                <span aria-hidden="true"> ✓</span>
-                <span className="usa-sr-only">, done</span>
-              </>
-            )}
-          </Tag>
-        </li>
-      ))}
-    </ol>
-  );
+  const steps = ['Add files', toReview > 0 ? `Check each (${toReview} left)` : 'Check each', ready > 0 ? `Send (${ready} ready)` : 'Send'];
+  return <Steps label="Import steps" current={step - 1} steps={steps} />;
 }
 
 export default function PortalBulkImport() {

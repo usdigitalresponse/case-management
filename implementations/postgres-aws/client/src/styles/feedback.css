@@ -41,3 +41,21 @@
 .billing-overlaps__details { margin-top: var(--space-3); }
 .billing-overlaps__details > summary { cursor: pointer; font-weight: 600; }
 .billing-overlaps__details .data-card { margin-top: var(--space-3); }
+
+/* Tabs */
+.tabs { display: flex; flex-wrap: wrap; margin: 0 0 var(--space-6); }
+.tabs__tab { display: inline-flex; align-items: center; gap: var(--space-4); min-height: 44px; padding: 0 var(--space-6); border: 0; border-bottom: 1px solid var(--color-outline-subtle); background: none; font: var(--body-medium); color: var(--color-on-surface-variant); white-space: nowrap; cursor: pointer; }
+.tabs__tab:hover { color: var(--color-on-surface); }
+.tabs__tab[aria-selected="true"] { border-bottom: 3px solid var(--color-primary); font: var(--label-large); color: var(--color-on-surface); }
+.tabs__tab:focus-visible { outline: 2px solid var(--color-inverse-surface); outline-offset: -2px; box-shadow: inset 0 0 0 5px var(--color-focus); }
+.tabs__count { padding: var(--space-2) var(--space-4); border-radius: var(--radius-full); background: var(--color-secondary-container); font: var(--label-medium); line-height: 1.25; color: var(--color-on-secondary-container); }
+.tabs__tab[aria-selected="true"] .tabs__count { background: var(--color-primary); color: var(--color-on-primary); }
+
+/* Steps */
+.steps { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-8); margin: 0 0 var(--space-7); padding: 0; list-style: none; }
+.steps__step { display: inline-flex; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4) var(--space-3) 0; font: var(--body-medium); color: var(--color-on-surface-variant); }
+.steps__step--done { color: var(--color-on-surface); }
+.steps__step--current { font: var(--label-large); color: var(--color-on-surface); }
+.steps__circle { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; height: 28px; border: 2px solid var(--color-outline); border-radius: var(--radius-full); background: var(--color-surface); font: var(--label-large); color: var(--color-on-surface-variant); }
+.steps__step--done .steps__circle { border-color: var(--color-success); background: var(--color-success); color: var(--color-on-primary); }
+.steps__step--current .steps__circle { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-on-primary); }

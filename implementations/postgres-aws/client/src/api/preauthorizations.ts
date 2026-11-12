@@ -89,11 +89,13 @@ export interface NewPreauthorizationRequest {
   receivedOn?: string;
 }
 
-// Latest received first, a batch at a time; staff filter them, a requester gets their own.
+export type RequestStatusCounts = Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn' | 'all', number>;
+
+// Latest received first; staff filter them and get each status's count, a requester gets their own.
 export function listPreauthorizationRequests(
   filter: { status?: string; countyId?: string; caseId?: string; from?: string; to?: string },
   after: string | null,
-): Promise<Batch<PreauthorizationRequestRow>> {
+): Promise<Batch<PreauthorizationRequestRow, { counts: RequestStatusCounts }>> {
   const query = new URLSearchParams(Object.entries(filter).filter((entry): entry is [string, string] => Boolean(entry[1])));
   return request(`/api/preauthorizations/requests?${batchParams(query, after)}`);
 }
@@ -185,7 +187,7 @@ export interface CountyUsage {
   countyName: string;
   isCounty: boolean;
   threshold: string | null;
-  requests: Record<'open' | 'approved' | 'not_needed' | 'denied' | 'withdrawn', number>;
+  requests: Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn', number>;
   requested: string;
   approved: string;
   billedApproved: string;

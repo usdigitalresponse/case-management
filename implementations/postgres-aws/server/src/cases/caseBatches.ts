@@ -141,14 +141,13 @@ export async function caseOverview(db: DatabaseOrTransaction) {
   const stages = [...CASE_STAGES];
   const [counts, byStage, ...firsts] = await Promise.all([
     caseCounts(db),
-    db
-      .select({ stage: caseStageExpression, count: sql<number>`count(*)::int` })
-      .from(caseTable)
-      .where(isNull(caseTable.closedOn))
-      .groupBy(caseStageExpression),
+    // Raw: a one-table select drops the table from the expression's columns, so its subqueries compared invoice to itself.
+    db.execute<{ stage: CaseStage; count: number }>(
+      sql`select ${caseStageExpression} as stage, count(*)::int as count from ${caseTable} where ${caseTable.closedOn} is null group by 1`,
+    ),
     ...stages.map((stage) => listCaseBatch(db, { stage }, { limit: OVERVIEW_SHOWN, after: null }, { summarized: false })),
   ]);
-  const countOf = new Map(byStage.map((row) => [row.stage, row.count]));
+  const countOf = new Map(byStage.rows.map((row) => [row.stage, row.count]));
   return {
     all: counts.all,
     open: counts.open,

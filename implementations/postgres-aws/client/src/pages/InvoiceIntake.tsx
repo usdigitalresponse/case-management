@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { useState } from 'react';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import {
   apiErrorMessage,
   matchInvoiceToCase,
@@ -11,15 +11,8 @@ import {
 } from '../api/client';
 import { AddProvider } from '../components/AddProvider';
 import { ADD_NEW, PickOrAdd } from '../components/PickOrAdd';
-import {
-  createCaseFromEntry,
-  EnteredFlag,
-  NewCaseError,
-  newCaseEntry,
-  proposedCaseLabel,
-  StaffNewCaseFields,
-  type NewCaseEntry,
-} from '../components/NewEntryFields';
+import { EnteredFlag, proposedCaseLabel } from '../components/NewEntryFields';
+import { TypeAheadPicker } from '../components/TypeAheadPicker';
 import { useResource } from '../hooks/useResource';
 import { useBatchedResource } from '../hooks/useBatchedResource';
 import { MoreOnScroll } from '../components/MoreOnScroll';
@@ -31,7 +24,6 @@ import { RecordTable } from '../components/RecordTable';
 import { Toast, useToast } from '../components/Toast';
 import { formatDate } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
-import { StatusPill, type Tone } from '../components/StatusPill';
 import { professionalLabel } from '../invoiceLines';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 import { DropZone, type UploadStart } from '../components/upload/UploadFiles';
@@ -41,16 +33,27 @@ import type { UploadedState } from '../portal/PortalInvoiceList';
 import { Button } from '../components/ui/Button';
 import { Tag } from '../components/ui/Tag';
 
-const STAGES: Record<IntakeItem['stage'], { label: string; tone: Tone }> = {
-  reading: { label: 'Reading the file', tone: 'neutral' },
-  unreadable: { label: "Couldn't be read", tone: 'danger' },
-  to_confirm: { label: 'Check the import', tone: 'warning' },
-  ready: { label: 'Needs a case', tone: 'info' },
-  sent: { label: 'Sent by the submitter: match it', tone: 'warning' },
+const NOT_READ: Partial<Record<IntakeItem['stage'], string>> = {
+  reading: 'The file is still being read.',
+  unreadable: 'The file couldn’t be read.',
+  to_confirm: 'The import hasn’t been checked.',
 };
 
-// Match an invoice to a case, adding its providers to the case when they
-// aren't on it. A case closed here is reopened by matching.
+// What keeps the invoice from going to review (J66).
+function whatsMissing(item: IntakeItem): string {
+  const unlisted = item.unlistedTimekeepers.length;
+  return [
+    NOT_READ[item.stage],
+    !item.caseId && 'It isn’t matched to a case.',
+    !item.professionalId && 'Who it’s from isn’t chosen.',
+    unlisted > 0 && `Who did the work isn’t chosen for ${unlisted === 1 ? '1 item' : `${unlisted} items`}.`,
+    item.stage === 'sent' && 'Sent by the submitter.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+// Matching adds missing providers to the case and reopens one closed here.
 function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message: string) => void }) {
   const needsProfessional = item.professionalId === null;
   const unlisted = item.unlistedTimekeepers;
@@ -58,9 +61,7 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
   const { data: listed } = useResource(needsProfessional || unlisted.length > 0 ? billableProfessionals(null) : null);
   const providers = [...(listed ?? []).map((p) => ({ value: p.professionalId, label: professionalLabel(p) })), ...added.map((p) => ({ value: p.professionalId, label: p.displayName }))];
   // Starts from the file's suggestion, or what the submitter entered.
-  const [caseId, setCaseId] = useState(item.caseId ?? item.suggestedCaseId ?? (item.proposedCase ? ADD_NEW : ''));
-  const [newCase, setNewCase] = useState<NewCaseEntry>(() => newCaseEntry(item.proposedCase ?? undefined));
-  const [caseErrors, setCaseErrors] = useState<Record<string, string>>({});
+  const [caseId, setCaseId] = useState(item.caseId ?? item.suggestedCaseId ?? '');
   const [professionalId, setProfessionalId] = useState(
     needsProfessional ? (item.suggestedProfessionalId ?? (item.proposedProvider ? ADD_NEW : '')) : '',
   );
@@ -70,7 +71,6 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
   const [saving, setSaving] = useState(false);
   // The chosen case's client, for the message once matched.
   const [chosenClient, setChosenClient] = useState<string | null>(item.suggestedCase?.clientDisplayName ?? null);
-  const found = useRef(new Map<string, string | null>());
   const caseLabel = (row: IntakeCase | CaseListRecord) =>
     `${caseDisplayLabel([row.externalReference, row.clientDisplayName], undefined)}${row.closedOn ? ' (closed: matching reopens it)' : ''}`;
   const isId = (value: string) => value !== '' && value !== ADD_NEW;
@@ -89,27 +89,20 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
   async function match() {
     setSaving(true);
     setError(null);
-    setCaseErrors({});
     try {
-      const matchedCaseId = item.caseId ?? (caseId === ADD_NEW ? await createCaseFromEntry(newCase) : caseId);
       const result = await matchInvoiceToCase(item.invoiceId!, {
-        caseId: matchedCaseId,
+        caseId: item.caseId ?? caseId,
         addMissing,
         professionalId: needsProfessional ? professionalId : undefined,
         timekeepers: Object.fromEntries(unlisted.map((line) => [line.invoiceLineId, timekeepers[line.invoiceLineId]!])),
       });
-      const to = (caseId === ADD_NEW ? newCase.clientName : chosenClient) ?? 'the case';
       onMatched(
-        `Matched to ${to}${result.addedProfessionalIds.length ? `, and ${providerName} was added to it` : ''}.${
+        `Matched to ${chosenClient ?? 'the case'}${result.addedProfessionalIds.length ? `, and ${providerName} was added to it` : ''}.${
           result.released ? ' It has gone on to review.' : result.releaseProblem ? ` It can't go to review yet: ${result.releaseProblem}` : ''
         }`,
       );
     } catch (err) {
-      if (err instanceof NewCaseError) {
-        setCaseErrors(err.fieldErrors);
-      } else {
-        setError(apiErrorMessage(err, 'It could not be matched.'));
-      }
+      setError(apiErrorMessage(err, 'It could not be matched.'));
     } finally {
       setSaving(false);
     }
@@ -137,27 +130,32 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
         {item.caseId ? (
           <p>Case: {caseDisplayLabel([item.case?.externalReference ?? null, item.case?.clientDisplayName ?? null], undefined)}</p>
         ) : (
-          <PickOrAdd
-            id={`match-${item.invoiceId}`}
-            label="Case"
-            value={caseId}
-            onChange={(value) => {
-              setCaseId(value);
-              setChosenClient(found.current.get(value) ?? null);
-            }}
-            addLabel="+ Add new case"
-            placeholder="Search by case number or client"
-            options={[]}
-            search={async (query) => {
-              const rows = await searchCases(query, 'all');
-              for (const row of rows) found.current.set(row.caseId, row.clientDisplayName);
-              return rows.map((row) => ({ value: row.caseId, label: caseLabel(row) }));
-            }}
-            selectedLabel={item.suggestedCase && caseId === item.suggestedCaseId ? caseLabel(item.suggestedCase) : undefined}
-            hint={caseId && caseId === item.suggestedCaseId ? <span className="line-row-suggested">Named in the file: check it</span> : undefined}
-          >
-            <StaffNewCaseFields idPrefix={`match-new-${item.invoiceId}`} value={newCase} onChange={setNewCase} errors={caseErrors} />
-          </PickOrAdd>
+          <div className="pick-or-add">
+            <label className="usa-label" id={`match-${item.invoiceId}-label`} htmlFor={`match-${item.invoiceId}`}>
+              Case
+            </label>
+            <TypeAheadPicker<{ caseId: string; clientDisplayName: string | null }>
+              id={`match-${item.invoiceId}`}
+              placeholder="Search by case number or client"
+              search={(query) => searchCases(query, 'all').then((rows) => rows.map((row) => ({ value: row.caseId, label: caseLabel(row), item: row })))}
+              onSelect={(row) => {
+                setCaseId(row?.caseId ?? '');
+                setChosenClient(row?.clientDisplayName ?? null);
+              }}
+              initial={
+                item.suggestedCase && item.suggestedCaseId
+                  ? { value: item.suggestedCaseId, label: caseLabel(item.suggestedCase), item: { caseId: item.suggestedCaseId, clientDisplayName: item.suggestedCase.clientDisplayName } }
+                  : null
+              }
+            />
+            <p className="field-hint">
+              {caseId && caseId === item.suggestedCaseId ? (
+                <span className="line-row-suggested">Named in the file: check it</span>
+              ) : (
+                'If the case isn’t here, the invoice can be reviewed without a case.'
+              )}
+            </p>
+          </div>
         )}
         {needsProfessional && (
           <PickOrAdd
@@ -212,11 +210,8 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
       </label>
       <div className="button-row">
         <Button kind="primary" disabled={!ready || saving} onClick={() => void match()}>
-          {caseId === ADD_NEW ? 'Add the case and match' : 'Match'}
+          Match
         </Button>
-        {!item.caseId && item.professionalId && (
-          <RouterLink to={`/cases/new?intake=${item.invoiceId}`}>Add the case with all its details instead</RouterLink>
-        )}
       </div>
       {error && <p className="field-error" role="alert">{error}</p>}
       {item.stage === 'sent' && <SendBack item={item} onSent={onMatched} />}
@@ -303,7 +298,42 @@ function WaitingTable({ items, onMatched }: { items: IntakeItem[]; onMatched: (m
       }
       columns={[
         {
-          header: 'Received',
+          header: 'From',
+          rowHeader: true,
+          render: (item) => (
+            <>
+              {item.professionalDisplayName ??
+                (item.proposedProvider ? (
+                  <>
+                    {item.proposedProvider.displayName} <EnteredFlag what="Provider" compact />
+                  </>
+                ) : (
+                  <span className="muted">Not chosen yet</span>
+                ))}
+              <span className="cell-note">
+                {item.fileName ? `${item.fileName}, uploaded` : 'Typed in'} by {item.enteredByDisplayName ?? 'staff'}
+              </span>
+            </>
+          ),
+        },
+        {
+          header: 'Case number as typed',
+          render: (item) =>
+            item.proposedCase ? (
+              <>
+                {proposedCaseLabel(item.proposedCase)} <EnteredFlag what="Case" compact />
+              </>
+            ) : item.suggestedCase?.externalReference ? (
+              <>
+                {item.suggestedCase.externalReference}
+                <span className="cell-note">Named in the file</span>
+              </>
+            ) : (
+              <span className="muted">None</span>
+            ),
+        },
+        {
+          header: 'Sent',
           render: (item) => (
             <>
               <span className="nowrap">{formatDate(item.receivedOn ?? item.enteredAt.slice(0, 10))}</span>
@@ -311,43 +341,17 @@ function WaitingTable({ items, onMatched }: { items: IntakeItem[]; onMatched: (m
             </>
           ),
         },
+        { header: 'Amount', align: 'right', render: (item) => (item.submittedTotal ? <strong>{formatMoney(item.submittedTotal)}</strong> : '—') },
         {
-          header: 'From',
-          rowHeader: true,
-          render: (item) =>
-            item.professionalDisplayName ??
-            (item.proposedProvider ? (
-              <>
-                {item.proposedProvider.displayName} <EnteredFlag what="Provider" compact />
-              </>
-            ) : (
-              <span className="muted">Not chosen yet</span>
-            )),
-        },
-        {
-          header: 'Invoice',
+          header: 'What’s missing',
           render: (item) => (
             <>
-              {item.fileName ?? 'Typed in'}
-              <span className="cell-note">Entered by {item.enteredByDisplayName ?? 'staff'}</span>
-              {item.proposedCase && (
-                <span className="cell-note">
-                  Case: {proposedCaseLabel(item.proposedCase)} <EnteredFlag what="Case" compact />
-                </span>
-              )}
+              {whatsMissing(item)}
               {item.unlistedTimekeepers.length > 0 && (
-                <span className="cell-note">
-                  Work by {item.unlistedTimekeepers.map((line) => line.name).filter((name, index, all) => all.indexOf(name) === index).join(', ')}{' '}
-                  <EnteredFlag what={item.unlistedTimekeepers.length === 1 ? 'Person' : 'People'} compact />
-                </span>
+                <span className="cell-note">Work by {[...new Set(item.unlistedTimekeepers.map((line) => line.name))].join(', ')}</span>
               )}
             </>
           ),
-        },
-        { header: 'Amount', align: 'right', render: (item) => (item.submittedTotal ? <strong>{formatMoney(item.submittedTotal)}</strong> : '—') },
-        {
-          header: 'Status',
-          render: (item) => <StatusPill tone={STAGES[item.stage].tone} label={STAGES[item.stage].label} />,
         },
         {
           header: 'Actions',
@@ -355,14 +359,13 @@ function WaitingTable({ items, onMatched }: { items: IntakeItem[]; onMatched: (m
           render: (item) => (
             <span className="row-actions">
               {item.invoiceId && (
-                <button
-                  type="button"
-                  className="link-button"
+                <Button
+                  kind="secondary"
                   aria-expanded={matching === item.invoiceId}
                   onClick={() => setMatching(matching === item.invoiceId ? null : item.invoiceId)}
                 >
-                  Match to a case
-                </button>
+                  Match it to a case
+                </Button>
               )}
               {/* A submitter's sent invoice is theirs to change, so staff view it read-only. */}
               {item.stage === 'sent' && item.invoiceId ? (
@@ -403,7 +406,6 @@ function AddInvoices() {
 // them to a case (model/rules.yaml authorize_staff_invoice_entry,
 // match_invoice_to_case).
 export default function InvoiceIntake() {
-  const [params] = useSearchParams();
   const { data: intake, error, reload: reloadIntake } = useResource(invoiceIntake);
   const data = intake?.items ?? null;
   // Drafts with no case are listed under "Waiting for a case" instead.
@@ -411,7 +413,6 @@ export default function InvoiceIntake() {
   const refresh = () => void Promise.all([reloadIntake(), mine.reload()]);
   const drafts = mine.items;
   const [toast, setToast] = useToast();
-  const justMatched = params.get('matched');
   const uploadedCount = (useLocation().state as UploadedState | null)?.uploadedCount ?? 0;
 
   return (
@@ -419,9 +420,8 @@ export default function InvoiceIntake() {
       <PageHeader
         list
         title="Intake"
-        description="Add invoices that came in by email or from other tools."
+        description="Add invoices that came in by email or from other tools. An invoice whose case or sender isn’t known waits here until staff match it."
       />
-      {justMatched && <Notice tone="success">The new case was added and the invoice matched to it.</Notice>}
       {uploadedCount > 1 && (
         <Notice tone="info" heading={`${uploadedCount} invoices uploaded and saved as drafts.`}>
           Those with a case are under "Drafts to finish"; the rest wait for a case. Check each one's lines before sending it
@@ -446,7 +446,10 @@ export default function InvoiceIntake() {
             }}
           />
         )}
-        <p className="compact-hint">To review one without a case, open it and choose "Review without a case".</p>
+        <p className="compact-hint">
+          To review one without a case, open it and choose "Review without a case". This tool won’t then check the case, the provider’s
+          assignment or any pre-authorization, and its documents will say so.
+        </p>
       </section>
 
       {drafts && drafts.length > 0 && (

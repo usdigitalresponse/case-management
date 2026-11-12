@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { type DatabaseOrTransaction } from '../../db/client';
 import { caseTable, county, person, preauthorizationDecision, preauthorizationQuestion, preauthorizationRequest, preauthorizationRequestOutcomes, preauthorizationRequestStatuses, professional, professionalKinds, userAccount } from '../../db/schema';
@@ -120,17 +120,42 @@ async function withCaseFacts(db: DatabaseOrTransaction, rows: RequestRow[]) {
 
 export type PreauthorizationRequestView = Awaited<ReturnType<typeof withCaseFacts>>[number];
 
-// A batch at a time (../../lists/batches.ts).
+// Per status tab, whichever one is listed.
+export type RequestStatusCounts = Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn' | 'all', number>;
+
+async function countByStatus(db: DatabaseOrTransaction, where: SQL | undefined): Promise<RequestStatusCounts> {
+  const rows = await db
+    .select({ code: preauthorizationRequestStatuses.code, count: sql<number>`count(*)::int` })
+    .from(preauthorizationRequest)
+    .innerJoin(preauthorizationRequestStatuses, eq(preauthorizationRequest.statusId, preauthorizationRequestStatuses.id))
+    .leftJoin(caseTable, eq(preauthorizationRequest.caseId, caseTable.caseId))
+    .where(where)
+    .groupBy(preauthorizationRequestStatuses.code);
+  const of = (code: string) => rows.find((row) => row.code === code)?.count ?? 0;
+  return {
+    submitted: of('submitted'),
+    info_requested: of('info_requested'),
+    approved: of('approved'),
+    not_needed: of('not_needed'),
+    denied: of('denied'),
+    withdrawn: of('withdrawn'),
+    all: rows.reduce((sum, row) => sum + row.count, 0),
+  };
+}
+
+// A batch at a time (../../lists/batches.ts), with the status counts on the first.
 export async function listPreauthorizationRequests(db: DatabaseOrTransaction, actorUserAccountId: string, filter: RequestListFilter, batch: BatchRequest) {
   if (!(await isStaffAccount(db, actorUserAccountId))) throw new ForbiddenError('forbidden', 'Only staff can list requests.');
   const conditions: SQL[] = [];
-  if (filter.status === 'open') conditions.push(inArray(preauthorizationRequestStatuses.code, OPEN_STATUSES));
-  else if (filter.status) conditions.push(eq(preauthorizationRequestStatuses.code, filter.status));
   if (filter.countyId) conditions.push(eq(caseTable.countyId, filter.countyId));
   if (filter.caseId) conditions.push(eq(preauthorizationRequest.caseId, filter.caseId));
   if (filter.from) conditions.push(sql`${preauthorizationRequest.receivedAt} >= ${filter.from}::date`);
   if (filter.to) conditions.push(sql`${preauthorizationRequest.receivedAt} < (${filter.to}::date + 1)`);
-  return requestBatch(db, conditions.length ? and(...conditions) : undefined, batch);
+  const anyStatus = conditions.length ? and(...conditions) : undefined;
+  const status = filter.status ? eq(preauthorizationRequestStatuses.code, filter.status) : undefined;
+  if (batch.after) return requestBatch(db, and(anyStatus, status), batch);
+  const [page, counts] = await Promise.all([requestBatch(db, and(anyStatus, status), batch), countByStatus(db, anyStatus)]);
+  return { ...page, summary: { counts } };
 }
 
 // Requests this account sent.

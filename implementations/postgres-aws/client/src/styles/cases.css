@@ -27,6 +27,7 @@
 /* Case page */
 .case-list-table td, .case-list-table th { white-space: nowrap; }
 .sender-choices { margin: 0; padding: 0; border: 0; }
+.sender-add { display: block; margin-top: var(--space-3); font-size: var(--text-13); }
 .sender-choices .radio-row { display: inline-flex; margin-right: var(--space-8); }
 /* A case's page (design I49). */
 .case-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-6); align-items: start; }

@@ -257,7 +257,7 @@ export default function CaseDetail() {
         <section className="card compact-card">
           <div className="section-heading-row">
             <h2>Pre-authorized and billed</h2>
-            <Link to={`/preauthorizations?status=&caseId=${detail.case.caseId}`}>Requests on this case</Link>
+            <Link to={`/preauthorizations?status=all&caseId=${detail.case.caseId}`}>Requests on this case</Link>
           </div>
           {billing && billing.preauthorizations.length === 0 && <p className="muted">Nothing pre-authorized yet.</p>}
           {billing?.preauthorizations.map((summary) => (

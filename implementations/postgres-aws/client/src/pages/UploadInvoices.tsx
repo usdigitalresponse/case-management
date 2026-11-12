@@ -296,6 +296,12 @@ export default function UploadInvoices() {
         Using a spreadsheet? Start from the template so every column is read correctly.{' '}
         <a href={invoiceTemplateUrl('xlsx')}>Download the template</a>
       </p>
+      {reviews && (
+        <Notice tone="info">
+          An invoice filed here keeps who billed it, how and when it arrived, and the case number as written on it. You enter and decide
+          its lines in one pass, then finish the review.
+        </Notice>
+      )}
     </div>
   );
 }

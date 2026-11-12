@@ -62,7 +62,7 @@ pick it up.
 | Side navigation | `App.tsx` (staff sidebar) | `styles/layout.css` |
 | Button: Primary, Secondary, Danger | `components/ui/Button.tsx` (`buttonClass` for links) | `styles/buttons.css` |
 | Button: Ghost | the `link-button` class | `styles/base.css` |
-| Tag: Neutral, Info, Success, Warning, Danger, Strong | `components/ui/Tag.tsx` (`StatusPill` picks a tone by status; steps on the upload pages are Tags) | `styles/feedback.css` |
+| Tag: Neutral, Info, Success, Warning, Danger, Strong | `components/ui/Tag.tsx` (`StatusPill` picks a tone by status) | `styles/feedback.css` |
 | Alert, with its icon | `components/ui/Notice.tsx` | `styles/feedback.css` |
 | Card | the `card` class | `styles/card.css` |
 | Modal | `components/ui/Dialog.tsx` | `styles/overlays.css` |
@@ -71,6 +71,11 @@ pick it up.
 | Table | `components/RecordTable.tsx` | `styles/tables.css` |
 | Page title, breadcrumb | `components/PageHeader.tsx`, `components/PageHeading.tsx` | `styles/layout.css`, `styles/page.css` |
 | Decision bar | `components/lineReview/DecisionCell.tsx` | `styles/review.css` |
+| Tab, with its count | `components/ui/Tabs.tsx` (Pre-authorizations; other lists still filter with Tags) | `styles/feedback.css` |
+| Step | `components/ui/Steps.tsx` (the upload and import pages) | `styles/feedback.css` |
+| Fact (summary strip) | `components/FactsStrip.tsx` | `styles/page.css` |
+| File drop zone | `DropZone` in `components/upload/UploadFiles.tsx` | `styles/upload.css` |
+| Type-to-find field | `components/TypeAheadPicker.tsx` (`CountyPicker`, `PickOrAdd` with `search`) | `styles/pickers.css` |
 
 Form controls keep USWDS's class names (`usa-input`, `usa-select`…) because
 `@trussworks/react-uswds` renders them; restyle them in `controls.css`, or

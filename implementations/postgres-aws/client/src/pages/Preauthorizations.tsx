@@ -16,17 +16,20 @@ import { downloadCsv } from '../downloadCsv';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { FilterTag } from '../components/ui/Tag';
+import { Tabs } from '../components/ui/Tabs';
+import { preauthorizationRequestsRequest, REQUEST_STATUS_TABS, type RequestStatusTab } from '../caseRequests';
 import { Button } from '../components/ui/Button';
+import { Notice } from '../components/ui/Notice';
 
-const STATUS_FILTERS = [
-  { id: 'open', label: 'Waiting' },
-  { id: 'info_requested', label: 'Waiting for information' },
-  { id: 'approved', label: 'Approved' },
-  { id: 'not_needed', label: 'Not needed' },
-  { id: 'denied', label: 'Denied' },
-  { id: 'withdrawn', label: 'Withdrawn' },
-  { id: '', label: 'All' },
-];
+const STATUS_LABELS: Record<RequestStatusTab, string> = {
+  submitted: 'Waiting',
+  info_requested: 'Waiting for information',
+  approved: 'Approved',
+  not_needed: 'Not needed',
+  denied: 'Denied',
+  withdrawn: 'Withdrawn',
+  all: 'All',
+};
 
 export const preauthorizationPath = (requestId: string) => `/preauthorizations/${requestId}`;
 
@@ -50,11 +53,10 @@ function RecordRequest({ onDone }: { onDone: () => void }) {
 
 function Requests() {
   const [params, setParams] = useSearchParams();
-  const status = params.get('status') ?? 'open';
-  const countyId = params.get('countyId') ?? undefined;
-  const caseId = params.get('caseId') ?? undefined;
+  const { tab: status, filter } = preauthorizationRequestsRequest(params);
+  const { countyId, caseId } = filter;
   const [recording, setRecording] = useState(false);
-  const list = useBatchedResource(preauthorizationRequests({ status, countyId, caseId }));
+  const list = useBatchedResource(preauthorizationRequests(filter));
   const data = list.items;
   const setFilter = (next: Record<string, string | undefined>) => {
     const merged = new URLSearchParams(params);
@@ -62,18 +64,19 @@ function Requests() {
       if (value === undefined) merged.delete(key);
       else merged.set(key, value);
     }
-    setParams(merged, { preventScrollReset: true });
+    // Replaced, so arrowing across tabs leaves one history entry.
+    setParams(merged, { preventScrollReset: true, replace: true });
   };
   return (
     <>
       <div className="list-controls">
-        <div className="tag-filters" role="group" aria-label="Show">
-          {STATUS_FILTERS.map(({ id, label }) => (
-            <FilterTag key={id || 'all'} aria-pressed={status === id} onClick={() => setFilter({ status: id })}>
-              {label}
-            </FilterTag>
-          ))}
-        </div>
+        <Tabs
+          label="Requests by status"
+          controls="preauthorization-requests"
+          tabs={REQUEST_STATUS_TABS.map((id) => ({ id, label: STATUS_LABELS[id], count: list.summary?.counts[id] }))}
+          selected={status}
+          onSelect={(id) => setFilter({ status: id })}
+        />
         {countyId && data?.[0]?.countyName && (
           <FilterTag aria-pressed onClick={() => setFilter({ countyId: undefined })}>
             {data[0].countyName} ✕
@@ -91,6 +94,7 @@ function Requests() {
         )}
       </div>
       {recording && <RecordRequest onDone={() => setRecording(false)} />}
+      <div id="preauthorization-requests" role="tabpanel" aria-label={STATUS_LABELS[status]}>
       {!data ? (
         <LoadState error={list.error} what="requests" />
       ) : (
@@ -127,6 +131,10 @@ function Requests() {
         />
       )}
       <MoreOnScroll list={list} what="requests" />
+      <p className="compact-hint">
+        A request that is not needed was within the county’s threshold. The provider can still bill up to the threshold without asking.
+      </p>
+      </div>
     </>
   );
 }
@@ -173,7 +181,8 @@ function UsageByCounty() {
                 rows.map((row) => ({
                   County: row.countyName,
                   Threshold: row.threshold,
-                  'Requests waiting': row.requests.open,
+                  'Requests waiting': row.requests.submitted,
+                  'Waiting for information': row.requests.info_requested,
                   'Requests approved': row.requests.approved,
                   'Not needed': row.requests.not_needed,
                   Denied: row.requests.denied,
@@ -215,8 +224,9 @@ function UsageByCounty() {
               header: 'Requests',
               render: (row) => (
                 <>
-                  {count(row, 'open', row.requests.open)} waiting, {count(row, 'approved', row.requests.approved)} approved
+                  {count(row, 'submitted', row.requests.submitted)} waiting, {count(row, 'approved', row.requests.approved)} approved
                   <span className="cell-note">
+                    {count(row, 'info_requested', row.requests.info_requested)} waiting for information,{' '}
                     {count(row, 'not_needed', row.requests.not_needed)} not needed, {count(row, 'denied', row.requests.denied)} denied,{' '}
                     {count(row, 'withdrawn', row.requests.withdrawn)} withdrawn
                   </span>
@@ -253,6 +263,10 @@ function UsageByCounty() {
           ]}
         />
       )}
+      <Notice tone="info">
+        A provider is over their limit when what they billed on a case passes what was pre-authorized, or the threshold if nothing was.
+        Going over is explained by the sender and flagged for the reviewer, never refused.
+      </Notice>
     </>
   );
 }
@@ -267,15 +281,19 @@ export default function Preauthorizations() {
         title="Pre-authorizations"
         description="Requests, and how each county’s limits are used."
       />
-      <div className="tag-filters page-tabs" role="tablist" aria-label="View">
-        <FilterTag role="tab" aria-selected={view === 'requests'} aria-pressed={view === 'requests'} onClick={() => setParams({}, { preventScrollReset: true })}>
-          Requests
-        </FilterTag>
-        <FilterTag role="tab" aria-selected={view === 'county'} aria-pressed={view === 'county'} onClick={() => setParams({ view: 'county' }, { preventScrollReset: true })}>
-          By county
-        </FilterTag>
+      <Tabs
+        label="View"
+        controls="preauthorization-view"
+        tabs={[
+          { id: 'requests', label: 'Requests' },
+          { id: 'county', label: 'By county' },
+        ]}
+        selected={view}
+        onSelect={(id) => setParams(id === 'county' ? { view: 'county' } : {}, { preventScrollReset: true, replace: true })}
+      />
+      <div id="preauthorization-view" role="tabpanel" aria-label={view === 'county' ? 'By county' : 'Requests'}>
+        {view === 'county' ? <UsageByCounty /> : <Requests />}
       </div>
-      {view === 'county' ? <UsageByCounty /> : <Requests />}
     </div>
   );
 }
