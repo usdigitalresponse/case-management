@@ -10,6 +10,7 @@ import type { Database } from '../db/client';
 import {
   caseAssignment,
   caseTable,
+  person,
   document,
   invoice,
   invoiceEvent,
@@ -63,9 +64,18 @@ export interface IntakeItem {
   submittedTotal: string | null;
   periodStart: string | null;
   periodEnd: string | null;
+  // Its case's, once matched, as pickers show it.
+  case: IntakeCase | null;
   // Named by the file; staff confirm it on matching.
   suggestedCaseId: string | null;
+  suggestedCase: IntakeCase | null;
   suggestedProfessionalId: string | null;
+}
+
+export interface IntakeCase {
+  externalReference: string | null;
+  clientDisplayName: string | null;
+  closedOn: string | null;
 }
 
 export async function listInvoiceIntake(db: Database, actorUserAccountId: string): Promise<IntakeItem[]> {
@@ -132,6 +142,18 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
   ]);
 
   const importFor = new Map(imports.map((entry) => [entry.invoiceId, entry]));
+  const namedCaseIds = [...new Set([...drafts.map((row) => row.caseId), ...imports.map((entry) => entry.suggestedCaseId)].filter((id): id is string => id !== null))];
+  const named = namedCaseIds.length
+    ? await db
+        .select({ caseId: caseTable.caseId, externalReference: caseTable.externalReference, clientDisplayName: person.displayName, closedOn: caseTable.closedOn })
+        .from(caseTable)
+        .leftJoin(person, eq(caseTable.clientId, person.personId))
+        .where(inArray(caseTable.caseId, namedCaseIds))
+    : [];
+  const caseOf = (caseId: string | null | undefined): IntakeCase | null => {
+    const row = named.find((entry) => entry.caseId === caseId);
+    return row ? { externalReference: row.externalReference, clientDisplayName: row.clientDisplayName, closedOn: row.closedOn } : null;
+  };
   const createdAt = new Map(created.map((event) => [event.invoiceId, event.occurredAt]));
   const unlistedFor = new Map<string, typeof unlisted>();
   for (const line of unlisted) {
@@ -146,6 +168,7 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       stage:
         row.statusCode === AWAITING_MATCH_INVOICE_STATUS_CODE ? 'sent' : imported && imported.statusCode !== 'confirmed' ? 'to_confirm' : 'ready',
       caseId: row.caseId,
+      case: caseOf(row.caseId),
       proposedCase: row.proposedCase,
       proposedProvider: row.proposedProvider,
       unlistedTimekeepers: (unlistedFor.get(row.invoiceId) ?? []).map((line) => ({
@@ -165,6 +188,7 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       periodStart: row.periodStart,
       periodEnd: row.periodEnd,
       suggestedCaseId: imported?.suggestedCaseId ?? null,
+      suggestedCase: caseOf(imported?.suggestedCaseId),
       suggestedProfessionalId: imported?.suggestedProfessionalId ?? null,
     };
   });
@@ -175,6 +199,7 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       fileName: file.fileName,
       stage: file.statusCode === 'failed' ? 'unreadable' : 'reading',
       caseId: null,
+      case: null,
       proposedCase: null,
       proposedProvider: null,
       unlistedTimekeepers: [],
@@ -189,6 +214,7 @@ export async function listInvoiceIntake(db: Database, actorUserAccountId: string
       periodStart: null,
       periodEnd: null,
       suggestedCaseId: null,
+      suggestedCase: null,
       suggestedProfessionalId: null,
     });
   }

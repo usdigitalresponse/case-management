@@ -1,4 +1,7 @@
-import { useResource } from '../hooks/useResource';
+import { useSearchParams } from 'react-router';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
+import { exportsRequest } from '../queueRequests';
 import { reviewQueue } from '../resources';
 import { BillingRecordExportButton } from '../components/BillingRecordExportButton';
 import { InvoiceExportButton } from '../components/InvoiceExportButton';
@@ -6,7 +9,7 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/ui/Notice';
 import { RecordTable } from '../components/RecordTable';
-import { caseNumberColumn, countyOfInvoice, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
+import { caseNumberColumn, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
 import { useCountyControl } from '../components/CountyListControl';
 import { formatMoney } from '../formatMoney';
 import { formatDay } from '../formatDateTime';
@@ -14,13 +17,11 @@ import { formatDay } from '../formatDateTime';
 // Signed-off invoices, ready to export for payment. Payment itself happens
 // outside this system.
 export default function Exports() {
-  const { data, error } = useResource(reviewQueue('finished'));
-  const county = useCountyControl(
-    (data?.invoices ?? []).filter((invoice) => invoice.statusCode === 'approved'),
-    countyOfInvoice,
-  );
-  if (error || !data) {
-    return <LoadState error={error} what="invoices" />;
+  const [params] = useSearchParams();
+  const list = useBatchedResource(reviewQueue(exportsRequest(params)));
+  const county = useCountyControl(list.summary?.counties ?? null);
+  if (list.error || !list.items) {
+    return <LoadState error={list.error} what="invoices" />;
   }
   return (
     <div>
@@ -43,7 +44,7 @@ export default function Exports() {
       <div className="list-controls">{county.control}</div>
       <RecordTable
         className="queue-table"
-        rows={county.shown}
+        rows={list.items}
         rowKey={(invoice) => invoice.invoiceId}
         emptyMessage={county.narrowed ? 'No signed-off invoices for that county.' : 'No invoices have been signed off yet.'}
         columns={[
@@ -56,6 +57,7 @@ export default function Exports() {
           openInvoiceColumn(() => 'View'),
         ]}
       />
+      <MoreOnScroll list={list} what="invoices" />
     </div>
   );
 }

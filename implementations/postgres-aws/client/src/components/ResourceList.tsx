@@ -11,6 +11,7 @@ export function ResourceList<T>({
   errorMessage,
   loadingMessage = 'Loading…',
   emptyMessage,
+  empty,
   children,
 }: {
   heading: ReactNode;
@@ -19,6 +20,8 @@ export function ResourceList<T>({
   errorMessage: string;
   loadingMessage?: string;
   emptyMessage: string;
+  // There are none at all, as opposed to none matching; by default, none loaded.
+  empty?: boolean;
   children: (data: T[]) => ReactNode;
 }) {
   if (error) {
@@ -37,7 +40,7 @@ export function ResourceList<T>({
       </>
     );
   }
-  if (data.length === 0) {
+  if (empty ?? data.length === 0) {
     return (
       <>
         {heading}

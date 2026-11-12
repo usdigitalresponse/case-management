@@ -3,10 +3,10 @@
 // a pair as different, or close the extra case from its page as a cleanup.
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { apiErrorMessage, reviewPossibleDuplicateCase, type CaseListRecord, type DuplicateCase } from '../api/client';
+import { apiErrorMessage, reviewPossibleDuplicateCase, searchCases, type CaseListRecord, type DuplicateCase } from '../api/client';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { useResource } from '../hooks/useResource';
-import { cases as casesResource, possibleDuplicateCases } from '../resources';
+import { possibleDuplicateCases } from '../resources';
 import { formatDate, formatDateTime } from '../formatDateTime';
 import { LoadState } from './LoadState';
 import { NotDuplicateDialog, plural } from './NotDuplicateDialog';
@@ -145,7 +145,8 @@ export function DuplicateCases() {
   );
 }
 
-function CaseSearch({ id, label, cases, onSelect }: { id: string; label: string; cases: CaseListRecord[]; onSelect: (record: CaseListRecord | undefined) => void }) {
+// Open cases matching what was typed; only: those it may be paired with.
+function CaseSearch({ id, label, only = () => true, onSelect }: { id: string; label: string; only?: (record: CaseListRecord) => boolean; onSelect: (record: CaseListRecord | undefined) => void }) {
   return (
     <div className="usa-form-group">
       <label className="usa-label" id={`${id}-label`} htmlFor={id}>
@@ -155,15 +156,9 @@ function CaseSearch({ id, label, cases, onSelect }: { id: string; label: string;
         id={id}
         placeholder="Search by case number or client"
         noResults="No open cases found."
-        search={(query) => {
-          const words = query.trim().toLowerCase();
-          return Promise.resolve(
-            cases
-              .filter((record) => caseLabel(record).toLowerCase().includes(words))
-              .slice(0, 20)
-              .map((record) => ({ value: record.caseId, label: caseLabel(record), item: record })),
-          );
-        }}
+        search={async (query) =>
+          (await searchCases(query)).filter(only).map((record) => ({ value: record.caseId, label: caseLabel(record), item: record }))
+        }
         onSelect={onSelect}
       />
     </div>
@@ -171,8 +166,6 @@ function CaseSearch({ id, label, cases, onSelect }: { id: string; label: string;
 }
 
 function FlagCasesDialog({ onClose, onFlagged }: { onClose: () => void; onFlagged: () => void }) {
-  const { data } = useResource(casesResource);
-  const open = (data?.cases ?? []).filter((record) => !record.closedOn);
   const [first, setFirst] = useState<CaseListRecord>();
   const [second, setSecond] = useState<CaseListRecord>();
   const [note, setNote] = useState('');
@@ -198,8 +191,8 @@ function FlagCasesDialog({ onClose, onFlagged }: { onClose: () => void; onFlagge
   return (
     <Dialog title="Flag two cases as possibly the same" onClose={onClose} className="dialog--wide">
       <p>Open cases in the same county only. They are listed here until one is closed or someone marks them as different cases.</p>
-      <CaseSearch id="flag-first-case" label="One case" cases={open} onSelect={setFirst} />
-      <CaseSearch id="flag-second-case" label="The other" cases={open.filter(sameCounty)} onSelect={setSecond} />
+      <CaseSearch id="flag-first-case" label="One case" onSelect={setFirst} />
+      <CaseSearch id="flag-second-case" label="The other" only={sameCounty} onSelect={setSecond} />
       {first && second && first.caseId === second.caseId && <p className="field-error">Choose two different cases.</p>}
       <label className="usa-label" htmlFor="flag-case-note">
         Why they may be the same (optional)

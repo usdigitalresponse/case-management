@@ -80,6 +80,8 @@ async function createSubmittedInvoice(submitter: { userAccountId: string; profes
 
 const STAFF_ONLY = [
   '/api/cases',
+  '/api/cases/counts',
+  '/api/cases/overview',
   '/api/people?q=a',
   '/api/people/possible-duplicates',
   '/api/people/merges',
@@ -87,6 +89,7 @@ const STAFF_ONLY = [
   '/api/professionals',
   '/api/staff?q=a',
   '/api/invoices',
+  '/api/invoices/counts',
   '/api/reference-data',
   '/api/settings/professional-kinds',
 ];
@@ -120,8 +123,8 @@ describe('an external submitter', () => {
     expect((await other.call('GET', `/api/portal/invoices/${invoiceId}`)).status).toBe(404);
     expect((await other.call('POST', `/api/portal/invoices/${invoiceId}/withdraw`, {})).status).toBe(404);
     expect((await other.call('DELETE', `/api/portal/invoices/${invoiceId}`)).status).toBe(404);
-    const listed = (await (await other.call('GET', '/api/portal/invoices')).json()) as { invoices: unknown[] };
-    expect(listed.invoices).toEqual([]);
+    const listed = (await (await other.call('GET', '/api/portal/invoices')).json()) as { items: unknown[] };
+    expect(listed.items).toEqual([]);
   });
 
   it('is shown possible double billing only on invoices they may read', async () => {
@@ -164,6 +167,7 @@ describe('an external submitter', () => {
     const staffView = await (await (await asStaff('staff'))('GET', `/api/invoices/${invoiceId}`)).text();
     expect(staffView).toContain('Internal: check the duplicate.');
     expect(JSON.parse(staffView)).toHaveProperty('timeLog');
+    expect(staffView).not.toContain('"cursor"');
 
     const response = await submitter.call('GET', `/api/portal/invoices/${invoiceId}`);
     const submitterView = await response.text();
@@ -180,6 +184,31 @@ describe('staff without the administrator role', () => {
     expect((await staff('POST', '/api/settings/demo/reset', {})).status).toBe(403);
     // The same request passes the gate for an administrator and fails on its content.
     expect((await (await asStaff('admin'))('POST', '/api/settings/professional-kinds', {})).status).toBe(400);
+  });
+});
+
+describe('long lists', () => {
+  it('come a batch at a time to staff, and refuse a bad filter or position', async () => {
+    const staff = await asStaff('staff');
+    for (const path of [
+      '/api/invoices?view=open&show=flagged&sort=newest&county=grouped',
+      '/api/invoices?view=lines_decided&show=month&sort=finished&limit=1',
+      '/api/cases?show=open&stage=billing&q=a',
+      '/api/professionals?q=a',
+      '/api/professionals/people?role=none',
+      '/api/people?q=a',
+      '/api/preauthorizations/requests?status=open',
+    ]) {
+      const response = await staff('GET', path);
+      const text = await response.text();
+      const body = JSON.parse(text) as { items?: unknown[]; next?: unknown };
+      expect([path, response.status, Array.isArray(body.items), 'next' in body]).toEqual([path, 200, true, true]);
+      // A row's cursor only makes `next`; it is never sent.
+      expect([path, text.includes('"cursor"')]).toEqual([path, false]);
+    }
+    for (const path of ['/api/invoices?caseId=nope', '/api/invoices?limit=0', '/api/invoices?after=nope', '/api/cases?county=nope']) {
+      expect([path, (await staff('GET', path)).status]).toEqual([path, 400]);
+    }
   });
 });
 

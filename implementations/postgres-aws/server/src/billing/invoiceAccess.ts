@@ -1,31 +1,27 @@
 // Portal read/export access (model/rules.yaml authorize_payment_request_export):
 // invoices the user submitted, or that bill their own work as the invoice's
 // professional or a line's timekeeper.
-import { and, eq, exists, or, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, type SQL } from 'drizzle-orm';
+import { unionAll } from 'drizzle-orm/pg-core';
 import type { Database } from '../db/client';
 import { invoice, invoiceLine } from '../db/schema';
 import { AWAITING_MATCH_INVOICE_STATUS_CODE, UNSUBMITTED_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
 import type { PortalActor } from '../portal/portalActor';
 
+// One indexed lookup per way of reading; an OR across them can't use the indexes.
 export function portalReadableInvoiceCondition(db: Database, reader: PortalActor): SQL {
-  const conditions = [eq(invoice.submittedByUserAccountId, reader.userAccountId)];
-  if (reader.professionalId) {
-    conditions.push(
-      eq(invoice.professionalId, reader.professionalId),
-      exists(
-        db
-          .select({ invoiceLineId: invoiceLine.invoiceLineId })
-          .from(invoiceLine)
-          .where(
-            and(
-              eq(invoiceLine.invoiceId, invoice.invoiceId),
-              eq(invoiceLine.timekeeperProfessionalId, reader.professionalId),
-            ),
-          ),
-      ),
-    );
+  const submitted = db.select({ invoiceId: invoice.invoiceId }).from(invoice).where(eq(invoice.submittedByUserAccountId, reader.userAccountId));
+  if (!reader.professionalId) {
+    return inArray(invoice.invoiceId, submitted);
   }
-  return or(...conditions) as SQL;
+  return inArray(
+    invoice.invoiceId,
+    unionAll(
+      submitted,
+      db.select({ invoiceId: invoice.invoiceId }).from(invoice).where(eq(invoice.professionalId, reader.professionalId)),
+      db.select({ invoiceId: invoiceLine.invoiceId }).from(invoiceLine).where(eq(invoiceLine.timekeeperProfessionalId, reader.professionalId)),
+    ),
+  );
 }
 
 export async function canPortalReaderReadInvoice(

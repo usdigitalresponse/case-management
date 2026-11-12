@@ -1,7 +1,9 @@
 // Each professional's limit on a case (model/rules.yaml apply_preauthorization_limit) and what is approved
 // and waiting. "Approved so far" sums signed-off invoices, not allocation draws (../../MAPPING.md).
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { inIds } from '../db/inIds';
+import { groupBy } from '../groupBy';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { getReferenceId } from '../db/referenceLookups';
@@ -19,7 +21,7 @@ import {
   preauthorizationOutcomes,
   preauthorizationStatuses,
 } from '../db/schema';
-import { approvedTotal, latestRoundNumber, loadRecordedDecisions } from './reviewRounds';
+import { approvedTotal, latestRoundNumber, loadRecordedDecisionsByChain } from './reviewRounds';
 import { fromCents as money, toCents } from './money';
 import { APPROVED_INVOICE_STATUS_CODE, IN_REVIEW_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
 import { loadThresholdTable, thresholdBoundProfessionalIds, thresholdFrom, type ThresholdTable } from './preauthorizationThresholds';
@@ -35,30 +37,48 @@ export interface PreauthorizationSummary {
   waiting: string;
 }
 
-async function approvedCents(db: DatabaseOrTransaction, invoiceId: string): Promise<number> {
-  const [chain] = await db
-    .select({ id: invoiceApprovalChain.invoiceApprovalChainId })
-    .from(invoiceApprovalChain)
-    .where(and(eq(invoiceApprovalChain.invoiceId, invoiceId), isNull(invoiceApprovalChain.supersededAt)));
-  if (!chain) {
-    return 0;
+// Each invoice's approved total from its latest finished round; 0 without one.
+async function approvedCentsByInvoice(db: DatabaseOrTransaction, invoiceIds: string[]): Promise<Map<string, number>> {
+  if (invoiceIds.length === 0) {
+    return new Map();
   }
-  const [decisions, lines] = await Promise.all([
-    loadRecordedDecisions(db, chain.id),
-    db.select({ id: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId)),
+  const [chains, lineCounts] = await Promise.all([
+    db
+      .select({ invoiceId: invoiceApprovalChain.invoiceId, chainId: invoiceApprovalChain.invoiceApprovalChainId })
+      .from(invoiceApprovalChain)
+      .where(and(inIds(invoiceApprovalChain.invoiceId, invoiceIds), isNull(invoiceApprovalChain.supersededAt))),
+    db
+      .select({ invoiceId: invoiceLine.invoiceId, lines: count() })
+      .from(invoiceLine)
+      .where(inIds(invoiceLine.invoiceId, invoiceIds))
+      .groupBy(invoiceLine.invoiceId),
   ]);
-  return toCents(approvedTotal(decisions, latestRoundNumber(decisions, lines.length)));
+  const decisions = await loadRecordedDecisionsByChain(db, chains.map((chain) => chain.chainId));
+  const linesOf = new Map(lineCounts.map((row) => [row.invoiceId, row.lines]));
+  const cents = new Map(invoiceIds.map((invoiceId) => [invoiceId, 0]));
+  for (const { invoiceId, chainId } of chains) {
+    const recorded = decisions.get(chainId) ?? [];
+    cents.set(invoiceId, toCents(approvedTotal(recorded, latestRoundNumber(recorded, linesOf.get(invoiceId) ?? 0))));
+  }
+  return cents;
 }
 
 // The pre-authorized hourly rate per professional on a case (null key: a
 // pre-authorization for the whole case), from each approved
 // pre-authorization's latest decision that set one.
 export async function loadRateLimits(db: DatabaseOrTransaction, caseId: string | null): Promise<Map<string | null, string>> {
-  if (caseId === null) {
-    return new Map();
+  return caseId === null ? new Map() : (await loadRateLimitsByCase(db, [caseId])).get(caseId)!;
+}
+
+// The same for several cases; every one asked for has an entry.
+export async function loadRateLimitsByCase(db: DatabaseOrTransaction, caseIds: string[]): Promise<Map<string, Map<string | null, string>>> {
+  const byCase = new Map(caseIds.map((caseId) => [caseId, new Map<string | null, string>()]));
+  if (caseIds.length === 0) {
+    return byCase;
   }
   const rows = await db
     .select({
+      caseId: preauthorization.caseId,
       preauthorizationId: preauthorization.preauthorizationId,
       professionalId: preauthorization.professionalId,
       rate: preauthorizationDecision.approvedHourlyRate,
@@ -68,19 +88,19 @@ export async function loadRateLimits(db: DatabaseOrTransaction, caseId: string |
     .innerJoin(preauthorizationStatuses, eq(preauthorization.statusId, preauthorizationStatuses.id))
     .innerJoin(preauthorizationDecision, eq(preauthorizationDecision.preauthorizationId, preauthorization.preauthorizationId))
     .innerJoin(preauthorizationOutcomes, eq(preauthorizationDecision.outcomeId, preauthorizationOutcomes.id))
-    .where(and(eq(preauthorization.caseId, caseId), eq(preauthorizationStatuses.code, 'approved')))
+    .where(and(inIds(preauthorization.caseId, caseIds), eq(preauthorizationStatuses.code, 'approved')))
     .orderBy(desc(preauthorizationDecision.sequenceNumber));
-  const limits = new Map<string | null, string>();
   const seen = new Set<string>();
   for (const row of rows) {
     // Only each pre-authorization's latest decision counts.
     if (seen.has(row.preauthorizationId)) continue;
     seen.add(row.preauthorizationId);
+    const limits = byCase.get(row.caseId)!;
     if (row.rate !== null && row.outcomeCode !== 'denied' && !limits.has(row.professionalId)) {
       limits.set(row.professionalId, row.rate);
     }
   }
-  return limits;
+  return byCase;
 }
 
 export interface RateLimit {
@@ -113,16 +133,44 @@ export async function loadPreauthorizationSummaries(
   // Loaded once by callers summarizing many cases.
   thresholds?: ThresholdTable,
 ): Promise<PreauthorizationSummary[]> {
-  const authorizations = await db
-    .select({
-      preauthorizationId: preauthorization.preauthorizationId,
-      professionalId: preauthorization.professionalId,
-      authorizationNumber: preauthorization.authorizationNumber,
-    })
-    .from(preauthorization)
-    .innerJoin(preauthorizationStatuses, eq(preauthorization.statusId, preauthorizationStatuses.id))
-    .where(and(eq(preauthorization.caseId, caseId), eq(preauthorizationStatuses.code, 'approved')))
-    .orderBy(asc(preauthorization.requestedAt));
+  return (await loadPreauthorizationSummariesByCase(db, [caseId], alsoProfessionalIds, thresholds)).get(caseId)!;
+}
+
+// The same for several cases, in a fixed number of queries; every one asked for has an entry.
+export async function loadPreauthorizationSummariesByCase(
+  db: DatabaseOrTransaction,
+  caseIds: string[],
+  alsoProfessionalIds: string[] = [],
+  thresholds?: ThresholdTable,
+): Promise<Map<string, PreauthorizationSummary[]>> {
+  if (caseIds.length === 0) {
+    return new Map();
+  }
+  const summaries = new Map(caseIds.map((caseId) => [caseId, new Map<string | null, PreauthorizationSummary>()]));
+  const [authorizations, invoices] = await Promise.all([
+    db
+      .select({
+        caseId: preauthorization.caseId,
+        preauthorizationId: preauthorization.preauthorizationId,
+        professionalId: preauthorization.professionalId,
+        authorizationNumber: preauthorization.authorizationNumber,
+      })
+      .from(preauthorization)
+      .innerJoin(preauthorizationStatuses, eq(preauthorization.statusId, preauthorizationStatuses.id))
+      .where(and(inIds(preauthorization.caseId, caseIds), eq(preauthorizationStatuses.code, 'approved')))
+      .orderBy(asc(preauthorization.requestedAt)),
+    db
+      .select({
+        caseId: invoice.caseId,
+        invoiceId: invoice.invoiceId,
+        professionalId: invoice.professionalId,
+        statusCode: invoiceStatuses.code,
+        submittedTotal: invoice.submittedTotal,
+      })
+      .from(invoice)
+      .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+      .where(and(inIds(invoice.caseId, caseIds), inArray(invoiceStatuses.code, [APPROVED_INVOICE_STATUS_CODE, ...IN_REVIEW_INVOICE_STATUS_CODES]))),
+  ]);
   const decisions =
     authorizations.length === 0
       ? []
@@ -134,23 +182,18 @@ export async function loadPreauthorizationSummaries(
           })
           .from(preauthorizationDecision)
           .innerJoin(preauthorizationOutcomes, eq(preauthorizationDecision.outcomeId, preauthorizationOutcomes.id))
-          .where(inArray(preauthorizationDecision.preauthorizationId, authorizations.map((row) => row.preauthorizationId)))
+          .where(inIds(preauthorizationDecision.preauthorizationId, authorizations.map((row) => row.preauthorizationId)))
           .orderBy(desc(preauthorizationDecision.sequenceNumber));
-  const invoices = await db
-    .select({
-      invoiceId: invoice.invoiceId,
-      professionalId: invoice.professionalId,
-      statusCode: invoiceStatuses.code,
-      submittedTotal: invoice.submittedTotal,
-    })
-    .from(invoice)
-    .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
-    .where(and(eq(invoice.caseId, caseId), inArray(invoiceStatuses.code, [APPROVED_INVOICE_STATUS_CODE, ...IN_REVIEW_INVOICE_STATUS_CODES])));
+  // Ceilings replace each other; the latest decision sets it.
+  const latestDecision = new Map<string, (typeof decisions)[number]>();
+  for (const decision of decisions) {
+    if (!latestDecision.has(decision.preauthorizationId)) latestDecision.set(decision.preauthorizationId, decision);
+  }
+  const invoicesOf = groupBy(invoices, (row) => row.caseId!);
 
-  const byProfessional = new Map<string | null, PreauthorizationSummary>();
   for (const authorization of authorizations) {
-    // Ceilings replace each other; the latest decision sets it.
-    const latest = decisions.find((decision) => decision.preauthorizationId === authorization.preauthorizationId);
+    const byProfessional = summaries.get(authorization.caseId)!;
+    const latest = latestDecision.get(authorization.preauthorizationId);
     const ceilingCents = latest && latest.outcomeCode !== 'denied' ? toCents(latest.approvedAmount) : 0;
     const summary = byProfessional.get(authorization.professionalId) ?? {
       professionalId: authorization.professionalId,
@@ -167,41 +210,61 @@ export async function loadPreauthorizationSummaries(
     }
     byProfessional.set(authorization.professionalId, summary);
   }
-  const unauthorized = [
-    ...new Set([...invoices.flatMap((row) => (row.professionalId ? [row.professionalId] : [])), ...alsoProfessionalIds]),
-  ].filter((id) => !byProfessional.has(id));
+
   // A whole-case pre-authorization covers providers with none of their own.
-  if (unauthorized.length > 0 && !byProfessional.has(null)) {
-    const [bound, table, [caseRow]] = await Promise.all([
-      thresholdBoundProfessionalIds(db, unauthorized),
+  const unauthorizedOf = new Map<string, string[]>();
+  for (const [caseId, byProfessional] of summaries) {
+    if (byProfessional.has(null)) continue;
+    const unauthorized = [
+      ...new Set([...(invoicesOf.get(caseId) ?? []).flatMap((row) => (row.professionalId ? [row.professionalId] : [])), ...alsoProfessionalIds]),
+    ].filter((id) => !byProfessional.has(id));
+    if (unauthorized.length > 0) unauthorizedOf.set(caseId, unauthorized);
+  }
+  if (unauthorizedOf.size > 0) {
+    const [bound, table, caseRows] = await Promise.all([
+      thresholdBoundProfessionalIds(db, [...new Set([...unauthorizedOf.values()].flat())]),
       thresholds ?? loadThresholdTable(db),
-      db.select({ countyId: caseTable.countyId }).from(caseTable).where(eq(caseTable.caseId, caseId)),
+      db.select({ caseId: caseTable.caseId, countyId: caseTable.countyId }).from(caseTable).where(inIds(caseTable.caseId, [...unauthorizedOf.keys()])),
     ]);
-    const threshold = thresholdFrom(table, caseRow?.countyId ?? null);
-    for (const professionalId of unauthorized) {
-      if (!threshold || !bound.has(professionalId)) continue;
-      byProfessional.set(professionalId, {
-        professionalId,
-        source: 'threshold',
-        preauthorizationId: null,
-        authorizationNumbers: [],
-        ceiling: threshold.amount,
-        approvedSoFar: '0.00',
-        waiting: '0.00',
-      });
+    const countyOf = new Map(caseRows.map((row) => [row.caseId, row.countyId]));
+    for (const [caseId, unauthorized] of unauthorizedOf) {
+      const threshold = thresholdFrom(table, countyOf.get(caseId) ?? null);
+      for (const professionalId of unauthorized) {
+        if (!threshold || !bound.has(professionalId)) continue;
+        summaries.get(caseId)!.set(professionalId, {
+          professionalId,
+          source: 'threshold',
+          preauthorizationId: null,
+          authorizationNumbers: [],
+          ceiling: threshold.amount,
+          approvedSoFar: '0.00',
+          waiting: '0.00',
+        });
+      }
     }
   }
-  for (const summary of byProfessional.values()) {
-    const own = invoices.filter((row) => summary.professionalId === null || row.professionalId === summary.professionalId);
-    let approved = 0;
-    for (const row of own.filter((r) => r.statusCode === APPROVED_INVOICE_STATUS_CODE)) {
-      // eslint-disable-next-line no-await-in-loop
-      approved += await approvedCents(db, row.invoiceId);
+
+  const ownOf = (caseId: string, summary: PreauthorizationSummary) =>
+    (invoicesOf.get(caseId) ?? []).filter((row) => summary.professionalId === null || row.professionalId === summary.professionalId);
+  const approvedIds = new Set<string>();
+  for (const [caseId, byProfessional] of summaries) {
+    for (const summary of byProfessional.values()) {
+      for (const row of ownOf(caseId, summary)) {
+        if (row.statusCode === APPROVED_INVOICE_STATUS_CODE) approvedIds.add(row.invoiceId);
+      }
     }
-    summary.approvedSoFar = money(approved);
-    summary.waiting = money(own.filter((r) => r.statusCode !== APPROVED_INVOICE_STATUS_CODE).reduce((sum, r) => sum + toCents(r.submittedTotal), 0));
   }
-  return [...byProfessional.values()];
+  const approvedCents = await approvedCentsByInvoice(db, [...approvedIds]);
+  const result = new Map<string, PreauthorizationSummary[]>();
+  for (const [caseId, byProfessional] of summaries) {
+    for (const summary of byProfessional.values()) {
+      const own = ownOf(caseId, summary);
+      summary.approvedSoFar = money(own.filter((r) => r.statusCode === APPROVED_INVOICE_STATUS_CODE).reduce((sum, r) => sum + approvedCents.get(r.invoiceId)!, 0));
+      summary.waiting = money(own.filter((r) => r.statusCode !== APPROVED_INVOICE_STATUS_CODE).reduce((sum, r) => sum + toCents(r.submittedTotal), 0));
+    }
+    result.set(caseId, [...byProfessional.values()]);
+  }
+  return result;
 }
 
 // Their own limit, else the whole case's.

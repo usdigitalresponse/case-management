@@ -12,7 +12,7 @@ import { AppBrand, PRODUCT_NAME } from './components/AppBrand';
 import { queryClient, refreshCacheOnDataChange } from './queryClient';
 import { nextLoadIsFirst, portalLoaders, staffLoaders } from './routeLoaders';
 import { useResource } from './hooks/useResource';
-import { cases as casesResource, reviewQueue } from './resources';
+import { caseCounts, queueCounts } from './resources';
 import { portalRoutes } from './portal/ExternalPortalApp';
 import { page, pageWith } from './lazyPage';
 import type { AuthenticatedUser } from './api/client';
@@ -64,22 +64,15 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
   );
 }
 
-function useQueueCounts(userAccountId: string) {
-  const { data: queue } = useResource(reviewQueue('open'));
-  const { data: caseList, error: casesError } = useResource(casesResource);
-  return useMemo(() => {
-    if (!queue) return null;
-    return {
-      all: queue.invoices.length,
-      mine: queue.invoices.filter((invoice) => invoice.holder?.userAccountId === userAccountId).length,
-      openCases: caseList && !casesError ? caseList.cases.filter((row) => !row.closedOn).length : null,
-    };
-  }, [queue, caseList, casesError, userAccountId]);
+function useQueueCounts() {
+  const { data: queue } = useResource(queueCounts);
+  const { data: cases } = useResource(caseCounts);
+  return useMemo(() => (queue ? { ...queue, openCases: cases?.open ?? null } : null), [queue, cases]);
 }
 
-function Sidebar({ showSettings, userAccountId }: { showSettings: boolean; userAccountId: string }) {
+function Sidebar({ showSettings }: { showSettings: boolean }) {
   const location = useLocation();
-  const counts = useQueueCounts(userAccountId);
+  const counts = useQueueCounts();
   const onQueue = location.pathname === '/';
   const show = new URLSearchParams(location.search).get('show');
   const mineActive = onQueue && show === 'mine';
@@ -155,7 +148,7 @@ function StaffShell() {
       <TopBar displayName={user.displayName} onLogout={() => void logout()} />
       <div className="app-layout">
         {/* Everyone has Settings on demo servers, to change their own role there. */}
-        <Sidebar showSettings={Boolean(user.isAdmin || user.demoMode)} userAccountId={user.userAccountId} />
+        <Sidebar showSettings={Boolean(user.isAdmin || user.demoMode)} />
         <ScrollRestorationPerSignIn />
         <main id="main-content" className="app-main" tabIndex={-1} aria-busy={loadingPage}>
           {loadingPage && <div className="page-loading" aria-hidden="true" />}

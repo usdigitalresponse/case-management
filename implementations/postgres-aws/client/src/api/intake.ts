@@ -26,6 +26,9 @@ export interface IntakeItem {
   periodStart: string | null;
   periodEnd: string | null;
   suggestedCaseId: string | null;
+  suggestedCase: IntakeCase | null;
+  // Its case's, once matched.
+  case: IntakeCase | null;
   suggestedProfessionalId: string | null;
 }
 
@@ -50,4 +53,10 @@ export function matchInvoiceToCase(
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export interface IntakeCase {
+  externalReference: string | null;
+  clientDisplayName: string | null;
+  closedOn: string | null;
 }

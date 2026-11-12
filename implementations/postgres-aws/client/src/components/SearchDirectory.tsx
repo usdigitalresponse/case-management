@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useResource, type Resource } from '../hooks/useResource';
+import { useBatchedResource, type BatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from './MoreOnScroll';
 import { useSearchParamState } from '../hooks/useSearchParamState';
 import { PageHeading } from './PageHeading';
 import { RecordTable, type RecordTableColumn } from './RecordTable';
@@ -7,11 +8,10 @@ import { SearchInput } from './SearchInput';
 import { Notice } from './ui/Notice';
 import { Button } from './ui/Button';
 
-// Shared "search-then-list" shape for the sidebar's lookup pages (People,
-// Clients, Providers) — each just differs in what it fetches and how it
-// renders a row. `loadInitially` is for a small-enough table (Providers)
-// where showing everything up front makes sense; People/Clients leave it
-// off since those tables could be large and a query is expected first.
+// Shared "search-then-list" shape for the sidebar's lookup pages (Providers,
+// person records): each differs in what it fetches and how it renders a row,
+// and results come a batch at a time as they scroll. `loadInitially` lists
+// everyone before a search (Providers); otherwise a query is expected first.
 export function SearchDirectory<T>({
   title,
   description,
@@ -30,7 +30,7 @@ export function SearchDirectory<T>({
   description?: string;
   searchLabel: string;
   searchPlaceholder: string;
-  resource: (query: string) => Resource<T[]>;
+  resource: (query: string) => BatchedResource<T>;
   columns: RecordTableColumn<T>[];
   rowKey: (row: T) => string;
   loadInitially?: boolean;
@@ -48,7 +48,8 @@ export function SearchDirectory<T>({
   const [query, setQuery] = useState(searched);
   // A search changed elsewhere, as by Back or the sidebar, shows in the box.
   useEffect(() => setQuery(searched), [searched]);
-  const { data: results, error, pending, reload } = useResource(loadInitially || searched ? resource(searched) : null, { resetKey: reloadKey });
+  const list = useBatchedResource(loadInitially || searched ? resource(searched) : null, { resetKey: reloadKey });
+  const { items: results, error, pending, reload } = list;
   const [rerunning, setRerunning] = useState(false);
   const searching = rerunning || ((loadInitially || searched !== '') && pending);
 
@@ -91,6 +92,7 @@ export function SearchDirectory<T>({
       </form>
       {Boolean(error) && <Notice tone="danger">Failed to load results.</Notice>}
       {results && <RecordTable rows={results} rowKey={rowKey} columns={columns} emptyMessage="No results." />}
+      <MoreOnScroll list={list} what="results" />
       {after}
     </>
   );

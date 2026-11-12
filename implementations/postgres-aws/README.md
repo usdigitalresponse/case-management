@@ -166,6 +166,11 @@ the most database queries any timed run made, and writes them to
   Later runs at the same `PERF_SCALE` fail if a check makes more queries or
   gets more than 1.5 times slower (plus 20 ms); runs at another scale aren't
   compared. Save one before optimizing and compare on the same machine.
+- `PERF_SLOW_QUERIES=1` also records each check's three slowest SQL
+  statements, printed under it and kept in `latest.json`. Then
+  `npm run perf:explain` (optionally with part of a check's name) runs
+  EXPLAIN ANALYZE on them against the data the run left in the test
+  database, to see whether a statement scans a whole table.
 
 Nothing is saved from a run where any check was skipped (as with `-t`) or
 failed; the run fails instead.
@@ -179,6 +184,49 @@ judged there. Query counts can only be saved from that command. When a change lo
 with `PERF_SAVE_QUERY_COUNTS=1 npm run test:perf:queries` and commit them.
 Run the full `npm run test:perf` before merging changes to how the
 cross-checks read the database.
+
+### Checking performance on your own data
+
+The perf suite measures synthetic data. To see how a deployment's own
+database is doing, `db-report` prints a read-only report:
+- the slowest queries;
+- large tables read mostly by full scans;
+- foreign keys with no index;
+- indexes never used.
+
+It shows query shapes (with values replaced by `$1`, `$2`…) and table
+statistics, never stored records, so its output can be shared in an issue.
+A finding becomes a migration here, for every deployment.
+
+```sh
+cd server && DATABASE_URL=… npm run db-report        # from a checkout
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec server node dist/src/db/reportDatabase.js
+```
+
+The slowest queries need the `pg_stat_statements` extension. Until it is
+on, the report says so and shows the rest. Its cost is small: a little CPU
+per query and a few MB of memory. Turning it on takes a database restart
+and one statement as the database owner:
+
+1. Load it at startup, with `pg_stat_statements.track_utility` off. That
+   setting stops it keeping the text of commands other than queries (such
+   as `ALTER ROLE … PASSWORD`), which aren't stripped of their values.
+   - **Single-host stack:** `docker-compose.prod.yml` already does this.
+     The first `up -d` with it recreates the `postgres` container (a few
+     seconds' outage); its data volume is kept.
+   - **Amazon RDS:** in the parameter group, make sure
+     `shared_preload_libraries` includes `pg_stat_statements`, and set
+     `pg_stat_statements.track_utility` to `0`.
+2. Run `create extension if not exists pg_stat_statements;` once.
+
+The report lists only select, insert, update, delete and `with` statements,
+whose values are always replaced, even where that setting was left on.
+
+Statistics add up from the last restart or reset. Run the report after a
+typical stretch of use, not right after a restart. Don't create indexes
+from it directly on a live database: building an index on a large table
+locks writes to it, and an unused index only slows writes. Make the change
+here as a migration, checked with `npm run test:perf`.
 
 ### Other useful commands
 

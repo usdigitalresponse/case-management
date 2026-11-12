@@ -2,7 +2,10 @@ import type { LoaderFunctionArgs, ShouldRevalidateFunction } from 'react-router'
 import type { AuthenticatedUser } from './api/client';
 import { queryClient } from './queryClient';
 import { resourceQuery, type Resource } from './hooks/useResource';
+import { batchedQuery, type BatchedResource } from './hooks/useBatchedResource';
 import * as resources from './resources';
+import { caseListRequest, clientsRequest, peopleRequest } from './caseRequests';
+import { alternateRequest, exportsRequest, finishedRequest, personRequest, searchRequest, toReviewRequest } from './queueRequests';
 
 // Past this, a slow load shows the new page with its own loading state instead of holding the old one.
 const MAX_WAIT_MS = 2_000;
@@ -14,14 +17,22 @@ export function nextLoadIsFirst() {
 }
 
 // Holds the old page until data loads; current cached lists skip that, `fresh` resources always refetch.
-export function preload(list: (args: LoaderFunctionArgs) => Resource<unknown>[], { searchParams = [] as string[] } = {}) {
+type Preloaded = Resource<unknown> | BatchedResource<unknown, unknown>;
+
+// A batched list's first batch.
+function load(resource: Preloaded, fresh: boolean) {
+  if ('batched' in resource) {
+    return fresh
+      ? queryClient.fetchInfiniteQuery({ ...batchedQuery(resource), staleTime: 0 }).catch(() => undefined)
+      : queryClient.prefetchInfiniteQuery(batchedQuery(resource));
+  }
+  return fresh ? queryClient.fetchQuery({ ...resourceQuery(resource), staleTime: 0 }).catch(() => undefined) : queryClient.prefetchQuery(resourceQuery(resource));
+}
+
+export function preload(list: (args: LoaderFunctionArgs) => Preloaded[], { searchParams = [] as string[] } = {}) {
   const loader = async (args: LoaderFunctionArgs) => {
     const loads = list(args).map((resource) =>
-      resource.fresh
-        ? queryClient.fetchQuery({ ...resourceQuery(resource), staleTime: 0 }).catch(() => undefined)
-        : (queryClient.getQueryState(resource.key)?.isInvalidated ?? true)
-          ? queryClient.prefetchQuery(resourceQuery(resource))
-          : undefined,
+      resource.fresh ? load(resource, true) : (queryClient.getQueryState(resource.key)?.isInvalidated ?? true) ? load(resource, false) : undefined,
     );
     if (firstLoad) {
       firstLoad = false;
@@ -39,19 +50,20 @@ export function preload(list: (args: LoaderFunctionArgs) => Resource<unknown>[],
 }
 
 const param = (args: LoaderFunctionArgs, name: string) => args.params[name] as string;
-const searched = (args: LoaderFunctionArgs) => new URL(args.request.url).searchParams.get('q')?.trim() ?? '';
+const searchOf = (args: LoaderFunctionArgs) => new URL(args.request.url).searchParams;
+const searched = (args: LoaderFunctionArgs) => searchOf(args).get('q')?.trim() ?? '';
 
 export function staffLoaders(user: () => AuthenticatedUser | null) {
   return {
-    toReview: preload(() => [resources.reviewQueue('open'), resources.invoiceIntake, resources.counties]),
-    finished: preload(() => [resources.reviewQueue('all'), resources.counties]),
-    exports: preload(() => [resources.reviewQueue('finished'), resources.counties]),
+    toReview: preload((args) => [resources.reviewQueue(toReviewRequest(searchOf(args))), resources.invoiceIntake, resources.counties]),
+    finished: preload((args) => [resources.reviewQueue(finishedRequest(searchOf(args))), resources.counties]),
+    exports: preload((args) => [resources.reviewQueue(exportsRequest(searchOf(args))), resources.counties]),
     review: preload(({ params }) => [resources.invoiceForReview(params.invoiceId as string), resources.decisionReasons]),
-    overview: preload(() => [resources.cases, resources.recentCaseChanges]),
-    cases: preload(() => [resources.cases, resources.counties]),
-    people: preload(() => [resources.people]),
-    clients: preload(() => [resources.cases]),
-    organizations: preload(() => [resources.referenceData, resources.cases]),
+    overview: preload(() => [resources.caseOverview, resources.recentCaseChanges]),
+    cases: preload((args) => [resources.cases(caseListRequest(searchOf(args))), resources.counties]),
+    people: preload((args) => [resources.people(peopleRequest(searchOf(args)))]),
+    clients: preload((args) => [resources.cases(clientsRequest(searchOf(args)))]),
+    organizations: preload(() => [resources.referenceData, resources.caseCounts]),
     preauthorizations: preload(({ request }) => {
       const params = new URL(request.url).searchParams;
       if (params.get('view') === 'county') return [resources.preauthorizationUsage(resources.thisYear())];
@@ -63,13 +75,13 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
         }),
       ];
     }, { searchParams: ['view'] }),
-    alternateOpen: preload(() => [resources.reviewQueue('open'), resources.counties]),
-    alternateFinished: preload(() => [resources.reviewQueue('finished'), resources.counties]),
-    search: preload((args) => (searched(args) ? [resources.invoiceSearch(searched(args)), resources.counties] : []), { searchParams: ['q'] }),
+    alternateOpen: preload((args) => [resources.reviewQueue(alternateRequest('open', searchOf(args))), resources.counties]),
+    alternateFinished: preload((args) => [resources.reviewQueue(alternateRequest('finished', searchOf(args))), resources.counties]),
+    search: preload((args) => (searched(args) ? [resources.reviewQueue(searchRequest(searchOf(args))), resources.counties] : []), { searchParams: ['q'] }),
     providers: preload((args) => [resources.providerList(searched(args))], { searchParams: ['q'] }),
     possibleDuplicates: preload(({ request }) =>
       new URL(request.url).searchParams.get('show') === 'cases'
-        ? [resources.possibleDuplicateCases, resources.cases]
+        ? [resources.possibleDuplicateCases]
         : [resources.possibleDuplicates, resources.personMerges],
     { searchParams: ['show'] }),
     mergePeople: preload(
@@ -94,11 +106,10 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
       ...(user()?.isAdmin ? [resources.staffRoles] : []),
       ...(user()?.demoMode ? [resources.ownDemoRole] : []),
     ]),
-    caseDetail: preload((args) => [resources.caseDetail(param(args, 'caseId')), resources.caseInvoices(param(args, 'caseId'))]),
+    caseDetail: preload((args) => [resources.caseDetail(param(args, 'caseId')), resources.caseInvoices(param(args, 'caseId')), resources.caseInvoiceList(param(args, 'caseId'))]),
     person: preload((args) => {
-      const day = new URL(args.request.url).searchParams.get('day') ?? '';
       const professionalId = param(args, 'professionalId');
-      return [resources.person(professionalId), resources.personInvoices(professionalId, /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : undefined)];
+      return [resources.person(professionalId), resources.personInvoices(personRequest(professionalId, searchOf(args)))];
     }),
     preauthorizationRequest: preload((args) => [resources.preauthorizationRequest(param(args, 'requestId'))]),
     ...sharedLoaders,
@@ -107,7 +118,7 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
 
 // Pages in both the staff app and the portal.
 const sharedLoaders = {
-  intake: preload(() => [resources.invoiceIntake, resources.myInvoices]),
+  intake: preload(() => [resources.invoiceIntake, resources.myInvoices({ show: 'case_drafts' })]),
   newCase: preload(() => [resources.referenceData]),
   uploadByPerson: preload(() => [resources.billableProfessionals(null)]),
   uploadByCase: preload(() => [resources.uploadCases, resources.billableProfessionals(null)]),
@@ -119,11 +130,11 @@ const sharedLoaders = {
 
 export const portalLoaders = {
   ...sharedLoaders,
-  invoices: preload(() => [resources.myInvoices]),
+  invoices: preload(() => [resources.myInvoices()]),
   cases: preload(() => [resources.myCases]),
   caseDetail: preload((args) => {
     const caseId = param(args, 'caseId');
-    return [resources.myCases, resources.myCaseInvoices(caseId), resources.billableProfessionals(caseId), resources.myTimeEntries(caseId)];
+    return [resources.myCases, resources.myCaseInvoices(caseId, false), resources.billableProfessionals(caseId), resources.myTimeEntries(caseId)];
   }),
   preauthorizations: preload(() => [resources.myPreauthorizationRequests]),
   preauthorizationRequest: preload((args) => [resources.preauthorizationRequest(param(args, 'requestId'))]),

@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  ALL_COUNTIES,
-  applyCountyControl,
-  countyChoiceOf,
-  countyControlOptions,
-  countyMatches,
-  GROUPED_BY_COUNTY,
-  NO_COUNTY,
-} from './counties';
+import { countyChoiceOf, countyControlOptions, countyMatches } from './counties';
 
 const options = [
   { countyId: 'a', displayName: 'Sample County', isCounty: true },
@@ -39,28 +31,15 @@ describe('countyMatches', () => {
 describe('a list’s county control', () => {
   // As the server lists them: settings first.
   const listed = [options[1]!, options[3]!, options[0]!, options[2]!];
-  const rows = [
-    { id: 1, countyId: 'b' },
-    { id: 2, countyId: null },
-    { id: 3, countyId: 'pr' },
-    { id: 4, countyId: 'a' },
-    { id: 5, countyId: 'pr' },
+  const counts = [
+    { countyId: 'b', displayName: 'Example County', count: 1 },
+    { countyId: null, displayName: null, count: 1 },
+    { countyId: 'pr', displayName: 'Prison', count: 2 },
+    { countyId: 'a', displayName: 'Sample County', count: 1 },
   ];
-  const countyOf = (row: (typeof rows)[number]) => ({ countyId: row.countyId });
-  const ids = (shown: typeof rows) => shown.map((row) => row.id);
 
-  it('groups settings first, then counties as listed, then none, keeping each group’s order', () => {
-    expect(ids(applyCountyControl(rows, countyOf, GROUPED_BY_COUNTY, listed))).toEqual([3, 5, 4, 1, 2]);
-    expect(ids(applyCountyControl(rows, countyOf, ALL_COUNTIES, listed))).toEqual([1, 2, 3, 4, 5]);
-  });
-
-  it('shows one county’s rows, or those with none', () => {
-    expect(ids(applyCountyControl(rows, countyOf, 'pr', listed))).toEqual([3, 5]);
-    expect(ids(applyCountyControl(rows, countyOf, NO_COUNTY, listed))).toEqual([2]);
-  });
-
-  it('offers every setting, and only the counties the rows have, with counts', () => {
-    const offered = countyControlOptions(rows, countyOf, listed);
+  it('offers every setting, and only the counties with rows, with counts', () => {
+    const offered = countyControlOptions(counts, listed);
     expect(offered.settings.map((option) => [option.displayName, option.count])).toEqual([
       ['Post-conviction', 0],
       ['Prison', 2],
@@ -73,20 +52,23 @@ describe('a list’s county control', () => {
   });
 
   it('keeps offering the county chosen once no row has it, so the choice can be seen and undone', () => {
-    const waiting = rows.filter((row) => row.countyId !== 'a');
-    expect(countyControlOptions(waiting, countyOf, listed, 'a').counties.map((option) => [option.displayName, option.count])).toContainEqual([
+    const waiting = counts.filter((row) => row.countyId !== 'a');
+    expect(countyControlOptions(waiting, listed, 'a').counties.map((option) => [option.displayName, option.count])).toContainEqual([
       'Sample County',
       0,
     ]);
   });
 
-  it('keeps each county no longer listed together when grouped', () => {
-    const retired = [
-      { id: 1, countyId: 'x' },
-      { id: 2, countyId: 'y' },
-      { id: 3, countyId: 'x' },
-    ];
-    expect(ids(applyCountyControl(retired, countyOf, GROUPED_BY_COUNTY, listed))).toEqual([1, 3, 2]);
+  it('offers a county no longer listed by its name, and every county without counts', () => {
+    expect(countyControlOptions([{ countyId: 'x', displayName: 'Retired County', count: 3 }], listed).counties).toEqual([
+      { countyId: 'x', displayName: 'Retired County', isCounty: true, count: 3 },
+    ]);
+    const unknown = countyControlOptions(null, listed);
+    expect(unknown.counties.map((option) => [option.displayName, option.count])).toEqual([
+      ['Sample County', null],
+      ['Example County', null],
+    ]);
+    expect(unknown.none).toBeNull();
   });
 });
 

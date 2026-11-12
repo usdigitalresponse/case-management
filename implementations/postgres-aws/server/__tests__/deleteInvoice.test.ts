@@ -16,7 +16,7 @@ import { InvoiceNotFoundError } from '../src/billing/reviewInvoiceLine';
 import { deleteUnsubmittedInvoice, isInvoiceDeletableBy } from '../src/billing/deleteInvoice';
 import { getReferenceId } from '../src/db/referenceLookups';
 import { giveRate } from './rateHelpers';
-import { listPortalInvoices } from '../src/portal/listPortalInvoices';
+import { listPortalInvoiceBatch, listPortalInvoices } from '../src/portal/listPortalInvoices';
 import { confirmInvoiceImport } from '../src/imports/invoiceImports/resolve';
 import { uploadInvoiceFile } from '../src/imports/invoiceImports/upload';
 import {
@@ -178,5 +178,25 @@ describe('the portal invoice list', () => {
 
     const other = await setup();
     expect((await listPortalInvoices(testDb, other.actor)).every((row) => !row.deletable)).toBe(true);
+  });
+
+  it('comes a batch at a time, drafts first, then the latest sent, leaving out withdrawn and sent-back ones', async () => {
+    const { actor, caseId } = await setup();
+    const sentEarly = await createInvoice(testDb, actor, { attested: true, caseId, lines: [{ amount: 10 }] });
+    const sentLate = await createInvoice(testDb, actor, { attested: true, caseId, lines: [{ amount: 20 }] });
+    await testDb.update(invoice).set({ submittedAt: new Date('2026-01-02T00:00:00Z') }).where(eq(invoice.invoiceId, sentEarly.invoiceId));
+    const draft = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [{ amount: 30 }] });
+    const ids: string[] = [];
+    let after: string[] | null = null;
+    for (let batches = 0; batches < 10; batches += 1) {
+      const batch = await listPortalInvoiceBatch(testDb, actor, { caseId }, { limit: 1, after });
+      ids.push(...batch.items.map((row) => row.invoiceId));
+      if (batches === 0) expect(batch.summary).toEqual({ needsChanges: [], withdrawn: 0 });
+      if (!batch.next) break;
+      after = JSON.parse(Buffer.from(batch.next, 'base64url').toString());
+    }
+    expect(ids).toEqual([draft.invoiceId, sentLate.invoiceId, sentEarly.invoiceId]);
+    const drafts = await listPortalInvoiceBatch(testDb, actor, { show: 'case_drafts' }, { limit: 50, after: null });
+    expect(drafts.items.map((row) => row.invoiceId)).toEqual([draft.invoiceId]);
   });
 });

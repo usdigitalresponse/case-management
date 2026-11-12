@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   apiErrorMessage,
   matchInvoiceToCase,
   returnToSubmitter,
+  searchCases,
+  type CaseListRecord,
+  type IntakeCase,
   type IntakeItem,
 } from '../api/client';
 import { AddProvider } from '../components/AddProvider';
@@ -18,7 +21,9 @@ import {
   type NewCaseEntry,
 } from '../components/NewEntryFields';
 import { useResource } from '../hooks/useResource';
-import { billableProfessionals, cases as casesResource, invoiceIntake, myInvoices } from '../resources';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
+import { billableProfessionals, invoiceIntake, myInvoices } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/ui/Notice';
@@ -47,7 +52,6 @@ const STAGES: Record<IntakeItem['stage'], { label: string; tone: Tone }> = {
 // Match an invoice to a case, adding its providers to the case when they
 // aren't on it. A case closed here is reopened by matching.
 function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message: string) => void }) {
-  const data = useResource(casesResource).data?.cases ?? null;
   const needsProfessional = item.professionalId === null;
   const unlisted = item.unlistedTimekeepers;
   const [added, setAdded] = useState<Array<{ professionalId: string; displayName: string }>>([]);
@@ -64,11 +68,11 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
   const [addMissing, setAddMissing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    if (data && caseId && caseId !== ADD_NEW && !data.some((c) => c.caseId === caseId)) {
-      setCaseId('');
-    }
-  }, [data, caseId]);
+  // The chosen case's client, for the message once matched.
+  const [chosenClient, setChosenClient] = useState<string | null>(item.suggestedCase?.clientDisplayName ?? null);
+  const found = useRef(new Map<string, string | null>());
+  const caseLabel = (row: IntakeCase | CaseListRecord) =>
+    `${caseDisplayLabel([row.externalReference, row.clientDisplayName], undefined)}${row.closedOn ? ' (closed: matching reopens it)' : ''}`;
   const isId = (value: string) => value !== '' && value !== ADD_NEW;
   const providerName =
     item.professionalDisplayName ?? providers.find((p) => p.value === professionalId)?.label ?? 'the provider';
@@ -94,8 +98,7 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
         professionalId: needsProfessional ? professionalId : undefined,
         timekeepers: Object.fromEntries(unlisted.map((line) => [line.invoiceLineId, timekeepers[line.invoiceLineId]!])),
       });
-      const chosen = data?.find((c) => c.caseId === matchedCaseId);
-      const to = chosen?.clientDisplayName ?? (caseId === ADD_NEW ? newCase.clientName : 'the case');
+      const to = (caseId === ADD_NEW ? newCase.clientName : chosenClient) ?? 'the case';
       onMatched(
         `Matched to ${to}${result.addedProfessionalIds.length ? `, and ${providerName} was added to it` : ''}.${
           result.released ? ' It has gone on to review.' : result.releaseProblem ? ` It can't go to review yet: ${result.releaseProblem}` : ''
@@ -132,19 +135,25 @@ function MatchPanel({ item, onMatched }: { item: IntakeItem; onMatched: (message
       )}
       <div className="intake-match">
         {item.caseId ? (
-          <p>Case: {caseDisplayLabel([data?.find((c) => c.caseId === item.caseId)?.externalReference ?? null, data?.find((c) => c.caseId === item.caseId)?.clientDisplayName ?? null], undefined)}</p>
+          <p>Case: {caseDisplayLabel([item.case?.externalReference ?? null, item.case?.clientDisplayName ?? null], undefined)}</p>
         ) : (
           <PickOrAdd
             id={`match-${item.invoiceId}`}
             label="Case"
             value={caseId}
-            onChange={setCaseId}
+            onChange={(value) => {
+              setCaseId(value);
+              setChosenClient(found.current.get(value) ?? null);
+            }}
             addLabel="+ Add new case"
-            placeholder={data ? 'Choose an open case' : 'Loading cases…'}
-            options={(data ?? []).map((c) => ({
-              value: c.caseId,
-              label: `${caseDisplayLabel([c.externalReference, c.clientDisplayName], undefined)}${c.closedOn ? ' (closed: matching reopens it)' : ''}`,
-            }))}
+            placeholder="Search by case number or client"
+            options={[]}
+            search={async (query) => {
+              const rows = await searchCases(query, 'all');
+              for (const row of rows) found.current.set(row.caseId, row.clientDisplayName);
+              return rows.map((row) => ({ value: row.caseId, label: caseLabel(row) }));
+            }}
+            selectedLabel={item.suggestedCase && caseId === item.suggestedCaseId ? caseLabel(item.suggestedCase) : undefined}
             hint={caseId && caseId === item.suggestedCaseId ? <span className="line-row-suggested">Named in the file: check it</span> : undefined}
           >
             <StaffNewCaseFields idPrefix={`match-new-${item.invoiceId}`} value={newCase} onChange={setNewCase} errors={caseErrors} />
@@ -397,10 +406,10 @@ export default function InvoiceIntake() {
   const [params] = useSearchParams();
   const { data: intake, error, reload: reloadIntake } = useResource(invoiceIntake);
   const data = intake?.items ?? null;
-  const { data: mine, reload: reloadMine } = useResource(myInvoices);
-  const refresh = () => void Promise.all([reloadIntake(), reloadMine()]);
   // Drafts with no case are listed under "Waiting for a case" instead.
-  const drafts = mine?.filter((invoice) => invoice.statusCode === 'draft' && invoice.caseId) ?? null;
+  const mine = useBatchedResource(myInvoices({ show: 'case_drafts' }));
+  const refresh = () => void Promise.all([reloadIntake(), mine.reload()]);
+  const drafts = mine.items;
   const [toast, setToast] = useToast();
   const justMatched = params.get('matched');
   const uploadedCount = (useLocation().state as UploadedState | null)?.uploadedCount ?? 0;
@@ -444,6 +453,7 @@ export default function InvoiceIntake() {
         <section className="detail-section">
           <h2>Drafts to finish</h2>
           <MyInvoicesTable rows={drafts} label="Drafts to finish" onDeleted={refresh} />
+          <MoreOnScroll list={mine} what="drafts" />
         </section>
       )}
       <Toast toast={toast} />

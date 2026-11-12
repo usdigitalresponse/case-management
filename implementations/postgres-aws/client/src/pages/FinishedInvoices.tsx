@@ -1,64 +1,34 @@
 // Every invoice with all its lines decided, newest first: waiting for
 // sign-off, decided, or completed once the sender has been told.
-import type { ReviewQueueItem } from '../api/client';
-import { useResource } from '../hooks/useResource';
+import { useSearchParams } from 'react-router';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
+import { finishedRequest, FINISHED_FILTERS, type FinishedFilterId } from '../queueRequests';
 import { reviewQueue } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { StatusPill } from '../components/StatusPill';
-import { COMPLETED_EXPLAINER, DECIDED_STATUS_CODES, InvoiceStatus, isCompleted } from '../components/Completion';
+import { COMPLETED_EXPLAINER, InvoiceStatus } from '../components/Completion';
 import { Toast, useToast } from '../components/Toast';
-import { CaseNumberCell, countyOfInvoice, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
+import { CaseNumberCell, FromCell, openInvoiceColumn } from '../components/InvoiceCells';
 import { useCountyControl } from '../components/CountyListControl';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { useSearchParamState } from '../hooks/useSearchParamState';
 import { FilterTag } from '../components/ui/Tag';
 
-const FINISHED = ['awaiting_sign_off', ...DECIDED_STATUS_CODES];
-
-// Neutral, as in design I29.
-const FILTERS = [
-  { id: 'month', label: 'This month' },
-  { id: 'sign_off', label: 'Waiting for sign-off' },
-  { id: 'decided', label: 'Decided' },
-  { id: 'completed', label: 'Completed' },
-  { id: 'all', label: 'All' },
-] as const;
-type FilterId = (typeof FILTERS)[number]['id'];
-
-function matches(invoice: ReviewQueueItem, filter: FilterId): boolean {
-  switch (filter) {
-    case 'month':
-      return Boolean(invoice.finishedAt?.startsWith(new Date().toISOString().slice(0, 7)));
-    case 'sign_off':
-      return invoice.statusCode === 'awaiting_sign_off';
-    case 'decided':
-      return invoice.statusCode !== 'awaiting_sign_off' && !isCompleted(invoice);
-    case 'completed':
-      return isCompleted(invoice);
-    default:
-      return true;
-  }
-}
-
 export default function FinishedInvoices() {
-  const { data, error, reload } = useResource(reviewQueue('all'));
-  const [filter, setFilter] = useSearchParamState<FilterId>('show', 'month', FILTERS.map((option) => option.id));
+  const [params] = useSearchParams();
+  const [filter, setFilter] = useSearchParamState<FinishedFilterId>('show', 'month', FINISHED_FILTERS.map((option) => option.id));
+  const list = useBatchedResource(reviewQueue(finishedRequest(params)));
+  const { summary, reload } = list;
   const [toast, setToast] = useToast();
-  const finished = (data?.invoices ?? [])
-    .filter((invoice) => FINISHED.includes(invoice.statusCode))
-    .sort((a, b) => (b.finishedAt ?? '').localeCompare(a.finishedAt ?? ''));
-  const county = useCountyControl(
-    finished.filter((invoice) => matches(invoice, filter)),
-    countyOfInvoice,
-  );
+  const county = useCountyControl(summary?.counties ?? null);
 
-  if (error || !data) {
-    return <LoadState error={error} what="invoices" />;
+  if (list.error || !list.items || !summary) {
+    return <LoadState error={list.error} what="invoices" />;
   }
-  const shown = county.shown;
   const today = formatDay(new Date().toISOString());
 
   return (
@@ -73,9 +43,9 @@ export default function FinishedInvoices() {
       </p>
       <div className="list-controls">
         <div className="tag-filters" role="group" aria-label="Show">
-          {FILTERS.map(({ id, label }) => (
+          {FINISHED_FILTERS.map(({ id, label }) => (
             <FilterTag key={id} aria-pressed={filter === id} onClick={() => setFilter(id)}>
-              {label} <span className="tag-count">{finished.filter((invoice) => matches(invoice, id)).length}</span>
+              {label} <span className="tag-count">{summary.counts[id]}</span>
             </FilterTag>
           ))}
         </div>
@@ -83,7 +53,7 @@ export default function FinishedInvoices() {
       </div>
       <RecordTable
         className="queue-table"
-        rows={shown}
+        rows={list.items}
         rowKey={(invoice) => invoice.invoiceId}
         emptyMessage={county.narrowed ? 'No invoices here for that county.' : filter === 'month' ? 'Nothing finished this month yet.' : 'No invoices here.'}
         columns={[
@@ -119,6 +89,7 @@ export default function FinishedInvoices() {
           openInvoiceColumn(() => 'View'),
         ]}
       />
+      <MoreOnScroll list={list} what="invoices" />
       <p className="compact-hint">
         Export any of these to a spreadsheet from the invoice. The case number in the export is the one on the invoice, as typed or as
         a reviewer corrected it.

@@ -9,7 +9,9 @@ import { isStaffAccount } from '../../portal/portalActor';
 import { z } from 'zod';
 import { db } from '../../db/client';
 import { createInvoice } from '../../portal/createInvoice';
-import { listPortalInvoices } from '../../portal/listPortalInvoices';
+import { listPortalInvoiceBatch, PORTAL_INVOICE_SHOWS } from '../../portal/listPortalInvoices';
+import { batchRequest } from '../../lists/batches';
+import { ValidationError } from '../../errors';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../../billing/invoiceAccess';
 import { decisionCommentsOf, loadInvoiceDetail, type InvoiceDetail } from '../../billing/invoiceDetail';
 import { recallInvoice, withdrawInvoice } from '../../billing/invoiceLifecycle/withdraw';
@@ -113,8 +115,9 @@ router.get(
   asyncHandler(async (req, res) => {
     const reader = await sessionActor(req);
     const caseId = typeof req.query.caseId === 'string' ? req.query.caseId : undefined;
-    const rows = await listPortalInvoices(db, reader, caseId);
-    res.json({ invoices: rows });
+    if (caseId !== undefined && !z.uuid().safeParse(caseId).success) throw new ValidationError({ caseId: 'That is not a case.' });
+    const show = PORTAL_INVOICE_SHOWS.find((value) => value === req.query.show);
+    res.json(await listPortalInvoiceBatch(db, reader, { caseId, show }, batchRequest(req.query)));
   }),
 );
 

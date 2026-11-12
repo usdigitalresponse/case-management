@@ -18,6 +18,8 @@ services:
     logging: *logging
     # If the host runs out of memory, the kernel kills other processes first.
     oom_score_adj: -500
+    # Query statistics for `db-report`; other commands' text (which can hold values) isn't kept.
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track_utility=off
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the env file}
       POSTGRES_DB: case_management_postgres_aws

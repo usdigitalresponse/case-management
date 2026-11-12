@@ -1,4 +1,5 @@
 import { request } from './http';
+import { batchParams, type Batch } from './batches';
 import type { CountyChoice, SavedCounty } from './cases';
 import type { ProposedCase, ProposedProvider } from './myInvoices';
 
@@ -86,18 +87,93 @@ export interface ReviewQueueItem extends QueuedInvoice {
   match: 'exact' | 'close' | null;
 }
 
-// 'all': every sent invoice, for search; professionalId: one person's.
-// q: only invoices matching a name or case number, close matches included.
-export function listReviewQueue(
-  view: 'open' | 'finished' | 'all',
-  // day: only invoices with an item on that date.
-  options: { professionalId?: string; q?: string; day?: string } = {},
-): Promise<{ invoices: ReviewQueueItem[]; waitingAlertWorkingDays: number }> {
-  const params = new URLSearchParams({ view });
-  if (options.professionalId) params.set('professionalId', options.professionalId);
-  if (options.q?.trim()) params.set('q', options.q.trim());
-  if (options.day) params.set('day', options.day);
-  return request(`/api/invoices?${params}`);
+export type QueueView = 'open' | 'finished' | 'lines_decided' | 'all';
+// A person's: 'waiting' (in review) and 'done' (decided).
+export type QueueShow = 'all' | 'mine' | 'unassigned' | 'flagged' | 'month' | 'sign_off' | 'decided' | 'completed' | 'approved' | 'waiting' | 'done';
+// search: exact matches before close ones, each newest first.
+export type QueueSort = 'waiting' | 'newest' | 'finished' | 'search';
+
+// open: waiting on review or sign-off; finished: decided; lines_decided: also awaiting sign-off;
+// all: every sent invoice. q: matching a name or case number, close matches included;
+// day: with an item that date; county: a county's id, 'none' or 'grouped'.
+export interface QueueRequest {
+  view: QueueView;
+  show?: QueueShow;
+  sort?: QueueSort;
+  county?: string;
+  q?: string;
+  professionalId?: string;
+  caseId?: string;
+  day?: string;
+  // The filters whose counts the page shows.
+  counts?: QueueShow[];
+}
+
+export interface CountyCount {
+  countyId: string | null;
+  displayName: string | null;
+  count: number;
+}
+
+export interface LateInvoice {
+  invoiceId: string;
+  professionalDisplayName: string | null;
+  submittedByDisplayName: string | null;
+  submittedTotal: string;
+  holderDisplayName: string | null;
+  workingDaysWaiting: number;
+}
+
+// The whole queue's, with the first batch.
+export interface QueueSummary {
+  // Those asked for; null where only the rows themselves can tell (flags).
+  counts: Partial<Record<QueueShow, number | null>>;
+  // With the filter applied; null when it is flags.
+  counties: CountyCount[] | null;
+  late: LateInvoice[];
+  // Invoices the person looking is still entering.
+  entering: ReviewQueueItem[];
+  waitingAlertWorkingDays: number;
+  // With q, in the county chosen: matches totalled apart, and every close one to warn about.
+  search?: {
+    exact: Totals;
+    close: Totals & {
+      invoices: Array<{
+        invoiceId: string;
+        professionalDisplayName: string | null;
+        submittedByDisplayName: string | null;
+        caseNumber: string | null;
+        periodStart: string | null;
+        periodEnd: string | null;
+      }>;
+    };
+    people: number;
+  };
+  // With professionalId, whatever q is: every invoice of theirs, those sent this year, and those waiting now.
+  person?: { total: number; thisYear: Totals & { approved: string }; waiting: Totals };
+}
+
+export interface Totals {
+  count: number;
+  requested: string;
+}
+
+// limit: rows a batch, up to the server's most (200); its usual 50 when left out.
+export function listReviewQueue(query: QueueRequest, after: string | null, limit?: number): Promise<Batch<ReviewQueueItem, QueueSummary>> {
+  const params = new URLSearchParams({ view: query.view });
+  if (limit) params.set('limit', String(limit));
+  for (const name of ['show', 'sort', 'county', 'professionalId', 'caseId', 'day'] as const) {
+    const value = query[name];
+    if (value) params.set(name, value);
+  }
+  if (query.q?.trim()) params.set('q', query.q.trim());
+  if (query.counts?.length) params.set('counts', query.counts.join(','));
+  return request(`/api/invoices?${batchParams(params, after)}`);
+}
+
+// The sidebar's: invoices to review, and those waiting on the person looking.
+export function queueCounts(): Promise<{ all: number; mine: number }> {
+  return request('/api/invoices/counts');
 }
 
 // Audited, with the county it replaced.

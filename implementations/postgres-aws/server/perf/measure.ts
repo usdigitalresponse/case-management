@@ -12,6 +12,14 @@ export interface Measurement {
   minMs: number;
   // The most any timed run made.
   queries: number;
+  // With PERF_SLOW_QUERIES=1: its slowest statements, for EXPLAIN.
+  slowQueries?: SlowQuery[];
+}
+
+export interface SlowQuery {
+  ms: number;
+  sql: string;
+  values: unknown[];
 }
 
 interface SavedRun {
@@ -33,6 +41,8 @@ const QUERY_COUNTS = join(__dirname, 'queryCounts.json');
 export const ITERATIONS = Math.max(1, Number(process.env.PERF_ITERATIONS ?? 7));
 export const SAVING_BASELINE = process.env.PERF_SAVE_BASELINE === '1';
 export const SAVING_QUERY_COUNTS = process.env.PERF_SAVE_QUERY_COUNTS === '1';
+const RECORDING_SLOW_QUERIES = process.env.PERF_SLOW_QUERIES === '1';
+const SLOW_QUERIES_SHOWN = 3;
 // A check this much slower than its baseline fails, with slack for noise.
 const REGRESSION_FACTOR = 1.5;
 const REGRESSION_SLACK_MS = 20;
@@ -42,6 +52,14 @@ const readJson = <T>(path: string): T | undefined => (existsSync(path) ? (JSON.p
 const writeJson = (path: string, value: unknown) => writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 
 let queries = 0;
+let timed: SlowQuery[] | null = null;
+
+function record(args: unknown[], start: number) {
+  const [first, second] = args as [string | { text: string; values?: unknown[] }, unknown];
+  const sql = typeof first === 'string' ? first : first.text;
+  const values = typeof first === 'string' ? (Array.isArray(second) ? second : []) : (first.values ?? []);
+  timed?.push({ ms: round(performance.now() - start), sql, values });
+}
 
 // Every query goes through a pooled client, including pool.query and transactions.
 export function countQueries(pool: Pool): void {
@@ -49,7 +67,18 @@ export function countQueries(pool: Pool): void {
     const query = client.query.bind(client) as (...args: unknown[]) => unknown;
     (client as unknown as { query: (...args: unknown[]) => unknown }).query = (...args: unknown[]) => {
       queries += 1;
-      return query(...args);
+      if (!timed) return query(...args);
+      const start = performance.now();
+      // pool.query passes a callback; drizzle awaits the promise.
+      const callback = args.at(-1);
+      if (typeof callback === 'function') {
+        return query(...args.slice(0, -1), (...results: unknown[]) => {
+          record(args, start);
+          (callback as (...results: unknown[]) => void)(...results);
+        });
+      }
+      const pending = query(...args) as Promise<unknown>;
+      return pending.finally(() => record(args, start));
     };
   });
 }
@@ -67,6 +96,7 @@ export async function measure<T>(group: string, name: string, run: (runNumber: n
   let result = await run(0);
   const times: number[] = [];
   let most = 0;
+  if (RECORDING_SLOW_QUERIES) timed = [];
   for (let i = 1; i <= ITERATIONS; i += 1) {
     const before = queries;
     const start = performance.now();
@@ -75,13 +105,19 @@ export async function measure<T>(group: string, name: string, run: (runNumber: n
     most = Math.max(most, queries - before);
   }
   times.sort((a, b) => a - b);
-  const measurement = {
+  const slowest = new Map<string, SlowQuery>();
+  for (const query of timed ?? []) {
+    if ((slowest.get(query.sql)?.ms ?? -1) < query.ms) slowest.set(query.sql, query);
+  }
+  timed = null;
+  const measurement: Measurement = {
     name,
     group,
     medianMs: round(percentile(times, 50)),
     p95Ms: round(percentile(times, 95)),
     minMs: round(times[0]!),
     queries: most,
+    ...(RECORDING_SLOW_QUERIES ? { slowQueries: [...slowest.values()].sort((a, b) => b.ms - a.ms).slice(0, SLOW_QUERIES_SHOWN) } : {}),
   };
   results.push(measurement);
   return { result, measurement };
@@ -152,7 +188,9 @@ export function writeReport(volume: Volume & { scale: number; invoices: number; 
     .map((row) => {
       const before = baseline.get(keyOf(row));
       const change = before && !SAVING_BASELINE ? `  (baseline ${before.medianMs} ms, ${before.queries} q)` : '';
-      return `${keyOf(row).padEnd(width)}  ${String(row.medianMs).padStart(8)} ms  p95 ${String(row.p95Ms).padStart(8)} ms  ${String(row.queries).padStart(5)} q${change}`;
+      const line = `${keyOf(row).padEnd(width)}  ${String(row.medianMs).padStart(8)} ms  p95 ${String(row.p95Ms).padStart(8)} ms  ${String(row.queries).padStart(5)} q${change}`;
+      const slow = (row.slowQueries ?? []).map((query) => `    ${String(query.ms).padStart(8)} ms  ${query.sql.replace(/\s+/g, ' ').slice(0, 300)}`);
+      return [line, ...slow].join('\n');
     });
   const text = [
     `Volume: ${volume.professionals} professionals, ${volume.cases} cases, ${volume.invoices} invoices, ${volume.lines} lines; ${ITERATIONS} runs each`,

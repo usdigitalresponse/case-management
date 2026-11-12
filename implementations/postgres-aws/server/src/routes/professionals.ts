@@ -24,13 +24,15 @@ import { editProfessional } from '../professionals/editProfessional';
 import { requireAdmin } from '../auth/requireAdmin';
 import { listRates, setProfessionalKind } from '../billing/professionalRates';
 import { getStaffAccountRoleIds } from '../auth/staffAccountRole';
-import { getPerson, listPeople } from '../professionals/peopleDirectory';
+import { getPerson, listPeopleBatch } from '../professionals/peopleDirectory';
+import { afterCursor, batchRequest, cursorColumn, oneBatch, orderByKeys, sortKey } from '../lists/batches';
 import { loadProviderOffices } from '../professionals/providerOffices';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
 router.use(requireFullUser);
 
+// Providers by name, a batch at a time; q: their name or email.
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -43,42 +45,50 @@ router.get(
     if (q) {
       filters.push(or(ilike(userAccount.email, `%${q}%`), ilike(person.email, `%${q}%`), ilike(professional.displayName, `%${q}%`))!);
     }
+    const keys = [sortKey(sql`coalesce(${professional.displayName}, '')`, 'text'), sortKey(sql`${professional.professionalId}`, 'uuid')];
     // Providers staff added who haven't signed in have no account; their
     // email is on their person record.
-    const matches = await db
-      .select({
-        professionalId: professional.professionalId,
-        displayName: professional.displayName,
-        active: professional.active,
-        email: sql<string | null>`coalesce(${userAccount.email}, ${person.email})`,
-        signedIn: sql<boolean>`${professional.userAccountId} is not null`,
-        professionalKindId: professional.professionalKindId,
-        professionalKindDisplayName: professionalKinds.displayName,
-      })
-      .from(professional)
-      .innerJoin(person, eq(professional.personId, person.personId))
-      .leftJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
-      .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
-      .where(and(...filters))
-      .limit(50);
-    const ids = matches.map((match) => match.professionalId);
+    const { rows, next } = await oneBatch(batchRequest(req.query), (after, limit) =>
+      db
+        .select({
+          professionalId: professional.professionalId,
+          displayName: professional.displayName,
+          active: professional.active,
+          email: sql<string | null>`coalesce(${userAccount.email}, ${person.email})`,
+          signedIn: sql<boolean>`${professional.userAccountId} is not null`,
+          professionalKindId: professional.professionalKindId,
+          professionalKindDisplayName: professionalKinds.displayName,
+          cursor: cursorColumn(keys),
+        })
+        .from(professional)
+        .innerJoin(person, eq(professional.personId, person.personId))
+        .leftJoin(userAccount, eq(professional.userAccountId, userAccount.userAccountId))
+        .leftJoin(professionalKinds, eq(professional.professionalKindId, professionalKinds.id))
+        .where(and(...filters, afterCursor(keys, after)))
+        .orderBy(...orderByKeys(keys))
+        .limit(limit),
+    );
+    const ids = rows.map((row) => row.professionalId);
     const [rates, offices] = await Promise.all([listRates(db, ids), loadProviderOffices(db, ids)]);
     res.json({
-      professionals: matches.map((match) => ({
-        ...match,
-        ...offices.get(match.professionalId)!,
+      items: rows.map((row) => ({
+        ...row,
+        ...offices.get(row.professionalId)!,
         rates: rates
-          .filter((rate) => rate.professionalId === match.professionalId)
+          .filter((rate) => rate.professionalId === row.professionalId)
           .map(({ hourlyRate, effectiveFrom }) => ({ hourlyRate, effectiveFrom })),
       })),
+      next,
     });
   }),
 );
 
+// People by name, a batch at a time (../professionals/peopleDirectory.ts); role: a kind's name or 'none'.
 router.get(
   '/people',
-  asyncHandler(async (_req, res) => {
-    res.json({ people: await listPeople(db) });
+  asyncHandler(async (req, res) => {
+    const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value.slice(0, 100) : undefined);
+    res.json(await listPeopleBatch(db, { role: text(req.query.role), q: text(req.query.q) }, batchRequest(req.query)));
   }),
 );
 

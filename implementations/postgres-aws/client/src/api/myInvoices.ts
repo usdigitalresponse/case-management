@@ -1,3 +1,4 @@
+import { batchParams, type Batch } from './batches';
 import { request } from './http';
 import type { CountyChoice, SavedCounty } from './cases';
 import type { MileageRate, RuleFinding } from './settings';
@@ -236,9 +237,19 @@ export function listReceiptChannels(): Promise<{ channels: Array<{ code: string;
 }
 
 // Every invoice this user may read, or one case's.
-export function listMyInvoices(caseId?: string): Promise<{ invoices: InvoiceRecord[] }> {
-  const query = caseId ? `?caseId=${encodeURIComponent(caseId)}` : '';
-  return request<{ invoices: InvoiceRecord[] }>(`/api/portal/invoices${query}`);
+// list: all but withdrawn and sent-back ones (the summary's needsChanges); current: all but withdrawn;
+// all: withdrawn too; case_drafts: drafts with a case.
+export interface MyInvoicesRequest {
+  caseId?: string;
+  show?: 'list' | 'current' | 'all' | 'case_drafts';
+}
+
+// Drafts first, then the latest sent, a batch at a time.
+export function listMyInvoices(query: MyInvoicesRequest, after: string | null): Promise<Batch<InvoiceRecord, { needsChanges: InvoiceRecord[]; withdrawn: number }>> {
+  const params = new URLSearchParams();
+  if (query.caseId) params.set('caseId', query.caseId);
+  if (query.show) params.set('show', query.show);
+  return request(`/api/portal/invoices?${batchParams(params, after)}`);
 }
 
 // keepalive: sent as the page closes, so the save outlives it.

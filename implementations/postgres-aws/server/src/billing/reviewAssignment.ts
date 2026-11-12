@@ -2,7 +2,8 @@
 // assign_invoice_review). Reassigning ends the current row and starts
 // another, so who held the invoice stays in history.
 import { z } from 'zod';
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
+import { inIds } from '../db/inIds';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { getReferenceId } from '../db/referenceLookups';
 import {
@@ -35,8 +36,18 @@ export interface InvoiceAssignments {
 }
 
 export async function loadAssignments(db: DatabaseOrTransaction, invoiceId: string): Promise<InvoiceAssignments> {
+  return (await loadAssignmentsByInvoice(db, [invoiceId])).get(invoiceId)!;
+}
+
+// The same for several invoices; every one asked for has an entry.
+export async function loadAssignmentsByInvoice(db: DatabaseOrTransaction, invoiceIds: string[]): Promise<Map<string, InvoiceAssignments>> {
+  const byInvoice = new Map<string, InvoiceAssignments>(invoiceIds.map((invoiceId) => [invoiceId, { reviewer: null, signOff: [] }]));
+  if (invoiceIds.length === 0) {
+    return byInvoice;
+  }
   const rows = await db
     .select({
+      invoiceId: invoiceReviewAssignment.invoiceId,
       stepCode: invoiceApprovalStepTypes.code,
       position: invoiceReviewAssignment.position,
       userAccountId: invoiceReviewAssignment.assignedUserAccountId,
@@ -45,15 +56,17 @@ export async function loadAssignments(db: DatabaseOrTransaction, invoiceId: stri
     .from(invoiceReviewAssignment)
     .innerJoin(invoiceApprovalStepTypes, eq(invoiceReviewAssignment.stepTypeId, invoiceApprovalStepTypes.id))
     .innerJoin(userAccount, eq(invoiceReviewAssignment.assignedUserAccountId, userAccount.userAccountId))
-    .where(and(eq(invoiceReviewAssignment.invoiceId, invoiceId), isNull(invoiceReviewAssignment.endedAt)))
+    .where(and(inIds(invoiceReviewAssignment.invoiceId, invoiceIds), isNull(invoiceReviewAssignment.endedAt)))
     .orderBy(asc(invoiceReviewAssignment.position));
-  const reviewer = rows.find((row) => row.stepCode === LINE_REVIEW_STEP_TYPE_CODE);
-  return {
-    reviewer: reviewer ? { userAccountId: reviewer.userAccountId, displayName: reviewer.displayName } : null,
-    signOff: rows
-      .filter((row) => row.stepCode === SIGN_OFF_STEP_TYPE_CODE)
-      .map(({ position, userAccountId, displayName }) => ({ position, userAccountId, displayName })),
-  };
+  for (const { invoiceId, stepCode, position, userAccountId, displayName } of rows) {
+    const assignments = byInvoice.get(invoiceId)!;
+    if (stepCode === LINE_REVIEW_STEP_TYPE_CODE) {
+      assignments.reviewer ??= { userAccountId, displayName };
+    } else if (stepCode === SIGN_OFF_STEP_TYPE_CODE) {
+      assignments.signOff.push({ position, userAccountId, displayName });
+    }
+  }
+  return byInvoice;
 }
 
 // The active line reviewer's name for each of several invoices.
@@ -68,7 +81,7 @@ export async function loadLineReviewerNames(db: DatabaseOrTransaction, invoiceId
     .innerJoin(userAccount, eq(invoiceReviewAssignment.assignedUserAccountId, userAccount.userAccountId))
     .where(
       and(
-        inArray(invoiceReviewAssignment.invoiceId, invoiceIds),
+        inIds(invoiceReviewAssignment.invoiceId, invoiceIds),
         isNull(invoiceReviewAssignment.endedAt),
         eq(invoiceApprovalStepTypes.code, LINE_REVIEW_STEP_TYPE_CODE),
       ),

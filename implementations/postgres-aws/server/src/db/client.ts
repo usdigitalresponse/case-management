@@ -6,7 +6,8 @@ import * as schema from './schema';
 // __tests__/testDb.ts (test connection) — one place to change pool/drizzle
 // config (SSL, pool size, logging) instead of three.
 export function createDb(connectionString: string) {
-  const pool = new Pool({ connectionString });
+  // Without JIT: compiling this app's short queries takes longer than running them (hundreds of ms against tens).
+  const pool = new Pool({ connectionString, options: '-c jit=off' });
   return { pool, db: drizzle(pool, { schema }) };
 }
 

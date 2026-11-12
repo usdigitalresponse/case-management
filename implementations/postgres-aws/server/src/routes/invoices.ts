@@ -36,7 +36,9 @@ import { reassignReviewer, setSignOffApprovers, LINE_REVIEW_STEP_TYPE_CODE } fro
 import { listReviewPeople } from '../billing/reviewAccess';
 import { allowedToSignOff, getReviewSettings } from '../billing/reviewSettings';
 import { shownRoleName } from '../auth/staffAccountRole';
-import { listReviewQueue, sentCaseNumberMatches } from '../billing/reviewQueue';
+import { listReviewQueueBatch, openQueueCounts, QUEUE_SHOWS, QUEUE_SORTS } from '../billing/reviewQueueBatches';
+import { batchRequest } from '../lists/batches';
+import { caseNumberMatchesFor } from '../billing/caseNumberMatches';
 import { listRates, rateOn } from '../billing/professionalRates';
 import { correctCaseNumber } from '../billing/correctCaseNumber';
 import { loadPreauthorizationSummaries, overPreauthorization, summaryForProfessional } from '../billing/preauthorizations';
@@ -57,18 +59,50 @@ router.use(requireFullUser);
 // requireFullUser guarantees a session user.
 const actorId = (req: Request) => getSessionUser(req)!.userAccountId;
 
-// view: open (default), finished or all; professionalId: one person's;
-// q: a name or case number, close matches included; day: with an item that date.
+// A batch of the queue (../billing/reviewQueueBatches.ts), with its summary on the first.
+// view: open (default), finished, lines_decided or all; professionalId, caseId: one person's or case's;
+// q: a name or case number, close matches included; day: with an item that date;
+// show, sort, county: the page's filter, order and county choice; counts: the filters to count; limit, after: the batch.
+const QUEUE_VIEWS = ['open', 'finished', 'lines_decided', 'all'] as const;
+const oneOf = <T extends string>(values: readonly T[], value: unknown, otherwise: T): T =>
+  values.includes(value as T) ? (value as T) : otherwise;
+// An id or nothing; anything else is refused, never read as no filter.
+function uuidOrUndefined(value: unknown, name: string): string | undefined {
+  if (value === undefined || value === '') return undefined;
+  if (typeof value === 'string' && z.uuid().safeParse(value).success) return value;
+  throw new ValidationError({ [name]: 'That is not a valid id.' });
+}
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const view = req.query.view === 'finished' || req.query.view === 'all' ? req.query.view : 'open';
-    const professionalId = typeof req.query.professionalId === 'string' && z.uuid().safeParse(req.query.professionalId).success
-      ? req.query.professionalId
-      : undefined;
-    const q = typeof req.query.q === 'string' ? req.query.q.slice(0, 100) : undefined;
-    const day = typeof req.query.day === 'string' && z.iso.date().safeParse(req.query.day).success ? req.query.day : undefined;
-    res.json(await listReviewQueue(db, view, { professionalId, q, day, actorUserAccountId: actorId(req) }));
+    const county = req.query.county === 'none' || req.query.county === 'grouped' ? req.query.county : uuidOrUndefined(req.query.county, 'county');
+    res.json(
+      await listReviewQueueBatch(
+        db,
+        {
+          view: oneOf(QUEUE_VIEWS, req.query.view, 'open'),
+          professionalId: uuidOrUndefined(req.query.professionalId, 'professionalId'),
+          caseId: uuidOrUndefined(req.query.caseId, 'caseId'),
+          q: typeof req.query.q === 'string' ? req.query.q.slice(0, 100) : undefined,
+          day: typeof req.query.day === 'string' && z.iso.date().safeParse(req.query.day).success ? req.query.day : undefined,
+          show: oneOf(QUEUE_SHOWS, req.query.show, 'all'),
+          sort: oneOf(QUEUE_SORTS, req.query.sort, 'waiting'),
+          counts: typeof req.query.counts === 'string' ? QUEUE_SHOWS.filter((show) => req.query.counts!.toString().split(',').includes(show)) : [],
+          county,
+          actorUserAccountId: actorId(req),
+        },
+        batchRequest(req.query),
+      ),
+    );
+  }),
+);
+
+// The sidebar's counts.
+router.get(
+  '/counts',
+  asyncHandler(async (req, res) => {
+    res.json(await openQueueCounts(db, actorId(req)));
   }),
 );
 
@@ -215,7 +249,7 @@ router.get(
     const professionalId = detail.invoice.professionalId;
     const today = new Date().toISOString().slice(0, 10);
     const approvedRate = professionalId ? (rateOn(await listRates(db, [professionalId]), professionalId, today) ?? null) : null;
-    const caseNumberMatches = (await sentCaseNumberMatches(db)).get(detail.invoice.invoiceId) ?? { same: 0, close: 0 };
+    const caseNumberMatches = await caseNumberMatchesFor(db, detail.invoice.invoiceId);
     const senderEmail = await loadSenderEmail(db, detail.invoice);
     // As canDiscardEntry decides, from what the detail already holds.
     const discardable =

@@ -2,16 +2,11 @@
 import { useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import { ADD_NEW, PickOrAdd } from '../PickOrAdd';
-import { apiErrorMessage, decidePreauthorizationRequest, matchPreauthorizationRequest, type PreauthorizationRequestDetail, type PreauthorizationRequestRow, type RequestOutcome } from '../../api/client';
-import { useResource } from '../../hooks/useResource';
-import { cases as casesResource, providerList } from '../../resources';
+import { apiErrorMessage, caseOptionLabel, searchCases, searchProviders, decidePreauthorizationRequest, matchPreauthorizationRequest, type PreauthorizationRequestDetail, type PreauthorizationRequestRow, type RequestOutcome } from '../../api/client';
 import { Notice } from '../ui/Notice';
 import { Button } from '../ui/Button';
 
 export function MatchForm({ request, onMatched }: { request: PreauthorizationRequestRow; onMatched: (next: PreauthorizationRequestDetail) => void }) {
-  const cases = useResource(request.caseId ? null : casesResource);
-  const [query, setQuery] = useState(request.proposedProviderName ?? '');
-  const vendors = useResource(request.professionalId || !query.trim() ? null : providerList(query.trim()));
   const [error, setError] = useState<string | null>(null);
   const [casePick, setCasePick] = useState('');
   const [providerPick, setProviderPick] = useState('');
@@ -34,7 +29,8 @@ export function MatchForm({ request, onMatched }: { request: PreauthorizationReq
           onChange={(value) => pick(value, setCasePick, (caseId) => ({ caseId }))}
           addLabel="+ Add the case"
           placeholder="Choose a case"
-          options={(cases.data?.cases ?? []).map((row) => ({ value: row.caseId, label: [row.caseNumber, row.clientDisplayName].filter(Boolean).join(' · ') }))}
+          options={[]}
+          search={(query) => searchCases(query).then((found) => found.map((row) => ({ value: row.caseId, label: caseOptionLabel(row) })))}
         >
           <RouterLink to={`/cases/new?${new URLSearchParams(request.proposedCaseNumber ? { number: request.proposedCaseNumber } : {})}`}>
             Add case {request.proposedCaseNumber}
@@ -43,23 +39,18 @@ export function MatchForm({ request, onMatched }: { request: PreauthorizationReq
         </PickOrAdd>
       )}
       {!request.professionalId && (
-        <>
-          <div className="usa-form-group">
-            <label className="usa-label" htmlFor="match-provider-search">Find the provider</label>
-            <input id="match-provider-search" className="usa-input" value={query} onChange={(event) => setQuery(event.target.value)} />
-          </div>
-          <PickOrAdd
-            id="match-provider"
-            label="Provider"
-            value={providerPick}
-            onChange={(value) => pick(value, setProviderPick, (professionalId) => ({ professionalId }))}
-            addLabel="+ Add the provider"
-            placeholder={vendors.data?.length ? 'Choose a provider' : 'No match'}
-            options={(vendors.data ?? []).map((row) => ({ value: row.professionalId, label: row.displayName ?? 'Unnamed' }))}
-          >
-            <RouterLink to="/vendors">Add them on Providers</RouterLink>, then come back and choose them.
-          </PickOrAdd>
-        </>
+        <PickOrAdd
+          id="match-provider"
+          label={`Provider for ${request.proposedProviderName ?? 'this request'}`}
+          value={providerPick}
+          onChange={(value) => pick(value, setProviderPick, (professionalId) => ({ professionalId }))}
+          addLabel="+ Add the provider"
+          placeholder="Search by name or email"
+          options={[]}
+          search={(query) => searchProviders(query).then((found) => found.map((row) => ({ value: row.professionalId, label: row.displayName ?? 'Unnamed' })))}
+        >
+          <RouterLink to="/vendors">Add them on Providers</RouterLink>, then come back and choose them.
+        </PickOrAdd>
       )}
     </section>
   );

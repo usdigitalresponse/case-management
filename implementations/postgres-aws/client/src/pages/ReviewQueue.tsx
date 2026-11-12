@@ -1,19 +1,21 @@
-import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { type ReviewQueueItem } from '../api/client';
 import { useAuth } from '../AuthContext';
-import { useResource } from '../hooks/useResource';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
+import { alternateRequest, queueShowOf } from '../queueRequests';
+import { submittedByLabel } from '../reviewTotals';
 import { reviewQueue } from '../resources';
 import { InvoiceStatus } from '../components/Completion';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/ui/Notice';
 import { RecordTable } from '../components/RecordTable';
-import { caseNumberColumn, countyOfInvoice, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
+import { caseNumberColumn, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
 import { useCountyControl } from '../components/CountyListControl';
 import { AssignReviewer } from '../components/ReviewRouting';
 import { Toast, useToast } from '../components/Toast';
-import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
+import { QUEUE_FILTERS, type QueueFilterId } from '../queueFilters';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { Tag } from '../components/ui/Tag';
@@ -21,55 +23,27 @@ import { FilterTag } from '../components/ui/Tag';
 
 const FILTERS = QUEUE_FILTERS;
 type FilterId = QueueFilterId;
-const matches = matchesQueueFilter;
-
-function matchesQuery(invoice: ReviewQueueItem, query: string): boolean {
-  const haystack = [
-    invoice.caseNumber,
-    ...invoice.otherCaseNumbers,
-    invoice.caseClientDisplayName,
-    invoice.professionalDisplayName,
-    invoice.submittedByDisplayName,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  return haystack.includes(query.toLowerCase());
-}
 
 // The first screen: invoices waiting for a decision, who has each and how
 // long it has waited (working days), so nothing quietly stalls.
 export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
   const { user } = useAuth();
-  const userAccountId = user?.userAccountId ?? '';
   const [params, setParams] = useSearchParams();
-  const filter: FilterId = view === 'open' ? ((params.get('show') as FilterId | null) ?? 'mine') : 'everyone';
+  const filter: FilterId = view === 'open' ? (FILTERS.find(({ id }) => id === params.get('show'))?.id ?? 'mine') : 'everyone';
   const query = params.get('q') ?? '';
-  const { data, error, reload } = useResource(reviewQueue(view));
+  const list = useBatchedResource(reviewQueue(alternateRequest(view, params)));
+  const { summary, reload } = list;
   const [toast, setToast] = useToast();
   const canAssign = Boolean(user?.reviewPermissions?.reassign);
+  const county = useCountyControl(summary?.counties ?? null);
 
-  const counts = useMemo(
-    () =>
-      Object.fromEntries(
-        FILTERS.map(({ id }) => [id, data?.invoices.filter((invoice) => matches(invoice, id, userAccountId)).length ?? 0]),
-      ) as Record<FilterId, number>,
-    [data, userAccountId],
-  );
-
-  const county = useCountyControl(
-    (data?.invoices ?? []).filter((invoice) => matches(invoice, filter, userAccountId) && (!query || matchesQuery(invoice, query))),
-    countyOfInvoice,
-  );
-
-  if (error || !data) {
-    return <LoadState error={error} what="invoices" />;
+  if (list.error || !list.items || !summary) {
+    return <LoadState error={list.error} what="invoices" />;
   }
 
   const open = view === 'open';
-  const shown = county.shown;
-  const isLate = (invoice: ReviewQueueItem) => invoice.workingDaysWaiting > data.waitingAlertWorkingDays;
-  const late = open ? data.invoices.filter(isLate) : [];
+  const isLate = (invoice: { workingDaysWaiting: number }) => invoice.workingDaysWaiting > summary.waitingAlertWorkingDays;
+  const late = open ? summary.late : [];
   const setParam = (name: string, value: string | null) => {
     const next = new URLSearchParams(params);
     if (value) next.set(name, value);
@@ -90,13 +64,13 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
       {late.length > 0 && (
         <Notice
           tone="warning"
-          heading={`${late.length} ${late.length === 1 ? 'invoice has' : 'invoices have'} waited more than ${data.waitingAlertWorkingDays} working days.`}
+          heading={`${late.length} ${late.length === 1 ? 'invoice has' : 'invoices have'} waited more than ${summary.waitingAlertWorkingDays} working days.`}
         >
           {late
             .map(
               (invoice) =>
-                `${invoice.caseClientDisplayName ?? 'Unknown client'}, ${formatMoney(invoice.submittedTotal)}, ${
-                  invoice.holder ? `with ${invoice.holder.displayName}` : 'not assigned'
+                `${submittedByLabel(invoice)}, ${formatMoney(invoice.submittedTotal)}, ${
+                  invoice.holderDisplayName ? `with ${invoice.holderDisplayName}` : 'not assigned'
                 } for ${invoice.workingDaysWaiting} working days`,
             )
             .join('. ')}
@@ -114,7 +88,8 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
                 aria-pressed={filter === id}
                 onClick={() => setParam('show', id)}
               >
-                {label} <span className="tag-count">{counts[id]}</span>
+                {label}
+                {summary.counts[queueShowOf(id)] !== null && <span className="tag-count">{summary.counts[queueShowOf(id)]}</span>}
               </FilterTag>
             ))}
             {query && (
@@ -132,7 +107,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
 
       <RecordTable
         className="queue-table"
-        rows={shown}
+        rows={list.items}
         rowKey={(invoice) => invoice.invoiceId}
         emptyMessage={
           county.narrowed
@@ -190,6 +165,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
           openInvoiceColumn(() => (open ? 'Review' : 'View')),
         ]}
       />
+      <MoreOnScroll list={list} what="invoices" />
       <Toast toast={toast} />
     </div>
   );

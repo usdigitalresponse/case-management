@@ -11,13 +11,3 @@ export function listCaseNumber(invoice: InvoiceRecord): string | null {
     null
   );
 }
-
-// Unsent drafts first (the newest work), then the most recently sent.
-export function inListOrder(invoices: InvoiceRecord[]): InvoiceRecord[] {
-  return [...invoices].sort((a, b) => {
-    if ((a.submittedAt === null) !== (b.submittedAt === null)) {
-      return a.submittedAt === null ? -1 : 1;
-    }
-    return (b.submittedAt ?? '').localeCompare(a.submittedAt ?? '');
-  });
-}

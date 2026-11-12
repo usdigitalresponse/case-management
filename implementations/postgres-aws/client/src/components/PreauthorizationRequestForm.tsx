@@ -33,14 +33,20 @@ const BASES: Array<{ id: RateBasis; label: string }> = [
 
 export function PreauthorizationRequestForm({
   cases,
+  searchCases,
   providers,
+  searchProviders,
   fixedCaseId,
   staff = false,
   onCreated,
   onCancel,
 }: {
   cases: Option[];
+  // Staff's: every case, searched as typed, in place of cases.
+  searchCases?: (query: string) => Promise<Option[]>;
   providers: Option[];
+  // Staff's: every provider, searched as typed, in place of providers.
+  searchProviders?: (query: string) => Promise<Option[]>;
   fixedCaseId?: string;
   staff?: boolean;
   // uploadError: a file that couldn't be added after the request was sent.
@@ -145,6 +151,7 @@ export function PreauthorizationRequestForm({
           addLabel="+ A case not listed"
           placeholder="Choose a case"
           options={cases.map((option) => ({ value: option.id, label: option.label }))}
+          search={searchCases && ((query) => searchCases(query).then((found) => found.map((option) => ({ value: option.id, label: option.label }))))}
         >
           <div className="usa-form-group">
             <label className="usa-label" htmlFor="preauth-case-number">Case number</label>
@@ -161,6 +168,7 @@ export function PreauthorizationRequestForm({
         addLabel="+ Someone not listed"
         placeholder="Choose a provider"
         options={providers.map((option) => ({ value: option.id, label: option.label }))}
+        search={searchProviders && ((query) => searchProviders(query).then((found) => found.map((option) => ({ value: option.id, label: option.label }))))}
       >
         <div className="usa-form-group">
           <label className="usa-label" htmlFor="preauth-provider-name">Provider’s name</label>

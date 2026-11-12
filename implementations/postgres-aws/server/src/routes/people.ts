@@ -2,7 +2,8 @@
 // (../people/possibleDuplicates.ts) and, for administrators, merging them
 // (../people/personMerges.ts). Search never creates a person.
 import { Router } from 'express';
-import { and, ilike, isNull, or } from 'drizzle-orm';
+import { and, getTableColumns, ilike, isNull, or, sql } from 'drizzle-orm';
+import { afterCursor, batchRequest, cursorColumn, oneBatch, orderByKeys, sortKey } from '../lists/batches';
 import { db } from '../db/client';
 import { person } from '../db/schema';
 import { getSessionUser, requireFullUser } from '../auth/session';
@@ -21,16 +22,20 @@ router.get(
   asyncHandler(async (req, res) => {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     if (!q) {
-      res.json({ people: [] });
+      res.json({ items: [], next: null });
       return;
     }
     const pattern = `%${q}%`;
-    const matches = await db
-      .select()
-      .from(person)
-      .where(and(or(ilike(person.displayName, pattern), ilike(person.email, pattern)), isNull(person.mergedIntoPersonId)))
-      .limit(20);
-    res.json({ people: matches });
+    const keys = [sortKey(sql`coalesce(${person.displayName}, '')`, 'text'), sortKey(sql`${person.personId}`, 'uuid')];
+    const { rows, next } = await oneBatch(batchRequest(req.query), (after, limit) =>
+      db
+        .select({ ...getTableColumns(person), cursor: cursorColumn(keys) })
+        .from(person)
+        .where(and(or(ilike(person.displayName, pattern), ilike(person.email, pattern)), isNull(person.mergedIntoPersonId), afterCursor(keys, after)))
+        .orderBy(...orderByKeys(keys))
+        .limit(limit),
+    );
+    res.json({ items: rows, next });
   }),
 );
 

@@ -10,7 +10,9 @@ import {
 } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
-import { caseDetail, caseInvoices } from '../resources';
+import { caseDetail, caseInvoiceList, caseInvoices } from '../resources';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
 import { DECIDED_STATUS_CODES, InvoiceStatus } from '../components/Completion';
 import { CaseRateTable } from '../components/CaseRates';
 import { CloseCaseAction } from '../components/CloseCaseAction';
@@ -186,11 +188,8 @@ export default function CaseDetail() {
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = () => setRefreshKey((key) => key + 1);
   const { data: detail, error } = useResource(caseDetail(caseId as string), { resetKey: refreshKey });
-  const {
-    data: billing,
-    error: billingError,
-    reload: reloadBilling,
-  } = useResource(caseInvoices(caseId as string), { resetKey: refreshKey });
+  const { data: billing, error: billingError } = useResource(caseInvoices(caseId as string), { resetKey: refreshKey });
+  const invoices = useBatchedResource(caseInvoiceList(caseId as string), { resetKey: refreshKey });
 
   if (error || !detail) {
     return <LoadState error={error} what="case" />;
@@ -297,12 +296,12 @@ export default function CaseDetail() {
 
       <section className="card compact-card">
         <h2>Invoices on this case</h2>
-        {Boolean(billingError) && <Notice tone="danger">Failed to load invoices.</Notice>}
-        {billing && (
+        {Boolean(billingError || invoices.error) && <Notice tone="danger">Failed to load invoices.</Notice>}
+        {invoices.items && (
           <RecordTable
             className="queue-table"
             label="Invoices on this case"
-            rows={billing.invoices}
+            rows={invoices.items}
             rowKey={(invoice) => invoice.invoiceId}
             emptyMessage="No invoices submitted yet."
             columns={[
@@ -326,7 +325,7 @@ export default function CaseDetail() {
                 header: 'Status',
                 render: (invoice) => (
                   <>
-                    <InvoiceStatus invoice={invoice} onCompleted={reloadBilling} />
+                    <InvoiceStatus invoice={invoice} onCompleted={invoices.reload} />
                     <QuestionChips invoice={invoice} />
                   </>
                 ),
@@ -335,6 +334,7 @@ export default function CaseDetail() {
             ]}
           />
         )}
+        <MoreOnScroll list={invoices} what="invoices" />
       </section>
 
       <section className="card compact-card">

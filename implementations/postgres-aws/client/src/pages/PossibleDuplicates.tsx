@@ -294,8 +294,8 @@ function PersonSearch({ id, label, onSelect }: { id: string; label: string; onSe
         placeholder="Search by name or email"
         noResults="No people found."
         search={(query) =>
-          searchPeople(query).then((result) =>
-            result.people.map((person) => ({
+          searchPeople(query, null).then((result) =>
+            result.items.map((person) => ({
               value: person.personId,
               label: person.email ? `${person.displayName} (${person.email})` : person.displayName,
               item: person,

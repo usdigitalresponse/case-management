@@ -2,7 +2,8 @@
 // signs off in turn or sends it back (model/rules.yaml decide_invoice_lines,
 // enforce_invoice_approval_sequence; model/workflows.yaml payment_request).
 import { z } from 'zod';
-import { and, asc, desc, eq, inArray, isNull, max } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, max } from 'drizzle-orm';
+import { inIds } from '../db/inIds';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
 import { getReferenceId } from '../db/referenceLookups';
 import { ConflictError, ForbiddenError, ValidationError } from '../errors';
@@ -89,7 +90,7 @@ function recordedDecisions(db: DatabaseOrTransaction, chainIds: string[]) {
     .innerJoin(invoiceApprovalStepTypes, eq(invoiceApprovalDecision.stepTypeId, invoiceApprovalStepTypes.id))
     .innerJoin(invoiceApprovalOutcomes, eq(invoiceApprovalDecision.outcomeId, invoiceApprovalOutcomes.id))
     .leftJoin(invoiceDecisionReasons, eq(invoiceApprovalDecision.reasonCodeId, invoiceDecisionReasons.id))
-    .where(inArray(invoiceApprovalDecision.invoiceApprovalChainId, chainIds))
+    .where(inIds(invoiceApprovalDecision.invoiceApprovalChainId, chainIds))
     .orderBy(asc(invoiceApprovalDecision.sequenceNumber), asc(invoiceApprovalDecision.decidedAt));
 }
 
@@ -106,6 +107,7 @@ export async function loadRecordedDecisionsByChain(db: DatabaseOrTransaction, ch
   return byChain;
 }
 
+// Also in SQL (./queueSql.ts latestRound); change both together.
 // The latest sequence number at which every line was decided. An
 // incomplete round (from before rounds existed) doesn't count.
 export function latestRoundNumber(decisions: RecordedDecision[], lineCount: number): number | null {
@@ -119,6 +121,7 @@ export function latestRoundNumber(decisions: RecordedDecision[], lineCount: numb
   return complete.length === 0 ? null : Math.max(...complete.map(([sequence]) => sequence));
 }
 
+// Also in SQL (./queueSql.ts approvedTotalOf); change both together.
 // What the latest finished round approved; null until a round is finished,
 // nothing once the invoice was rejected at sign-off.
 export function approvedTotal(decisions: RecordedDecision[], round: number | null): string | null {
@@ -132,6 +135,7 @@ export function approvedTotal(decisions: RecordedDecision[], round: number | nul
   return fromCents(cents);
 }
 
+// Also in SQL (./queueSql.ts holderOf); change both together.
 // Sign-off after the latest round: who signs next, in order, and whether
 // anyone has signed yet.
 export function signOffProgress<T extends { userAccountId: string }>(

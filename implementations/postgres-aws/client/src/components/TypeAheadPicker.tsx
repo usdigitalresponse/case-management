@@ -23,6 +23,7 @@ export function TypeAheadPicker<T>({
   search,
   onSelect,
   addOption,
+  initial = null,
 }: {
   id: string;
   placeholder?: string;
@@ -31,10 +32,12 @@ export function TypeAheadPicker<T>({
   onSelect: (item: T | undefined) => void;
   // Offered first among the matches, to add someone not found; gets the text typed.
   addOption?: { label: string; onAdd: (query: string) => void };
+  // Already chosen when it opens, such as a suggestion.
+  initial?: TypeAheadOption<T> | null;
 }) {
   const [options, setOptions] = useState<TypeAheadOption<T>[]>([]);
-  const [selected, setSelected] = useState<TypeAheadOption<T> | null>(null);
-  const [inputValue, setInputValue] = useState('');
+  const [selected, setSelected] = useState<TypeAheadOption<T> | null>(initial);
+  const [inputValue, setInputValue] = useState(initial?.label ?? '');
   const [status, setStatus] = useState<'idle' | 'searching' | 'done' | 'error'>('idle');
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>();

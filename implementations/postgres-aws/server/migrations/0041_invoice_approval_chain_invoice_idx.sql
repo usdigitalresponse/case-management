@@ -1,0 +1,1 @@
+CREATE INDEX "invoice_approval_chain_invoice_id_idx" ON "invoice_approval_chain" USING btree ("invoice_id");

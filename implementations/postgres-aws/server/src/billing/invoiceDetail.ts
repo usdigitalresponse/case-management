@@ -2,7 +2,9 @@
 // portal and exports. Callers check access first. Submitters see recorded
 // decisions only: never working decisions or internal comments
 // (model/rules.yaml limit_review_comment_visibility).
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { withoutCursor } from '../lists/batches';
+import { inIds } from '../db/inIds';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import {
   caseIdentifier,
@@ -38,51 +40,55 @@ import { loadReviewQuestions, type ReviewQuestionView } from './reviewQuestions'
 import { caseRatesChangedSince, loadCaseRateViews, rateProfessionalId, type CaseRateView } from './caseRates';
 import { rateTypeOf, type RateType } from './defaultRates';
 import { loadMileageDismissals, type MileageWarningDismissal } from './mileageWarnings';
+import { groupBy } from '../groupBy';
 
 export type Audience = 'staff' | 'submitter';
 
-export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
+const headerColumns = {
+  invoiceId: invoice.invoiceId,
+  caseId: invoice.caseId,
+  caseClientDisplayName: person.displayName,
+  caseExternalReference: caseTable.externalReference,
+  professionalId: invoice.professionalId,
+  professionalDisplayName: professional.displayName,
+  professionalKindDisplayName: professionalKinds.displayName,
+  submittedByUserAccountId: invoice.submittedByUserAccountId,
+  submittedByDisplayName: userAccount.displayName,
+  statusId: invoice.statusId,
+  statusCode: invoiceStatuses.code,
+  statusDisplayName: invoiceStatuses.displayName,
+  submittedAt: invoice.submittedAt,
+  submittedTotal: invoice.submittedTotal,
+  currencyCode: invoice.currencyCode,
+  periodStart: invoice.periodStart,
+  periodEnd: invoice.periodEnd,
+  // Set when staff entered an invoice received outside the system.
+  receivedViaDisplayName: invoiceReceiptChannels.displayName,
+  receivedOn: invoice.receivedOn,
+  // Entered by the submitter rather than chosen; shown flagged.
+  proposedCase: invoice.proposedCase,
+  proposedProvider: invoice.proposedProvider,
+  caseNumberAsTyped: invoice.caseNumberAsTyped,
+  caseNumberCorrected: invoice.caseNumberCorrected,
+  // The number on the sender's own invoice.
+  invoiceNumber: sql<string | null>`(select ${supportingInvoice.invoiceNumber} from ${supportingInvoice} where ${supportingInvoice.invoiceId} = ${invoice.invoiceId} limit 1)`,
+  // Its own, else its case's.
+  countyId: county.countyId,
+  countyDisplayName: county.displayName,
+  // A staff upload, under review from the start (./enterInReview.ts).
+  enteredInReview: invoice.enteredInReview,
+  linesVersion: invoice.linesVersion,
+  linesChangedAt: invoice.linesChangedAt,
+  linesChangedByUserAccountId: invoice.linesChangedByUserAccountId,
+  // Shown to the submitter until they send it again.
+  returnedReason,
+  completedAt,
+};
+
+// cursor: a list's cursor column (../lists/batches.ts).
+export function selectInvoiceHeaders(db: DatabaseOrTransaction, cursor?: SQL<string[]>) {
   return db
-    .select({
-      invoiceId: invoice.invoiceId,
-      caseId: invoice.caseId,
-      caseClientDisplayName: person.displayName,
-      caseExternalReference: caseTable.externalReference,
-      professionalId: invoice.professionalId,
-      professionalDisplayName: professional.displayName,
-      professionalKindDisplayName: professionalKinds.displayName,
-      submittedByUserAccountId: invoice.submittedByUserAccountId,
-      submittedByDisplayName: userAccount.displayName,
-      statusId: invoice.statusId,
-      statusCode: invoiceStatuses.code,
-      statusDisplayName: invoiceStatuses.displayName,
-      submittedAt: invoice.submittedAt,
-      submittedTotal: invoice.submittedTotal,
-      currencyCode: invoice.currencyCode,
-      periodStart: invoice.periodStart,
-      periodEnd: invoice.periodEnd,
-      // Set when staff entered an invoice received outside the system.
-      receivedViaDisplayName: invoiceReceiptChannels.displayName,
-      receivedOn: invoice.receivedOn,
-      // Entered by the submitter rather than chosen; shown flagged.
-      proposedCase: invoice.proposedCase,
-      proposedProvider: invoice.proposedProvider,
-      caseNumberAsTyped: invoice.caseNumberAsTyped,
-      caseNumberCorrected: invoice.caseNumberCorrected,
-      // The number on the sender's own invoice.
-      invoiceNumber: sql<string | null>`(select ${supportingInvoice.invoiceNumber} from ${supportingInvoice} where ${supportingInvoice.invoiceId} = ${invoice.invoiceId} limit 1)`,
-      // Its own, else its case's.
-      countyId: county.countyId,
-      countyDisplayName: county.displayName,
-      // A staff upload, under review from the start (./enterInReview.ts).
-      enteredInReview: invoice.enteredInReview,
-      linesVersion: invoice.linesVersion,
-      linesChangedAt: invoice.linesChangedAt,
-      linesChangedByUserAccountId: invoice.linesChangedByUserAccountId,
-      // Shown to the submitter until they send it again.
-      returnedReason,
-      completedAt,
-    })
+    .select({ ...headerColumns, cursor: cursor ?? sql<string[] | null>`null` })
     .from(invoice)
     .leftJoin(caseTable, eq(invoice.caseId, caseTable.caseId))
     .leftJoin(person, eq(caseTable.clientId, person.personId))
@@ -94,7 +100,8 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction) {
     .leftJoin(invoiceReceiptChannels, eq(invoice.receivedViaId, invoiceReceiptChannels.id));
 }
 
-export type InvoiceHeader = Awaited<ReturnType<typeof selectInvoiceHeaders>>[number];
+// As sent: without the list cursor.
+export type InvoiceHeader = Omit<Awaited<ReturnType<typeof selectInvoiceHeaders>>[number], 'cursor'>;
 
 // A case's number is its primary identifier, else its external reference;
 // its other identifiers (such as court numbers) are listed after it.
@@ -109,14 +116,15 @@ export async function loadCaseNumbers(db: DatabaseOrTransaction, maybeCaseIds: A
     db
       .select({ caseId: caseTable.caseId, externalReference: caseTable.externalReference })
       .from(caseTable)
-      .where(inArray(caseTable.caseId, caseIds)),
+      .where(inIds(caseTable.caseId, caseIds)),
     db
       .select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value, isPrimary: caseIdentifier.isPrimary })
       .from(caseIdentifier)
-      .where(inArray(caseIdentifier.caseId, caseIds)),
+      .where(inIds(caseIdentifier.caseId, caseIds)),
   ]);
+  const identifiersOf = groupBy(identifiers, (row) => row.caseId);
   for (const row of cases) {
-    const own = identifiers.filter((identifier) => identifier.caseId === row.caseId);
+    const own = identifiersOf.get(row.caseId) ?? [];
     const primary = own.find((identifier) => identifier.isPrimary)?.value ?? row.externalReference;
     result.set(row.caseId, {
       caseNumber: primary,
@@ -337,10 +345,11 @@ export async function loadInvoiceDetail(
   invoiceId: string,
   audience: Audience = 'submitter',
 ): Promise<InvoiceDetail | undefined> {
-  const [header] = await selectInvoiceHeaders(db).where(eq(invoice.invoiceId, invoiceId));
-  if (!header) {
+  const [row] = await selectInvoiceHeaders(db).where(eq(invoice.invoiceId, invoiceId));
+  if (!row) {
     return undefined;
   }
+  const header = withoutCursor(row);
   const [lineRows, [attempt], caseNumbers, rateLimits, assignments, fileSource, caseRates] = await Promise.all([
     selectLines(db, invoiceId),
     db

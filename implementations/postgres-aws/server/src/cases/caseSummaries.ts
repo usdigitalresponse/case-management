@@ -17,7 +17,8 @@ import {
   userAccount,
 } from '../db/schema';
 import { loadCaseNumbers } from '../billing/invoiceDetail';
-import { loadPreauthorizationSummaries } from '../billing/preauthorizations';
+import { loadPreauthorizationSummariesByCase } from '../billing/preauthorizations';
+import { groupBy } from '../groupBy';
 import { IN_REVIEW_INVOICE_STATUS_CODES } from '../billing/invoiceStatusCodes';
 import { fromCents, toCents } from '../billing/money';
 import { hasLineReviewer } from './caseStage';
@@ -45,15 +46,16 @@ export async function loadCaseListExtras(db: DatabaseOrTransaction, caseIds: str
       .from(invoice)
       .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
       .where(and(inArray(invoice.caseId, caseIds), inArray(invoiceStatuses.code, IN_REVIEW_INVOICE_STATUS_CODES))),
-    Promise.all(caseIds.map(async (caseId) => [caseId, await loadPreauthorizationSummaries(db, caseId)] as const)),
+    loadPreauthorizationSummariesByCase(db, caseIds),
   ]);
-  const ceilings = new Map(preauthorizations);
+  const waitingOf = groupBy(waiting, (row) => row.caseId);
+  const workersOf = groupBy(workers, (row) => row.caseId);
   for (const caseId of caseIds) {
-    const own = waiting.filter((row) => row.caseId === caseId);
-    const summaries = (ceilings.get(caseId) ?? []).filter((summary) => summary.source === 'preauthorized');
+    const own = waitingOf.get(caseId) ?? [];
+    const summaries = (preauthorizations.get(caseId) ?? []).filter((summary) => summary.source === 'preauthorized');
     result.set(caseId, {
       caseNumber: numbers.get(caseId)?.caseNumber ?? null,
-      workers: [...new Set(workers.filter((row) => row.caseId === caseId).flatMap((row) => (row.name ? [row.name] : [])))].sort(),
+      workers: [...new Set((workersOf.get(caseId) ?? []).flatMap((row) => (row.name ? [row.name] : [])))].sort(),
       preauthorized: summaries.length === 0 ? null : fromCents(summaries.reduce((sum, summary) => sum + toCents(summary.ceiling), 0)),
       waiting: { count: own.length, total: fromCents(own.reduce((sum, row) => sum + toCents(row.total), 0)) },
     });

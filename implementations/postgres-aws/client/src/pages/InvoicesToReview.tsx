@@ -1,43 +1,32 @@
 // The landing page: every invoice waiting for a decision, led by the person
 // who sent it, with the case number as typed.
-import { useMemo, useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router';
+import { useState } from 'react';
+import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import { apiErrorMessage, enterInReview, type ReviewQueueItem } from '../api/client';
 import { reviewPath } from '../staffPaths';
 import { checkLinesPath } from '../portal/checkQueue';
 import { INTAKE_PATH } from '../portal/useShell';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
+import { useBatchedResource } from '../hooks/useBatchedResource';
+import { MoreOnScroll } from '../components/MoreOnScroll';
+import { queueShowOf, toReviewRequest, TO_REVIEW_SORTS, type ToReviewSortId } from '../queueRequests';
 import { invoiceIntake, reviewQueue } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Notice } from '../components/ui/Notice';
 import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { RecordTable } from '../components/RecordTable';
-import { CaseNumberCell, countyOfInvoice, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
+import { CaseNumberCell, FlagNotes, FromCell, openInvoiceColumn, QuestionChips } from '../components/InvoiceCells';
 import { useCountyControl } from '../components/CountyListControl';
 import { AssignReviewer } from '../components/ReviewRouting';
 import { Toast, useToast } from '../components/Toast';
-import { QUEUE_FILTERS, matchesQueueFilter, type QueueFilterId } from '../queueFilters';
+import { QUEUE_FILTERS, type QueueFilterId } from '../queueFilters';
 import { formatDateTime, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { submittedByLabel } from '../reviewTotals';
 import { useSearchParamState } from '../hooks/useSearchParamState';
 import { FilterTag } from '../components/ui/Tag';
-
-const SORTS = [
-  { id: 'waiting', label: 'Waiting longest first' },
-  { id: 'newest', label: 'Newest first' },
-] as const;
-type SortId = (typeof SORTS)[number]['id'];
-
-// 'waiting' keeps the server's order.
-function sorted(rows: ReviewQueueItem[], sort: SortId): ReviewQueueItem[] {
-  if (sort === 'newest') {
-    return [...rows].sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? ''));
-  }
-  return rows;
-}
 
 // This staff member's unfinished work, and, since Intake is off the sidebar,
 // anything held there. For a reviewer: invoices they're still entering, and
@@ -151,32 +140,21 @@ function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccou
 export default function InvoicesToReview() {
   const { user } = useAuth();
   const userAccountId = user?.userAccountId ?? '';
+  const [params] = useSearchParams();
   const [filter, setFilter] = useSearchParamState<QueueFilterId>('show', 'everyone', QUEUE_FILTERS.map(({ id }) => id));
-  const [sort, setSort] = useSearchParamState<SortId>('sort', 'waiting', SORTS.map((option) => option.id));
-  const { data, error, reload } = useResource(reviewQueue('open'));
+  const [sort, setSort] = useSearchParamState<ToReviewSortId>('sort', 'waiting', TO_REVIEW_SORTS.map((option) => option.id));
+  const list = useBatchedResource(reviewQueue(toReviewRequest(params)));
+  const { summary, reload } = list;
   const [toast, setToast] = useToast();
   const canAssign = Boolean(user?.reviewPermissions?.reassign);
+  const county = useCountyControl(summary?.counties ?? null);
 
-  const counts = useMemo(
-    () =>
-      Object.fromEntries(
-        QUEUE_FILTERS.map(({ id }) => [id, data?.invoices.filter((invoice) => matchesQueueFilter(invoice, id, userAccountId)).length ?? 0]),
-      ) as Record<QueueFilterId, number>,
-    [data, userAccountId],
-  );
-
-  const county = useCountyControl(
-    sorted((data?.invoices ?? []).filter((invoice) => matchesQueueFilter(invoice, filter, userAccountId)), sort),
-    countyOfInvoice,
-  );
-
-  if (error || !data) {
-    return <LoadState error={error} what="invoices" />;
+  if (list.error || !list.items || !summary) {
+    return <LoadState error={list.error} what="invoices" />;
   }
 
-  const isLate = (invoice: ReviewQueueItem) => invoice.workingDaysWaiting > data.waitingAlertWorkingDays;
-  const late = data.invoices.filter(isLate);
-  const shown = county.shown;
+  const isLate = (invoice: { workingDaysWaiting: number }) => invoice.workingDaysWaiting > summary.waitingAlertWorkingDays;
+  const { late } = summary;
 
   return (
     <div>
@@ -189,8 +167,8 @@ export default function InvoicesToReview() {
             {county.control}
             <label className="sort-select">
               <span>Sort</span>
-              <select className="usa-select" value={sort} onChange={(event) => setSort(event.target.value as SortId)}>
-                {SORTS.map(({ id, label }) => (
+              <select className="usa-select" value={sort} onChange={(event) => setSort(event.target.value as ToReviewSortId)}>
+                {TO_REVIEW_SORTS.map(({ id, label }) => (
                   <option key={id} value={id}>
                     {label}
                   </option>
@@ -201,20 +179,16 @@ export default function InvoicesToReview() {
         }
       />
 
-      <YourUnfinished
-        userAccountId={userAccountId}
-        entering={data.invoices.filter((invoice) => invoice.beingEntered && invoice.reviewer?.userAccountId === userAccountId)}
-        onDeletedEntry={() => void reload()}
-      />
+      <YourUnfinished userAccountId={userAccountId} entering={summary.entering} onDeletedEntry={() => void reload()} />
 
       {late.length > 0 && (
         <Notice tone="warning">
-          {`${late.length} ${late.length === 1 ? 'invoice has' : 'invoices have'} waited more than ${data.waitingAlertWorkingDays} working days. `}
+          {`${late.length} ${late.length === 1 ? 'invoice has' : 'invoices have'} waited more than ${summary.waitingAlertWorkingDays} working days. `}
           {late
             .map(
               (invoice) =>
                 `${submittedByLabel(invoice)}, ${formatMoney(invoice.submittedTotal)}, ${
-                  invoice.holder ? `with ${invoice.holder.displayName}` : 'not assigned'
+                  invoice.holderDisplayName ? `with ${invoice.holderDisplayName}` : 'not assigned'
                 } for ${invoice.workingDaysWaiting} working days`,
             )
             .join('. ')}
@@ -230,14 +204,15 @@ export default function InvoicesToReview() {
             aria-pressed={filter === id}
             onClick={() => setFilter(id)}
           >
-            {label} <span className="tag-count">{counts[id]}</span>
+            {label}
+            {summary.counts[queueShowOf(id)] !== null && <span className="tag-count">{summary.counts[queueShowOf(id)]}</span>}
           </FilterTag>
         ))}
       </div>
 
       <RecordTable
         className="queue-table"
-        rows={shown}
+        rows={list.items}
         rowKey={(invoice) => invoice.invoiceId}
         emptyMessage={county.narrowed ? 'No invoices here for that county.' : filter === 'mine' ? 'Nothing is waiting on you. See everyone’s invoices to pick one up.' : 'No invoices here.'}
         columns={[
@@ -289,6 +264,7 @@ export default function InvoicesToReview() {
           openInvoiceColumn(() => 'Review'),
         ]}
       />
+      <MoreOnScroll list={list} what="invoices" />
       <Toast toast={toast} />
     </div>
   );

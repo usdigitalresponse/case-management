@@ -6,7 +6,8 @@ import { caseTable, county, person, preauthorizationDecision, preauthorizationQu
 import { ForbiddenError, NotFoundError } from '../../errors';
 import { isStaffAccount, type PortalActor } from '../../portal/portalActor';
 import { loadCaseNumbers } from '../invoiceDetail';
-import { loadPreauthorizationSummaries } from '../preauthorizations';
+import { loadPreauthorizationSummariesByCase } from '../preauthorizations';
+import { afterCursor, cursorColumn, newestFirst, oneBatch, orderByKeys, sortKey, withoutCursor, type BatchRequest } from '../../lists/batches';
 import { OPEN_STATUSES } from './requestRules';
 import { listLinkedDocuments, providerDocumentStatus } from './providerRecords';
 
@@ -51,9 +52,10 @@ const requestColumns = {
   withdrawnAt: preauthorizationRequest.withdrawnAt,
 };
 
-function selectRequests(db: DatabaseOrTransaction) {
+// cursor: a list's (../../lists/batches.ts).
+function selectRequests(db: DatabaseOrTransaction, cursor?: SQL<string[]>) {
   return db
-    .select(requestColumns)
+    .select({ ...requestColumns, cursor: cursor ?? sql<string[] | null>`null` })
     .from(preauthorizationRequest)
     .innerJoin(preauthorizationRequestStatuses, eq(preauthorizationRequest.statusId, preauthorizationRequestStatuses.id))
     .leftJoin(preauthorizationRequestOutcomes, eq(preauthorizationRequest.outcomeId, preauthorizationRequestOutcomes.id))
@@ -73,7 +75,20 @@ function fetchRequests(db: DatabaseOrTransaction, where: SQL | undefined) {
     .orderBy(desc(preauthorizationRequest.receivedAt), desc(preauthorizationRequest.requestNumber));
 }
 
-type RequestRow = Awaited<ReturnType<typeof fetchRequests>>[number];
+const NEWEST_FIRST = [newestFirst(preauthorizationRequest.receivedAt), sortKey(sql`${preauthorizationRequest.preauthorizationRequestId}`, 'uuid')];
+
+// Latest received first, a batch at a time.
+async function requestBatch(db: DatabaseOrTransaction, where: SQL | undefined, batch: BatchRequest) {
+  const { rows, next } = await oneBatch(batch, (after, limit) =>
+    selectRequests(db, cursorColumn(NEWEST_FIRST))
+      .where(and(where, afterCursor(NEWEST_FIRST, after)))
+      .orderBy(...orderByKeys(NEWEST_FIRST))
+      .limit(limit),
+  );
+  return { items: await withCaseFacts(db, rows), next };
+}
+
+type RequestRow = Omit<Awaited<ReturnType<typeof fetchRequests>>[number], 'cursor'>;
 
 export interface RequestListFilter {
   status?: string;
@@ -87,15 +102,9 @@ export interface RequestListFilter {
 // Adds case numbers and each matched provider's current limit.
 async function withCaseFacts(db: DatabaseOrTransaction, rows: RequestRow[]) {
   const caseIds = [...new Set(rows.flatMap((row) => (row.caseId ? [row.caseId] : [])))];
-  const [numbers, summaries] = await Promise.all([
-    loadCaseNumbers(db, caseIds),
-    Promise.all(
-      caseIds.map(async (caseId) => {
-        const professionals = [...new Set(rows.filter((row) => row.caseId === caseId && row.professionalId).map((row) => row.professionalId!))];
-        return [caseId, await loadPreauthorizationSummaries(db, caseId, professionals)] as const;
-      }),
-    ).then((pairs) => new Map(pairs)),
-  ]);
+  // Every matched provider on each case, so each has a limit to show.
+  const professionals = [...new Set(rows.flatMap((row) => (row.professionalId ? [row.professionalId] : [])))];
+  const [numbers, summaries] = await Promise.all([loadCaseNumbers(db, caseIds), loadPreauthorizationSummariesByCase(db, caseIds, professionals)]);
   return rows.map((row) => {
     const proposed = (row.proposedDetails ?? {}) as { case?: { caseNumber?: string }; provider?: { name?: string } };
     const limit = row.caseId && row.professionalId ? ((summaries.get(row.caseId) ?? []).find((s) => s.professionalId === row.professionalId) ?? null) : null;
@@ -111,7 +120,8 @@ async function withCaseFacts(db: DatabaseOrTransaction, rows: RequestRow[]) {
 
 export type PreauthorizationRequestView = Awaited<ReturnType<typeof withCaseFacts>>[number];
 
-export async function listPreauthorizationRequests(db: DatabaseOrTransaction, actorUserAccountId: string, filter: RequestListFilter = {}) {
+// A batch at a time (../../lists/batches.ts).
+export async function listPreauthorizationRequests(db: DatabaseOrTransaction, actorUserAccountId: string, filter: RequestListFilter, batch: BatchRequest) {
   if (!(await isStaffAccount(db, actorUserAccountId))) throw new ForbiddenError('forbidden', 'Only staff can list requests.');
   const conditions: SQL[] = [];
   if (filter.status === 'open') conditions.push(inArray(preauthorizationRequestStatuses.code, OPEN_STATUSES));
@@ -120,24 +130,23 @@ export async function listPreauthorizationRequests(db: DatabaseOrTransaction, ac
   if (filter.caseId) conditions.push(eq(preauthorizationRequest.caseId, filter.caseId));
   if (filter.from) conditions.push(sql`${preauthorizationRequest.receivedAt} >= ${filter.from}::date`);
   if (filter.to) conditions.push(sql`${preauthorizationRequest.receivedAt} < (${filter.to}::date + 1)`);
-  const rows = await fetchRequests(db, conditions.length ? and(...conditions) : undefined);
-  return withCaseFacts(db, rows);
+  return requestBatch(db, conditions.length ? and(...conditions) : undefined, batch);
 }
 
 // Requests this account sent.
-export async function listOwnPreauthorizationRequests(db: DatabaseOrTransaction, actor: PortalActor, caseId?: string) {
-  const rows = await fetchRequests(
+export async function listOwnPreauthorizationRequests(db: DatabaseOrTransaction, actor: PortalActor, caseId: string | undefined, batch: BatchRequest) {
+  return requestBatch(
     db,
     and(eq(preauthorizationRequest.requestedByUserAccountId, actor.userAccountId), ...(caseId ? [eq(preauthorizationRequest.caseId, caseId)] : [])),
+    batch,
   );
-  return withCaseFacts(db, rows);
 }
 
 export async function loadRequestRow(db: DatabaseOrTransaction, requestId: string): Promise<RequestRow> {
   if (!z.uuid().safeParse(requestId).success) throw new NotFoundError('Request not found.');
   const [row] = await fetchRequests(db, eq(preauthorizationRequest.preauthorizationRequestId, requestId));
   if (!row) throw new NotFoundError('Request not found.');
-  return row;
+  return withoutCursor(row);
 }
 
 // Staff, or the account that sent it.

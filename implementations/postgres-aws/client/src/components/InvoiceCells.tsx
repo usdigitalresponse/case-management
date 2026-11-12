@@ -22,8 +22,6 @@ export const caseNumberColumn: RecordTableColumn<ReviewQueueItem> = {
   ),
 };
 
-export const countyOfInvoice = (invoice: ReviewQueueItem) => ({ countyId: invoice.countyId, displayName: invoice.countyDisplayName });
-
 function CountyNote({ invoice }: { invoice: ReviewQueueItem }) {
   return invoice.countyDisplayName ? <span className="cell-note">{invoice.countyDisplayName}</span> : null;
 }

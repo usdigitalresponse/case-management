@@ -317,7 +317,12 @@ live in `client/src/components/ui/` (use `Button`, `Tag`, `Notice`, `Dialog`, th
 values with `cssVars`. `npm run lint` enforces both (stylelint and ESLint). See its `docs/design-system.md` for changing the design system. All data loads through `useResource`
 (TanStack Query); resources a page edits are `fresh`: loaded for each visit,
 never refreshed under the user, and cleared and reloaded by a save's `resetKey`.
-Page tests render one page against `client/src/test/fakeApi.ts`, which fails
+Long lists load a batch at a time as they scroll (server
+`src/lists/batches.ts`, client `useBatchedResource` and `MoreOnScroll`), with
+filters, counts and sorting on the server; never filter or count a batched
+list in the browser, and build a page's request in `queueRequests.ts` or
+`caseRequests.ts` so its loader matches. Staff case and provider pickers search
+the server (`PickOrAdd`'s `search`). Page tests render one page against `client/src/test/fakeApi.ts`, which fails
 on any request it has no route for; build data with `src/test/fixtures.ts`.
 `e2e/` is the Playwright suite: it adds synthetic invoices, so run it only
 against a disposable seeded stack (CI does), never someone's demo data.
@@ -328,7 +333,10 @@ synthetic volume in that same test database; it is not part of `npm test`.
 CI runs `npm run test:perf:queries`, failing if a check makes more queries
 than the committed `server/perf/queryCounts.json`; when a change lowers a
 count or adds a check, save it with `PERF_SAVE_QUERY_COUNTS=1 npm run
-test:perf:queries` (the only scale it saves at) and commit it. The server
+test:perf:queries` (the only scale it saves at) and commit it. `npm run
+db-report` (`src/db/databaseReport.ts`) must stay read-only and show only
+query shapes and statistics, never stored values; index findings from it
+become migrations, never indexes created on a live database. The server
 build entry point is `dist/src/app.js`. Its `MAPPING.md` holds the schema
 mapping and known gaps; how each part is built is in its `docs/`
 (`frontend.md`, `intake.md`, `api.md`). A new or changed route's access rule
