@@ -82,9 +82,9 @@ export async function loadVolume(pool: Pool, fixtures: BaselineFixtureIds, volum
   const statements = [
     `create or replace function pg_temp.perf_uuid(h text) returns uuid language sql immutable as
      $$ select (substr(h, 1, 12) || '4' || substr(h, 14, 3) || '8' || substr(h, 18))::uuid $$`,
-    `insert into person (person_id, given_name, family_name, display_name, email)
+    `insert into person (person_id, given_name, family_name, display_name, email, external_sign_in_enabled)
      select ${id('pro-person', 'g')}, ${given('g + 30000')}, ${family('g + 30000')},
-            ${given('g + 30000')} || ' ' || ${middle('g + 30000')} || ' ' || ${family('g + 30000')}, 'demo-vendor-perf-' || g || '@example.invalid'
+            ${given('g + 30000')} || ' ' || ${middle('g + 30000')} || ' ' || ${family('g + 30000')}, 'demo-vendor-perf-' || g || '@example.invalid', true
      from generate_series(1, ${P}) g`,
     `insert into user_account (user_account_id, display_name, email, person_id, active)
      select ${id('pro-account', 'g')}, p.display_name, p.email, p.person_id, true
