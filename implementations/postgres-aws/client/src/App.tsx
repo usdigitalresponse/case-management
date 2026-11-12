@@ -241,25 +241,28 @@ type Audience = 'signed-out' | 'portal' | 'staff';
 // For loaders, which run outside React.
 let signedInUser: AuthenticatedUser | null = null;
 
-// One router at a time, rebuilt when a different kind of user signs in.
-let current: { audience: Audience; router: ReturnType<typeof createBrowserRouter> } | null = null;
-function routerFor(audience: Audience) {
-  if (current?.audience !== audience) {
+// One router at a time, rebuilt at each sign-in: a staff-to-staff switch (the
+// guided tour's) must not keep the last user's page under the home address.
+let current: { key: string; router: ReturnType<typeof createBrowserRouter> } | null = null;
+function routerFor(audience: Audience, signIns: number) {
+  const key = `${audience}:${signIns}`;
+  if (current?.key !== key) {
     current?.router.dispose();
     nextLoadIsFirst();
-    current = { audience, router: createBrowserRouter(routesFor[audience]()) };
+    current = { key, router: createBrowserRouter(routesFor[audience]()) };
   }
   return current.router;
 }
 
 // While signing in is checked, render nothing rather than flash the login screen.
 function AppRouter() {
-  const { user, loading } = useAuth();
+  const { user, loading, signIns } = useAuth();
   signedInUser = user;
   if (loading) return null;
   const audience: Audience = !user ? 'signed-out' : user.authType === 'email-code' ? 'portal' : 'staff';
+  const router = routerFor(audience, signIns);
   // Keyed: RouterProvider keeps its first router's state, so a new router needs a new mount.
-  return <RouterProvider key={audience} router={routerFor(audience)} />;
+  return <RouterProvider key={current!.key} router={router} />;
 }
 
 export default function App() {

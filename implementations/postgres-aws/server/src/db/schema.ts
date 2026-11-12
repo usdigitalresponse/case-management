@@ -12,6 +12,7 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -1354,4 +1355,29 @@ export const caseDuplicateReview = pgTable(
     check('case_duplicate_review_ordered_pair', sql`${table.caseId} < ${table.otherCaseId}`),
     check('case_duplicate_review_outcome', sql`${table.outcome} in ('possible_duplicate', 'not_duplicate')`),
   ],
+);
+
+// A guided tour run (../demoTour/tourRuns.ts): demo servers only. Its records
+// are deleted, with everything under them, a day after it starts; this is the
+// one exception to keeping history, for synthetic tour material alone.
+export const demoTourRun = pgTable('demo_tour_run', {
+  demoTourRunId: uuid('demo_tour_run_id').primaryKey(),
+  mission: text('mission').notNull(),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  // Set when a sweep found it reaching another visitor's records; it is then left alone.
+  keptReason: text('kept_reason'),
+});
+
+// The records a run made or its visitor added; what hangs off them is found
+// through foreign keys, so it isn't listed here.
+export const demoTourRecord = pgTable(
+  'demo_tour_record',
+  {
+    demoTourRunId: uuid('demo_tour_run_id')
+      .notNull()
+      .references(() => demoTourRun.demoTourRunId, { onDelete: 'cascade' }),
+    tableName: text('table_name').notNull(),
+    recordId: uuid('record_id').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.demoTourRunId, table.tableName, table.recordId] })],
 );

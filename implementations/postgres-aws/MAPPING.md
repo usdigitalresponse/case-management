@@ -304,9 +304,16 @@ form relies on this being airtight.
   added at all is under discussion with design.
 - **Guided tour material**: each tour run makes its own synthetic case
   and invoices (`server/src/demoTour/`), which show in the shared demo's
-  queues beside the seeded ones, unlabelled, and are kept until the next
-  demo reset; nothing removes old runs yet. "Skip step" doesn't perform
-  the step.
+  queues beside the seeded ones, unlabelled. An hourly sweep deletes a run
+  a day after it starts (`tourRuns.ts`): a deliberate, demo-only exception
+  to keeping history and audit trails, for synthetic tour material alone.
+  Left behind: changes a visitor made to seeded records while touring (a
+  decision on a seeded invoice, a typed county, a person merge), the
+  shared driving-distance cache, and files from bulk imports, which aren't
+  tagged. A run reaching another visitor's records is kept and marked
+  (`demo_tour_run.kept_reason`) until the next demo reset. A visitor still
+  touring after a day loses the run's material. "Skip step" doesn't
+  perform the step.
 - **Possible double billing** (`flag_overlapping_invoice_period`,
   `src/billing/billingOverlaps.ts`): worked out each time a draft or review
   page loads, not kept in the submission snapshot, so it also shows

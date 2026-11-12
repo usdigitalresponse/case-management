@@ -85,7 +85,9 @@ export function useSubmission({
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [caseNumberMissing, setCaseNumberMissing] = useState(false);
   const [answering, setAnswering] = useState(false);
-  const [overrun, setOverrun] = useState(() => (data.overrun ? { message: overrunMessage(data.overrun), required: !staff } : null));
+  // From the latest load, so choosing a case shows it; a refused send's note wins.
+  const [refusedOverrun, setRefusedOverrun] = useState<{ message: string; required: boolean } | null>(null);
+  const overrun = refusedOverrun ?? (data.overrun ? { message: overrunMessage(data.overrun), required: !staff } : null);
   const receipt = useReceipt('send', { receivedOn: invoice.receivedOn, receivedViaDisplayName: invoice.receivedViaDisplayName });
   const checking = location.state as CheckQueue | null;
 
@@ -131,7 +133,7 @@ export function useSubmission({
       const overrunNote = fieldError(err, 'overrunExplanation');
       if (overrunNote) {
         // Lines changed since loading.
-        setOverrun({ message: overrunNote, required: true });
+        setRefusedOverrun({ message: overrunNote, required: true });
         return;
       }
       setSendError(apiErrorMessage(err, 'The invoice could not be sent. Check the lines and try again.'));

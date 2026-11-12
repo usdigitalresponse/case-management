@@ -4,7 +4,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { queryClient } from '../queryClient';
 import { fakeApi } from '../test/fakeApi';
 import { renderPage } from '../test/renderPage';
-import { lineEditorRoutes, portalInvoice, SENDER, signedIn } from '../test/fixtures';
+import { lineEditorRoutes, portalInvoice, queuedInvoice, SENDER, signedIn } from '../test/fixtures';
 import InvoiceSubmission from './InvoiceSubmission';
 
 afterEach(() => {
@@ -96,6 +96,26 @@ describe('dates already billed', () => {
 
     expect(await screen.findByText('Some of these dates are already billed')).toBeTruthy();
     expect(screen.getByRole('link', { name: /invoice INV-0042/ }).getAttribute('href')).toBe('/portal/invoices/inv-2');
+    expect(api.unhandled).toEqual([]);
+  });
+});
+
+describe('a decided invoice', () => {
+  it('shows the sign-off comment on an invoice filed under a case, not only one filed by person', async () => {
+    const api = fakeApi({
+      ...lineEditorRoutes(),
+      ...signedIn(SENDER),
+      'GET /api/portal/invoices/:id': portalInvoice({
+        invoice: queuedInvoice({ caseNumberAsTyped: null, statusCode: 'approved', statusDisplayName: 'Approved' }),
+        approvedTotal: '120.00',
+        decisionComments: [{ outcomeCode: 'approved', comment: 'Approved with the write-up rate lowered.', decidedAt: '2026-11-01T10:00:00Z' }],
+      }),
+      'GET /api/portal/receipt-channels': { channels: [] },
+      'GET /api/my-cases': { cases: [], professionals: [] },
+    });
+    await openCheck();
+    expect(await screen.findByText('Approved with the write-up rate lowered.')).toBeTruthy();
+    expect(screen.getByText('A comment on the invoice')).toBeTruthy();
     expect(api.unhandled).toEqual([]);
   });
 });

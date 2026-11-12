@@ -594,9 +594,10 @@ How the React client is built and why. Schema mapping and gaps are in
 - **`AppRouter`** (`src/App.tsx`) is the single loading/signed-out/
   portal/staff gate, so individual pages don't check auth themselves. It
   builds one React Router data router for whoever is signed in (staff,
-  portal or signed out) and rebuilds it when a different kind of user
-  signs in; `AuthProvider` sits outside it, sends sign-in and sign-out
-  home and clears cached data.
+  portal or signed out) and rebuilds it at every sign-in, so a switch
+  between two staff members (the guided tour's) starts at home rather
+  than on the last page; `AuthProvider` sits outside it, sends sign-in
+  and sign-out home and clears cached data.
 - **Route loaders** (`src/routeLoaders.ts`): pages that load data on
   opening, staff and portal, have a loader that fetches it before the
   page switches, so the previous page stays on screen (with a thin

@@ -249,7 +249,11 @@ export function SignOffHistory({ signOffs }: { signOffs: SignOff[] }) {
           <li key={index}>
             {signOff.displayName ?? 'Someone'} {SIGN_OFF_WORDS[signOff.outcomeCode] ?? 'decided'} on{' '}
             {formatDateTime(signOff.decidedAt)}
-            {signOff.comment && <span className="cell-note">“{signOff.comment}” (staff only)</span>}
+            {signOff.comment && (
+              <span className="cell-note">
+                “{signOff.comment}” ({signOff.outcomeCode === 'changes_requested' ? 'staff only' : 'the sender sees it'})
+              </span>
+            )}
           </li>
         ))}
       </ul>

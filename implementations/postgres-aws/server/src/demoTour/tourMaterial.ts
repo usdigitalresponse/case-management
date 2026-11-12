@@ -5,7 +5,7 @@ import { randomInt, randomUUID } from 'node:crypto';
 import { faker } from '@faker-js/faker';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../db/client';
-import { caseAssignment, caseStatuses, county, invoiceLine, routeCheck } from '../db/schema';
+import { caseAssignment, caseStatuses, county, demoTourRun, invoiceLine, routeCheck } from '../db/schema';
 import { ROLE_IDS } from '../db/syntheticIds';
 import { createCase } from '../intake/createCase';
 import { createInvoice } from '../portal/createInvoice';
@@ -17,6 +17,7 @@ import { finishReview } from '../billing/reviewRounds';
 import { pairKey } from '../billing/routeCheck';
 import { RATE_REASON_CODE } from '../billing/decisionReasons';
 import type { TourAccounts, TourRole } from './tourAccounts';
+import { recordTourRecords } from './tourRuns';
 
 export const TOUR_MISSIONS = ['staff-filing', 'preauth-send', 'review', 'answer-finish', 'sign-off'] as const;
 export type TourMission = (typeof TOUR_MISSIONS)[number];
@@ -73,7 +74,7 @@ async function openStatusId(db: Database): Promise<string> {
   return open.id;
 }
 
-async function tourCase(db: Database, accounts: TourAccounts) {
+async function tourCase(db: Database, accounts: TourAccounts, runId: string) {
   const clientName = faker.person.fullName();
   const caseNumber = tourNumber('26-TR');
   const [anyCounty] = await db.select({ countyId: county.countyId }).from(county).where(eq(county.active, true)).orderBy(asc(county.displayName)).limit(1);
@@ -93,6 +94,7 @@ async function tourCase(db: Database, accounts: TourAccounts) {
     assignmentRoleId: await getExternalSubmitterRoleId(db),
     assignedByUserAccountId: accounts.staff,
   });
+  await recordTourRecords(db, runId, [{ table: 'case', id: caseId }]);
   return { caseId, caseNumber, clientName };
 }
 
@@ -150,6 +152,7 @@ export async function createTourMaterial(
     vendorName: accounts.vendorName,
   };
   const month = lastMonth();
+  await db.insert(demoTourRun).values({ demoTourRunId: run.runId, mission });
 
   if (mission === 'staff-filing') {
     // Nothing is made: the visitor enters a paper invoice by hand.
@@ -177,7 +180,7 @@ export async function createTourMaterial(
     };
   }
 
-  const tour = await tourCase(db, accounts);
+  const tour = await tourCase(db, accounts, run.runId);
   Object.assign(run, tour);
 
   if (mission === 'preauth-send') {
@@ -200,7 +203,7 @@ export async function createTourMaterial(
 
   if (mission === 'review') {
     await cacheTourRoute(db);
-    const other = await tourCase(db, accounts);
+    const other = await tourCase(db, accounts, run.runId);
     const busyDay = month.day(20);
     // Earlier, for overlapping weeks on the same case: the double-billing check.
     const earlier = await createInvoice(db, vendorActor(accounts), {
@@ -246,6 +249,8 @@ export async function createTourMaterial(
       // eslint-disable-next-line no-await-in-loop
       await reassignReviewer(db, accounts.staff, invoiceId, { userAccountId: accounts.staff });
     }
+    // Typed without a case, so not under the run's case until matched.
+    await recordTourRecords(db, run.runId, [{ table: 'invoice', id: main.invoiceId }]);
     run.invoiceId = main.invoiceId;
     run.earlierInvoiceId = earlier.invoiceId;
     run.otherCaseInvoiceId = otherCase.invoiceId;

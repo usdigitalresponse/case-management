@@ -9,6 +9,7 @@ import { formatDateTime } from '../../formatDateTime';
 import { formatMoney } from '../../formatMoney';
 import { CheckLinesTable } from '../CheckLinesTable';
 import type { Submission } from './useSubmission';
+import { DecisionComments } from './DecisionComments';
 
 export function SubmissionLines({ s }: { s: Submission }) {
   const { data, staff, user, focus, setFocus } = s;
@@ -88,6 +89,7 @@ export function SubmissionLines({ s }: { s: Submission }) {
             Decided: {formatMoney(data.approvedTotal)} approved of {formatMoney(invoice.submittedTotal)}. Each line shows why.
           </Notice>
         )}
+        {(invoice.statusCode === 'approved' || invoice.statusCode === 'rejected') && <DecisionComments comments={data.decisionComments} />}
         {isDraft && notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
         {editable && undatedRow && <Notice tone="warning">Line {undatedRow.number} has no date in your file. Enter its date before you send.</Notice>}
         <CheckLinesTable

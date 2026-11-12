@@ -104,9 +104,9 @@ const staffFiling: MissionDefinition = {
       target: { text: 'Enter an invoice by hand' },
       paperCard: true,
       fills: [
-        { label: 'Billed by', selector: '#upload-from', value: suggestion('billedBy') },
         { label: 'How it arrived', selector: '#upload-received-via', value: suggestion('receivedVia') },
         { label: 'Date received', selector: '#upload-received-on', value: suggestion('receivedOn') },
+        { label: 'Billed by', selector: '#upload-from', value: suggestion('billedBy') },
       ],
       done: {
         request: {
@@ -133,7 +133,7 @@ const staffFiling: MissionDefinition = {
           test: (body) => ((body as { lines?: unknown[] } | null)?.lines?.length ?? 0) >= 3,
         },
       },
-      hint: 'Add a row for each of the three lines on the card. Moving on to the next row saves the one before.',
+      hint: 'Use “+ Add a line” for each of the three lines on the card; each line saves when you add it.',
     },
     {
       id: 'decide-lines',
@@ -151,7 +151,7 @@ const staffFiling: MissionDefinition = {
       before: 'Paper moved from desk to desk, with no record of who decided what.',
       now: 'Finishing records the round with your name and time. From now on the lines never change, even if the invoice is reopened.',
       path: entryPath,
-      target: { text: 'Finish' },
+      target: { text: 'Finish review' },
       done: { request: { method: 'POST', path: (ctx) => new RegExp(`^/api/invoices/${enteredId(ctx)}/finish$`) } },
     },
   ],
@@ -177,6 +177,7 @@ const preauthSend: MissionDefinition = {
       before: 'Pre-authorizations went by form and email, with copies saved in several places.',
       now: 'The request, its questions and its decision are kept on the case, where both sides can see them.',
       path: () => '/portal/preauthorizations',
+      target: { text: 'Ask for pre-authorization' },
       fills: [
         // In this order: choosing the case or provider clears the fields below.
         { label: 'Case', selector: '#preauth-case', value: (ctx) => ctx.run.caseNumber },
@@ -277,12 +278,12 @@ const review: MissionDefinition = {
       path: () => '/?show=mine',
       target: { text: 'Assigned to you' },
       done: { route: (ctx) => exact(invoicePath(ctx)) },
-      hint: 'It is the newest one, from the tour’s investigator.',
+      hint: 'It is from the tour’s investigator, with its case number typed without dashes. Oldest come first, so it is near the end.',
     },
     {
       id: 'match',
       role: 'staff',
-      goal: 'Match it to its case. The investigator typed the number without dashes.',
+      goal: 'Match it to its case: the investigator typed the number without dashes, so choose the close match, then Match.',
       before: 'A second record for the same case could be made without warning.',
       now: 'A close match is offered, so you choose the existing case. The number as typed stays beside it.',
       path: invoicePath,
@@ -296,6 +297,7 @@ const review: MissionDefinition = {
       before: 'Mileage was checked by hand against a map.',
       now: 'Miles claimed are compared with the driving distance between From and To.',
       path: invoicePath,
+      target: { text: 'See the travel log' },
       done: { manual: 'I see the mileage flag' },
     },
     {
@@ -305,6 +307,7 @@ const review: MissionDefinition = {
       before: 'No one could tell if a person billed more hours in a day than it holds, across cases.',
       now: 'Hours on one date are added across all their invoices and flagged over the daily cap, and travel the same day on another case is shown.',
       path: invoicePath,
+      target: { text: 'Billing rule warnings when submitted' },
       done: { manual: 'I see it' },
       hint: 'If no flag shows, the daily hour cap is turned off on this server.',
     },
@@ -322,7 +325,7 @@ const review: MissionDefinition = {
     {
       id: 'rate',
       role: 'staff',
-      goal: 'Back on the tour invoice, approve one time line at a lower hourly rate.',
+      goal: 'Back on the tour invoice, approve one time line at a lower hourly rate, and choose why.',
       why: 'A changed rate stays flagged for sign-off. Setting it for the case flags the case’s other invoices; it never reprices them.',
       path: invoicePath,
       // One line alone saves as its decision; more lines or the case go through the rate route.
@@ -337,7 +340,8 @@ const review: MissionDefinition = {
         },
       },
       target: { text: 'Approve at a different rate' },
-      hint: 'Choose “Approve at a different rate” on a time line.',
+      fills: [{ label: 'Lower rate', selector: '.decision-panel--rate .decision-panel__amount input', value: suggestion('reducedRate') }],
+      hint: 'Choose “Rate” on a time line.',
     },
     {
       id: 'question',
@@ -360,7 +364,7 @@ const answerFinish: MissionDefinition = {
     {
       id: 'open-question',
       role: 'vendor',
-      goal: 'You are the investigator. Open the invoice with a question waiting.',
+      goal: 'You are the investigator. Open the top invoice marked “Question for you”.',
       path: (ctx) => (ctx.run.invoiceId ? `/portal/invoices/${ctx.run.invoiceId}` : '/portal/invoices'),
       done: { route: (ctx) => exact(`/portal/invoices/${ctx.run.invoiceId}`) },
     },
@@ -388,7 +392,7 @@ const answerFinish: MissionDefinition = {
       before: 'Bills were moved between desks, and approval could stall unseen.',
       now: 'The finished round is recorded with your name and goes to sign-off.',
       path: invoicePath,
-      target: { text: 'Finish' },
+      target: { text: 'Finish review' },
       done: { request: { method: 'POST', path: (ctx) => new RegExp(`^/api/invoices/${tourInvoiceId(ctx)}/finish$`) } },
     },
   ],
@@ -419,9 +423,9 @@ const signOff: MissionDefinition = {
     {
       id: 'overview',
       role: 'director',
-      goal: 'Open “Case overview” to see where every invoice stands.',
+      goal: 'Open “Case overview” to see where every case stands.',
       before: 'Status was kept in several separate logs, so no one saw the whole picture.',
-      now: 'Every case and invoice is shown by stage in one place.',
+      now: 'Every case is shown by stage in one place, with the invoices waiting on it.',
       path: () => '/overview',
       target: { text: 'Case overview' },
       done: { route: () => /^\/overview$/ },
@@ -429,7 +433,7 @@ const signOff: MissionDefinition = {
     {
       id: 'export',
       role: 'director',
-      goal: 'Open “Exports” and download the approved invoices for payment.',
+      goal: 'Open “Exports”: each signed-off invoice is exported from there for payment.',
       why: 'Payment happens in another system; the export carries what was approved.',
       path: () => '/exports',
       target: { text: 'Exports' },

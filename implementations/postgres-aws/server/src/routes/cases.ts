@@ -31,6 +31,7 @@ import { closeCase, unfinishedInvoices } from '../cases/closeCase';
 import { listPossibleDuplicateCases, recordCaseDuplicateReview } from '../cases/possibleDuplicateCases';
 import { asyncHandler } from './asyncHandler';
 import { ValidationError } from '../errors';
+import { tagTourRecord } from '../demoTour/tourRuns';
 
 const router = Router();
 // Full staff access only: external (email-code) users get their own
@@ -48,6 +49,7 @@ router.post(
       return;
     }
     const result = await createCase(db, { userAccountId: actor.userAccountId }, req.body);
+    await tagTourRecord(req, 'case', result.caseId);
     res.status(201).json(result);
   }),
 );

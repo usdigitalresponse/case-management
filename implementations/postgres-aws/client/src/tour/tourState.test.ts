@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { advance, currentStep, missionDone, newTour, nextPart, onLocation, onRequest, storyDone, type TourState } from './tourState';
 import { MISSIONS, STORY } from './missions';
-import { fillField } from './dom';
+import { fillField, findTarget } from './dom';
 
 const invoiceId = '11111111-1111-4111-8111-111111111111';
 const lineId = '22222222-2222-4222-8222-222222222222';
@@ -70,5 +70,15 @@ describe('filling in a suggestion', () => {
     expect(fillField('#pick', 'Demo Investigator')).toBe(true);
     expect(changed).toBe('p1');
     expect(fillField('#pick', 'Nobody')).toBe(false);
+  });
+});
+
+describe('showing a step’s control', () => {
+  it('finds a notice by its heading, and a button over a link that only starts with its name', () => {
+    document.body.innerHTML =
+      '<nav><a href="/finished">Finished</a></nav><div class="notice"><strong class="notice__heading">Possible double billing</strong></div><button>Finish review</button>';
+    for (const element of document.body.querySelectorAll('*')) Object.defineProperty(element, 'getClientRects', { value: () => [{}] });
+    expect(findTarget({ text: 'Possible double billing' })?.className).toBe('notice__heading');
+    expect(findTarget({ text: 'Finish review' })?.tagName).toBe('BUTTON');
   });
 });

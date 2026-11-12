@@ -28,6 +28,7 @@ import { getPerson, listPeopleBatch } from '../professionals/peopleDirectory';
 import { afterCursor, batchRequest, cursorColumn, oneBatch, orderByKeys, sortKey } from '../lists/batches';
 import { loadProviderOffices } from '../professionals/providerOffices';
 import { asyncHandler } from './asyncHandler';
+import { tagTourRecord } from '../demoTour/tourRuns';
 
 const router = Router();
 router.use(requireFullUser);
@@ -103,7 +104,9 @@ router.get(
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    res.status(201).json(await addProfessional(db, getSessionUser(req)!.userAccountId, req.body));
+    const added = await addProfessional(db, getSessionUser(req)!.userAccountId, req.body);
+    await tagTourRecord(req, 'professional', added.professionalId);
+    res.status(201).json(added);
   }),
 );
 
