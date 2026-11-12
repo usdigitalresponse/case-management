@@ -304,8 +304,11 @@ and a name in the log is never matched to a person without an exact match or
 the reviewer's confirmation. Staff and
 external submitters share the new-invoice form (staff use it on Intake) and
 the import pages; links that differ
-between the two apps go through `client/src/portal/useShell.ts`. Design
-screenshots go in its gitignored `figma/` folder and must never be committed.
+between the two apps go through `client/src/portal/useShell.ts`. Its
+`design/` folder holds the current Figma design, one PNG per screen with a
+stable name, versioned by Git rather than in Figma; only exports with
+synthetic data and generic names go there (see its README). Anything else
+from Figma goes in the gitignored `figma/` folder and is never committed.
 Docker Compose startup must preserve application data. `docker compose exec
 server npm run seed` is an explicit destructive demo reset, never a startup
 step. `docker-compose.prod.yml` (with an untracked `.env.prod`) is the
