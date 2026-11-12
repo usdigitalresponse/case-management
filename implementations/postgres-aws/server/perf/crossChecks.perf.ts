@@ -108,7 +108,8 @@ function everyTestPassed(task: { type: string; result?: { state?: string }; task
   return task.type === 'test' ? task.result?.state === 'pass' : (task.tasks ?? []).every((child) => everyTestPassed(child as typeof task));
 }
 
-afterAll(async (file) => {
+// eslint-disable-next-line no-empty-pattern -- vitest requires a destructured first argument
+afterAll(async ({}, file) => {
   try {
     process.stdout.write(`\n${writeReport({ ...volume, scale, invoices: invoiceCount, lines: invoiceCount * volume.linesPerInvoice }, everyTestPassed(file))}\n\n`);
   } finally {

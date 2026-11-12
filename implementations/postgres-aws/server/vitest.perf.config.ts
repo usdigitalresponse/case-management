@@ -4,7 +4,7 @@ import { QUERY_COUNT_SCALE } from './perf/measure';
 
 // The performance suite (perf/), kept out of `npm test`; see ../README.md.
 // --mode queries sets its scale here rather than in the script, for any shell.
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }: { mode: string }) => ({
   css: { postcss: {} },
   test: {
     environment: 'node',

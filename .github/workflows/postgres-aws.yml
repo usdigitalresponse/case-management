@@ -120,8 +120,8 @@ jobs:
           done
           test "$ready" = true
           curl -sf -b cookies.txt http://localhost:3000/api/cases -o cases-after.json
-          jq -S '.cases | map(.caseId) | sort' cases-before.json > ids-before.json
-          jq -S '.cases | map(.caseId) | sort' cases-after.json > ids-after.json
+          jq -S '.items | map(.caseId) | sort' cases-before.json > ids-before.json
+          jq -S '.items | map(.caseId) | sort' cases-after.json > ids-after.json
           cmp ids-before.json ids-after.json
       - name: docker compose logs (on failure)
         if: failure()
