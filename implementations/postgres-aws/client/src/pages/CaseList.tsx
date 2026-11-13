@@ -1,18 +1,15 @@
-import { useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router';
+import { Link as RouterLink, Navigate, useSearchParams } from 'react-router';
 import { useBatchedResource } from '../hooks/useBatchedResource';
 import { MoreOnScroll } from '../components/MoreOnScroll';
 import { caseListRequest, CASE_SHOWS, type CaseShow } from '../caseRequests';
-import { cases as casesResource, possibleDuplicateCaseCount } from '../resources';
+import { cases as casesResource } from '../resources';
 import { PageHeader } from '../components/PageHeader';
-import { DuplicateCases } from '../components/DuplicateCases';
-import { DuplicatesTabs, useDuplicateCount, useListTab } from '../components/DuplicatesTabs';
-import { Button } from '../components/ui/Button';
 import { SearchInput } from '../components/SearchInput';
 import { ResourceList } from '../components/ResourceList';
 import { RecordTable } from '../components/RecordTable';
 import { useCountyControl } from '../components/CountyListControl';
 import { stageLabel } from '../overviewStages';
+import { duplicatesPath } from '../staffPaths';
 import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
 import { formatMoney } from '../formatMoney';
 import { useSearchParamState, useSearchParamText } from '../hooks/useSearchParamState';
@@ -23,51 +20,26 @@ function stageTone(stage: string | null): Tone {
   return stage === 'billing' ? 'info' : stage === 'needs-assignment' ? 'warning' : stage === null ? 'strong' : 'neutral';
 }
 
-// Every case, as design I48 lists them, and a tab of possible duplicate cases while there are any.
+// Every case, as design I48 lists them; possible duplicates are merged in Settings (design K67).
 export default function CaseList() {
   const [searchParams] = useSearchParams();
   const request = caseListRequest(searchParams);
-  const [tab, setTab] = useListTab();
-  const list = useBatchedResource(tab === 'list' ? casesResource(request) : null);
+  const duplicatesTab = searchParams.get('tab') === 'duplicates';
+  const list = useBatchedResource(duplicatesTab ? null : casesResource(request));
   const { summary } = list;
-  const [listed, setListed] = useState<number | null>(null);
-  const toReview = useDuplicateCount(tab, possibleDuplicateCaseCount, listed);
-  const [flagging, setFlagging] = useState(false);
   const [query, setQuery] = useSearchParamText('q');
   const [shown, setShown] = useSearchParamState<CaseShow>('show', 'all', CASE_SHOWS);
   const stageParam = searchParams.get('stage');
   const county = useCountyControl(summary?.counties ?? null, { hideLabel: true });
 
+  if (duplicatesTab) return <Navigate to={duplicatesPath()} replace />;
   const heading = (
-    <>
-      <PageHeader
-        list
-        title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'}
-        description={`Every case invoices can be sent for. Cases may be managed in your ${EXTERNAL_SYSTEM_NAME}; they show here so invoices make sense.`}
-        actions={
-          <Button
-            kind="secondary"
-            onClick={() => {
-              setTab('duplicates');
-              setFlagging(true);
-            }}
-          >
-            Flag possible duplicates
-          </Button>
-        }
-      />
-      <DuplicatesTabs listLabel="Cases" toReview={toReview} show={(toReview ?? 0) > 0} tab={tab} onSelect={setTab} />
-    </>
+    <PageHeader
+      list
+      title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'}
+      description={`Every case invoices can be sent for. Cases may be managed in your ${EXTERNAL_SYSTEM_NAME}; they show here so invoices make sense.`}
+    />
   );
-
-  if (tab === 'duplicates') {
-    return (
-      <div>
-        {heading}
-        <DuplicateCases flagging={flagging} onFlaggingDone={() => setFlagging(false)} onCount={setListed} />
-      </div>
-    );
-  }
   return (
     <ResourceList
       heading={heading}

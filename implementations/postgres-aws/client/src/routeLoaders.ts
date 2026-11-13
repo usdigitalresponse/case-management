@@ -61,16 +61,8 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
     review: preload(({ params }) => [resources.invoiceForReview(params.invoiceId as string), resources.decisionReasons]),
     overview: preload(() => [resources.caseOverview, resources.recentCaseChanges]),
     invoiceOverview: preload(() => [resources.invoiceOverview]),
-    cases: preload((args) =>
-      searchOf(args).get('tab') === 'duplicates'
-        ? [resources.possibleDuplicateCases]
-        : [resources.cases(caseListRequest(searchOf(args))), resources.counties, resources.possibleDuplicateCaseCount],
-    ),
-    people: preload((args) =>
-      searchOf(args).get('tab') === 'duplicates'
-        ? [resources.possibleDuplicates, resources.personMerges]
-        : [resources.people(peopleRequest(searchOf(args))), resources.possibleDuplicateCount],
-    ),
+    cases: preload((args) => [resources.cases(caseListRequest(searchOf(args))), resources.counties]),
+    people: preload((args) => [resources.people(peopleRequest(searchOf(args)))]),
     clients: preload((args) => [resources.cases(clientsRequest(searchOf(args)))]),
     organizations: preload(() => [resources.referenceData, resources.caseCounts]),
     preauthorizations: preload(({ request }) => {

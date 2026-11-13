@@ -28,6 +28,10 @@ import { getPerson, listPeopleBatch } from '../professionals/peopleDirectory';
 import { afterCursor, batchRequest, cursorColumn, oneBatch, orderByKeys, sortKey } from '../lists/batches';
 import { loadProviderOffices } from '../professionals/providerOffices';
 import { asyncHandler } from './asyncHandler';
+import { z } from 'zod';
+import { NotFoundError } from '../errors';
+import { duplicateMembers } from '../duplicateMembers';
+import { listPossibleDuplicates, personDuplicateMembers } from '../people/possibleDuplicates';
 import { tagTourRecord } from '../demoTour/tourRuns';
 
 const router = Router();
@@ -100,6 +104,19 @@ router.get(
   '/people/:id',
   asyncHandler(async (req, res) => {
     res.json(await getPerson(db, req.params.id as string));
+  }),
+);
+
+// The people this provider may be a duplicate of, for the notice on their page (design K32).
+router.get(
+  '/people/:id/possible-duplicates',
+  asyncHandler(async (req, res) => {
+    const id = req.params.id as string;
+    if (!z.uuid().safeParse(id).success) throw new NotFoundError('That provider is not in the system.');
+    const [row] = await db.select({ personId: professional.personId }).from(professional).where(eq(professional.professionalId, id));
+    if (!row) throw new NotFoundError('That provider is not in the system.');
+    const members = await duplicateMembers('people', async () => personDuplicateMembers(await listPossibleDuplicates(db)));
+    res.json({ others: members.get(row.personId) ?? [] });
   }),
 );
 

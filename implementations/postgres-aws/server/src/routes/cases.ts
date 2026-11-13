@@ -27,8 +27,8 @@ import { getSessionUser, requireFullUser } from '../auth/session';
 import { assignExternalSubmitterToCase } from '../cases/assignExternalSubmitterToCase';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase, unfinishedInvoices } from '../cases/closeCase';
-import { listPossibleDuplicateCases, recordCaseDuplicateReview } from '../cases/possibleDuplicateCases';
-import { duplicateGeneration, duplicateGroupCount, forgetDuplicateGroups, rememberDuplicateGroups } from '../duplicateCounts';
+import { caseDuplicateMembers, listPossibleDuplicateCases, recordCaseDuplicateReview } from '../cases/possibleDuplicateCases';
+import { duplicateGeneration, duplicateMembers, forgetDuplicates, rememberDuplicateMembers } from '../duplicateMembers';
 import { asyncHandler } from './asyncHandler';
 import { ValidationError } from '../errors';
 
@@ -87,24 +87,17 @@ router.get(
   asyncHandler(async (_req, res) => {
     const since = duplicateGeneration('cases');
     const duplicates = await listPossibleDuplicateCases(db);
-    rememberDuplicateGroups('cases', duplicates.length, since);
+    rememberDuplicateMembers('cases', caseDuplicateMembers(duplicates), since);
     res.json({ duplicates });
   }),
 );
 
-// Whether All cases shows its Review duplicates tab.
-router.get(
-  '/possible-duplicates/count',
-  asyncHandler(async (_req, res) => {
-    res.json({ groups: await duplicateGroupCount('cases', async () => (await listPossibleDuplicateCases(db)).length) });
-  }),
-);
 
 router.post(
   '/possible-duplicates',
   asyncHandler(async (req, res) => {
     await recordCaseDuplicateReview(db, getSessionUser(req)!.userAccountId, req.body);
-    forgetDuplicateGroups('cases');
+    forgetDuplicates('cases');
     res.status(204).end();
   }),
 );
@@ -114,6 +107,15 @@ router.get(
   '/recent-changes',
   asyncHandler(async (_req, res) => {
     res.json({ changes: await loadRecentCaseChanges(db) });
+  }),
+);
+
+// The cases this one may be a duplicate of, for the notice on its page (design K49).
+router.get(
+  '/:id/possible-duplicates',
+  asyncHandler(async (req, res) => {
+    const members = await duplicateMembers('cases', async () => caseDuplicateMembers(await listPossibleDuplicateCases(db)));
+    res.json({ others: members.get(req.params.id as string) ?? [] });
   }),
 );
 
@@ -236,7 +238,7 @@ router.post(
     }
     const caseId = req.params.id as string;
     const result = await closeCase(db, actor.userAccountId, caseId, req.body);
-    forgetDuplicateGroups('cases');
+    forgetDuplicates('cases');
     res.json(result);
   }),
 );

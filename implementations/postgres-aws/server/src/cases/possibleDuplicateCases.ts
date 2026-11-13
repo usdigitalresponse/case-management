@@ -4,6 +4,7 @@
 // listed; a missing county doesn't rule a pair out. Cases belong to the external case
 // management system, so they are never merged here; staff mark a pair as
 // different, or close the extra case as a cleanup.
+import { membersOf } from '../duplicateMembers';
 import { z } from 'zod';
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
@@ -164,4 +165,10 @@ export async function recordCaseDuplicateReview(db: Database, actorUserAccountId
     recordedByUserAccountId: actorUserAccountId,
     recordedAt: new Date(),
   });
+}
+
+// Who each case may be a duplicate of, for its page.
+export function caseDuplicateMembers(groups: PossibleDuplicateCase[]) {
+  const numbers = new Map(groups.flatMap((group) => group.cases.map((record) => [record.caseId, record.caseNumber ?? 'a case with no number'] as const)));
+  return membersOf(groups.flatMap((group) => group.pairs.map((pair) => pair.caseIds)), (caseId) => numbers.get(caseId) ?? 'another case');
 }

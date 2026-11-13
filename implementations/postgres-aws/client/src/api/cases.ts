@@ -390,11 +390,20 @@ export function listPossibleDuplicateCases(): Promise<{ duplicates: PossibleDupl
   return request('/api/cases/possible-duplicates');
 }
 
-// Remembered by the server for a few minutes; the list is always worked out afresh.
-export function countPossibleDuplicateCases(): Promise<{ groups: number }> {
-  return request('/api/cases/possible-duplicates/count');
-}
-
 export function reviewPossibleDuplicateCase(input: { caseIds: [string, string]; outcome: 'possible_duplicate' | 'not_duplicate'; note?: string }) {
   return request<void>('/api/cases/possible-duplicates', { method: 'POST', body: JSON.stringify(input) });
+}
+
+// Who a case or provider may be a duplicate of, for the notice on its page (design K32, K49).
+export interface DuplicateOther {
+  id: string;
+  label: string;
+}
+
+export function getCaseDuplicateOthers(caseId: string): Promise<{ others: DuplicateOther[] }> {
+  return request(`/api/cases/${caseId}/possible-duplicates`);
+}
+
+export function getProviderDuplicateOthers(professionalId: string): Promise<{ others: DuplicateOther[] }> {
+  return request(`/api/professionals/people/${professionalId}/possible-duplicates`);
 }

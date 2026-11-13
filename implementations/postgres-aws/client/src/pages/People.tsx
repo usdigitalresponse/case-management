@@ -1,65 +1,37 @@
-// Providers (design K30): everyone who bills, read-only, and a tab of possible
-// duplicates while there are any. Administrators add and change them in Settings.
-import { useState } from 'react';
-import { Link as RouterLink, useSearchParams } from 'react-router';
+// Providers (design K30): everyone who bills, read-only. Administrators add and
+// change them, and merge duplicates, in Settings.
+import { Link as RouterLink, Navigate, useSearchParams } from 'react-router';
 import type { BillingPerson } from '../api/client';
 import { useBatchedResource } from '../hooks/useBatchedResource';
 import { MoreOnScroll } from '../components/MoreOnScroll';
 import { peopleRequest } from '../caseRequests';
-import { people, possibleDuplicateCount } from '../resources';
-import { DuplicatePeople } from '../components/DuplicatePeople';
-import { DuplicatesTabs, useDuplicateCount, useListTab } from '../components/DuplicatesTabs';
+import { people } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
-import { personPath } from '../staffPaths';
+import { duplicatesPath, personPath } from '../staffPaths';
 import { useSearchParamState, useSearchParamText } from '../hooks/useSearchParamState';
-import { Button } from '../components/ui/Button';
 import { FilterTag } from '../components/ui/Tag';
 
 export default function People() {
-  const [tab, setTab] = useListTab();
   const [role, setRole] = useSearchParamState<string>('role', '');
   const [query, setQuery] = useSearchParamText('q');
   const [params] = useSearchParams();
-  const list = useBatchedResource(tab === 'list' ? people(peopleRequest(params)) : null);
-  const [listed, setListed] = useState<number | null>(null);
-  const toReview = useDuplicateCount(tab, possibleDuplicateCount, listed);
+  const duplicatesTab = params.get('tab') === 'duplicates';
+  const list = useBatchedResource(duplicatesTab ? null : people(peopleRequest(params)));
   const { summary } = list;
-  const [flagging, setFlagging] = useState(false);
 
+  // Its Review duplicates tab moved to Settings (design K67).
+  if (duplicatesTab) return <Navigate to={duplicatesPath(params.get('merged') ? { merged: params.get('merged')! } : {})} replace />;
   const header = (
-    <>
-      <PageHeader
-        list
-        title="Providers"
-        description="Everyone who can send invoices: attorneys, investigators and experts. Every invoice is filed under one of these people."
-        actions={
-          <Button
-            kind="secondary"
-            onClick={() => {
-              setTab('duplicates');
-              setFlagging(true);
-            }}
-          >
-            Flag possible duplicates
-          </Button>
-        }
-      />
-      <DuplicatesTabs listLabel="Providers" toReview={toReview} show={(toReview ?? 0) > 0} tab={tab} onSelect={setTab} />
-    </>
+    <PageHeader
+      list
+      title="Providers"
+      description="Everyone who can send invoices: attorneys, investigators and experts. Every invoice is filed under one of these people."
+    />
   );
-
-  if (tab === 'duplicates') {
-    return (
-      <div>
-        {header}
-        <DuplicatePeople flagging={flagging} onFlaggingDone={() => setFlagging(false)} onCount={setListed} />
-      </div>
-    );
-  }
   if (list.error || !list.items || !summary) {
     return (
       <div>

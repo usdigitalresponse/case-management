@@ -4,7 +4,7 @@ import { db } from '../db/client';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { requireAdmin } from '../auth/requireAdmin';
 import { fixCase, listAddedCases, listCaseFixes, previewCaseFix, undoCaseFix } from '../cases/caseCorrections';
-import { forgetDuplicateGroups } from '../duplicateCounts';
+import { forgetDuplicates } from '../duplicateMembers';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -36,7 +36,7 @@ router.post(
   '/fixes',
   asyncHandler(async (req, res) => {
     const fixed = await fixCase(db, getSessionUser(req)!.userAccountId, req.body);
-    forgetDuplicateGroups('cases');
+    forgetDuplicates('cases');
     res.status(201).json(fixed);
   }),
 );
@@ -45,7 +45,7 @@ router.post(
   '/fixes/:id/undo',
   asyncHandler(async (req, res) => {
     const undone = await undoCaseFix(db, getSessionUser(req)!.userAccountId, req.params.id as string);
-    forgetDuplicateGroups('cases');
+    forgetDuplicates('cases');
     res.json(undone);
   }),
 );

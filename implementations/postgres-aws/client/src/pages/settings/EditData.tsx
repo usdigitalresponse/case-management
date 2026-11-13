@@ -3,6 +3,7 @@
 // moves or changes before anything does; every fix can be undone.
 import { useState } from 'react';
 import { Link as RouterLink } from 'react-router';
+import { duplicatesPath } from '../../staffPaths';
 import {
   apiErrorMessage,
   fixCase,
@@ -143,7 +144,10 @@ export function EditData() {
         )}
       </section>
       <RecentFixes version={version} onUndone={changed} />
-      <p className="compact-hint">Later: possible duplicate people and cases move here from the People and All cases tabs.</p>
+      <p className="compact-hint">
+        Possible duplicate cases and people are merged in Settings, under <RouterLink to={duplicatesPath()}>Merge duplicates</RouterLink>; a case
+        merge shows in the fixes above.
+      </p>
     </div>
   );
 }

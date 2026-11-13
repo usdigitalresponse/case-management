@@ -14,6 +14,7 @@ import { BillingRulesSettings } from './settings/BillingRulesSection';
 import { DemoSettings } from './settings/DemoSection';
 import { ExternalUserSettings } from './settings/ExternalUsers';
 import { ProvidersSettings } from './settings/ProvidersSettings';
+import { MergeDuplicates } from '../components/MergeDuplicates';
 import { EditData } from './settings/EditData';
 import { Tabs } from '../components/ui/Tabs';
 import { useSearchParamState } from '../hooks/useSearchParamState';
@@ -88,6 +89,10 @@ export default function Settings() {
         <h2>Providers</h2>
         <ProvidersSettings isAdmin={isAdmin} />
       </section>
+      <section className="settings-section" id="settings-duplicates">
+        <h2>Merge duplicates</h2>
+        <MergeDuplicates />
+      </section>
       <section className="settings-section" id="settings-external-users">
         <h2>Office billing staff</h2>
         <p className="compact-hint">
@@ -125,6 +130,7 @@ const SECTIONS = [
   { id: 'settings-preauthorization', label: 'Pre-authorization thresholds' },
   { id: 'settings-rules', label: 'Billing rules and codes' },
   { id: 'settings-providers', label: 'Providers' },
+  { id: 'settings-duplicates', label: 'Merge duplicates' },
   { id: 'settings-external-users', label: 'Office billing staff' },
   { id: 'settings-demo', label: 'Demo' },
 ];

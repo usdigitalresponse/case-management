@@ -14,8 +14,10 @@ export function reviewPath(invoiceId: string): string {
 export const MERGE_PEOPLE_PATH = '/people/merge';
 
 // People's Review duplicates tab, with any of its own parameters, such as `merged`.
-export function duplicatePeoplePath(params: Record<string, string> = {}): string {
-  return `/people?${new URLSearchParams({ tab: 'duplicates', ...params }).toString()}`;
+// Settings › Merge duplicates (design K67).
+export function duplicatesPath(params: Record<string, string> = {}): string {
+  const search = new URLSearchParams(params).toString();
+  return `/settings${search ? `?${search}` : ''}#settings-duplicates`;
 }
 
 export function mergePath(keptPersonId: string, retiredPersonIds: string[]): string {

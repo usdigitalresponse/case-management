@@ -1,39 +1,23 @@
-// People who may have been recorded more than once, a tab of People. Any staff
-// member flags a pair or marks it as different; an administrator merges them
-// (../pages/MergePeople.tsx) and may undo a merge here.
-import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
-import {
-  apiErrorMessage,
-  reviewPossibleDuplicate,
-  searchPeople,
-  undoPersonMerges,
-  type DuplicatePair,
-  type DuplicatePerson,
-  type DuplicateReason,
-  type PersonRecord,
-} from '../api/client';
+// Parts for people who may have been recorded more than once (Settings › Merge
+// duplicates, ./MergeDuplicates.tsx): any staff member flags a pair; an
+// administrator merges them (../pages/MergePeople.tsx) and may undo a merge.
+import { useState } from 'react';
+import { Link } from 'react-router';
+import { apiErrorMessage, reviewPossibleDuplicate, searchPeople, type DuplicatePerson, type PersonRecord } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
-import { personMerges, possibleDuplicates } from '../resources';
+import { personMerges } from '../resources';
 import { LoadState } from './LoadState';
 import { RecordTable } from './RecordTable';
 import { TypeAheadPicker } from './TypeAheadPicker';
 import { ConfirmButton } from './ConfirmButton';
-import { NotDuplicateDialog, plural } from './NotDuplicateDialog';
-import { Button, buttonClass } from './ui/Button';
+import { plural } from './NotDuplicateDialog';
+import { Button } from './ui/Button';
 import { Dialog } from './ui/Dialog';
-import { Notice, type SaveMessage } from './ui/Notice';
+import { Notice } from './ui/Notice';
 import { Tag } from './ui/Tag';
 import { formatDate, formatDateTime } from '../formatDateTime';
-import { mergePath, personPath } from '../staffPaths';
-
-const REASONS: Record<DuplicateReason, string> = {
-  same_email: 'Same email',
-  same_name: 'Same name',
-  same_birth_date_and_family_name: 'Same date of birth and last name',
-  flagged: 'Flagged by staff',
-};
+import { personPath } from '../staffPaths';
 
 // Names, told apart by email where two match.
 export function personLabels(people: DuplicatePerson[]): Map<string, string> {
@@ -74,201 +58,51 @@ export function DuplicatePersonDetails({ person }: { person: DuplicatePerson }) 
   );
 }
 
-// The record with the most on it is offered as the one to keep.
-function keepFirst(people: DuplicatePerson[]): DuplicatePerson[] {
-  const weight = (person: DuplicatePerson) => person.invoiceCount + person.caseCount + (person.provider?.signInEmail ? 1 : 0);
-  return [...people].sort((a, b) => weight(b) - weight(a));
-}
-
-// The flag dialog is opened from the People page's header.
-export function DuplicatePeople({
-  flagging,
-  onFlaggingDone,
-  onCount,
-}: {
-  flagging: boolean;
-  onFlaggingDone: () => void;
-  // Each time the list loads, for the tab's count.
-  onCount: (groups: number) => void;
-}) {
+// Merges of people, newest first, each undone here by an administrator.
+export function RecentMerges({ version, undoing, onUndo }: { version: number; undoing: boolean; onUndo: (personMergeIds: string[]) => void }) {
   const { user } = useAuth();
-  const [version, setVersion] = useState(0);
-  const { data: groups, error } = useResource(possibleDuplicates, { resetKey: version });
-  useEffect(() => {
-    if (groups) onCount(groups.length);
-  }, [groups, onCount]);
-  const { data: merges, error: mergesError } = useResource(personMerges, { resetKey: version });
-  const [searchParams, setSearchParams] = useSearchParams();
-  const justMerged = searchParams.get('merged')?.split(',') ?? [];
-  const [dismissing, setDismissing] = useState<{ pair: DuplicatePair; labels: Map<string, string> } | null>(null);
-  const [message, setMessage] = useState<SaveMessage | null>(null);
-  const [undoing, setUndoing] = useState(false);
-
-  if (error || mergesError || !groups || !merges) {
-    return <LoadState error={error ?? mergesError} what="possible duplicates" />;
-  }
-
-  async function undo(personMergeIds: string[]) {
-    setUndoing(true);
-    setMessage(null);
-    try {
-      const { leftAsIs } = await undoPersonMerges(personMergeIds);
-      setMessage({
-        tone: 'success',
-        text: leftAsIs > 0 ? `Merge undone. ${plural(leftAsIs, 'record')} changed since the merge stayed as they are.` : 'Merge undone.',
-      });
-      setSearchParams(
-        (current) => {
-          const next = new URLSearchParams(current);
-          next.delete('merged');
-          return next;
-        },
-        { replace: true },
-      );
-      setVersion((value) => value + 1);
-    } catch (err) {
-      setMessage({ tone: 'danger', text: apiErrorMessage(err, 'The merge could not be undone.') });
-    } finally {
-      setUndoing(false);
-    }
-  }
-
-  // In the order they were merged, for undoing last first.
-  const merged = justMerged.flatMap((id) => merges.filter((merge) => merge.personMergeId === id && !merge.undoneAt));
-
+  const { data: merges, error } = useResource(personMerges, { resetKey: version });
+  if (error || !merges) return <LoadState error={error} what="recent merges" />;
   return (
-    <>
-      <p className="compact-hint">
-        Found by matching names, emails and dates of birth, or flagged by staff, clients included. Each card is one person who may have several
-        records. Anyone on staff can mark them as different people; an administrator merges them.
-      </p>
-      {merged.length > 0 && (
-        <Notice
-          tone="success"
-          action={
-            user?.isAdmin && (
-              <Button kind="secondary" disabled={undoing} onClick={() => void undo(merged.map((merge) => merge.personMergeId))}>
-                Undo
-              </Button>
-            )
-          }
-        >
-          Merged {plural(merged.length, 'record')} into {merged[0]!.kept.displayName}.
-        </Notice>
-      )}
-      {message && <Notice tone={message.tone}>{message.text}</Notice>}
-      {groups.length === 0 ? (
-        <p className="empty-note">No possible duplicates right now.</p>
-      ) : (
-        <ul className="duplicate-list">
-          {groups.map((group) => {
-            const people = keepFirst(group.people);
-            const labels = personLabels(people);
-            return (
-              <li key={people.map((person) => person.personId).join('|')} className="card duplicate-pair">
-                <ul className="duplicate-pair__links">
-                  {group.pairs.map((pair) => (
-                    <li key={pair.personIds.join('|')}>
-                      <span>
-                        {labels.get(pair.personIds[0])} and {labels.get(pair.personIds[1])}:
-                      </span>
-                      {pair.reasons.map((reason) => (
-                        <Tag key={reason} tone={reason === 'flagged' ? 'warning' : 'info'}>
-                          {REASONS[reason]}
-                        </Tag>
-                      ))}
-                      {pair.flagged && (
-                        <span className="cell-note">
-                          by {pair.flagged.byDisplayName} {formatDateTime(pair.flagged.at)}
-                          {pair.flagged.note && `: “${pair.flagged.note}”`}
-                        </span>
-                      )}
-                      <button type="button" className="link-button" onClick={() => setDismissing({ pair, labels })}>
-                        Not the same person
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div className="duplicate-pair__people">
-                  {people.map((person) => (
-                    <DuplicatePersonDetails key={person.personId} person={person} />
-                  ))}
-                </div>
-                <div className="duplicate-pair__actions">
-                  <Link className={buttonClass('primary')} to={mergePath(people[0]!.personId, people.slice(1).map((person) => person.personId))}>
-                    {user?.isAdmin ? 'Review a merge' : 'See what a merge would do'}
-                  </Link>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <h2>Recent merges</h2>
-      <RecordTable
-        rows={merges}
-        rowKey={(merge) => merge.personMergeId}
-        emptyMessage="No one has been merged yet."
-        columns={[
-          { header: 'Merged', rowHeader: true, render: (merge) => merge.retired.displayName },
-          { header: 'Into', render: (merge) => merge.kept.displayName },
-          {
-            header: 'By',
-            render: (merge) => (
-              <>
-                {merge.mergedBy}
-                <span className="cell-note">{formatDateTime(merge.mergedAt)}</span>
-                {merge.note && <span className="cell-note">{merge.note}</span>}
-              </>
+    <RecordTable
+      label="Recent merges"
+      rows={merges}
+      rowKey={(merge) => merge.personMergeId}
+      emptyMessage="No one has been merged yet."
+      columns={[
+        { header: 'Merged', rowHeader: true, render: (merge) => merge.retired.displayName },
+        { header: 'Into', render: (merge) => merge.kept.displayName },
+        {
+          header: 'By',
+          render: (merge) => (
+            <>
+              {merge.mergedBy}
+              <span className="cell-note">{formatDateTime(merge.mergedAt)}</span>
+              {merge.note && <span className="cell-note">{merge.note}</span>}
+            </>
+          ),
+        },
+        {
+          header: 'Undo',
+          hiddenHeader: true,
+          render: (merge) =>
+            merge.undoneAt ? (
+              <Tag tone="neutral">Undone {formatDate(merge.undoneAt.slice(0, 10))}</Tag>
+            ) : (
+              user?.isAdmin && (
+                <ConfirmButton
+                  compact
+                  label="Undo"
+                  prompt={`Undo merging ${merge.retired.displayName} into ${merge.kept.displayName}? Everything it moved goes back, except anything changed since.`}
+                  confirmLabel="Yes, undo"
+                  disabled={undoing}
+                  onConfirm={() => onUndo([merge.personMergeId])}
+                />
+              )
             ),
-          },
-          {
-            header: 'Undo',
-            hiddenHeader: true,
-            render: (merge) =>
-              merge.undoneAt ? (
-                <Tag tone="neutral">Undone {formatDate(merge.undoneAt.slice(0, 10))}</Tag>
-              ) : (
-                user?.isAdmin && (
-                  <ConfirmButton
-                    compact
-                    label="Undo"
-                    prompt={`Undo merging ${merge.retired.displayName} into ${merge.kept.displayName}? Everything it moved goes back, except anything changed since.`}
-                    confirmLabel="Yes, undo"
-                    disabled={undoing}
-                    onConfirm={() => void undo([merge.personMergeId])}
-                  />
-                )
-              ),
-          },
-        ]}
-      />
-
-      {flagging && (
-        <FlagDialog
-          onClose={onFlaggingDone}
-          onFlagged={() => {
-            onFlaggingDone();
-            setMessage({ tone: 'success', text: 'Flagged. They are listed here until someone merges them or marks them as different people.' });
-            setVersion((value) => value + 1);
-          }}
-        />
-      )}
-      {dismissing && (
-        <NotDuplicateDialog
-          what="person"
-          names={[dismissing.labels.get(dismissing.pair.personIds[0])!, dismissing.labels.get(dismissing.pair.personIds[1])!]}
-          save={(note) => reviewPossibleDuplicate({ personIds: dismissing.pair.personIds, outcome: 'not_duplicate', note })}
-          onClose={() => setDismissing(null)}
-          onDone={(text) => {
-            setDismissing(null);
-            setMessage({ tone: 'success', text });
-            setVersion((value) => value + 1);
-          }}
-        />
-      )}
-    </>
+        },
+      ]}
+    />
   );
 }
 
@@ -297,7 +131,7 @@ function PersonSearch({ id, label, onSelect }: { id: string; label: string; onSe
   );
 }
 
-function FlagDialog({ onClose, onFlagged }: { onClose: () => void; onFlagged: () => void }) {
+export function FlagPeopleDialog({ onClose, onFlagged }: { onClose: () => void; onFlagged: () => void }) {
   const [first, setFirst] = useState<PersonRecord>();
   const [second, setSecond] = useState<PersonRecord>();
   const [note, setNote] = useState('');
@@ -320,7 +154,7 @@ function FlagDialog({ onClose, onFlagged }: { onClose: () => void; onFlagged: ()
 
   return (
     <Dialog title="Flag two people as possibly the same" onClose={onClose} className="dialog--wide">
-      <p>They are listed here for an administrator to merge, or for anyone to mark as different people.</p>
+      <p>They are listed in Settings, under Merge duplicates, for an administrator to merge or for anyone to mark as different people.</p>
       <PersonSearch id="flag-first" label="One person" onSelect={setFirst} />
       <PersonSearch id="flag-second" label="The other" onSelect={setSecond} />
       {first && second && first.personId === second.personId && <p className="field-error">Choose two different people.</p>}

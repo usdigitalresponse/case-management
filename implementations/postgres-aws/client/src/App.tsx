@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, useLocation, useNavigate, useNavigation, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './AuthContext';
-import { MERGE_PEOPLE_PATH, searchPath } from './staffPaths';
+import { MERGE_PEOPLE_PATH, searchPath, duplicatesPath } from './staffPaths';
 import { RETIRED_INTAKE_PATH, NEW_INVOICE_PATH, STAFF_UPLOAD_PATH, UPLOAD_PATH } from './portal/useShell';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 import { Notice } from './components/ui/Notice';
@@ -130,13 +130,12 @@ function Sidebar({ showSettings }: { showSettings: boolean }) {
 }
 
 // Old staff /new-invoice links, ?case= included, open Intake.
-// Possible duplicates were once their own page; they are now tabs of People and All cases.
+// Possible duplicates were once their own page, then tabs of People and All cases; now in Settings (design K67).
 function PossibleDuplicatesRedirect() {
   const params = new URLSearchParams(useLocation().search);
-  const cases = params.get('show') === 'cases';
   params.delete('show');
-  params.set('tab', 'duplicates');
-  return <Navigate to={`${cases ? '/cases' : '/people'}?${params.toString()}`} replace />;
+  params.delete('tab');
+  return <Navigate to={duplicatesPath(Object.fromEntries(params))} replace />;
 }
 
 function OldMergeRedirect() {
