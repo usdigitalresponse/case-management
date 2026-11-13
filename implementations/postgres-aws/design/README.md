@@ -9,6 +9,13 @@ Name files by screen or topic in lowercase with hyphens, such as
 `invoices-to-review.png`, and keep a file's name when it changes so its
 history stays in one file.
 
+## What is here
+
+- [`screens/`](screens/README.md): one image per screen, with a list of what
+  each one shows and how to replace one.
+- [`design-system/`](design-system/README.md): the colors, spacing, type
+  styles and shadows as a tokens file that you can change and reuse.
+
 ## Cleaning before anything goes in
 
 Everything here is public in the repository, so check every image and every
