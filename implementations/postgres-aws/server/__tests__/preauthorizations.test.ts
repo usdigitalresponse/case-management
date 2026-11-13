@@ -366,11 +366,17 @@ describe('usage by county', () => {
       requests: { submitted: 1, approved: 1 },
       requested: '2400.00',
       approved: '1500.00',
+      authorized: '1500.00',
       billedWaiting: '1700.00',
       left: '1000.00',
       over: { providers: 1, amount: '200.00', unexplained: 0 },
       withinThreshold: { providers: 0 },
     });
+    const month = new Date().toISOString().slice(0, 7);
+    expect(usage.months).toHaveLength(12);
+    // Only the investigator's invoice is covered by a pre-authorization; nothing is signed off yet.
+    expect(usage.months.find((row) => row.month === month)).toEqual({ month, authorized: '1500.00', signedOff: '0.00', withInReview: '500.00' });
+    expect(usage.months.find((row) => row.month > month)?.authorized ?? null).toBeNull();
     await expect(preauthorizationUsageByCounty(testDb, investigator.userAccountId, { from: `${year}-01-01`, to: `${year}-12-31` })).rejects.toThrow(
       ForbiddenError,
     );

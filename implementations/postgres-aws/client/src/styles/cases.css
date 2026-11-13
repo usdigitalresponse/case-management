@@ -43,6 +43,25 @@
 .preauth-bar { display: flex; height: 8px; margin: var(--space-4) 0 var(--space-3); border-radius: var(--radius-small); background: var(--color-outline-subtle); overflow: hidden; }
 .preauth-bar__approved { width: var(--approved); background: var(--color-success); }
 .preauth-bar__waiting { width: var(--waiting); background: var(--color-primary); opacity: .45; }
+.usage-chart { margin-bottom: var(--space-8); padding: var(--space-8); }
+.usage-chart__header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-5); }
+.usage-chart__header h2 { margin: 0; font: var(--title-large); }
+.usage-chart .compact-hint { margin: var(--space-4) 0 0; }
+.usage-chart__key { display: flex; flex-wrap: wrap; gap: var(--space-6); margin: 0; padding: 0; list-style: none; font-size: var(--text-12); color: var(--color-on-surface-variant); }
+.usage-chart__key-item { display: inline-flex; align-items: center; gap: var(--space-3); }
+.usage-chart__key-item::before { content: ''; width: var(--mark-size); border-top: 2px solid var(--color-primary); }
+.usage-chart__key-item--signedOff::before { border-top-color: var(--color-success); }
+.usage-chart__key-item--withInReview::before { border-top: 2px dashed var(--color-success); }
+.usage-chart__plot { height: 240px; margin-top: var(--space-6); }
+.data-card .usage-table tr.usage-table__total > * { border-top: 2px solid var(--color-outline); font-weight: 600; }
+.usage-table__total .cell-note { font-weight: 400; }
+/* Headings and figures wrap only between words. */
+.data-card table.fixed-columns.usage-table th, .data-card table.fixed-columns.usage-table td { overflow-wrap: normal; }
+.usage-chart__plot .recharts-cartesian-grid line { stroke: var(--color-outline-subtle); }
+.usage-chart__plot .recharts-cartesian-axis-line { stroke: var(--color-outline); }
+.usage-chart__plot .recharts-cartesian-axis-tick-value { fill: var(--color-on-surface-variant); font-size: var(--text-11); }
+.usage-chart__line { color: var(--color-primary); }
+.usage-chart__line--signedOff, .usage-chart__line--withInReview { color: var(--color-success); }
 @media (max-width: 64rem) {
   .case-columns { grid-template-columns: 1fr; }
 }

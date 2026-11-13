@@ -17,6 +17,7 @@ import {
   county,
   caseIdentifier,
   invoice,
+  invoiceEvent,
   invoiceLine,
   invoiceStatuses,
   preauthorization,
@@ -586,7 +587,10 @@ async function seedDemoReview(
   ]);
   const preauthorized = assignments.slice(0, 4);
   const rates = await listRates(db, preauthorized.map((assignment) => assignment.professionalId));
+  // Granted through the year, so the By county running total climbs.
+  const grantedOn = ['2026-01-06', '2026-03-04', '2026-05-12', '2026-07-08'];
   for (const [index, assignment] of preauthorized.entries()) {
+    const granted = new Date(`${grantedOn[index]}T15:00:00Z`);
     // Pre-authorized at their configured rate.
     const configured = rates.filter((rate) => rate.professionalId === assignment.professionalId).at(-1)?.hourlyRate ?? '125.00';
     const approvedHourlyRate = index === 2 ? '125.00' : configured;
@@ -599,7 +603,7 @@ async function seedDemoReview(
           professionalId: assignment.professionalId,
           statusId: approvedStatusId,
           requestedAmount: '2500.00',
-          requestedAt: new Date('2026-01-05T15:00:00Z'),
+          requestedAt: new Date(granted.getTime() - 24 * 60 * 60 * 1000),
           authorizationNumber: `PA-${assignment.caseId.slice(0, 6).toUpperCase()}`,
         })
         .returning(),
@@ -611,10 +615,26 @@ async function seedDemoReview(
       outcomeId: approvedOutcomeId,
       approvedAmount: '2500.00',
       approvedHourlyRate,
-      effectiveAt: new Date('2026-01-06T15:00:00Z'),
-      decidedAt: new Date('2026-01-06T15:00:00Z'),
+      effectiveAt: granted,
+      decidedAt: granted,
       decidedByUserAccountId: fixtures.staffUserAccountId,
     });
+    if (index === 0) {
+      // Raised once, for a ceiling revision on the chart and case page.
+      const raised = new Date('2026-08-18T15:00:00Z');
+      // eslint-disable-next-line no-await-in-loop
+      await db.insert(preauthorizationDecision).values({
+        preauthorizationId,
+        sequenceNumber: 2,
+        outcomeId: approvedOutcomeId,
+        approvedAmount: '4000.00',
+        approvedHourlyRate,
+        effectiveAt: raised,
+        decidedAt: raised,
+        decidedByUserAccountId: fixtures.staffUserAccountId,
+        reason: 'Raised for a second round of interviews.',
+      });
+    }
   }
 
   // An imported-style invoice stating a rate above the investigator's
@@ -909,6 +929,70 @@ async function seedDemoPossibleDuplicate(staffUserAccountId: string, colleague: 
 
 // Destructive: deletes all application data, including accounts, then
 // recreates the synthetic demo data.
+// Signed-off invoices against the seeded pre-authorizations, backdated across the year so
+// Pre-authorizations › By county shows a running total of what was signed off.
+async function seedDemoPreauthorizedBilling(assignments: DemoAssignment[], staffUserAccountIds: string[]): Promise<void> {
+  const [firstReviewer, , director] = staffUserAccountIds as [string, string, string];
+  const rates = await listRates(db, assignments.slice(0, 4).map((assignment) => assignment.professionalId));
+  // [assignment, month of work, hours, signed off on], each within its ceiling with what already waits (3 has invoices waiting near its ceiling).
+  const billed: Array<[number, string, number[], string]> = [
+    [0, '2026-02', [3, 2.5], '2026-03-11'],
+    [0, '2026-04', [2, 1.5], '2026-05-14'],
+    [1, '2026-04', [2, 1], '2026-05-27'],
+    [0, '2026-06', [2], '2026-07-09'],
+    [1, '2026-07', [2.5], '2026-08-20'],
+    [2, '2026-08', [2.5, 2], '2026-09-17'],
+    [0, '2026-09', [3, 1.5], '2026-10-08'],
+    [2, '2026-09', [2], '2026-10-22'],
+  ];
+  // In order, so each invoice's events and sequence numbers are its own.
+  /* eslint-disable no-await-in-loop */
+  for (const [index, month, hours, signedOn] of billed) {
+    const assignment = assignments[index]!;
+    const actor = { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId };
+    const rate = Number(rates.filter((row) => row.professionalId === assignment.professionalId).at(-1)?.hourlyRate ?? '125.00');
+    const descriptions = DEMO_TIME_DESCRIPTIONS[DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!]!;
+    const { invoiceId } = await createInvoice(db, actor, {
+      caseId: assignment.caseId,
+      attested: true,
+      periodStart: `${month}-01`,
+      periodEnd: `${month}-28`,
+      lines: hours.map((quantity, line) => ({
+        lineType: 'time' as const,
+        serviceDate: `${month}-${String(6 + line * 9).padStart(2, '0')}`,
+        quantity,
+        unitRate: rate,
+        description: descriptions[line % descriptions.length]!,
+      })),
+    });
+    const lines = await db.select({ id: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
+    for (const { id } of lines) {
+        await reviewInvoiceLine(db, firstReviewer, invoiceId, id, { outcome: 'approved' });
+    }
+    await finishReview(db, firstReviewer, invoiceId);
+    await signOffInvoice(db, director, invoiceId, { outcome: 'approved' });
+    // Sent a few days into the next month; each later event a day after the one before, ending at sign-off.
+    const signedOff = new Date(`${signedOn}T16:00:00Z`);
+    const events = await db
+      .select({ id: invoiceEvent.invoiceEventId, sequenceNumber: invoiceEvent.sequenceNumber })
+      .from(invoiceEvent)
+      .where(eq(invoiceEvent.invoiceId, invoiceId));
+    const last = Math.max(...events.map((event) => event.sequenceNumber));
+    for (const event of events) {
+        await db
+        .update(invoiceEvent)
+        .set({ occurredAt: new Date(signedOff.getTime() - (last - event.sequenceNumber) * 24 * 60 * 60 * 1000) })
+        .where(eq(invoiceEvent.invoiceEventId, event.id));
+    }
+    const first = Math.min(...events.map((event) => event.sequenceNumber));
+    await db
+      .update(invoice)
+      .set({ submittedAt: new Date(signedOff.getTime() - (last - first) * 24 * 60 * 60 * 1000) })
+      .where(eq(invoice.invoiceId, invoiceId));
+  }
+  /* eslint-enable no-await-in-loop */
+}
+
 // A synthetic threshold and three requests: waiting for an answer, not needed, approved for less.
 async function seedDemoPreauthorizationRequests(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
@@ -1003,6 +1087,7 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
   await seedDemoInvoicesWithoutReviewer(fixtures, caseIds, professionals);
   await seedDemoReview(fixtures, caseIds, assignments, staffUserAccountIds);
   await seedDemoPreauthorizationRequests(fixtures, assignments, professionals);
+  await seedDemoPreauthorizedBilling(assignments, staffUserAccountIds);
   const [partner, colleague] = professionals;
   if (!partner || !colleague) {
     throw new Error('Expected two demo vendors for the uploads.');

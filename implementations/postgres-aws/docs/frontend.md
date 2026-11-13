@@ -200,11 +200,19 @@ How the React client is built and why. Schema mapping and gaps are in
       - Usage by county (`billing/preauthorizationUsage.ts`, the page's "By county" tab):
         requests received in the period by status and amount, then each provider's limit,
         billed and over on cases with a request or invoice in the period, by the case's
-        county, with a CSV download. Each count opens the filtered request list. Billed and
-        left are one "Used and left" column (design K55): the amount used, a bar of the share
-        used (approved in green, waiting in blue; `components/UsedBar.tsx`, shared with the
-        case page and hidden from screen readers), the share and what is left in words, and
-        what still waits for a decision.
+        county, with a CSV download. Each count opens the filtered request list; request counts
+        of zero beyond waiting and approved are left out, and the amounts asked for and
+        approved on the period's requests are noted under them. The columns follow design J's
+        mockup: Authorized (current pre-authorized ceilings), Signed off (with what is in
+        review), Used (a bar of the share signed off in green and in review in blue;
+        `components/UsedBar.tsx`, shared with the case page and hidden from screen readers,
+        with the shares in words) and Left, in whole dollars (the CSV keeps cents), with the
+        "All" row set off as a total and one note under the table. Above the table, a line chart
+        (`components/UsageRunningTotals.tsx`, Recharts, loaded only on this tab) shows each
+        month's end in the period: pre-authorized ceilings in force, the approved amount of
+        signed-off invoices they cover (by latest sign-off), and, for the current month only,
+        that plus invoices still in review. Lines take their colors from the design tokens
+        through CSS; past months use today's approved amounts, not those at the time.
     - **Search** (`/search`, `pages/SearchResults.tsx`, G24): the header search covers every
       sent invoice by name or case number, with exact and close matches listed and totalled
       apart, and an export to CSV. The queue no longer filters in place.
