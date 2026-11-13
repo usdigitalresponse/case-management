@@ -26,6 +26,7 @@ describe('an invoice whose file had no case number (design K69)', () => {
     expect(await screen.findByText('Sam Rivera’s file had no case number. Add it below. The tool then lists this invoice under that case.')).toBeTruthy();
     const box = screen.getByRole('textbox', { name: 'Case number' });
     fireEvent.change(box, { target: { value: 'CR-26-2000' } });
+    await waitFor(() => expect((box as HTMLInputElement).value).toBe('CR-26-2000'));
     fireEvent.blur(box);
 
     await waitFor(() => expect(onCorrected).toHaveBeenCalledWith('Case number CR-26-2000 added.'));

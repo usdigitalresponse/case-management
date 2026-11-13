@@ -443,12 +443,12 @@ const signOff: MissionDefinition = {
     {
       id: 'overview',
       role: 'director',
-      goal: 'Open “Case overview” to see where every case stands.',
+      goal: 'Open “Invoice overview” to see where every invoice is in review.',
       before: 'Status was kept in several separate logs, so no one saw the whole picture.',
-      now: 'Every case is shown by stage in one place, with the invoices waiting on it.',
-      path: () => '/overview',
-      target: { text: 'Case overview' },
-      done: { route: () => /^\/overview$/ },
+      now: 'Every invoice is shown by its step of review in one place, with what changed last.',
+      path: () => '/invoice-overview',
+      target: { text: 'Invoice overview' },
+      done: { route: () => /^\/invoice-overview$/ },
     },
     {
       id: 'export',

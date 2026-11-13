@@ -37,6 +37,7 @@ import { listReviewPeople } from '../billing/reviewAccess';
 import { allowedToSignOff, getReviewSettings } from '../billing/reviewSettings';
 import { shownRoleName } from '../auth/staffAccountRole';
 import { listReviewQueueBatch, openQueueCounts, QUEUE_SHOWS, QUEUE_SORTS } from '../billing/reviewQueueBatches';
+import { invoiceOverview, loadRecentInvoiceChanges } from '../billing/invoiceOverview';
 import { batchRequest } from '../lists/batches';
 import { caseNumberMatchesFor } from '../billing/caseNumberMatches';
 import { listRates, rateOn } from '../billing/professionalRates';
@@ -72,6 +73,15 @@ function uuidOrUndefined(value: unknown, name: string): string | undefined {
   if (typeof value === 'string' && z.uuid().safeParse(value).success) return value;
   throw new ValidationError({ [name]: 'That is not a valid id.' });
 }
+
+// Invoice overview (design K47): each step of review, and the latest changes.
+router.get(
+  '/overview',
+  asyncHandler(async (_req, res) => {
+    const [overview, changes] = await Promise.all([invoiceOverview(db), loadRecentInvoiceChanges(db)]);
+    res.json({ ...overview, changes });
+  }),
+);
 
 router.get(
   '/',

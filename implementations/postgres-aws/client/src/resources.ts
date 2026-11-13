@@ -49,6 +49,7 @@ import {
   listCases,
   getCaseCounts,
   getCaseOverview,
+  getInvoiceOverview,
   type CaseRequest,
   listCounties,
   listDecisionReasons,
@@ -91,6 +92,8 @@ export const cases = (query: CaseRequest) => batched({ key: ['cases', query], lo
 export const caseCounts = resource({ key: ['case-counts'], load: getCaseCounts });
 
 export const caseOverview = resource({ key: ['case-overview'], load: getCaseOverview });
+
+export const invoiceOverview = resource({ key: ['invoice-overview'], load: getInvoiceOverview });
 
 export const recentCaseChanges = resource({ key: ['recent-case-changes'], load: listRecentCaseChanges });
 
