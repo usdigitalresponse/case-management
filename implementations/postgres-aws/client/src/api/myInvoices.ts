@@ -370,9 +370,7 @@ export function getMyInvoice(invoiceId: string): Promise<PortalInvoice> {
 
 export type InvoiceExportFormat = 'pdf' | 'xlsx';
 
-// A plain link, not a fetch: the browser downloads the attachment with the
-// session cookie.
-// `omit` takes exportFieldKey values (exportChoices.ts).
+// A plain link: the browser downloads it with the session cookie. omit: exportFieldKey values (exportChoices.ts).
 export function invoiceExportUrl(scope: 'staff' | 'portal', invoiceId: string, format: InvoiceExportFormat, omit: string[] = []): string {
   const base = scope === 'staff' ? '/api/invoices' : '/api/portal/invoices';
   const query = new URLSearchParams({ format, ...(omit.length > 0 ? { omit: omit.join(',') } : {}) });

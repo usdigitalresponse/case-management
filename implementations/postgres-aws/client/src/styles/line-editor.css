@@ -62,9 +62,8 @@
 .line-editor input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .line-editor input[type="number"]::-webkit-inner-spin-button,
 .line-editor input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-/* Columns: kind, date, what was done, hours, rate, amount, remove. They
-   follow the editor's own width, not the window's: beside the original file
-   it is narrow, so "What was done" takes a line of its own. */
+/* Columns: kind, date, what was done, hours, rate, amount, remove. They follow the editor's width, not
+   the window's, so beside the file "What was done" takes a line of its own. */
 /* Invoice line editor, styled like the staff review table. */
 .line-editor { padding: 0 var(--space-6) var(--space-4); container-type: inline-size; }
 .line-editor .line-row,

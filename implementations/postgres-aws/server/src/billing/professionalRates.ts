@@ -1,7 +1,5 @@
-// Hourly rates by professional kind (model/rules.yaml apply_professional_rates),
-// and a person's own approved rates, which replace their kind's from when
-// they take effect. Rates are only added: the rate on a date is the latest
-// effective on or before it.
+// Hourly rates by kind (model/rules.yaml apply_professional_rates) and a person's own, which replace their
+// kind's from when they take effect. Only added: the rate on a date is the latest effective by then.
 import { z } from 'zod';
 import { and, asc, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';

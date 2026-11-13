@@ -186,9 +186,8 @@ const LIST_LABELS: Record<ReasonAppliesTo, string> = {
 };
 const LIST_OPTIONS = (Object.keys(LIST_LABELS) as ReasonAppliesTo[]).map((value) => ({ value, label: LIST_LABELS[value] }));
 
-// The reasons reviewers choose from when they approve part of a line, reject
-// it or set a case's default rate. Administrators keep the lists current
-// without a code release; a retired reason stays where it was used.
+// The reasons reviewers choose when approving part of a line, rejecting it or setting a case rate;
+// a retired reason stays where it was used.
 export function DecisionReasonSettings({ isAdmin }: { isAdmin: boolean }) {
   const [version, setVersion] = useState(0);
   const { data, error } = useResource(decisionReasonSettings, { resetKey: version });
@@ -336,9 +335,8 @@ function AddStaff({ roles, onAdded, onCancel }: { roles: StaffRolesResponse['rol
   );
 }
 
-// Accounts are created on first sign-in from an allowed domain, or added
-// here first. Administrators change roles and deactivate accounts here; every
-// change is kept in the audit history.
+// Accounts are created on first sign-in from an allowed domain, or added here first; role changes and
+// deactivations are audited.
 export function StaffRoleSettings() {
   const { user } = useAuth();
   const [version, setVersion] = useState(0);

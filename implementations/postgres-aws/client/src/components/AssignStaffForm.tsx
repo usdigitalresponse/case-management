@@ -11,9 +11,7 @@ export function AssignStaffForm({ caseId, onAssigned }: { caseId: string; onAssi
   const [selectedStaff, setSelectedStaff] = useState<StaffAccount | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Bumped after a successful assignment to remount TypeAheadPicker,
-  // clearing its typed text and selection — simpler than threading a ref
-  // through it just to clear it.
+  // Bumped after assigning, to remount TypeAheadPicker and clear it.
   const [resetKey, setResetKey] = useState(0);
 
   async function handleAssign() {

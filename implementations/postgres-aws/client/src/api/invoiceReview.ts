@@ -182,9 +182,7 @@ export function getInvoiceForReview(invoiceId: string): Promise<InvoiceReview> {
   return request(`/api/invoices/${invoiceId}`);
 }
 
-// The file a request was read from, for staff viewing it beside the lines.
-// Staff read it through /api/invoices; anyone who may read the invoice in
-// the portal through /api/portal/invoices.
+// The file a request was read from, shown beside its lines: staff read it through /api/invoices, others the portal's.
 export function getInvoiceFilePreview(invoiceId: string, portal = false): Promise<ImportPreview> {
   return request<ImportPreview>(`${invoiceFileUrl(invoiceId, portal)}/preview`);
 }

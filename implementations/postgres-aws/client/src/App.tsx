@@ -24,7 +24,6 @@ import { TourChrome } from './tour/GuidePanel';
 // by case and client, stays here.
 const ALTERNATE_HOME_PATH = '/home-alternate';
 
-// Only in StaffShell; the signed-out screen is LoginPage's.
 function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () => void }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -90,7 +89,7 @@ function Sidebar({ showSettings }: { showSettings: boolean }) {
             <span aria-hidden="true">+</span> Upload invoices
           </NavLink>
         </div>
-        {/* Case overview, Intake, other person records and /home-alternate still work by address. */}
+        {/* Case overview, other person records and /home-alternate still work by address. */}
         <div className="nav-group">
           <h2>Invoices</h2>
           <NavLink to="/invoice-overview" end>Invoice overview</NavLink>
@@ -108,7 +107,7 @@ function Sidebar({ showSettings }: { showSettings: boolean }) {
           <NavLink to="/cases" end>
             All cases{counts?.openCases != null && <span className="nav-count">{counts.openCases}</span>}
           </NavLink>
-          {/* Everyone who bills (design K30); /vendors still works by address until Settings has providers. */}
+          {/* Everyone who bills (design K30). */}
           <NavLink to="/people">Providers</NavLink>
           <NavLink to="/clients" end>Clients</NavLink>
           <NavLink to="/organizations" end>Organizations</NavLink>
@@ -129,8 +128,7 @@ function Sidebar({ showSettings }: { showSettings: boolean }) {
   );
 }
 
-// Old staff /new-invoice links, ?case= included, open Intake.
-// Possible duplicates were once their own page, then tabs of People and All cases; now in Settings (design K67).
+// Possible duplicates' old addresses, now in Settings (design K67).
 function PossibleDuplicatesRedirect() {
   const params = new URLSearchParams(useLocation().search);
   params.delete('show');

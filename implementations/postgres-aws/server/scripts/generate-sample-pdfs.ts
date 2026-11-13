@@ -595,14 +595,9 @@ async function marked(sample: Sample): Promise<Buffer> {
   return done;
 }
 
-// An image-only copy of a PDF, as a scanner would produce: each page
-// rendered at 200 DPI, turned slightly and saved as JPEG, with no text layer.
-// With hiddenText, the original text is laid invisibly over each image, as
-// scanners that make "searchable" PDFs do.
-// With turns, a page is scanned turned that many degrees clockwise, as a
-// sheet fed sideways or upside down comes out.
-// With cover, a typed page is put in front, as a cover form filled in on a
-// computer and sent with a scanned invoice.
+// An image-only copy of a PDF, as a scanner makes: each page at 200 DPI, turned slightly, as JPEG.
+// hiddenText lays the text invisibly over each image ("searchable" scans); turns rotates a page that many
+// degrees clockwise; cover puts a typed cover page in front.
 async function scanned(
   pdf: Buffer,
   { hiddenText = false, turns = {} as Record<number, 90 | 180 | 270>, cover = undefined as ((doc: PDFKit.PDFDocument) => void) | undefined } = {},

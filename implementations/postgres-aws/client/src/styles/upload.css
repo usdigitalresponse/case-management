@@ -1,5 +1,5 @@
 /* Uploading and Intake: steps, drop zone, files and bulk import. */
-/* Upload (portal/PortalUpload.tsx). */
+/* Upload (pages/UploadInvoices.tsx). */
 .upload-card { display: flex; flex-direction: column; gap: var(--space-7); padding: var(--space-8); }
 .upload-card__intro, .upload-card__heading { margin: 0; font-size: var(--text-15); }
 .upload-card__heading { font-weight: 600; overflow-wrap: anywhere; }

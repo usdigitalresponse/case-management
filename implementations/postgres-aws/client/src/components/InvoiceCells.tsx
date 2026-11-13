@@ -74,9 +74,7 @@ export function FlagNotes({ invoice }: { invoice: ReviewQueueItem }) {
   );
 }
 
-// Questions to the submitter while the round isn't finished: unanswered ones
-// hold review, answered ones are back with the reviewer.
-// The row's live state: still being entered, and questions waiting or answered.
+// The row's live state: still being entered, and questions waiting (holding review) or answered.
 export function QuestionChips({ invoice }: { invoice: ReviewQueueItem }) {
   const { openQuestionCount: open, answeredQuestionCount: answered, beingEntered } = invoice;
   if (open === 0 && answered === 0 && !beingEntered) {
@@ -91,8 +89,7 @@ export function QuestionChips({ invoice }: { invoice: ReviewQueueItem }) {
   );
 }
 
-// The row's link to the invoice, last in the row.
-// "Open" on every row (design K), named in full for screen readers.
+// "Open", last on every row (design K), named in full for screen readers.
 export function openInvoiceColumn(): RecordTableColumn<ReviewQueueItem> {
   return {
     header: 'Open',

@@ -1,6 +1,5 @@
-// A sender's draft and its case: only one started from their case is under it;
-// otherwise the billing office adds the number or case in review (design K).
-// And their case list.
+// A sender's draft is under a case only if started from it; otherwise the billing office adds the number or
+// case in review (design K). And their case list.
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';

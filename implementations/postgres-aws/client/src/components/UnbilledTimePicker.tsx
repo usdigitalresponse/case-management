@@ -20,9 +20,8 @@ function isUntouched(line: LineDraft): boolean {
   return !line.sourceTimeEntryId && !line.serviceDate && !line.description && !line.quantity && !line.amount;
 }
 
-// Recorded time not on any invoice, ticked to bill it. Ticking adds a linked
-// time item to `lines`; unticking removes it (model/rules.yaml
-// validate_payment_request).
+// Recorded time not on any invoice: ticking adds a linked time item to `lines`, unticking removes it
+// (model/rules.yaml validate_payment_request).
 export function UnbilledTimePicker({
   idPrefix,
   entries,

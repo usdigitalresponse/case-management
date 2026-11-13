@@ -1,9 +1,6 @@
-// Driving distances for the mileage distance rule (model/rules.yaml
-// apply_billing_rules). Looked up only when an invoice is submitted with the
-// rule on and cached by address pair, so the routing service's cost stays
-// low; each month's calls are counted for a warning and an optional limit.
-// With no provider configured nothing is looked up, and reviewers check
-// trips with a directions link instead.
+// Driving distances for the mileage rule (model/rules.yaml apply_billing_rules), billed per request: looked up
+// only on submission with the rule on, cached by address pair, and counted monthly for a warning and optional
+// limit. With no provider, reviewers use a directions link instead.
 import { GeoPlacesClient, GeocodeCommand } from '@aws-sdk/client-geo-places';
 import { CalculateRoutesCommand, GeoRoutesClient } from '@aws-sdk/client-geo-routes';
 import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm';

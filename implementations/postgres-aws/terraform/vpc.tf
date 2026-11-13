@@ -1,7 +1,5 @@
-# Two public subnets (ALB) + two private subnets (ECS tasks, RDS) across
-# two AZs. A single NAT gateway (not one per AZ) for private-subnet egress
-# — cheaper, but a single point of failure; fine for a sandbox environment,
-# documented as a gap for anything more than that (see MAPPING.md).
+# Public subnets (ALB) and private ones (ECS, RDS) in two AZs, with one NAT gateway: cheaper, but a single
+# point of failure (MAPPING.md).
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true

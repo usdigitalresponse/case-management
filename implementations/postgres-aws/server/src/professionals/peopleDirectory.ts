@@ -1,6 +1,4 @@
-// Everyone who can send invoices, with who is paid, today's approved rates and
-// what is waiting. Staff accounts' own profiles are left out, as in
-// ../routes/professionals.ts.
+// Everyone who can send invoices, but staff's own profiles, with who is paid, today's rates and what is waiting.
 import { and, count, eq, inArray, isNull, max, notInArray, or, sql, sum, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import type { DatabaseOrTransaction } from '../db/client';

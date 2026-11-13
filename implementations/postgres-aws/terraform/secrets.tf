@@ -3,11 +3,8 @@ resource "random_password" "session_secret" {
   special = false
 }
 
-# Google OAuth credentials start empty (Terraform can't know them). Since
-# NODE_ENV=production also disables /auth/demo-login (unless
-# DEMO_LOGIN_ENABLED=true), nothing can log in until someone fills these in
-# (`aws secretsmanager put-secret-value`) and restarts the service — see
-# MAPPING.md.
+# OAuth credentials start empty; with demo sign-in off in production, nobody can sign in until they are put in
+# (`aws secretsmanager put-secret-value`) and the service restarted (MAPPING.md).
 resource "aws_secretsmanager_secret" "app" {
   name = "${local.name_prefix}-app"
 }
@@ -21,8 +18,7 @@ resource "aws_secretsmanager_secret_version" "app" {
   })
 
   lifecycle {
-    # Preserve values filled in manually after apply (see comment above) —
-    # Terraform shouldn't blank them out on a later apply.
+    # Keeps values filled in after apply.
     ignore_changes = [secret_string]
   }
 }

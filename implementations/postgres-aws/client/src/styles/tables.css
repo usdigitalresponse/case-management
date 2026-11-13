@@ -16,15 +16,10 @@
 .usa-table--borderless th[aria-sort] { color:var(--color-on-surface); }
 .usa-table--borderless tbody th[scope=row] { border-top:1px solid var(--color-outline-subtle); }
 .usa-table--borderless th, .usa-table--borderless td { border-left:0; border-right:0; }
-/* The single place a table gets its box: rounded/clipped corners, full
-   width, and horizontal scroll on overflow. */
+/* The one place a table gets its box: rounded corners, full width, horizontal scroll on overflow. */
 .data-card { overflow-x: auto; overflow-y: hidden; }
 .data-card .usa-table { margin: 0; width: 100%; }
-/* USWDS's base .usa-table styles every cell with a 1px var(--color-on-surface) border and
-   every <th> (including a tbody row header) with a gray background — the
-   harsh grid and stray-shaded-column look. We own this card's table
-   chrome entirely instead: no per-cell borders, a single row divider,
-   header styling applied only where we actually want it. */
+/* In place of USWDS's cell borders and shaded <th>: one divider between rows. */
 .data-card table td, .data-card table th { padding: calc(var(--space-5) + var(--space-2)) var(--space-7); line-height: 1.4; border: none; border-bottom: 1px solid var(--color-outline-subtle); background: transparent; }
 .data-card table tbody tr:last-child td, .data-card table tbody tr:last-child th { border-bottom: none; }
 /* Table headers: Title/Small. */

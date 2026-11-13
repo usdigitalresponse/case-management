@@ -66,9 +66,8 @@ export async function entryIsOpen(db: DatabaseOrTransaction, invoiceId: string):
   return Boolean((await currentEntry(db, invoiceId))?.open);
 }
 
-// A reviewing staff member's new draft, filed under the person it is from,
-// goes straight to their review. Called in the transaction that makes the
-// draft, so an upload is either in review or not made at all.
+// A reviewer's new draft goes straight to their review, in the transaction that makes it, so an upload is
+// either in review or not made at all.
 export async function enterInReviewInTx(tx: Transaction, actorUserAccountId: string, invoiceId: string): Promise<void> {
   await requireReviewPermission(tx, actorUserAccountId, 'reviewLines');
   const [locked] = await tx.select().from(invoice).where(eq(invoice.invoiceId, invoiceId)).for('update');
@@ -225,9 +224,8 @@ function parseLinesVersion(rawInput: unknown): number {
   return version.data.linesVersion;
 }
 
-// Saves every line, as a draft save does, if the page saving them had the
-// latest (linesVersion). Returns the lines whose decision was undone because
-// they changed, and the new version.
+// Saves every line if the page had the latest linesVersion; returns the new version and the lines whose
+// decision was undone because they changed.
 export async function saveEnteredLines(db: Database, actorUserAccountId: string, invoiceId: string, rawInput: unknown) {
   const content = parseDraftContent(rawInput);
   const linesVersion = parseLinesVersion(rawInput);
@@ -375,10 +373,8 @@ export class DecisionsUndoneError extends ConflictError {
   }
 }
 
-// Before finishing an entry read from a file, its reviewer confirms the
-// file's values, which may reprice lines and fill in who did the work, as
-// confirming a draft does. Committed on its own: a decided line that changed
-// is undecided again, and finishing is refused until it is decided anew.
+// Before finishing an entry read from a file, its reviewer confirms the file's values, as for a draft. Committed
+// on its own: a decided line that changed is undecided, and finishing waits until it is decided anew.
 export async function confirmEnteredImport(db: Database, store: DocumentStore, actorUserAccountId: string, invoiceId: string) {
   if (!z.uuid().safeParse(invoiceId).success || !(await entryIsOpen(db, invoiceId))) return;
   const { storageReference, undone } = await db.transaction(async (tx) => {

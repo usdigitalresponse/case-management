@@ -1,7 +1,5 @@
-// Entering an invoice's lines beside its file, on the check page and on an
-// invoice entered in review. Saves go one at a time, each the whole set of
-// lines; on a failure the page goes back to the last set the server holds,
-// keeping changes made in place.
+// Entering lines beside the file, on the check page and in review. Saves go one at a time, each the whole
+// set; a failure goes back to the last set the server holds, keeping changes made in place.
 import { billableProfessionals } from '../resources';
 import { useResource } from '../hooks/useResource';
 import { useEffect, useMemo, useRef, useState } from 'react';

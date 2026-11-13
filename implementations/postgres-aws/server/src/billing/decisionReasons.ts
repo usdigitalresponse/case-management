@@ -5,10 +5,8 @@ import type { DatabaseOrTransaction } from '../db/client';
 import { invoiceDecisionReasons } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 
-// Starting reasons for approving a line in part or rejecting it
-// (model/rules.yaml decide_invoice_lines), and for setting a case rate
-// (set_case_rate). Configurable reference data: administrators add, rename
-// and retire them in Settings. "Other" is on every list.
+// Starting reasons for approving in part, rejecting (model/rules.yaml decide_invoice_lines) and setting a case
+// rate (set_case_rate); administrators change them in Settings. "Other" is on every list.
 export const RATE_REASON_CODE = 'rate_above_configured';
 export const OTHER_REASON_CODE = 'other';
 

@@ -176,9 +176,7 @@ function PreauthorizedAmount({ caseId, people, onSaved }: {
   );
 }
 
-// The case as this tool sees it: mostly read-only, since cases may be
-// managed in an external system. Invoices on the case and who may submit
-// them are what matter here.
+// Mostly read-only, since cases belong to the external system: its invoices and who may submit them.
 export default function CaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
   const { user } = useAuth();

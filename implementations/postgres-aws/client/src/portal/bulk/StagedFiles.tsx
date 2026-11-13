@@ -48,8 +48,7 @@ export function StagedFiles({
     setStaged((current) => current.map((row) => (row.key === key ? { ...row, ...changes } : row)));
   }
 
-  // One at a time, so each file's result is clear. A one-person file is
-  // only read here, on the server in the background; its drafts are made
+  // One at a time, so each file's result is clear. A one-person file is only read here; its drafts are made
   // once its lines have cases.
   async function uploadAll(event: FormEvent) {
     event.preventDefault();

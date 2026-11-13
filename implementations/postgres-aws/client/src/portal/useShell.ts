@@ -1,9 +1,8 @@
 import { useAuth } from '../AuthContext';
 import { reviewPath } from '../staffPaths';
 
-// The new-invoice and import pages serve both apps: external submitters, and
-// staff entering invoices received outside the system (model/rules.yaml
-// authorize_staff_invoice_entry). Only these links differ between them.
+// The upload, check and import pages serve external submitters and staff entering invoices received
+// elsewhere (model/rules.yaml authorize_staff_invoice_entry); only these links differ between them.
 export const NEW_INVOICE_PATH = '/new-invoice';
 // External submitters start on their invoices and add new ones by upload.
 export const PORTAL_HOME_PATH = '/portal/invoices';

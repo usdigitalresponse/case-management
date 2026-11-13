@@ -1,9 +1,5 @@
-// The user_account-context roles marking a full (SSO) user as staff,
-// distinguishing them from an external vendor's user_account (created by
-// the email-code flow, ../routes/auth.ts, which never sets one). Needed
-// so ../routes/staff.ts can search "who is staff" without inferring it
-// from the presence/absence of a professional row. reviewPermissions maps
-// each role to review actions (model/rules.yaml authorize_invoice_review).
+// The account roles that make an SSO user staff; external accounts never have one. reviewPermissions maps
+// each to review actions (model/rules.yaml authorize_invoice_review).
 import { z } from 'zod';
 import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
@@ -133,9 +129,8 @@ const addStaffSchema = z.object({
   roleId: z.uuid('Choose a role.'),
 });
 
-// An administrator adds a staff account before its first sign-in. Sign-in
-// still requires an allowed email domain; when they sign in with this
-// email, they get this account and role (./userAccounts.ts).
+// An administrator adds a staff account before its first sign-in; signing in with this email from an
+// allowed domain gives them this account and role.
 export async function addStaffAccount(db: Database, adminUserAccountId: string, rawInput: unknown) {
   const parsed = addStaffSchema.safeParse(rawInput);
   if (!parsed.success) {
@@ -164,9 +159,8 @@ export async function addStaffAccount(db: Database, adminUserAccountId: string, 
   });
 }
 
-// An administrator deactivates a staff account, or restores it. A
-// deactivated account can't sign in or act, and keeps its history. No one
-// deactivates themselves.
+// An administrator deactivates another staff account, which can't sign in or act but keeps its history, or
+// restores it.
 export async function setStaffActive(db: Database, adminUserAccountId: string, userAccountId: string, rawInput: unknown) {
   const parsed = z.object({ active: z.boolean() }).safeParse(rawInput);
   if (!parsed.success || !z.uuid().safeParse(userAccountId).success) {

@@ -37,8 +37,7 @@ afterAll(async () => {
 
 const asStaff = async (role: 'staff' | 'admin') => signIn(server, '/auth/demo-login', await createStaff(role));
 
-// The partner demo sign-in takes only demo-vendor addresses.
-// An external account whose person may sign in.
+// An external account whose person may sign in; the external demo sign-in takes only demo-vendor addresses.
 async function createExternalAccount() {
   const email = `demo-vendor-${randomUUID()}@example.invalid`;
   const [signedIn] = await testDb.insert(person).values({ displayName: email, email, externalSignInEnabled: true }).returning();

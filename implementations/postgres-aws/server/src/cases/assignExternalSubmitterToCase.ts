@@ -1,7 +1,5 @@
-// Assigns an external (email-code) professional to a case with the fixed
-// "External Submitter" role — the counterpart to ./assignStaffToCase.ts.
-// No role choice or qualification/workload checks (see
-// ../professionals/externalSubmitterRole.ts and ../../docs/api.md "Case assignment, two workflows").
+// Assigns an external professional to a case with the fixed "External Submitter" role, with no role choice or
+// qualification checks (../../docs/api.md "Case assignment, two workflows").
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';

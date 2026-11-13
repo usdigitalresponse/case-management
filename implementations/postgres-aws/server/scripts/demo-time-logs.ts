@@ -1,9 +1,6 @@
-// Writes time logs, as an external case management system exports one case's
-// time, for cross-checking the demo seed's invoices on the review page. Each
-// log is checked against the seeded lines it targets, so a changed seed fails
-// here rather than producing logs that no longer test what they say.
-// Read-only against the database; the files go to ../demo-invoices/time-logs/
-// (gitignored), since they name the seed's Faker people.
+// Writes case time logs, as the external system exports them, for checking the demo seed's invoices in review.
+// Each is checked against the seeded lines it targets, so a changed seed fails here. Read-only against the
+// database; the files name the seed's Faker people, so go to the gitignored ../demo-invoices/time-logs/.
 import 'dotenv/config';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

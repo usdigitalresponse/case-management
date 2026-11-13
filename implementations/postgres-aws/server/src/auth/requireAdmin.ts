@@ -1,6 +1,4 @@
-// Gates settings to full users holding the Administrator system role
-// (./staffAccountRole.ts). Read from the database on each request, unlike
-// the session's identity, so granting or removing the role applies at once.
+// Gates settings to staff with the Administrator role, read on each request so a change applies at once.
 import type { NextFunction, Request, Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { db, type DatabaseOrTransaction } from '../db/client';

@@ -1,8 +1,6 @@
-// The guided tour's missions as data (docs/frontend.md "Guided tour"). A
-// step is done when the app reaches its state — a page, or a change the
-// visitor made — never by pressing Next, except steps that only ask the
-// visitor to look. "Before" lines restate, in generic terms, problems that
-// research named as must-haves; nothing here comes from the research itself.
+// The guided tour's missions (docs/frontend.md "Guided tour"). A step is done when the app reaches its state,
+// a page or a change the visitor made, never by Next unless it only asks them to look. "Before" lines restate
+// research's must-have problems in generic terms only.
 import type { TourMission, TourRole, TourRun, TourSuggestions } from '../api/client';
 
 export interface TourContextValues {

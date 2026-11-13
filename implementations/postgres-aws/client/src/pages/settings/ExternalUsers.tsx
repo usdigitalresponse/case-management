@@ -1,5 +1,4 @@
-// Office billing staff: external users who send invoices for an office's
-// providers sign in with an emailed code only once an administrator turns it
+// Office billing staff, external users who send for an office's providers, may sign in only once turned
 // on here; providers' own sign-in is in ./ProvidersSettings.tsx (design K51).
 import { useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router';

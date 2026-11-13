@@ -6,9 +6,7 @@ import { DeleteInvoiceButton } from '../components/DeleteInvoiceButton';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
-// A submitter's invoices: on Your invoices (every case) and a case's page
-// (one case, so no client column). Widths are shared, so tables repeated on
-// a page line up.
+// A submitter's invoices, on Your invoices and (without the client column) a case's page.
 export function MyInvoicesTable({
   rows,
   label,

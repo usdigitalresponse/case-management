@@ -33,9 +33,7 @@ import { asyncHandler } from './asyncHandler';
 import { ValidationError } from '../errors';
 
 const router = Router();
-// Full staff access only: external (email-code) users get their own
-// narrower endpoints (GET /api/my-cases, POST .../external-assignments
-// only via a full user) rather than this general case list/detail API.
+// Staff only; external users have their own routes.
 router.use(requireFullUser);
 
 // Cases are added only through a request's case step (../cases/caseStep.ts), never here.
@@ -122,8 +120,6 @@ router.get(
 router.get(
   '/:id',
   asyncHandler(async (req, res) => {
-    // Express guarantees `id` is present for a matched `:id` route;
-    // noUncheckedIndexedAccess just can't see that.
     const caseId = req.params.id as string;
     const [caseRow] = await db
       .select(caseColumnsWithClientName)
@@ -197,9 +193,7 @@ router.get(
   }),
 );
 
-// The two assignment workflows (../cases/assignExternalSubmitterToCase.ts,
-// ../cases/assignStaffToCase.ts), both built on
-// ../cases/assignProfessionalToCase.ts.
+// The two assignment workflows, external and staff.
 router.post(
   '/:id/external-assignments',
   asyncHandler(async (req, res) => {
@@ -226,8 +220,6 @@ router.post(
   }),
 );
 
-// Closes a case — ends every open assignment and records the closing
-// lifecycle event atomically (../cases/closeCase.ts).
 router.post(
   '/:id/close',
   asyncHandler(async (req, res) => {
@@ -243,9 +235,7 @@ router.post(
   }),
 );
 
-// The case's submitted invoices, with who has each and what was approved,
-// and its pre-authorizations, case rates and invoice reviewer. Review itself
-// happens on the invoice page (../routes/invoices.ts).
+// The case's pre-authorizations, case rates and invoice reviewer.
 router.get(
   '/:id/invoices',
   asyncHandler(async (req, res) => {

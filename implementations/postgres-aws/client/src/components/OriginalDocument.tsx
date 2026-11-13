@@ -46,10 +46,8 @@ function parseLocation(location: string | undefined): { page?: number; row?: num
   return { page: page ? Number(page) : undefined, row: row && !page ? Number(row) : undefined };
 }
 
-// The uploaded file beside its lines: PDF pages, text or a table. `focus`
-// is the location of the line in view: outlined where `regions` has it,
-// otherwise its page or spreadsheet row is shown. A new `{ location }`
-// object shows it again, for a link clicked twice.
+// The uploaded file beside its lines. `focus`, the line in view, is outlined where `regions` has it,
+// else its page or row is shown; a new `{ location }` object shows it again.
 export function OriginalDocument({
   fileName,
   heading = 'Original file',

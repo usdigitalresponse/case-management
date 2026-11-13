@@ -39,7 +39,7 @@ export function Steps({ reviewing = false }: { reviewing?: boolean }) {
   );
 }
 
-// Files dropped elsewhere (Intake), or manual entry, to start with.
+// Files dropped elsewhere, or manual entry, to start with.
 export interface UploadStart {
   files?: File[];
   manual?: boolean;

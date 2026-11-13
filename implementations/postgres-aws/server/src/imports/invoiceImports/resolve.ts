@@ -21,12 +21,8 @@ import { InvoiceImportNotFoundError, UNRESOLVED_STATUS_CODES, importStatusId } f
 
 export const IMPORT_EXPIRY_MS = 3 * 24 * 60 * 60 * 1000;
 
-// The background queue lives in the server process, so imports still
-// received at startup were interrupted; they fail with a reason to upload
-// again.
-// Deletes stored files no live document refers to: left by a crash between
-// storing an upload and recording it, or by case-split reads a restart
-// forgot. `keep` holds files still in use without a document yet.
+// Deletes stored files no live document refers to, left by a crash or by case-split reads a restart forgot.
+// `keep` holds files in use without a document yet.
 export async function removeUnreferencedFiles(db: Database, store: DocumentStore, keep: Set<string> = new Set()): Promise<number> {
   const stored = (await store.list()).filter((reference) => !keep.has(reference));
   if (stored.length === 0) {
@@ -210,10 +206,8 @@ export async function discardInvoiceImport(db: Database, store: DocumentStore, a
 export const expiryOf = (row: { statusCode: string; uploadedAt: Date }) =>
   row.statusCode === 'failed' ? new Date(row.uploadedAt.getTime() + IMPORT_EXPIRY_MS) : null;
 
-// Discards files that couldn't be read three days after upload, as a system
-// action, and retries recent file deletions that may not have completed. A
-// file that was read is a draft, kept until its submitter sends, discards
-// or deletes it.
+// Discards files that couldn't be read three days after upload, as a system action, and retries recent file
+// deletions. A file that was read is a draft, which never expires.
 export async function expireInvoiceImports(db: Database, store: DocumentStore, now: Date = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - IMPORT_EXPIRY_MS);
   const failedStatusId = await importStatusId(db, 'failed');

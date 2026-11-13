@@ -1,7 +1,5 @@
-// Staff add someone who hasn't signed in (model/rules.yaml
-// add_professional_without_login); signing in later with the same email
-// links them (./ensureProfessional.ts). Probable duplicates are refused,
-// never merged.
+// Staff add someone who hasn't signed in (model/rules.yaml add_professional_without_login), linked if they sign
+// in with the same email; probable duplicates are refused, never merged.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';

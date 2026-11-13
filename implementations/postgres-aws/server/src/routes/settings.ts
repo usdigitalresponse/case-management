@@ -1,7 +1,4 @@
-// Administrator settings: professional kinds and their rates, mileage rates
-// and travel and waiting time rates, billing rules with their codes, review routing, staff roles, external users' sign-in and, on demo
-// servers, demo tools. Staff can read most of them; only administrators
-// change them, except their own role in the demo tools.
+// Settings: staff read most; only administrators change them, except their own role in the demo tools.
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { db } from '../db/client';
 import { getSessionUser, requireFullUser } from '../auth/session';
@@ -162,9 +159,7 @@ router.put(
   }),
 );
 
-// Who uses this tool and in which role. Accounts are created on first
-// sign-in from an allowed domain, or added here first; administrators
-// change roles and deactivate accounts here.
+// Staff accounts and their roles.
 router.get(
   '/staff-roles',
   requireAdmin,

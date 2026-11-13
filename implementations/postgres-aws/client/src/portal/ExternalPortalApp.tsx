@@ -1,9 +1,4 @@
-// Shell for external (email-code) users: one top bar with tabs for their
-// invoices, their cases and importing, no sidebar, opening on their invoices.
-// The older manual-entry form and bulk import stay reachable by address but
-// out of view.
-// See ../AuthContext.tsx and ../../docs/api.md "Case assignment, two
-// workflows".
+// External users' shell: a top bar with their tabs and no sidebar, opening on their invoices.
 import { Link, Navigate, Outlet, useNavigation, type RouteObject } from 'react-router';
 import type { portalLoaders } from '../routeLoaders';
 import { Notice } from '../components/ui/Notice';

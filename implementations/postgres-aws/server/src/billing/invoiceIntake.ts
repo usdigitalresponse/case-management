@@ -1,9 +1,6 @@
-// Invoice intake: invoices staff entered or imported before their case was
-// known, and those submitters sent for matching (model/rules.yaml
-// match_invoice_to_case). Any staff member may match one to a case, choosing
-// whom it bills and who did the work where that wasn't known, and adding its
-// providers to the case if they aren't on it; or a staff submitter may send
-// theirs to review without a case.
+// Invoice intake (model/rules.yaml match_invoice_to_case): invoices entered before their case was known, or sent
+// for matching. Staff match one to a case, choosing whom it bills and who did the work where unknown and adding
+// its providers to the case, or send their own to review without a case.
 import { z } from 'zod';
 import { and, eq, inArray, isNull, min, or } from 'drizzle-orm';
 import type { Database } from '../db/client';

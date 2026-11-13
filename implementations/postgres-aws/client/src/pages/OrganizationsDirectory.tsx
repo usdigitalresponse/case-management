@@ -7,10 +7,7 @@ import { RecordTable } from '../components/RecordTable';
 import { Notice } from '../components/ui/Notice';
 import { useSearchParamText } from '../hooks/useSearchParamState';
 
-// Organizations are already loaded whole for the New Case form's
-// reference data (../api/client.ts's getReferenceData) — a small enough
-// table that filtering client-side, like CaseList's text filter, beats a
-// round trip per keystroke.
+// Organizations come whole with the reference data, few enough to filter in the browser.
 export default function OrganizationsDirectory() {
   const { data, error } = useResource(referenceData);
   const { data: counts } = useResource(caseCounts);

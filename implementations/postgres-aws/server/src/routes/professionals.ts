@@ -1,17 +1,5 @@
-// Two uses: finding the professional profile behind an external user's
-// email so a full user can assign it to a case (see ../routes/cases.ts
-// POST /:id/external-assignments — only a professional with
-// userAccountId set is findable this way, i.e. every email-code user,
-// bootstrapped by ../professionals/ensureProfessional.ts on first login),
-// and the sidebar's "Vendors" directory, which lists everyone rather
-// than requiring a query first (professional is a small enough table for
-// that, unlike ../routes/people.ts's person search), with each one's kind
-// and that kind's rates. Administrators set the kind here.
-//
-// `professional` also backs internal staff assignment
-// (../cases/assignStaffToCase.ts lazily creates one on first assignment),
-// so a plain join would list staff as "vendors" too — excluded below by
-// the same staff-account system roles ../routes/staff.ts filters on.
+// Providers: finding one to assign to a case, the Providers list with each one's kind and rates, and changing
+// them. Staff's own profiles are left out by their account roles.
 import { Router } from 'express';
 import { and, eq, ilike, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { db } from '../db/client';
@@ -43,9 +31,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const staffAccountRoleIds = await getStaffAccountRoleIds(db);
-    // userAccount.systemRoleId is NULL for every vendor account — plain
-    // `not in` would exclude those too (SQL's three-valued logic), so NULL
-    // must be allowed through explicitly.
+    // External accounts have no role, and `not in` would drop NULLs.
     const filters = [or(isNull(userAccount.systemRoleId), notInArray(userAccount.systemRoleId, staffAccountRoleIds))!, isNull(person.mergedIntoPersonId)];
     if (q) {
       filters.push(or(ilike(userAccount.email, `%${q}%`), ilike(person.email, `%${q}%`), ilike(professional.displayName, `%${q}%`))!);

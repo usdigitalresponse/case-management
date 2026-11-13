@@ -1,7 +1,5 @@
-// External sign-in: an email, then a 6-digit code sent to it. No password.
-// The first step looks the same whether or not the email is on file, so it
-// can't reveal who is allowed in. See ../../docs/api.md "Emailed-code sign-in
-// for external users".
+// External sign-in: an email, then a 6-digit code sent to it. The first step looks the same whether or not
+// the email is on file, so it can't reveal who may sign in (../../docs/api.md).
 import { useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { apiErrorMessage, requestSignInCode } from '../api/client';
 import { useAuth } from '../AuthContext';

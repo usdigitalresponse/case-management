@@ -1,8 +1,5 @@
-// Slow extractions (scans) run in the background, one at a
-// time so they don't compete for the processor, and report where they are
-// for the uploader's screen. Jobs live in this process: an import left
-// received by a restart is failed on startup (failInterruptedExtractions in
-// invoiceImports/read.ts), so this needs a single server instance.
+// Slow extractions (scans) run in the background one at a time, reporting progress. Jobs live in this one
+// process; an import a restart interrupted is failed on startup (failInterruptedExtractions).
 import type { ExtractionProgress } from './extractors/types';
 
 export type ImportProgress = ExtractionProgress | { stage: 'queued'; ahead: number };

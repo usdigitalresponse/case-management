@@ -110,9 +110,7 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction, cursor?: SQL<str
 // As sent: without the list cursor.
 export type InvoiceHeader = Omit<Awaited<ReturnType<typeof selectInvoiceHeaders>>[number], 'cursor'>;
 
-// A case's number is its primary identifier, else its external reference;
-// its other identifiers (such as court numbers) are listed after it.
-// Invoices with no case (null) have no numbers.
+// A case's number is its primary identifier, else its external reference; other identifiers follow.
 export async function loadCaseNumbers(db: DatabaseOrTransaction, maybeCaseIds: Array<string | null>) {
   const result = new Map<string | null, { caseNumber: string | null; otherNumbers: string[] }>();
   const caseIds = maybeCaseIds.filter((caseId): caseId is string => caseId !== null);

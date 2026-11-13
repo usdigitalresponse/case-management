@@ -36,15 +36,13 @@ export function listInvoiceIntake(): Promise<{ items: IntakeItem[] }> {
   return request('/api/invoices/intake');
 }
 
-// addMissing adds the invoice's providers to the case when they aren't on it.
-// professionalId: whom it bills, when it was saved without one.
 // Back to its submitter's drafts, with what to change (staff only).
 export function returnToSubmitter(invoiceId: string, reason: string) {
   return request<{ invoiceId: string }>(`/api/invoices/intake/${invoiceId}/return`, { method: 'POST', body: JSON.stringify({ reason }) });
 }
 
-// timekeepers: who did the work, by line, for lines naming someone unlisted.
-// released: it went on to review.
+// addMissing: add the invoice's providers the case lacks; professionalId: whom it bills, if saved without one;
+// timekeepers: who did each unlisted worker's lines; released: it went on to review.
 export function matchInvoiceToCase(
   invoiceId: string,
   input: { caseId: string; addMissing?: boolean; professionalId?: string; timekeepers?: Record<string, string> },

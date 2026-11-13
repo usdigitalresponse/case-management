@@ -1,7 +1,5 @@
-// Lookups for reference rows that ./ensureReferenceData.ts (or, for
-// test/dev-only codes, ./fixtures.ts) provisions — a plain lookup, never a
-// lazy create-on-first-use, so each row has one provisioning mechanism. A
-// missing row is a deployment problem, reported as a ConfigurationError.
+// Lookups of rows ./ensureReferenceData.ts or ./fixtures.ts provisions, never created on first use; a missing
+// row is a ConfigurationError.
 import { and, eq, getTableName } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from './client';
 import { role, type ReferenceTable } from './schema';

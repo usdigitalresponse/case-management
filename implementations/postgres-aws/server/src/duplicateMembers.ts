@@ -1,8 +1,5 @@
-// Who each case or person may be a duplicate of, for the notice on its page
-// (design K32, K49), remembered for a few minutes so opening a page doesn't
-// compare every record. Settings › Merge duplicates always works its lists out
-// afresh and stores them here; a review, merge, undo or case fix forgets them.
-// Kept in this one server process.
+// Who each case or person may be a duplicate of, for its page's notice (design K32, K49), kept in this process
+// for a few minutes. Settings › Merge duplicates refreshes it; a review, merge, undo or case fix clears it.
 export type DuplicateKind = 'people' | 'cases';
 
 export const REMEMBER_DUPLICATES_MS = 5 * 60_000;

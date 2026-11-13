@@ -5,10 +5,8 @@ import { formatMoney, formatRate } from '../formatMoney';
 import { isMileage, lineDate, lineDescription, lineHours, lineRate, lineTimekeeper, lineType } from '../invoiceLineDisplay';
 import { EnteredFlag } from './NewEntryFields';
 
-// An invoice's lines as reviewers and submitters both see them, with an
-// optional decision column and a panel under a line. The notes add what the
-// submitter changed from the file: under the description, the hours and the
-// amount.
+// An invoice's lines as reviewers and submitters see them, with an optional decision column, a panel
+// under a line, and notes of what the submitter changed from the file.
 export function InvoiceLinesTable<L extends PortalInvoiceLine>({
   lines,
   decisionHeader,

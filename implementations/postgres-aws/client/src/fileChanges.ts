@@ -1,7 +1,5 @@
-// A request's lines beside its file as read (server/src/imports/invoiceFile.ts):
-// which lines the submitter changed, and which they removed. Removed lines
-// are file lines with no current line, so they stay in view and need no
-// decision.
+// Which of a request's lines the submitter changed from its file as read (server/src/imports/invoiceFile.ts),
+// and which they removed: file lines with no current line, kept in view and needing no decision.
 import type { FileLine, InvoiceLineType } from './api/client';
 
 // False for a request imported before lines kept their source location, whose

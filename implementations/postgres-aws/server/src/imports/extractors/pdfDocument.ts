@@ -6,10 +6,8 @@ import { UnreadableInvoiceFileError } from '../parsedInvoice';
 
 // Upload defaults (docs/invoice-import-export-plan.md "Upload defaults").
 const MAX_PAGES = 50;
-// An embedded image is decoded at full size before any render is scaled
-// down, so a small file can hold one that decodes to gigabytes. Larger
-// images are skipped (the page then reads as blank); 50 megapixels still
-// allows a letter page scanned at 600 DPI.
+// Images decode at full size before rendering scales them, so a small file could decode to gigabytes; larger
+// ones are skipped (the page reads blank). 50 megapixels allows a letter page at 600 DPI.
 const MAX_IMAGE_PIXELS = 50_000_000;
 
 // PDF.js is ESM-only; this CommonJS server require()s it (Node 22.12+).

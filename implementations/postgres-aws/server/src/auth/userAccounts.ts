@@ -1,7 +1,4 @@
-// Shared find-or-create for user_account, used by every login path
-// (email-code verify in ../routes/auth.ts, the SSO verify callback in
-// ./oidcProviders.ts) — real accounts are created on first login,
-// matched by email, never seeded with real addresses (../../MAPPING.md).
+// Find-or-create by email for every sign-in path; real accounts are made on first sign-in, never seeded.
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import { userAccount } from '../db/schema';
@@ -12,9 +9,7 @@ export async function ensureUserAccountForEmail(
   db: Database,
   email: string,
   displayName?: string,
-  // Fills in an account's systemRoleId when it has none (a new account, or
-  // a vendor account now signing in via SSO), but never replaces a role an
-  // account already has.
+  // Set only on an account with no role yet; never replaces one.
   systemRoleId?: string,
 ): Promise<typeof userAccount.$inferSelect> {
   const normalizedEmail = normalizeEmail(email);

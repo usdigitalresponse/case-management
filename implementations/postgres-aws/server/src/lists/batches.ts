@@ -92,13 +92,13 @@ export function cursorColumn(keys: SortKey[]): SQL<string[]> {
   )}]`;
 }
 
-// One batch of `limit` rows, reading `limit + 1` to know whether more follow.
 // A row as sent: its cursor is only for making `next`.
 export function withoutCursor<Row extends { cursor: unknown }>({ cursor: _cursor, ...row }: Row): Omit<Row, 'cursor'> {
   return row;
 }
 
-// Rows carry their cursorColumn (null only where a query was read without one), and come back without it.
+// One batch of `limit` rows, reading one more to know whether more follow. Rows carry their cursorColumn (null
+// only where read without one) and come back without it.
 export async function oneBatch<Row extends { cursor: string[] | null }>(
   request: BatchRequest,
   read: (after: string[] | null, limit: number) => Promise<Row[]>,

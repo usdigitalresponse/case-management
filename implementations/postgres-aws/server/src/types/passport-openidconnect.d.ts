@@ -1,7 +1,4 @@
-// No upstream types ship with this package (and no @types/passport-openidconnect
-// exists); this declares only the shape ../auth/oidcProviders.ts actually uses.
-// See node_modules/passport-openidconnect/lib/{strategy,profile}.js for the
-// real (much larger) surface.
+// The package ships no types; only what ../auth/oidcProviders.ts uses.
 declare module 'passport-openidconnect' {
   export interface Profile {
     id?: string;

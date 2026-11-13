@@ -16,10 +16,8 @@ import { ADD_NEW } from './components/PickOrAdd';
 import { NO_PROPOSED_PERSON } from './components/NewEntryFields';
 
 
-// A trip is one row here and separate lines once saved: its travel time,
-// mileage and other costs (model/rules.yaml apply_time_category_rates).
-// 'waiting' is waiting time, a time line priced at its own rate. 'mileage'
-// is one line alone, where each line is a row (Check the lines).
+// A trip is one row here but separate lines once saved: travel time, mileage and other costs (model/rules.yaml
+// apply_time_category_rates). 'waiting' is time at its own rate; 'mileage' a lone line where each line is a row.
 export type DraftKind = 'time' | 'waiting' | 'travel' | 'mileage' | 'expense' | 'other';
 
 // Time worked and waiting time take hours on the row itself.
@@ -340,10 +338,8 @@ export function mileageItemPreview(
   return { amount: (Math.round(miles * Number(rate) * 100) / 100).toFixed(2), rate, miles };
 }
 
-// What the server will bill for a time item, for display; it prices again on
-// save, as server/src/billing/priceLines.ts does: a rate stated on an imported
-// file, else the configured rate, which must exist either way. Travel and
-// waiting time's configured rate is that category's, given `category`.
+// What the server will bill for a time item (server/src/billing/priceLines.ts): a rate stated on an imported
+// file, else the configured rate, or with `category`, that category's; the configured rate must exist either way.
 export function timeItemPreview(
   line: Pick<LineDraft, 'serviceDate' | 'quantity' | 'timekeeperProfessionalId'> & { carried?: Pick<LineDraft['carried'], 'unitRate'> },
   timekeepers: BillableProfessional[],

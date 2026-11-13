@@ -1,8 +1,5 @@
-// Portal time logging: a professional records their own time, or a delegate
-// a represented professional's (model/rules.yaml
+// A professional's own time, or a represented professional's by a delegate (model/rules.yaml
 // authorize_delegated_submission); the entry keeps who recorded it.
-// activityTypeId relies on the FK rather than a friendly pre-check, which is
-// fine while one activity type is seeded.
 import { z } from 'zod';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
@@ -13,10 +10,7 @@ import { activityTypes, timeEntry } from '../db/schema';
 import { hasOpenAssignment, NotAssignedToCaseError } from './caseAssignmentAuthorization';
 import { representedProfessionalIds, type PortalActor } from './portalActor';
 
-// Server-selected synthetic row, the same pattern as
-// ../intake/createCase.ts's OPENING_EVENT_TYPE_CODE: a single seeded
-// activity type exists today (see ../db/fixtures.ts), so the client
-// doesn't need to pick one.
+// The one seeded activity type, so the client doesn't pick one.
 const DEFAULT_ACTIVITY_TYPE_CODE = 'legal_services';
 
 export const createTimeEntryInputSchema = z.object({

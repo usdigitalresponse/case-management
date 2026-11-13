@@ -1,7 +1,4 @@
-// Drizzle schema for the entity subset of model/schema.yaml in scope for
-// this implementation (case intake + core read screens). See
-// ../../MAPPING.md for what is deliberately out of scope and for
-// implementation-specific additions (user_account.email).
+// The model/schema.yaml entities this implementation maps; ../../MAPPING.md has what is out of scope and added.
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -20,9 +17,7 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 
-// --- reference_data lookup tables -----------------------------------------
-// Simple code/display_name tables so seeded values stay traceable to
-// model/schema.yaml `reference_data` fields, rather than hardcoded enums.
+// --- reference_data tables: code and display_name, rather than enums ------------
 
 export type ReferenceTable = ReturnType<typeof referenceTable>;
 
@@ -85,9 +80,7 @@ export const billingCodes = referenceTable('billing_codes');
 
 // --- core entities ----------------------------------------------------------
 
-// model/schema.yaml: role.role_context must be one of case_participant,
-// person_affiliation, case_assignment or user_account. Only
-// case_participant and user_account contexts are exercised by this scope.
+// role_context: case_participant, person_affiliation, case_assignment or user_account (model/schema.yaml).
 export const role = pgTable(
   'role',
   {
@@ -97,8 +90,7 @@ export const role = pgTable(
     active: boolean('active').notNull().default(true),
   },
   (table) => [
-    // Lets ../db/ensureReferenceData.ts seed a role idempotently
-    // (insert ... on conflict do nothing).
+    // For seeding roles idempotently.
     uniqueIndex('role_display_name_role_context_unique').on(table.displayName, table.roleContext),
   ],
 );
@@ -124,8 +116,6 @@ export const office = pgTable('office', {
   organizationId: uuid('organization_id').references(() => organization.organizationId),
 });
 
-// Person rows are seeded synthetic fixtures in this implementation; there
-// is no create-person UI in scope (see ../../MAPPING.md).
 export const person = pgTable('person', {
   personId: uuid('person_id').primaryKey().defaultRandom(),
   givenName: text('given_name'),
@@ -141,9 +131,7 @@ export const person = pgTable('person', {
   mergedIntoPersonId: uuid('merged_into_person_id').references((): AnyPgColumn => person.personId),
 });
 
-// Effective membership of a person in an organization/office
-// (model/schema.yaml: person_affiliation). Added ahead of need: cheaper to
-// include now than to retrofit case_participant's uniqueness index later.
+// A person's membership of an organization or office.
 export const personAffiliation = pgTable('person_affiliation', {
   personAffiliationId: uuid('person_affiliation_id').primaryKey().defaultRandom(),
   personId: uuid('person_id').notNull().references(() => person.personId),
@@ -154,14 +142,8 @@ export const personAffiliation = pgTable('person_affiliation', {
   endedAt: timestamp('ended_at', { withTimezone: true }),
 });
 
-// user_account.system_role_id configures a permission role; it grants no
-// permission by itself (model/rules.yaml: validate_system_role). `email` is
-// an implementation-specific addition (not in model/schema.yaml) used to
-// match logins (SSO, restricted to each provider's domain allowlist, or
-// magic link); rows are created on first successful login, not seeded with
-// real addresses.
-// This dev/demo login gate is not the government partner's production auth
-// (see ../../MAPPING.md).
+// system_role_id grants nothing by itself (model/rules.yaml validate_system_role). `email`, added here, matches
+// sign-ins; rows are made at first sign-in, never seeded with real addresses.
 export const userAccount = pgTable('user_account', {
   userAccountId: uuid('user_account_id').primaryKey().defaultRandom(),
   displayName: text('display_name').notNull(),
@@ -171,17 +153,10 @@ export const userAccount = pgTable('user_account', {
   systemRoleId: uuid('system_role_id').references(() => role.roleId),
 });
 
-// Named explicitly so ../professionals/ensureProfessional.ts can recover
-// from the constraint violation a concurrent first-login race produces,
-// rather than silently creating two professional rows for one account.
+// Named, so a concurrent first sign-in recovers rather than making two profiles.
 export const PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT = 'professional_user_account_id_unique';
 
-// model/schema.yaml: professional.qualification_level_id (a reference_data
-// classification) is deliberately omitted — qualification-based assignment
-// checks (require_qualification_for_assignment in model/rules.yaml) aren't
-// implemented yet; see ../../MAPPING.md. Every professional row here is
-// bootstrapped on first login (either kind, see ../auth), not created
-// through a dedicated form.
+// qualification_level_id is omitted until require_qualification_for_assignment is built (../../MAPPING.md).
 export const professional = pgTable(
   'professional',
   {
@@ -198,10 +173,7 @@ export const professional = pgTable(
     phone: text('phone'),
   },
   (table) => [
-    // Postgres unique indexes treat NULL as distinct from every other
-    // value, so multiple professional rows with no user_account_id (a
-    // future staff-created profile with no login yet) remain possible —
-    // only a concurrent bootstrap for the *same* account is prevented.
+    // NULLs are distinct, so any number of profiles may have no account.
     uniqueIndex(PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT).on(table.userAccountId),
   ],
 );
@@ -241,17 +213,10 @@ export const caseTable = pgTable(
   ],
 );
 
-// Named explicitly so ../routes/cases.ts can recognize a double-click/
-// retry collision on POST /:id/external-assignments and recover instead
-// of surfacing a raw constraint-violation error.
+// Named, so a retried assignment is recognized and recovered from.
 export const CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT = 'case_assignment_open_unique';
 
-// model/rules.yaml's require_qualification_for_assignment and
-// review_workload_before_assignment (both `outcome: configurable`) are not
-// implemented — any professional can be assigned to any case here; see
-// ../../MAPPING.md. validate_effective_relationships' "at most one
-// overlapping primary assignment per case" is also not enforced yet (would
-// need a partial unique index keyed on a to-be-added "primary" flag).
+// Qualification, workload and one-primary-assignment rules aren't enforced yet (../../MAPPING.md).
 export const caseAssignment = pgTable(
   'case_assignment',
   {
@@ -273,21 +238,14 @@ export const caseAssignment = pgTable(
     // filters by caseId.
     index('case_assignment_professional_id_idx').on(table.professionalId),
     index('case_assignment_case_id_idx').on(table.caseId),
-    // At most one open assignment per case/professional pair — the same
-    // "open relationship" pattern as case_participant_open_unique below,
-    // guarding against a double-click/retry on
-    // POST /:id/external-assignments creating two open rows (and the
-    // case appearing twice in GET /api/my-cases).
+    // At most one open assignment per case and professional.
     uniqueIndex(CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT)
       .on(table.caseId, table.professionalId)
       .where(sql`ended_at IS NULL`),
   ],
 );
 
-// model/schema.yaml: time_entry.activity_id/office_id/case_program_id/
-// case_funding_id are deliberately omitted — none of those concepts
-// (activities, programs, funding) have tables here yet; see
-// ../../MAPPING.md.
+// activity_id, office_id, case_program_id and case_funding_id are omitted: no such tables yet (../../MAPPING.md).
 export const timeEntry = pgTable(
   'time_entry',
   {
@@ -306,8 +264,6 @@ export const timeEntry = pgTable(
     recordedByUserAccountId: uuid('recorded_by_user_account_id').references(() => userAccount.userAccountId),
   },
   (table) => [
-    // GET /api/portal/time-entries filters by caseId for the caller's own
-    // entries.
     index('time_entry_case_id_idx').on(table.caseId),
     index('time_entry_professional_id_idx').on(table.professionalId),
   ],
@@ -444,13 +400,7 @@ export const billingRuleSetting = pgTable(
   (table) => [index('billing_rule_setting_rule_idx').on(table.ruleCode, table.recordedAt)],
 );
 
-// model/schema.yaml: invoice.service_provider_id (required, references a
-// service_provider entity) has no table here — professional already
-// plays that role for external submitters (see
-// ../professionals/ensureProfessional.ts), so professionalId stands in
-// for it. invoice_line.source_expense_id is omitted (no expense table;
-// out of scope for this slice — time and invoices only, no expense
-// tracking).
+// professionalId stands in for service_provider_id; invoice_line.source_expense_id is omitted (no expense table).
 export const invoice = pgTable(
   'invoice',
   {
@@ -463,9 +413,7 @@ export const invoice = pgTable(
     professionalId: uuid('professional_id').references(() => professional.professionalId),
     statusId: uuid('status_id').notNull().references(() => invoiceStatuses.id),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
-    // Frozen at submit time, computed from invoice_line amounts rather
-    // than trusted from the client (model/rules.yaml:
-    // validate_invoice_total) — see ../portal/createInvoice.ts.
+    // Summed from the lines at submission, never taken from the client (model/rules.yaml validate_invoice_total).
     submittedTotal: numeric('submitted_total', { precision: 12, scale: 2 }).notNull(),
     // Null while staff hold an invoice in intake, or when they review one
     // without a case (model/rules.yaml match_invoice_to_case).
@@ -1180,16 +1128,12 @@ export const caseParticipant = pgTable(
     endedAt: timestamp('ended_at', { withTimezone: true }),
   },
   (table) => [
-    // model/rules.yaml validate_case_children: reject duplicate open
-    // relationships for the same case/person/role/affiliation. Note:
-    // Postgres treats NULL as distinct in unique indexes, so two open rows
-    // both omitting affiliation_id aren't caught here (see MAPPING.md).
+    // No duplicate open relationships (model/rules.yaml validate_case_children); NULLs are distinct, so two
+    // without affiliation_id aren't caught (MAPPING.md).
     uniqueIndex('case_participant_open_unique')
       .on(table.caseId, table.personId, table.participantRoleId, table.affiliationId)
       .where(sql`ended_at IS NULL`),
-    // The unique index above is partial (WHERE ended_at IS NULL) and can't
-    // serve a plain case_id lookup (GET /api/cases/:id) — a separate plain
-    // index is needed for that.
+    // The partial unique index can't serve a plain case_id lookup.
     index('case_participant_case_id_idx').on(table.caseId),
   ],
 );
@@ -1224,9 +1168,7 @@ export const caseLifecycleEvent = pgTable(
   ],
 );
 
-// Named explicitly (not left to drizzle-kit's auto-generated naming) so
-// src/intake/createCase.ts can import this constant instead of hand-typing
-// a matching string to detect the constraint violation.
+// Named, so createCase can recognize its violation.
 export const CASE_IDENTIFIER_ISSUER_TYPE_VALUE_UNIQUE_CONSTRAINT =
   'case_identifier_issuer_type_value_unique';
 
@@ -1255,34 +1197,24 @@ export const caseIdentifier = pgTable(
     uniqueIndex('case_identifier_one_primary_per_case')
       .on(table.caseId)
       .where(sql`is_primary`),
-    // The above is partial (WHERE is_primary) and can't serve a plain
-    // case_id lookup (GET /api/cases/:id) — a separate plain index is
-    // needed for that.
+    // The partial index can't serve a plain case_id lookup.
     index('case_identifier_case_id_idx').on(table.caseId),
     index('case_identifier_close_key_idx').on(sql`case_number_close_key(${table.value})`),
   ],
 );
 
-// Postgres names an unnamed primary key `<table>_pkey` by convention (stable
-// across regenerated migrations, since it derives from the table name, not
-// column order); src/intake/createCase.ts imports this constant rather than
-// hand-typing the same assumption.
+// Postgres's default `<table>_pkey` name, for createCase to recognize.
 export const INTAKE_REQUEST_PRIMARY_KEY_CONSTRAINT = 'intake_request_pkey';
 
-// Dedupe table for client-supplied intake request IDs, so a retried
-// POST /api/cases with the same request_id returns the original result
-// instead of creating a second case (see ../intake/createCase.ts).
+// Client-supplied request ids, so a retried case creation returns the original case.
 export const intakeRequest = pgTable('intake_request', {
   requestId: uuid('request_id').primaryKey(),
   caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Implementation-specific addition, not in model/schema.yaml (see
-// ../../MAPPING.md "Implementation-specific additions") — backs the
-// external-user emailed-code sign-in (../auth/signInCode.ts). Stores only a
-// keyed hash of the code, never the code itself, so a DB read (backup,
-// replica, leaked row) can't be replayed into a session.
+// External users' emailed sign-in codes (not in model/schema.yaml), stored only as a keyed hash so a leaked row
+// can't be replayed.
 export const signInCode = pgTable(
   'sign_in_code',
   {
@@ -1400,10 +1332,8 @@ export const caseCorrectionChange = pgTable(
   (table) => [index('case_correction_change_correction_idx').on(table.caseCorrectionId)],
 );
 
-// Staff flagging two cases as possibly one case recorded twice, or finding
-// they are different (model/rules.yaml flag_possible_duplicate_case;
-// ../cases/possibleDuplicateCases.ts). Insert-only; a pair's latest row
-// stands. case_id sorts before other_case_id. Cases are never merged here.
+// Staff flagging two cases as possibly one, or as different (model/rules.yaml flag_possible_duplicate_case).
+// Insert-only; a pair's latest row stands. case_id sorts before other_case_id.
 export const caseDuplicateReview = pgTable(
   'case_duplicate_review',
   {

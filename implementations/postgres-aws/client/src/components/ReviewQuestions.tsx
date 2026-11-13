@@ -3,10 +3,8 @@ import { MAX_QUESTION_LENGTH, type ReviewQuestion } from '../api/client';
 import { formatDateTime } from '../formatDateTime';
 import { Button } from './ui/Button';
 
-// The reviewer's brief questions to the submitter about a line, and their
-// answers, kept on the invoice (model/rules.yaml ask_review_question). Review
-// waits until every question is answered. Everyone sees them in a row under
-// their line, where the submitter answers.
+// A reviewer's questions about a line and the submitter's answers (model/rules.yaml ask_review_question),
+// in a row under the line; review waits until every one is answered.
 
 type AnswerProps = {
   staff: boolean;
