@@ -1,6 +1,6 @@
-// External users (attorneys, providers and office billing staff outside the
-// agency) sign in with an emailed code only once an administrator turns it on
-// here; kept apart from internal staff.
+// Office billing staff: external users who send invoices for an office's
+// providers sign in with an emailed code only once an administrator turns it
+// on here; providers' own sign-in is in ./ProvidersSettings.tsx (design K51).
 import { useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import {
@@ -16,7 +16,7 @@ import {
 import { useBatchedResource } from '../../hooks/useBatchedResource';
 import { useResource } from '../../hooks/useResource';
 import { useSearchParamText } from '../../hooks/useSearchParamState';
-import { delegateOffices, externalUsers, professionalKinds } from '../../resources';
+import { delegateOffices, externalUsers } from '../../resources';
 import { ADD_NEW, PickOrAdd } from '../../components/PickOrAdd';
 import { MoreOnScroll } from '../../components/MoreOnScroll';
 import { RecordTable } from '../../components/RecordTable';
@@ -24,7 +24,6 @@ import { StatusPill } from '../../components/StatusPill';
 import { LoadState } from '../../components/LoadState';
 import { Notice, type SaveMessage } from '../../components/ui/Notice';
 import { Button } from '../../components/ui/Button';
-import { SegmentedChoice } from '../../components/ui/SegmentedChoice';
 import { Dialog } from '../../components/ui/Dialog';
 import { formatDay } from '../../formatDateTime';
 
@@ -65,10 +64,10 @@ export function ExternalUserSettings({ isAdmin }: { isAdmin: boolean }) {
   return (
     <section className="card compact-card">
       <div className="section-title-row">
-        <h3>External users who can sign in</h3>
+        <h3>Office billing staff who can sign in</h3>
         {isAdmin && !adding && (
           <Button kind="primary" onClick={() => setAdding(true)}>
-            Let an external user sign in
+            Add office billing staff
           </Button>
         )}
       </div>
@@ -84,18 +83,18 @@ export function ExternalUserSettings({ isAdmin }: { isAdmin: boolean }) {
       )}
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
       <label className="list-controls__search">
-        <span className="usa-sr-only">Search external users</span>
+        <span className="usa-sr-only">Search office billing staff</span>
         <input className="usa-input" type="search" placeholder="Search by name or email" value={query} onChange={(event) => setQuery(event.target.value)} />
       </label>
       {list.error || !list.items ? (
-        <LoadState error={list.error} what="external users" />
+        <LoadState error={list.error} what="office billing staff" />
       ) : (
         <>
           <RecordTable<ExternalUser>
-            label="External users who can sign in"
+            label="Office billing staff who can sign in"
             rows={list.items}
             rowKey={(user) => user.personId}
-            emptyMessage={query.trim() ? 'No one matches.' : 'No external user can sign in yet.'}
+            emptyMessage={query.trim() ? 'No one matches.' : 'No office billing staff can sign in yet.'}
             columns={[
               {
                 header: 'Person',
@@ -144,7 +143,7 @@ export function ExternalUserSettings({ isAdmin }: { isAdmin: boolean }) {
               },
             ]}
           />
-          <MoreOnScroll list={list} what="external users" />
+          <MoreOnScroll list={list} what="office billing staff" />
         </>
       )}
       {officesFor && (
@@ -162,17 +161,12 @@ export function ExternalUserSettings({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-type SendsFor = 'own' | 'office';
-
 function LetExternalUserSignIn({ onDone, onCancel }: { onDone: (user: ExternalUser) => void; onCancel: () => void }) {
-  const kinds = useResource(professionalKinds);
   const offices = useResource(delegateOffices);
   const found = useRef(new Map<string, ExternalUser>());
   const [choice, setChoice] = useState('');
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [sendsFor, setSendsFor] = useState<SendsFor>('own');
-  const [kindId, setKindId] = useState('');
   const [officeId, setOfficeId] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -194,7 +188,7 @@ function LetExternalUserSignIn({ onDone, onCancel }: { onDone: (user: ExternalUs
   function input(): TurnOnExternalSignIn | null {
     if (adding) {
       const details = { displayName: displayName.trim(), email: email.trim() };
-      return sendsFor === 'own' ? { newProvider: { ...details, professionalKindId: kindId } } : { newDelegate: { ...details, officeId } };
+      return { newDelegate: { ...details, officeId } };
     }
     if (!chosen) return null;
     return chosen.email ? { personId: chosen.personId } : { personId: chosen.personId, email: email.trim() };
@@ -216,21 +210,21 @@ function LetExternalUserSignIn({ onDone, onCancel }: { onDone: (user: ExternalUs
   }
 
   const ready = adding
-    ? displayName.trim().length >= 2 && email.trim() !== '' && (sendsFor === 'own' ? kindId !== '' : officeId !== '')
+    ? displayName.trim().length >= 2 && email.trim() !== '' && officeId !== ''
     : Boolean(chosen && !chosen.signInEnabled && (chosen.email || email.trim()));
 
   return (
     <form className="decision-panel" onSubmit={(event) => void save(event)}>
       <PickOrAdd
         id="external-user-pick"
-        label="Who should be able to sign in?"
+        label="Who sends invoices for an office?"
         value={choice}
         onChange={(value) => {
           setChoice(value);
           setEmail('');
           setError(null);
         }}
-        addLabel="+ Add a new external user"
+        addLabel="+ Add someone new"
         placeholder="Search people by name or email"
         options={[]}
         search={search}
@@ -246,37 +240,16 @@ function LetExternalUserSignIn({ onDone, onCancel }: { onDone: (user: ExternalUs
             <input id="external-user-email" type="email" className="usa-input" value={email} onChange={(event) => setEmail(event.target.value)} />
           </div>
         </div>
-        <SegmentedChoice<SendsFor>
-          label="They send invoices"
-          options={[
-            { value: 'own', label: 'For their own work' },
-            { value: 'office', label: "For an office's providers" },
-          ]}
-          value={sendsFor}
-          onChange={setSendsFor}
-        />
-        {sendsFor === 'own' ? (
-          <div className="usa-form-group">
-            <label className="usa-label" htmlFor="external-user-kind">Kind of provider</label>
-            <select id="external-user-kind" className="usa-select" value={kindId} onChange={(event) => setKindId(event.target.value)}>
-              <option value="">Choose a kind</option>
-              {kinds.data?.filter((kind) => kind.active).map((kind) => (
-                <option key={kind.professionalKindId} value={kind.professionalKindId}>{kind.displayName}</option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <div className="usa-form-group">
-            <label className="usa-label" htmlFor="external-user-office">Office</label>
-            <select id="external-user-office" className="usa-select" value={officeId} onChange={(event) => setOfficeId(event.target.value)}>
-              <option value="">Choose an office</option>
-              {offices.data?.map((office) => (
-                <option key={office.officeId} value={office.officeId}>{office.displayName}</option>
-              ))}
-            </select>
-            <p className="field-hint">They can send invoices for the office's providers, from today.</p>
-          </div>
-        )}
+        <div className="usa-form-group">
+          <label className="usa-label" htmlFor="external-user-office">Office</label>
+          <select id="external-user-office" className="usa-select" value={officeId} onChange={(event) => setOfficeId(event.target.value)}>
+            <option value="">Choose an office</option>
+            {offices.data?.map((office) => (
+              <option key={office.officeId} value={office.officeId}>{office.displayName}</option>
+            ))}
+          </select>
+          <p className="field-hint">They can send invoices for the office's providers, from today.</p>
+        </div>
       </PickOrAdd>
       {chosen && chosen.signInEnabled && <p className="compact-hint">{chosen.displayName} can already sign in.</p>}
       {chosen && !chosen.signInEnabled && chosen.email && (
@@ -294,7 +267,7 @@ function LetExternalUserSignIn({ onDone, onCancel }: { onDone: (user: ExternalUs
       {error && <Notice tone="danger">{error}</Notice>}
       <div className="button-row">
         <Button type="submit" kind="primary" disabled={!ready || saving}>
-          {adding ? 'Add external user' : chosen && !chosen.email ? 'Add email and turn on sign-in' : 'Turn on sign-in'}
+          {adding ? 'Add office billing staff' : chosen && !chosen.email ? 'Add email and turn on sign-in' : 'Turn on sign-in'}
         </Button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
       </div>

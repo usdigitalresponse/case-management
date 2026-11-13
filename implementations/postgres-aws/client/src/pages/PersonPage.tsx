@@ -1,9 +1,9 @@
-// A person's details, rates, this year's totals and every invoice they sent;
-// with ?day=, only those with an item on that date.
+// A provider's page (design K32), read-only: details, rates, this year's totals,
+// their documents and every invoice they sent; with ?day=, only those with an
+// item on that date. Administrators change them in Settings › Providers.
 import { useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
-import { apiErrorMessage, listReviewQueue, removeProfessional } from '../api/client';
-import { ConfirmButton } from '../components/ConfirmButton';
+import { Link, useParams, useSearchParams } from 'react-router';
+import { apiErrorMessage, listReviewQueue } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
 import { useBatchedResource } from '../hooks/useBatchedResource';
@@ -14,20 +14,18 @@ import { person as personResource, personInvoices } from '../resources';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Fact, FactsStrip } from '../components/FactsStrip';
-import { PersonDialog } from '../components/PersonDialog';
 import { SentInvoicesTable } from '../components/SentInvoicesTable';
 import { useCountyControl } from '../components/CountyListControl';
-import { Toast, useToast } from '../components/Toast';
 import { shownCaseNumber } from '../caseNumbers';
 import { downloadCsv } from '../downloadCsv';
 import { formatMoney } from '../formatMoney';
 import { formatDate } from '../formatDateTime';
 import { Notice } from '../components/ui/Notice';
 import { personPath } from '../staffPaths';
-import { ProviderOnFile } from '../components/preauthorizationRequest/ProviderOnFile';
+import { ProviderDocuments } from '../components/preauthorizationRequest/ProviderOnFile';
 import { useSearchParamState } from '../hooks/useSearchParamState';
 import { FilterTag, Tag } from '../components/ui/Tag';
-import { Button } from '../components/ui/Button';
+import { Button, buttonClass } from '../components/ui/Button';
 
 const FILTERS = PERSON_FILTERS;
 type FilterId = PersonFilterId;
@@ -35,19 +33,13 @@ type FilterId = PersonFilterId;
 export default function PersonPage() {
   const { professionalId } = useParams<{ professionalId: string }>();
   const { user } = useAuth();
-  const [version, setVersion] = useState(0);
-  const { data: person, error } = useResource(personResource(professionalId as string), { resetKey: version });
+  const { data: person, error } = useResource(personResource(professionalId as string));
   const [searchParams] = useSearchParams();
   const dayParam = searchParams.get('day') ?? '';
   const day = /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : undefined;
   const [filter, setFilter] = useSearchParamState<FilterId>('show', 'all', FILTERS.map((option) => option.id));
   const [caseNumber, setCaseNumber] = useState('');
-  const [editing, setEditing] = useState(false);
-  const [removeError, setRemoveError] = useState<string | null>(null);
-  const [removing, setRemoving] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const navigate = useNavigate();
-  const [toast, setToast] = useToast();
   const request = personRequest(professionalId as string, searchParams, caseNumber);
   const list = useBatchedResource(personInvoices(request));
   const { summary, reload: reloadQueue } = list;
@@ -85,23 +77,10 @@ export default function PersonPage() {
     }
   }
 
-  async function remove() {
-    if (removing) return;
-    setRemoving(true);
-    setRemoveError(null);
-    try {
-      await removeProfessional(professionalId as string);
-      navigate('/people');
-    } catch (err) {
-      setRemoveError(apiErrorMessage(err, 'They could not be removed.'));
-      setRemoving(false);
-    }
-  }
-
   return (
     <div>
       <PageHeader
-        crumbs={[{ label: 'People', to: '/people' }, { label: name }]}
+        crumbs={[{ label: 'Providers', to: '/people' }, { label: name }]}
         title={name}
         status={person.role && <Tag tone="neutral">{person.role}</Tag>}
         meta={
@@ -109,32 +88,14 @@ export default function PersonPage() {
             {person.email && <a href={`mailto:${person.email}`}>{person.email}</a>}
             {person.phone && <span>{person.phone}</span>}
             {person.paidThrough && <span>Paid to {person.paidThrough}</span>}
-            <span>
-              External sign-in: {person.externalSignInEnabled ? 'On' : 'Off'}
-              {user?.isAdmin && (
-                <>
-                  {' '}
-                  (<Link to="/settings#settings-external-users">change in Settings</Link>)
-                </>
-              )}
-            </span>
           </>
         }
         actions={
           <>
             {user?.isAdmin && (
-              <Button kind="secondary" onClick={() => setEditing(true)}>
-                Edit details
-              </Button>
-            )}
-            {user?.isAdmin && (
-              <ConfirmButton
-                label="Remove"
-                prompt={`Remove ${name}? Only someone added by mistake can be removed. Unsent invoices from them will have no one chosen.`}
-                confirmLabel="Yes, remove"
-                disabled={removing}
-                onConfirm={() => void remove()}
-              />
+              <Link className={buttonClass('secondary')} to={`/settings?${new URLSearchParams({ providerQ: name })}#settings-providers`}>
+                Change in Settings
+              </Link>
             )}
             <Button kind="secondary" disabled={total === 0} onClick={() => void exportAll()}>
               Export spreadsheet
@@ -142,7 +103,6 @@ export default function PersonPage() {
           </>
         }
       />
-      {removeError && <Notice tone="danger">{removeError}</Notice>}
       {exportError && <Notice tone="danger">{exportError}</Notice>}
       <FactsStrip>
         <Fact label="Approved rate">
@@ -160,6 +120,7 @@ export default function PersonPage() {
         </Fact>
         {person.reviewer && <Fact label="New invoices go to">{person.reviewer.displayName}</Fact>}
       </FactsStrip>
+      <ProviderDocuments professionalId={professionalId as string} />
       {day && (
         <Notice tone="info">
           Showing only invoices with an item on {formatDate(day)}, such as travel on several cases that day.{' '}
@@ -186,19 +147,6 @@ export default function PersonPage() {
         Showing {shownCount} of {total}. Every invoice is filed under {name}. Case numbers are as they were typed, and the
         tool does not check them against a list of cases.
       </p>
-      <ProviderOnFile professionalId={professionalId as string} name={name} />
-      {editing && (
-        <PersonDialog
-          person={person}
-          onClose={() => setEditing(false)}
-          onSaved={() => {
-            setEditing(false);
-            setToast({ message: 'Details saved.' });
-            setVersion((v) => v + 1);
-          }}
-        />
-      )}
-      <Toast toast={toast} />
     </div>
   );
 }

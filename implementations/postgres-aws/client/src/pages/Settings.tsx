@@ -13,6 +13,7 @@ import { TimeCategoryRates } from './settings/TimeCategoryRates';
 import { BillingRulesSettings } from './settings/BillingRulesSection';
 import { DemoSettings } from './settings/DemoSection';
 import { ExternalUserSettings } from './settings/ExternalUsers';
+import { ProvidersSettings } from './settings/ProvidersSettings';
 import { EditData } from './settings/EditData';
 import { Tabs } from '../components/ui/Tabs';
 import { useSearchParamState } from '../hooks/useSearchParamState';
@@ -57,14 +58,6 @@ export default function Settings() {
         <RoleSummary />
         {isAdmin && <StaffRoleSettings />}
       </section>
-      <section className="settings-section" id="settings-external-users">
-        <h2>External users</h2>
-        <p className="compact-hint">
-          Attorneys, providers and office billing staff outside the agency. They sign in with a code emailed to them, and only
-          those turned on here can sign in.
-        </p>
-        <ExternalUserSettings isAdmin={isAdmin} />
-      </section>
       <section className="settings-section" id="settings-rates">
         <h2>Rates</h2>
         <p className="compact-hint">
@@ -91,6 +84,18 @@ export default function Settings() {
         <PreauthorizationThresholds isAdmin={isAdmin} />
       </section>
       <BillingRulesSettings isAdmin={isAdmin} />
+      <section className="settings-section" id="settings-providers">
+        <h2>Providers</h2>
+        <ProvidersSettings isAdmin={isAdmin} />
+      </section>
+      <section className="settings-section" id="settings-external-users">
+        <h2>Office billing staff</h2>
+        <p className="compact-hint">
+          External users who send invoices for an office&apos;s providers. They sign in with a code emailed to them, and only those turned on
+          here can sign in. A provider&apos;s own sign-in is under Providers.
+        </p>
+        <ExternalUserSettings isAdmin={isAdmin} />
+      </section>
       {demoMode && <DemoSettings isAdmin={isAdmin} />}
     </div>
   );
@@ -116,10 +121,11 @@ function SettingsTabs({ tab, setTab }: { tab: (typeof TABS)[number]; setTab: (ta
 const SECTIONS = [
   { id: 'settings-review', label: 'Invoice review' },
   { id: 'settings-people', label: 'People who use this tool' },
-  { id: 'settings-external-users', label: 'External users' },
   { id: 'settings-rates', label: 'Rates' },
   { id: 'settings-preauthorization', label: 'Pre-authorization thresholds' },
   { id: 'settings-rules', label: 'Billing rules and codes' },
+  { id: 'settings-providers', label: 'Providers' },
+  { id: 'settings-external-users', label: 'Office billing staff' },
   { id: 'settings-demo', label: 'Demo' },
 ];
 
@@ -128,8 +134,8 @@ function PageIndex({ sections }: { sections: typeof SECTIONS }) {
   const { hash } = useLocation();
   const current = hash.slice(1) || sections[0]?.id;
   return (
-    <nav className="page-index" aria-label="On this page">
-      <span>On this page:</span>
+    <nav className="page-index" aria-label="Go to">
+      <span>Go to:</span>
       {sections.map((section) => (
         <a key={section.id} href={`#${section.id}`} className={section.id === current ? 'is-current' : undefined} aria-current={section.id === current ? 'location' : undefined}>
           {section.label}

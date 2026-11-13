@@ -210,7 +210,8 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
             { path: '/cases/new', element: <Navigate to="/cases" replace /> },
             { path: '/cases', ...page(() => import('./pages/CaseList')), ...loaders.cases },
             { path: '/cases/:caseId', ...page(() => import('./pages/CaseDetail')), ...loaders.caseDetail },
-            { path: '/vendors', ...page(() => import('./pages/VendorsDirectory')), ...loaders.providers },
+            // Providers are changed in Settings (design K51).
+            { path: '/vendors', element: <Navigate to="/settings#settings-providers" replace /> },
             { path: '/preauthorizations', ...page(() => import('./pages/Preauthorizations')), ...loaders.preauthorizations },
             { path: '/preauthorizations/:requestId', lazy: async () => ({ Component: (await import('./pages/Preauthorizations')).StaffPreauthorizationRequest }), ...loaders.preauthorizationRequest },
             { path: '/settings', ...page(() => import('./pages/Settings')), ...loaders.settings },

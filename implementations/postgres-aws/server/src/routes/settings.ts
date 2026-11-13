@@ -240,7 +240,7 @@ router.get(
   '/external-users',
   asyncHandler(async (req, res) => {
     const q = typeof req.query.q === 'string' ? req.query.q : undefined;
-    res.json(await listExternalUsers(db, q, batchRequest(req.query)));
+    res.json(await listExternalUsers(db, q, batchRequest(req.query), { officeStaff: req.query.officeStaff === '1' }));
   }),
 );
 
