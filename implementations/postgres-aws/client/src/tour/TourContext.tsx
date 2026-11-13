@@ -38,7 +38,7 @@ interface TourApi {
 const TourContext = createContext<TourApi | null>(null);
 
 export function TourProvider({ children }: { children: ReactNode }) {
-  const { adoptSignIn } = useAuth();
+  const { adoptSignIn, signIns, signInByTour } = useAuth();
   const [state, setStateRaw] = useState<TourState | null>(() => loadTour());
   const [pendingPath, setPendingPath] = useState<{ path: string; role: TourRole } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,6 +51,11 @@ export function TourProvider({ children }: { children: ReactNode }) {
       return next;
     });
   }, []);
+
+  // Any other sign-in or sign-out ends the run on the server, so drop it here too.
+  useEffect(() => {
+    if (signIns > 0 && !signInByTour) setState(() => null);
+  }, [signIns, signInByTour, setState]);
 
   useEffect(() => {
     const listener = (event: Event) => {
