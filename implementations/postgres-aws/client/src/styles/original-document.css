@@ -8,7 +8,7 @@
 /* The file or time log beside the lines, with the switch between them. */
 .side-panel { position: sticky; top: 1rem; min-width: 0; }
 .side-panel .original-document { position: static; }
-.original-document__bar h2 { font-size: var(--text-11); margin: 0; white-space: nowrap; text-transform: uppercase; letter-spacing: .05em; color: var(--color-on-surface-variant); font-weight: 600; }
+.original-document__bar h2 { margin: 0; white-space: nowrap; color: var(--color-on-surface-variant); font: var(--label-small); letter-spacing: var(--tracking-label-small); }
 .original-document__name { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .original-document__name span { font-size: var(--text-15); font-weight: 600; overflow-wrap: anywhere; }
 .original-document__bar a { flex: none; font-size: var(--text-13); font-weight: 600; text-align: right; }

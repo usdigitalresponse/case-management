@@ -13,7 +13,7 @@
 .portal-needs-changes { margin-bottom: var(--space-8); }
 .portal-needs-changes h2 { color: var(--color-error); }
 .portal-invoices .text-warning, .portal-invoices .cell-note--warning { color: var(--color-on-tertiary-container); }
-.your-drafts { margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-7); border: 1px solid var(--color-primary-fixed-dim); background: var(--color-primary-container-low); border-radius: var(--radius-medium); }
+.your-drafts { margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-7); border: 1px solid var(--color-primary-fixed-dim); background: var(--color-primary-container-low); border-radius: var(--radius-large); }
 .your-drafts h2 { margin: 0 0 var(--space-4); font: var(--label-large); line-height: 1.4; }
 .your-drafts li > span:first-child { font-weight: 500; }
 .your-drafts li .cell-note { font-size: var(--text-11); line-height: 1.4; color: var(--color-on-surface-variant); }

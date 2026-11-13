@@ -6,13 +6,13 @@ body:has(.guide) .portal-page { margin-right: var(--guide-width); }
 
 .guide { position: fixed; z-index: 30; top: 0; right: 0; bottom: 0; width: var(--guide-width); box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-8) var(--space-7); background: var(--color-surface); border-left: 1px solid var(--color-outline-variant); box-shadow: var(--elevation-2); font-size: var(--text-15); }
 .guide__header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); }
-.guide__eyebrow { margin: 0; color: var(--color-on-surface-muted); font-size: var(--text-12); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.guide__eyebrow { margin: 0; color: var(--color-on-surface-muted); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .guide__role { display: inline-block; margin: var(--space-3) 0 0; padding: var(--space-2) var(--space-4); border-radius: var(--radius-full); background: var(--color-primary-container); color: var(--color-on-primary-container); font-size: var(--text-13); font-weight: 600; }
 .guide__position { margin: 0; color: var(--color-on-surface-variant); font-size: var(--text-13); }
 .guide__goal { margin: 0; font-size: var(--text-18); font-weight: 600; line-height: 1.35; }
 .guide__why { margin: 0; color: var(--color-on-surface-variant); }
-.guide__before-now { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3) var(--space-5); margin: 0; padding: var(--space-5); border-radius: var(--radius-medium); background: var(--color-surface-container-low); }
-.guide__before-now dt { font-size: var(--text-12); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-muted); padding-top: var(--space-2); }
+.guide__before-now { display: grid; grid-template-columns: auto 1fr; gap: var(--space-3) var(--space-5); margin: 0; padding: var(--space-5); border-radius: var(--radius-large); background: var(--color-surface-container-low); }
+.guide__before-now dt { color: var(--color-on-surface-muted); padding-top: var(--space-2); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .guide__before-now dd { margin: 0; }
 .guide__before-now dt:nth-of-type(2) { color: var(--color-success); }
 .guide__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); }
@@ -21,7 +21,7 @@ body:has(.guide) .portal-page { margin-right: var(--guide-width); }
 .guide__fills { display: flex; flex-direction: column; gap: var(--space-4); }
 .guide__fill-buttons { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .guide__sample { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); }
-.guide__handoff { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-5); padding: var(--space-6); border-radius: var(--radius-medium); background: var(--color-primary-container-low); border: 1px solid var(--color-primary-container); }
+.guide__handoff { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-5); padding: var(--space-6); border-radius: var(--radius-large); background: var(--color-primary-container-low); border: 1px solid var(--color-primary-container); }
 .guide__checklist summary, .guide__not-yet summary { cursor: pointer; font-size: var(--text-13); font-weight: 600; }
 .guide__checklist ol { margin: var(--space-4) 0 0; padding-left: var(--space-8); font-size: var(--text-13); color: var(--color-on-surface-variant); }
 .guide__checklist li { margin-bottom: var(--space-3); }
@@ -46,7 +46,7 @@ body:has(.guide) .portal-page { margin-right: var(--guide-width); }
 .guide-pill { position: fixed; z-index: 30; right: var(--space-7); bottom: var(--space-7); padding: var(--space-4) var(--space-7); border: 0; border-radius: var(--radius-full); background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); box-shadow: var(--elevation-3); font: inherit; font-size: var(--text-13); font-weight: 600; cursor: pointer; }
 .guide-pill:focus-visible { box-shadow: var(--focus-ring); outline: none; }
 
-.guide-in-dialog { margin: 0 0 var(--space-6); padding: var(--space-5); border-radius: var(--radius-medium); background: var(--color-primary-container-low); border: 1px solid var(--color-primary-container); display: flex; flex-direction: column; gap: var(--space-4); }
+.guide-in-dialog { margin: 0 0 var(--space-6); padding: var(--space-5); border-radius: var(--radius-large); background: var(--color-primary-container-low); border: 1px solid var(--color-primary-container); display: flex; flex-direction: column; gap: var(--space-4); }
 .guide-in-dialog .guide__goal { font-size: var(--text-15); }
 
 .tour-highlight { outline: 3px solid var(--color-focus) !important; outline-offset: 3px; border-radius: var(--radius-small); animation: tour-pulse 1s ease-in-out 3; }

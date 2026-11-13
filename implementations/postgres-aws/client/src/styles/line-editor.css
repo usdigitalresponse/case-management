@@ -42,7 +42,7 @@
 .rate-note { margin: 0 0 var(--space-5); font-size: var(--text-13); color: var(--color-on-surface-variant); }
 /* Invoice items: columns come from the component; labels are visually
    hidden until rows stack. */
-.line-editor-head { display: grid; gap: var(--space-5); text-transform: uppercase; margin: 0 calc(var(--space-6) * -1); padding: var(--space-5) var(--space-6) var(--space-4); background: var(--color-surface-container-low); border-bottom: 1px solid var(--color-outline-subtle); border-radius: var(--radius-medium) var(--radius-medium) 0 0; font-size: var(--text-11); letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
+.line-editor-head { display: grid; gap: var(--space-5); margin: 0 calc(var(--space-6) * -1); padding: var(--space-5) var(--space-6) var(--space-4); background: var(--color-surface-container-low); border-bottom: 1px solid var(--color-outline-subtle); border-radius: var(--radius-large) var(--radius-large) 0 0; color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .line-editor .line-row { padding: var(--space-6) 0; border-top: 1px solid var(--color-outline-subtle); align-items: start; column-gap: var(--space-6); }
 .line-editor .line-editor-head { column-gap: var(--space-6); }
 /* The header row already draws the line above the first item. */
@@ -98,9 +98,8 @@
       content: attr(data-label);
       display: block;
       margin-bottom: var(--space-3);
-      font-size: var(--text-11);
-      font-weight: 600;
-      letter-spacing: .04em;
+      font: var(--title-small);
+      letter-spacing: var(--tracking-title-small);
       text-transform: uppercase;
       color: var(--color-on-surface-variant);
     }
