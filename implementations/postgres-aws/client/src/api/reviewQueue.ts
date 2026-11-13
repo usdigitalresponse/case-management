@@ -230,3 +230,31 @@ export function billingRecordUrl(format: 'csv' | 'xlsx', filter: BillingRecordFi
   if (filter.omit?.length) params.set('omit', filter.omit.join(','));
   return `/api/invoices/billing-record?${params}`;
 }
+
+export type OverviewStep = 'no_reviewer' | 'being_reviewed' | 'sign_off' | 'not_completed';
+
+export interface OverviewInvoice {
+  invoiceId: string;
+  senderDisplayName: string | null;
+  caseNumber: string | null;
+  submittedTotal: string;
+}
+
+export interface InvoiceChange {
+  invoiceId: string;
+  senderDisplayName: string | null;
+  caseNumber: string | null;
+  periodStart: string | null;
+  what: string;
+  when: string;
+  by: string | null;
+}
+
+export interface InvoiceOverview {
+  steps: Array<{ step: OverviewStep; count: number; invoices: OverviewInvoice[] }>;
+  changes: InvoiceChange[];
+}
+
+export function getInvoiceOverview(): Promise<InvoiceOverview> {
+  return request('/api/invoices/overview');
+}

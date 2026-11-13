@@ -90,9 +90,10 @@ function Sidebar({ showSettings }: { showSettings: boolean }) {
             <span aria-hidden="true">+</span> Upload invoices
           </NavLink>
         </div>
-        {/* Intake, other person records and /home-alternate still work by address. */}
+        {/* Case overview, Intake, other person records and /home-alternate still work by address. */}
         <div className="nav-group">
           <h2>Invoices</h2>
+          <NavLink to="/invoice-overview" end>Invoice overview</NavLink>
           <Link to="/" className={allActive ? 'active' : undefined}>
             To review{counts && <span className="nav-count">{counts.all}</span>}
           </Link>
@@ -103,7 +104,6 @@ function Sidebar({ showSettings }: { showSettings: boolean }) {
         </div>
         <div className="nav-group">
           <h2>Look up</h2>
-          <NavLink to="/overview" end>Case overview</NavLink>
           <NavLink to="/preauthorizations">Pre-authorizations</NavLink>
           <NavLink to="/cases" end>
             All cases{counts?.openCases != null && <span className="nav-count">{counts.openCases}</span>}
@@ -215,6 +215,7 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
             { path: '/preauthorizations/:requestId', lazy: async () => ({ Component: (await import('./pages/Preauthorizations')).StaffPreauthorizationRequest }), ...loaders.preauthorizationRequest },
             { path: '/settings', ...page(() => import('./pages/Settings')), ...loaders.settings },
             { path: '/overview', ...page(() => import('./pages/Overview')), ...loaders.overview },
+            { path: '/invoice-overview', ...page(() => import('./pages/InvoiceOverview')), ...loaders.invoiceOverview },
             { path: '/possible-duplicates', element: <PossibleDuplicatesRedirect /> },
             { path: '/possible-duplicates/merge', element: <OldMergeRedirect /> },
             { path: '/person-records', ...page(() => import('./pages/PeopleDirectory')), ...loaders.personRecords },

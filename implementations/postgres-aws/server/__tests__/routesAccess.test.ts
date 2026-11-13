@@ -99,6 +99,7 @@ const STAFF_ONLY = [
   '/api/staff?q=a',
   '/api/invoices',
   '/api/invoices/counts',
+  '/api/invoices/overview',
   '/api/reference-data',
   '/api/settings/professional-kinds',
   '/api/settings/external-users',

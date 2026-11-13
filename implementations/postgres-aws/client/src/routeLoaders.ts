@@ -60,6 +60,7 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
     exports: preload((args) => [resources.reviewQueue(exportsRequest(searchOf(args))), resources.counties]),
     review: preload(({ params }) => [resources.invoiceForReview(params.invoiceId as string), resources.decisionReasons]),
     overview: preload(() => [resources.caseOverview, resources.recentCaseChanges]),
+    invoiceOverview: preload(() => [resources.invoiceOverview]),
     cases: preload((args) =>
       searchOf(args).get('tab') === 'duplicates'
         ? [resources.possibleDuplicateCases]
