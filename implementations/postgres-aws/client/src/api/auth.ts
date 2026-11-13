@@ -59,11 +59,9 @@ export interface AuthProvider {
 export interface AuthProvidersResponse {
   // Only providers with credentials configured (see ../../server/src/auth/oidcProviders.ts).
   providers: AuthProvider[];
-  // Whether the server allows demo sign-in (off in production unless
-  // DEMO_LOGIN_ENABLED=true).
+  // Whether demo sign-in is allowed (DEMO_LOGIN_ENABLED).
   demoLoginEnabled: boolean;
-  // Same, for signing in as a demo external partner
-  // (EXTERNAL_DEMO_LOGIN_ENABLED).
+  // The same for the external demo sign-in (EXTERNAL_DEMO_LOGIN_ENABLED).
   externalDemoLoginEnabled: boolean;
   // Set per deployment (ORGANIZATION_NAME); null for none.
   organizationName: string | null;
@@ -73,10 +71,7 @@ export function listAuthProviders(): Promise<AuthProvidersResponse> {
   return request<AuthProvidersResponse>('/auth/providers');
 }
 
-// Always resolves (the server responds 202 whether or not the email is
-// recognized, to avoid revealing which external addresses are allowed in)
-// — there is no success/failure branch to handle here beyond a network/5xx
-// error.
+// The server answers 202 whether or not the email is known, so as not to reveal who may sign in.
 export function requestSignInCode(email: string): Promise<void> {
   return request<void>('/auth/code/request', { method: 'POST', body: JSON.stringify({ email }) });
 }

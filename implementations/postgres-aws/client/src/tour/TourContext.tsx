@@ -78,9 +78,8 @@ export function TourProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Starts a mission's material and signs in as its first role, on that
-  // role's home page: the visitor takes the first step themselves. The tour
-  // moves on only once the app has taken on that sign-in, so the two agree.
+  // Makes a mission's material and signs in as its first role, on its home page; the tour moves on only once
+  // the app has taken on that sign-in.
   const begin = useCallback(
     async (mission: TourMission, make: (start: TourStart) => TourState) => {
       const started = await startTour(mission);

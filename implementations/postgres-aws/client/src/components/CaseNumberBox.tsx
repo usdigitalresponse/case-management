@@ -1,6 +1,5 @@
-// An invoice's typed case number, saved on blur or Enter, with its county below;
-// inline, one field among the invoice's details (InvoiceDetailsFields), its county left to the caller
-// and its explainer below the row.
+// An invoice's typed case number, saved on blur or Enter; inline among InvoiceDetailsFields, it leaves
+// the county to the caller and puts its explainer below the row.
 import type { ReactNode } from 'react';
 
 export function CaseNumberBox({

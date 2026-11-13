@@ -1,6 +1,4 @@
-// Cases whose number, or any of their other numbers, is the one an invoice
-// gives: exactly, else closely (../billing/caseNumbers.ts closeKey). For
-// matching an invoice filed by person to its case.
+// Cases with any number matching the one an invoice gives, exactly or else closely (../billing/caseNumbers.ts).
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { unionAll } from 'drizzle-orm/pg-core';
 import type { DatabaseOrTransaction } from '../db/client';

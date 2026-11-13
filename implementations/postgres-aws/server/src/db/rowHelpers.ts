@@ -1,6 +1,4 @@
-// `.returning()`/insert helpers share this narrowing so a single-row result
-// isn't left as possibly-undefined (noUncheckedIndexedAccess) throughout
-// callers.
+// A single-row result, narrowed from possibly undefined.
 export function firstRow<T>(rows: T[]): T {
   const [row] = rows;
   if (!row) {
@@ -9,10 +7,7 @@ export function firstRow<T>(rows: T[]): T {
   return row;
 }
 
-// Drizzle wraps PostgreSQL errors in .cause. Shared by every caller that
-// needs to recover from a concurrent-write race by re-reading instead of
-// failing (../intake/createCase.ts, ../professionals/ensureProfessional.ts,
-// ../routes/cases.ts's external-assignment route).
+// For recovering from a concurrent-write race; Drizzle wraps PostgreSQL errors in .cause.
 export function uniqueViolationConstraint(error: unknown): string | null {
   const candidates = [error, (error as { cause?: unknown } | null)?.cause];
   for (const candidate of candidates) {

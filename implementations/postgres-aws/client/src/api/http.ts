@@ -1,5 +1,4 @@
-// Thin fetch wrapper — no business logic here, only HTTP mechanics. The
-// server (../../server/src/routes) owns validation and business rules.
+// HTTP mechanics only: the server owns validation and business rules.
 export class ApiError extends Error {
   status: number;
   body: unknown;

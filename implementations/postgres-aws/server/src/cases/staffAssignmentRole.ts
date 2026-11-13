@@ -1,11 +1,5 @@
-// The case_assignment-context role used when a full user assigns another
-// staff member to a case — distinct from "External Submitter"
-// (../professionals/externalSubmitterRole.ts) so the two kinds of
-// assignment stay distinguishable in case_assignment rows. No
-// qualification/role-choice is implemented (model/rules.yaml
-// require_qualification_for_assignment, outcome: configurable; see
-// ../../docs/api.md "Case assignment, two workflows") — every staff assignment uses this one fixed role,
-// the same simplification already made for external assignments.
+// The one fixed role for staff case assignments, distinct from "External Submitter"; no qualification check
+// (../../docs/api.md "Case assignment, two workflows").
 import type { Database } from '../db/client';
 import { getSeededRoleId } from '../db/referenceLookups';
 

@@ -1,6 +1,4 @@
-// The external user's case list (../portal/listPortalCases.ts). A full (SSO)
-// user has no profile unless one is created
-// (../professionals/ensureProfessional.ts).
+// The external user's case list (../portal/listPortalCases.ts).
 import { Router } from 'express';
 import { db } from '../db/client';
 import { getSessionUser, requireAuth } from '../auth/session';

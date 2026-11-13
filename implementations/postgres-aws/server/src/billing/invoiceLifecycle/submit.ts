@@ -210,9 +210,8 @@ export async function releaseToReviewInTx(tx: Transaction, staffUserAccountId: s
   return true;
 }
 
-// Prices the lines for good, checks the billing rules and freezes what was
-// asked for in the attempt's snapshot. Callers measure trips first, outside
-// the transaction.
+// Prices the lines for good, checks the billing rules and freezes the request in the attempt's snapshot.
+// Callers measure trips first, outside the transaction.
 export async function freezeRequest(
   tx: Transaction,
   invoiceId: string,

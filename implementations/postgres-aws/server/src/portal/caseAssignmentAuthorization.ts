@@ -1,7 +1,4 @@
-// Shared authorization check for the external portal: is this
-// professional currently (open-endedly) assigned to this case? Used by
-// both ./createTimeEntry.ts and ./createInvoice.ts, which otherwise had
-// no reason to duplicate the same query.
+// Whether a professional has an open assignment to a case.
 import { and, eq, isNull } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';
 import { caseAssignment } from '../db/schema';
@@ -21,10 +18,7 @@ export async function hasOpenAssignment(db: DatabaseOrTransaction, professionalI
   return Boolean(assignment);
 }
 
-// Distinct from a validation error: the request is well-formed, but the
-// caller has no open case_assignment for this case — the actual
-// authorization check (see model/schema.yaml case_assignment and
-// ../../docs/api.md "Case assignment, two workflows").
+// A well-formed request from someone with no open assignment to the case.
 export class NotAssignedToCaseError extends ForbiddenError {
   constructor() {
     super('not_assigned', 'Not assigned to this case.');

@@ -27,9 +27,8 @@ import { submittedByLabel } from '../reviewTotals';
 import { useSearchParamState } from '../hooks/useSearchParamState';
 import { FilterTag } from '../components/ui/Tag';
 
-// This staff member's unfinished work. For a reviewer: invoices they're still entering, and
-// any draft from before uploads went straight into review, continued the
-// same way. For other staff: their unsent drafts.
+// This staff member's unfinished work: a reviewer's invoices still being entered (and older drafts, continued
+// the same way), or other staff's unsent drafts.
 function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccountId: string; entering: ReviewQueueItem[]; onDeletedEntry: () => void }) {
   const navigate = useNavigate();
   const { user } = useAuth();

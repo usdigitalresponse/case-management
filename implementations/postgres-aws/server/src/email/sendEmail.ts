@@ -1,11 +1,4 @@
-// Thin send-an-email abstraction, for sign-in codes (../routes/auth.ts) and
-// invoice receipts (../billing/invoiceLifecycle/submit.ts). Sends via AWS SES when SES_SENDER_EMAIL is
-// configured; otherwise falls back to logging the message, the same
-// "optional, falls back" shape as ../auth/oidcProviders.ts's
-// configureOidcProviders, so local dev needs no AWS setup. The SES client
-// resolves credentials/region the normal AWS SDK way (env vars, an ECS
-// task role in production, etc.) — nothing app-specific to configure
-// beyond the sender address.
+// Sends through SES when SES_SENDER_EMAIL is set (credentials found the usual AWS SDK way), else logs the message.
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 
 let sesClient: SESv2Client | undefined;

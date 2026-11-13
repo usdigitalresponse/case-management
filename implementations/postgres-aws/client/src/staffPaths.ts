@@ -13,7 +13,6 @@ export function reviewPath(invoiceId: string): string {
 
 export const MERGE_PEOPLE_PATH = '/people/merge';
 
-// People's Review duplicates tab, with any of its own parameters, such as `merged`.
 // Settings' tabs, one section each (pages/Settings.tsx).
 export const SETTINGS_TABS = ['review', 'people', 'rates', 'preauthorization', 'rules', 'providers', 'office-staff', 'duplicates', 'edit-data', 'demo'] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];

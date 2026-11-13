@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useCombobox } from 'downshift';
 
-// Shared type-ahead search-and-select. Downshift's useCombobox supplies
-// the keyboard handling and ARIA wiring; matches come from a server
-// search that runs once typing pauses (DEBOUNCE_MS). Whatever the field
-// shows is the selection: editing the text after picking an option
-// deselects it, and the ✕ button clears both. The caller renders its own
-// <Label> with htmlFor={id} and id={`${id}-label`}.
+// Search-and-select on Downshift's useCombobox, searching the server once typing pauses. Editing the
+// text deselects and ✕ clears both. The caller renders <Label> with htmlFor={id} and id={`${id}-label`}.
 const DEBOUNCE_MS = 300;
 const ADD_VALUE = 'add-new';
 
@@ -41,8 +37,7 @@ export function TypeAheadPicker<T>({
   const [status, setStatus] = useState<'idle' | 'searching' | 'done' | 'error'>('idle');
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
-  // Only the latest search's response is applied, so a slow earlier
-  // response can't overwrite a newer one.
+  // Only the latest search's response is applied.
   const latestSearch = useRef(0);
 
   useEffect(() => () => clearTimeout(debounceTimer.current), []);

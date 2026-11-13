@@ -1,8 +1,5 @@
-// The portal's invoice list, with deletability, the last submission time
-// (recall clears submittedAt) and what the submitter needs at a glance:
-// the case number, a draft's import and changes, the reviewer while in
-// review, and the outcome once decided. Each is loaded for all rows at once.
-// The portal's pages read it a batch at a time.
+// The portal's invoice list, a batch at a time, with what the submitter needs at a glance, each loaded for all
+// rows at once.
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { groupBy } from '../groupBy';
 import { afterCursor, cursorColumn, newestFirst, oneBatch, orderByKeys, sortKey, withoutCursor, type BatchRequest, type SortKey } from '../lists/batches';

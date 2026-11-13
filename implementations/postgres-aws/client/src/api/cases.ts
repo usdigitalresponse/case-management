@@ -351,7 +351,6 @@ export function listCounties(): Promise<{ counties: CountyOption[] }> {
   return request('/api/portal/counties');
 }
 
-// --- External portal (view/log time, submit invoices) ---------------------
 
 export function closeCase(
   caseId: string,
@@ -363,7 +362,6 @@ export function closeCase(
   });
 }
 
-// --- Pre-authorization requests (server/src/routes/preauthorizations.ts) ---
 
 // --- Possible duplicate cases (staff; never merged here) ---------------------
 

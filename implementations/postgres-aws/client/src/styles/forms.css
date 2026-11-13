@@ -1,8 +1,6 @@
 /* Form cards, compact inline fields, choices and inline confirmations. */
 /* Form layout: each Fieldset in its own card, short-field sections in a responsive 2-column grid. */
-/* react-uswds's <Form> applies .usa-form, which caps max-width at 20rem —
-   fine for a single-column form, but it squeezes .form-grid's 2-column
-   layout into a sliver. Override it for the one form that needs room. */
+/* .usa-form caps width at 20rem, too narrow for this form's 2-column grid. */
 form.case-intake-form { max-width: 52rem; }
 .form-card { padding: var(--space-8) var(--space-8); margin-bottom: var(--space-7); }
 .form-card .usa-fieldset { margin: 0; }

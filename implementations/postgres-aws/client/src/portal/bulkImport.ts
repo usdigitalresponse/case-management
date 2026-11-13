@@ -1,11 +1,8 @@
 import type { ImportInProgress, MyCaseRecord, MyCasesResult } from '../api/client';
 import { caseDisplayLabel } from '../caseDisplayLabel';
 
-// A file is designated either to one case, which also says whom it bills
-// (a case shared by colleagues is offered under each), or to one
-// professional whose lines name their cases (split after upload). Staff may
-// also import a file for a professional with no case yet; it waits on Intake
-// until it is matched (model/rules.yaml match_invoice_to_case).
+// A file is for one case, which also says whom it bills (a shared case is offered under each), or for one
+// professional whose lines name their cases, split after upload. Staff may also import one with no case yet.
 export interface CaseChoice {
   value: string;
   label: string;

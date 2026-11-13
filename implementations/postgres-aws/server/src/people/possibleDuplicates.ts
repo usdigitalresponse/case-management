@@ -1,7 +1,5 @@
-// People who may be one person recorded twice (model/rules.yaml
-// flag_possible_duplicate_client): found by matching details, or flagged by
-// staff. Staff may record that a pair are different people; only an
-// administrator merges them (./personMerges.ts). Nothing is merged here.
+// People who may be one recorded twice (model/rules.yaml flag_possible_duplicate_client), by matching details
+// or staff flags. Nothing is merged here (./personMerges.ts).
 import { membersOf } from '../duplicateMembers';
 import { z } from 'zod';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';

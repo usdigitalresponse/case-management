@@ -8,10 +8,7 @@ import { SearchInput } from './SearchInput';
 import { Notice } from './ui/Notice';
 import { Button } from './ui/Button';
 
-// Shared "search-then-list" shape for the sidebar's lookup pages (Providers,
-// person records): each differs in what it fetches and how it renders a row,
-// and results come a batch at a time as they scroll. `loadInitially` lists
-// everyone before a search (Providers); otherwise a query is expected first.
+// A lookup page's search and batched results; `loadInitially` lists everyone before a search.
 export function SearchDirectory<T>({
   title,
   description,
@@ -84,8 +81,6 @@ export function SearchDirectory<T>({
           placeholder={searchPlaceholder}
           value={query}
           onChange={setQuery}
-          // Back to the page's starting state: everything for a
-          // loadInitially directory, otherwise no results until a search.
           onClear={() => setSearched('')}
         />
         <Button type="submit" kind="secondary" disabled={searching}>{searching ? 'Searching…' : 'Search'}</Button>

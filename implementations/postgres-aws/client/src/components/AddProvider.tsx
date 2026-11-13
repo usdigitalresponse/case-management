@@ -26,11 +26,8 @@ export function useAddedProviders(caseId: string | null) {
   return { added, onProviderAdded };
 }
 
-// A provider (attorney, expert or vendor) who has never signed in, so an
-// invoice can say whose work it is (model/rules.yaml
-// add_professional_without_login). If they sign in later with the same email,
-// they get this profile. On its own on Intake and Providers, and inline
-// behind PickOrAdd's "add" option, prefilled from what a submitter entered.
+// A provider who has never signed in, so an invoice can say whose work it is (model/rules.yaml
+// add_professional_without_login); they get this profile if they sign in with the same email.
 export function AddProvider({
   onAdded,
   onCancel,

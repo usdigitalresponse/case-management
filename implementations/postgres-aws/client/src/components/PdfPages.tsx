@@ -5,10 +5,8 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
-// Draws PDF pages onto canvases with PDF.js, so uploaded content never opens
-// as a page; PDF.js's core runs no document scripts. Loaded lazily. The
-// document is read once; zooming only redraws the pages at the new width,
-// so they stay sharp.
+// Draws PDF pages onto canvases with PDF.js (which runs no document scripts), so uploads never open as a
+// page. Zooming redraws the pages, read once, at the new width.
 export default function PdfPages({
   data,
   width,

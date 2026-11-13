@@ -1,9 +1,5 @@
-// Two independent sign-in paths, not one merged form: agency staff use
-// SSO (whichever provider their organization has configured — inherits
-// their org's session/MFA policy, no email round-trip); external
-// partners have no pre-provisioned identity, so they sign in with a code
-// sent by email instead. See ../../docs/api.md "Multi-IdP SSO" and
-// "Emailed-code sign-in for external users".
+// Staff sign in with their organization's SSO; external users, who have no such identity, with an emailed
+// code (../../docs/api.md).
 import { useState } from 'react';
 import { apiErrorMessage, type DemoAccount } from '../api/client';
 import { useResource } from '../hooks/useResource';

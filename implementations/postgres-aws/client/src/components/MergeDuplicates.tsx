@@ -1,9 +1,6 @@
-// Settings › Merge duplicates (design K67): possible duplicate cases and people
-// in one table, a row per group of records that may be one. Any staff member
-// flags a pair or says a pair is not the same; only administrators merge a
-// group, all or none. People are merged after a preview (../pages/MergePeople.tsx);
-// a case belongs to the external system, so "merging" cases moves their invoices
-// to the case kept and closes the others as added by mistake, each undone in Edit data.
+// Settings › Merge duplicates (design K67): a row per group of cases or people that may be one. Any staff
+// member flags or separates a pair; only administrators merge a group, all or none: people after a preview
+// (../pages/MergePeople.tsx), cases by moving their invoices to the one kept and closing the others as added by mistake.
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {

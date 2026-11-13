@@ -1,9 +1,6 @@
-// Open cases that may be one case recorded twice (model/rules.yaml
-// flag_possible_duplicate_case): their numbers match ignoring punctuation and
-// leading zeros, or staff flagged them. Cases in different counties are never
-// listed; a missing county doesn't rule a pair out. Cases belong to the external case
-// management system, so they are never merged here; staff mark a pair as
-// different, or close the extra case as a cleanup.
+// Open cases that may be one recorded twice (model/rules.yaml flag_possible_duplicate_case): numbers matching
+// but for punctuation and leading zeros, or flagged by staff. Never across counties (a missing one doesn't rule a
+// pair out), and never truly merged, since cases belong to the external system.
 import { membersOf } from '../duplicateMembers';
 import { z } from 'zod';
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';

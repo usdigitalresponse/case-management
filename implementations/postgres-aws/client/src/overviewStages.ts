@@ -1,7 +1,6 @@
 import type { CaseStage } from './api/client';
 
-// Each stage lands on the case list pre-filtered via ?stage=<id>
-// (./pages/CaseList.tsx reads it).
+// Each stage links to the case list filtered by ?stage=<id>.
 export const overviewStages: { id: CaseStage; label: string; description: string; route: string }[] = [
   {
     id: 'needs-assignment',
@@ -14,9 +13,7 @@ export const overviewStages: { id: CaseStage; label: string; description: string
   { id: 'closing', label: 'Closing', description: 'Final steps before the case closes.', route: '/cases?stage=closing' },
 ];
 
-// A closed case (stage: null) has left the working board entirely — see
-// server/src/cases/caseStage.ts. An unrecognized value (e.g. a typo'd
-// ?stage= param) is shown as-is.
+// A closed case's stage is null (server/src/cases/caseStage.ts); an unknown ?stage= shows as given.
 export function stageLabel(stage: string | null): string {
   if (!stage) return 'Closed';
   return overviewStages.find((s) => s.id === stage)?.label ?? stage;

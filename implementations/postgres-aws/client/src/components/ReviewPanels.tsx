@@ -9,9 +9,8 @@ import { Button } from './ui/Button';
 import { Tag, type Tone } from './ui/Tag';
 import { Dialog } from './ui/Dialog';
 
-// Rate check: time lines billed above the case rate a reviewer set, else the
-// pre-authorized rate, else the person's approved rate, shown once above the
-// table rather than on every line.
+// Time lines billed above the case rate a reviewer set, else the pre-authorized rate, else the
+// approved rate; shown once above the table.
 export function rateCheck(lines: InvoiceReviewLine[]) {
   const above = lines.filter(
     (line) => line.rateLimit !== null && line.billedRate !== null && Number(line.billedRate) > Number(line.rateLimit),
@@ -73,8 +72,7 @@ function totalsFigures(requested: string, totals: ReviewTotals) {
   ];
 }
 
-// Requested, approved and cut so far, and Finish review once every line is
-// decided.
+// Requested, approved and cut so far, and Finish review once every line is decided.
 export function TotalsBar({
   requested,
   totals,

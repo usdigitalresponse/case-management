@@ -1,8 +1,6 @@
-// Guided tour runs and their removal (docs/api.md "Guided tour"). A run
-// records the cases, invoices, requests and people it made or its visitor
-// added; a day after it starts, those go with everything that references
-// them, found through the database's own foreign keys. Demo servers only:
-// the one exception to keeping history, for synthetic tour material alone.
+// Guided tour runs (docs/api.md "Guided tour"): the records a run made or its visitor added go, a day after it
+// starts, with everything referencing them through foreign keys. Demo servers only, and the one exception to
+// keeping history.
 import type { Request } from 'express';
 import { and, eq, isNull, lt, sql } from 'drizzle-orm';
 import { db as defaultDb, type Database, type DatabaseOrTransaction } from '../db/client';

@@ -1,8 +1,5 @@
-// The number an invoice or case goes by, in SQL, as loadCaseNumbers
-// (../billing/invoiceDetail.ts) and currentCaseNumber (../billing/caseNumbers.ts)
-// work it out: a reviewer's correction, else as typed, else its case's primary
-// identifier, else the case's reference. Joined for scans over many rows;
-// per row where a filter must read only the row.
+// The number an invoice or case goes by, in SQL, as loadCaseNumbers and currentCaseNumber work it out: a
+// correction, else as typed, else its case's primary identifier, else its reference.
 import { aliasedTable, and, eq, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import { caseIdentifier, caseTable, invoice } from '../db/schema';
 

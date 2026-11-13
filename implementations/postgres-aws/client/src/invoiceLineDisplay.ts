@@ -1,6 +1,4 @@
-// How a line's cells read in every invoice table: staff review
-// (components/InvoiceLinesTable.tsx) and the submitter's lines
-// (portal/CheckLinesTable.tsx) share the kind, quantity and rate wording.
+// How a line's kind, quantity and rate read in every invoice table, staff's and submitters'.
 import type { InvoiceLineType, PortalInvoiceLine } from './api/client';
 import { formatDate } from './formatDateTime';
 import { formatRate } from './formatMoney';

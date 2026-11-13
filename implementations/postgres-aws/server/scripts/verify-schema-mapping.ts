@@ -1,8 +1,5 @@
-// Heuristic drift check between model/schema.yaml (canonical model) and
-// src/db/schema.ts (this implementation's Drizzle mapping). Text-level only
-// (does schema.ts mention each expected column name?) — catches a field
-// silently disappearing, not a wrong type. Doesn't replace MAPPING.md's
-// narrative notes on deliberate scope decisions.
+// Text-level drift check: does src/db/schema.ts mention each model/schema.yaml field it maps?
+// Catches a field disappearing, not a wrong type.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';
@@ -11,9 +8,7 @@ const REPO_ROOT = join(__dirname, '..', '..', '..', '..');
 const SCHEMA_YAML_PATH = join(REPO_ROOT, 'model', 'schema.yaml');
 const DRIZZLE_SCHEMA_PATH = join(__dirname, '..', 'src', 'db', 'schema.ts');
 
-// Entities this implementation maps, per MAPPING.md's "Entities in scope".
-// Every other schema.yaml entity is intentionally absent from
-// src/db/schema.ts and is not checked here.
+// MAPPING.md's "Entities in scope"; no other entity is checked.
 const IN_SCOPE_ENTITIES = [
   'user_account',
   'county',
@@ -61,10 +56,7 @@ const IN_SCOPE_ENTITIES = [
   'invoice_attestation',
 ];
 
-// Fields on in-scope entities that are deliberately not mapped, with the
-// reason recorded here and in MAPPING.md's "Entities in scope" section.
-// Anything not listed here is expected to appear in src/db/schema.ts;
-// remove an entry (and update MAPPING.md) once the field is actually added.
+// Fields deliberately not mapped, as in MAPPING.md; remove an entry (and update MAPPING.md) once one is added.
 const DELIBERATELY_OMITTED_FIELDS: Record<string, string> = {
   'organization.organization_type_id':
     'reference_data classification not needed for intake/read scope',

@@ -21,7 +21,6 @@ export async function loadAllBatches<T>(load: (after: string | null) => Promise<
   const items: T[] = [];
   let after: string | null = null;
   do {
-    // Each batch starts after the last.
     // eslint-disable-next-line no-await-in-loop
     const batch: Batch<T, unknown> = await load(after);
     items.push(...batch.items);

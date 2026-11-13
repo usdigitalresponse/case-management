@@ -1,8 +1,5 @@
-// Settings, Edit data (model/rules.yaml correct_case_records): an
-// administrator fixes a case added by mistake - moving its requests to the
-// same case recorded twice, correcting it, or taking its requests off it. The
-// preview says exactly what changes; each fix records every value it changes,
-// so it can be undone.
+// Settings, Edit data (model/rules.yaml correct_case_records): an administrator moves a mistaken case's requests
+// to the same case recorded twice, corrects it, or takes its requests off it. Every value changed is recorded for undo.
 /* eslint-disable no-await-in-loop -- a transaction runs one query at a time, and the changes' order is undone in reverse */
 import { z } from 'zod';
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';

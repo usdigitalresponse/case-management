@@ -23,14 +23,11 @@ import { asyncHandler } from './asyncHandler';
 import { addDemoTourRoutes } from './demoTour';
 
 export interface AuthRouterOptions {
-  // Configured full-user providers (see ../auth/oidcProviders.ts) —
-  // empty when no provider's credentials are set.
+  // Staff SSO providers with credentials set.
   oidcProviders: OidcProviderConfig[];
-  // Passwordless sign-in as a seeded synthetic staff account, by default
-  // the administrator (see ../db/fixtures.ts and docs/api.md "Demo sign-in").
+  // Sign-in as a seeded synthetic staff account, the administrator by default (docs/api.md "Demo sign-in").
   demoLoginEnabled: boolean;
-  // Passwordless sign-in as a seeded demo vendor (an external user), who is
-  // also its office's billing delegate.
+  // Sign-in as a seeded external demo vendor, also its office's billing delegate.
   externalDemoLoginEnabled: boolean;
   // Shown before the product's name in the header; null for none (ORGANIZATION_NAME).
   organizationName?: string | null;
@@ -78,9 +75,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
       // The same response whether or not they may sign in, so it can't be used to find out who may.
       if (email && (await externalSignInPersonId(db, email))) {
         const code = await issueSignInCode(db, email);
-        // Not awaited: the response below is identical either way, so
-        // there's no reason to hold the request open for an SES round
-        // trip. Send failures are logged, never surfaced to the caller.
+        // Not awaited, since the response is the same either way; failures are only logged.
         sendEmail(
           email,
           `Your sign-in code: ${code}`,
@@ -185,8 +180,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
     );
   }
 
-  // Signs in as the chosen demo account, which must be on `list`, else the
-  // default one.
+  // Signs in as the chosen demo account on `list`, else the default one.
   const demoLogin = (
     path: string,
     list: typeof listDemoStaff,

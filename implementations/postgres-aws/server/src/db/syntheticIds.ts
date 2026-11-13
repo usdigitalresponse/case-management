@@ -1,6 +1,4 @@
-// Stable synthetic UUIDs (fixture convention borrowed from
-// scenarios/fixtures/review-example.yaml), used by fixtures.ts so records
-// can reference each other predictably across both the dev seed and tests.
+// Stable synthetic UUIDs for fixtures.ts, as in scenarios/fixtures/review-example.yaml.
 export const ROLE_IDS = {
   CLIENT_PARTICIPANT: '11111111-1111-5111-8111-111111111111',
 };

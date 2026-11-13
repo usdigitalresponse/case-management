@@ -242,6 +242,8 @@ async function recordInBackground(db: Database, actor: PortalActor, target: Extr
   }
 }
 
+// The queue lives in this process, so imports still received at startup were interrupted: they fail, asking for
+// another upload.
 export async function failInterruptedExtractions(db: Database): Promise<number> {
   const receivedId = await importStatusId(db, 'received');
   const extractor = documentExtractor();

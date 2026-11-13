@@ -1,15 +1,7 @@
-// Closing a case — the counterpart to ../intake/createCase.ts's opening
-// event. model/rules.yaml's preserve_case_lifecycle rule for closing:
-// requires an open state and a reason; ends every assignment active at
-// the closure effective timestamp (ended_at/ended_by/end_reason); commits
-// the closing event, assignment endings and status projection (case's
-// status_id/closed_on) atomically. The case row is locked FOR UPDATE
-// first, which serializes concurrent closes and blocks
-// ./assignProfessionalToCase.ts (which share-locks it) from adding an
-// assignment mid-close. The case's real status lives in the external case
-// system, so closing here is a cleanup: it waits until no invoice is in
-// review or decided and not marked completed. Reopening (matching a later
-// invoice to the case does it) doesn't bring the ended assignments back.
+// Closing a case (model/rules.yaml preserve_case_lifecycle): an open case and a reason; the closing event,
+// assignment endings and status commit together, under a FOR UPDATE lock that keeps assignments out. A cleanup,
+// since the external system holds the real status: it waits until no invoice is in review or decided and not
+// completed. Reopening never brings ended assignments back.
 import { z } from 'zod';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction, Transaction } from '../db/client';
@@ -23,12 +15,8 @@ import { completionMarkedAt } from '../billing/invoiceEvents';
 import { calendarDateInReportingTimeZone } from '../reportingTimeZone';
 import { CaseAlreadyClosedError, CaseInvoicesUnfinishedError, CaseNotClosedError, CaseNotFoundError } from './errors';
 
-// Server-selected synthetic closing event type/status, the same
-// simplification as ../intake/createCase.ts's OPENING_EVENT_TYPE_CODE —
-// case_lifecycle_event_types/case_statuses are organization-configurable
-// reference data in the canonical model, not fixed app constants, so
-// these codes exist only in ../db/fixtures.ts (test/dev), not
-// ../db/ensureReferenceData.ts; see docs/api.md "Closing a case".
+// Synthetic codes, as createCase's opening event: the model makes these configurable, so they exist only in
+// ../db/fixtures.ts (docs/api.md "Closing a case").
 export const CLOSING_EVENT_TYPE_CODE = 'sample_closed';
 export const CLOSED_CASE_STATUS_CODE = 'sample_closed';
 export const REOPENING_EVENT_TYPE_CODE = 'sample_reopened';

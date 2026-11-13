@@ -1,6 +1,4 @@
-// Staff only: person search, possible duplicate people
-// (../people/possibleDuplicates.ts) and, for administrators, merging them
-// (../people/personMerges.ts). Search never creates a person.
+// Staff only: person search, possible duplicate people and, for administrators, merging them.
 import { Router } from 'express';
 import { and, getTableColumns, ilike, isNull, or, sql } from 'drizzle-orm';
 import { afterCursor, batchRequest, cursorColumn, oneBatch, orderByKeys, sortKey } from '../lists/batches';
@@ -14,8 +12,6 @@ import { duplicateGeneration, forgetDuplicates, rememberDuplicateMembers } from 
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
-// Full staff access only — the person directory isn't something an
-// external (email-code) user should be able to search.
 router.use(requireFullUser);
 
 router.get(

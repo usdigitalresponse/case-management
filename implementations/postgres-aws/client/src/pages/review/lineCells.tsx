@@ -214,8 +214,7 @@ export function lineCells(page: ReviewPage, facts: ReviewFacts) {
       )
     );
   };
-  // Under each line: its questions, then a way to ask about it, then any
-  // decision being made.
+  // Under each line: its questions, a way to ask about it, then any decision being made.
   const lineDetail = (line: InvoiceReviewLine) => {
     const questions = lineQuestions(line);
     const asker = askLinkOf(line);

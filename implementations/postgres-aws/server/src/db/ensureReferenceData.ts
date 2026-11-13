@@ -1,10 +1,5 @@
-// Idempotent seeding of the reference/config rows the app needs to
-// function at all (activity_types, including travel and waiting, the mileage expense
-// type, invoice statuses/line types/approval step types/outcomes/event types, invoice import formats/statuses, the
-// fixed staff, administrator, assignment and delegate roles, and the settings recorded in place of a county). Safe to run in every
-// environment, including production, and is: ./migrate.ts calls it, and
-// ./fixtures.ts calls it after its reset, so there is one definition of
-// these rows.
+// The reference rows the app needs in every environment, production included: idempotent, run by ./migrate.ts
+// and after ./fixtures.ts resets.
 import type { Database } from './client';
 import {
   activityTypes,

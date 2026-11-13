@@ -1,6 +1,4 @@
-// The portal's dates and status words, as in the submission design: the
-// status words match the review side, so a submitter and a reviewer on the
-// phone use the same ones.
+// The portal's dates and status words; the status words match the review side's.
 import type { InvoiceRecord } from '../api/client';
 import type { Tone } from '../components/StatusPill';
 import { formatDate, formatPeriod } from '../formatDateTime';

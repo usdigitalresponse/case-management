@@ -1,7 +1,5 @@
-// Every shared synthetic invoice in scenarios/fixtures/invoices/ must parse
-// (or fail) exactly as its expected.json entry says, so a parser change that
-// breaks a sample fails here. PDFs are scored field by field against their
-// expected values. No database needed.
+// Every synthetic invoice in scenarios/fixtures/invoices/ must parse (or fail) as its expected.json says;
+// PDFs are scored field by field. No database needed.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';

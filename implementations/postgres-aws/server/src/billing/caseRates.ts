@@ -1,9 +1,6 @@
-// A reviewer's changed rate beyond one line (model/rules.yaml set_case_rate):
-// on the matching lines of this invoice, or as the case's default for the
-// person or their kind from a date. Either way the lines are decided at that
-// rate. A case default is a new row, never an edit, and only changes the
-// defaults of this invoice's lines it governs; other invoices keep theirs.
-// A case default with no rate returns to the configured rate.
+// A reviewer's changed rate beyond one line (model/rules.yaml set_case_rate): on this invoice's matching lines,
+// or as the case's default for the person or their kind from a date (a new row, changing only this invoice's
+// lines; no rate returns to the configured one). Either way the lines are decided at that rate.
 import { z } from 'zod';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';

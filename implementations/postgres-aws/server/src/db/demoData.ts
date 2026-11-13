@@ -62,9 +62,7 @@ import { firstRow } from './rowHelpers';
 import { seedDemoUploads } from './demoUploads';
 import { addProfessional } from '../professionals/addProfessional';
 
-// Dev/demo data only — deliberately not part of resetAndSeedBaselineFixtures,
-// which __tests__/ also calls and relies on staying minimal (several tests
-// assert zero pre-existing cases).
+// Not in resetAndSeedBaselineFixtures, which tests rely on staying minimal.
 const DEMO_CASE_COUNT = 10;
 const DEMO_PROFESSIONAL_COUNT = 4;
 // All three are staff; the third is the Director, the only one who signs off (seedDemoReviewers).
@@ -145,9 +143,7 @@ async function seedDemoProfessionals(): Promise<DemoProfessional[]> {
   return professionals;
 }
 
-// Every demo vendor is in one office, and the first (the demo partner
-// sign-in) is its delegate, so one sign-in bills for itself and several
-// colleagues.
+// Every demo vendor is in one office, whose delegate is the first (the external demo sign-in), billing for all.
 async function seedDemoDelegate(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   professionals: DemoProfessional[],
@@ -257,10 +253,7 @@ const DEMO_OWN_RATES: Array<{ hourlyRate: number; ratePerMile?: number } | undef
   { hourlyRate: 150 },
 ];
 
-// Other full (SSO) users to search for and assign in the "Assign staff"
-// form (client/src/components/AssignStaffForm.tsx) — distinct from
-// fixtures.staffUserAccountId, the one synthetic account every demo case
-// is already created by, so there's someone else to find and assign.
+// Staff besides fixtures.staffUserAccountId, who creates every demo case, to find and assign.
 async function seedDemoStaff(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
 ): Promise<string[]> {
@@ -353,8 +346,6 @@ async function seedDemoTimeEntriesAndInvoices(assignments: DemoAssignment[]): Pr
       await createTimeEntry(db, actor, { caseId: assignment.caseId, ...entry });
     }
 
-    // Leave the last un-invoiced and keep the second-to-last as a draft, so
-    // status actually varies.
     if (index === assignments.length - 1) {
       continue;
     }
@@ -497,9 +488,7 @@ async function seedDemoMileage(
   });
 }
 
-// Closes one never-assigned case via the same path as the "Close case"
-// UI, so the demo data covers a case that has left the overview board
-// entirely (../cases/caseStage.ts: a closed case has no stage).
+// Closes one never-assigned case as "Close case" does, so the demo has a closed case.
 async function seedClosedCase(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   caseIds: string[],
@@ -511,10 +500,7 @@ async function seedClosedCase(
   await closeCase(db, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Demo closure' });
 }
 
-// Assigns one of the still-unassigned demo cases (index ASSIGNED_CASE_COUNT,
-// just past seedDemoAssignments' range) to a demo staff member via the
-// same path the "Assign staff" UI uses, so the represented stage has an
-// example reached through internal assignment, not only external.
+// Assigns the case just past seedDemoAssignments' range to a demo staff member, as "Assign staff" does.
 async function seedStaffAssignment(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   caseIds: string[],
@@ -557,11 +543,8 @@ function monthsAgo(months: number, day: number): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, day, 15));
 }
 
-// Review demo data: case and court numbers and pre-authorizations on the
-// cases (used only by the case pages; invoices filed by person are checked
-// against configured rates), an invoice billed above the configured rate,
-// and invoices at each review state, one waiting long enough to be called
-// out. Every value is synthetic.
+// Case and court numbers, pre-authorizations, an invoice billed above the configured rate, and invoices at each
+// review state, one waiting long enough to be called out. All synthetic.
 async function seedDemoReview(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   caseIds: string[],
@@ -1119,10 +1102,8 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
   return { caseCount: DEMO_CASE_COUNT, assignmentCount: assignments.length, staffCount: staffUserAccountIds.length };
 }
 
-// Cases are added through invoices (model/rules.yaml add_case_from_request):
-// each demo case is recorded as added from its first invoice, a sender's
-// number that is a case's own is in its county so review suggests it, and
-// the case step's other outcomes each have an example.
+// Each demo case is recorded as added from its first invoice (model/rules.yaml add_case_from_request), with an
+// example of each of the case step's other outcomes.
 async function seedDemoCaseStep(fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>, professionals: DemoProfessional[]): Promise<void> {
   await db.update(invoice).set({ caseChoice: 'existing' }).where(isNotNull(invoice.caseId));
   await db.execute(sql`

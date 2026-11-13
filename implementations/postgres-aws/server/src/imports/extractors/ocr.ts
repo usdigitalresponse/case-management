@@ -245,15 +245,14 @@ async function withTimeout<T>(work: Promise<T>, message: string): Promise<T> {
   }
 }
 
-// `onPage` is told before each page is recognized (1-based, of all pages).
-// The frame a page's words are in: turned this many degrees clockwise from
-// the page as shown, and its size in points.
+// The frame a page's words are in: turned this many degrees clockwise from the page as shown, its size in points.
 export interface RecognizedFrame {
   turn: number;
   width: number;
   height: number;
 }
 
+// `onPage` is told before each page is recognized (1-based, of all pages).
 export async function recognizePages(
   document: PdfDocument,
   pageNumbers: number[],

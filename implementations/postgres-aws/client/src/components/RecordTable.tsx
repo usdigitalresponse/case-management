@@ -6,9 +6,7 @@ import { cssVars } from './ui/cssVars';
 export interface RecordTableColumn<T> {
   header: string;
   render: (row: T) => ReactNode;
-  // A share of the table's width, such as '20%'. When any column sets one,
-  // the table keeps fixed widths, so tables repeated on a page (one per
-  // section) line up column for column.
+  // A share of the table's width, such as '20%'; any sets fixed widths, so repeated tables line up.
   width?: string;
   align?: 'left' | 'right';
   // Shown to screen readers only, for an unlabelled column such as a link.

@@ -4,13 +4,10 @@ import { dirname, join } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Configurable because "localhost" means something different inside a
-// Docker container (the container itself, not the host) — docker-compose
-// sets this to the server container's service name.
+// Docker Compose sets the server's service name: localhost in a container is the container itself.
 const apiProxyTarget = process.env.API_PROXY_TARGET || 'http://localhost:3000';
 
-// PDF.js's decoders for JBIG2 and JPEG 2000 images, common in scans; without
-// them those pages draw blank. PDF.js fetches them by name from one folder
+// PDF.js's JBIG2 and JPEG 2000 decoders, without which scanned pages draw blank; fetched from one folder
 // (`wasmUrl` in PdfPages.tsx).
 const PDF_WASM_PATH = 'pdfjs-wasm/';
 const pdfWasmDir = join(dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json')), 'wasm');
@@ -51,8 +48,7 @@ export default defineConfig({
   server: {
     host: true, // bind 0.0.0.0 so the dev server is reachable from outside a container
     port: 5173,
-    // Same-origin from the browser's perspective, so the server's
-    // cookie-session cookie flows without any CORS configuration.
+    // Same-origin for the browser, so the session cookie needs no CORS.
     proxy: {
       '/api': apiProxyTarget,
       '/auth': apiProxyTarget,
