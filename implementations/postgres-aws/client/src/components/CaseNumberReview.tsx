@@ -63,7 +63,7 @@ export function CaseNumberReview({
   return (
     <>
       {none && canCorrect && (
-        <Notice tone="warning">{sender}’s file had no case number. Add it below. The tool then lists this invoice under that case.</Notice>
+        <Notice tone="warning">{sender}’s invoice had no case number. Add it below. The tool then lists this invoice under that case.</Notice>
       )}
       <CaseNumberBox
         id="review-case-number"

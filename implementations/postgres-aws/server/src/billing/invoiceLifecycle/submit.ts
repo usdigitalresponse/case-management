@@ -25,7 +25,7 @@ import { InvoiceStateError, MILEAGE_EXPENSE_TYPE_CODE } from './lineInput';
 import { lockOwnInvoice, statusId } from './drafts';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.15.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.16.0';
 
 async function buildSubmissionSnapshot(
   tx: Transaction,

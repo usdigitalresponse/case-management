@@ -3,7 +3,8 @@ import { apiErrorMessage, setDraftCaseNumber } from '../../api/client';
 import { CaseNumberBox } from '../../components/CaseNumberBox';
 import { EXTERNAL_SYSTEM_NAME } from '../../externalSystem';
 
-// The case number on a staff draft, read from the file or typed, saved as it changes.
+// The case number on a draft, read from the file or typed, saved as it changes.
+// An external sender's is only ever suggested to the reviewer, never matched (model/rules.yaml match_invoice_to_case).
 export function TypedCaseNumber({
   invoiceId,
   value,
@@ -17,7 +18,12 @@ export function TypedCaseNumber({
   onFocus,
   onSaved,
   county,
+  external = false,
+  inline = false,
 }: {
+  external?: boolean;
+  // A field among the invoice's details, with its county as the next field.
+  inline?: boolean;
   // Once a changed number is saved, so the case it finds is looked up again.
   onSaved?: () => void;
   invoiceId: string;
@@ -54,8 +60,9 @@ export function TypedCaseNumber({
     if (value.trim()) return 'Change it if it is wrong.';
     return hasFile ? 'None found in the file. Type it as it is written on the invoice.' : 'Type it as it is written on the invoice.';
   })();
-  return (
+  const box = (
     <CaseNumberBox
+      inline={inline}
       id="case-number"
       label="Case number"
       placeholder="For example, 26-CR-00418"
@@ -68,7 +75,12 @@ export function TypedCaseNumber({
       onFocus={onFocus}
       county={county}
     >
-      {chosenCase ? (
+      {external ? (
+        <>
+          <strong>Each invoice is for one case.</strong>
+          <p>Leave it blank if there is none. The billing office checks it, and adds or corrects it during review.</p>
+        </>
+      ) : chosenCase ? (
         <strong>Filed under its case.</strong>
       ) : (
         <>
@@ -81,5 +93,12 @@ export function TypedCaseNumber({
         </>
       )}
     </CaseNumberBox>
+  );
+  if (!inline) return box;
+  return (
+    <>
+      {box}
+      {county && <div className="upload-details__field">{county}</div>}
+    </>
   );
 }

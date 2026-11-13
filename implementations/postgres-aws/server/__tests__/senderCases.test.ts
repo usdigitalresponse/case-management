@@ -106,13 +106,13 @@ describe('a sender’s draft and its case', () => {
     expect(detail.invoice).toMatchObject({ caseId, statusCode: 'submitted' });
   });
 
-  it('never takes a case number, case or answer from the sender: the billing office adds them in review', async () => {
+  it('takes the sender’s case number, but never a case or answer: the billing office adds them in review', async () => {
     const sender = await newSender('sender@example.com');
     const invoiceId = await draft(sender.actor, '26-CR-00211');
 
-    await expect(setDraftCaseNumber(testDb, sender.actor, invoiceId, { caseNumber: '26-CR-00999' })).rejects.toBeInstanceOf(ForbiddenError);
+    await setDraftCaseNumber(testDb, sender.actor, invoiceId, { caseNumber: '26-CR-00999' });
     await expect(setDraftCaseChoice(testDb, sender.actor, invoiceId, { choice: 'none' })).rejects.toBeInstanceOf(ForbiddenError);
-    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.invoice).toMatchObject({ caseNumberAsTyped: '26-CR-00211', caseChoice: null });
+    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.invoice).toMatchObject({ caseNumberAsTyped: '26-CR-00999', caseChoice: null });
   });
 
   it('is refused a case its sender isn’t on', async () => {

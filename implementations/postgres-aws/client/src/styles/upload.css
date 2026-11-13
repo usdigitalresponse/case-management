@@ -33,6 +33,8 @@
 @media (min-width: 48rem) {
   .upload-details__field:has(.new-entry) > .pick-or-add > .usa-select { max-width: calc(50% - .5rem); }
 }
+/* Staff give four details in one row above the drop zone (design K). */
+.upload-page { max-width: 71rem; }
 /* Who it is from and how it came in, above the drop zone (pages/UploadInvoices.tsx). */
 .upload-card__about { margin-bottom: var(--space-8); }
 .upload-card__about > .upload-details { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); }

@@ -4,10 +4,10 @@ import { eq } from 'drizzle-orm';
 import { type Database, type Transaction } from '../../db/client';
 import { firstRow } from '../../db/rowHelpers';
 import { getReferenceId } from '../../db/referenceLookups';
-import { ForbiddenError, ValidationError } from '../../errors';
+import { ValidationError } from '../../errors';
 import { fieldErrorsFromZodIssues } from '../../intake/validation';
 import { invoice, invoiceStatuses } from '../../db/schema';
-import { authorizeBilling, isStaffAccount, type PortalActor } from '../../portal/portalActor';
+import { authorizeBilling, type PortalActor } from '../../portal/portalActor';
 import { type ProposedCase, type ProposedProvider } from '../proposedDetails';
 import { InvoiceNotFoundError } from '../reviewInvoiceLine';
 import { recordInvoiceEvent } from '../invoiceEvents';
@@ -73,12 +73,6 @@ export async function lockOwnInvoice(tx: Transaction, actor: PortalActor, invoic
   return { locked, billable };
 }
 
-export async function requireStaffForCase(db: Database | Transaction, actor: PortalActor) {
-  if (!(await isStaffAccount(db, actor.userAccountId))) {
-    throw new ForbiddenError('staff_only', 'The billing office adds the case number during review.');
-  }
-}
-
 export async function updateDraftInvoice(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
   const content = parseDraftContent(rawInput);
   return db.transaction(async (tx) => {
@@ -94,9 +88,8 @@ export async function updateDraftInvoice(db: Database, actor: PortalActor, invoi
   });
 }
 
-// Staff only: an external sender's number is the one read from their file (model/rules.yaml match_invoice_to_case).
+// An external sender's number is only a suggestion to the reviewer (model/rules.yaml match_invoice_to_case).
 export async function setDraftCaseNumber(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
-  await requireStaffForCase(db, actor);
   const parsed = z.object({ caseNumber: caseNumberInput }).safeParse(rawInput);
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));

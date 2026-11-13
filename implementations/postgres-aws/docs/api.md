@@ -1122,9 +1122,10 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     `{ choice: 'existing', caseId }`, `{ choice: 'new', clientName?,
     confirmedNew? }`, `{ choice: 'none' }` or `{ choice: null }`, staff only
     (403 for external submitters, design K). `PUT /api/portal/invoices/:id/case-number`
-    is staff only too, and `POST /api/portal/invoices` refuses an external submitter's
-    `caseNumber` (403); an external upload's draft takes only the number read from its
-    file (`createDraftFromUpload`). The former `PUT /api/portal/invoices/:id/case`, a
+    and `POST /api/portal/invoices`'s `caseNumber` take anyone's number for their own
+    draft; an external submitter's is only suggested in review, never matched, and an
+    external upload's draft starts with the number read from its file
+    (`createDraftFromUpload`). The former `PUT /api/portal/invoices/:id/case`, a
     sender putting a draft under their case, is removed. `new` needs
     the draft's number and county, is refused for a number already used in
     that county, and needs `confirmedNew` when a similar one is listed.
