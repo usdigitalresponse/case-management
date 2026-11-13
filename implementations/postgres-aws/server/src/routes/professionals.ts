@@ -30,7 +30,7 @@ import { loadProviderOffices } from '../professionals/providerOffices';
 import { asyncHandler } from './asyncHandler';
 import { z } from 'zod';
 import { NotFoundError } from '../errors';
-import { duplicateMembers } from '../duplicateCounts';
+import { duplicateMembers } from '../duplicateMembers';
 import { listPossibleDuplicates, personDuplicateMembers } from '../people/possibleDuplicates';
 import { tagTourRecord } from '../demoTour/tourRuns';
 

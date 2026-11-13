@@ -2,7 +2,7 @@
 // flag_possible_duplicate_client): found by matching details, or flagged by
 // staff. Staff may record that a pair are different people; only an
 // administrator merges them (./personMerges.ts). Nothing is merged here.
-import { membersOf } from '../duplicateCounts';
+import { membersOf } from '../duplicateMembers';
 import { z } from 'zod';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';

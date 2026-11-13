@@ -390,11 +390,6 @@ export function listPossibleDuplicateCases(): Promise<{ duplicates: PossibleDupl
   return request('/api/cases/possible-duplicates');
 }
 
-// Remembered by the server for a few minutes; the list is always worked out afresh.
-export function countPossibleDuplicateCases(): Promise<{ groups: number }> {
-  return request('/api/cases/possible-duplicates/count');
-}
-
 export function reviewPossibleDuplicateCase(input: { caseIds: [string, string]; outcome: 'possible_duplicate' | 'not_duplicate'; note?: string }) {
   return request<void>('/api/cases/possible-duplicates', { method: 'POST', body: JSON.stringify(input) });
 }

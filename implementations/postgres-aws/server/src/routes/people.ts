@@ -10,7 +10,7 @@ import { getSessionUser, requireFullUser } from '../auth/session';
 import { requireAdmin } from '../auth/requireAdmin';
 import { listPossibleDuplicates, personDuplicateMembers, recordDuplicateReview } from '../people/possibleDuplicates';
 import { listMerges, mergePeople, previewMerge, undoMerges } from '../people/personMerges';
-import { duplicateGeneration, duplicateGroupCount, forgetDuplicateGroups, rememberDuplicateGroups, rememberDuplicateMembers } from '../duplicateCounts';
+import { duplicateGeneration, forgetDuplicates, rememberDuplicateMembers } from '../duplicateMembers';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -45,26 +45,18 @@ router.get(
   asyncHandler(async (_req, res) => {
     const since = duplicateGeneration('people');
     const duplicates = await listPossibleDuplicates(db);
-    rememberDuplicateGroups('people', duplicates.length, since);
     rememberDuplicateMembers('people', personDuplicateMembers(duplicates), since);
     res.json({ duplicates });
   }),
 );
 
-// Whether People shows its Review duplicates tab.
-router.get(
-  '/possible-duplicates/count',
-  asyncHandler(async (_req, res) => {
-    res.json({ groups: await duplicateGroupCount('people', async () => (await listPossibleDuplicates(db)).length) });
-  }),
-);
 
 // Any staff member: flag a pair, or record that they are different people.
 router.post(
   '/possible-duplicates',
   asyncHandler(async (req, res) => {
     await recordDuplicateReview(db, getSessionUser(req)!.userAccountId, req.body);
-    forgetDuplicateGroups('people');
+    forgetDuplicates('people');
     res.status(204).end();
   }),
 );
@@ -91,7 +83,7 @@ router.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const merged = await mergePeople(db, getSessionUser(req)!.userAccountId, req.body);
-    forgetDuplicateGroups('people');
+    forgetDuplicates('people');
     res.status(201).json(merged);
   }),
 );
@@ -101,7 +93,7 @@ router.post(
   requireAdmin,
   asyncHandler(async (req, res) => {
     const undone = await undoMerges(db, getSessionUser(req)!.userAccountId, (req.body as { personMergeIds?: unknown }).personMergeIds);
-    forgetDuplicateGroups('people');
+    forgetDuplicates('people');
     res.json(undone);
   }),
 );

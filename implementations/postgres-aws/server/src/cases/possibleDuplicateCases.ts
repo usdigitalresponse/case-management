@@ -4,7 +4,7 @@
 // listed; a missing county doesn't rule a pair out. Cases belong to the external case
 // management system, so they are never merged here; staff mark a pair as
 // different, or close the extra case as a cleanup.
-import { membersOf } from '../duplicateCounts';
+import { membersOf } from '../duplicateMembers';
 import { z } from 'zod';
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
