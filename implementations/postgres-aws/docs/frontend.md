@@ -185,10 +185,12 @@ How the React client is built and why. Schema mapping and gaps are in
         page, and added on each request's "On file" card, which also records their quoted
         fees (`QuotedFees`). While a question is open, the sender also gets an upload right
         under the answer box, so a file the question asks for goes in beside the answer.
-        A ✕ beside a file on the request's cards (an open request's, for "Attached to this
+        On these cards a chosen file is stored only on "Add file" (`AddDocument`), which
+        takes the place of "Choose file" once one is chosen; its ✕ before then just drops it. A ✕ beside a file on the request's cards (an open request's, for "Attached to this
         request") retires it after asking: `POST /api/preauthorizations/documents/:id/retire`
         sets `document_link.retired_at` and `retired_by_user_account_id`, so it leaves every
-        list and the "missing" check but is kept, and the toast's Undo calls `.../restore`.
+        list and the "missing" check and can't be opened, but is kept; the toast's Undo
+        calls `.../restore`, showing an error if that fails.
         Both are audited (`document_retired`, `document_restored`) and allowed to whoever may
         add the file (`providerRecords.ts`).
       - File fields (`components/ui/FileButton.tsx`) are an outlined "Choose file" button;

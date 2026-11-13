@@ -38,10 +38,18 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
   const billed = limit ? Number(limit.approvedSoFar) + Number(limit.waiting) : null;
   const retire = (doc: LinkedDocument) => {
     setFileError(null);
-    return retireDocument(doc.documentId)
-      .then(refetch)
-      .then(() => setToast({ message: `${doc.displayName} removed.`, undo: () => restoreDocument(doc.documentId).then(refetch) }))
-      .catch((err: unknown) => setFileError(apiErrorMessage(err, 'The file could not be removed.')));
+    return retireDocument(doc.documentId).then(
+      () => {
+        setToast({ message: `${doc.displayName} removed.`, undo: () => restoreDocument(doc.documentId) });
+        return refetch();
+      },
+      (err: unknown) => setFileError(apiErrorMessage(err, 'The file could not be removed.')),
+    );
+  };
+  const undoRetire = (undo: () => Promise<unknown>) => {
+    setToast(null);
+    setFileError(null);
+    undo().then(refetch, (err: unknown) => setFileError(apiErrorMessage(err, 'The file could not be put back.')));
   };
   return (
     <div className="preauth-page">
@@ -167,7 +175,7 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
       </div>
       {staff && detail.canDecide && (!request.caseId || !request.professionalId) && <MatchForm request={request} onMatched={changed} />}
       {staff && detail.canDecide && <DecisionForm key={request.statusCode} request={request} onDecided={changed} />}
-      <Toast toast={toast} />
+      <Toast toast={toast} onUndo={undoRetire} />
     </div>
   );
 }

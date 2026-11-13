@@ -180,15 +180,11 @@ export function uploadRequestDocument(requestId: string, file: File, purpose: Li
 
 // Takes a request's or provider's file off its list, keeping it; restoreDocument puts it back.
 export function retireDocument(documentId: string) {
-  return request<unknown>(`/api/preauthorizations/documents/${documentId}/retire`, { method: 'POST' }).then(() => {
-    window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
-  });
+  return request<void>(`/api/preauthorizations/documents/${documentId}/retire`, { method: 'POST' });
 }
 
 export function restoreDocument(documentId: string) {
-  return request<unknown>(`/api/preauthorizations/documents/${documentId}/restore`, { method: 'POST' }).then(() => {
-    window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
-  });
+  return request<void>(`/api/preauthorizations/documents/${documentId}/restore`, { method: 'POST' });
 }
 
 export function getProviderDocuments(professionalId: string) {

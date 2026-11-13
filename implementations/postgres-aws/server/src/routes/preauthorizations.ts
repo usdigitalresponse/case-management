@@ -173,18 +173,20 @@ router.post(
   }),
 );
 
-// Retire a file added by mistake, or restore it; returns what is now listed where it was.
+// Retire a file added by mistake, or restore it.
 router.post(
   '/documents/:id/retire',
   asyncHandler(async (req, res) => {
-    res.json(await setDocumentRetired(db, await sessionActor(req), req.params.id as string, true));
+    await setDocumentRetired(db, await sessionActor(req), req.params.id as string, true);
+    res.status(204).end();
   }),
 );
 
 router.post(
   '/documents/:id/restore',
   asyncHandler(async (req, res) => {
-    res.json(await setDocumentRetired(db, await sessionActor(req), req.params.id as string, false));
+    await setDocumentRetired(db, await sessionActor(req), req.params.id as string, false);
+    res.status(204).end();
   }),
 );
 

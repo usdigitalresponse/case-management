@@ -40,8 +40,10 @@ export function DocumentList({ documents, onRetire, from }: { documents: LinkedD
   );
 }
 
+// A chosen file is only stored once "Add file" is clicked, so one chosen by mistake is simply dropped.
 export function AddDocument({ onAdd, defaultPurpose }: { onAdd: (file: File, purpose: LinkedDocument['purposeCode']) => Promise<unknown>; defaultPurpose: LinkedDocument['purposeCode'] }) {
   const [purpose, setPurpose] = useState(defaultPurpose);
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const id = `doc-${Math.random().toString(36).slice(2, 8)}`;
@@ -55,20 +57,46 @@ export function AddDocument({ onAdd, defaultPurpose }: { onAdd: (file: File, pur
           ))}
         </select>
       </div>
-      <FileButton
-        accept=".pdf,.docx,.png,.jpg,.jpeg"
-        disabled={busy}
-        onChoose={(file) => {
-          setBusy(true);
-          setError(null);
-          onAdd(file, purpose)
-            .catch((err: unknown) => setError(apiErrorMessage(err, 'The file could not be added.')))
-            .finally(() => setBusy(false));
-        }}
-      >
-        {busy ? 'Adding…' : 'Choose file'}
-        <span className="usa-sr-only"> (PDF, Word or image)</span>
-      </FileButton>
+      {file ? (
+        // In place of "Choose file", so there is one button to press at a time.
+        <span className="file-button">
+          <span className="file-name">
+            {file.name}
+            <RemoveFileButton
+              fileName={file.name}
+              disabled={busy}
+              onRemove={() => {
+                setFile(null);
+                setError(null);
+              }}
+            />
+          </span>
+          <Button
+            kind="primary"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setError(null);
+              onAdd(file, purpose)
+                .then(() => setFile(null), (err: unknown) => setError(apiErrorMessage(err, 'The file could not be added.')))
+                .finally(() => setBusy(false));
+            }}
+          >
+            {busy ? 'Adding…' : 'Add file'}
+          </Button>
+        </span>
+      ) : (
+        <FileButton
+          accept=".pdf,.docx,.png,.jpg,.jpeg"
+          onChoose={(chosen) => {
+            setFile(chosen);
+            setError(null);
+          }}
+        >
+          Choose file
+          <span className="usa-sr-only"> (PDF, Word or image)</span>
+        </FileButton>
+      )}
       {error && <p className="field-error" role="alert">{error}</p>}
     </div>
   );

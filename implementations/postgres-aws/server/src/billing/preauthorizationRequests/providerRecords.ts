@@ -5,7 +5,7 @@ import { and, asc, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { type Database, type DatabaseOrTransaction } from '../../db/client';
 import { firstRow } from '../../db/rowHelpers';
 import { getReferenceId } from '../../db/referenceLookups';
-import { auditEvent, document, documentLink, documentPurposes, providerServiceRate } from '../../db/schema';
+import { auditEvent, document, documentLink, documentPurposes, preauthorizationRequest, providerServiceRate } from '../../db/schema';
 import { ConflictError, NotFoundError, ValidationError } from '../../errors';
 import { isStaffAccount, type PortalActor } from '../../portal/portalActor';
 import { type DocumentStore } from '../../imports/documentStore';
@@ -96,10 +96,6 @@ async function requireMayFile(db: DatabaseOrTransaction, actor: PortalActor, tar
   }
 }
 
-function listedFor(db: DatabaseOrTransaction, target: LinkTarget) {
-  return 'preauthorizationRequestId' in target ? listLinkedDocuments(db, target) : providerDocumentStatus(db, target.professionalId);
-}
-
 export async function addDocument(
   db: Database,
   store: DocumentStore,
@@ -137,45 +133,54 @@ export async function addDocument(
     await store.delete(storageReference);
     throw error;
   }
-  return listedFor(db, target);
+  return 'preauthorizationRequestId' in target ? listLinkedDocuments(db, target) : providerDocumentStatus(db, target.professionalId);
 }
 
 // model/rules.yaml request_provider_documents: a file added by mistake leaves every list but is kept, and can be restored.
-export async function setDocumentRetired(db: Database, actor: PortalActor, documentId: string, retired: boolean) {
+export async function setDocumentRetired(db: Database, actor: PortalActor, documentId: string, retired: boolean): Promise<void> {
   if (!z.uuid().safeParse(documentId).success) throw new NotFoundError('File not found.');
-  const [link] = await db
-    .select({
-      documentLinkId: documentLink.documentLinkId,
-      preauthorizationRequestId: documentLink.preauthorizationRequestId,
-      professionalId: documentLink.professionalId,
-      retiredAt: documentLink.retiredAt,
-      retiredByUserAccountId: documentLink.retiredByUserAccountId,
-    })
-    .from(documentLink)
-    .where(eq(documentLink.documentId, documentId));
-  if (!link || (!link.preauthorizationRequestId && !link.professionalId)) throw new NotFoundError('File not found.');
-  const target: LinkTarget = link.preauthorizationRequestId
-    ? { preauthorizationRequestId: link.preauthorizationRequestId }
-    : { professionalId: link.professionalId! };
-  await requireMayFile(db, actor, target);
-  if ((link.retiredAt !== null) !== retired) {
-    const now = new Date();
-    await db.transaction(async (tx) => {
+  await db.transaction(async (tx) => {
+    // Locked, with its request, so a retire can't race a restore or the request being decided.
+    const [link] = await tx
+      .select({
+        documentLinkId: documentLink.documentLinkId,
+        preauthorizationRequestId: documentLink.preauthorizationRequestId,
+        professionalId: documentLink.professionalId,
+        retiredAt: documentLink.retiredAt,
+        retiredByUserAccountId: documentLink.retiredByUserAccountId,
+      })
+      .from(documentLink)
+      .where(eq(documentLink.documentId, documentId))
+      .for('update');
+    if (!link || (!link.preauthorizationRequestId && !link.professionalId)) throw new NotFoundError('File not found.');
+    const target: LinkTarget = link.preauthorizationRequestId
+      ? { preauthorizationRequestId: link.preauthorizationRequestId }
+      : { professionalId: link.professionalId! };
+    if (link.preauthorizationRequestId) {
       await tx
-        .update(documentLink)
-        .set(retired ? { retiredAt: now, retiredByUserAccountId: actor.userAccountId } : { retiredAt: null, retiredByUserAccountId: null })
-        .where(eq(documentLink.documentLinkId, link.documentLinkId));
-      await tx.insert(auditEvent).values({
-        entityType: 'document_link',
-        entityId: link.documentLinkId,
-        eventType: retired ? 'document_retired' : 'document_restored',
-        actorUserAccountId: actor.userAccountId,
-        occurredAt: now,
-        priorValues: { retiredAt: link.retiredAt, retiredByUserAccountId: link.retiredByUserAccountId },
-      });
+        .select({ id: preauthorizationRequest.preauthorizationRequestId })
+        .from(preauthorizationRequest)
+        .where(eq(preauthorizationRequest.preauthorizationRequestId, link.preauthorizationRequestId))
+        .for('update');
+    }
+    await requireMayFile(tx, actor, target).catch((error: unknown) => {
+      throw error instanceof NotFoundError ? new NotFoundError('File not found.') : error;
     });
-  }
-  return listedFor(db, target);
+    if ((link.retiredAt !== null) === retired) return;
+    const now = new Date();
+    await tx
+      .update(documentLink)
+      .set(retired ? { retiredAt: now, retiredByUserAccountId: actor.userAccountId } : { retiredAt: null, retiredByUserAccountId: null })
+      .where(eq(documentLink.documentLinkId, link.documentLinkId));
+    await tx.insert(auditEvent).values({
+      entityType: 'document_link',
+      entityId: link.documentLinkId,
+      eventType: retired ? 'document_retired' : 'document_restored',
+      actorUserAccountId: actor.userAccountId,
+      occurredAt: now,
+      priorValues: { retiredAt: link.retiredAt, retiredByUserAccountId: link.retiredByUserAccountId },
+    });
+  });
 }
 
 export async function readLinkedDocument(db: DatabaseOrTransaction, store: DocumentStore, actor: PortalActor, documentId: string) {
@@ -190,7 +195,7 @@ export async function readLinkedDocument(db: DatabaseOrTransaction, store: Docum
     })
     .from(documentLink)
     .innerJoin(document, eq(documentLink.documentId, document.documentId))
-    .where(and(eq(document.documentId, documentId), isNull(document.contentDeletedAt), or(sql`${documentLink.preauthorizationRequestId} is not null`, sql`${documentLink.professionalId} is not null`)));
+    .where(and(eq(document.documentId, documentId), isNull(document.contentDeletedAt), isNull(documentLink.retiredAt), or(sql`${documentLink.preauthorizationRequestId} is not null`, sql`${documentLink.professionalId} is not null`)));
   if (!row) throw new NotFoundError('File not found.');
   if (row.preauthorizationRequestId) {
     await requireReader(db, actor.userAccountId, await loadRequestRow(db, row.preauthorizationRequestId));

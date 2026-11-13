@@ -15,7 +15,7 @@ import { listReviewQueue } from '../src/billing/reviewQueue';
 import { loadPreauthorizationSummaries, setPreauthorizedAmount } from '../src/billing/preauthorizations';
 import { addThreshold, getThresholdSettings, setKindThresholdApplies, thresholdFor } from '../src/billing/preauthorizationThresholds';
 import { loadOverrunExplanations } from '../src/billing/overrunExplanation';
-import { addDocument, listLinkedDocuments, providerDocumentStatus, setDocumentRetired } from '../src/billing/preauthorizationRequests/providerRecords';
+import { addDocument, listLinkedDocuments, providerDocumentStatus, readLinkedDocument, setDocumentRetired } from '../src/billing/preauthorizationRequests/providerRecords';
 import { answerRequestQuestion, askRequestQuestion, decidePreauthorizationRequest, matchPreauthorizationRequest, withdrawPreauthorizationRequest } from '../src/billing/preauthorizationRequests/decide';
 import { createPreauthorizationRequest, previewRequest } from '../src/billing/preauthorizationRequests/submit';
 import { getPreauthorizationRequest, listOwnPreauthorizationRequests, listPreauthorizationRequests } from '../src/billing/preauthorizationRequests/read';
@@ -412,11 +412,15 @@ describe('retiring a file', () => {
     const expert = await newProvider(caseId, { bound: true });
     const outsider = await newProvider(await newCase(), { bound: false });
     const pdf = Buffer.from('%PDF-1.4 synthetic');
-    const listed = await addDocument(testDb, memoryStore(), attorney, { professionalId: expert.professionalId }, { bytes: pdf, fileName: 'cv.pdf', purpose: 'cv' });
+    const store = memoryStore();
+    const listed = await addDocument(testDb, store, attorney, { professionalId: expert.professionalId }, { bytes: pdf, fileName: 'cv.pdf', purpose: 'cv' });
     const { documentId } = (listed as Awaited<ReturnType<typeof providerDocumentStatus>>).documents[0]!;
 
-    await expect(setDocumentRetired(testDb, outsider, documentId, true)).rejects.toThrow(NotFoundError);
+    // Worded as for a file that doesn't exist, so it never says whether one does.
+    await expect(setDocumentRetired(testDb, outsider, documentId, true)).rejects.toThrow('File not found.');
     await setDocumentRetired(testDb, attorney, documentId, true);
+    await setDocumentRetired(testDb, attorney, documentId, true);
+    await expect(readLinkedDocument(testDb, store, attorney, documentId)).rejects.toThrow(NotFoundError);
     const status = await providerDocumentStatus(testDb, expert.professionalId);
     expect(status.documents).toEqual([]);
     expect(status.missing).toEqual(['cv', 'fee_schedule']);
@@ -425,6 +429,7 @@ describe('retiring a file', () => {
 
     await setDocumentRetired(testDb, attorney, documentId, false);
     expect((await providerDocumentStatus(testDb, expert.professionalId)).documents.map((row) => row.documentId)).toEqual([documentId]);
+    expect((await readLinkedDocument(testDb, store, attorney, documentId)).fileName).toBe('cv.pdf');
     const events = await testDb.select().from(auditEvent).where(eq(auditEvent.entityId, link!.documentLinkId));
     expect(events.map((event) => event.eventType).sort()).toEqual(['document_restored', 'document_retired']);
   });
