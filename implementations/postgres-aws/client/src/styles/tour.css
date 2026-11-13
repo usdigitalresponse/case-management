@@ -61,12 +61,14 @@ body:has(.guide) .portal-page { margin-right: var(--guide-width); }
 .mission-picker__summary { grid-area: 1 / 1; margin: 0; font-size: var(--text-13); color: var(--color-on-surface-variant); }
 .mission-picker__summary[hidden] { display: block; visibility: hidden; }
 
-/* Pinned along the bottom of the sign-in screen: a heading, then two matching choices. */
 /* The sign-in tour entry: a small button in the corner (design K1) that opens a dialog. */
 .login-tour-button { position: absolute; top: var(--space-7); right: var(--space-8); }
-.login-tour { max-width: 52rem; }
+.login-tour { width: min(46rem, calc(100vw - 2rem)); }
 .login-tour p { margin: 0; color: var(--color-on-surface-variant); font-size: var(--text-13); }
-.login-tour__options { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-9); }
+.login-tour .login-tour__note { margin-bottom: var(--space-8); }
+.login-tour .mission-picker__label { margin: 0; color: var(--color-on-surface); }
+/* Equal columns whatever the dropdown's width. */
+.login-tour__options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-9); }
 /* Description fills the column, so both columns' buttons share a bottom line. */
 .login-tour__option, .login-tour__option .mission-picker { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: var(--space-4); }
 .login-tour__option + .login-tour__option { padding-left: var(--space-9); border-left: 1px solid var(--color-outline-subtle); }
