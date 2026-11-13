@@ -53,8 +53,11 @@ router.get(
       db
         .select({
           professionalId: professional.professionalId,
+          personId: professional.personId,
           displayName: professional.displayName,
           active: professional.active,
+          // Whether they may sign in (../people/externalUsers.ts); Settings › Providers' Active column.
+          externalSignInEnabled: person.externalSignInEnabled,
           email: sql<string | null>`coalesce(${userAccount.email}, ${person.email})`,
           signedIn: sql<boolean>`${professional.userAccountId} is not null`,
           professionalKindId: professional.professionalKindId,

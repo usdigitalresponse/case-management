@@ -81,7 +81,6 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
     alternateOpen: preload((args) => [resources.reviewQueue(alternateRequest('open', searchOf(args))), resources.counties]),
     alternateFinished: preload((args) => [resources.reviewQueue(alternateRequest('finished', searchOf(args))), resources.counties]),
     search: preload((args) => (searched(args) ? [resources.reviewQueue(searchRequest(searchOf(args))), resources.counties] : []), { searchParams: ['q'] }),
-    providers: preload((args) => [resources.providerList(searched(args))], { searchParams: ['q'] }),
     mergePeople: preload(
       ({ request }) => {
         const params = new URL(request.url).searchParams;

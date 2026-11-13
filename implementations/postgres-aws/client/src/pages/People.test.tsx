@@ -64,7 +64,7 @@ describe('People’s Review duplicates tab', () => {
     const api = fakeApi({ ...signedIn(REVIEWER), ...routes([]) });
     await renderPage(<People />, { path: '/people', url: '/people' });
 
-    await screen.findByText(/No one yet/);
+    await screen.findByText(/No providers yet/);
     expect(reviewTab()).toBeNull();
     expect(api.unhandled).toEqual([]);
   });
@@ -98,7 +98,7 @@ describe('People’s Review duplicates tab', () => {
     const api = fakeApi({ ...signedIn(ADMIN), ...routes([], [merge]) });
     await renderPage(<People />, { path: '/people', url: '/people' });
 
-    await screen.findByText(/No one yet/);
+    await screen.findByText(/No providers yet/);
     expect(reviewTab()).toBeNull();
     expect(api.callsTo('GET', '/api/people/merges')).toEqual([]);
   });

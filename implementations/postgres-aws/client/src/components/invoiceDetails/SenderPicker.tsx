@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
+import { Link as RouterLink } from 'react-router';
 import type { BillableProfessional } from '../../api/client';
 import { useShell } from '../../portal/useShell';
 import type { AddedProvider } from '../AddProvider';
@@ -44,7 +45,10 @@ export function SenderPicker({
   onRoleChanged,
   addRowIn,
   onDraft,
+  addInSettings = false,
 }: {
+  // Administrators add someone new in Settings › Providers instead (design K60).
+  addInSettings?: boolean;
   // Opens the add row there, so the fields beside the picker don't move.
   addRowIn?: HTMLElement | null;
   // Given, someone new is only described, for the page to add as it goes on.
@@ -152,18 +156,24 @@ export function SenderPicker({
       {shown !== ADD_NEW && (
         <>
           <p id={`${id}-hint`} className="field-hint">{hint}</p>
-          <button
-            type="button"
-            className="link-button sender-add"
-            disabled={disabled}
-            onClick={() => {
-              setCurrent(null);
-              setRound((count) => count + 1);
-              onChange(ADD_NEW);
-            }}
-          >
-            + Add new person
-          </button>
+          {addInSettings ? (
+            <RouterLink className="sender-add" to="/settings#settings-providers">
+              Not listed? Add them in Settings
+            </RouterLink>
+          ) : (
+            <button
+              type="button"
+              className="link-button sender-add"
+              disabled={disabled}
+              onClick={() => {
+                setCurrent(null);
+                setRound((count) => count + 1);
+                onChange(ADD_NEW);
+              }}
+            >
+              + Add new person
+            </button>
+          )}
         </>
       )}
       {shown === ADD_NEW && onDraft && placeAddRow(<NewSenderFields key={round} id={`${id}-new`} onChange={onDraft} />)}

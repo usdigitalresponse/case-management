@@ -69,6 +69,32 @@ export function AddDocument({ onAdd, defaultPurpose }: { onAdd: (file: File, pur
   );
 }
 
+// A provider's page (design K32): what is on file, to read; staff add files on a pre-authorization request.
+export function ProviderDocuments({ professionalId }: { professionalId: string }) {
+  const { data, error } = useResource(providerDocuments(professionalId));
+  if (!data) return error ? <Notice tone="danger">Failed to load their documents.</Notice> : null;
+  return (
+    <section className="card compact-card">
+      <h2>Documents</h2>
+      <DocumentList documents={data.documents} />
+      {data.rates.length > 0 && (
+        <>
+          <h3>Fees they quote</h3>
+          <ul className="plain-list">
+            {data.rates.map((row) => (
+              <li key={row.providerServiceRateId}>
+                {row.serviceDescription}: {formatMoney(row.rate)} {row.rateBasis === 'flat' ? 'flat' : row.rateBasis === 'hourly' ? 'an hour' : 'a unit'}
+                <span className="cell-note">from {formatDate(row.effectiveFrom)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="compact-hint">These came with their pre-authorization requests and are shown here to read.</p>
+    </section>
+  );
+}
+
 // model/rules.yaml request_provider_documents.
 export function ProviderOnFile({ professionalId, name }: { professionalId: string; name: string }) {
   const { data, error, reload } = useResource(providerDocuments(professionalId));

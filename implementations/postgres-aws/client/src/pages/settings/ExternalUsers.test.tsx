@@ -70,7 +70,7 @@ describe('external users in Settings', () => {
       'POST /api/settings/external-users': { ...eli, email: 'eli@example.test', signInEnabled: true },
     });
     await render();
-    fireEvent.click(await screen.findByRole('button', { name: 'Let an external user sign in' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Add office billing staff' }));
     await pick('eli', /Eli Example — Investigator — no email yet/);
 
     const turnOn = screen.getByRole('button', { name: 'Add email and turn on sign-in' }) as HTMLButtonElement;
@@ -90,14 +90,13 @@ describe('external users in Settings', () => {
       'POST /api/settings/external-users': externalUser({ personId: 'person-n', displayName: 'Nia Example', email: 'nia@example.test', kind: null, delegateFor: [{ officeId: 'office-1', displayName: 'North Office' }], hasSignedIn: false }),
     });
     await render();
-    fireEvent.click(await screen.findByRole('button', { name: 'Let an external user sign in' }));
-    await pick('nia', /Add a new external user/);
+    fireEvent.click(await screen.findByRole('button', { name: 'Add office billing staff' }));
+    await pick('nia', /Add someone new/);
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Nia Example' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'nia@example.test' } });
-    fireEvent.click(screen.getByRole('radio', { name: "For an office's providers" }));
     fireEvent.change(screen.getByLabelText('Office'), { target: { value: 'office-1' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add external user' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add office billing staff' }).at(-1)!);
 
     await waitFor(() =>
       expect(api.callsTo('POST', '/api/settings/external-users')[0]?.body).toEqual({
@@ -131,7 +130,7 @@ describe('external users in Settings', () => {
     const api = fakeApi(settingsRoutes(REVIEWER));
     await render(false);
     expect(await screen.findByRole('rowheader', { name: /Ana Example/ })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Let an external user sign in' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add office billing staff' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Turn off/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Offices/ })).toBeNull();
     expect(api.unhandled).toEqual([]);

@@ -46,6 +46,7 @@ const chosen = (professionalId: string | undefined) => Boolean(professionalId &&
 export default function UploadInvoices() {
   const navigate = useNavigate();
   const { staff } = useShell();
+  const { user } = useAuth();
   const reviews = useReviewsOwnUploads();
   const home = staff ? { label: 'To review', to: '/' } : { label: 'Your invoices', to: PORTAL_HOME_PATH };
   // A file's own sender; '' is the one chosen above.
@@ -238,6 +239,7 @@ export default function UploadInvoices() {
                     error={fieldErrors.sender}
                     hint={perFile ? `${BILLED_BY_HINT} An invoice billed by someone else is set below.` : BILLED_BY_HINT}
                     onChange={setSender}
+                    addInSettings={staff && Boolean(user?.isAdmin)}
                     addRowIn={addRow}
                     onDraft={setDraft}
                   />

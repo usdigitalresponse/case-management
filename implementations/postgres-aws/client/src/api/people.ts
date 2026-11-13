@@ -21,8 +21,11 @@ export function searchPeople(query: string, after: string | null): Promise<Batch
 // Providers (attorneys, experts and vendors): the sidebar's Providers list.
 export interface VendorRecord {
   professionalId: string;
+  personId: string;
   displayName: string | null;
   active: boolean;
+  // Whether they may sign in; set in Settings › Providers.
+  externalSignInEnabled: boolean;
   // Null for one added without it; fixed once they sign in with it.
   email: string | null;
   signedIn: boolean;
@@ -76,7 +79,7 @@ export interface BillingPerson {
   active: boolean;
   email: string | null;
   signedIn: boolean;
-  // Turned on in Settings → External users.
+  // Turned on in Settings › Providers.
   externalSignInEnabled: boolean;
   phone: string | null;
   paidThrough: string | null;

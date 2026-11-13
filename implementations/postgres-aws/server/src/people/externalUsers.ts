@@ -105,15 +105,18 @@ function matching(q: string | undefined): SQL {
 }
 
 // Everyone whose sign-in is on, or was turned off here, by name, a batch at a time.
-export async function listExternalUsers(db: DatabaseOrTransaction, q: string | undefined, batch: BatchRequest) {
+// officeStaff: only office billing staff, people who aren't providers or send for an office;
+// providers' sign-in is on Settings › Providers (design K51).
+export async function listExternalUsers(db: DatabaseOrTransaction, q: string | undefined, batch: BatchRequest, { officeStaff = false } = {}) {
   const from = await fromExternalPeople(db);
+  const officeOnly = officeStaff ? sql`and (pr.professional_id is null or d.offices is not null)` : sql``;
   const { rows, next } = await oneBatch(batch, async (after, limit) => {
     const position = afterCursor(BY_NAME, after);
     const result = await db.execute<Row>(sql`
       select ${COLUMNS}, ${cursorColumn(BY_NAME)} as cursor ${from}
         and (p.external_sign_in_enabled or exists (select 1 from audit_event e where e.entity_type = 'person'
           and e.entity_id = p.person_id and e.event_type in (${sql.join(SIGN_IN_EVENTS.map((type) => sql`${type}`), sql`, `)})))
-        ${matching(q)} ${position ? sql`and ${position}` : sql``}
+        ${officeOnly} ${matching(q)} ${position ? sql`and ${position}` : sql``}
       order by ${sql.join(orderByKeys(BY_NAME), sql`, `)} limit ${limit}`);
     return result.rows;
   });

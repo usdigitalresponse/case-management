@@ -1,7 +1,7 @@
-// Everyone who can send invoices, in place of Cases and Providers, and a tab
-// of possible duplicate people while there are any.
+// Providers (design K30): everyone who bills, read-only, and a tab of possible
+// duplicates while there are any. Administrators add and change them in Settings.
 import { useState } from 'react';
-import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
+import { Link as RouterLink, useSearchParams } from 'react-router';
 import type { BillingPerson } from '../api/client';
 import { useBatchedResource } from '../hooks/useBatchedResource';
 import { MoreOnScroll } from '../components/MoreOnScroll';
@@ -12,7 +12,6 @@ import { DuplicatesTabs, useDuplicateCount, useListTab } from '../components/Dup
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
-import { PersonDialog } from '../components/PersonDialog';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { personPath } from '../staffPaths';
@@ -21,7 +20,6 @@ import { Button } from '../components/ui/Button';
 import { FilterTag } from '../components/ui/Tag';
 
 export default function People() {
-  const navigate = useNavigate();
   const [tab, setTab] = useListTab();
   const [role, setRole] = useSearchParamState<string>('role', '');
   const [query, setQuery] = useSearchParamText('q');
@@ -30,33 +28,27 @@ export default function People() {
   const [listed, setListed] = useState<number | null>(null);
   const toReview = useDuplicateCount(tab, possibleDuplicateCount, listed);
   const { summary } = list;
-  const [adding, setAdding] = useState(false);
   const [flagging, setFlagging] = useState(false);
 
   const header = (
     <>
       <PageHeader
         list
-        title="People"
+        title="Providers"
         description="Everyone who can send invoices: attorneys, investigators and experts. Every invoice is filed under one of these people."
         actions={
-          <>
-            <Button
-              kind="secondary"
-              onClick={() => {
-                setTab('duplicates');
-                setFlagging(true);
-              }}
-            >
-              Flag possible duplicates
-            </Button>
-            <Button kind="primary" onClick={() => setAdding(true)}>
-              Add a person
-            </Button>
-          </>
+          <Button
+            kind="secondary"
+            onClick={() => {
+              setTab('duplicates');
+              setFlagging(true);
+            }}
+          >
+            Flag possible duplicates
+          </Button>
         }
       />
-      <DuplicatesTabs listLabel="People" toReview={toReview} show={(toReview ?? 0) > 0} tab={tab} onSelect={setTab} />
+      <DuplicatesTabs listLabel="Providers" toReview={toReview} show={(toReview ?? 0) > 0} tab={tab} onSelect={setTab} />
     </>
   );
 
@@ -72,7 +64,7 @@ export default function People() {
     return (
       <div>
         {header}
-        <LoadState error={list.error} what="people" />
+        <LoadState error={list.error} what="providers" />
       </div>
     );
   }
@@ -94,7 +86,7 @@ export default function People() {
           ))}
         </div>
         <label className="list-controls__search">
-          <span className="usa-sr-only">Search people</span>
+          <span className="usa-sr-only">Search providers</span>
           <input className="usa-input" type="search" placeholder="Search by name or email" value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
       </div>
@@ -102,7 +94,7 @@ export default function People() {
         className="queue-table"
         rows={list.items}
         rowKey={(person) => person.professionalId}
-        emptyMessage={total === 0 && !query.trim() ? 'No one yet. Add a person to let them send invoices.' : 'No one matches.'}
+        emptyMessage={total === 0 && !query.trim() ? 'No providers yet. Administrators add them in Settings.' : 'No one matches.'}
         columns={[
           {
             header: 'Name',
@@ -145,12 +137,12 @@ export default function People() {
           },
         ]}
       />
-      <MoreOnScroll list={list} what="people" />
-      <p className="compact-hint">A person here signs in to send invoices only once an administrator turns it on in{' '}
-        <RouterLink to="/settings#settings-external-users">Settings, External users</RouterLink>. Rates set here are the ones reviewers check invoices against.</p>
-      {adding && (
-        <PersonDialog onClose={() => setAdding(false)} onSaved={(saved) => navigate(personPath(saved.professionalId))} />
-      )}
+      <MoreOnScroll list={list} what="providers" />
+      <p className="compact-hint">
+        A provider here can sign in and send invoices with the email shown once an administrator turns it on. Rates set here are the ones
+        reviewers check invoices against. Administrators add and change providers in{' '}
+        <RouterLink to="/settings#settings-providers">Settings</RouterLink>.
+      </p>
     </div>
   );
 }

@@ -92,6 +92,17 @@ describe('turning on sign-in', () => {
   });
 });
 
+describe('office billing staff', () => {
+  it('lists only people who are not providers, or who send for an office (design K51)', async () => {
+    await turnOnExternalSignIn(testDb, admin, { newProvider: { displayName: 'Fay Provider', email: 'fay@example.com', professionalKindId: kindId } });
+    await turnOnExternalSignIn(testDb, admin, { newDelegate: { displayName: 'Gil Delegate', email: 'gil@example.com', officeId: fixtures.officeId } });
+
+    const names = async (officeStaff: boolean) => (await listExternalUsers(testDb, undefined, firstBatch, { officeStaff })).items.map((user) => user.displayName);
+    expect(await names(false)).toEqual(['Fay Provider', 'Gil Delegate']);
+    expect(await names(true)).toEqual(['Gil Delegate']);
+  });
+});
+
 describe('making a provider a delegate', () => {
   it('lets a provider who signed in before send for an office, once, until an administrator stops it', async () => {
     const user = await turnOnExternalSignIn(testDb, admin, { newProvider: { displayName: 'Lu Sample', email: 'lu@example.com', professionalKindId: kindId } });
