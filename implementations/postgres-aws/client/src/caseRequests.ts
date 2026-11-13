@@ -28,11 +28,23 @@ export function peopleRequest(params: URLSearchParams): PeopleRequest {
   return { role: params.get('role') || undefined, q: params.get('q')?.trim() || undefined };
 }
 
-export const REQUEST_STATUS_TABS = ['submitted', 'info_requested', 'approved', 'not_needed', 'denied', 'withdrawn', 'all'] as const;
+// Design K54's three filters; the server groups the statuses.
+export const REQUEST_STATUS_TABS = ['all', 'in_review', 'decided'] as const;
 export type RequestStatusTab = (typeof REQUEST_STATUS_TABS)[number];
 
-// The Pre-authorizations page's tab and filter; an unknown status opens on Waiting.
+// Links from before design K named one status.
+const OLD_STATUS_TABS: Record<string, RequestStatusTab> = {
+  submitted: 'in_review',
+  info_requested: 'in_review',
+  approved: 'decided',
+  not_needed: 'decided',
+  denied: 'decided',
+  withdrawn: 'decided',
+};
+
+// The Pre-authorizations page's filter; an unknown status opens on All.
 export function preauthorizationRequestsRequest(params: URLSearchParams) {
-  const tab = REQUEST_STATUS_TABS.find((id) => id === params.get('status')) ?? 'submitted';
+  const asked = params.get('status') ?? '';
+  const tab = REQUEST_STATUS_TABS.find((id) => id === asked) ?? OLD_STATUS_TABS[asked] ?? 'all';
   return { tab, filter: { status: tab === 'all' ? '' : tab, countyId: params.get('countyId') ?? undefined, caseId: params.get('caseId') ?? undefined } };
 }

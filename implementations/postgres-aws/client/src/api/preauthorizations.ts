@@ -92,7 +92,7 @@ export interface NewPreauthorizationRequest {
   receivedOn?: string;
 }
 
-export type RequestStatusCounts = Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn' | 'all', number>;
+export type RequestStatusCounts = Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn' | 'in_review' | 'decided' | 'all', number>;
 
 // Latest received first; staff filter them and get each status's count, a requester gets their own.
 export function listPreauthorizationRequests(

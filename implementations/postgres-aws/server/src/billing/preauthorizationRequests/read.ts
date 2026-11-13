@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { and, asc, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { type DatabaseOrTransaction } from '../../db/client';
 import { caseTable, county, person, preauthorizationDecision, preauthorizationQuestion, preauthorizationRequest, preauthorizationRequestOutcomes, preauthorizationRequestStatuses, professional, professionalKinds, userAccount } from '../../db/schema';
@@ -123,8 +123,14 @@ async function withCaseFacts(db: DatabaseOrTransaction, rows: RequestRow[]) {
 
 export type PreauthorizationRequestView = Awaited<ReturnType<typeof withCaseFacts>>[number];
 
-// Per status tab, whichever one is listed.
-export type RequestStatusCounts = Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn' | 'all', number>;
+// Pre-authorizations' filters (design K54): In review and Decided, each several statuses.
+export const REQUEST_STATUS_GROUPS: Record<string, string[]> = {
+  in_review: ['submitted', 'info_requested'],
+  decided: ['approved', 'not_needed', 'denied', 'withdrawn'],
+};
+
+// Per status and filter, whichever one is listed.
+export type RequestStatusCounts = Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn' | 'in_review' | 'decided' | 'all', number>;
 
 async function countByStatus(db: DatabaseOrTransaction, where: SQL | undefined): Promise<RequestStatusCounts> {
   const rows = await db
@@ -142,6 +148,8 @@ async function countByStatus(db: DatabaseOrTransaction, where: SQL | undefined):
     not_needed: of('not_needed'),
     denied: of('denied'),
     withdrawn: of('withdrawn'),
+    in_review: REQUEST_STATUS_GROUPS.in_review!.reduce((sum, code) => sum + of(code), 0),
+    decided: REQUEST_STATUS_GROUPS.decided!.reduce((sum, code) => sum + of(code), 0),
     all: rows.reduce((sum, row) => sum + row.count, 0),
   };
 }
@@ -155,7 +163,7 @@ export async function listPreauthorizationRequests(db: DatabaseOrTransaction, ac
   if (filter.from) conditions.push(sql`${preauthorizationRequest.receivedAt} >= ${filter.from}::date`);
   if (filter.to) conditions.push(sql`${preauthorizationRequest.receivedAt} < (${filter.to}::date + 1)`);
   const anyStatus = conditions.length ? and(...conditions) : undefined;
-  const status = filter.status ? eq(preauthorizationRequestStatuses.code, filter.status) : undefined;
+  const status = filter.status ? inArray(preauthorizationRequestStatuses.code, REQUEST_STATUS_GROUPS[filter.status] ?? [filter.status]) : undefined;
   if (batch.after) return requestBatch(db, and(anyStatus, status), batch);
   const [page, counts] = await Promise.all([requestBatch(db, and(anyStatus, status), batch), countByStatus(db, anyStatus)]);
   return { ...page, summary: { counts } };

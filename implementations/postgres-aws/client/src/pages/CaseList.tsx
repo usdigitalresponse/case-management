@@ -37,7 +37,7 @@ export default function CaseList() {
     <PageHeader
       list
       title={stageParam ? `${stageLabel(stageParam)} cases` : 'All cases'}
-      description={`Every case invoices can be sent for. Cases may be managed in your ${EXTERNAL_SYSTEM_NAME}; they show here so invoices make sense.`}
+      description={`Every case number that has come in on an invoice. Cases are managed in your ${EXTERNAL_SYSTEM_NAME}, and “Open ↗” takes you to the case there.`}
     />
   );
   return (
@@ -114,6 +114,21 @@ export default function CaseList() {
                   ) : (
                     '—'
                   ),
+              },
+              {
+                header: 'Open',
+                hiddenHeader: true,
+                align: 'right',
+                // Drawn but not connected: the tool isn't linked to the external system yet.
+                render: (caseRecord) => (
+                  <button type="button" className="link-button" disabled title="Not connected yet">
+                    Open <span aria-hidden="true">↗</span>
+                    <span className="usa-sr-only">
+                      {' '}
+                      case {caseRecord.caseNumber ?? caseRecord.clientDisplayName ?? ''} in your {EXTERNAL_SYSTEM_NAME}
+                    </span>
+                  </button>
+                ),
               },
             ]}
           />

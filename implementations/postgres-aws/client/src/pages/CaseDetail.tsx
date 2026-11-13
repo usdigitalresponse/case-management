@@ -30,7 +30,7 @@ import { formatMoney } from '../formatMoney';
 import { stageLabel } from '../overviewStages';
 import { Button } from '../components/ui/Button';
 import { DuplicateNotice } from '../components/DuplicateNotice';
-import { cssVars } from '../components/ui/cssVars';
+import { UsedBar } from '../components/UsedBar';
 
 // Who reviews this case's new invoices, ahead of the default in Settings.
 function CaseReviewer({ caseId, reviewer, canChange, onChanged }: {
@@ -82,7 +82,6 @@ function PreauthorizedBilled({ summary, name }: { summary: PreauthorizationSumma
   const approved = Number(summary.approvedSoFar);
   const waiting = Number(summary.waiting);
   const left = ceiling - approved - waiting;
-  const share = (amount: number) => `${ceiling > 0 ? Math.min(100, Math.max(0, (amount / ceiling) * 100)) : 0}%`;
   return (
     <div className="preauth-billed">
       <dl>
@@ -106,10 +105,7 @@ function PreauthorizedBilled({ summary, name }: { summary: PreauthorizationSumma
           <dd className={left < 0 ? 'total-figure--cut' : undefined}>{formatMoney(Math.abs(left))}</dd>
         </div>
       </dl>
-      <div className="preauth-bar" aria-hidden="true" style={cssVars({ '--approved': share(approved), '--waiting': share(waiting) })}>
-        <span className="preauth-bar__approved" />
-        <span className="preauth-bar__waiting" />
-      </div>
+      <UsedBar approved={approved} waiting={waiting} limit={ceiling} />
       <p className="cell-note">Green is approved, blue is waiting for a decision.</p>
     </div>
   );
@@ -229,7 +225,7 @@ export default function CaseDetail() {
         }
       />
       <p className="page-description">
-        Cases may be managed in your {EXTERNAL_SYSTEM_NAME}. They show here so invoices make sense.
+        Cases are managed in your {EXTERNAL_SYSTEM_NAME}.
       </p>
       <DuplicateNotice what="case" others={caseDuplicateOthers(detail.case.caseId)} />
 
