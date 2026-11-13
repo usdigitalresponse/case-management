@@ -5,7 +5,9 @@
 .close-here .compact-hint { margin-bottom: var(--space-5); }
 /* Case overview (design I47): a card per stage with its count. */
 .stage-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-6); margin-top: var(--space-6); }
-.stage-card { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); min-width: 0; padding: var(--space-7) var(--space-8); }
+/* Rows shared across the cards keep each count level when a heading wraps. */
+.stage-card { display: grid; grid-row: span 4; grid-template-rows: subgrid; justify-items: start; row-gap: var(--space-4); min-width: 0; padding: var(--space-7) var(--space-8); }
+.stage-card__list { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); }
 .stage-card h2 { margin: 0; color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .stage-card__count { margin: 0; font: var(--headline-large); letter-spacing: var(--tracking-headline-large); }
 .stage-card__what { margin: 0; font: var(--body-small); color: var(--color-on-surface-variant); }

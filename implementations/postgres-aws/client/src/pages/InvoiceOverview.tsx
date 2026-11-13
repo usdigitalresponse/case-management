@@ -60,7 +60,7 @@ export default function InvoiceOverview() {
               {count === 0 ? (
                 <p className="muted">{about.empty}</p>
               ) : (
-                <>
+                <div className="stage-card__list">
                   <ul>
                     {invoices.map((invoice) => (
                       <li key={invoice.invoiceId}>
@@ -75,7 +75,7 @@ export default function InvoiceOverview() {
                       <span className="usa-sr-only"> {about.label.toLowerCase()}</span>
                     </Link>
                   )}
-                </>
+                </div>
               )}
             </section>
           );
