@@ -125,7 +125,7 @@ describe('an external submitter', () => {
     expect((await submitter.call('GET', `/api/invoices/${invoiceId}`)).status).toBe(403);
   });
 
-  it('cannot look up, choose or answer cases for an invoice, nor give its case number', async () => {
+  it('cannot look up, choose or answer cases for an invoice, but may type its case number', async () => {
     const submitter = await createSubmitter();
     const { invoiceId } = await createSubmittedInvoice(submitter);
     expect((await submitter.call('GET', `/api/invoices/${invoiceId}/case-matches`)).status).toBe(403);
@@ -133,7 +133,6 @@ describe('an external submitter', () => {
     expect((await submitter.call('GET', `/api/portal/invoices/${invoiceId}/case-matches`)).status).toBe(404);
     expect((await submitter.call('PUT', `/api/portal/invoices/${invoiceId}/case-choice`, { choice: 'existing', caseId: randomUUID() })).status).toBe(403);
     expect((await submitter.call('PUT', `/api/portal/invoices/${invoiceId}/case-choice`, { choice: 'none' })).status).toBe(403);
-    expect((await submitter.call('PUT', `/api/portal/invoices/${invoiceId}/case-number`, { caseNumber: '26-CR-00001' })).status).toBe(403);
     expect((await submitter.call('PUT', `/api/portal/invoices/${invoiceId}/case`, { caseId: randomUUID() })).status).toBe(404);
     const typed = await submitter.call('POST', '/api/portal/invoices', {
       caseId: null,
@@ -141,7 +140,9 @@ describe('an external submitter', () => {
       submit: false,
       lines: [{ lineType: 'expense', amount: 10, serviceDate: '2026-02-02' }],
     });
-    expect(typed.status).toBe(403);
+    expect(typed.status).toBe(201);
+    const { invoiceId: draftId } = (await typed.json()) as { invoiceId: string };
+    expect((await submitter.call('PUT', `/api/portal/invoices/${draftId}/case-number`, { caseNumber: '26-CR-00002' })).status).toBe(200);
   });
 
   it("cannot read, withdraw or delete another submitter's invoice", async () => {

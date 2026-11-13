@@ -250,7 +250,7 @@ describe('counties in the case step', () => {
 });
 
 describe('external submitters', () => {
-  it('may send without a case number, and never answer the case question', async () => {
+  it('may type a case number or leave it out, but never answer the case question', async () => {
     const attorney = await sender('attorney@example.com');
     const { invoiceId } = await createInvoice(testDb, attorney.actor, {
       caseId: null,
@@ -260,8 +260,16 @@ describe('external submitters', () => {
     const caseId = await addCase('CR-24-0477', fixtures.countyId);
     await expect(setDraftCaseChoice(testDb, attorney.actor, invoiceId, { choice: 'existing', caseId })).rejects.toThrow(ForbiddenError);
     await expect(setDraftCaseChoice(testDb, attorney.actor, invoiceId, { choice: 'none' })).rejects.toThrow(ForbiddenError);
-    await expect(setDraftCaseNumber(testDb, attorney.actor, invoiceId, { caseNumber: 'CR-24-0477' })).rejects.toThrow(ForbiddenError);
     expect(await submitInvoice(testDb, attorney.actor, invoiceId, { filedByPerson: true, attested: true })).toEqual({ invoiceId, status: 'submitted' });
+
+    // A typed number is only suggested in review, never matched, even to the same number in the county.
+    const typed = await createInvoice(testDb, attorney.actor, { caseId: null, submit: false, lines: [{ lineType: 'expense', serviceDate: '2026-02-02', amount: 10 }] });
+    await setDraftCaseNumber(testDb, attorney.actor, typed.invoiceId, { caseNumber: 'CR-24-0477' });
+    await setDraftCounty(testDb, attorney.actor, typed.invoiceId, { countyId: fixtures.countyId });
+    await submitInvoice(testDb, attorney.actor, typed.invoiceId, { filedByPerson: true, attested: true });
+    const [sent] = await testDb.select().from(invoice).where(eq(invoice.invoiceId, typed.invoiceId));
+    expect(sent).toMatchObject({ caseId: null, caseChoice: null, caseNumberAsTyped: 'CR-24-0477' });
+    expect((await caseStepFor(testDb, typed.invoiceId)).exact?.caseId).toBe(caseId);
   });
 });
 

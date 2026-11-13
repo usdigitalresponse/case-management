@@ -74,7 +74,7 @@ describe('uploading an invoice', () => {
     expect(api.unhandled).toEqual([]);
   });
 
-  it('fills staff’s case number from the file, and stops filing without one (design K68)', async () => {
+  it('fills staff’s case number from the file, and lets them leave it blank', async () => {
     const api = fakeApi({
       ...lineEditorRoutes(),
       ...signedIn(REVIEWER),
@@ -93,12 +93,10 @@ describe('uploading an invoice', () => {
     await waitFor(() => expect((go as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(go);
 
-    expect(await screen.findByText('Enter the case number on the invoice.')).toBeTruthy();
-    expect(document.activeElement).toBe(caseNumber);
-    expect(api.callsTo('POST', /\/draft$/)).toEqual([]);
-
-    fireEvent.click(screen.getByLabelText('Not for one case, such as court observation'));
-    expect(caseNumber.disabled).toBe(true);
-    expect(screen.queryByText('Enter the case number on the invoice.')).toBeNull();
+    // Not for one case is answered in the case step, not here.
+    expect(await screen.findByText('Choose how it arrived.')).toBeTruthy();
+    expect(screen.queryByText(/Enter the case number/)).toBeNull();
+    expect(screen.queryByLabelText('Not for one case')).toBeNull();
+    expect(api.unhandled).toEqual([]);
   });
 });

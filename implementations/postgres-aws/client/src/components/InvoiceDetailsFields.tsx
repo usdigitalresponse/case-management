@@ -1,6 +1,6 @@
-// A filed-by-person invoice's sender, period and invoice number, saved as
-// they change beside its lines on the check and review pages.
-import { useRef, useState } from 'react';
+// A filed-by-person invoice's sender, case number, period and invoice number,
+// saved as they change beside its lines on the check and review pages.
+import { useRef, useState, type ReactNode } from 'react';
 import { apiErrorMessage, fieldErrorsOf, type ImportWarning, type InvoiceDetailsInput, type QueuedInvoice, type SenderChoice } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
@@ -22,8 +22,11 @@ export function InvoiceDetailsFields({
   saveDetails,
   onPeriodChanged,
   onSenderRenamed,
+  caseNumber,
 }: {
   invoice: QueuedInvoice;
+  // Its case number field (and county), after whose work it is.
+  caseNumber?: ReactNode;
   // Reloads the invoice, so its sender's corrected name shows elsewhere on the page.
   onSenderRenamed: () => void;
   // Asked to send or finish without one.
@@ -144,6 +147,7 @@ export function InvoiceDetailsFields({
             onSave={(professionalKindId) => saveChoice({ professionalId: sender, professionalKindId })}
           />
         )}
+        {caseNumber}
         <UploadPeriodField
           start={periodStart}
           end={periodEnd}

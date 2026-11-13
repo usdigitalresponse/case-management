@@ -23,7 +23,7 @@ describe('an invoice whose file had no case number (design K69)', () => {
     const invoice = queuedInvoice({ caseNumberAsTyped: null, caseNumberCorrected: null, professionalDisplayName: 'Sam Rivera' });
     await renderPage(<CaseNumberReview invoice={invoice} matches={{ same: 0, close: 0 }} canCorrect onCorrected={onCorrected} />, { path: '/', url: '/' });
 
-    expect(await screen.findByText('Sam Rivera’s file had no case number. Add it below. The tool then lists this invoice under that case.')).toBeTruthy();
+    expect(await screen.findByText('Sam Rivera’s invoice had no case number. Add it below. The tool then lists this invoice under that case.')).toBeTruthy();
     const box = screen.getByRole('textbox', { name: 'Case number' });
     fireEvent.change(box, { target: { value: 'CR-26-2000' } });
     await waitFor(() => expect((box as HTMLInputElement).value).toBe('CR-26-2000'));

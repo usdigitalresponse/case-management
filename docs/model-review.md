@@ -206,6 +206,15 @@ out of every list while keeping it, and restoring clears them; both are audited
 (`request_provider_documents`). The snapshot layout is unchanged apart from
 `spec_version`.
 
+Model files are now 0.16.0. External submitters may again give a request's
+case number as written on their invoice, or leave it out, so one entered by
+hand without a file can carry it; it starts as the number read from their
+file, is only suggested to the reviewer, never matched, and they still never
+choose a case or answer "not for one case" (`match_invoice_to_case`). Staff
+filing a request may leave its case number out, answering "not for one case"
+in the case step instead. The snapshot layout is unchanged apart from
+`spec_version`.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

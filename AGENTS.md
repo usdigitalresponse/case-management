@@ -262,10 +262,11 @@ staff draft and only suggested in review; a close one makes staff say
 whether it is that case or a new one; a case in another county is never
 offered, only hinted at. The county comes first: no case is chosen or added
 without it, and "not for one case" needs one to be sent. Staff must answer before sending or finishing an entry's first
-round, and staff filing an invoice give its case number on the upload page
-unless it is not for one case. External senders never choose, type or answer
-a case: their case number is only the one read from their file, and the
-billing office adds or corrects it in review. A draft keeps the answer
+round; staff filing an invoice may give its case number on the upload page,
+leaving it blank when it is not for one case, which is answered in the case step. External senders never choose or answer a
+case: they may type or change the case number (it starts as the one read from
+their file, or stay blank), it is only suggested in review, never matched, and
+the billing office adds or corrects it there. A draft keeps the answer
 (`invoice.case_choice`) and is matched or its case added right after it is
 sent (`src/billing/caseChoice.ts`). The case-based new-invoice form and
 upload, Intake's page and `/cases/new` are retired and deleted, their old

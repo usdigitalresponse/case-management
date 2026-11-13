@@ -169,7 +169,7 @@ export function useSubmission({
     // The case number box otherwise saves only on losing focus.
     if (!(await flush())) return;
     try {
-      if (byPerson && staff && !invoice.caseId) await setDraftCaseNumber(invoice.invoiceId, typedCaseNumber);
+      if (byPerson && !invoice.caseId) await setDraftCaseNumber(invoice.invoiceId, typedCaseNumber);
       setSending(true);
     } catch (err) {
       setError(apiErrorMessage(err, 'The case number could not be saved. Try again.'));

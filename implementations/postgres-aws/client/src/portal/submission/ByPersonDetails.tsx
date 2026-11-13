@@ -13,6 +13,42 @@ export function ByPersonDetails({ s }: { s: Submission }) {
   const { invoice, editable, decided, fromName } = s.facts;
   const { flush } = s.entry;
   const showCaseNumberOnFile = () => s.caseNumberRegion.length > 0 && s.setFocus({ location: CASE_NUMBER_LOCATION });
+  // While it can be typed, the case number is one of the invoice's details.
+  const inlineCaseNumber = editable && !invoice.caseId;
+  const typedCaseNumberField = (inline: boolean) => (
+    <TypedCaseNumber
+      invoiceId={invoice.invoiceId}
+      value={typedCaseNumber}
+      onChange={setTypedCaseNumber}
+      editable={editable && !invoice.caseId}
+      chosenCase={invoice.caseId ? (data.caseNumber ?? typedCaseNumber) : null}
+      fromName={fromName}
+      hasFile={Boolean(data.fileSource)}
+      readFromFile={s.readFromFile}
+      corrected={invoice.caseNumberCorrected}
+      onFocus={showCaseNumberOnFile}
+      onSaved={onChanged}
+      external={!staff}
+      inline={inline}
+      county={
+        !staff ? null : editable ? (
+          <SavedCountyPicker
+            id="county"
+            initial={countyValueOf(invoice)}
+            save={(choice) =>
+              setDraftCounty(invoice.invoiceId, choice).then((saved) => {
+                onChanged();
+                return saved;
+              })
+            }
+            hint="Or post-conviction or prison, if that is what it is for."
+          />
+        ) : (
+          <p className="field-hint">County: {invoice.countyDisplayName ?? 'Not added'}</p>
+        )
+      }
+    />
+  );
   return (
     <>
       {editable && (
@@ -31,47 +67,19 @@ export function ByPersonDetails({ s }: { s: Submission }) {
           onPeriodChanged={(saved) => {
             s.savedPeriod.current = saved;
           }}
+          caseNumber={inlineCaseNumber ? typedCaseNumberField(true) : undefined}
         />
       )}
-      {staff ? (
-        <TypedCaseNumber
-          invoiceId={invoice.invoiceId}
-          value={typedCaseNumber}
-          onChange={setTypedCaseNumber}
-          editable={editable && !invoice.caseId}
-          chosenCase={invoice.caseId ? (data.caseNumber ?? typedCaseNumber) : null}
-          fromName={fromName}
-          hasFile={Boolean(data.fileSource)}
-          readFromFile={s.readFromFile}
-          corrected={invoice.caseNumberCorrected}
-          onFocus={showCaseNumberOnFile}
-          onSaved={onChanged}
-          county={
-            editable ? (
-              <SavedCountyPicker
-                id="county"
-                initial={countyValueOf(invoice)}
-                save={(choice) =>
-                  setDraftCounty(invoice.invoiceId, choice).then((saved) => {
-                    onChanged();
-                    return saved;
-                  })
-                }
-                hint="Or post-conviction or prison, if that is what it is for."
-              />
-            ) : (
-              <p className="field-hint">County: {invoice.countyDisplayName ?? 'Not added'}</p>
-            )
-          }
-        />
-      ) : (
-        <FileCaseNumber
-          invoice={invoice}
-          caseNumber={data.caseNumber}
-          editable={editable}
-          onShowOnFile={s.caseNumberRegion.length > 0 ? showCaseNumberOnFile : undefined}
-        />
-      )}
+      {!inlineCaseNumber &&
+        (staff ? (
+          typedCaseNumberField(false)
+        ) : (
+          <FileCaseNumber
+            invoice={invoice}
+            caseNumber={data.caseNumber}
+            onShowOnFile={s.caseNumberRegion.length > 0 ? showCaseNumberOnFile : undefined}
+          />
+        ))}
       {editable && staff && !invoice.caseId && <CaseStep invoice={invoice} mode="draft" missing={caseAnswerMissing} beforeChange={flush} onChanged={onChanged} />}
       {decided && data.approvedTotal !== null && <DecisionTotals data={data} />}
     </>

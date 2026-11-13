@@ -15,7 +15,7 @@ import { ValidationError } from '../../errors';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../../billing/invoiceAccess';
 import { decisionCommentsOf, loadInvoiceDetail, type InvoiceDetail } from '../../billing/invoiceDetail';
 import { recallInvoice, withdrawInvoice } from '../../billing/invoiceLifecycle/withdraw';
-import { requireStaffForCase, setDraftCaseNumber, setDraftCounty, setDraftDetails, setDraftSender, updateDraftInvoice } from '../../billing/invoiceLifecycle/drafts';
+import { setDraftCaseNumber, setDraftCounty, setDraftDetails, setDraftSender, updateDraftInvoice } from '../../billing/invoiceLifecycle/drafts';
 import { submitInvoice } from '../../billing/invoiceLifecycle/submit';
 import { applyCaseChoiceAfterSend, caseStepFor, setDraftCaseChoice } from '../../billing/caseChoice';
 import { listCounties } from '../../cases/counties';
@@ -33,8 +33,6 @@ router.post(
   '/invoices',
   asyncHandler(async (req, res) => {
     const actor = await sessionActor(req);
-    // An external sender's case number is only ever read from their file.
-    if (req.body?.caseNumber !== undefined) await requireStaffForCase(db, actor);
     const result = await createInvoice(db, actor, req.body);
     await tagTourRecord(req, 'invoice', result.invoiceId);
     res.status(201).json(result);

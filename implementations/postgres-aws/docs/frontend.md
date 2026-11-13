@@ -328,8 +328,8 @@ How the React client is built and why. Schema mapping and gaps are in
     page, and on the review page for an invoice in review without a case (including
     a staff upload still being entered). For a case, it looks up the invoice's number
     in its county (`caseMatches` resource): staff filing an invoice give its number on the
-    upload page ("Case number", filled from the file and required unless "Not for one case",
-    `components/upload/CaseNumberField.tsx`, design K60 and K68). On a draft, the same number is chosen
+    upload page ("Case number", filled from the file and left blank when it is not for one case,
+    which is answered in this step, `components/upload/CaseNumberField.tsx`, design K60). On a draft, the same number is chosen
     without asking and a number nothing matches becomes a new case, added when sent,
     with an optional client name; a close number lists the similar cases and "Add case
     … in …" as radio buttons with none chosen. In review, the same number is only a
@@ -387,11 +387,16 @@ How the React client is built and why. Schema mapping and gaps are in
     time here: it is kept in the external system, so the time section and
     the case page's new-invoice form are hidden (`SENDERS_LOG_TIME` in
     `PortalCaseDetail.tsx`), not deleted.
-  - On the check page, the case number is read-only (`portal/submission/FileCaseNumber.tsx`,
-    design K6): the number read from the file, or "None found in your file", with "Each
-    invoice is for one case" beside it. Senders can't type a number or choose a case; the
-    server refuses both, and the billing office adds or corrects the number in review. An
-    invoice started from one of their cases is under that case.
+  - On the check page, senders type or change the case number in the same field as staff
+    (`portal/submission/TypedCaseNumber.tsx`), one of the invoice's details beside the billing
+    period and invoice number (`InvoiceDetailsFields.tsx`, staff's county beside it), with
+    its explainer on one line under that row. It starts as the number read from the file,
+    may be left blank, and "Each invoice is for one case" explains it. Senders can't
+    choose a case or answer "Not for one case"; the server refuses both, and the number
+    is only suggested to the reviewer, who adds or corrects it in review. Once sent, it is
+    shown read-only (`FileCaseNumber.tsx`). An invoice started from one of their cases is
+    under that case. This reverses design K6, which read the number only from the file,
+    so an invoice entered by hand could never carry one.
     An invoice opens on its own page (see "Checking the lines" and
     "Sending" under "Invoice import" in `api.md`); a draft's row says what
     the submitter changed from the file so far. Gap: the design's "Paid"

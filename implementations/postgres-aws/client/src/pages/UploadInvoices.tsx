@@ -5,11 +5,9 @@ import { Link as RouterLink, useNavigate } from 'react-router';
 import {
   addProfessional,
   apiErrorMessage,
-  chooseCaseInReview,
   createInvoice,
   createUploadDraft,
   invoiceTemplateUrl,
-  setDraftCaseChoice,
   type InvoiceReceipt,
 } from '../api/client';
 import { useResource } from '../hooks/useResource';
@@ -56,8 +54,7 @@ export default function UploadInvoices() {
   const asks = asksWho(staff, billable);
   const [sender, setSender] = useState('');
   const [receipt, setReceipt] = useState<InvoiceReceipt>({});
-  const [caseNumber, setCaseNumber] = useState<UploadCaseNumber>({ value: '', edited: false, notForCase: false });
-  const caseNumberInput = useRef<HTMLInputElement>(null);
+  const [caseNumber, setCaseNumber] = useState<UploadCaseNumber>({ value: '', edited: false });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   // Set once going on was tried, so missing fields are marked where they are.
@@ -104,7 +101,6 @@ export default function UploadInvoices() {
   useEffect(() => {
     if (onlyRead && !caseNumber.edited) setCaseNumber((current) => ({ ...current, value: onlyRead }));
   }, [onlyRead, caseNumber.edited]);
-  const caseNumberMissing = asksCaseNumber && !caseNumber.notForCase && !caseNumber.value.trim();
 
   const topChosen = chosen(sender) || (sender === ADD_NEW && Boolean(draft));
   const senderFor = (own: string | undefined, top: string) => (asks ? own || top : self?.professionalId);
@@ -114,10 +110,9 @@ export default function UploadInvoices() {
     receivedVia: tried && staff && !receipt.receivedVia ? 'Choose how it arrived.' : undefined,
     receivedOn: tried && staff && !receipt.receivedOn ? 'Enter the date it arrived.' : undefined,
     sender: tried && asks && !topChosen ? (sender === ADD_NEW ? 'Give their first and last name, and their role.' : 'Choose whose work it is.') : undefined,
-    caseNumber: tried && caseNumberMissing ? 'Enter the case number on the invoice.' : undefined,
   };
   const complete = (byHand: boolean) =>
-    !(staff && !(receipt.receivedVia && receipt.receivedOn)) && !senderMissing(byHand) && !caseNumberMissing;
+    !(staff && !(receipt.receivedVia && receipt.receivedOn)) && !senderMissing(byHand);
 
   // The one chosen above, adding someone new first.
   async function topSender(): Promise<string> {
@@ -141,19 +136,12 @@ export default function UploadInvoices() {
     if (busy) return;
     if (!complete(byHand)) {
       setTried(true);
-      if (caseNumberMissing) caseNumberInput.current?.focus();
       return;
     }
     setBusy(true);
     setMessage(null);
     const received = staff ? receipt : {};
-    const typedNumber = asksCaseNumber && !caseNumber.notForCase ? caseNumber.value.trim() : undefined;
-    // Not for one case is the case step's answer, kept on the draft or given in review.
-    const answerNotForCase = async (invoiceId: string) => {
-      if (!(asksCaseNumber && caseNumber.notForCase)) return;
-      if (reviews) await chooseCaseInReview(invoiceId, { choice: 'none' });
-      else await setDraftCaseChoice(invoiceId, { choice: 'none' });
-    };
+    const typedNumber = asksCaseNumber ? caseNumber.value.trim() || undefined : undefined;
     try {
       const top = await topSender();
       if (byHand) {
@@ -166,7 +154,6 @@ export default function UploadInvoices() {
           caseNumber: typedNumber,
           ...received,
         });
-        await answerNotForCase(created.invoiceId);
         finish([created.invoiceId]);
         return;
       }
@@ -186,10 +173,6 @@ export default function UploadInvoices() {
             enterInReview: reviews,
             ...received,
           }));
-        if (!entry.created) {
-          // eslint-disable-next-line no-await-in-loop
-          await answerNotForCase(created.invoiceId);
-        }
         update(entry.key, { created });
         made.push(created.invoiceId);
       }
@@ -210,7 +193,7 @@ export default function UploadInvoices() {
     .map((p) => ({ value: p.professionalId, label: senderLabel(p) }))
     .sort((a, b) => a.label.localeCompare(b.label));
   return (
-    <div className="portal-narrow">
+    <div className={staff ? 'upload-page' : 'portal-narrow'}>
       <PageHeader
         list
         crumbs={[home, { label: entries.length > 1 ? 'New invoices' : 'New invoice' }]}
@@ -246,7 +229,7 @@ export default function UploadInvoices() {
                 </div>
               )}
               {asksCaseNumber && (
-                <CaseNumberField value={caseNumber} onChange={setCaseNumber} error={fieldErrors.caseNumber} inputRef={caseNumberInput} />
+                <CaseNumberField value={caseNumber} onChange={setCaseNumber} />
               )}
             </div>
             {/* Adding someone opens here, under all four, so none of them moves. */}

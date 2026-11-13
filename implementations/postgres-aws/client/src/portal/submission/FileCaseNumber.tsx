@@ -1,18 +1,16 @@
-// An external sender's case number: only ever read from their file, and added
-// or corrected by the billing office in review (design K6).
+// An external sender's case number once they can no longer change it; the billing
+// office adds or corrects it in review.
 import type { PortalInvoice } from '../../api/client';
 import { Fact } from '../../components/FactsStrip';
 
 export function FileCaseNumber({
   invoice,
   caseNumber,
-  editable,
   onShowOnFile,
 }: {
   invoice: PortalInvoice['invoice'];
   // The number of the case it is under, once it has one.
   caseNumber: string | null;
-  editable: boolean;
   // Shows where it is on the file, if the file has one.
   onShowOnFile?: () => void;
 }) {
@@ -25,7 +23,7 @@ export function FileCaseNumber({
         ? `Corrected by the billing office. Your file said ${typed}.`
         : 'Added by the billing office.'
       : typed
-        ? 'Read from your file.'
+        ? 'As you sent it.'
         : 'The billing office adds it during review.';
   return (
     <section className="card file-case-number" aria-label="Case number">
@@ -40,15 +38,6 @@ export function FileCaseNumber({
           )}
         </Fact>
       </dl>
-      {editable && (
-        <div className="file-case-number__why">
-          <strong>Each invoice is for one case.</strong>
-          <p>
-            The tool reads the case number from your file. You can’t type one here.
-            {typed ? ' If it is wrong, the billing office corrects it during review.' : ' You can still send this invoice, and the billing office adds the number during review.'}
-          </p>
-        </div>
-      )}
     </section>
   );
 }
