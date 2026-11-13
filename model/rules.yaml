@@ -537,6 +537,7 @@ rules:
     requirements:
       - For a chosen period, one row per county or setting with the threshold in force, requests received by status, amounts asked for and approved, what is billed against limits (approved and waiting), what is left, providers over their limit with the amount over and how many lack an explanation, and providers billing within the threshold without a preauthorization.
       - Each count leads to the requests or cases it counts. Configured billing staff roles may download it; it holds no client names.
+      - Above it, a running total for each month's end in the period of pre-authorized ceilings in force against the approved amount of signed-off invoices they cover, with invoices still in review added for the current month.
 
   validate_payment_confirmation:
     description: Validate payment confirmation.

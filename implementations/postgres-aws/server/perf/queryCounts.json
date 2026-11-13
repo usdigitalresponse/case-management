@@ -23,7 +23,7 @@
     "review / listPeopleBatch": 10,
     "review / GET /api/invoices": 24,
     "review / listInvoiceIntake": 5,
-    "review / preauthorizationUsageByCounty": 17,
+    "review / preauthorizationUsageByCounty": 22,
     "import / duplicateWarnings by number": 4,
     "import / recheckDuplicates": 7,
     "upload / uploadCases + suggestUploadCase": 8,

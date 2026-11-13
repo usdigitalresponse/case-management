@@ -211,6 +211,7 @@ export interface CountyUsage {
   requests: Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn', number>;
   requested: string;
   approved: string;
+  authorized: string;
   billedApproved: string;
   billedWaiting: string;
   left: string;
@@ -218,8 +219,16 @@ export interface CountyUsage {
   withinThreshold: { providers: number; billed: string };
 }
 
+// Month-end totals; null for months not yet begun. withInReview is only on this month, and last month to join the line.
+export interface UsageMonth {
+  month: string;
+  authorized: string | null;
+  signedOff: string | null;
+  withInReview: string | null;
+}
+
 export function getPreauthorizationUsage(period: { from: string; to: string }) {
-  return request<{ from: string; to: string; counties: CountyUsage[]; total: CountyUsage }>(
+  return request<{ from: string; to: string; counties: CountyUsage[]; total: CountyUsage; months: UsageMonth[] }>(
     `/api/preauthorizations/usage-by-county?${new URLSearchParams(period)}`,
   );
 }
