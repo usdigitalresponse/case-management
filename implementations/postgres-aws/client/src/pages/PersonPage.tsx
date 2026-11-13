@@ -10,7 +10,8 @@ import { useBatchedResource } from '../hooks/useBatchedResource';
 import { MoreOnScroll } from '../components/MoreOnScroll';
 import { LARGEST_BATCH, loadAllBatches } from '../api/batches';
 import { personRequest, personShowOf, PERSON_FILTERS, type PersonFilterId } from '../queueRequests';
-import { person as personResource, personInvoices } from '../resources';
+import { person as personResource, personInvoices, providerDuplicateOthers } from '../resources';
+import { DuplicateNotice } from '../components/DuplicateNotice';
 import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { Fact, FactsStrip } from '../components/FactsStrip';
@@ -104,6 +105,7 @@ export default function PersonPage() {
         }
       />
       {exportError && <Notice tone="danger">{exportError}</Notice>}
+      <DuplicateNotice what="provider" others={providerDuplicateOthers(professionalId as string)} />
       <FactsStrip>
         <Fact label="Approved rate">
           <strong>{person.hourlyRate ? `${formatMoney(person.hourlyRate)} an hour` : 'None set'}</strong>

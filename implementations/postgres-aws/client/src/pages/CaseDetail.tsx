@@ -10,7 +10,7 @@ import {
 } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
-import { caseDetail, caseInvoiceList, caseInvoices } from '../resources';
+import { caseDetail, caseInvoiceList, caseInvoices, caseDuplicateOthers } from '../resources';
 import { useBatchedResource } from '../hooks/useBatchedResource';
 import { MoreOnScroll } from '../components/MoreOnScroll';
 import { DECIDED_STATUS_CODES, InvoiceStatus } from '../components/Completion';
@@ -29,6 +29,7 @@ import { formatDate, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { stageLabel } from '../overviewStages';
 import { Button } from '../components/ui/Button';
+import { DuplicateNotice } from '../components/DuplicateNotice';
 import { cssVars } from '../components/ui/cssVars';
 
 // Who reviews this case's new invoices, ahead of the default in Settings.
@@ -230,6 +231,7 @@ export default function CaseDetail() {
       <p className="page-description">
         Cases may be managed in your {EXTERNAL_SYSTEM_NAME}. They show here so invoices make sense.
       </p>
+      <DuplicateNotice what="case" others={caseDuplicateOthers(detail.case.caseId)} />
 
       <FactsStrip>
         <Fact label="Case number" note={billing?.otherCaseNumbers.length ? billing.otherCaseNumbers.join(', ') : undefined}>

@@ -1,156 +1,15 @@
-// Open cases that may be one case recorded twice, a tab of All cases. Cases belong to the
-// external case management system, so they are never merged here: staff mark
-// a pair as different, or close the extra case from its page as a cleanup.
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
-import { apiErrorMessage, reviewPossibleDuplicateCase, searchCases, type CaseListRecord, type DuplicateCase } from '../api/client';
-import { EXTERNAL_SYSTEM_NAME } from '../externalSystem';
-import { useResource } from '../hooks/useResource';
-import { possibleDuplicateCases } from '../resources';
-import { formatDate, formatDateTime } from '../formatDateTime';
-import { LoadState } from './LoadState';
-import { NotDuplicateDialog, plural } from './NotDuplicateDialog';
+// Parts for open cases that may be one case recorded twice (Settings › Merge
+// duplicates, ./MergeDuplicates.tsx). Cases belong to the external case
+// management system: a "merge" moves one case's invoices to the other and closes it.
+import { useState } from 'react';
+import { apiErrorMessage, reviewPossibleDuplicateCase, searchCases, type CaseListRecord } from '../api/client';
 import { TypeAheadPicker } from './TypeAheadPicker';
 import { Button } from './ui/Button';
 import { Dialog } from './ui/Dialog';
-import { Notice, type SaveMessage } from './ui/Notice';
-import { Tag } from './ui/Tag';
+import { Notice } from './ui/Notice';
 
-const REASONS = { same_number: 'Same case number', same_county: 'Same county', flagged: 'Flagged by staff' } as const;
-
-const caseLabel = (record: { caseNumber: string | null; clientDisplayName: string | null }) =>
+export const caseLabel = (record: { caseNumber: string | null; clientDisplayName: string | null }) =>
   [record.caseNumber ?? 'No case number', record.clientDisplayName].filter(Boolean).join(', ');
-
-function DuplicateCaseDetails({ record }: { record: DuplicateCase }) {
-  return (
-    <div className="duplicate-person">
-      <strong className="duplicate-person__name">
-        <Link to={`/cases/${record.caseId}`}>{record.caseNumber ?? 'No case number'}</Link>
-      </strong>
-      <dl className="duplicate-person__facts">
-        {record.otherNumbers.length > 0 && (
-          <>
-            <dt>Other numbers</dt>
-            <dd>{record.otherNumbers.join(', ')}</dd>
-          </>
-        )}
-        <dt>Client</dt>
-        <dd>{record.clientDisplayName ?? '—'}</dd>
-        <dt>County</dt>
-        <dd>{record.countyDisplayName ?? '—'}</dd>
-        <dt>Opened</dt>
-        <dd>{record.openedOn ? formatDate(record.openedOn) : '—'}</dd>
-        <dt>Invoices</dt>
-        <dd>{plural(record.invoiceCount, 'invoice')}</dd>
-      </dl>
-    </div>
-  );
-}
-
-// The flag dialog is opened from All cases' header.
-export function DuplicateCases({
-  flagging,
-  onFlaggingDone,
-  onCount,
-}: {
-  flagging: boolean;
-  onFlaggingDone: () => void;
-  // Each time the list loads, for the tab's count.
-  onCount: (groups: number) => void;
-}) {
-  const [version, setVersion] = useState(0);
-  const { data: groups, error } = useResource(possibleDuplicateCases, { resetKey: version });
-  useEffect(() => {
-    if (groups) onCount(groups.length);
-  }, [groups, onCount]);
-  const [dismissing, setDismissing] = useState<{ caseIds: [string, string]; names: [string, string] } | null>(null);
-  const [message, setMessage] = useState<SaveMessage | null>(null);
-
-  if (error || !groups) {
-    return <LoadState error={error} what="possible duplicate cases" />;
-  }
-  const changed = (text: string) => {
-    setMessage({ tone: 'success', text });
-    setVersion((value) => value + 1);
-  };
-
-  return (
-    <>
-      <p className="compact-hint">
-        Open cases whose numbers match, ignoring punctuation and leading zeros, or that staff flagged. Cases in different counties are never
-        listed. Cases come from your {EXTERNAL_SYSTEM_NAME} and
-        aren’t merged here: to clean up, close the extra case from its page once its invoices are finished, or mark them as different cases.
-      </p>
-      {message && <Notice tone={message.tone}>{message.text}</Notice>}
-      {groups.length === 0 ? (
-        <p className="empty-note">No possible duplicate cases right now.</p>
-      ) : (
-        <ul className="duplicate-list">
-          {groups.map((group) => {
-            const label = (caseId: string) => caseLabel(group.cases.find((record) => record.caseId === caseId)!);
-            return (
-              <li key={group.cases.map((record) => record.caseId).join('|')} className="card duplicate-pair">
-                <ul className="duplicate-pair__links">
-                  {group.pairs.map((pair) => (
-                    <li key={pair.caseIds.join('|')}>
-                      <span>
-                        {label(pair.caseIds[0])} and {label(pair.caseIds[1])}:
-                      </span>
-                      {pair.reasons.map((reason) => (
-                        <Tag key={reason} tone={reason === 'flagged' ? 'warning' : 'info'}>
-                          {REASONS[reason]}
-                        </Tag>
-                      ))}
-                      {pair.flagged && (
-                        <span className="cell-note">
-                          by {pair.flagged.byDisplayName} {formatDateTime(pair.flagged.at)}
-                          {pair.flagged.note && `: “${pair.flagged.note}”`}
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() => setDismissing({ caseIds: pair.caseIds, names: [label(pair.caseIds[0]), label(pair.caseIds[1])] })}
-                      >
-                        Not the same case
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div className="duplicate-pair__people">
-                  {group.cases.map((record) => (
-                    <DuplicateCaseDetails key={record.caseId} record={record} />
-                  ))}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {flagging && (
-        <FlagCasesDialog
-          onClose={onFlaggingDone}
-          onFlagged={() => {
-            onFlaggingDone();
-            changed('Flagged. They are listed here until one is closed or someone marks them as different cases.');
-          }}
-        />
-      )}
-      {dismissing && (
-        <NotDuplicateDialog
-          what="case"
-          names={dismissing.names}
-          save={(note) => reviewPossibleDuplicateCase({ caseIds: dismissing.caseIds, outcome: 'not_duplicate', note })}
-          onClose={() => setDismissing(null)}
-          onDone={(text) => {
-            setDismissing(null);
-            changed(text);
-          }}
-        />
-      )}
-    </>
-  );
-}
 
 // Open cases matching what was typed; only: those it may be paired with.
 function CaseSearch({ id, label, only = () => true, onSelect }: { id: string; label: string; only?: (record: CaseListRecord) => boolean; onSelect: (record: CaseListRecord | undefined) => void }) {
@@ -172,7 +31,7 @@ function CaseSearch({ id, label, only = () => true, onSelect }: { id: string; la
   );
 }
 
-function FlagCasesDialog({ onClose, onFlagged }: { onClose: () => void; onFlagged: () => void }) {
+export function FlagCasesDialog({ onClose, onFlagged }: { onClose: () => void; onFlagged: () => void }) {
   const [first, setFirst] = useState<CaseListRecord>();
   const [second, setSecond] = useState<CaseListRecord>();
   const [note, setNote] = useState('');
@@ -197,7 +56,7 @@ function FlagCasesDialog({ onClose, onFlagged }: { onClose: () => void; onFlagge
 
   return (
     <Dialog title="Flag two cases as possibly the same" onClose={onClose} className="dialog--wide">
-      <p>Open cases in the same county only. They are listed here until one is closed or someone marks them as different cases.</p>
+      <p>Open cases in the same county only. They are listed in Settings, under Merge duplicates, until one is closed or someone marks them as different cases.</p>
       <CaseSearch id="flag-first-case" label="One case" onSelect={setFirst} />
       <CaseSearch id="flag-second-case" label="The other" only={sameCounty} onSelect={setSecond} />
       {first && second && first.caseId === second.caseId && <p className="field-error">Choose two different cases.</p>}

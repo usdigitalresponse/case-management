@@ -95,6 +95,8 @@ const STAFF_ONLY = [
   '/api/people/merges',
   '/api/cases/possible-duplicates',
   '/api/cases/possible-duplicates/count',
+  '/api/cases/00000000-0000-4000-8000-000000000000/possible-duplicates',
+  '/api/professionals/people/00000000-0000-4000-8000-000000000000/possible-duplicates',
   '/api/professionals',
   '/api/staff?q=a',
   '/api/invoices',

@@ -8,9 +8,9 @@ import { db } from '../db/client';
 import { person } from '../db/schema';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { requireAdmin } from '../auth/requireAdmin';
-import { listPossibleDuplicates, recordDuplicateReview } from '../people/possibleDuplicates';
+import { listPossibleDuplicates, personDuplicateMembers, recordDuplicateReview } from '../people/possibleDuplicates';
 import { listMerges, mergePeople, previewMerge, undoMerges } from '../people/personMerges';
-import { duplicateGeneration, duplicateGroupCount, forgetDuplicateGroups, rememberDuplicateGroups } from '../duplicateCounts';
+import { duplicateGeneration, duplicateGroupCount, forgetDuplicateGroups, rememberDuplicateGroups, rememberDuplicateMembers } from '../duplicateCounts';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
@@ -46,6 +46,7 @@ router.get(
     const since = duplicateGeneration('people');
     const duplicates = await listPossibleDuplicates(db);
     rememberDuplicateGroups('people', duplicates.length, since);
+    rememberDuplicateMembers('people', personDuplicateMembers(duplicates), since);
     res.json({ duplicates });
   }),
 );

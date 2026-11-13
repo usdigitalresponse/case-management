@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   duplicateGeneration,
   duplicateGroupCount,
+  duplicateMembers,
   forgetDuplicateGroups,
+  membersOf,
   rememberDuplicateGroups,
   REMEMBER_DUPLICATE_COUNT_MS,
 } from '../src/duplicateCounts';
@@ -51,5 +53,21 @@ describe('remembered duplicate counts', () => {
     forgetDuplicateGroups('people');
     rememberDuplicateGroups('people', 4, since);
     expect(await duplicateGroupCount('people', async () => 1)).toBe(1);
+  });
+});
+
+describe('remembered duplicate members, for a record\'s page', () => {
+  it('names the other record in each pair, and is forgotten with the count', async () => {
+    const members = membersOf([['a', 'b'], ['a', 'c']], (id) => id.toUpperCase());
+    expect(members.get('a')).toEqual([{ id: 'b', label: 'B' }, { id: 'c', label: 'C' }]);
+    expect(members.get('b')).toEqual([{ id: 'a', label: 'A' }]);
+
+    const list = vi.fn(async () => members);
+    await duplicateMembers('cases', list);
+    await duplicateMembers('cases', list);
+    expect(list).toHaveBeenCalledTimes(1);
+    forgetDuplicateGroups('cases');
+    await duplicateMembers('cases', list);
+    expect(list).toHaveBeenCalledTimes(2);
   });
 });

@@ -27,8 +27,8 @@ import { getSessionUser, requireFullUser } from '../auth/session';
 import { assignExternalSubmitterToCase } from '../cases/assignExternalSubmitterToCase';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
 import { closeCase, unfinishedInvoices } from '../cases/closeCase';
-import { listPossibleDuplicateCases, recordCaseDuplicateReview } from '../cases/possibleDuplicateCases';
-import { duplicateGeneration, duplicateGroupCount, forgetDuplicateGroups, rememberDuplicateGroups } from '../duplicateCounts';
+import { caseDuplicateMembers, listPossibleDuplicateCases, recordCaseDuplicateReview } from '../cases/possibleDuplicateCases';
+import { duplicateGeneration, duplicateGroupCount, duplicateMembers, forgetDuplicateGroups, rememberDuplicateGroups, rememberDuplicateMembers } from '../duplicateCounts';
 import { asyncHandler } from './asyncHandler';
 import { ValidationError } from '../errors';
 
@@ -88,6 +88,7 @@ router.get(
     const since = duplicateGeneration('cases');
     const duplicates = await listPossibleDuplicateCases(db);
     rememberDuplicateGroups('cases', duplicates.length, since);
+    rememberDuplicateMembers('cases', caseDuplicateMembers(duplicates), since);
     res.json({ duplicates });
   }),
 );
@@ -114,6 +115,15 @@ router.get(
   '/recent-changes',
   asyncHandler(async (_req, res) => {
     res.json({ changes: await loadRecentCaseChanges(db) });
+  }),
+);
+
+// The cases this one may be a duplicate of, for the notice on its page (design K49).
+router.get(
+  '/:id/possible-duplicates',
+  asyncHandler(async (req, res) => {
+    const members = await duplicateMembers('cases', async () => caseDuplicateMembers(await listPossibleDuplicateCases(db)));
+    res.json({ others: members.get(req.params.id as string) ?? [] });
   }),
 );
 

@@ -8,8 +8,6 @@ import {
   listPersonMerges,
   listPossibleDuplicates,
   listPossibleDuplicateCases,
-  countPossibleDuplicates,
-  countPossibleDuplicateCases,
   getOwnDemoRole,
   getPerson,
   searchPeople,
@@ -48,7 +46,9 @@ import {
   getReferenceData,
   listCases,
   getCaseCounts,
+  getCaseDuplicateOthers,
   getCaseOverview,
+  getProviderDuplicateOthers,
   getInvoiceOverview,
   type CaseRequest,
   listCounties,
@@ -92,6 +92,12 @@ export const cases = (query: CaseRequest) => batched({ key: ['cases', query], lo
 export const caseCounts = resource({ key: ['case-counts'], load: getCaseCounts });
 
 export const caseOverview = resource({ key: ['case-overview'], load: getCaseOverview });
+
+export const caseDuplicateOthers = (caseId: string) =>
+  resource({ key: ['case-duplicate-others', caseId], load: () => getCaseDuplicateOthers(caseId).then((result) => result.others) });
+
+export const providerDuplicateOthers = (professionalId: string) =>
+  resource({ key: ['provider-duplicate-others', professionalId], load: () => getProviderDuplicateOthers(professionalId).then((result) => result.others) });
 
 export const invoiceOverview = resource({ key: ['invoice-overview'], load: getInvoiceOverview });
 
@@ -232,15 +238,7 @@ export const providerList = (query: string) =>
 export const personRecords = (query: string) =>
   batched({ key: ['person-records', query], load: (after) => searchPeople(query, after), keepPrevious: true });
 
-// How many groups each Review duplicates tab has, for whether to show it; its list loads only when opened.
-export const possibleDuplicateCount = edited({ key: ['possible-duplicate-count'], load: () => countPossibleDuplicates().then((result) => result.groups) });
-
-export const possibleDuplicateCaseCount = edited({
-  key: ['possible-duplicate-case-count'],
-  load: () => countPossibleDuplicateCases().then((result) => result.groups),
-});
-
-// Possible duplicate people and merges; acted on from their pages.
+// Possible duplicate people and merges, for Settings › Merge duplicates.
 export const possibleDuplicates = edited({ key: ['possible-duplicates'], load: () => listPossibleDuplicates().then((result) => result.duplicates) });
 
 export const personMerges = edited({ key: ['person-merges'], load: () => listPersonMerges().then((result) => result.merges) });
