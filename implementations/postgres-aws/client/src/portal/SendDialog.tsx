@@ -57,7 +57,7 @@ export function SendDialog({
         <dd className="send-summary__total">{formatMoney(askingFor)}</dd>
       </dl>
       <p>{explanation}</p>
-      {email && <p className="dialog__small">Sending as {email}. You signed in with the code we emailed you.</p>}
+      {email && <p className="dialog__small">Sending as {email}. You signed in with the code emailed to you.</p>}
       {children}
       {overrun && (
         <div className="usa-form-group">

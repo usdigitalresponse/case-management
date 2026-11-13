@@ -46,7 +46,7 @@ function RowActions({
   }
   return (
     <span className="row-actions">
-      <RouterLink className="row-action" to={detail}>View</RouterLink>
+      <RouterLink className="row-action" to={detail}>Open</RouterLink>
       {canWithdraw && (
         <button type="button" className="link-button link-button--danger" onClick={onWithdraw}>
           Withdraw

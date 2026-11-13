@@ -31,7 +31,7 @@ import { formatDay } from '../../formatDateTime';
 const SIGN_IN_PATH = '/submit';
 
 function signInNotice(user: ExternalUser): string {
-  return `${user.displayName} can now sign in at ${window.location.origin}${SIGN_IN_PATH} with ${user.email ?? 'their email'}. We don't email them; let them know.`;
+  return `${user.displayName} can now sign in at ${window.location.origin}${SIGN_IN_PATH} with ${user.email ?? 'their email'}. The tool doesn't email them, so let them know.`;
 }
 
 function whatTheyDo(user: ExternalUser): string {

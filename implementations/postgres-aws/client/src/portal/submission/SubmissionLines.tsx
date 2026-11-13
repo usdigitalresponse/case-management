@@ -51,7 +51,7 @@ export function SubmissionLines({ s }: { s: Submission }) {
           <Notice tone="success">
             {staff
               ? `Sent for review on ${formatDateTime(data.submissionAttempt.submittedAt)}.`
-              : `Sent for review on ${formatDateTime(data.submissionAttempt.submittedAt)}. We emailed a receipt to ${user?.email}. You can withdraw it until review starts.`}
+              : `Sent for review on ${formatDateTime(data.submissionAttempt.submittedAt)}. A receipt was emailed to ${user?.email}. You can withdraw it until review starts.`}
           </Notice>
         )}
         {!isDraft &&
@@ -105,7 +105,7 @@ export function SubmissionLines({ s }: { s: Submission }) {
           edited={(index) => edited.has(lines[index]?.invoiceLineId ?? '')}
           extra={sent ? decisionFor : undefined}
           detail={sent ? questionsFor : undefined}
-          addLabel={fileSource ? 'Add a line we missed' : 'Add a line'}
+          addLabel={fileSource ? 'Add a missing line' : 'Add a line'}
           footer={
             <div className="check-lines__totals">
               {fileSays !== null && (

@@ -86,7 +86,7 @@ export default function FinishedInvoices() {
                 />
               ),
           },
-          openInvoiceColumn(() => 'View'),
+          openInvoiceColumn(),
         ]}
       />
       <MoreOnScroll list={list} what="invoices" />

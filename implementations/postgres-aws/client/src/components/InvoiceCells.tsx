@@ -92,15 +92,16 @@ export function QuestionChips({ invoice }: { invoice: ReviewQueueItem }) {
 }
 
 // The row's link to the invoice, last in the row.
-export function openInvoiceColumn(label: (invoice: ReviewQueueItem) => string): RecordTableColumn<ReviewQueueItem> {
+// "Open" on every row (design K), named in full for screen readers.
+export function openInvoiceColumn(): RecordTableColumn<ReviewQueueItem> {
   return {
     header: 'Open',
     hiddenHeader: true,
     align: 'right',
     render: (invoice) => (
       <RouterLink className="row-action" to={`/billing/${invoice.invoiceId}`}>
-        {label(invoice)} <span aria-hidden="true">→</span>
-        <span className="usa-sr-only"> invoice for {invoice.caseClientDisplayName ?? 'this case'}</span>
+        Open <span aria-hidden="true">→</span>
+        <span className="usa-sr-only"> the invoice from {invoice.professionalDisplayName ?? invoice.submittedByDisplayName ?? 'its sender'}</span>
       </RouterLink>
     ),
   };

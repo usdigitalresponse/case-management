@@ -14,33 +14,43 @@ import { useTour } from '../tour/TourContext';
 import { MissionPicker } from '../tour/GuidePanel';
 import { STORY } from '../tour/missions';
 import { Button, buttonClass } from '../components/ui/Button';
+import { Dialog } from '../components/ui/Dialog';
 import { useProductName } from '../components/AppBrand';
 
-// Demos only, and never on its own: free exploration stays beside it.
+// Demos only, and never on its own: free exploration stays beside it. A small
+// button in the corner (design K1) opens the choice of a whole or partial tour.
 function TourEntry() {
   const tour = useTour();
+  const [open, setOpen] = useState(false);
   if (!tour) return null;
   return (
-    <section className="login-tour" aria-labelledby="login-tour">
-      <div className="login-tour__bar">
-        <header className="login-tour__header">
-          <h2 id="login-tour">New here? Take a guided tour</h2>
-          <p>Uses synthetic data.</p>
-        </header>
-        {tour.error && <p className="field-error" role="alert">{tour.error}</p>}
-        <div className="login-tour__options">
-          <div className="login-tour__option">
-            <p className="login-tour__text">Take one invoice from pre-authorization to sign-off, as an investigator, a reviewer and the Director.</p>
-            <Button kind="primary" disabled={tour.busy} onClick={() => void tour.start(STORY)}>
-              {tour.busy ? 'Setting up your tour…' : 'Start the tour'}
-            </Button>
+    <>
+      <Button kind="secondary" className="login-tour-button" onClick={() => setOpen(true)}>
+        Take a guided tour
+      </Button>
+      {open && (
+        <Dialog title="Take a guided tour" className="login-tour" onClose={() => setOpen(false)}>
+          <p className="dialog__small">Uses synthetic data.</p>
+          {tour.error && <p className="field-error" role="alert">{tour.error}</p>}
+          <div className="login-tour__options">
+            <div className="login-tour__option">
+              <p className="login-tour__text">Take one invoice from pre-authorization to sign-off, as an investigator, a reviewer and the Director.</p>
+              <Button kind="primary" disabled={tour.busy} onClick={() => void tour.start(STORY)}>
+                {tour.busy ? 'Setting up your tour…' : 'Start the tour'}
+              </Button>
+            </div>
+            <div className="login-tour__option">
+              <MissionPicker id="login-mission" label="One part of the tour" hideLabel busy={tour.busy} onStart={(missions) => void tour.start(missions)} />
+            </div>
           </div>
-          <div className="login-tour__option">
-            <MissionPicker id="login-mission" label="One part of the tour" hideLabel busy={tour.busy} onStart={(missions) => void tour.start(missions)} />
+          <div className="button-row">
+            <button type="button" className="link-button" onClick={() => setOpen(false)}>
+              Close
+            </button>
           </div>
-        </div>
-      </div>
-    </section>
+        </Dialog>
+      )}
+    </>
   );
 }
 
@@ -118,7 +128,6 @@ export default function LoginPage() {
           )}
         </section>
       </div>
-      {/* Pinned to the bottom of the screen, below the sign-ins. */}
       {data?.demoLoginEnabled && data.externalDemoLoginEnabled && <TourEntry />}
     </div>
   );

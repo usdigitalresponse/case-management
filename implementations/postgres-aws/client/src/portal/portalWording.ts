@@ -3,7 +3,7 @@
 // phone use the same ones.
 import type { InvoiceRecord } from '../api/client';
 import type { Tone } from '../components/StatusPill';
-import { formatDate } from '../formatDateTime';
+import { formatDate, formatPeriod } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -14,22 +14,15 @@ function parts(isoDate: string) {
   return { year: year!, month: MONTHS[month! - 1]!, day: day! };
 }
 
-// "14 Oct", or with the year when it isn't this year.
+// "Oct 14", or with the year when it isn't this year.
 export function formatDayShort(isoDate: string): string {
   const { day, month, year } = parts(isoDate);
-  return year === new Date().getUTCFullYear() ? `${day} ${month}` : `${day} ${month} ${year}`;
+  return year === new Date().getUTCFullYear() ? `${month} ${day}` : `${month} ${day}, ${year}`;
 }
 
-// "1 to 30 Sep 2026", "1 Aug to 30 Sep 2026" or "1 Dec 2025 to 31 Jan 2026".
+// A period, or its one known date.
 export function formatSpan(start: string | null, end: string | null): string {
-  if (!start || !end) {
-    return start || end ? formatDate(start ?? end) : '—';
-  }
-  const from = parts(start);
-  const to = parts(end);
-  const head =
-    from.year !== to.year ? formatDate(start) : from.month !== to.month ? `${from.day} ${from.month}` : String(from.day);
-  return `${head} to ${formatDate(end)}`;
+  return start && end ? formatPeriod(start, end) : start || end ? formatDate(start ?? end) : '—';
 }
 
 export interface SubmissionStatus {

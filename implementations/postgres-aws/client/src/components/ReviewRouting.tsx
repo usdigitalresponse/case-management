@@ -146,7 +146,7 @@ export function ReviewerPicker({
         disabled={!canChange}
         onClick={() => setOpen(!open)}
       >
-        <span className="muted">Reviewer</span> {reviewer ? reviewer.displayName : 'Not assigned'}
+        <span className="muted">Reviewer</span> {reviewer ? reviewer.displayName : 'No reviewer yet'}
       </Button>
       {open && (
         <div className="card popover" role="dialog" aria-label="Who reviews this invoice?">

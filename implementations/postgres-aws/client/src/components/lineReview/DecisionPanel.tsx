@@ -156,7 +156,7 @@ export function DecisionPanel({
   );
   const reasonPicker = (
     <label className="decision-panel__rate-reason">
-      Why a lower rate?
+      Reason for the lower rate
       <select className="usa-select" value={reasonCode} onChange={(e) => setReasonCode(e.target.value)}>
         <option value="">Choose a reason</option>
         {options.map((reason) => (
@@ -288,7 +288,7 @@ export function DecisionPanel({
                   </label>
                 )}
                 <fieldset>
-                  <legend>Why are you setting it?</legend>
+                  <legend>Reason for the case rate</legend>
                   {caseReasons.map((reason) => (
                     <label key={reason.code} className="radio-row">
                       <input
@@ -309,7 +309,7 @@ export function DecisionPanel({
         )}
         {needsReason && mode !== 'rate' && (
           <fieldset>
-            <legend>{mode === 'rejected' ? 'Why are you rejecting it?' : 'Why are you cutting it?'}</legend>
+            <legend>{mode === 'rejected' ? 'Reason for rejecting' : 'Reason for the cut'}</legend>
             {options.map((reason) => (
               <label key={reason.code} className="radio-row">
                 <input

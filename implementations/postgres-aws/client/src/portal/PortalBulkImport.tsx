@@ -15,7 +15,7 @@ import { ReviewStep } from './bulk/ReviewStep';
 import { SubmitStep } from './bulk/SubmitStep';
 
 function StepHeader({ step, toReview, ready }: { step: BulkStep; toReview: number; ready: number }) {
-  const steps = ['Add files', toReview > 0 ? `Check each (${toReview} left)` : 'Check each', ready > 0 ? `Send (${ready} ready)` : 'Send'];
+  const steps = ['Upload', toReview > 0 ? `Check (${toReview} left)` : 'Check', ready > 0 ? `Send for review (${ready} ready)` : 'Send for review'];
   return <Steps label="Import steps" current={step - 1} steps={steps} />;
 }
 

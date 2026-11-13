@@ -330,7 +330,7 @@ export default function CaseDetail() {
                   </>
                 ),
               },
-              openInvoiceColumn((invoice) => (DECIDED_STATUS_CODES.includes(invoice.statusCode) ? 'View' : 'Review')),
+              openInvoiceColumn(),
             ]}
           />
         )}

@@ -1,5 +1,5 @@
 /* The guided tour: a panel docked beside the page, never over it. */
-:root { --guide-width: 22rem; --guide-sheet-height: 45vh; --login-tour-clearance: 11rem; --login-tour-clearance-narrow: 26rem; --login-tour-max-height: 70vh; }
+:root { --guide-width: 22rem; --guide-sheet-height: 45vh; }
 
 body:has(.guide) .app-layout,
 body:has(.guide) .portal-page { margin-right: var(--guide-width); }
@@ -62,11 +62,9 @@ body:has(.guide) .portal-page { margin-right: var(--guide-width); }
 .mission-picker__summary[hidden] { display: block; visibility: hidden; }
 
 /* Pinned along the bottom of the sign-in screen: a heading, then two matching choices. */
-.login-page:has(.login-tour) { padding-bottom: var(--login-tour-clearance); }
-.login-tour { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; max-height: var(--login-tour-max-height); overflow-y: auto; box-sizing: border-box; padding: var(--space-6) var(--space-8); background: var(--color-surface); border-top: 1px solid var(--color-outline-variant); box-shadow: var(--elevation-3); }
-.login-tour__bar { width: 100%; max-width: 76rem; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-5); }
-.login-tour__header { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3) var(--space-5); }
-.login-tour h2 { margin: 0; font-size: var(--text-18); }
+/* The sign-in tour entry: a small button in the corner (design K1) that opens a dialog. */
+.login-tour-button { position: absolute; top: var(--space-7); right: var(--space-8); }
+.login-tour { max-width: 52rem; }
 .login-tour p { margin: 0; color: var(--color-on-surface-variant); font-size: var(--text-13); }
 .login-tour__options { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-9); }
 /* Description fills the column, so both columns' buttons share a bottom line. */
@@ -84,8 +82,6 @@ body:has(.guide) .portal-page { margin-right: var(--guide-width); }
   body:has(.guide) .portal-page { margin-right: 0; padding-bottom: var(--guide-sheet-height); }
   .guide { top: auto; left: 0; width: auto; max-height: var(--guide-sheet-height); border-left: 0; border-top: 1px solid var(--color-outline-variant); padding: var(--space-6) var(--space-6); }
   .guide-pill { right: var(--space-6); bottom: var(--space-6); }
-  .login-tour { padding: var(--space-6); }
   .login-tour__options { grid-template-columns: 1fr; gap: var(--space-6); }
   .login-tour__option + .login-tour__option { padding: var(--space-6) 0 0; border-left: 0; border-top: 1px solid var(--color-outline-subtle); }
-  .login-page:has(.login-tour) { padding-bottom: var(--login-tour-clearance-narrow); }
 }

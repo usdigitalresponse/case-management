@@ -7,7 +7,7 @@ import { Notice } from './ui/Notice';
 
 function quantity(line: BillingOverlap['lines'][number]): string {
   if (line.quantity === null) return '—';
-  return line.lineTypeCode === 'time' ? `${Number(line.quantity)} h` : String(Number(line.quantity));
+  return line.lineTypeCode === 'time' ? `${Number(line.quantity)} hours` : String(Number(line.quantity));
 }
 
 export function BillingOverlaps({

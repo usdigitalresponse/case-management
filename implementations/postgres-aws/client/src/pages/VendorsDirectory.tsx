@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
+import { Link as RouterLink } from 'react-router';
 import { Select } from '@trussworks/react-uswds';
 import {
   apiErrorMessage,
@@ -131,8 +132,8 @@ export default function VendorsDirectory() {
       reloadKey={version}
       after={
         <Notice tone="info">
-          Rates for each kind are set in Settings, under Rates. A person's own approved rate on their People page can differ
-          from their kind's rate.
+          Rates for each kind are set in <RouterLink to="/settings#settings-rates">Settings, under Rates</RouterLink>. A person's own approved
+          rate on their provider page can differ from their kind's rate.
         </Notice>
       }
       actions={

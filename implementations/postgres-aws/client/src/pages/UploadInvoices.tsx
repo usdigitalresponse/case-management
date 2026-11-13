@@ -318,7 +318,7 @@ export default function UploadInvoices() {
               </Button>
             )}
             <button type="button" className="link-button" disabled={busy} onClick={() => void cancel()}>
-              Cancel
+              Cancel upload
             </button>
             {reading && !busy && <span className="field-hint">Waiting for the files to be read.</span>}
           </div>

@@ -174,8 +174,9 @@ export function EditPanel({
       )}
       {read && (
         <p className="field-hint">
-          We read {formatQuantity(read.lineType === 'time' ? 'time' : read.lineType === 'mileage' ? 'mileage' : 'other', read.quantity)}
-          {read.amount !== null ? `, ${formatMoney(read.amount)},` : ''} from {ownFile ? 'your' : 'the'} file.
+          Read from {ownFile ? 'your' : 'the'} file:{' '}
+          {formatQuantity(read.lineType === 'time' ? 'time' : read.lineType === 'mileage' ? 'mileage' : 'other', read.quantity)}
+          {read.amount !== null ? `, ${formatMoney(read.amount)}` : ''}.
           {fields.length > 0 ? ` ${changeSentence(read, valuesOf(draft), fields).replace('You changed', 'You are changing')}` : ''} No reason needed.
         </p>
       )}

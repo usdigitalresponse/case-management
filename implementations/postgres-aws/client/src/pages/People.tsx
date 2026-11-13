@@ -146,7 +146,8 @@ export default function People() {
         ]}
       />
       <MoreOnScroll list={list} what="people" />
-      <p className="compact-hint">A person here signs in to send invoices only once an administrator turns it on in Settings → External users. Rates set here are the ones reviewers check invoices against.</p>
+      <p className="compact-hint">A person here signs in to send invoices only once an administrator turns it on in{' '}
+        <RouterLink to="/settings#settings-external-users">Settings, External users</RouterLink>. Rates set here are the ones reviewers check invoices against.</p>
       {adding && (
         <PersonDialog onClose={() => setAdding(false)} onSaved={(saved) => navigate(personPath(saved.professionalId))} />
       )}

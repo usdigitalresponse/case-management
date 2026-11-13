@@ -32,7 +32,7 @@
 .review-table tr.is-flagged { background: var(--color-tertiary-container); }
 .data-card table.review-table tbody tr.detail-row:hover { background: var(--color-primary-container-low); }
 .data-card table tr.detail-row td { padding: 0; }
-.decision-cell { min-width: 18.5rem; }
+.decision-cell { min-width: 21rem; }
 .decision-buttons { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); }
 /* Approve, Approve part and Reject stay on one line. */
 .decision-bar { display: inline-flex; flex-wrap: nowrap; }

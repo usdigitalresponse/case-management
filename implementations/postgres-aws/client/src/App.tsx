@@ -102,24 +102,21 @@ function Sidebar({ showSettings }: { showSettings: boolean }) {
           <NavLink to="/finished" end>Finished</NavLink>
         </div>
         <div className="nav-group">
-          <h2>Cases</h2>
+          <h2>Look up</h2>
           <NavLink to="/overview" end>Case overview</NavLink>
+          <NavLink to="/preauthorizations">Pre-authorizations</NavLink>
           <NavLink to="/cases" end>
             All cases{counts?.openCases != null && <span className="nav-count">{counts.openCases}</span>}
           </NavLink>
-          <NavLink to="/preauthorizations">Pre-authorizations</NavLink>
-        </div>
-        <div className="nav-group">
-          <h2>Look something up</h2>
-          <NavLink to="/people">People</NavLink>
-          <NavLink to="/vendors" end>Providers</NavLink>
+          {/* Everyone who bills (design K30); /vendors still works by address until Settings has providers. */}
+          <NavLink to="/people">Providers</NavLink>
           <NavLink to="/clients" end>Clients</NavLink>
           <NavLink to="/organizations" end>Organizations</NavLink>
           <NavLink to="/exports" end>Exports</NavLink>
         </div>
         <div className="nav-group">
-          <h2>In your {EXTERNAL_SYSTEM_NAME}</h2>
-          <button type="button" disabled title="Not connected yet">Open it <span aria-hidden="true">↗</span></button>
+          <h2>Your {EXTERNAL_SYSTEM_NAME}</h2>
+          <button type="button" disabled title="Not connected yet">Open in a new tab <span aria-hidden="true">↗</span></button>
         </div>
         {showSettings && (
           <div className="nav-group">

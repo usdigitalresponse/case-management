@@ -55,10 +55,9 @@ export function DecisionCell({
             type="button"
             className={openPanel === 'approved_in_part' ? 'is-active' : undefined}
             aria-expanded={openPanel === 'approved_in_part'}
-            aria-label="Approve part"
             onClick={() => toggle('approved_in_part')}
           >
-            Part
+            Approve part
           </button>
           {hasHours(line) && (
             <button
