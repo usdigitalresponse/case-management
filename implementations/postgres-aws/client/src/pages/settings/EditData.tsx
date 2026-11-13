@@ -45,6 +45,8 @@ const KIND_LABELS: Record<Kind, { label: string; hint: string }> = {
 const caseName = (row: { caseNumber: string | null; clientDisplayName: string | null }) =>
   [row.caseNumber ?? 'No number', row.clientDisplayName].filter(Boolean).join(' · ');
 
+const elsewhereNames = (rows: AddedCase['elsewhere']) => rows.map((row) => row.countyDisplayName ?? 'another county').join(', ');
+
 export function EditData() {
   const [show, setShow] = useSearchParamState('show', 'added', SHOWS);
   const [version, setVersion] = useState(0);
@@ -80,7 +82,9 @@ export function EditData() {
             label="Cases added from requests"
             rows={cases}
             rowKey={(row) => row.caseId}
-            emptyMessage={show === 'similar' ? 'No added case has a similar number in its county.' : 'No cases have been added from requests.'}
+            emptyMessage={
+              show === 'similar' ? 'No added case has a similar number in its county, or its number in another county.' : 'No cases have been added from requests.'
+            }
             rowDetail={(row) => (fixing?.caseId === row.caseId ? <FixCase key={row.caseId} added={row} onDone={changed} onCancel={() => setFixing(null)} /> : null)}
             columns={[
               {
@@ -115,7 +119,15 @@ export function EditData() {
                   </>
                 ),
               },
-              { header: 'Similar', render: (row) => (row.similar.length ? row.similar.map(caseName).join('; ') : 'None') },
+              {
+                header: 'Similar',
+                render: (row) => (
+                  <>
+                    {row.similar.length ? row.similar.map(caseName).join('; ') : 'None'}
+                    {row.elsewhere.length > 0 && <span className="cell-note">Same number in {elsewhereNames(row.elsewhere)}</span>}
+                  </>
+                ),
+              },
               {
                 header: 'Fix',
                 hiddenHeader: true,
@@ -210,6 +222,12 @@ function FixCase({ added, onDone, onCancel }: { added: AddedCase; onDone: (messa
         ))}
       </fieldset>
 
+      {added.elsewhere.length > 0 && (
+        <p className="field-hint">
+          Case {added.caseNumber} is also in {elsewhereNames(added.elsewhere)}. If this case’s county is wrong, correct it first, then move its invoices to
+          that case.
+        </p>
+      )}
       {kind === 'same_case' &&
         (added.similar.length === 0 ? (
           <p className="field-hint">No other case in its county has a similar number. Correct its number instead if it’s wrong.</p>

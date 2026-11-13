@@ -75,6 +75,9 @@ const headerColumns = {
   // Its own, else its case's.
   countyId: county.countyId,
   countyDisplayName: county.displayName,
+  // Its case's county, only when the invoice's own differs from it.
+  caseCountyDisplayName: sql<string | null>`(select case_county.display_name from county case_county
+    where case_county.county_id = ${caseTable.countyId} and ${invoice.countyId} is not null and case_county.county_id <> ${invoice.countyId})`,
   // A staff upload, under review from the start (./enterInReview.ts).
   enteredInReview: invoice.enteredInReview,
   // The case question (./caseChoice.ts), and on a draft the answer it is sent with.

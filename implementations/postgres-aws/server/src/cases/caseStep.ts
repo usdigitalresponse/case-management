@@ -1,11 +1,11 @@
 // The case step (model/rules.yaml match_invoice_to_case, add_case_from_request):
 // a case found by its number within the county, or one added from them with
 // nothing else asked. Shared by requests for payment and pre-authorizations.
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { DatabaseOrTransaction, Transaction } from '../db/client';
 import { firstRow } from '../db/rowHelpers';
 import { getReferenceId } from '../db/referenceLookups';
-import { caseLifecycleEvent, caseLifecycleEventTypes, caseParticipant, caseStatuses, caseTable, county, person, role } from '../db/schema';
+import { auditEvent, caseLifecycleEvent, caseLifecycleEventTypes, caseParticipant, caseStatuses, caseTable, county, person, role } from '../db/schema';
 import { ValidationError } from '../errors';
 import { calendarDateInReportingTimeZone } from '../reportingTimeZone';
 import { cleanCaseNumber } from '../billing/caseNumbers';
@@ -20,24 +20,49 @@ export interface CaseStepMatches {
   exact: CaseByNumber | null;
   // Close numbers in that county or on a case with none; staff say which.
   similar: CaseByNumber[];
+  // The same number in another county: a hint that the county may be wrong, never offered.
+  elsewhere: CaseByNumber[];
 }
 
 export async function caseStepMatches(db: DatabaseOrTransaction, caseNumber: string | null, countyId: string | null): Promise<CaseStepMatches> {
-  const found = (await findCasesByNumber(db, cleanCaseNumber(caseNumber))).filter(
-    (row) => !countyId || !row.countyId || row.countyId === countyId,
-  );
+  const all = await findCasesByNumber(db, cleanCaseNumber(caseNumber));
+  const found = all.filter((row) => !countyId || !row.countyId || row.countyId === countyId);
   const exact = (countyId && found.find((row) => row.match === 'exact' && row.countyId === countyId)) || null;
-  return { exact, similar: found.filter((row) => row !== exact) };
+  const elsewhere = all.filter((row) => row.match === 'exact' && countyId && row.countyId && row.countyId !== countyId);
+  return { exact, similar: found.filter((row) => row !== exact), elsewhere };
 }
 
-// A chosen case must be listed and, where both have one, in the request's county.
+// A chosen case must be listed and in the request's county, or have none yet.
 export async function requireChoosableCase(db: DatabaseOrTransaction, caseId: string, countyId: string | null) {
+  if (!countyId) {
+    throw new ValidationError({ countyId: 'Add the county first, so its case is found in that county.' });
+  }
   const [row] = await db.select({ closedAsMistake: caseTable.closedAsMistake, countyId: caseTable.countyId }).from(caseTable).where(eq(caseTable.caseId, caseId));
   if (!row || row.closedAsMistake) {
     throw new ValidationError({ caseId: 'Choose a listed case.' });
   }
-  if (countyId && row.countyId && row.countyId !== countyId) {
+  if (row.countyId && row.countyId !== countyId) {
     throw new ValidationError({ caseId: 'That case is in another county. Choose one in this county, or correct the county.' });
+  }
+}
+
+// A chosen case with no county takes the request's, recorded with the actor.
+export async function fillCaseCounty(db: DatabaseOrTransaction, actorUserAccountId: string, caseId: string, countyId: string | null) {
+  if (!countyId) return;
+  const filled = await db
+    .update(caseTable)
+    .set({ countyId })
+    .where(and(eq(caseTable.caseId, caseId), isNull(caseTable.countyId)))
+    .returning({ caseId: caseTable.caseId });
+  if (filled.length > 0) {
+    await db.insert(auditEvent).values({
+      entityType: 'case',
+      entityId: caseId,
+      eventType: 'county_changed',
+      actorUserAccountId,
+      occurredAt: new Date(),
+      priorValues: { countyId: null },
+    });
   }
 }
 

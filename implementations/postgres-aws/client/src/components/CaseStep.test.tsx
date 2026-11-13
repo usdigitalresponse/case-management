@@ -34,7 +34,7 @@ describe('the case step on a staff draft', () => {
     const onChanged = vi.fn();
     const api = fakeApi({
       ...signedIn(REVIEWER),
-      'GET /api/portal/invoices/:id/case-matches': { exact: found(), similar: [] },
+      'GET /api/portal/invoices/:id/case-matches': { exact: found(), similar: [], elsewhere: [] },
       'PUT /api/portal/invoices/:id/case-choice': { invoiceId: 'inv-1', caseChoice: 'existing' },
     });
     await renderPage(<CaseStep invoice={draft()} mode="draft" onChanged={onChanged} />, { path: '/', url: '/' });
@@ -65,7 +65,7 @@ describe('the case step on a staff draft', () => {
   it('adds a new case when nothing matches, and records work not for one case', async () => {
     const api = fakeApi({
       ...signedIn(REVIEWER),
-      'GET /api/portal/invoices/:id/case-matches': { exact: null, similar: [] },
+      'GET /api/portal/invoices/:id/case-matches': { exact: null, similar: [], elsewhere: [] },
       'PUT /api/portal/invoices/:id/case-choice': { invoiceId: 'inv-1', caseChoice: 'new' },
     });
     await renderPage(<CaseStep invoice={draft({ caseNumberAsTyped: 'CR-26-1312' })} mode="draft" onChanged={() => {}} />, { path: '/', url: '/' });
@@ -84,7 +84,7 @@ describe('the case step in review', () => {
     const onChanged = vi.fn();
     const api = fakeApi({
       ...signedIn(REVIEWER),
-      'GET /api/invoices/:id/case-matches': { exact: found(), similar: [] },
+      'GET /api/invoices/:id/case-matches': { exact: found(), similar: [], elsewhere: [] },
       'PUT /api/invoices/:id/case-choice': { caseId: 'case-1', addedCaseId: null, caseProblem: null },
     });
     await renderPage(<CaseStep invoice={draft({ statusCode: 'submitted' })} mode="review" onChanged={onChanged} />, { path: '/', url: '/' });
@@ -99,7 +99,7 @@ describe('the case step in review', () => {
   it('lets a reviewer type a number for an invoice that gives none, and add its case', async () => {
     const api = fakeApi({
       ...signedIn(REVIEWER),
-      'GET /api/invoices/:id/case-matches': { exact: null, similar: [] },
+      'GET /api/invoices/:id/case-matches': { exact: null, similar: [], elsewhere: [] },
       'PUT /api/invoices/:id/case-choice': { caseId: 'case-9', addedCaseId: 'case-9', caseProblem: null },
     });
     await renderPage(<CaseStep invoice={draft({ caseNumberAsTyped: null, statusCode: 'submitted' })} mode="review" onChanged={() => {}} />, {
@@ -110,5 +110,26 @@ describe('the case step in review', () => {
     fireEvent.change(await screen.findByLabelText('Case number'), { target: { value: 'CR-26-2000' } });
     fireEvent.click(await screen.findByRole('button', { name: 'Add case CR-26-2000 and match' }));
     await waitFor(() => expect(api.calls.find((call) => call.method === 'PUT')!.body).toEqual({ choice: 'new', confirmedNew: false, caseNumber: 'CR-26-2000' }));
+  });
+
+  it('says when the number is a case in another county, without offering it', async () => {
+    fakeApi({
+      ...signedIn(REVIEWER),
+      'GET /api/invoices/:id/case-matches': { exact: null, similar: [], elsewhere: [found({ countyId: 'county-b', countyDisplayName: 'County B' })] },
+    });
+    await renderPage(<CaseStep invoice={draft({ statusCode: 'submitted' })} mode="review" onChanged={() => {}} />, { path: '/', url: '/' });
+    expect(await screen.findByText(/Case CR-24-0477 is also in County B\. If this invoice’s county is wrong, correct it first\./)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Use this case/ })).toBeNull();
+  });
+});
+
+describe('work not for one case', () => {
+  it('asks for its county', async () => {
+    fakeApi({ ...signedIn(REVIEWER) });
+    await renderPage(<CaseStep invoice={draft({ caseChoice: 'none', countyId: null, countyDisplayName: null })} mode="draft" missing onChanged={() => {}} />, {
+      path: '/',
+      url: '/',
+    });
+    expect(await screen.findByText('Add the county: work not for one case counts under it.')).toBeTruthy();
   });
 });

@@ -55,8 +55,11 @@ export function CaseStep({
     }
   }
 
+  const noAnswer = !invoice.caseChoice;
+  // Work not for one case counts only under its own county.
+  const noCounty = invoice.caseChoice === 'none' && !invoice.countyId;
   return (
-    <fieldset className={`card case-step${missing && !invoice.caseChoice ? ' is-missing' : ''}`}>
+    <fieldset className={`card case-step${missing && (noAnswer || noCounty) ? ' is-missing' : ''}`}>
       <legend className="case-step__legend">Which case is it for?</legend>
       <SegmentedChoice
         label="Which case is it for?"
@@ -75,11 +78,13 @@ export function CaseStep({
         <CaseLookup invoice={invoice} mode={mode} saving={saving} save={save} />
       ) : (
         <p className="field-hint">
-          For work like court observation. It is reviewed and signed off without a case, and its county
-          {invoice.countyDisplayName ? `, ${invoice.countyDisplayName},` : ''} counts it.
+          {invoice.countyDisplayName
+            ? `For work like court observation. It is reviewed and signed off without a case, and its county, ${invoice.countyDisplayName}, counts it.`
+            : 'For work like court observation. Add its county: work not for one case counts under it.'}
         </p>
       )}
-      {missing && !invoice.caseChoice && <p className="field-error">Say which case this invoice is for, or that it isn’t for one case.</p>}
+      {missing && noAnswer && <p className="field-error">Say which case this invoice is for, or that it isn’t for one case.</p>}
+      {missing && noCounty && <p className="field-error">Add the county: work not for one case counts under it.</p>}
       {error && (
         <p className="field-error" role="alert">
           {error}
@@ -113,6 +118,7 @@ function CaseLookup({
   const [clientName, setClientName] = useState(invoice.newCaseClientName ?? '');
   const exact = data?.exact ?? null;
   const similar = data?.similar ?? [];
+  const elsewhere = exact ? [] : (data?.elsewhere ?? []);
   const nothingFound = Boolean(data) && !exact && similar.length === 0;
 
   // On a draft an exact match is chosen without asking, and a number nothing matches is a new case.
@@ -161,20 +167,28 @@ function CaseLookup({
       ) : !data ? (
         <p className="field-hint">Looking for case {number}…</p>
       ) : (
-        <Found
-          invoice={invoice}
-          mode={mode}
-          saving={saving}
-          save={save}
-          number={number}
-          typedNumber={ownNumber ? undefined : number}
-          exact={exact}
-          similar={similar}
-          picked={picked}
-          setPicked={setPicked}
-          clientName={clientName}
-          setClientName={setClientName}
-        />
+        <>
+          {elsewhere.length > 0 && (
+            <p className="field-hint">
+              Case {number} is also in {elsewhere.map((found) => found.countyDisplayName ?? 'another county').join(', ')}. If this invoice’s county is wrong,
+              correct it first.
+            </p>
+          )}
+          <Found
+            invoice={invoice}
+            mode={mode}
+            saving={saving}
+            save={save}
+            number={number}
+            typedNumber={ownNumber ? undefined : number}
+            exact={exact}
+            similar={similar}
+            picked={picked}
+            setPicked={setPicked}
+            clientName={clientName}
+            setClientName={setClientName}
+          />
+        </>
       )}
     </>
   );

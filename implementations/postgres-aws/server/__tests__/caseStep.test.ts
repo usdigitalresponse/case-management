@@ -13,7 +13,10 @@ import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
 import { applyCaseChoiceAfterSend, caseStepFor, chooseCaseInReview, setDraftCaseChoice } from '../src/billing/caseChoice';
 import { addCaseFromRequest, caseStepMatches } from '../src/cases/caseStep';
 import { ForbiddenError, ValidationError } from '../src/errors';
-import { caseAssignment, caseLifecycleEvent, caseParticipant, caseTable, county, invoice, invoiceLine, userAccount } from '../src/db/schema';
+import { auditEvent, caseAssignment, caseLifecycleEvent, caseParticipant, caseTable, county, invoice, invoiceLine, userAccount } from '../src/db/schema';
+import { selectInvoiceHeaders } from '../src/billing/invoiceDetail';
+import { describeQueue } from '../src/billing/reviewQueue';
+import { changeInvoiceCounty } from '../src/billing/invoiceCounty';
 
 let fixtures: BaselineFixtureIds;
 let staff: PortalActor;
@@ -199,6 +202,53 @@ describe('adding the same case at once', () => {
   });
 });
 
+describe('counties in the case step', () => {
+  it('needs a county for work not for one case', async () => {
+    const { invoiceId } = await staffDraft(null, null);
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'none' });
+    await expect(submitInvoice(testDb, staff, invoiceId, send)).rejects.toMatchObject({ fieldErrors: { countyId: expect.any(String) } });
+  });
+
+  it('needs the invoice’s county before choosing a case', async () => {
+    const caseId = await addCase('CR-24-0477', fixtures.countyId);
+    const { invoiceId } = await staffDraft('CR-24-0477', null);
+    await expect(setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'existing', caseId })).rejects.toMatchObject({ fieldErrors: { countyId: expect.any(String) } });
+  });
+
+  it('gives a chosen case with no county the invoice’s, recorded', async () => {
+    const caseId = await addCase('CR-24-0477', fixtures.countyId);
+    await testDb.update(caseTable).set({ countyId: null }).where(eq(caseTable.caseId, caseId));
+    const { invoiceId } = await staffDraft('CR-24-0477', countyB);
+    expect((await caseStepFor(testDb, invoiceId)).similar.map((row) => row.caseId)).toEqual([caseId]);
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'existing', caseId });
+    expect((await sendAsStaff(invoiceId)).caseProblem).toBeNull();
+    const [filled] = await testDb.select({ countyId: caseTable.countyId }).from(caseTable).where(eq(caseTable.caseId, caseId));
+    expect(filled?.countyId).toBe(countyB);
+    expect(await testDb.select().from(auditEvent).where(and(eq(auditEvent.entityId, caseId), eq(auditEvent.eventType, 'county_changed')))).toHaveLength(1);
+  });
+
+  it('says the same number is a case in another county, without offering it', async () => {
+    const elsewhere = await addCase('CR-24-0477', countyB);
+    const matches = await caseStepMatches(testDb, 'CR-24-0477', fixtures.countyId);
+    expect(matches).toMatchObject({ exact: null, similar: [] });
+    expect(matches.elsewhere.map((row) => row.caseId)).toEqual([elsewhere]);
+  });
+
+  it('flags an invoice whose county no longer matches its case’s', async () => {
+    const caseId = await addCase('CR-24-0477', fixtures.countyId);
+    const { invoiceId } = await staffDraft('CR-24-0477', fixtures.countyId);
+    await setDraftCaseChoice(testDb, staff, invoiceId, { choice: 'existing', caseId });
+    await sendAsStaff(invoiceId);
+    const flagsOf = async () => {
+      const headers = await selectInvoiceHeaders(testDb).where(eq(invoice.invoiceId, invoiceId));
+      return (await describeQueue(testDb, headers, { now: new Date() }))[0]!.flags.filter((flag) => flag.kind === 'county');
+    };
+    expect(await flagsOf()).toEqual([]);
+    await changeInvoiceCounty(testDb, fixtures.staffUserAccountId, invoiceId, { countyId: countyB });
+    expect(await flagsOf()).toEqual([{ kind: 'county', message: 'County differs from its case’s, County A' }]);
+  });
+});
+
 describe('external submitters', () => {
   it('may send without a case or number, and answer only “not for one case”', async () => {
     const attorney = await sender('attorney@example.com');
@@ -210,6 +260,9 @@ describe('external submitters', () => {
     const caseId = await addCase('CR-24-0477', fixtures.countyId);
     await expect(setDraftCaseChoice(testDb, attorney.actor, invoiceId, { choice: 'existing', caseId })).rejects.toThrow(ForbiddenError);
     await setDraftCaseChoice(testDb, attorney.actor, invoiceId, { choice: 'none' });
+    // Work not for one case counts under its county.
+    await expect(submitInvoice(testDb, attorney.actor, invoiceId, { filedByPerson: true, attested: true })).rejects.toMatchObject({ fieldErrors: { countyId: expect.any(String) } });
+    await setDraftCounty(testDb, attorney.actor, invoiceId, { countyId: fixtures.countyId });
     expect(await submitInvoice(testDb, attorney.actor, invoiceId, { filedByPerson: true, attested: true })).toEqual({ invoiceId, status: 'submitted' });
   });
 });

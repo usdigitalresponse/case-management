@@ -6,7 +6,7 @@ import { ValidationError } from '../../errors';
 import { fieldErrorsFromZodIssues } from '../../intake/validation';
 import { caseTable, expenseTypes, invoice, invoiceApprovalChain, invoiceAttestation, invoiceEvent, invoiceEventTypes, invoiceLine, person, professional, trip, userAccount } from '../../db/schema';
 import { isStaffAccount, resolvePortalActor, type PortalActor } from '../../portal/portalActor';
-import { hasUnmatchedTimekeepers, needsMatching, requireCaseAnswered } from '../proposedDetails';
+import { hasUnmatchedTimekeepers, needsMatching, requireCaseAnswered, requireNotForCaseCounty } from '../proposedDetails';
 import { formatMoney } from '../money';
 import { sendEmail } from '../../email/sendEmail';
 import { recordInvoiceEvent } from '../invoiceEvents';
@@ -113,6 +113,8 @@ export async function submitInTx(
     // External submitters may leave the case question unanswered (match_invoice_to_case).
     if (staff) {
       requireCaseAnswered(locked);
+    } else {
+      requireNotForCaseCounty(locked);
     }
     if (!locked.professionalId) {
       throw new ValidationError({ professionalId: 'Choose who this invoice is from before you send.' });

@@ -93,6 +93,7 @@ async function upload(lines: Array<{ amount: number; description: string }>) {
     submit: false,
     enterInReview: true,
     caseNumber: '26-CR-00418',
+    countyId: fixtures.countyId,
     lines: lines.map((line) => ({ lineType: 'expense' as const, serviceDate: '2026-02-02', ...line })),
   });
   await chooseCaseInReview(testDb, reviewer, invoiceId, { choice: 'none' });
@@ -328,6 +329,7 @@ describe('entering an upload in review', () => {
       caseId: null,
       professionalId,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       enterInReview: true,
     });
     const other = await createStaff('reviewer', 'Reviewer Two');
@@ -497,6 +499,7 @@ describe('entering an upload in review', () => {
       caseId: null,
       professionalId,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       enterInReview: true,
       ...receipt,
     });
@@ -516,6 +519,7 @@ describe('entering an upload in review', () => {
       submit: false,
       enterInReview: true,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
     });
     await chooseCaseInReview(testDb, reviewer, invoiceId, { choice: 'none' });
@@ -547,6 +551,7 @@ describe('entering an upload in review', () => {
       submit: false,
       enterInReview: true,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
     });
     const chosen = await sender(150);
@@ -590,6 +595,7 @@ describe('whom an entry is from', () => {
       submit: false,
       enterInReview: true,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
     });
     expect((await savedLines(invoiceId))[0]!.amount).toBe('0.00');
@@ -650,6 +656,7 @@ describe('removing someone added by mistake', () => {
       submit: false,
       enterInReview: true,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
     });
     const [research] = await savedLines(invoiceId);
@@ -720,6 +727,7 @@ describe('removing someone added by mistake', () => {
       caseId: null,
       professionalId,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       submit: false,
       lines: [{ lineType: 'expense', serviceDate: '2026-02-02', amount: 40, description: 'Copies' }],
     });

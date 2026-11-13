@@ -124,6 +124,7 @@ export function queuedInvoice(overrides: Partial<QueuedInvoice> = {}): QueuedInv
     caseChoice: null,
     chosenCaseId: null,
     newCaseClientName: null,
+    caseCountyDisplayName: null,
     linesVersion: 1,
     linesChangedAt: null,
     linesChangedByUserAccountId: null,

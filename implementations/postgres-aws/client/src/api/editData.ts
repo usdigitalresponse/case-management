@@ -13,6 +13,8 @@ export interface AddedCase {
   invoices: number;
   preauthorizationRequests: number;
   similar: Array<{ caseId: string; caseNumber: string | null; clientDisplayName: string | null }>;
+  // The same number in another county: never joined, a hint its county may be wrong.
+  elsewhere: Array<{ caseId: string; caseNumber: string | null; clientDisplayName: string | null; countyDisplayName: string | null }>;
 }
 
 export type CaseFix =

@@ -73,7 +73,11 @@ export function CaseNumberReview({
             id="review-county"
             initial={countyValueOf(invoice)}
             save={(choice) => changeInvoiceCounty(invoice.invoiceId, choice)}
-            hint="A change is recorded with the county it replaced."
+            hint={
+              invoice.caseCountyDisplayName
+                ? `Its case is in ${invoice.caseCountyDisplayName}. Check which county is right. A change is recorded with the county it replaced.`
+                : 'A change is recorded with the county it replaced.'
+            }
           />
         ) : (
           <p className="field-hint">County: {invoice.countyDisplayName ?? 'Not added'}</p>

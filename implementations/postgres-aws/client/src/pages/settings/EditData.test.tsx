@@ -28,6 +28,7 @@ const added: AddedCase = {
   invoices: 1,
   preauthorizationRequests: 0,
   similar: [{ caseId: 'case-kept', caseNumber: 'CR-24-0477', clientDisplayName: 'M. Sample' }],
+  elsewhere: [],
 };
 
 const preview: CaseFixPreview = {

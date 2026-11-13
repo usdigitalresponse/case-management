@@ -64,6 +64,7 @@ describe('sending an invoice filed by person', () => {
       caseId: null,
       professionalId,
       submit: false,
+      countyId: fixtures.countyId,
       lines: [{ lineType: 'expense', amount: 120, serviceDate: '2026-02-02' }],
     });
     return { staff, invoiceId };

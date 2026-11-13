@@ -56,8 +56,16 @@ export async function needsMatching(
 }
 
 // Staff must answer the case question (../billing/caseChoice.ts) before sending, or finishing an entry's first round.
-export function requireCaseAnswered(row: { caseId: string | null; caseChoice: string | null }) {
+export function requireCaseAnswered(row: { caseId: string | null; caseChoice: string | null; countyId: string | null }) {
   if (!row.caseId && !row.caseChoice) {
     throw new ValidationError({ caseChoice: 'Say which case this invoice is for, or that it isn’t for one case.' });
+  }
+  requireNotForCaseCounty(row);
+}
+
+// Work not for one case counts only under its own county.
+export function requireNotForCaseCounty(row: { caseId: string | null; caseChoice: string | null; countyId: string | null }) {
+  if (!row.caseId && row.caseChoice === 'none' && !row.countyId) {
+    throw new ValidationError({ countyId: 'Add the county: work not for one case counts under it.' });
   }
 }

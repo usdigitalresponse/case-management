@@ -256,7 +256,8 @@ in its own form, pre-authorization matching. A case is found by its number
 within the request's county: the same number is chosen without asking on a
 staff draft and only suggested in review; a close one makes staff say
 whether it is that case or a new one; a case in another county is never
-offered. Staff must answer before sending or finishing an entry's first
+offered, only hinted at. The county comes first: no case is chosen or added
+without it, and "not for one case" needs one to be sent. Staff must answer before sending or finishing an entry's first
 round; external senders may say "not for one case" or leave it, and never
 choose or add the organization's cases. A draft keeps the answer
 (`invoice.case_choice`) and is matched or its case added right after it is

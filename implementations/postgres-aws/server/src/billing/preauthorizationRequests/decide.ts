@@ -9,7 +9,7 @@ import { recordCeilingInTx } from '../preauthorizations';
 import { CLOSING_STATUS, DECISION_OUTCOMES, OPEN_STATUSES, money, parse } from './requestRules';
 import { currentPreauthorizationId } from './submit';
 import { getPreauthorizationRequest } from './read';
-import { addCaseFromRequest, requireChoosableCase } from '../../cases/caseStep';
+import { addCaseFromRequest, fillCaseCounty, requireChoosableCase } from '../../cases/caseStep';
 
 // --- changes ---------------------------------------------------------------
 
@@ -109,7 +109,7 @@ const matchSchema = z.object({
     })
     .optional(),
   notForCase: z.boolean().optional(),
-  // For a request not for one case.
+  // The request's county: for one not for one case, or to find a chosen case in.
   countyId: z.uuid().optional(),
   professionalId: z.uuid().optional(),
 });
@@ -128,10 +128,12 @@ export async function matchPreauthorizationRequest(db: Database, actorUserAccoun
     let caseId = locked.caseId;
     let notForCase = locked.notForCase;
     const proposedCounty = (locked.proposedDetails as { case?: { countyId?: string | null } } | null)?.case?.countyId ?? null;
+    let chosenCounty: string | null = null;
     if (input.caseId) {
       const [row] = await tx.select({ id: caseTable.caseId, closedAsMistake: caseTable.closedAsMistake }).from(caseTable).where(eq(caseTable.caseId, input.caseId));
       if (!row || row.closedAsMistake) throw new NotFoundError('Case not found.');
-      await requireChoosableCase(tx, input.caseId, locked.countyId ?? proposedCounty);
+      chosenCounty = input.countyId ?? locked.countyId ?? proposedCounty;
+      await requireChoosableCase(tx, input.caseId, chosenCounty);
       caseId = input.caseId;
       notForCase = false;
     } else if (input.newCase) {
@@ -142,13 +144,20 @@ export async function matchPreauthorizationRequest(db: Database, actorUserAccoun
       caseId = null;
       notForCase = input.notForCase;
     }
+    const ownCounty = notForCase ? (input.countyId ?? locked.countyId ?? proposedCounty) : null;
+    if (notForCase && !ownCounty) {
+      throw new ValidationError({ countyId: 'Add the county: work not for one case counts under it.' });
+    }
+    if (caseId && chosenCounty) {
+      await fillCaseCounty(tx, actorUserAccountId, caseId, chosenCounty);
+    }
     await tx
       .update(preauthorizationRequest)
       .set({
         caseId,
         professionalId,
         notForCase,
-        countyId: notForCase ? (input.countyId ?? locked.countyId ?? proposedCounty) : null,
+        countyId: ownCounty,
         preauthorizationId: caseId ? await currentPreauthorizationId(tx, caseId, professionalId) : null,
       })
       .where(eq(preauthorizationRequest.preauthorizationRequestId, requestId));

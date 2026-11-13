@@ -1105,14 +1105,18 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   none. Cases closed as added by mistake are never found.
   - `GET /api/portal/invoices/:id/case-matches` (staff, own draft) and `GET
     /api/invoices/:id/case-matches[?caseNumber=]` (staff, in review; a
-    number the reviewer typed) return `{ exact, similar }`.
+    number the reviewer typed) return `{ exact, similar, elsewhere }`;
+    `elsewhere` is the same number on cases in other counties, a hint only.
   - `PUT /api/portal/invoices/:id/case-choice` keeps a draft's answer:
     `{ choice: 'existing', caseId }`, `{ choice: 'new', clientName?,
     confirmedNew? }`, `{ choice: 'none' }` or `{ choice: null }`. External
     submitters may send only `none` or `null` (403 otherwise). `new` needs
     the draft's number and county, is refused for a number already used in
     that county, and needs `confirmedNew` when a similar one is listed.
-    `existing` is refused for a case in another county. Changing a draft's
+    `existing` needs the draft's county and is refused for a case in another
+    county; a chosen case with no county takes the invoice's when matched
+    (`fillCaseCounty`, an `audit_event` `county_changed`). Sending, or finishing
+    an entry, refuses `none` without a county. Changing a draft's
     case number or county clears an `existing` or `new` answer.
   - Sending (`POST /api/portal/invoices/:id/submit`, `filedByPerson`)
     refuses a staff draft with no answer (field `caseChoice`); an external

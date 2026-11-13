@@ -230,6 +230,8 @@ export interface CaseByNumber {
 export interface CaseStepMatches {
   exact: CaseByNumber | null;
   similar: CaseByNumber[];
+  // The same number in another county: a hint only, never offered.
+  elsewhere: CaseByNumber[];
 }
 
 export type CaseChoiceInput =

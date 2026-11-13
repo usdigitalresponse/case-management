@@ -9,8 +9,9 @@ import { caseTable, invoice, invoiceStatuses, type CaseChoice } from '../db/sche
 import { ForbiddenError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { isStaffAccount, type PortalActor } from '../portal/portalActor';
-import { addCaseFromRequest, caseStepMatches, checkNewCase, requireChoosableCase, type NewCaseInput } from '../cases/caseStep';
+import { addCaseFromRequest, caseStepMatches, checkNewCase, fillCaseCounty, requireChoosableCase, type NewCaseInput } from '../cases/caseStep';
 import { caseNumberInput, currentCaseNumber } from './caseNumbers';
+import { requireNotForCaseCounty } from './proposedDetails';
 import { lockOwnDraft } from './invoiceLifecycle/drafts';
 import { matchInvoiceToCase } from './invoiceIntake';
 import { InvoiceNotFoundError } from './reviewInvoiceLine';
@@ -99,8 +100,9 @@ export interface CaseChoiceResult {
   caseProblem: string | null;
 }
 
-async function matchTo(db: Database, actorUserAccountId: string, invoiceId: string, caseId: string, choice: CaseChoice) {
+async function matchTo(db: Database, actorUserAccountId: string, invoiceId: string, caseId: string, choice: CaseChoice, countyId: string | null) {
   await matchInvoiceToCase(db, actorUserAccountId, invoiceId, { caseId, addMissing: true });
+  await fillCaseCounty(db, actorUserAccountId, caseId, countyId);
   await db.update(invoice).set({ caseChoice: choice, chosenCaseId: null, newCaseClientName: null }).where(eq(invoice.invoiceId, invoiceId));
 }
 
@@ -132,7 +134,7 @@ export async function applyCaseChoiceAfterSend(db: Database, actorUserAccountId:
       caseId = added.caseId;
       addedCaseId = added.added ? caseId : null;
     }
-    await matchTo(db, actorUserAccountId, invoiceId, caseId, row.caseChoice);
+    await matchTo(db, actorUserAccountId, invoiceId, caseId, row.caseChoice, row.countyId);
     return { caseId, addedCaseId, caseProblem: null };
   } catch (error) {
     return { caseId: null, addedCaseId, caseProblem: problemOf(error) };
@@ -160,12 +162,13 @@ export async function chooseCaseInReview(db: Database, actorUserAccountId: strin
     throw new ValidationError({ caseChoice: 'Only an invoice in review without a case can have its case chosen here.' });
   }
   if (input.choice === 'none' || input.choice === null) {
+    requireNotForCaseCounty({ caseId: null, caseChoice: input.choice, countyId: row.invoice.countyId });
     await db.update(invoice).set({ caseChoice: input.choice, chosenCaseId: null, newCaseClientName: null }).where(eq(invoice.invoiceId, invoiceId));
     return { caseId: null, addedCaseId: null, caseProblem: null };
   }
   if (input.choice === 'existing') {
     await requireChoosableCase(db, input.caseId, row.invoice.countyId);
-    await matchTo(db, actorUserAccountId, invoiceId, input.caseId, 'existing');
+    await matchTo(db, actorUserAccountId, invoiceId, input.caseId, 'existing', row.invoice.countyId);
     return { caseId: input.caseId, addedCaseId: null, caseProblem: null };
   }
   const added = await db.transaction((tx) =>
@@ -178,7 +181,7 @@ export async function chooseCaseInReview(db: Database, actorUserAccountId: strin
   );
   const addedCaseId = added.added ? added.caseId : null;
   try {
-    await matchTo(db, actorUserAccountId, invoiceId, added.caseId, 'new');
+    await matchTo(db, actorUserAccountId, invoiceId, added.caseId, 'new', row.invoice.countyId);
     return { caseId: added.caseId, addedCaseId, caseProblem: null };
   } catch (error) {
     return { caseId: null, addedCaseId, caseProblem: problemOf(error) };

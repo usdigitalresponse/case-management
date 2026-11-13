@@ -293,17 +293,19 @@ How the React client is built and why. Schema mapping and gaps are in
     with an optional client name; a close number lists the similar cases and "Add case
     … in …" as radio buttons with none chosen. In review, the same number is only a
     "Suggested" case with "Use this case", a reviewer may type a number for an invoice
-    that gives none, and choosing applies at once. Not for one case says the county
-    counts it. Staff can't send, or finish an entry's first round, without an answer;
+    that gives none, and choosing applies at once. With no county it asks for one
+    first; the same number in another county is a hint above, never a choice. Not
+    for one case says the county counts it, and asks for one when there is none. The
+    review page's county field says when the case is in another county. Staff can't send, or finish an entry's first round, without an answer;
     a match that fails after sending is reported in the sent toast. External senders
     get only the segmented choice (`NotForOneCase` in
     `portal/submission/CaseChoice.tsx`) beside their own case list. The
     pre-authorization match form (`preauthorizationRequest/StaffForms.tsx`) asks the
-    same question, choosing a case by search or adding one from its number, county and
-    client.
+    same question with its county first, choosing a case by search or adding one from
+    its number, county and client.
   - **Settings, Edit data** (`pages/settings/EditData.tsx`, administrators only, a
     `?tab=edit-data` tab beside Settings): cases added from requests (or only those with
-    a similar number), each with a Fix row: what's wrong (the same case as another,
+    a similar number, or the same number in another county, shown as a note), each with a Fix row: what's wrong (the same case as another,
     its number, county or client, or its invoices aren't for one case), "See what
     changes" (the server's preview, with any pre-authorization to keep), then the fix.
     Recent fixes can be undone.

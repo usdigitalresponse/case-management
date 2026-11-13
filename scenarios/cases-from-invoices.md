@@ -9,11 +9,11 @@ and amounts are synthetic test values. Rules: `match_invoice_to_case`,
    file gives CR-24-0477 and county A. The case is chosen without asking; on
    sending, the invoice is matched to it, keeping its sent prices, and its
    provider is assigned to the case if they weren't.
-2. **Similar:** The file gives CR-24-477 in county A. Staff are offered
+2. **Similar:** The file gives CR240477 in county A. Staff are offered
    CR-24-0477 and must say whether it is that case or a new one; sending
    without an answer is refused. Choosing it matches the invoice to CR-24-0477
-   and keeps CR-24-477 as typed beside it. A case CR-24-477 in county B is
-   never offered.
+   and keeps CR240477 as typed beside it. A case CR240477 in county B is
+   never offered, though staff are told the same number is a case there.
 3. **New:** The file gives CR-26-1312 in county B and no case has a close
    number. Staff choose to add it, giving the client's name. On sending, case
    CR-26-1312 is added in county B with that client, recording who added it and
@@ -39,17 +39,26 @@ and amounts are synthetic test values. Rules: `match_invoice_to_case`,
    decision and amount are recorded on the request, and no preauthorization or
    limit is created. A request for a case chosen or added the same way records
    a ceiling decision as before.
-8. **Same case as another:** CR-24-477 was added by mistake and has one invoice
+8. **Same case as another:** CR240477 was added by mistake and has one invoice
    in review and one signed off. An administrator in Settings, Edit data sees
    exactly what will move, then moves both invoices to CR-24-0477; the
    signed-off one keeps its approved amount and now counts under CR-24-0477's
-   county. CR-24-477 is closed as added by mistake and leaves every list and
+   county. CR240477 is closed as added by mistake and leaves every list and
    picker. When both cases have a preauthorization for the same provider, the
    administrator chooses which to keep; the other stays on the closed case.
 9. **Undo:** The administrator undoes that fix. Both invoices return to
-   CR-24-477, which is open again; a value changed since the fix stays as it
+   CR240477, which is open again; a value changed since the fix stays as it
    was changed. Staff who aren't administrators can't open Edit data.
 10. **Corrected and taken off:** An administrator corrects a case's county; its
     invoices keep the number they were sent with. Another case's invoices are
     not for one case: taking them off leaves each with its own county and
     closes the case as added by mistake.
+11. **Counties:** Staff can't choose or add a case for an invoice with no
+    county; they add the county first. An invoice not for one case with no
+    county is refused when sent until its county is added. A case CR-26-1500
+    with no county is offered as similar for an invoice in county B; choosing
+    it gives the case county B, recorded. A reviewer changes a matched
+    invoice's county from its case's; the invoice is flagged in review, not
+    refused. A case added as CR-26-1400 in county B while CR-26-1400 is in
+    county A is listed in Edit data with the same number in county A as a
+    hint; fixing it means correcting its county, then moving its invoices.

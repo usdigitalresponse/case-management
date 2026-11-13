@@ -50,7 +50,9 @@ function RequestCaseStep({ request, match }: { request: PreauthorizationRequestR
   const [clientName, setClientName] = useState('');
   const [similarListed, setSimilarListed] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const countyId = county?.countyId ?? request.proposedCountyId ?? null;
+  // The county comes first: a case is found in it, and work not for one case counts under it.
+  const countyId = county?.countyId ?? request.proposedCountyId ?? request.countyId ?? null;
+  const countyHint = county ? undefined : request.proposedCountyId ? 'The county the requester gave.' : !countyId ? 'Add the county first.' : undefined;
   async function addCase(confirmedNew: boolean) {
     setError(null);
     try {
@@ -73,6 +75,15 @@ function RequestCaseStep({ request, match }: { request: PreauthorizationRequestR
         ]}
         onChange={(value) => void match(value === 'none' ? { notForCase: true, ...(countyId ? { countyId } : {}) } : { notForCase: false })}
       />
+      <CountyPicker
+        id="match-case-county"
+        value={county}
+        onChange={(value) => {
+          setCounty(value);
+          if (request.notForCase && value?.countyId) void match({ notForCase: true, countyId: value.countyId });
+        }}
+        hint={countyHint}
+      />
       {request.notForCase ? (
         <p className="field-hint">
           For work like court observation{request.countyName ? ` in ${request.countyName}` : ''}. Approving it records the decision and amount only, with
@@ -85,7 +96,7 @@ function RequestCaseStep({ request, match }: { request: PreauthorizationRequestR
           value={casePick}
           onChange={(value) => {
             setCasePick(value);
-            if (value && value !== ADD_NEW) void match({ caseId: value });
+            if (value && value !== ADD_NEW) void match({ caseId: value, ...(countyId ? { countyId } : {}) });
           }}
           addLabel={`+ Add case ${caseNumber || 'from its number'}`}
           placeholder="Search by case number or client"
@@ -96,7 +107,6 @@ function RequestCaseStep({ request, match }: { request: PreauthorizationRequestR
             <label className="usa-label" htmlFor="match-case-number">Case number</label>
             <input id="match-case-number" className="usa-input" value={caseNumber} onChange={(event) => setCaseNumber(event.target.value)} />
           </div>
-          <CountyPicker id="match-case-county" value={county} onChange={setCounty} hint={!county && request.proposedCountyId ? 'The county the requester gave.' : undefined} />
           <div className="usa-form-group">
             <label className="usa-label" htmlFor="match-case-client">
               Client’s name <span className="field-hint">(optional)</span>

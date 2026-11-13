@@ -243,6 +243,19 @@ describe('requests', () => {
     await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId })).resolves.toMatchObject({ request: { caseId } });
   });
 
+  it('need a county for work not for one case, and to find a chosen case in', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, {
+      ...request(caseId, attorney.professionalId, 600),
+      caseId: null,
+      proposedCase: { caseNumber: 'SYN-407' },
+    });
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { notForCase: true })).rejects.toThrow(ValidationError);
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId })).rejects.toThrow(ValidationError);
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId, countyId: fixtures.countyId })).resolves.toMatchObject({ request: { caseId } });
+  });
+
   it('keep their own county when an administrator takes them off a case added by mistake', async () => {
     const caseId = await newCase();
     const attorney = await newProvider(caseId, { bound: false });

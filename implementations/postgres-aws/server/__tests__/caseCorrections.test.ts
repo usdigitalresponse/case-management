@@ -68,8 +68,18 @@ describe('cases added from requests', () => {
     expect(all[1]).toMatchObject({ addedFrom: 'invoice', invoices: 1, similar: [{ caseId: kept.caseId }] });
     const similar = await listAddedCases(testDb, { similarOnly: true });
     expect(similar.map((row) => row.caseId).sort()).toEqual([kept.caseId, extra.caseId].sort());
+    expect(all[0]).toMatchObject({ caseNumber: 'CR-26-1312', elsewhere: [] });
     // Narrowed before the limit, so a newer case with no close number doesn't hide them.
     expect((await listAddedCases(testDb, { similarOnly: true, limit: 1 })).map((row) => row.caseId)).toEqual([extra.caseId]);
+  });
+});
+
+describe('the same number in another county', () => {
+  it('is shown as a hint, and counts as similar for the list', async () => {
+    const inA = await sentWithNewCase('CR-26-1400', fixtures.countyId);
+    const inB = await sentWithNewCase('CR-26-1400', countyB);
+    const [row] = (await listAddedCases(testDb, { similarOnly: true })).filter((one) => one.caseId === inB.caseId);
+    expect(row).toMatchObject({ similar: [], elsewhere: [{ caseId: inA.caseId, countyDisplayName: 'County A' }] });
   });
 });
 

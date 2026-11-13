@@ -47,6 +47,8 @@ export interface QueuedInvoice {
   // On a draft: the existing case it is matched to, or the client of the case added, when sent.
   chosenCaseId: string | null;
   newCaseClientName: string | null;
+  // Its case's county, only when it differs from the invoice's own.
+  caseCountyDisplayName: string | null;
   // While its lines are being entered: their version, sent back with each
   // save, and who changed them last, when.
   linesVersion: number;
@@ -63,7 +65,7 @@ export interface AssignedPerson {
 }
 
 export interface QueueFlag {
-  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case' | 'preauthorization';
+  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case' | 'county' | 'preauthorization';
   message: string;
 }
 

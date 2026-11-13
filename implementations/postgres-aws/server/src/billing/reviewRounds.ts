@@ -218,7 +218,7 @@ export async function finishReview(db: Database, actorUserAccountId: string, inv
     }
     const chainId = (await currentChainId(tx, invoiceId)) as string;
     if (await entryIsOpen(tx, invoiceId)) {
-      const [entered] = await tx.select({ caseId: invoice.caseId, caseChoice: invoice.caseChoice }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+      const [entered] = await tx.select({ caseId: invoice.caseId, caseChoice: invoice.caseChoice, countyId: invoice.countyId }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
       requireCaseAnswered(entered!);
       await closeEntry(tx, actorUserAccountId, invoiceId, chainId, receipt.data);
     }

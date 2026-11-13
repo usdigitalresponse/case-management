@@ -451,9 +451,11 @@ export interface AddedCase {
   invoices: number;
   preauthorizationRequests: number;
   similar: Array<{ caseId: string; caseNumber: string | null; clientDisplayName: string | null }>;
+  // The same number in another county: a hint its county may be wrong, never joined to it.
+  elsewhere: Array<{ caseId: string; caseNumber: string | null; clientDisplayName: string | null; countyDisplayName: string | null }>;
 }
 
-// Cases added from requests, newest first; `similarOnly` narrows to those with a close number in their county.
+// Cases added from requests, newest first; `similarOnly` narrows to those with a close number in their county, or the same number in another.
 export async function listAddedCases(db: DatabaseOrTransaction, options: { similarOnly?: boolean; limit?: number } = {}): Promise<AddedCase[]> {
   // As caseStepMatches finds them: the same close key, in the same county or with none.
   const similar = sql<AddedCase['similar']>`coalesce((
@@ -469,6 +471,19 @@ export async function listAddedCases(db: DatabaseOrTransaction, options: { simil
         or exists (select 1 from ${caseIdentifier} identifier where identifier.case_id = other.case_id
           and case_number_close_key(identifier.value) = case_number_close_key(${caseTable.externalReference})))
   ), '[]'::json)`;
+  const elsewhere = sql<AddedCase['elsewhere']>`coalesce((
+    select json_agg(json_build_object('caseId', other.case_id, 'caseNumber', other.external_reference,
+        'clientDisplayName', other_client.display_name, 'countyDisplayName', other_county.display_name)
+      order by other_county.display_name)
+    from ${caseTable} other
+    left join ${person} other_client on other_client.person_id = other.client_id
+    left join ${county} other_county on other_county.county_id = other.county_id
+    where not other.closed_as_mistake
+      and ${caseTable.countyId} is not null and other.county_id is not null and other.county_id <> ${caseTable.countyId}
+      and (upper(other.external_reference) = upper(${caseTable.externalReference})
+        or exists (select 1 from ${caseIdentifier} identifier where identifier.case_id = other.case_id
+          and upper(identifier.value) = upper(${caseTable.externalReference})))
+  ), '[]'::json)`;
   const rows = await db
     .select({
       caseId: caseTable.caseId,
@@ -482,6 +497,7 @@ export async function listAddedCases(db: DatabaseOrTransaction, options: { simil
       invoices: sql<number>`(select count(*)::int from ${invoice} where ${invoice.caseId} = ${caseTable.caseId})`,
       preauthorizationRequests: sql<number>`(select count(*)::int from ${preauthorizationRequest} where ${preauthorizationRequest.caseId} = ${caseTable.caseId})`,
       similar,
+      elsewhere,
     })
     .from(caseTable)
     .innerJoin(caseLifecycleEvent, and(eq(caseLifecycleEvent.caseId, caseTable.caseId), eq(caseLifecycleEvent.sequenceNumber, 1)))
@@ -492,7 +508,7 @@ export async function listAddedCases(db: DatabaseOrTransaction, options: { simil
       and(
         eq(caseTable.closedAsMistake, false),
         sql`(${caseTable.addedFromInvoiceId} is not null or ${caseTable.addedFromPreauthorizationRequestId} is not null)`,
-        options.similarOnly ? sql`json_array_length(${similar}) > 0` : undefined,
+        options.similarOnly ? sql`(json_array_length(${similar}) > 0 or json_array_length(${elsewhere}) > 0)` : undefined,
       ),
     )
     .orderBy(desc(caseLifecycleEvent.recordedAt))

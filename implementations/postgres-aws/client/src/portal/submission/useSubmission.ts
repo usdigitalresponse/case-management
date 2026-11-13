@@ -161,7 +161,8 @@ export function useSubmission({
   async function startSending() {
     const noSender = byPerson && !invoice.professionalId;
     // External senders may leave the case question unanswered (model/rules.yaml match_invoice_to_case).
-    const noCaseAnswer = byPerson && staff && !invoice.caseId && !invoice.caseChoice;
+    const noCaseAnswer =
+      byPerson && staff && !invoice.caseId && (!invoice.caseChoice || (invoice.caseChoice === 'none' && !invoice.countyId));
     setSenderMissing(noSender);
     if (noCaseAnswer) setCaseAnswerMissing(true);
     if (noSender || noCaseAnswer) return;
