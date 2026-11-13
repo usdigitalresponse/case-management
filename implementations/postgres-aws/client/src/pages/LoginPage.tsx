@@ -16,6 +16,7 @@ import { STORY } from '../tour/missions';
 import { Button, buttonClass } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
 import { useProductName } from '../components/AppBrand';
+import { SyntheticDataNote } from '../components/SyntheticDataNote';
 
 // Demos only, and never on its own: free exploration stays beside it. A small
 // button in the corner (design K1) opens the choice of a whole or partial tour.
@@ -130,6 +131,9 @@ export default function LoginPage() {
         </section>
       </div>
       {data?.demoLoginEnabled && data.externalDemoLoginEnabled && <TourEntry />}
+      <footer className="login-footer">
+        <SyntheticDataNote className="login-footer__note" />
+      </footer>
     </div>
   );
 }

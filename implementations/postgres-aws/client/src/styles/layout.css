@@ -2,7 +2,9 @@
 .app-header { display: flex; align-items: center; gap: var(--space-5); min-height: var(--space-12); box-sizing: border-box; padding: 0 var(--space-8); background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); border-bottom: var(--space-3) solid var(--color-tertiary); }
 .app-header .link-button { color: var(--color-inverse-primary); font: var(--label-large); text-decoration: underline; }
 /* The search shrinks before anything wraps. */
-.app-brand-block { display: flex; flex: none; align-items: center; gap: var(--space-5); }
+.app-brand-block { display: flex; flex: none; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.app-brand-row { display: flex; align-items: center; gap: var(--space-5); }
+.app-synthetic-note { margin: 0; color: var(--color-inverse-primary); font: var(--body-small); }
 .app-brand { color: var(--color-on-inverse-surface); text-decoration: none; font-family: var(--font-serif); font-size: var(--text-18); font-weight: 600; line-height: 1.25; letter-spacing: -.2px; white-space: nowrap; }
 .app-section { padding-left: var(--space-5); border-left: 1px solid var(--color-inverse-primary); color: var(--color-inverse-primary); font: var(--label-large); white-space: nowrap; }
 .header-search { flex: 0 1 26.25rem; min-width: 12rem; margin-left: calc(var(--space-10) + var(--space-5)); }
