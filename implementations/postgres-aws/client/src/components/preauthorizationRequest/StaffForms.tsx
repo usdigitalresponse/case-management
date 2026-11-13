@@ -143,7 +143,7 @@ export function DecisionForm({ request, onDecided }: { request: Preauthorization
   const [busy, setBusy] = useState(false);
   const approving = outcome === 'approved';
   return (
-    <section className="card compact-card">
+    <section className="card compact-card form-stack">
       <h2>Decide</h2>
       {error && <Notice tone="danger">{error}</Notice>}
       <fieldset className="usa-fieldset">

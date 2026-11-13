@@ -7,7 +7,6 @@
 .time-log-summary__head .link-row { align-items: center; margin: 0; }
 .time-log-summary__counts { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3) var(--space-5); margin: var(--space-5) 0 0; }
 .time-log-upload { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4) var(--space-6); margin-top: var(--space-5); }
-.time-log-upload__button { cursor: pointer; }
 .time-log-columns { flex-basis: 100%; padding: var(--space-5) var(--space-6); border-left: 3px solid var(--color-primary); background: var(--color-primary-container-low); }
 .time-log-columns p { margin: 0 0 var(--space-4); font-size: var(--text-15); }
 .time-log-columns__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: var(--space-4) var(--space-6); }

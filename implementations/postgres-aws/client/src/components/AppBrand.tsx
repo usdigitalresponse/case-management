@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useResource } from '../hooks/useResource';
 import { authProviders } from '../resources';
+import { SyntheticDataNote } from './SyntheticDataNote';
 
 export const PRODUCT_NAME = 'Invoice Review';
 
@@ -23,9 +24,12 @@ export function AppBrand({ to, section, children }: { to: string; section: strin
   const shownSection = organization || section !== PRODUCT_NAME ? section : null;
   return (
     <div className="app-brand-block">
-      <Link className="app-brand" to={to}>{organization ?? PRODUCT_NAME}</Link>
-      {shownSection && <span className="app-section">{shownSection}</span>}
-      {children}
+      <div className="app-brand-row">
+        <Link className="app-brand" to={to}>{organization ?? PRODUCT_NAME}</Link>
+        {shownSection && <span className="app-section">{shownSection}</span>}
+        {children}
+      </div>
+      <SyntheticDataNote className="app-synthetic-note" />
     </div>
   );
 }

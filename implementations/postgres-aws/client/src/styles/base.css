@@ -7,6 +7,7 @@ button, input, select, textarea { font: inherit; }
 [href]:focus-visible, [tabindex]:focus-visible, [contenteditable]:focus-visible, button:not([disabled]):focus-visible, input:not([disabled]):focus-visible, select:not([disabled]):focus-visible, textarea:not([disabled]):focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .field-hint { margin: var(--field-gap) 0 0; }
 .compact-hint { color: var(--color-on-surface-muted); font-size: var(--text-13); margin: var(--space-4) 0 0; }
+.compact-hint + :is(.card, .data-card, .settings-grid, .settings-columns) { margin-top: var(--space-6); }
 .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .muted { color: var(--color-on-surface-muted); }
 .cell-note { display: block; margin-top: var(--space-2); font-size: var(--text-13); line-height: 1.35; color: var(--color-on-surface-muted); }

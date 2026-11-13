@@ -1196,6 +1196,15 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   concurrent assignment and close can't leave an open assignment on a
   closed case (rejected with 409 `already_closed`). Deliberately not
   implemented: corrections, and reopening by hand (only matching reopens).
+- **Pre-authorization files** (`src/billing/preauthorizationRequests/providerRecords.ts`;
+  `model/rules.yaml` `request_provider_documents`): `POST
+  /api/preauthorizations/documents/:id/retire` and `.../restore` take a
+  request's or provider's file off its lists, or put it back, returning 204.
+  Either is allowed to whoever may add the file (for a request's, only while
+  it is open), locks the link and its request, and is audited
+  (`document_retired`, `document_restored`); repeating one changes nothing.
+  `GET /api/preauthorizations/documents/:id` refuses a retired file. Every
+  refusal is 404 "File not found.", so it never says whether a file exists.
 - **Demo sign-in**: `POST /auth/demo-login` logs in as the seeded
   synthetic staff account (`staff@example.invalid`, with a faker name)
   with no credentials.

@@ -1,4 +1,4 @@
-spec_version: "0.14.0"
+spec_version: "0.15.0"
 status: draft
 kind: domain_schema
 
@@ -2577,3 +2577,11 @@ entities:
         type: reference
         required: true
         reference_data: document_purposes
+      retired_at:
+        type: datetime
+        required: false
+        description: When someone took the file off its request or provider; it is kept, and can be restored (request_provider_documents).
+      retired_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id

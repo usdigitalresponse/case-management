@@ -29,7 +29,7 @@ function CountyNote({ invoice }: { invoice: ReviewQueueItem }) {
 export function FromCell({ invoice }: { invoice: ReviewQueueItem }) {
   return (
     <>
-      {submittedByLabel(invoice)}
+      <span className="nowrap">{submittedByLabel(invoice)}</span>
       <span className="cell-note">{invoice.professionalKindDisplayName ?? 'Professional'}</span>
     </>
   );

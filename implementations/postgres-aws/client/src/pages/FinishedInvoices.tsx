@@ -61,12 +61,13 @@ export default function FinishedInvoices() {
           { header: 'Case number', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },
           {
             header: 'Finished',
+            className: 'nowrap',
             render: (invoice) =>
               invoice.finishedAt ? (formatDay(invoice.finishedAt) === today ? 'Today' : formatDay(invoice.finishedAt)) : '—',
           },
           { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
           { header: 'Approved', align: 'right', className: 'approved-amount', render: (invoice) => (invoice.approvedTotal !== null ? formatMoney(invoice.approvedTotal) : '—') },
-          { header: 'Reviewer', render: (invoice) => invoice.reviewer?.displayName ?? '—' },
+          { header: 'Reviewer', className: 'nowrap', render: (invoice) => invoice.reviewer?.displayName ?? '—' },
           {
             header: 'Status',
             render: (invoice) =>

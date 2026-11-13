@@ -128,7 +128,9 @@ export function SubmissionLines({ s }: { s: Submission }) {
               : 'Add each line of the invoice, and correct any line where it is. Changes save when you send or save for later.'
             : invoice.statusCode === 'submitted' || awaiting
               ? 'This invoice is with the billing office, so the lines are locked. Withdraw it if you need to change something.'
-              : 'The lines are locked while the billing office reviews them.'}
+              : decided
+                ? 'The lines are locked. Contact the billing office if you have a question about a decision.'
+                : 'The lines are locked while the billing office reviews them.'}
         </p>
       </div>
     </div>

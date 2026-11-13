@@ -15,13 +15,13 @@ import { listReviewQueue } from '../src/billing/reviewQueue';
 import { loadPreauthorizationSummaries, setPreauthorizedAmount } from '../src/billing/preauthorizations';
 import { addThreshold, getThresholdSettings, setKindThresholdApplies, thresholdFor } from '../src/billing/preauthorizationThresholds';
 import { loadOverrunExplanations } from '../src/billing/overrunExplanation';
-import { addDocument, providerDocumentStatus } from '../src/billing/preauthorizationRequests/providerRecords';
+import { addDocument, listLinkedDocuments, providerDocumentStatus, readLinkedDocument, setDocumentRetired } from '../src/billing/preauthorizationRequests/providerRecords';
 import { answerRequestQuestion, askRequestQuestion, decidePreauthorizationRequest, matchPreauthorizationRequest, withdrawPreauthorizationRequest } from '../src/billing/preauthorizationRequests/decide';
 import { createPreauthorizationRequest, previewRequest } from '../src/billing/preauthorizationRequests/submit';
 import { getPreauthorizationRequest, listOwnPreauthorizationRequests, listPreauthorizationRequests } from '../src/billing/preauthorizationRequests/read';
 import { preauthorizationUsageByCounty } from '../src/billing/preauthorizationUsage';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../src/errors';
-import { caseAssignment, caseTable, county, invoice, preauthorizationDecision, preauthorizationRequest, userAccount } from '../src/db/schema';
+import { auditEvent, caseAssignment, caseTable, county, documentLink, invoice, preauthorizationDecision, preauthorizationRequest, userAccount } from '../src/db/schema';
 import { fixCase, undoCaseFix } from '../src/cases/caseCorrections';
 
 let fixtures: BaselineFixtureIds;
@@ -402,6 +402,47 @@ describe('provider documents', () => {
     await expect(
       addDocument(testDb, memoryStore(), attorney, { preauthorizationRequestId }, { bytes: pdf, fileName: 'q.pdf', purpose: 'quote' }),
     ).rejects.toThrow(ConflictError);
+  });
+});
+
+describe('retiring a file', () => {
+  it('takes it off every list but keeps it, audited, until it is restored', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const expert = await newProvider(caseId, { bound: true });
+    const outsider = await newProvider(await newCase(), { bound: false });
+    const pdf = Buffer.from('%PDF-1.4 synthetic');
+    const store = memoryStore();
+    const listed = await addDocument(testDb, store, attorney, { professionalId: expert.professionalId }, { bytes: pdf, fileName: 'cv.pdf', purpose: 'cv' });
+    const { documentId } = (listed as Awaited<ReturnType<typeof providerDocumentStatus>>).documents[0]!;
+
+    // Worded as for a file that doesn't exist, so it never says whether one does.
+    await expect(setDocumentRetired(testDb, outsider, documentId, true)).rejects.toThrow('File not found.');
+    await setDocumentRetired(testDb, attorney, documentId, true);
+    await setDocumentRetired(testDb, attorney, documentId, true);
+    await expect(readLinkedDocument(testDb, store, attorney, documentId)).rejects.toThrow(NotFoundError);
+    const status = await providerDocumentStatus(testDb, expert.professionalId);
+    expect(status.documents).toEqual([]);
+    expect(status.missing).toEqual(['cv', 'fee_schedule']);
+    const [link] = await testDb.select().from(documentLink).where(eq(documentLink.documentId, documentId));
+    expect(link!.retiredByUserAccountId).toBe(attorney.userAccountId);
+
+    await setDocumentRetired(testDb, attorney, documentId, false);
+    expect((await providerDocumentStatus(testDb, expert.professionalId)).documents.map((row) => row.documentId)).toEqual([documentId]);
+    expect((await readLinkedDocument(testDb, store, attorney, documentId)).fileName).toBe('cv.pdf');
+    const events = await testDb.select().from(auditEvent).where(eq(auditEvent.entityId, link!.documentLinkId));
+    expect(events.map((event) => event.eventType).sort()).toEqual(['document_restored', 'document_retired']);
+  });
+
+  it("is refused on a decided or withdrawn request's file", async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, request(caseId, attorney.professionalId, 900));
+    const pdf = Buffer.from('%PDF-1.4 synthetic');
+    await addDocument(testDb, memoryStore(), attorney, { preauthorizationRequestId }, { bytes: pdf, fileName: 'q.pdf', purpose: 'quote' });
+    const { documentId } = (await listLinkedDocuments(testDb, { preauthorizationRequestId }))[0]!;
+    await withdrawPreauthorizationRequest(testDb, attorney.userAccountId, preauthorizationRequestId);
+    await expect(setDocumentRetired(testDb, attorney, documentId, true)).rejects.toThrow(ConflictError);
   });
 });
 

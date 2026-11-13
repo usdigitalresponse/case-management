@@ -16,6 +16,7 @@ import { STORY } from '../tour/missions';
 import { Button, buttonClass } from '../components/ui/Button';
 import { Dialog } from '../components/ui/Dialog';
 import { useProductName } from '../components/AppBrand';
+import { SyntheticDataNote } from '../components/SyntheticDataNote';
 
 // Demos only, and never on its own: free exploration stays beside it. A small
 // button in the corner (design K1) opens the choice of a whole or partial tour.
@@ -30,17 +31,18 @@ function TourEntry() {
       </Button>
       {open && (
         <Dialog title="Take a guided tour" className="login-tour" onClose={() => setOpen(false)}>
-          <p className="dialog__small">Uses synthetic data.</p>
+          <p className="login-tour__note">Uses synthetic data.</p>
           {tour.error && <p className="field-error" role="alert">{tour.error}</p>}
           <div className="login-tour__options">
             <div className="login-tour__option">
+              <h3 className="mission-picker__label">The whole tour</h3>
               <p className="login-tour__text">Take one invoice from pre-authorization to sign-off, as an investigator, a reviewer and the Director.</p>
               <Button kind="primary" disabled={tour.busy} onClick={() => void tour.start(STORY)}>
                 {tour.busy ? 'Setting up your tour…' : 'Start the tour'}
               </Button>
             </div>
             <div className="login-tour__option">
-              <MissionPicker id="login-mission" label="One part of the tour" hideLabel busy={tour.busy} onStart={(missions) => void tour.start(missions)} />
+              <MissionPicker id="login-mission" label="One part of the tour" busy={tour.busy} onStart={(missions) => void tour.start(missions)} />
             </div>
           </div>
           <div className="button-row">
@@ -129,6 +131,9 @@ export default function LoginPage() {
         </section>
       </div>
       {data?.demoLoginEnabled && data.externalDemoLoginEnabled && <TourEntry />}
+      <footer className="login-footer">
+        <SyntheticDataNote className="login-footer__note" />
+      </footer>
     </div>
   );
 }

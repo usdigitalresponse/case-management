@@ -19,8 +19,11 @@ form.case-intake-form { max-width: 52rem; }
 .invoice-actions .actions-end:has(.confirm-inline) { flex-basis: 100%; margin-left: 0; padding: var(--space-4) var(--space-5); background: var(--color-tertiary-container); border-radius: var(--radius-small); }
 .actions-hint + .invoice-actions { margin-top: var(--space-4); }
 form.compact-form { max-width: none; }
-.compact-card { padding: var(--space-6) var(--space-6); margin-top: var(--space-6); }
-.compact-card h2 { font-size: var(--text-18); margin: 0 0 var(--space-4); }
+.compact-card { padding: var(--space-7); margin-top: var(--space-6); }
+.compact-card h2 { margin: 0 0 var(--space-4); font: var(--title-medium); }
+/* A case's or a provider's page: roomier cards with larger headings (design K). */
+.record-page .compact-card { padding: var(--space-8); }
+.record-page .compact-card h2 { font: var(--title-large); }
 .compact-card h3 { font-size: var(--text-15); margin: 0 0 var(--space-4); }
 .compact-card .notice { margin: 0 0 var(--space-4); }
 .inline-fields { display: grid; gap: var(--space-4) var(--space-5); align-items: end; }
@@ -28,6 +31,17 @@ form.compact-form { max-width: none; }
 .inline-fields .usa-label { margin: 0 0 var(--space-3); max-width: none; }
 .inline-fields .usa-input, .inline-fields .usa-select { margin: 0; max-width: none; }
 .inline-fields .usa-checkbox { grid-column: 1 / -1; background: transparent; }
+/* A form's fields (design K): 16px apart, 8px from a label to its control and from a row to its hint. */
+.form-stack > * { margin-top: 0; margin-bottom: 0; }
+.form-stack > * + * { margin-top: var(--space-6); }
+.form-stack > .inline-fields + .compact-hint { margin-top: var(--space-4); }
+.form-stack .usa-label { margin: 0 0 var(--space-4); }
+.form-stack :is(.usa-input, .usa-select, .usa-textarea) { margin-top: 0; }
+.form-stack .new-entry .usa-form-group { margin-top: var(--space-4); }
+.form-stack > .usa-form-group { max-width: 35rem; }
+.form-stack .usa-textarea { width: 100%; max-width: none; }
+.form-stack .inline-fields { grid-auto-flow: column; grid-auto-columns: minmax(0, 15rem); gap: var(--space-6); align-items: start; }
+.form-stack > .field-pair { max-width: 46rem; }
 .time-entry-fields { grid-template-columns: 10rem 6rem minmax(0, 1fr) auto; }
 .time-entry-fields--with-professional { grid-template-columns: minmax(9rem, 13rem) 10rem 6rem minmax(0, 1fr) auto; }
 .compact-file { font-size: var(--text-15); max-width: 100%; }
@@ -61,7 +75,8 @@ form.compact-form { max-width: none; }
 .dialog-field .usa-label { margin: 0 0 var(--space-3); }
 .dialog-field .usa-input { max-width: none; width: 100%; margin: 0; }
 .dialog-field .field-hint, .dialog-field .field-error { margin: var(--space-3) 0 0; }
-.dialog-field-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--space-6); }
+/* Two fields side by side, stacking when narrow. */
+.field-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--space-6); align-items: start; }
 .radio-choices { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-7); }
 .radio-choices label { display: flex; align-items: center; gap: var(--space-4); cursor: pointer; }
 /* Inline row editing keeps the table's layout: fields fill the columns as

@@ -121,8 +121,9 @@ export function TravelLog({
       <RecordTable
         rows={trips}
         rowKey={(trip) => trip.tripId}
+        rowClassName={({ mileage }) => (mileage && flagged.has(mileage.invoiceLineId) ? 'is-flagged' : undefined)}
         columns={[
-          { header: 'Date', render: (trip) => lineDate(trip.first) },
+          { header: 'Date', className: 'nowrap', render: (trip) => lineDate(trip.first) },
           {
             header: 'Trip',
             render: ({ first }) =>

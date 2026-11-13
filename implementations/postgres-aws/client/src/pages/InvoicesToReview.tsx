@@ -218,7 +218,7 @@ export default function InvoicesToReview() {
             ),
           },
           { header: 'Case number', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },
-          { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDay(invoice.submittedAt) : '—') },
+          { header: 'Submitted', className: 'nowrap', render: (invoice) => (invoice.submittedAt ? formatDay(invoice.submittedAt) : '—') },
           { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
           { header: 'Decided', render: (invoice) => `${invoice.decidedCount} of ${invoice.lineCount}` },
           {
@@ -226,7 +226,7 @@ export default function InvoicesToReview() {
             render: (invoice) =>
               invoice.holder ? (
                 <>
-                  {invoice.holder.displayName}
+                  <span className="nowrap">{invoice.holder.displayName}</span>
                   {invoice.statusCode === 'awaiting_sign_off' && <span className="cell-note">To sign off</span>}
                   <QuestionChips invoice={invoice} />
                 </>

@@ -438,7 +438,8 @@ Pre-authorization limits are per provider per case: the ceiling of their one
 pre-authorization (asking for more revises it; never add ceilings), else the
 case county's configured threshold for kinds it applies to. Going over is
 explained by the sender and flagged, never refused. Providers' CVs and fee
-schedules are kept records, unlike invoice working copies.
+schedules are kept records, unlike invoice working copies: one added by
+mistake is retired (`document_link.retired_at`, audited, restorable), never deleted.
 Driving-distance lookups for the mileage rule (`ROUTE_CHECK_PROVIDER=aws`)
 are billed per request: keep them to submission with the rule on and cached
 by address pair, and have tests use `setRouteProviderForTests`, never AWS.

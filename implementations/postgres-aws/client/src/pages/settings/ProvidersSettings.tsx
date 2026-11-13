@@ -135,22 +135,22 @@ export function ProvidersSettings({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <>
-      <div className="section-title-row">
-        <p className="compact-hint">
-          Attorneys, experts and investigators who bill for their work. Each one&apos;s kind sets the hourly rate their time is billed at. What you
-          change here shows on the provider&apos;s page.
-        </p>
+      <p className="compact-hint">
+        Attorneys, experts and investigators who bill for their work. Each one&apos;s kind sets the hourly rate their time is billed at. What you
+        change here shows on the provider&apos;s page.
+      </p>
+      {message && <Notice tone={message.tone}>{message.text}</Notice>}
+      <div className="list-toolbar list-toolbar--end">
+        <label className="list-controls__search">
+          <span className="usa-sr-only">Search providers</span>
+          <input className="usa-input" type="search" placeholder="Search by name or email" value={query} onChange={(event) => setQuery(event.target.value)} />
+        </label>
         {isAdmin && (
           <Button kind="primary" onClick={() => setAdding(true)}>
             Add provider
           </Button>
         )}
       </div>
-      {message && <Notice tone={message.tone}>{message.text}</Notice>}
-      <label className="list-controls__search">
-        <span className="usa-sr-only">Search providers</span>
-        <input className="usa-input" type="search" placeholder="Search by name or email" value={query} onChange={(event) => setQuery(event.target.value)} />
-      </label>
       {list.error || !list.items ? (
         <LoadState error={list.error} what="providers" />
       ) : (

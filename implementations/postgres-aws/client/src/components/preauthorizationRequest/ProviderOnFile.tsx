@@ -6,6 +6,8 @@ import { formatDate, formatDay } from '../../formatDateTime';
 import { formatMoney } from '../../formatMoney';
 import { Notice } from '../ui/Notice';
 import { Button } from '../ui/Button';
+import { FileButton } from '../ui/FileButton';
+import { RemoveFileButton } from '../ui/RemoveFileButton';
 
 const PURPOSES: Array<{ id: LinkedDocument['purposeCode']; label: string }> = [
   { id: 'cv', label: 'CV' },
@@ -14,21 +16,34 @@ const PURPOSES: Array<{ id: LinkedDocument['purposeCode']; label: string }> = [
   { id: 'supporting', label: 'Something else' },
 ];
 
-export function DocumentList({ documents }: { documents: LinkedDocument[] }) {
+// onRetire, where files may still be added, shows a ✕ that takes one off the list after asking.
+export function DocumentList({ documents, onRetire, from }: { documents: LinkedDocument[]; onRetire?: (doc: LinkedDocument) => unknown; from?: string }) {
   if (documents.length === 0) return <p className="muted">None yet.</p>;
   return (
     <ul className="plain-list">
       {documents.map((doc) => (
         <li key={doc.documentId}>
-          <a href={linkedDocumentUrl(doc.documentId)}>{doc.displayName}</a> <span className="cell-note">{doc.purposeName}, added {formatDay(doc.recordedAt)}</span>
+          <span className="file-name">
+            <a href={linkedDocumentUrl(doc.documentId)}>{doc.displayName}</a>
+            {onRetire && (
+              <RemoveFileButton
+                fileName={doc.displayName}
+                onRemove={() => onRetire(doc)}
+                consequence={<>{doc.displayName} is taken off {from ?? 'this list'}. It is kept, and you can undo this.</>}
+              />
+            )}
+          </span>{' '}
+          <span className="cell-note">{doc.purposeName}, added {formatDay(doc.recordedAt)}</span>
         </li>
       ))}
     </ul>
   );
 }
 
+// A chosen file is only stored once "Add file" is clicked, so one chosen by mistake is simply dropped.
 export function AddDocument({ onAdd, defaultPurpose }: { onAdd: (file: File, purpose: LinkedDocument['purposeCode']) => Promise<unknown>; defaultPurpose: LinkedDocument['purposeCode'] }) {
   const [purpose, setPurpose] = useState(defaultPurpose);
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const id = `doc-${Math.random().toString(36).slice(2, 8)}`;
@@ -42,28 +57,46 @@ export function AddDocument({ onAdd, defaultPurpose }: { onAdd: (file: File, pur
           ))}
         </select>
       </div>
-      <div className="usa-form-group">
-        <label className="usa-label" htmlFor={`${id}-file`}>File (PDF, Word or image)</label>
-        <input
-          id={`${id}-file`}
-          className="usa-file-input"
-          type="file"
-          disabled={busy}
+      {file ? (
+        // In place of "Choose file", so there is one button to press at a time.
+        <span className="file-button">
+          <span className="file-name">
+            {file.name}
+            <RemoveFileButton
+              fileName={file.name}
+              disabled={busy}
+              onRemove={() => {
+                setFile(null);
+                setError(null);
+              }}
+            />
+          </span>
+          <Button
+            kind="primary"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setError(null);
+              onAdd(file, purpose)
+                .then(() => setFile(null), (err: unknown) => setError(apiErrorMessage(err, 'The file could not be added.')))
+                .finally(() => setBusy(false));
+            }}
+          >
+            {busy ? 'Adding…' : 'Add file'}
+          </Button>
+        </span>
+      ) : (
+        <FileButton
           accept=".pdf,.docx,.png,.jpg,.jpeg"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            setBusy(true);
+          onChoose={(chosen) => {
+            setFile(chosen);
             setError(null);
-            onAdd(file, purpose)
-              .catch((err: unknown) => setError(apiErrorMessage(err, 'The file could not be added.')))
-              .finally(() => {
-                setBusy(false);
-                event.target.value = '';
-              });
           }}
-        />
-      </div>
+        >
+          Choose file
+          <span className="usa-sr-only"> (PDF, Word or image)</span>
+        </FileButton>
+      )}
       {error && <p className="field-error" role="alert">{error}</p>}
     </div>
   );

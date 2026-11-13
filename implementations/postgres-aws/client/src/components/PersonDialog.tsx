@@ -130,7 +130,7 @@ export function PersonDialog({
           </div>
           {errors.professionalKindId && <p className="field-error">{errors.professionalKindId}</p>}
         </fieldset>
-        <div className="dialog-field-pair">
+        <div className="field-pair">
           {field('email', 'Email', 'Used for the sign-in code.', {
             type: 'email',
             required: !person,
@@ -139,7 +139,7 @@ export function PersonDialog({
           {field('phone', 'Phone', undefined, { type: 'tel' })}
         </div>
         {field('paidThrough', 'Paid through', 'The business or firm that is paid.')}
-        <div className="dialog-field-pair">
+        <div className="field-pair">
           {field('hourlyRate', 'Approved rate, an hour', person ? 'A change applies from today.' : undefined)}
           {field('ratePerMile', 'Mileage rate, a mile', person ? undefined : 'Leave blank to use the general mileage rate.')}
         </div>

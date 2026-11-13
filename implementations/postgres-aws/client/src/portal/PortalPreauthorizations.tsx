@@ -1,5 +1,5 @@
 // A requester's pre-authorization requests (model/rules.yaml request_preauthorization).
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useResource } from '../hooks/useResource';
 import { useBatchedResource } from '../hooks/useBatchedResource';
 import { MoreOnScroll } from '../components/MoreOnScroll';
@@ -8,10 +8,8 @@ import { LoadState } from '../components/LoadState';
 import { PageHeader } from '../components/PageHeader';
 import { RecordTable } from '../components/RecordTable';
 import { PreauthorizationRequestForm } from '../components/PreauthorizationRequestForm';
-import { caseText, providerText, rateText, RequestStatus } from '../components/preauthorizationRequest/requestText';
+import { requestColumns } from '../components/preauthorizationRequest/requestText';
 import { PreauthorizationRequestView } from '../components/PreauthorizationRequestView';
-import { formatDay } from '../formatDateTime';
-import { formatMoney } from '../formatMoney';
 
 import { PORTAL_PREAUTHORIZATIONS_PATH } from './useShell';
 import { Button } from '../components/ui/Button';
@@ -44,6 +42,7 @@ export default function PortalPreauthorizations() {
   const [params, setParams] = useSearchParams();
   const asking = params.has('ask');
   const list = useBatchedResource(myPreauthorizationRequests);
+  const columns = requestColumns((requestId) => `${PORTAL_PREAUTHORIZATIONS_PATH}/${requestId}`);
   return (
     <div className="portal-content">
       <PageHeader
@@ -71,13 +70,12 @@ export default function PortalPreauthorizations() {
           rowKey={(row) => row.preauthorizationRequestId}
           emptyMessage="You haven’t asked for any yet."
           columns={[
-            { header: 'Number', rowHeader: true, render: (row) => <Link to={`${PORTAL_PREAUTHORIZATIONS_PATH}/${row.preauthorizationRequestId}`}>{row.requestNumber}</Link> },
-            { header: 'Case', render: (row) => caseText(row) },
-            { header: 'Provider', render: (row) => <>{providerText(row)}<span className="cell-note">{rateText(row)}</span></> },
-            { header: 'Asked for', render: (row) => formatMoney(row.requestedAmount) },
-            { header: 'Approved', render: (row) => (row.approvedAmount ? formatMoney(row.approvedAmount) : '—') },
-            { header: 'Sent', render: (row) => formatDay(row.receivedAt) },
-            { header: 'Status', render: (row) => <RequestStatus request={row} /> },
+            columns.number,
+            columns.case,
+            columns.provider,
+            columns.askedFor,
+            columns.approved,
+            columns.status,
           ]}
         />
       )}

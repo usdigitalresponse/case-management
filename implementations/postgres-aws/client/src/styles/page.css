@@ -44,6 +44,7 @@
 .section-heading-row h2 { margin: 0; }
 /* People, a person's page and search results. */
 .list-controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-5) var(--space-6); margin: 0 0 var(--space-6); }
+.card + .list-controls { margin-top: var(--space-8); }
 .list-controls .tag-filters, .list-controls .tabs { margin: 0; }
 .list-controls__search { flex: 0 1 18rem; }
 .list-controls__search .usa-input { max-width: none; width: 100%; margin: 0; }

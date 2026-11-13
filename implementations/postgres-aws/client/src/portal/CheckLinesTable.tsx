@@ -109,7 +109,7 @@ export function CheckLinesTable({
             <th scope="col" className="amount">Qty</th>
             <th scope="col" className="amount">Rate</th>
             <th scope="col" className="amount">Amount</th>
-            {!inPlace && <th scope="col"><span className="usa-sr-only">{extra && !actions ? 'Decision' : 'Actions'}</span></th>}
+            {!inPlace && <th scope="col">{extra && !actions ? 'Decision' : <span className="usa-sr-only">Actions</span>}</th>}
           </tr>
         </thead>
         {rows.length === 0 && editing !== 'new' && (

@@ -157,7 +157,8 @@ their signed-off invoices on the case, and the requested total of those
 still in review. That approximates the model's
 `invoice_authorization_allocation` draws, which aren't built: nothing
 blocks approving past a limit. `document_link` is used only for request
-and provider targets.
+and provider targets; `retired_at` and `retired_by_user_account_id` mark a file
+taken off by mistake, kept and restorable but no longer opened.
 
 `document`, `invoice_import` and `time_entry.source_invoice_import_id` back
 structured invoice import (see "Invoice import" in `docs/api.md`).

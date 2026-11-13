@@ -133,19 +133,17 @@ export function MergeDuplicates() {
 
   return (
     <>
-      <div className="section-title-row">
-        <p className="compact-hint">
-          The same case or provider can end up here twice, because people type numbers and names themselves. Merging moves every invoice to the
-          one you keep. Each invoice still shows the number or name as typed.
-        </p>
-        <span className="row-actions">
-          <Button kind="secondary" onClick={() => setFlagging('case')}>
-            Flag two cases
-          </Button>
-          <Button kind="secondary" onClick={() => setFlagging('person')}>
-            Flag two people
-          </Button>
-        </span>
+      <p className="compact-hint">
+        The same case or provider can end up here twice, because people type numbers and names themselves. Merging moves every invoice to the
+        one you keep. Each invoice still shows the number or name as typed.
+      </p>
+      <div className="list-toolbar list-toolbar--end">
+        <Button kind="secondary" onClick={() => setFlagging('case')}>
+          Flag two cases
+        </Button>
+        <Button kind="secondary" onClick={() => setFlagging('person')}>
+          Flag two people
+        </Button>
       </div>
       {justMerged.length > 0 && (
         <Notice

@@ -1,13 +1,16 @@
 /* Sign-in pages, staff and emailed-code (portal/CodeSignIn.tsx). */
 /* Sign-in: a title, then two equal cards on the sidebar gray. Demo
    sign-ins sit quietly at the foot of each card. */
-.login-page { position: relative; min-height: 100vh; box-sizing: border-box; padding: var(--space-14) var(--space-8) var(--space-11); background: var(--color-surface-container); }
+.login-page { position: relative; display: flex; flex-direction: column; min-height: 100vh; box-sizing: border-box; padding: var(--space-14) var(--space-8) var(--space-8); background: var(--color-surface-container); }
 .login-intro { max-width: 52rem; margin: 0 auto var(--space-9); text-align: center; }
-.login-intro h1 { margin: 0; font-size: var(--text-26); letter-spacing: -.02em; }
-.login-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: var(--space-7); max-width: 52rem; margin: 0 auto; }
+.login-intro h1 { margin: 0; font: var(--headline-medium); }
+.login-panels { box-sizing: border-box; width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: var(--space-7); max-width: 52rem; margin: 0 auto; }
 .login-panel { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-8); box-shadow: var(--elevation-1); }
 .login-panel h1, .login-panel h2 { margin: 0; font-size: var(--text-18); }
 .login-panel > p { margin: calc(var(--space-4) * -1) 0 var(--space-3); color: var(--color-on-surface-variant); font-size: var(--text-15); }
+/* Pinned to the foot of the page, below the cards when they're taller than the window. */
+.login-footer { margin-top: auto; padding-top: var(--space-9); text-align: center; }
+.login-footer__note { margin: 0; color: var(--color-on-surface-variant); font: var(--body-medium); }
 /* Sign-in buttons span the panel; the demo row's sits beside its select. */
 .login-panel > .btn { width: 100%; }
 .login-panel .btn { min-height: 2.5rem; }

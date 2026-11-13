@@ -106,7 +106,7 @@ export default function PortalBulkImport() {
   }
 
   return (
-    <div>
+    <div className="portal-content">
       <PageHeader
         list
         crumbs={[{ label: newInvoiceLabel, to: newInvoicePath }, { label: 'Upload invoices' }]}

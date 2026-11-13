@@ -90,6 +90,7 @@ export default function SearchResults() {
         invoices={found}
         showFrom
         caseNumberNote={(invoice) => (invoice.match === 'close' ? <span className="text-warning">Close match</span> : null)}
+        rowClassName={(invoice) => (invoice.match === 'close' ? 'is-flagged' : undefined)}
         emptyMessage={county.narrowed ? 'No matching invoices for that county.' : query ? 'No sent invoices match.' : 'Nothing searched yet.'}
         onChanged={reload}
       />

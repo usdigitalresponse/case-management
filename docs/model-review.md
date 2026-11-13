@@ -199,6 +199,13 @@ professional's sign-in is turned on among the providers and a delegate's among
 the office billing staff (`manage_external_sign_in`). The snapshot layout is
 unchanged apart from `spec_version`.
 
+Model files are now 0.15.0. A file added to a preauthorization request or kept
+on file for a provider may be retired, for one added by mistake, by anyone who
+may add it: `document_link.retired_at` and `retired_by_user_account_id` take it
+out of every list while keeping it, and restoring clears them; both are audited
+(`request_provider_documents`). The snapshot layout is unchanged apart from
+`spec_version`.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

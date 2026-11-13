@@ -14,6 +14,7 @@ import { formatMoney } from '../formatMoney';
 import { CountyPicker } from './CountyPicker';
 import { ADD_NEW, PickOrAdd } from './PickOrAdd';
 import { Notice } from './ui/Notice';
+import { FileButton } from './ui/FileButton';
 import { Button } from './ui/Button';
 
 export interface Option {
@@ -140,41 +141,43 @@ export function PreauthorizationRequestForm({
 
   const limit = preview?.limit;
   return (
-    <form className="compact-form preauth-request-form" onSubmit={(event) => void submit(event)}>
+    <form className="compact-form form-stack preauth-request-form" onSubmit={(event) => void submit(event)}>
       {error && <Notice tone="danger">{error}</Notice>}
-      {!fixedCaseId && (
+      <div className="field-pair">
+        {!fixedCaseId && (
+          <PickOrAdd
+            id="preauth-case"
+            label="Case"
+            value={caseId}
+            onChange={setCaseId}
+            addLabel="+ A case not listed"
+            placeholder="Choose a case"
+            options={cases.map((option) => ({ value: option.id, label: option.label }))}
+            search={searchCases && ((query) => searchCases(query).then((found) => found.map((option) => ({ value: option.id, label: option.label }))))}
+          >
+            <div className="usa-form-group">
+              <label className="usa-label" htmlFor="preauth-case-number">Case number</label>
+              <input id="preauth-case-number" className="usa-input" required value={caseNumber} onChange={(event) => setCaseNumber(event.target.value)} />
+            </div>
+            <CountyPicker id="preauth-county" label="County" value={countyValue} onChange={setCountyValue} />
+          </PickOrAdd>
+        )}
         <PickOrAdd
-          id="preauth-case"
-          label="Case"
-          value={caseId}
-          onChange={setCaseId}
-          addLabel="+ A case not listed"
-          placeholder="Choose a case"
-          options={cases.map((option) => ({ value: option.id, label: option.label }))}
-          search={searchCases && ((query) => searchCases(query).then((found) => found.map((option) => ({ value: option.id, label: option.label }))))}
+          id="preauth-provider"
+          label="Provider"
+          value={professionalId}
+          onChange={setProfessionalId}
+          addLabel="+ Someone not listed"
+          placeholder="Choose a provider"
+          options={providers.map((option) => ({ value: option.id, label: option.label }))}
+          search={searchProviders && ((query) => searchProviders(query).then((found) => found.map((option) => ({ value: option.id, label: option.label }))))}
         >
           <div className="usa-form-group">
-            <label className="usa-label" htmlFor="preauth-case-number">Case number</label>
-            <input id="preauth-case-number" className="usa-input" required value={caseNumber} onChange={(event) => setCaseNumber(event.target.value)} />
+            <label className="usa-label" htmlFor="preauth-provider-name">Provider’s name</label>
+            <input id="preauth-provider-name" className="usa-input" required value={providerName} onChange={(event) => setProviderName(event.target.value)} />
           </div>
-          <CountyPicker id="preauth-county" label="County" value={countyValue} onChange={setCountyValue} />
         </PickOrAdd>
-      )}
-      <PickOrAdd
-        id="preauth-provider"
-        label="Provider"
-        value={professionalId}
-        onChange={setProfessionalId}
-        addLabel="+ Someone not listed"
-        placeholder="Choose a provider"
-        options={providers.map((option) => ({ value: option.id, label: option.label }))}
-        search={searchProviders && ((query) => searchProviders(query).then((found) => found.map((option) => ({ value: option.id, label: option.label }))))}
-      >
-        <div className="usa-form-group">
-          <label className="usa-label" htmlFor="preauth-provider-name">Provider’s name</label>
-          <input id="preauth-provider-name" className="usa-input" required value={providerName} onChange={(event) => setProviderName(event.target.value)} />
-        </div>
-      </PickOrAdd>
+      </div>
       <div className="usa-form-group">
         <label className="usa-label" htmlFor="preauth-service">What the work is</label>
         <input
@@ -234,7 +237,7 @@ export function PreauthorizationRequestForm({
         </Notice>
       )}
       {missing.length > 0 && (
-        <div className="preauth-attachments">
+        <div className="form-stack">
           <Notice tone={providerListed ? 'warning' : 'info'}>
             {providerListed
               ? `No ${missing.map((code) => DOCUMENT_LABELS[code]).join(' or ')} on file for this provider.`
@@ -246,17 +249,17 @@ export function PreauthorizationRequestForm({
                 <label className="usa-label" htmlFor={`preauth-attach-${purpose}`}>
                   {DOCUMENT_LABELS[purpose][0]!.toUpperCase() + DOCUMENT_LABELS[purpose].slice(1)} (optional)
                 </label>
-                <input
+                <FileButton
                   id={`preauth-attach-${purpose}`}
-                  className="usa-file-input"
-                  type="file"
                   accept=".pdf,.docx,.png,.jpg,.jpeg"
-                  onChange={(event) => setAttachments({ ...attachments, [purpose]: event.target.files?.[0] ?? null })}
+                  fileName={attachments[purpose]?.name}
+                  onChoose={(file) => setAttachments({ ...attachments, [purpose]: file })}
+                  onRemove={() => setAttachments({ ...attachments, [purpose]: null })}
                 />
+                <p className="field-hint">PDF, Word, PNG or JPEG, up to 10 MB.</p>
               </div>
             ))}
           </div>
-          <p className="compact-hint">PDF, Word, PNG or JPEG, up to 10 MB.</p>
         </div>
       )}
       <div className="usa-form-group">

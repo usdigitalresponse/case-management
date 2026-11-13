@@ -14,6 +14,7 @@
 /* Notices (components/ui/Notice.tsx): context with an optional action. */
 /* The design system's Alert: an icon, then the message, then any action. */
 .notice { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-4) var(--space-5); margin: 0 0 var(--space-6); padding: var(--space-5) var(--space-6); border-radius: var(--radius-small); border-left: var(--space-3) solid; font: var(--body-medium); }
+.card + .notice { margin-top: var(--space-6); }
 .notice__icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: var(--space-7); height: var(--space-7); border-radius: var(--radius-circle); background: var(--notice-strong); color: var(--color-on-primary); font: var(--label-small); }
 .notice__body { flex: 1 1 20rem; min-width: 0; }
 .notice__heading { display: block; margin: 0 0 var(--space-2); font: var(--label-large); }

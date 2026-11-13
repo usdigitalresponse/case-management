@@ -5,7 +5,7 @@ import { getSessionUser, requireAuth } from '../auth/session';
 import { NotFoundError, UnauthenticatedError } from '../errors';
 import { isStaffAccount, resolvePortalActor, type PortalActor } from '../portal/portalActor';
 import { documentStore } from '../imports/documentStore';
-import { addDocument, addProviderServiceRate, MAX_DOCUMENT_BYTES, providerDocumentStatus, readLinkedDocument } from '../billing/preauthorizationRequests/providerRecords';
+import { addDocument, addProviderServiceRate, MAX_DOCUMENT_BYTES, providerDocumentStatus, readLinkedDocument, setDocumentRetired } from '../billing/preauthorizationRequests/providerRecords';
 import { answerRequestQuestion, askRequestQuestion, decidePreauthorizationRequest, matchPreauthorizationRequest, withdrawPreauthorizationRequest } from '../billing/preauthorizationRequests/decide';
 import { createPreauthorizationRequest, listRequestableProviders, previewRequest } from '../billing/preauthorizationRequests/submit';
 import { getPreauthorizationRequest, listOwnPreauthorizationRequests, listPreauthorizationRequests } from '../billing/preauthorizationRequests/read';
@@ -170,6 +170,23 @@ router.post(
   '/providers/:id/service-rates',
   asyncHandler(async (req, res) => {
     res.status(201).json(await addProviderServiceRate(db, await sessionActor(req), req.params.id as string, req.body));
+  }),
+);
+
+// Retire a file added by mistake, or restore it.
+router.post(
+  '/documents/:id/retire',
+  asyncHandler(async (req, res) => {
+    await setDocumentRetired(db, await sessionActor(req), req.params.id as string, true);
+    res.status(204).end();
+  }),
+);
+
+router.post(
+  '/documents/:id/restore',
+  asyncHandler(async (req, res) => {
+    await setDocumentRetired(db, await sessionActor(req), req.params.id as string, false);
+    res.status(204).end();
   }),
 );
 

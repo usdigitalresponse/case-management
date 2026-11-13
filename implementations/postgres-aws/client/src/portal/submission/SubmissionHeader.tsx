@@ -10,7 +10,7 @@ import { PORTAL_HOME_PATH } from '../useShell';
 import type { Submission } from './useSubmission';
 
 export function SubmissionHeader({ s }: { s: Submission }) {
-  const { invoice, byPerson, isDraft, editable, status, decided, period, month, proposed, client, caseNumber, kind, withdrawable, sent, home, fromName } =
+  const { invoice, byPerson, isDraft, editable, status, decided, period, title, month, proposed, client, caseNumber, kind, withdrawable, sent, home, fromName } =
     s.facts;
   const { askingFor, lines, undatedRow } = s.entry;
   return (
@@ -24,12 +24,12 @@ export function SubmissionHeader({ s }: { s: Submission }) {
             <span aria-hidden="true">›</span>
           </>
         )}
-        <span>{isDraft ? 'Check the lines' : byPerson ? `Invoice for ${period}` : `${client}, ${month}`}</span>
+        <span>{isDraft ? 'Check the lines' : byPerson ? title : `${client}, ${month}`}</span>
       </nav>
       <div className="submission__head">
         <div>
           <h1>
-            {byPerson ? `Invoice for ${period}` : client} <StatusPill tone={status.tone} label={status.label} />
+            {byPerson ? title : client} <StatusPill tone={status.tone} label={status.label} />
           </h1>
           {byPerson ? (
             <p className="submission__meta">

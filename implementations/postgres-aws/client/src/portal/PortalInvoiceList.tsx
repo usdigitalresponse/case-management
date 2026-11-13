@@ -6,6 +6,7 @@ import { MoreOnScroll } from '../components/MoreOnScroll';
 import { myInvoices as myInvoiceList } from '../resources';
 import { useAuth } from '../AuthContext';
 import { LoadState } from '../components/LoadState';
+import { PageHeader } from '../components/PageHeader';
 import { Notice } from '../components/ui/Notice';
 import { RecordTable, type RecordTableColumn } from '../components/RecordTable';
 import { EnteredFlag } from '../components/NewEntryFields';
@@ -141,15 +142,12 @@ export default function PortalInvoiceList() {
 
   return (
     <div className="portal-content">
-      <div className="portal-title-row">
-        <div>
-          <h1 className="page-title--list">Your invoices</h1>
-          <p className="page-description">
-            Every invoice you have sent for review, and drafts you have not sent yet. Each one shows its case number.
-          </p>
-        </div>
-        <RouterLink className={buttonClass('primary')} to={UPLOAD_PATH}>Upload invoices</RouterLink>
-      </div>
+      <PageHeader
+        list
+        title="Your invoices"
+        description="Every invoice you have sent for review, and drafts you have not sent yet. Each one shows its case number."
+        actions={<RouterLink className={buttonClass('primary')} to={UPLOAD_PATH}>Upload invoices</RouterLink>}
+      />
       {uploadedCount > 1 && (
         <Notice tone="info" heading={`${uploadedCount} invoices uploaded and saved as drafts.`}>
           Choose one to check its lines. Nothing is sent for review until you send each one.
