@@ -623,7 +623,8 @@ How the React client is built and why. Schema mapping and gaps are in
   except for steps that only ask the visitor to look. `TourProvider`
   (`TourContext.tsx`) sits above both apps and keeps its state in
   `sessionStorage` (`tourState.ts`, unit tested), so it survives the
-  sign-in switches between roles and a reload. `TourChrome`
+  sign-in switches between roles and a reload; any other sign-in or
+  sign-out drops it, as the server ends the run then. `TourChrome`
   (`GuidePanel.tsx`) docks the guide beside the page in both shells (a
   bottom sheet on phones), never over it; "Show me" outlines a control,
   and "Fill in a suggestion" sets a field through its own events
