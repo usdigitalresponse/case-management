@@ -1,5 +1,5 @@
 // model/rules.yaml report_preauthorization_usage. Requests count by date received; limits are as of today.
-import { and, eq, gte, inArray, isNotNull, lt, max, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';
 import {
   caseTable,
@@ -18,6 +18,7 @@ import {
 } from '../db/schema';
 import { ForbiddenError, ValidationError } from '../errors';
 import { isStaffAccount } from '../portal/portalActor';
+import { groupBy } from '../groupBy';
 import { fromCents, toCents } from './money';
 import { approvedCentsByInvoice, loadPreauthorizationSummariesByCase } from './preauthorizations';
 import { loadThresholdTable, thresholdFrom } from './preauthorizationThresholds';
@@ -40,7 +41,7 @@ export interface CountyUsage {
   withinThreshold: { providers: number; billed: string };
 }
 
-// Month-end totals; null for months not yet begun. withInReview is set only for the current month and the one before.
+// Month-end totals; null for months not yet begun. withInReview is only on this month, and last month to join the line.
 export interface UsageMonth {
   month: string;
   authorized: string | null;
@@ -149,84 +150,111 @@ export async function preauthorizationUsageByCounty(
   const list = [...rows.values()].sort(
     (a, b) => Number(a.countyId === null) - Number(b.countyId === null) || Number(a.isCounty) - Number(b.isCounty) || a.countyName.localeCompare(b.countyName),
   );
-  return { from: period.from, to: period.to, counties: list, total: totalOf(list), months: await monthlyTotals(db, period) };
+  return { from: period.from, to: period.to, counties: list, total: totalOf(list), months: await monthlyTotals(db, period, caseCounties.map(({ caseId }) => caseId)) };
 }
 
-// Ceilings in force and signed-off invoices they cover, at each month's end. An invoice is covered by its
-// provider's pre-authorization on the case, or the whole case's; each counts once, by its latest sign-off.
-async function monthlyTotals(db: DatabaseOrTransaction, period: { from: string; to: string }): Promise<UsageMonth[]> {
-  const now = new Date();
-  const monthEnds: Array<{ month: string; end: Date; started: boolean }> = [];
-  for (let cursor = new Date(`${period.from.slice(0, 7)}-01T00:00:00Z`); cursor.toISOString().slice(0, 10) <= period.to; ) {
-    const end = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
-    monthEnds.push({ month: cursor.toISOString().slice(0, 7), end, started: cursor <= now });
-    cursor = end;
-  }
-  const authorizations = await db
-    .select({ preauthorizationId: preauthorization.preauthorizationId, caseId: preauthorization.caseId, professionalId: preauthorization.professionalId })
-    .from(preauthorization)
-    .innerJoin(preauthorizationStatuses, eq(preauthorization.statusId, preauthorizationStatuses.id))
-    .where(eq(preauthorizationStatuses.code, 'approved'));
-  if (authorizations.length === 0) {
-    return monthEnds.map(({ month, started }) => ({ month, authorized: started ? '0.00' : null, signedOff: started ? '0.00' : null, withInReview: null }));
-  }
-  const caseIds = [...new Set(authorizations.map((row) => row.caseId))];
-  const [decisions, invoices] = await Promise.all([
-    db
-      .select({
-        preauthorizationId: preauthorizationDecision.preauthorizationId,
-        sequenceNumber: preauthorizationDecision.sequenceNumber,
-        outcomeCode: preauthorizationOutcomes.code,
-        approvedAmount: preauthorizationDecision.approvedAmount,
-        effectiveAt: preauthorizationDecision.effectiveAt,
-      })
-      .from(preauthorizationDecision)
-      .innerJoin(preauthorizationOutcomes, eq(preauthorizationDecision.outcomeId, preauthorizationOutcomes.id))
-      .where(inArray(preauthorizationDecision.preauthorizationId, authorizations.map((row) => row.preauthorizationId))),
-    db
-      .select({
-        invoiceId: invoice.invoiceId,
-        caseId: invoice.caseId,
-        professionalId: invoice.professionalId,
-        statusCode: invoiceStatuses.code,
-        submittedTotal: invoice.submittedTotal,
-      })
-      .from(invoice)
-      .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
-      .where(and(inArray(invoice.caseId, caseIds), inArray(invoiceStatuses.code, [APPROVED_INVOICE_STATUS_CODE, ...IN_REVIEW_INVOICE_STATUS_CODES]))),
-  ]);
-  const covered = new Set(authorizations.map((row) => `${row.caseId}:${row.professionalId ?? '*'}`));
-  const coveredInvoices = invoices.filter((row) => covered.has(`${row.caseId}:*`) || covered.has(`${row.caseId}:${row.professionalId}`));
-  const approvedIds = coveredInvoices.filter((row) => row.statusCode === APPROVED_INVOICE_STATUS_CODE).map((row) => row.invoiceId);
-  const [approvedCents, signOffs] = await Promise.all([
-    approvedCentsByInvoice(db, approvedIds),
-    approvedIds.length === 0
-      ? []
-      : db
-          .select({ invoiceId: invoiceEvent.invoiceId, at: max(invoiceEvent.occurredAt) })
-          .from(invoiceEvent)
-          .innerJoin(invoiceEventTypes, eq(invoiceEvent.eventTypeId, invoiceEventTypes.id))
-          .where(and(inArray(invoiceEvent.invoiceId, approvedIds), eq(invoiceEventTypes.code, 'approved')))
-          .groupBy(invoiceEvent.invoiceId),
-  ]);
-  const waitingCents = coveredInvoices
-    .filter((row) => row.statusCode !== APPROVED_INVOICE_STATUS_CODE)
-    .reduce((sum, row) => sum + toCents(row.submittedTotal), 0);
-  const decisionsOf = new Map<string, typeof decisions>();
-  for (const decision of decisions) decisionsOf.set(decision.preauthorizationId, [...(decisionsOf.get(decision.preauthorizationId) ?? []), decision]);
+// Longer periods return no months, so the chart stays a readable size.
+const MAX_CHART_MONTHS = 60;
 
-  const current = monthEnds.filter((row) => row.started).length - 1;
-  return monthEnds.map(({ month, end, started }, index) => {
-    if (!started) return { month, authorized: null, signedOff: null, withInReview: null };
-    let authorized = 0;
-    for (const list of decisionsOf.values()) {
-      // Ceilings replace each other; the latest in force at the month's end sets it.
-      const latest = list.filter((row) => row.effectiveAt < end).sort((a, b) => b.sequenceNumber - a.sequenceNumber)[0];
-      if (latest && latest.outcomeCode !== 'denied') authorized += toCents(latest.approvedAmount);
+// Month-end totals for the table's cases, covered as in loadPreauthorizationSummariesByCase; a sign-off counts from its grant if later.
+async function monthlyTotals(db: DatabaseOrTransaction, period: { from: string; to: string }, caseIds: string[]): Promise<UsageMonth[]> {
+  const first = new Date(`${period.from.slice(0, 7)}-01T00:00:00Z`);
+  const last = new Date(`${period.to.slice(0, 7)}-01T00:00:00Z`);
+  const count = (last.getUTCFullYear() - first.getUTCFullYear()) * 12 + last.getUTCMonth() - first.getUTCMonth() + 1;
+  if (count > MAX_CHART_MONTHS) return [];
+  const monthStart = (offset: number) => new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + offset, 1));
+  const months = Array.from({ length: count }, (_, index) => ({ month: monthStart(index).toISOString().slice(0, 7), end: monthStart(index + 1).getTime() }));
+  const now = new Date();
+  const thisMonth = now.toISOString().slice(0, 7);
+  const lastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)).toISOString().slice(0, 7);
+
+  // One row per decision on each approved pre-authorization.
+  const decisions =
+    caseIds.length === 0
+      ? []
+      : await db
+          .select({
+            preauthorizationId: preauthorization.preauthorizationId,
+            caseId: preauthorization.caseId,
+            professionalId: preauthorization.professionalId,
+            sequenceNumber: preauthorizationDecision.sequenceNumber,
+            outcomeCode: preauthorizationOutcomes.code,
+            approvedAmount: preauthorizationDecision.approvedAmount,
+            effectiveAt: preauthorizationDecision.effectiveAt,
+          })
+          .from(preauthorization)
+          .innerJoin(preauthorizationStatuses, eq(preauthorization.statusId, preauthorizationStatuses.id))
+          .innerJoin(preauthorizationDecision, eq(preauthorizationDecision.preauthorizationId, preauthorization.preauthorizationId))
+          .innerJoin(preauthorizationOutcomes, eq(preauthorizationDecision.outcomeId, preauthorizationOutcomes.id))
+          .where(and(inArray(preauthorization.caseId, caseIds), eq(preauthorizationStatuses.code, 'approved')))
+          .orderBy(preauthorizationDecision.sequenceNumber);
+  const authorizedCaseIds = [...new Set(decisions.map((row) => row.caseId))];
+  const invoices =
+    authorizedCaseIds.length === 0
+      ? []
+      : await db
+          .select({
+            invoiceId: invoice.invoiceId,
+            caseId: invoice.caseId,
+            professionalId: invoice.professionalId,
+            statusCode: invoiceStatuses.code,
+            submittedTotal: invoice.submittedTotal,
+            signedOffAt: sql<string | null>`(select max(${invoiceEvent.occurredAt}) from ${invoiceEvent} join ${invoiceEventTypes} on ${invoiceEventTypes.id} = ${invoiceEvent.eventTypeId} where ${invoiceEvent.invoiceId} = ${invoice.invoiceId} and ${invoiceEventTypes.code} = 'approved')`,
+          })
+          .from(invoice)
+          .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+          .where(and(inArray(invoice.caseId, authorizedCaseIds), inArray(invoiceStatuses.code, [APPROVED_INVOICE_STATUS_CODE, ...IN_REVIEW_INVOICE_STATUS_CODES])));
+
+  const authorizedChanges: Array<{ at: number; cents: number }> = [];
+  const grantedAt = new Map<string, { caseId: string; professionalId: string | null; at: number }>();
+  for (const own of groupBy(decisions, (row) => row.preauthorizationId).values()) {
+    let ceiling = 0;
+    for (const decision of own) {
+      const next = decision.outcomeCode === 'denied' ? 0 : toCents(decision.approvedAmount);
+      authorizedChanges.push({ at: decision.effectiveAt.getTime(), cents: next - ceiling });
+      ceiling = next;
+      const key = `${decision.caseId}:${decision.professionalId}`;
+      const granted = grantedAt.get(key);
+      if (!granted || decision.effectiveAt.getTime() < granted.at) {
+        grantedAt.set(key, { caseId: decision.caseId, professionalId: decision.professionalId, at: decision.effectiveAt.getTime() });
+      }
     }
-    const signedOff = signOffs.filter((row) => row.at && new Date(row.at) < end).reduce((sum, row) => sum + approvedCents.get(row.invoiceId)!, 0);
-    const withInReview = index === current ? signedOff + waitingCents : index === current - 1 ? signedOff : null;
-    return { month, authorized: fromCents(authorized), signedOff: fromCents(signedOff), withInReview: withInReview === null ? null : fromCents(withInReview) };
+  }
+
+  const invoicesOf = groupBy(invoices, (row) => row.caseId!);
+  const covered = [...grantedAt.values()].flatMap((granted) =>
+    (invoicesOf.get(granted.caseId) ?? [])
+      .filter((row) => granted.professionalId === null || row.professionalId === granted.professionalId)
+      .map((row) => ({ ...row, grantedAt: granted.at })),
+  );
+  const approved = covered.filter((row) => row.statusCode === APPROVED_INVOICE_STATUS_CODE);
+  const approvedCents = await approvedCentsByInvoice(db, [...new Set(approved.map((row) => row.invoiceId))]);
+  const signedOffChanges = approved.map((row) => ({
+    at: Math.max(row.signedOffAt ? new Date(row.signedOffAt).getTime() : 0, row.grantedAt),
+    cents: approvedCents.get(row.invoiceId)!,
+  }));
+  const waitingCents = covered.filter((row) => row.statusCode !== APPROVED_INVOICE_STATUS_CODE).reduce((sum, row) => sum + toCents(row.submittedTotal), 0);
+
+  const runningTotals = (changes: Array<{ at: number; cents: number }>) => {
+    changes.sort((a, b) => a.at - b.at);
+    let next = 0;
+    let total = 0;
+    return months.map(({ end }) => {
+      while (next < changes.length && changes[next]!.at < end) total += changes[next++]!.cents;
+      return total;
+    });
+  };
+  const authorized = runningTotals(authorizedChanges);
+  const signedOff = runningTotals(signedOffChanges);
+  return months.map(({ month }, index) => {
+    if (month > thisMonth) return { month, authorized: null, signedOff: null, withInReview: null };
+    const withInReview = month === thisMonth ? signedOff[index]! + waitingCents : month === lastMonth ? signedOff[index]! : null;
+    return {
+      month,
+      authorized: fromCents(authorized[index]!),
+      signedOff: fromCents(signedOff[index]!),
+      withInReview: withInReview === null ? null : fromCents(withInReview),
+    };
   });
 }
 

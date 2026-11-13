@@ -21,7 +21,10 @@ import { createPreauthorizationRequest, previewRequest } from '../src/billing/pr
 import { getPreauthorizationRequest, listOwnPreauthorizationRequests, listPreauthorizationRequests } from '../src/billing/preauthorizationRequests/read';
 import { preauthorizationUsageByCounty } from '../src/billing/preauthorizationUsage';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../src/errors';
-import { auditEvent, caseAssignment, caseTable, county, documentLink, invoice, preauthorizationDecision, preauthorizationRequest, userAccount } from '../src/db/schema';
+import { auditEvent, caseAssignment, caseTable, county, documentLink, invoice, invoiceEvent, invoiceLine, preauthorizationDecision, preauthorizationRequest, userAccount } from '../src/db/schema';
+import { reviewInvoiceLine } from '../src/billing/reviewInvoiceLine';
+import { finishReview, signOffInvoice } from '../src/billing/reviewRounds';
+import { setSignOffApprovers } from '../src/billing/reviewAssignment';
 import { fixCase, undoCaseFix } from '../src/cases/caseCorrections';
 
 let fixtures: BaselineFixtureIds;
@@ -380,6 +383,46 @@ describe('usage by county', () => {
     await expect(preauthorizationUsageByCounty(testDb, investigator.userAccountId, { from: `${year}-01-01`, to: `${year}-12-31` })).rejects.toThrow(
       ForbiddenError,
     );
+  });
+});
+
+describe('usage running totals', () => {
+  const monthStart = (monthsAgo: number) => {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 1));
+  };
+  const month = (monthsAgo: number) => monthStart(monthsAgo).toISOString().slice(0, 7);
+
+  it('count a sign-off from its pre-authorization’s grant, and today’s waiting only in this month', async () => {
+    const caseId = await newCase();
+    const provider = await newProvider(caseId, { bound: true });
+    const { invoiceId } = await createInvoice(testDb, provider, { attested: true, caseId, lines: [hours(5)] });
+    const approver = await createStaff('approver');
+    for (const { id } of await testDb.select({ id: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId))) {
+      await reviewInvoiceLine(testDb, staff, invoiceId, id, { outcome: 'approved' });
+    }
+    await setSignOffApprovers(testDb, staff, invoiceId, { userAccountIds: [approver] });
+    await finishReview(testDb, staff, invoiceId);
+    await signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' });
+    await testDb.update(invoiceEvent).set({ occurredAt: new Date(monthStart(3).getTime() + 86_400_000) }).where(eq(invoiceEvent.invoiceId, invoiceId));
+    await setPreauthorizedAmount(testDb, staff, caseId, { professionalId: provider.professionalId, amount: 1000 });
+    await testDb.update(preauthorizationDecision).set({ effectiveAt: new Date(monthStart(1).getTime() + 86_400_000) });
+    await createInvoice(testDb, provider, { attested: true, caseId, lines: [hours(2)] });
+
+    const period = { from: `${month(4)}-01`, to: `${month(0)}-28` };
+    const { months } = await preauthorizationUsageByCounty(testDb, staff, period);
+    expect(months.map((row) => [row.authorized, row.signedOff, row.withInReview])).toEqual([
+      ['0.00', '0.00', null],
+      ['0.00', '0.00', null],
+      ['0.00', '0.00', null],
+      ['1000.00', '500.00', '500.00'],
+      ['1000.00', '500.00', '700.00'],
+    ]);
+
+    const past = await preauthorizationUsageByCounty(testDb, staff, { from: `${month(4)}-01`, to: `${month(2)}-28` });
+    expect(past.months.every((row) => row.withInReview === null)).toBe(true);
+    const long = await preauthorizationUsageByCounty(testDb, staff, { from: '2000-01-01', to: '2026-12-31' });
+    expect(long.months).toEqual([]);
   });
 });
 

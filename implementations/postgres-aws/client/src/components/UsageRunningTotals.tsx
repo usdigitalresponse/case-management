@@ -1,10 +1,11 @@
-// Ceilings in force against signed-off invoices they cover, at each month's end (design J, Pre-authorizations › By county).
+// Pre-authorized ceilings against the signed-off invoices they cover, by month (design J).
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { UsageMonth } from '../api/client';
 import { formatDollars } from '../formatMoney';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const monthLabel = (month: string) => MONTHS[Number(month.slice(5, 7)) - 1];
+const monthName = (month: string) => MONTHS[Number(month.slice(5, 7)) - 1];
+const withYear = (month: string) => `${monthName(month)} ${month.slice(0, 4)}`;
 const amount = (value: string | null) => (value === null ? null : Number(value));
 const compact = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 });
 
@@ -15,8 +16,9 @@ const SERIES = [
 ] as const;
 
 export default function UsageRunningTotals({ months }: { months: UsageMonth[] }) {
+  const label = months[0]?.month.slice(0, 4) === months.at(-1)?.month.slice(0, 4) ? monthName : withYear;
   const data = months.map((row) => ({
-    month: monthLabel(row.month),
+    month: label(row.month),
     authorized: amount(row.authorized),
     signedOff: amount(row.signedOff),
     withInReview: amount(row.withInReview),
@@ -36,8 +38,8 @@ export default function UsageRunningTotals({ months }: { months: UsageMonth[] })
       </div>
       {latest && (
         <p className="compact-hint">
-          At the end of {monthLabel(latest.month)}: {formatDollars(latest.authorized)} authorized, {formatDollars(latest.signedOff)} signed off
-          {latest.withInReview !== null && `, ${formatDollars(latest.withInReview)} with invoices in review`}. Sign-offs count in the month they happened.
+          At the end of {withYear(latest.month)}: {formatDollars(latest.authorized)} authorized, {formatDollars(latest.signedOff)} signed off
+          {latest.withInReview !== null && `, ${formatDollars(latest.withInReview)} with invoices in review`}. Sign-offs count in the month they happened, or when their pre-authorization was granted if later.
         </p>
       )}
       <div className="usage-chart__plot">
@@ -54,7 +56,7 @@ export default function UsageRunningTotals({ months }: { months: UsageMonth[] })
                 name={series.name}
                 className={`usage-chart__line usage-chart__line--${series.key}`}
                 type="linear"
-                // Colored by the stylesheet through the layer's `color`, from the design tokens.
+                // Colored by the stylesheet's tokens, through the layer's `color`.
                 stroke="currentColor"
                 strokeWidth={2}
                 strokeDasharray={series.key === 'withInReview' ? '6 4' : undefined}

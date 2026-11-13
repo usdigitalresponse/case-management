@@ -17,8 +17,12 @@ import {
   county,
   caseIdentifier,
   invoice,
+  invoiceApprovalChain,
+  invoiceApprovalDecision,
+  invoiceAttestation,
   invoiceEvent,
   invoiceLine,
+  invoiceReviewAssignment,
   invoiceStatuses,
   preauthorization,
   preauthorizationDecision,
@@ -547,6 +551,12 @@ async function seedDemoReviewers(
   });
 }
 
+// Relative to today, so the demo's history stays recent.
+function monthsAgo(months: number, day: number): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, day, 15));
+}
+
 // Review demo data: case and court numbers and pre-authorizations on the
 // cases (used only by the case pages; invoices filed by person are checked
 // against configured rates), an invoice billed above the configured rate,
@@ -587,10 +597,10 @@ async function seedDemoReview(
   ]);
   const preauthorized = assignments.slice(0, 4);
   const rates = await listRates(db, preauthorized.map((assignment) => assignment.professionalId));
-  // Granted through the year, so the By county running total climbs.
-  const grantedOn = ['2026-01-06', '2026-03-04', '2026-05-12', '2026-07-08'];
+  // Granted over the past months, so the By county running total climbs.
+  const grantedOn = [monthsAgo(10, 6), monthsAgo(8, 4), monthsAgo(6, 12), monthsAgo(4, 8)];
   for (const [index, assignment] of preauthorized.entries()) {
-    const granted = new Date(`${grantedOn[index]}T15:00:00Z`);
+    const granted = grantedOn[index]!;
     // Pre-authorized at their configured rate.
     const configured = rates.filter((rate) => rate.professionalId === assignment.professionalId).at(-1)?.hourlyRate ?? '125.00';
     const approvedHourlyRate = index === 2 ? '125.00' : configured;
@@ -621,7 +631,7 @@ async function seedDemoReview(
     });
     if (index === 0) {
       // Raised once, for a ceiling revision on the chart and case page.
-      const raised = new Date('2026-08-18T15:00:00Z');
+      const raised = monthsAgo(3, 18);
       // eslint-disable-next-line no-await-in-loop
       await db.insert(preauthorizationDecision).values({
         preauthorizationId,
@@ -927,31 +937,29 @@ async function seedDemoPossibleDuplicate(staffUserAccountId: string, colleague: 
   });
 }
 
-// Destructive: deletes all application data, including accounts, then
-// recreates the synthetic demo data.
-// Signed-off invoices against the seeded pre-authorizations, backdated across the year so
-// Pre-authorizations › By county shows a running total of what was signed off.
+// Signed-off invoices against the seeded pre-authorizations, backdated over the past months.
 async function seedDemoPreauthorizedBilling(assignments: DemoAssignment[], staffUserAccountIds: string[]): Promise<void> {
   const [firstReviewer, , director] = staffUserAccountIds as [string, string, string];
   const rates = await listRates(db, assignments.slice(0, 4).map((assignment) => assignment.professionalId));
-  // [assignment, month of work, hours, signed off on], each within its ceiling with what already waits (3 has invoices waiting near its ceiling).
-  const billed: Array<[number, string, number[], string]> = [
-    [0, '2026-02', [3, 2.5], '2026-03-11'],
-    [0, '2026-04', [2, 1.5], '2026-05-14'],
-    [1, '2026-04', [2, 1], '2026-05-27'],
-    [0, '2026-06', [2], '2026-07-09'],
-    [1, '2026-07', [2.5], '2026-08-20'],
-    [2, '2026-08', [2.5, 2], '2026-09-17'],
-    [0, '2026-09', [3, 1.5], '2026-10-08'],
-    [2, '2026-09', [2], '2026-10-22'],
+  const day = 24 * 60 * 60 * 1000;
+  // [assignment, months ago worked, hours, day signed off the next month]; each within its ceiling (3's is nearly used).
+  const billed: Array<[number, number, number[], number]> = [
+    [0, 9, [3, 2.5], 11],
+    [0, 7, [2, 1.5], 14],
+    [1, 7, [2, 1], 27],
+    [0, 5, [2], 9],
+    [1, 4, [2.5], 20],
+    [2, 3, [2.5, 2], 17],
+    [0, 2, [3, 1.5], 8],
+    [2, 2, [2], 22],
   ];
-  // In order, so each invoice's events and sequence numbers are its own.
   /* eslint-disable no-await-in-loop */
-  for (const [index, month, hours, signedOn] of billed) {
+  for (const [index, workedAgo, hours, signedOnDay] of billed) {
     const assignment = assignments[index]!;
     const actor = { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId };
     const rate = Number(rates.filter((row) => row.professionalId === assignment.professionalId).at(-1)?.hourlyRate ?? '125.00');
     const descriptions = DEMO_TIME_DESCRIPTIONS[DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!]!;
+    const month = monthsAgo(workedAgo, 1).toISOString().slice(0, 7);
     const { invoiceId } = await createInvoice(db, actor, {
       caseId: assignment.caseId,
       attested: true,
@@ -967,28 +975,39 @@ async function seedDemoPreauthorizedBilling(assignments: DemoAssignment[], staff
     });
     const lines = await db.select({ id: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
     for (const { id } of lines) {
-        await reviewInvoiceLine(db, firstReviewer, invoiceId, id, { outcome: 'approved' });
+      await reviewInvoiceLine(db, firstReviewer, invoiceId, id, { outcome: 'approved' });
     }
     await finishReview(db, firstReviewer, invoiceId);
     await signOffInvoice(db, director, invoiceId, { outcome: 'approved' });
-    // Sent a few days into the next month; each later event a day after the one before, ending at sign-off.
-    const signedOff = new Date(`${signedOn}T16:00:00Z`);
+
+    // Its whole history moved back: events a day apart ending at sign-off, the lines decided the day before.
+    const signedOff = monthsAgo(workedAgo - 1, signedOnDay).getTime();
     const events = await db
       .select({ id: invoiceEvent.invoiceEventId, sequenceNumber: invoiceEvent.sequenceNumber })
       .from(invoiceEvent)
       .where(eq(invoiceEvent.invoiceId, invoiceId));
     const last = Math.max(...events.map((event) => event.sequenceNumber));
     for (const event of events) {
-        await db
+      await db
         .update(invoiceEvent)
-        .set({ occurredAt: new Date(signedOff.getTime() - (last - event.sequenceNumber) * 24 * 60 * 60 * 1000) })
+        .set({ occurredAt: new Date(signedOff - (last - event.sequenceNumber) * day) })
         .where(eq(invoiceEvent.invoiceEventId, event.id));
     }
-    const first = Math.min(...events.map((event) => event.sequenceNumber));
+    const sent = new Date(signedOff - (last - Math.min(...events.map((event) => event.sequenceNumber))) * day);
+    await db.update(invoice).set({ submittedAt: sent }).where(eq(invoice.invoiceId, invoiceId));
+    await db.update(invoiceReviewAssignment).set({ assignedAt: sent }).where(eq(invoiceReviewAssignment.invoiceId, invoiceId));
+    const chainIds = (
+      await db.update(invoiceApprovalChain).set({ createdAt: sent }).where(eq(invoiceApprovalChain.invoiceId, invoiceId)).returning()
+    ).map((chain) => chain.invoiceApprovalChainId);
+    await db.update(invoiceAttestation).set({ attestedAt: sent }).where(inArray(invoiceAttestation.invoiceApprovalChainId, chainIds));
     await db
-      .update(invoice)
-      .set({ submittedAt: new Date(signedOff.getTime() - (last - first) * 24 * 60 * 60 * 1000) })
-      .where(eq(invoice.invoiceId, invoiceId));
+      .update(invoiceApprovalDecision)
+      .set({ decidedAt: new Date(signedOff - day) })
+      .where(and(inArray(invoiceApprovalDecision.invoiceApprovalChainId, chainIds), isNotNull(invoiceApprovalDecision.invoiceLineId)));
+    await db
+      .update(invoiceApprovalDecision)
+      .set({ decidedAt: new Date(signedOff) })
+      .where(and(inArray(invoiceApprovalDecision.invoiceApprovalChainId, chainIds), isNull(invoiceApprovalDecision.invoiceLineId)));
   }
   /* eslint-enable no-await-in-loop */
 }
@@ -1070,6 +1089,8 @@ async function seedDemoPreauthorizationRequests(
   });
 }
 
+// Destructive: deletes all application data, including accounts, then
+// recreates the synthetic demo data.
 export async function resetToDemoData(): Promise<DemoDataSummary> {
   const fixtures = await resetAndSeedBaselineFixtures(db);
   const caseIds = await seedDemoCases(fixtures);

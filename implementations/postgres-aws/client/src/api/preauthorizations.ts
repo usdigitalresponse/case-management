@@ -219,7 +219,7 @@ export interface CountyUsage {
   withinThreshold: { providers: number; billed: string };
 }
 
-// Month-end totals; null for months not yet begun. withInReview is set only for the current month and the one before.
+// Month-end totals; null for months not yet begun. withInReview is only on this month, and last month to join the line.
 export interface UsageMonth {
   month: string;
   authorized: string | null;

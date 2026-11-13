@@ -195,11 +195,14 @@ function UsageByCounty() {
           </Button>
         )}
       </div>
-      {data && data.months.length > 0 && (
-        <Suspense fallback={<LoadState error={null} what="chart" />}>
-          <UsageRunningTotals months={data.months} />
-        </Suspense>
-      )}
+      {data &&
+        (data.months.length > 0 ? (
+          <Suspense fallback={<LoadState error={null} what="chart" />}>
+            <UsageRunningTotals months={data.months} />
+          </Suspense>
+        ) : (
+          <p className="compact-hint">Choose a period of five years or less to see the running total.</p>
+        ))}
       {!data ? (
         <LoadState error={error} what="usage" />
       ) : (
@@ -252,7 +255,7 @@ function UsageByCounty() {
               ),
             },
             { header: 'Used', width: '12%', render: (row) => <UsedShare row={row} /> },
-            { header: 'Left', width: '8%', render: (row) => formatDollars(Math.max(0, Number(row.left))) },
+            { header: 'Left', width: '8%', render: (row) => formatDollars(row.left) },
             {
               header: 'Over their limit',
               width: '10%',
@@ -291,11 +294,10 @@ function UsageByCounty() {
   );
 }
 
-// The share of each limit used, signed off in green and in review in blue (design K55).
 function UsedShare({ row }: { row: CountyUsage }) {
   const approved = Number(row.billedApproved);
   const waiting = Number(row.billedWaiting);
-  const limit = approved + waiting + Math.max(0, Number(row.left));
+  const limit = approved + waiting + Number(row.left);
   const share = (amount: number) => (limit > 0 ? Math.round((amount / limit) * 100) : 0);
   return (
     <>

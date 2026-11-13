@@ -209,10 +209,13 @@ How the React client is built and why. Schema mapping and gaps are in
         with the shares in words) and Left, in whole dollars (the CSV keeps cents), with the
         "All" row set off as a total and one note under the table. Above the table, a line chart
         (`components/UsageRunningTotals.tsx`, Recharts, loaded only on this tab) shows each
-        month's end in the period: pre-authorized ceilings in force, the approved amount of
-        signed-off invoices they cover (by latest sign-off), and, for the current month only,
-        that plus invoices still in review. Lines take their colors from the design tokens
-        through CSS; past months use today's approved amounts, not those at the time.
+        month's end in the period, for the table's cases and with its coverage: pre-authorized
+        ceilings in force, the approved amount of signed-off invoices they cover (by latest
+        sign-off, or the pre-authorization's grant if later), and, for the current month only,
+        that plus invoices still in review. Months carry the year when the period spans more
+        than one; periods over five years show no chart. Lines take their colors from the
+        design tokens through CSS; past months use today's approved amounts, not those at the
+        time. Demo data dates this history relative to the day of the reset.
     - **Search** (`/search`, `pages/SearchResults.tsx`, G24): the header search covers every
       sent invoice by name or case number, with exact and close matches listed and totalled
       apart, and an export to CSV. The queue no longer filters in place.
