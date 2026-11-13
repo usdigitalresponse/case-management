@@ -384,7 +384,10 @@ form relies on this being airtight.
   scanned for malware, which `validate_invoice_import` requires before parsing.
 - **Review questions**: no email tells the submitter a question is waiting;
   they see it on the invoice and its status in their list ("Question for
-  you").
+  you"). There's no email or Outlook integration either: an answer sent by
+  email is typed in by a reviewer, and the email itself isn't kept. See
+  "Email and mailbox integration" in
+  [`docs/integration.md`](../../docs/integration.md).
 - **Cleanup (next round)**: submitters see a sent invoice's lines in two
   different tables: `client/src/portal/CheckLinesTable.tsx` when it's filed
   by person, `client/src/components/InvoiceLinesTable.tsx` on

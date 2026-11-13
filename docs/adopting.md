@@ -131,6 +131,10 @@ For your IT team. The answers decide where the system runs and what it costs.
 - How will cases, people and approved invoices move between this system and
   your case management, finance and document management systems: exports, APIs
   or by hand? See [the integration guide](integration.md).
+- Should review questions and emailed answers be tied to your mail system,
+  such as Outlook, so the emails are kept with the invoice? The prototype
+  doesn't do this yet. See
+  [email and mailbox integration](integration.md#email-and-mailbox-integration).
 - Should the mileage check call a mapping service? It's billed per request.
 - PDFs are read inside the server. Is that enough, or is a separate extraction
   service worth its cost?
