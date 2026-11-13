@@ -28,7 +28,11 @@ export function CaseNumberReview({
   const [value, setValue] = useState(current);
   const [error, setError] = useState<string | null>(null);
   const saved = useRef(current);
+  // Only when the saved number changes, never over what is being typed on first render.
+  const shownFor = useRef(current);
   useEffect(() => {
+    if (shownFor.current === current) return;
+    shownFor.current = current;
     setValue(current);
     saved.current = current;
   }, [current]);
