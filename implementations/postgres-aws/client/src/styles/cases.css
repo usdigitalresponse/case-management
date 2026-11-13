@@ -45,6 +45,16 @@
 }
 .preauth-form { margin-top: var(--space-5); align-items: end; }
 .preauth-request-form .inline-fields, .preauth-page .inline-fields, .list-controls .inline-fields { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+/* Request form spacing (design K56): 16px between fields, 8px from label to control and to a hint. */
+.preauth-request-form { margin-top: var(--space-6); }
+.preauth-request-form > * { margin-top: 0; margin-bottom: 0; }
+.preauth-request-form > * + *, .preauth-attachments > * + * { margin-top: var(--space-6); }
+.preauth-request-form > .inline-fields + .compact-hint, .preauth-attachments > .inline-fields + .compact-hint { margin-top: var(--space-4); }
+.preauth-request-form .notice { margin-bottom: 0; }
+.preauth-request-form .usa-label { margin: 0 0 var(--space-4); }
+.preauth-request-form :is(.usa-input, .usa-select, .usa-textarea, .usa-file-input) { margin-top: 0; }
+.preauth-request-form .new-entry .usa-form-group { margin-top: var(--space-4); }
+.preauth-request-form .inline-fields { grid-auto-columns: minmax(0, 12.5rem); gap: var(--space-6); }
 .preauth-question { padding: var(--space-4) 0; border-bottom: 1px solid var(--color-outline-subtle); }
 .preauth-question p { margin: var(--space-3) 0; }
 .preauth-question .cell-note, .plain-list .cell-note { margin-left: var(--space-4); }
