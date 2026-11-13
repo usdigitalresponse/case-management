@@ -7,6 +7,34 @@ entry when a decision materially changes.
 
 ## Current Decisions
 
+### Design K: invoices first, providers and duplicates in Settings
+
+- **Status:** Built in the Postgres/AWS prototype (Nov 12, 2026).
+
+Design K is design J with the Nov 12 decisions. The staff menu leads with
+Invoice overview, how many invoices are at each step of review, and puts
+Pre-authorizations, All cases, Providers, Clients, Organizations and Exports
+under "Look up"; Case overview and People leave the menu.
+
+A case number is now always read from the file for external senders: they
+cannot type one or answer which case it is for, and the billing office adds or
+corrects it in review. Staff filing an invoice give its case number unless it is
+not for one case. An invoice sent without a case is still warned of going over
+the limit of the one case its number names that its provider is assigned to,
+without being matched to it.
+
+Providers is read-only; adding and changing them, and turning a provider's
+sign-in on or off, is in Settings › Providers. Office billing staff, who send
+for an office's providers but aren't providers themselves, keep their own
+Settings section. Possible duplicate cases and people are listed together in
+Settings › Merge duplicates and flagged on each record's page. Cases still
+belong to the external system, so an administrator's "merge" of two cases moves
+one's invoices to the other and closes it, as Edit data does, and can be undone
+there.
+
+The copy follows plain-language rules: no "we", one word for each thing,
+buttons that say what they do, and dates written the American way.
+
 ### Design I: cases, case rates and one staff role
 
 - **Status:** Built in the Postgres/AWS prototype, apart from the gaps its MAPPING.md lists
@@ -558,16 +586,16 @@ asking, a close one makes staff say whether it is that case or a new one, and
 a case in another county is never offered) or added from that number, county
 and an optional client name; or not for one case, such as court observation,
 which is reviewed, signed off and counted by its county alone. Staff must
-answer before sending; external senders may leave it, and never choose or
-add the organization's cases, though a number they typed that is a case's own
-is suggested to the reviewer. Signing off never needs a case. A
+answer before sending; external senders never answer it, and never choose or
+add the organization's cases, though the number read from their file that is a
+case's own is suggested to the reviewer (design K, below). Signing off never needs a case. A
 pre-authorization not for one case records its decision only, with no limit.
 The case-based new-invoice form and upload, Intake and the new case page are
 retired. Administrators fix cases added by mistake in Settings, Edit data:
 moving a case's requests to the same case recorded twice (signed-off ones
 included), correcting it, or taking its requests off it, after a preview of
-exactly what changes; every fix can be undone. Duplicate merging is to move
-there later. See `match_invoice_to_case`, `add_case_from_request` and
+exactly what changes; every fix can be undone. Duplicate merging moved
+beside it in design K (below). See `match_invoice_to_case`, `add_case_from_request` and
 `correct_case_records` in `model/rules.yaml`.
 
 

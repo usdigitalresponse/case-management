@@ -298,8 +298,9 @@ form relies on this being airtight.
   that partner's *production* login, versus their own separate IdP
   decision, remains open — matching the Dataverse comparison plan's
   "intake roles and permitted actions" gap. External users sign in with an
-  emailed code only once an administrator turns it on in Settings → External
-  users (`person.external_sign_in_enabled`, `manage_external_sign_in`); there
+  emailed code only once an administrator turns it on, for a provider in the
+  Active column of Settings › Providers and for office billing staff in Settings
+  › Office billing staff (`person.external_sign_in_enabled`, `manage_external_sign_in`); there
   is no environment allowlist and no sync with the external case management
   system. Administrators can add a delegate, or make an existing provider
   one, only for an existing office; adding offices is not built.
@@ -350,16 +351,16 @@ form relies on this being airtight.
   always a candidate, so a long history of such invoices is read in full.
 - **Possible duplicate people** (`flag_possible_duplicate_client`,
   `merge_duplicate_people`; `src/people/possibleDuplicates.ts`,
-  `src/people/personMerges.ts`): found after the fact in People's Review
-  duplicates tab, not warned of while someone is being added (adding a
+  `src/people/personMerges.ts`): found after the fact in Settings › Merge
+  duplicates, and flagged on a provider's page, not warned of while someone is being added (adding a
   provider still refuses a used email, and a new client a same-name person
   unless confirmed). Every unmerged person is read and compared on each
-  load of the tab, fine at prototype scale but needing an indexed name key,
-  or a stored list of open pairs, for a large directory. Whether People and
-  All cases show the tab comes from a count kept in the server process for
-  five minutes (`src/duplicateCounts.ts`): one instance only, and a person
-  or case added meanwhile may not show in the count until it expires or the
-  tab is opened. Matching is exact on a normalized name, so spelling variants
+  load of Merge duplicates, fine at prototype scale but needing an indexed name
+  key, or a stored list of open pairs, for a large directory. The notices on case
+  and provider pages come from who each record may duplicate, kept in the server
+  process for five minutes (`src/duplicateMembers.ts`): one instance only, and a
+  new duplicate may not show on a page until it expires or Merge duplicates is
+  opened. Matching is exact on a normalized name, so spelling variants
   and nicknames are caught only when flagged. A merge is refused while both
   profiles sign in with different accounts, as one would lose their
   invoices; there is no way yet to move a second sign-in onto a person.

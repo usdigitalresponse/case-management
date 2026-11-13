@@ -11,7 +11,7 @@ import { setDraftCaseNumber, setDraftCounty } from '../src/billing/invoiceLifecy
 import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
 import { applyCaseChoiceAfterSend, setDraftCaseChoice } from '../src/billing/caseChoice';
 import { addCaseFromRequest } from '../src/cases/caseStep';
-import { fixCase, listAddedCases, listCaseFixes, previewCaseFix, undoCaseFix } from '../src/cases/caseCorrections';
+import { fixCase, listAddedCases, listCaseFixes, mergeCases, previewCaseFix, previewCaseMerge, undoCaseFix } from '../src/cases/caseCorrections';
 import { listCaseBatch } from '../src/cases/caseBatches';
 import { recordCeilingInTx } from '../src/billing/preauthorizations';
 import { ConflictError, ValidationError } from '../src/errors';
@@ -141,6 +141,43 @@ describe('the same case as another', () => {
     const kept = await sentWithNewCase('CR-24-0477', fixtures.countyId);
     const other = await sentWithNewCase('CR-24-0477', countyB);
     await expect(fixCase(testDb, admin(), { kind: 'same_case', caseId: other.caseId, keptCaseId: kept.caseId })).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe('merging a group of cases (Settings › Merge duplicates)', () => {
+  it('previews each move after the ones before it, then moves them all, each undone on its own', async () => {
+    const kept = await sentWithNewCase('CR-24-0477', fixtures.countyId);
+    const second = await sentWithNewCase('CR240477', fixtures.countyId);
+    const third = await sentWithNewCase('CR 24 0477', fixtures.countyId);
+    const merge = { keptCaseId: kept.caseId, caseIds: [second.caseId, third.caseId] };
+
+    const { cases } = await previewCaseMerge(testDb, admin(), merge);
+    expect(cases.map((one) => [one.caseId, one.invoices.map((row) => row.invoiceId)])).toEqual([
+      [second.caseId, [second.invoiceId]],
+      [third.caseId, [third.invoiceId]],
+    ]);
+    // The preview rolls back.
+    const [untouched] = await testDb.select({ caseId: invoice.caseId }).from(invoice).where(eq(invoice.invoiceId, second.invoiceId));
+    expect(untouched?.caseId).toBe(second.caseId);
+
+    const { caseCorrectionIds } = await mergeCases(testDb, admin(), merge);
+    expect(caseCorrectionIds).toHaveLength(2);
+    const moved = await testDb.select({ caseId: invoice.caseId }).from(invoice).where(inArray(invoice.invoiceId, [second.invoiceId, third.invoiceId]));
+    expect(moved.map((row) => row.caseId)).toEqual([kept.caseId, kept.caseId]);
+
+    await undoCaseFix(testDb, admin(), caseCorrectionIds[0]!);
+    const [back] = await testDb.select({ caseId: invoice.caseId }).from(invoice).where(eq(invoice.invoiceId, second.invoiceId));
+    expect(back?.caseId).toBe(second.caseId);
+  });
+
+  it('moves none if any one cannot be moved', async () => {
+    const kept = await sentWithNewCase('CR-24-0477', fixtures.countyId);
+    const second = await sentWithNewCase('CR240477', fixtures.countyId);
+    const elsewhere = await sentWithNewCase('CR-24-0477', countyB);
+
+    await expect(mergeCases(testDb, admin(), { keptCaseId: kept.caseId, caseIds: [second.caseId, elsewhere.caseId] })).rejects.toThrow();
+    const [stayed] = await testDb.select({ caseId: invoice.caseId }).from(invoice).where(eq(invoice.invoiceId, second.invoiceId));
+    expect(stayed?.caseId).toBe(second.caseId);
   });
 });
 

@@ -22,7 +22,7 @@ import { downloadCsv } from '../downloadCsv';
 import { formatMoney } from '../formatMoney';
 import { formatDate } from '../formatDateTime';
 import { Notice } from '../components/ui/Notice';
-import { personPath } from '../staffPaths';
+import { personPath, settingsPath } from '../staffPaths';
 import { ProviderDocuments } from '../components/preauthorizationRequest/ProviderOnFile';
 import { useSearchParamState } from '../hooks/useSearchParamState';
 import { FilterTag, Tag } from '../components/ui/Tag';
@@ -94,7 +94,7 @@ export default function PersonPage() {
         actions={
           <>
             {user?.isAdmin && (
-              <Link className={buttonClass('secondary')} to={`/settings?${new URLSearchParams({ providerQ: name })}#settings-providers`}>
+              <Link className={buttonClass('secondary')} to={settingsPath('providers', { providerQ: name })}>
                 Change in Settings
               </Link>
             )}

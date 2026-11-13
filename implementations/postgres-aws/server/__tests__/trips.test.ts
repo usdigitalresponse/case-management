@@ -123,7 +123,7 @@ describe('trips', () => {
     expect(entry?.activityCode).toBe('travel');
     const [chain] = await testDb.select().from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
     const snapshot = chain!.submissionSnapshot as { spec_version: string; records: { trip: Array<{ tripId: string }> } };
-    expect(snapshot.spec_version).toBe('0.13.0');
+    expect(snapshot.spec_version).toBe('0.14.0');
     expect(snapshot.records.trip).toEqual([expect.objectContaining({ tripId: travel.tripId, tripDate: '2026-02-02' })]);
   });
 

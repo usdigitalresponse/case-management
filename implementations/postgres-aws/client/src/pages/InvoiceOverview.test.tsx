@@ -33,7 +33,7 @@ describe('the invoice overview (design K47)', () => {
     expect(await screen.findByText('Where every invoice is in review right now. 5 invoices are not finished.')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'No reviewer yet' })).toBeTruthy();
     expect(screen.getAllByRole('link', { name: 'Sender 1' })[0]!.getAttribute('href')).toBe('/billing/inv-1');
-    expect(screen.getByRole('link', { name: /See all 4/ }).getAttribute('href')).toBe('/?show=everyone');
+    expect(screen.getByRole('link', { name: /See all 4/ }).getAttribute('href')).toBe('/?show=reviewing');
     expect(screen.getAllByText('No invoices here.')).toHaveLength(1);
     expect(screen.getByText('No invoices here. They appear after sign-off.')).toBeTruthy();
     expect(screen.getByText('Sent, no reviewer yet')).toBeTruthy();

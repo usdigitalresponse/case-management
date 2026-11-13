@@ -49,7 +49,9 @@ describe('the invoice overview', () => {
     const waiting = await sent('26-CR-0001');
     const reviewing = await sent('26-CR-0002');
     await reassignReviewer(testDb, fixtures.staffUserAccountId, reviewing, { userAccountId: reviewer });
-    await setStatus(await sent('26-CR-0003'), 'awaiting_sign_off');
+    const signingOff = await sent('26-CR-0003');
+    await reassignReviewer(testDb, fixtures.staffUserAccountId, signingOff, { userAccountId: reviewer });
+    await setStatus(signingOff, 'awaiting_sign_off');
     const signedOff = await sent('26-CR-0004');
     await setStatus(signedOff, 'approved');
     const completed = await sent('26-CR-0005');

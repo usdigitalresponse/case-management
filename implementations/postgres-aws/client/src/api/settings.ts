@@ -225,7 +225,7 @@ export function listDelegateOffices(): Promise<{ offices: Array<{ officeId: stri
 }
 
 export type TurnOnExternalSignIn =
-  | { personId: string; email?: string }
+  | { personId: string; email?: string; officeId?: string }
   | { newProvider: { displayName: string; email: string; professionalKindId: string } }
   | { newDelegate: { displayName: string; email: string; officeId: string } };
 

@@ -191,7 +191,7 @@ function LetExternalUserSignIn({ onDone, onCancel }: { onDone: (user: ExternalUs
       return { newDelegate: { ...details, officeId } };
     }
     if (!chosen) return null;
-    return chosen.email ? { personId: chosen.personId } : { personId: chosen.personId, email: email.trim() };
+    return chosen.email || chosen.signInEnabled ? { personId: chosen.personId, officeId } : { personId: chosen.personId, email: email.trim(), officeId };
   }
 
   async function save(event: FormEvent) {
@@ -211,7 +211,7 @@ function LetExternalUserSignIn({ onDone, onCancel }: { onDone: (user: ExternalUs
 
   const ready = adding
     ? displayName.trim().length >= 2 && email.trim() !== '' && officeId !== ''
-    : Boolean(chosen && !chosen.signInEnabled && (chosen.email || email.trim()));
+    : Boolean(chosen && officeId && (chosen.signInEnabled || chosen.email || email.trim()));
 
   return (
     <form className="decision-panel" onSubmit={(event) => void save(event)}>
@@ -240,18 +240,8 @@ function LetExternalUserSignIn({ onDone, onCancel }: { onDone: (user: ExternalUs
             <input id="external-user-email" type="email" className="usa-input" value={email} onChange={(event) => setEmail(event.target.value)} />
           </div>
         </div>
-        <div className="usa-form-group">
-          <label className="usa-label" htmlFor="external-user-office">Office</label>
-          <select id="external-user-office" className="usa-select" value={officeId} onChange={(event) => setOfficeId(event.target.value)}>
-            <option value="">Choose an office</option>
-            {offices.data?.map((office) => (
-              <option key={office.officeId} value={office.officeId}>{office.displayName}</option>
-            ))}
-          </select>
-          <p className="field-hint">They can send invoices for the office's providers, from today.</p>
-        </div>
       </PickOrAdd>
-      {chosen && chosen.signInEnabled && <p className="compact-hint">{chosen.displayName} can already sign in.</p>}
+      {chosen && chosen.signInEnabled && <p className="compact-hint">{chosen.displayName} can already sign in. Choose the office they send for.</p>}
       {chosen && !chosen.signInEnabled && chosen.email && (
         <p className="compact-hint">
           {chosen.displayName} will sign in with {chosen.email}.
@@ -264,10 +254,22 @@ function LetExternalUserSignIn({ onDone, onCancel }: { onDone: (user: ExternalUs
           <input id="external-user-new-email" type="email" className="usa-input" value={email} onChange={(event) => setEmail(event.target.value)} />
         </div>
       )}
+      {(adding || chosen) && (
+          <div className="usa-form-group">
+            <label className="usa-label" htmlFor="external-user-office">Office</label>
+            <select id="external-user-office" className="usa-select" value={officeId} onChange={(event) => setOfficeId(event.target.value)}>
+              <option value="">Choose an office</option>
+              {offices.data?.map((office) => (
+                <option key={office.officeId} value={office.officeId}>{office.displayName}</option>
+              ))}
+            </select>
+            <p className="field-hint">They can send invoices for the office's providers, from today.</p>
+          </div>
+      )}
       {error && <Notice tone="danger">{error}</Notice>}
       <div className="button-row">
         <Button type="submit" kind="primary" disabled={!ready || saving}>
-          {adding ? 'Add office billing staff' : chosen && !chosen.email ? 'Add email and turn on sign-in' : 'Turn on sign-in'}
+          {adding ? 'Add office billing staff' : chosen?.signInEnabled ? 'Add office' : chosen && !chosen.email ? 'Add email and turn on sign-in' : 'Turn on sign-in'}
         </Button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
       </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { addProviderServiceRate, apiErrorMessage, type RateBasis, linkedDocumentUrl, uploadProviderDocument, type LinkedDocument } from '../../api/client';
+import { addProviderServiceRate, apiErrorMessage, type RateBasis, linkedDocumentUrl, type LinkedDocument, type ProviderDocuments as OnFile } from '../../api/client';
 import { useResource } from '../../hooks/useResource';
 import { providerDocuments } from '../../resources';
 import { formatDate, formatDay } from '../../formatDateTime';
@@ -95,29 +95,22 @@ export function ProviderDocuments({ professionalId }: { professionalId: string }
   );
 }
 
-// model/rules.yaml request_provider_documents.
-export function ProviderOnFile({ professionalId, name }: { professionalId: string; name: string }) {
-  const { data, error, reload } = useResource(providerDocuments(professionalId));
+// A provider's quoted fees, and a form to record one (model/rules.yaml request_provider_documents):
+// on a pre-authorization request, where their CV and fee schedule come in.
+export function QuotedFees({ professionalId, rates, onAdded }: { professionalId: string; rates: OnFile['rates']; onAdded: () => void }) {
   const [service, setService] = useState('');
   const [rate, setRate] = useState('');
   const [basis, setBasis] = useState<RateBasis>('hourly');
   const [from, setFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [rateError, setRateError] = useState<string | null>(null);
-  if (!data) return error ? <Notice tone="danger">Failed to load what is on file.</Notice> : null;
   return (
-    <section className="card compact-card preauth-page">
-      <h2>On file for {name}</h2>
-      {data.missing.length > 0 && (
-        <Notice tone="warning">Missing: {data.missing.map((code) => (code === 'cv' ? 'CV' : 'fee schedule or quote')).join(' and ')}.</Notice>
-      )}
-      <DocumentList documents={data.documents} />
-      <AddDocument defaultPurpose={data.missing[0] ?? 'fee_schedule'} onAdd={(file, purpose) => uploadProviderDocument(professionalId, file, purpose).then(reload)} />
+    <>
       <h3>Fees they quote</h3>
-      {data.rates.length === 0 ? (
+      {rates.length === 0 ? (
         <p className="muted">None recorded.</p>
       ) : (
         <ul className="plain-list">
-          {data.rates.map((row) => (
+          {rates.map((row) => (
             <li key={row.providerServiceRateId}>
               {row.serviceDescription}: {formatMoney(row.rate)} {row.rateBasis === 'flat' ? 'flat' : row.rateBasis === 'hourly' ? 'an hour' : 'a unit'}
               <span className="cell-note">from {formatDate(row.effectiveFrom)}</span>
@@ -134,7 +127,7 @@ export function ProviderOnFile({ professionalId, name }: { professionalId: strin
             () => {
               setService('');
               setRate('');
-              void reload();
+              onAdded();
             },
             (err: unknown) => setRateError(apiErrorMessage(err, 'The fee could not be added.')),
           );
@@ -165,6 +158,6 @@ export function ProviderOnFile({ professionalId, name }: { professionalId: strin
         </Button>
         {rateError && <p className="field-error" role="alert">{rateError}</p>}
       </form>
-    </section>
+    </>
   );
 }

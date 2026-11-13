@@ -1,4 +1,6 @@
-import { useState } from 'react';
+// Settings, one section at a time behind a row of tabs (design K51, K67), so
+// each section loads only when it is chosen; the tab is in the address.
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router';
 import { useResource } from '../hooks/useResource';
 import { professionalKinds } from '../resources';
@@ -18,135 +20,148 @@ import { MergeDuplicates } from '../components/MergeDuplicates';
 import { EditData } from './settings/EditData';
 import { Tabs } from '../components/ui/Tabs';
 import { useSearchParamState } from '../hooks/useSearchParamState';
+import { SETTINGS_TABS, type SettingsTab } from '../staffPaths';
+
+const LABELS: Record<SettingsTab, string> = {
+  review: 'Invoice review',
+  people: 'People who use this tool',
+  rates: 'Rates',
+  preauthorization: 'Pre-authorization thresholds',
+  rules: 'Billing rules and codes',
+  providers: 'Providers',
+  'office-staff': 'Office billing staff',
+  duplicates: 'Merge duplicates',
+  'edit-data': 'Edit data',
+  demo: 'Demo',
+};
+
+// Links from before the tabs named a section by its anchor.
+const OLD_ANCHORS: Record<string, SettingsTab> = {
+  'settings-review': 'review',
+  'settings-people': 'people',
+  'settings-rates': 'rates',
+  'settings-preauthorization': 'preauthorization',
+  'settings-rules': 'rules',
+  'settings-providers': 'providers',
+  'settings-external-users': 'office-staff',
+  'settings-duplicates': 'duplicates',
+  'settings-demo': 'demo',
+};
 
 export default function Settings() {
-  const [version, setVersion] = useState(0);
-  const { data, error } = useResource(professionalKinds, { resetKey: version });
-  const refresh = () => setVersion((v) => v + 1);
   const { user } = useAuth();
   const isAdmin = Boolean(user?.isAdmin);
   const demoMode = Boolean(user?.demoMode);
-
-  // Edit data is for administrators only (pages/settings/EditData.tsx).
-  const [tab, setTab] = useSearchParamState('tab', 'settings', TABS);
-  if (isAdmin && tab === 'edit-data') {
-    return (
-      <div>
-        <PageHeading eyebrow="Administration" title="Settings" />
-        <SettingsTabs tab={tab} setTab={setTab} />
-        <div id="settings-tab">
-          <EditData />
-        </div>
-      </div>
-    );
-  }
+  const shown = SETTINGS_TABS.filter((id) => (id !== 'edit-data' || isAdmin) && (id !== 'demo' || demoMode));
+  const [chosen, setTab] = useSearchParamState<SettingsTab>('tab', 'review', SETTINGS_TABS);
+  const tab = shown.includes(chosen) ? chosen : 'review';
+  const { hash } = useLocation();
+  useEffect(() => {
+    const old = OLD_ANCHORS[hash.slice(1)];
+    if (old) setTab(old);
+    // Only an address arriving with an old anchor.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hash]);
 
   return (
     <div>
       <PageHeading eyebrow="Administration" title="Settings" />
-      {isAdmin && <SettingsTabs tab="settings" setTab={setTab} />}
-      <PageIndex sections={SECTIONS.filter((section) => section.id !== 'settings-demo' || demoMode)} />
-      <Notice tone="info">Only administrators can change settings. Everyone on staff can read this page.</Notice>
-      <section className="settings-section" id="settings-review">
-        <h2>Invoice review</h2>
-        <div className="settings-columns">
-          <ReviewRoutingSettings isAdmin={isAdmin} />
-          <DecisionReasonSettings isAdmin={isAdmin} />
-        </div>
-      </section>
-      <section className="settings-section" id="settings-people">
-        <h2>People who use this tool</h2>
-        <RoleSummary />
-        {isAdmin && <StaffRoleSettings />}
-      </section>
-      <section className="settings-section" id="settings-rates">
-        <h2>Rates</h2>
-        <p className="compact-hint">
-          Time is invoiced at the hourly rate for each kind of professional on the date of the work. Travel and waiting
-          time use their settings below, and mileage uses the rate per mile on the date of the trip. A rate set on a
-          person's page takes the place of these for that person.
-        </p>
-        {Boolean(error) && <Notice tone="danger">Failed to load rates.</Notice>}
-        {data && data.length === 0 && <p>No kinds of professional yet.</p>}
-        <div className="settings-grid">
-          {data?.map((kind) => <KindCard key={kind.professionalKindId} kind={kind} isAdmin={isAdmin} onChanged={refresh} />)}
-          <MileageRates isAdmin={isAdmin} />
-          <TimeCategoryRates category="travel" isAdmin={isAdmin} />
-          <TimeCategoryRates category="waiting" isAdmin={isAdmin} />
-        </div>
-        {isAdmin && <AddKindForm onAdded={refresh} />}
-      </section>
-      <section className="settings-section" id="settings-preauthorization">
-        <h2>Pre-authorization thresholds</h2>
-        <p className="compact-hint">
-          Up to the threshold, a provider's work on a case needs no pre-authorization. Senders must explain going past it, or
-          past what's pre-authorized; the invoice is still reviewed.
-        </p>
-        <PreauthorizationThresholds isAdmin={isAdmin} />
-      </section>
-      <BillingRulesSettings isAdmin={isAdmin} />
-      <section className="settings-section" id="settings-providers">
-        <h2>Providers</h2>
-        <ProvidersSettings isAdmin={isAdmin} />
-      </section>
-      <section className="settings-section" id="settings-duplicates">
-        <h2>Merge duplicates</h2>
-        <MergeDuplicates />
-      </section>
-      <section className="settings-section" id="settings-external-users">
-        <h2>Office billing staff</h2>
-        <p className="compact-hint">
-          External users who send invoices for an office&apos;s providers. They sign in with a code emailed to them, and only those turned on
-          here can sign in. A provider&apos;s own sign-in is under Providers.
-        </p>
-        <ExternalUserSettings isAdmin={isAdmin} />
-      </section>
-      {demoMode && <DemoSettings isAdmin={isAdmin} />}
+      <Tabs label="Settings" controls="settings-tab" tabs={shown.map((id) => ({ id, label: LABELS[id] }))} selected={tab} onSelect={setTab} />
+      {tab !== 'edit-data' && <Notice tone="info">Only administrators can change settings. Everyone on staff can read this page.</Notice>}
+      <div id="settings-tab" role="tabpanel" aria-label={LABELS[tab]}>
+        <SettingsSection tab={tab} isAdmin={isAdmin} />
+      </div>
     </div>
   );
 }
 
-const TABS = ['settings', 'edit-data'] as const;
-
-function SettingsTabs({ tab, setTab }: { tab: (typeof TABS)[number]; setTab: (tab: (typeof TABS)[number]) => void }) {
-  return (
-    <Tabs
-      label="Settings"
-      controls="settings-tab"
-      tabs={[
-        { id: 'settings', label: 'Settings' },
-        { id: 'edit-data', label: 'Edit data' },
-      ]}
-      selected={tab}
-      onSelect={setTab}
-    />
-  );
+function SettingsSection({ tab, isAdmin }: { tab: SettingsTab; isAdmin: boolean }) {
+  switch (tab) {
+    case 'review':
+      return (
+        <section className="settings-section">
+          <h2>Invoice review</h2>
+          <div className="settings-columns">
+            <ReviewRoutingSettings isAdmin={isAdmin} />
+            <DecisionReasonSettings isAdmin={isAdmin} />
+          </div>
+        </section>
+      );
+    case 'people':
+      return (
+        <section className="settings-section">
+          <h2>People who use this tool</h2>
+          <RoleSummary />
+          {isAdmin && <StaffRoleSettings />}
+        </section>
+      );
+    case 'rates':
+      return <RatesSection isAdmin={isAdmin} />;
+    case 'preauthorization':
+      return (
+        <section className="settings-section">
+          <h2>Pre-authorization thresholds</h2>
+          <p className="compact-hint">
+            Up to the threshold, a provider's work on a case needs no pre-authorization. Senders must explain going past it, or past what's
+            pre-authorized; the invoice is still reviewed.
+          </p>
+          <PreauthorizationThresholds isAdmin={isAdmin} />
+        </section>
+      );
+    case 'rules':
+      return <BillingRulesSettings isAdmin={isAdmin} />;
+    case 'providers':
+      return (
+        <section className="settings-section">
+          <h2>Providers</h2>
+          <ProvidersSettings isAdmin={isAdmin} />
+        </section>
+      );
+    case 'office-staff':
+      return (
+        <section className="settings-section">
+          <h2>Office billing staff</h2>
+          <p className="compact-hint">
+            External users who send invoices for an office&apos;s providers. They sign in with a code emailed to them, and only those turned on here
+            can sign in. A provider&apos;s own sign-in is under Providers.
+          </p>
+          <ExternalUserSettings isAdmin={isAdmin} />
+        </section>
+      );
+    case 'duplicates':
+      return (
+        <section className="settings-section">
+          <h2>Merge duplicates</h2>
+          <MergeDuplicates />
+        </section>
+      );
+    case 'edit-data':
+      return <EditData />;
+    case 'demo':
+      return <DemoSettings isAdmin={isAdmin} />;
+  }
 }
 
-const SECTIONS = [
-  { id: 'settings-review', label: 'Invoice review' },
-  { id: 'settings-people', label: 'People who use this tool' },
-  { id: 'settings-rates', label: 'Rates' },
-  { id: 'settings-preauthorization', label: 'Pre-authorization thresholds' },
-  { id: 'settings-rules', label: 'Billing rules and codes' },
-  { id: 'settings-providers', label: 'Providers' },
-  { id: 'settings-duplicates', label: 'Merge duplicates' },
-  { id: 'settings-external-users', label: 'Office billing staff' },
-  { id: 'settings-demo', label: 'Demo' },
-];
-
-// Links to each section; the one last chosen is shown as current.
-function PageIndex({ sections }: { sections: typeof SECTIONS }) {
-  const { hash } = useLocation();
-  const current = hash.slice(1) || sections[0]?.id;
+function RatesSection({ isAdmin }: { isAdmin: boolean }) {
+  const [version, setVersion] = useState(0);
+  const { data, error } = useResource(professionalKinds, { resetKey: version });
+  const refresh = () => setVersion((v) => v + 1);
   return (
-    <nav className="page-index" aria-label="Go to">
-      <span>Go to:</span>
-      {sections.map((section) => (
-        <a key={section.id} href={`#${section.id}`} className={section.id === current ? 'is-current' : undefined} aria-current={section.id === current ? 'location' : undefined}>
-          {section.label}
-        </a>
-      ))}
-    </nav>
+    <section className="settings-section">
+      <h2>Rates</h2>
+      <p className="compact-hint">
+        Time is invoiced at the hourly rate for each kind of professional on the date of the work. Travel and waiting time use their settings
+        below, and mileage uses the rate per mile on the date of the trip. A rate set for a provider takes the place of these for them.
+      </p>
+      {Boolean(error) && <Notice tone="danger">Failed to load rates.</Notice>}
+      {data && data.length === 0 && <p>No kinds of professional yet.</p>}
+      <div className="settings-grid">
+        {data?.map((kind) => <KindCard key={kind.professionalKindId} kind={kind} isAdmin={isAdmin} onChanged={refresh} />)}
+        <MileageRates isAdmin={isAdmin} />
+        <TimeCategoryRates category="travel" isAdmin={isAdmin} />
+        <TimeCategoryRates category="waiting" isAdmin={isAdmin} />
+      </div>
+      {isAdmin && <AddKindForm onAdded={refresh} />}
+    </section>
   );
 }

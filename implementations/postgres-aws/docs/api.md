@@ -40,7 +40,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
 - **Emailed-code sign-in for external users**: `POST /auth/code/request`
   (body: `{ email }`) emails a 6-digit code (`src/auth/signInCode.ts`) if
   an administrator turned on sign-in for the external user with that email
-  in Settings → External users (`src/auth/externalSignIn.ts`) — it responds
+  in Settings › Providers or Office billing staff (`src/auth/externalSignIn.ts`) — it responds
   identically either way, so the endpoint can't be used to find out who may
   sign in.
   The code works once, for 10 minutes; a new request stops earlier codes
@@ -129,6 +129,11 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     (`src/billing/reviewQueueBatches.ts`, with the derived columns in SQL in
     `queueSql.ts`); `counts` names the filters whose counts the first
     batch's summary carries. `GET /api/invoices/counts` is the sidebar's.
+    `GET /api/invoices/overview` (staff) is Invoice overview's (design K47,
+    `src/billing/invoiceOverview.ts`): each step's count and oldest three
+    invoices (no reviewer yet, awaiting match included; being reviewed; waiting
+    for sign-off; decided but not marked completed), using the queue's own
+    filters, and the latest invoice events in words as `changes`.
   - `PUT|DELETE /api/invoices/:id/lines/:lineId/decision` sets or undoes a
     working decision (`invoice_line_working_decision`): approve, approve
     in part (corrected hours or rate on a line with hours, otherwise the
@@ -331,9 +336,15 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     an existing session can still read staff pages (sessions are signed
     cookies with no per-request account lookup).
   - External users (`src/people/externalUsers.ts`, model rule
-    `manage_external_sign_in`): Settings → External users lists who may sign
-    in with an emailed code (`GET /api/settings/external-users`, any staff
-    member, a batch at a time; `q` searches name and email). Administrators
+    `manage_external_sign_in`): Settings › Office billing staff lists who may
+    sign in with an emailed code (`GET /api/settings/external-users`, any staff
+    member, a batch at a time; `q` searches name and email; `officeStaff=1`, as
+    the page asks, leaves out providers who send for no office, whose sign-in is
+    the Active column of Settings › Providers). `GET /api/professionals` carries
+    each provider's `personId` and `externalSignInEnabled` for that column.
+    `POST /api/settings/external-users` with `{ personId, officeId }` turns on someone
+    already on file and makes them a delegate for that office together, all or none; with
+    sign-in already on, it only adds the office. Administrators
     search providers and office delegates (`GET .../candidates?q=`), list
     offices a new delegate may send for (`GET .../offices`), turn sign-in on
     for an existing person, adding an email if they have none, or add a new
@@ -1005,7 +1016,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     don't change.
   - Travel time rate (design I): a person's own travel time rate
     (`professional_rate.travel_hourly_rate`, migration `0036`), set like
-    their other rates on Add a person and their page, comes before the
+    their other rates on Add provider and Edit in Settings › Providers, comes before the
     travel time setting and after a case rate (`defaultRates.ts`); the
     portal's price preview uses it too.
   - Gaps: no address autocomplete (it would cost calls per keystroke); one
@@ -1109,8 +1120,12 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     `elsewhere` is the same number on cases in other counties, a hint only.
   - `PUT /api/portal/invoices/:id/case-choice` keeps a draft's answer:
     `{ choice: 'existing', caseId }`, `{ choice: 'new', clientName?,
-    confirmedNew? }`, `{ choice: 'none' }` or `{ choice: null }`. External
-    submitters may send only `none` or `null` (403 otherwise). `new` needs
+    confirmedNew? }`, `{ choice: 'none' }` or `{ choice: null }`, staff only
+    (403 for external submitters, design K). `PUT /api/portal/invoices/:id/case-number`
+    is staff only too, and `POST /api/portal/invoices` refuses an external submitter's
+    `caseNumber` (403); an external upload's draft takes only the number read from its
+    file (`createDraftFromUpload`). The former `PUT /api/portal/invoices/:id/case`, a
+    sender putting a draft under their case, is removed. `new` needs
     the draft's number and county, is refused for a number already used in
     that county, and needs `confirmedNew` when a similar one is listed.
     `existing` needs the draft's county and is refused for a case in another
@@ -1261,12 +1276,13 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     same date of birth and family name, or a pair staff flagged; pairs whose
     latest `person_duplicate_review` is `not_duplicate` are left out. Each
     person comes with their provider profile, sign-in email and case and
-    invoice counts. `GET /api/people/possible-duplicates/count` returns
-    `{ groups }` for whether People shows its Review duplicates tab; the
-    count is kept in the server process for five minutes
-    (`src/duplicateCounts.ts`), replaced whenever the list is read, and
-    forgotten on a review, merge or undo, so a person added meanwhile may
-    take up to five minutes to show in it.
+    invoice counts; Settings › Merge duplicates reads it each time.
+    `GET /api/professionals/people/:id/possible-duplicates` returns `{ others:
+    [{ id, label }] }`, the people a provider may duplicate, for the notice on
+    their page. It comes from who each record may duplicate, kept in the server
+    process for five minutes (`src/duplicateMembers.ts`), replaced whenever the
+    list is read, and forgotten on a review, merge or undo, so a new duplicate may
+    take up to five minutes to show there.
   - `POST /api/people/possible-duplicates` (`{ personIds, outcome:
     'possible_duplicate' | 'not_duplicate', note? }`), any staff member,
     adds a review row; the pair's latest one stands.
@@ -1295,7 +1311,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     (`ensureProfessional.ts`).
 - **Possible duplicate cases** (`model/rules.yaml`
   `flag_possible_duplicate_case`; `src/cases/possibleDuplicateCases.ts`,
-  `src/routes/cases.ts`), staff only and never merged:
+  `src/routes/cases.ts`), staff only and never truly merged (an administrator's
+  "merge" in Settings is Edit data's same-case fix, `POST /api/edit-data/fixes`):
   `GET /api/cases/possible-duplicates` groups open cases whose numbers or
   identifiers share `closeKey` (`src/billing/caseNumbers.ts`), plus flagged
   pairs, leaving out pairs found different (`case_duplicate_review`) and any
@@ -1303,8 +1320,13 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   as `same_county`); `POST /api/cases/possible-duplicates` (`{ caseIds,
   outcome, note? }`) records a review of two open cases, refusing to flag
   two in different counties. Closing a case takes it off the list.
-  `GET /api/cases/possible-duplicates/count` is the same count for All
-  cases' tab, kept the same way and also forgotten when a case is closed.
+  `POST /api/edit-data/merges` (`{ keptCaseId, caseIds, keepPreauthorizations? }`,
+  administrators) moves several cases into the one kept, all or none, each as its own
+  same-case fix; `POST /api/edit-data/merges/preview` runs those moves and rolls them
+  back, so it shows each as it would be after the ones before it.
+  `GET /api/cases/:id/possible-duplicates` returns `{ others }` for the notice on
+  a case's page, kept the same way and also forgotten when a case is closed or
+  fixed.
 - **Indexes**: FK columns used as query filters/joins
   (`case.county_id`/`status_id`/`case_category_id`,
   `case_participant.case_id`, `case_identifier.case_id`) have plain B-tree

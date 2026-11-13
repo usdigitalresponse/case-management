@@ -38,9 +38,10 @@ ours by role; keep our names, so nothing else changes.
 | `--color-scrim`, `--elevation-1…4` | Behind dialogs; shadows |
 | `--font-sans`, `--font-serif` | Body text; headlines |
 | `--text-11…32` | Every font size |
-| `--headline-*`, `--title-*`, `--body-*`, `--label-*` | Type styles (weight, size, line height where set, family) |
+| `--headline-*`, `--title-*`, `--body-*`, `--label-*` | Type styles (weight, size, line height, family) |
+| `--tracking-*` | Letter spacing for the styles that have it; Title/Small, the one style in capitals, uses `--tracking-title-small` |
 | `--space-1…16` | Every margin, padding and gap |
-| `--radius-*` | Corners |
+| `--radius-*` | Corners: small 4px (buttons, tags, notices), medium 6px, large 8px (cards, dialogs, drop zones), full |
 | `--field-gap`, `--mark-size` | Form fields: label gap, checkbox and radio size |
 
 Text on a `*-container` fill uses its `on-*-container` color; keep that
@@ -98,8 +99,8 @@ grayscale.
 
 ## Known gaps
 
-- Line heights, letter spacing and widths are still literal values, not
-  tokens.
+- Widths, and a few one-off line heights and letter spacings outside the type
+  styles, are still literal values, not tokens.
 - Table headers and second lines are 11px; the current design drew 9px, and
   its own accessibility check suggests 12px at least.
 - Checkboxes, radios and filter tags are below the 24-pixel target size of

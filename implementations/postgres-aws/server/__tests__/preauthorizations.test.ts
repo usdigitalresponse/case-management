@@ -196,6 +196,8 @@ describe('requests', () => {
     // In review is waiting and waiting for information together (design K54).
     const inReview = await listPreauthorizationRequests(testDb, staff, { status: 'in_review' }, { limit: 10, after: null });
     expect(inReview.items.map((row) => row.preauthorizationRequestId).sort()).toEqual([waiting.preauthorizationRequestId, asked.preauthorizationRequestId].sort());
+    // A name an object inherits is just an unknown status.
+    expect((await listPreauthorizationRequests(testDb, staff, { status: 'constructor' }, { limit: 10, after: null })).items).toEqual([]);
 
     const more = await createPreauthorizationRequest(testDb, attorney, request(caseId, expert.professionalId, 700));
     const open = await listPreauthorizationRequests(testDb, staff, { status: 'submitted' }, { limit: 1, after: null });

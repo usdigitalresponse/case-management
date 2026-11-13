@@ -29,11 +29,14 @@ and amounts are synthetic test values. Rules: `match_invoice_to_case`,
    is not listed in All cases, and its possible double billing is checked
    only against the attorney's other time on the same dates. A reviewer later
    adds it to a case; it then counts under that case's county.
-6. **External suggestion:** An external sender types CR-24-0477 in county A
-   and sends without choosing a case. It goes straight to review with no case.
-   The reviewer is offered CR-24-0477 as a suggestion and matches it with one
-   step. An external sender may instead answer "not for one case"; their answer
-   never adds or chooses a case of the organization's.
+6. **External suggestion:** An external sender uploads a file reading
+   CR-24-0477 in county A; the number is shown, read-only, and they send
+   without choosing a case. It goes straight to review with no case. The
+   reviewer is offered CR-24-0477 as a suggestion and matches it with one step.
+   An external sender never answers the case question or types a number, so
+   never adds or chooses a case of the organization's. A file with no number
+   is sent the same way, and the reviewer adds the number before any case is
+   found.
 7. **Pre-authorization not for one case:** An attorney asks to pre-authorize 900
    for court observation in county C, not for one case. Staff approve 900; the
    decision and amount are recorded on the request, and no preauthorization or

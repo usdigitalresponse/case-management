@@ -639,7 +639,7 @@ describe('the queue a batch at a time', () => {
 
     const month = new Date().toISOString().slice(0, 7);
     const views: Array<[QueueView, QueueShow[]]> = [
-      ['open', ['all', 'mine', 'unassigned', 'flagged']],
+      ['open', ['all', 'mine', 'unassigned', 'reviewing', 'flagged']],
       ['lines_decided', ['all', 'month', 'sign_off', 'decided', 'completed', 'approved']],
       ['all', ['all', 'waiting', 'done']],
     ];
@@ -650,6 +650,7 @@ describe('the queue a batch at a time', () => {
           all: () => true,
           mine: (row) => row.holder?.userAccountId === actor,
           unassigned: (row) => !row.reviewer,
+          reviewing: (row) => Boolean(row.reviewer) && ['submitted', 'under_review', 'awaiting_answer'].includes(row.statusCode ?? ''),
           flagged: (row) => row.flags.length > 0,
           month: (row) => Boolean(row.finishedAt?.toISOString().startsWith(month)),
           sign_off: (row) => row.statusCode === 'awaiting_sign_off',

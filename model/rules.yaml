@@ -1,4 +1,4 @@
-spec_version: "0.13.0"
+spec_version: "0.14.0"
 status: draft
 kind: business_rules
 
@@ -24,7 +24,8 @@ rules:
       - List open cases for staff whose case numbers or identifiers match ignoring case, punctuation and leading zeros, and pairs any staff member flagged, grouping everything linked by any pair. Never show the list to external submitters.
       - A case number is only unique within its county, so never list or flag two cases whose counties are both set and differ. A missing county doesn't rule a pair out; a matching one is shown as supporting the match.
       - Any active staff user may flag two open cases in the same county (or without one) as possibly one, or record that a listed pair are different, with an optional note; record the actor and time.
-      - Cases belong to the external case management system, so never merge them here. Staff clean up by closing the extra case (preserve_case_lifecycle) once its invoices are finished, which takes it off the list, or an administrator moves its requests to the case kept (correct_case_records).
+      - Cases belong to the external case management system, so never merge them here. Staff clean up by closing the extra case (preserve_case_lifecycle) once its invoices are finished, which takes it off the list, or an administrator "merges" a group of them by moving the others' requests to the case kept and closing them, all or none, each recorded as its own fix (correct_case_records).
+      - List possible duplicate cases and people together for staff, with why each pair looks alike and how many requests each has. A case's page, and a professional's, says when it may be a duplicate and of which record; this may lag the list by a few minutes, and any review, merge, undo or fix updates it at once.
 
   merge_duplicate_people:
     description: Merge a person recorded twice into the record kept, on an administrator's confirmation.
@@ -513,7 +514,7 @@ rules:
     outcome: blocking
     requirements:
       - When sending a request with a case would take its provider's total on that case past their limit (apply_preauthorization_limit), the submitter is shown the limit and the total and must explain why more was not pre-authorized before it can be sent. The explanation is bound to that attempt with the limit and total at the time, recorded once and never changed.
-      - A request whose case is matched only later is checked when matched; with no explanation it is flagged, and the reviewer may ask for one with a review question (ask_review_question).
+      - A request with no case yet is checked against the one open case its case number names that its provider is assigned to, as a warning only; this never matches it. A request whose case is matched only later is checked when matched; with no explanation it is flagged, and the reviewer may ask for one with a review question (ask_review_question).
       - Reviewers see the overrun, the limit's source and the explanation on the request and in the queue; they may still approve, cut or reject it. This is the policy for uncovered amounts that validate_authorization_draws asks for.
       - Explanations are shown to staff and the submitter, and never exported or put in the billing record.
 
@@ -651,7 +652,7 @@ rules:
     outcome: blocking
     requirements:
       - External users are people outside the agency who send invoices: professionals, and delegates under authorize_delegated_submission. Only those whose external sign-in an administrator turned on may sign in; no other list or setting admits anyone. Staff accounts never sign in this way.
-      - Only an administrator turns external sign-in on or off. Any staff user may see who can sign in.
+      - Only an administrator turns external sign-in on or off: a professional's beside their other details among the providers, and a delegate's among the office billing staff. Any staff user may see who can sign in.
       - Turning it on needs the email they will sign in with. For someone with none, the administrator adds it, refused if it is already used by an account or another person. Once someone has signed in, their account's email stays.
       - An administrator may add a new external user with sign-in on - a professional with a name, email and professional kind (as add_professional_without_login), or a delegate with a name, email and the office they send for, from that day - refusing an email already in use. Adding one assigns them to no case.
       - An administrator may make an existing external user, such as a professional, a delegate for an office from that day, or end that delegation; an ending is recorded, never deleted, and a professional keeps their own profile either way.
@@ -678,11 +679,11 @@ rules:
     trigger: before_update
     outcome: blocking
     requirements:
-      - Each request filed by person answers one case question (case_choice) - for a case, or not for one case (such as court observation, which keeps only its own county, and so needs one before it is sent or its first round is finished) - using the case number and county read from its file, editable before sending. Staff entering a request must answer it before sending, or, for one entered in review (enter_request_in_review), before finishing its first round. An external submitter may answer "not for one case", put the request under one of their own cases (below), or leave it unanswered with or without a typed number.
+      - Each request filed by person answers one case question (case_choice) - for a case, or not for one case (such as court observation, which keeps only its own county, and so needs one before it is sent or its first round is finished) - using the case number and county read from its file. Staff filing a request give its case number, editable before sending, unless it is not for one case, and must answer the question before sending, or, for one entered in review (enter_request_in_review), before finishing its first round. An external submitter never answers the question, chooses a case or types a case number: theirs is only the number read from their file, which staff add or correct in review.
       - For a case, staff find it by number within the county, so the request needs its county before a case is chosen or added. The same number, ignoring case, on a case in the same county is chosen without asking. A number matching only when punctuation, spacing and leading zeros are ignored, on a case in the same county or with no county, is offered, and staff must say whether it is that case or a new one (add_case_from_request) before going on. A case in another county is never offered; the same number there is shown only as a hint that the request's county may be wrong. A chosen case with no county takes the request's, recorded with the actor. With no match, a new case is added.
       - A draft keeps the answer until it is sent; changing its case number or county clears an answer for a case, so it is asked again. The request is then sent with no case and matched to the chosen or added case at once. In review, a choice applies at once. Matching keeps the request's prices and default rates as sent, flags case rates that would now apply (set_case_rate), assigns every professional it bills who isn't on the case as an external submitter, reopens a case closed here as a cleanup (preserve_case_lifecycle), and records a matched_to_case request event with the actor. A request that has its case is not matched again here (correct_case_records).
-      - An external submitter's answer never creates or chooses a case of the organization's. Where they typed a number that is the same as an existing case's in the request's county, review offers that case as a suggestion; staff still choose. Their typed number stays beside the case's; reviewers correct it beside, never over.
-      - A submitter filing a draft by person may instead put it under a case the professional whose work it is is assigned to and they may bill for, or take it off again; its case number becomes the case's, its lines are priced again, and on sending it goes to review with that case. A submitter's case list shows the open cases of the professionals they bill for, with each one's own pre-authorized amount and never the whole case's, whose approved total includes other professionals' requests.
+      - An external submitter never creates or chooses a case of the organization's. Where the number read from their file is the same as an existing case's in the request's county, review offers that case as a suggestion; staff still choose. With no number, review asks staff to add it before any case can be found. The number as sent stays beside the case's; reviewers add or correct it beside, never over.
+      - A request a submitter starts from one of the cases of the professional whose work it is, which they may bill for, is under that case: its case number is the case's, its lines are priced at the case's rates, and on sending it goes to review with that case. A submitter's case list shows the open cases of the professionals they bill for, with each one's own pre-authorized amount and never the whole case's, whose approved total includes other professionals' requests.
       - A reviewer may answer or change the case question for a request in review without a case. Signing off never needs a case. A chosen case must be in the request's county, or have none yet. A request whose own county later differs from its case's is flagged in review, never refused.
       - A request with no case is reviewed and signed off like any other, with no assignment, pre-authorization or case-based rate checks, and warnings that this system did not check its case, its professional's assignment or any pre-authorization. It counts under its own county (record_case_county).
       - Exports and the billing record of a request with no case carry the same warning in place of the case number.
@@ -711,7 +712,7 @@ rules:
       - Not for one case - take its requests and preauthorization requests off it (they keep their own county, else take the case's, and become not for one case), and ask again on any draft that chose it, then close it as added by mistake.
       - Before any fix, show exactly what will move or change; each fix is all or none. A case closed as added by mistake leaves every list, search and picker, and stays in history.
       - Record every value a fix changed with its prior value, the administrator and the time. An administrator may undo a fix, restoring each value still as the fix left it and leaving anything changed since. Assignments the fix ended stay ended (preserve_case_lifecycle).
-      - Possible duplicate people and cases are to move here later (flag_possible_duplicate_client, flag_possible_duplicate_case).
+      - Possible duplicate people and cases are reviewed and merged beside these fixes (flag_possible_duplicate_client, flag_possible_duplicate_case, merge_duplicate_people).
 
   add_professional_without_login:
     description: Let staff add a professional who has not signed in, so a request can say whose work it is.

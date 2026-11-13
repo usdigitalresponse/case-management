@@ -12,7 +12,7 @@ import { Notice } from './ui/Notice';
 import { PageHeader } from './PageHeader';
 import { Button } from './ui/Button';
 import { RequestStatus, caseText, providerText, rateText } from './preauthorizationRequest/requestText';
-import { AddDocument, DocumentList } from './preauthorizationRequest/ProviderOnFile';
+import { AddDocument, DocumentList, QuotedFees } from './preauthorizationRequest/ProviderOnFile';
 import { DecisionForm, MatchForm } from './preauthorizationRequest/StaffForms';
 import { Questions } from './preauthorizationRequest/RequestQuestions';
 
@@ -111,6 +111,26 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
         </section>
       </div>
       <Questions detail={detail} staff={staff} mayAnswer onChanged={changed} />
+      {!staff && request.statusCode === 'info_requested' && (
+        // Beside the answer, so a question asking for a file shows where to add it.
+        <section className="card compact-card" aria-label="Add a file the question asks for">
+          <p className="compact-hint">Add any file the question asks for here.</p>
+          {detail.providerDocuments && detail.providerDocuments.missing.length > 0 && (
+            <Notice tone="warning">
+              Missing: {detail.providerDocuments.missing.map((code) => (code === 'cv' ? 'CV' : 'fee schedule or quote')).join(' and ')}.
+            </Notice>
+          )}
+          <AddDocument
+            defaultPurpose={detail.providerDocuments?.missing[0] ?? 'supporting'}
+            onAdd={(file, purpose) =>
+              (purpose !== 'supporting' && request.professionalId
+                ? uploadProviderDocument(request.professionalId, file, purpose)
+                : uploadRequestDocument(request.preauthorizationRequestId, file, purpose)
+              ).then(refetch)
+            }
+          />
+        </section>
+      )}
       <div className="case-columns">
         <section className="card compact-card">
           <h2>Attached to this request</h2>
@@ -130,6 +150,7 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
               defaultPurpose={detail.providerDocuments.missing[0] ?? 'fee_schedule'}
               onAdd={(file, purpose) => uploadProviderDocument(request.professionalId!, file, purpose).then(refetch)}
             />
+            <QuotedFees professionalId={request.professionalId} rates={detail.providerDocuments.rates} onAdded={() => void refetch()} />
           </section>
         )}
       </div>

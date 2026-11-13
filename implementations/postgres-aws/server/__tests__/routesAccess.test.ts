@@ -224,6 +224,8 @@ describe('staff without the administrator role', () => {
       ['GET', '/api/edit-data/fixes'],
       ['POST', '/api/edit-data/cases/preview'],
       ['POST', '/api/edit-data/fixes'],
+      ['POST', '/api/edit-data/merges/preview'],
+      ['POST', '/api/edit-data/merges'],
       ['POST', `/api/edit-data/fixes/${randomUUID()}/undo`],
     ] as const) {
       const body = method === 'GET' ? undefined : {};

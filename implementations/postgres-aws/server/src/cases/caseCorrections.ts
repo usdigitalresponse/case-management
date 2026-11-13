@@ -363,37 +363,96 @@ async function addClient(tx: Transaction, caseId: string, earlierClientId: strin
 // Administrators only (the route checks). All or none.
 export async function fixCase(db: Database, actorUserAccountId: string, rawInput: unknown) {
   const input = parseFix(rawInput);
+  return db.transaction((tx) => fixInTx(tx, actorUserAccountId, input));
+}
+
+async function fixInTx(tx: Transaction, actorUserAccountId: string, input: FixInput) {
+  await tx.select({ id: caseTable.caseId }).from(caseTable).where(eq(caseTable.caseId, input.caseId)).for('update');
+  const now = new Date();
+  const changes = await plan(tx, input, now);
+  const correction = firstRow(
+    await tx
+      .insert(caseCorrection)
+      .values({
+        caseId: input.caseId,
+        kind: input.kind,
+        keptCaseId: input.kind === 'same_case' ? input.keptCaseId : null,
+        correctedByUserAccountId: actorUserAccountId,
+        correctedAt: now,
+      })
+      .returning({ id: caseCorrection.caseCorrectionId }),
+  );
+  const row = await loadCase(tx, input.caseId);
+  const [client] = row.clientId ? await tx.select({ displayName: person.displayName }).from(person).where(eq(person.personId, row.clientId)) : [];
+  const newClient =
+    input.kind === 'corrected' &&
+    input.clientName &&
+    client?.displayName !== input.clientName &&
+    (!row.clientId || !(await onlyThisCases(tx, row.clientId, input.caseId)));
+  const clientChanges = newClient ? await addClient(tx, input.caseId, row.clientId, input.clientName!, now) : [];
+  changes.push(...clientChanges);
+  await apply(tx, correction.id, changes);
+  if (closes(input)) {
+    await recordLifecycle(tx, actorUserAccountId, input.caseId, true, now);
+  }
+  return { caseCorrectionId: correction.id, changed: changes.length };
+}
+
+// Settings › Merge duplicates (design K67): several cases moved into the one
+// kept, all or none, each its own same-case fix so each can be undone.
+// keepPreauthorizations: per moving case, as a same-case fix takes it.
+const mergeSchema = z.object({
+  keptCaseId: z.uuid('Choose the case to keep.'),
+  caseIds: z.array(z.uuid()).min(1, 'Choose a case to merge in.').max(10),
+  keepPreauthorizations: z.record(z.uuid(), z.record(z.uuid(), z.enum(['moved', 'kept']))).default({}),
+});
+
+function parseMerge(rawInput: unknown) {
+  const parsed = mergeSchema.safeParse(rawInput);
+  if (!parsed.success) throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
+  return parsed.data;
+}
+
+const stepsOf = (merge: z.infer<typeof mergeSchema>): FixInput[] =>
+  [...new Set(merge.caseIds)].map((caseId) => ({
+    kind: 'same_case',
+    caseId,
+    keptCaseId: merge.keptCaseId,
+    keepPreauthorizations: merge.keepPreauthorizations[caseId] ?? {},
+  }));
+
+export async function mergeCases(db: Database, actorUserAccountId: string, rawInput: unknown) {
+  const steps = stepsOf(parseMerge(rawInput));
   return db.transaction(async (tx) => {
-    await tx.select({ id: caseTable.caseId }).from(caseTable).where(eq(caseTable.caseId, input.caseId)).for('update');
-    const now = new Date();
-    const changes = await plan(tx, input, now);
-    const correction = firstRow(
-      await tx
-        .insert(caseCorrection)
-        .values({
-          caseId: input.caseId,
-          kind: input.kind,
-          keptCaseId: input.kind === 'same_case' ? input.keptCaseId : null,
-          correctedByUserAccountId: actorUserAccountId,
-          correctedAt: now,
-        })
-        .returning({ id: caseCorrection.caseCorrectionId }),
-    );
-    const row = await loadCase(tx, input.caseId);
-    const [client] = row.clientId ? await tx.select({ displayName: person.displayName }).from(person).where(eq(person.personId, row.clientId)) : [];
-    const newClient =
-      input.kind === 'corrected' &&
-      input.clientName &&
-      client?.displayName !== input.clientName &&
-      (!row.clientId || !(await onlyThisCases(tx, row.clientId, input.caseId)));
-    const clientChanges = newClient ? await addClient(tx, input.caseId, row.clientId, input.clientName!, now) : [];
-    changes.push(...clientChanges);
-    await apply(tx, correction.id, changes);
-    if (closes(input)) {
-      await recordLifecycle(tx, actorUserAccountId, input.caseId, true, now);
-    }
-    return { caseCorrectionId: correction.id, changed: changes.length };
+    const fixes = [];
+    for (const step of steps) fixes.push(await fixInTx(tx, actorUserAccountId, step));
+    return { caseCorrectionIds: fixes.map((fix) => fix.caseCorrectionId) };
   });
+}
+
+class PreviewOnly extends Error {
+  constructor(readonly previews: Array<{ caseId: string } & Awaited<ReturnType<typeof previewInTx>>>) {
+    super('preview');
+  }
+}
+
+// Each move as it would be after the ones before it: runs them and rolls back.
+export async function previewCaseMerge(db: Database, actorUserAccountId: string, rawInput: unknown) {
+  const steps = stepsOf(parseMerge(rawInput));
+  try {
+    await db.transaction(async (tx) => {
+      const previews = [];
+      for (const step of steps) {
+        previews.push({ caseId: step.caseId, ...(await previewInTx(tx, step)) });
+        await fixInTx(tx, actorUserAccountId, step);
+      }
+      throw new PreviewOnly(previews);
+    });
+  } catch (error) {
+    if (error instanceof PreviewOnly) return { cases: error.previews };
+    throw error;
+  }
+  throw new Error('A merge preview must roll back.');
 }
 
 // Puts back each value still as the fix left it; anything changed since stays.
@@ -519,60 +578,62 @@ export async function listAddedCases(db: DatabaseOrTransaction, options: { simil
 // Exactly what a fix would change, in words, before the administrator confirms.
 export async function previewCaseFix(db: Database, rawInput: unknown) {
   const input = parseFix(rawInput);
-  return db.transaction(async (tx) => {
-    const changes = await plan(tx, input, new Date());
-    const invoiceIds = [...new Set(changes.filter((change) => change.table === 'invoice' && change.column === 'case_id').map((change) => change.rowId))];
-    const requestIds = [...new Set(changes.filter((change) => change.table === 'preauthorization_request' && change.column === 'case_id').map((change) => change.rowId))];
-    const preauthorizationIds = changes.filter((change) => change.table === 'preauthorization').map((change) => change.rowId);
-    // One query at a time: a transaction's client runs them in turn.
-    const invoices = invoiceIds.length
-      ? await tx
-          .select({
-              invoiceId: invoice.invoiceId,
-              senderDisplayName: professional.displayName,
-              statusName: invoiceStatuses.displayName,
-              submittedTotal: invoice.submittedTotal,
-              caseNumberAsTyped: invoice.caseNumberAsTyped,
-            })
-            .from(invoice)
-            .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
-            .leftJoin(professional, eq(invoice.professionalId, professional.professionalId))
-            .where(inArray(invoice.invoiceId, invoiceIds))
-        : [];
-    const requests = requestIds.length
-        ? await tx
-            .select({ preauthorizationRequestId: preauthorizationRequest.preauthorizationRequestId, requestNumber: preauthorizationRequest.requestNumber })
-            .from(preauthorizationRequest)
-            .where(inArray(preauthorizationRequest.preauthorizationRequestId, requestIds))
-        : [];
-    const preauthorizations = preauthorizationIds.length
-        ? await tx
-            .select({ preauthorizationId: preauthorization.preauthorizationId, providerDisplayName: professional.displayName, caseId: preauthorization.caseId })
-            .from(preauthorization)
-            .leftJoin(professional, eq(preauthorization.professionalId, professional.professionalId))
-            .where(inArray(preauthorization.preauthorizationId, preauthorizationIds))
-        : [];
-    const conflicts = input.kind === 'same_case' ? await preauthorizationConflicts(tx, input.caseId, input.keptCaseId) : [];
-    const conflictNames = conflicts.length
-      ? await tx
-          .select({ professionalId: professional.professionalId, displayName: professional.displayName })
-          .from(professional)
-          .where(inArray(professional.professionalId, conflicts.map((conflict) => conflict.professionalId)))
+  return db.transaction((tx) => previewInTx(tx, input));
+}
+
+async function previewInTx(tx: Transaction, input: FixInput) {
+  const changes = await plan(tx, input, new Date());
+  const invoiceIds = [...new Set(changes.filter((change) => change.table === 'invoice' && change.column === 'case_id').map((change) => change.rowId))];
+  const requestIds = [...new Set(changes.filter((change) => change.table === 'preauthorization_request' && change.column === 'case_id').map((change) => change.rowId))];
+  const preauthorizationIds = changes.filter((change) => change.table === 'preauthorization').map((change) => change.rowId);
+  // One query at a time: a transaction's client runs them in turn.
+  const invoices = invoiceIds.length
+    ? await tx
+        .select({
+            invoiceId: invoice.invoiceId,
+            senderDisplayName: professional.displayName,
+            statusName: invoiceStatuses.displayName,
+            submittedTotal: invoice.submittedTotal,
+            caseNumberAsTyped: invoice.caseNumberAsTyped,
+          })
+          .from(invoice)
+          .innerJoin(invoiceStatuses, eq(invoice.statusId, invoiceStatuses.id))
+          .leftJoin(professional, eq(invoice.professionalId, professional.professionalId))
+          .where(inArray(invoice.invoiceId, invoiceIds))
       : [];
-    return {
-      invoices,
-      preauthorizationRequests: requests,
-      preauthorizations: preauthorizations.map((row) => ({ ...row, staysOnClosedCase: row.caseId !== input.caseId })),
-      preauthorizationChoices: conflicts.map((conflict) => ({
-        professionalId: conflict.professionalId,
-        providerDisplayName: conflictNames.find((name) => name.professionalId === conflict.professionalId)?.displayName ?? null,
-      })),
-      assignmentsMoved: changes.filter((change) => change.table === 'case_assignment' && change.column === 'case_id').length,
-      assignmentsEnded: changes.filter((change) => change.table === 'case_assignment' && change.column === 'ended_at').length,
-      caseChanges: changes.filter((change) => change.table === 'case' && ['external_reference', 'county_id'].includes(change.column)),
-      closes: closes(input),
-    };
-  });
+  const requests = requestIds.length
+      ? await tx
+          .select({ preauthorizationRequestId: preauthorizationRequest.preauthorizationRequestId, requestNumber: preauthorizationRequest.requestNumber })
+          .from(preauthorizationRequest)
+          .where(inArray(preauthorizationRequest.preauthorizationRequestId, requestIds))
+      : [];
+  const preauthorizations = preauthorizationIds.length
+      ? await tx
+          .select({ preauthorizationId: preauthorization.preauthorizationId, providerDisplayName: professional.displayName, caseId: preauthorization.caseId })
+          .from(preauthorization)
+          .leftJoin(professional, eq(preauthorization.professionalId, professional.professionalId))
+          .where(inArray(preauthorization.preauthorizationId, preauthorizationIds))
+      : [];
+  const conflicts = input.kind === 'same_case' ? await preauthorizationConflicts(tx, input.caseId, input.keptCaseId) : [];
+  const conflictNames = conflicts.length
+    ? await tx
+        .select({ professionalId: professional.professionalId, displayName: professional.displayName })
+        .from(professional)
+        .where(inArray(professional.professionalId, conflicts.map((conflict) => conflict.professionalId)))
+    : [];
+  return {
+    invoices,
+    preauthorizationRequests: requests,
+    preauthorizations: preauthorizations.map((row) => ({ ...row, staysOnClosedCase: row.caseId !== input.caseId })),
+    preauthorizationChoices: conflicts.map((conflict) => ({
+      professionalId: conflict.professionalId,
+      providerDisplayName: conflictNames.find((name) => name.professionalId === conflict.professionalId)?.displayName ?? null,
+    })),
+    assignmentsMoved: changes.filter((change) => change.table === 'case_assignment' && change.column === 'case_id').length,
+    assignmentsEnded: changes.filter((change) => change.table === 'case_assignment' && change.column === 'ended_at').length,
+    caseChanges: changes.filter((change) => change.table === 'case' && ['external_reference', 'county_id'].includes(change.column)),
+    closes: closes(input),
+  };
 }
 
 export async function listCaseFixes(db: DatabaseOrTransaction, limit = 20) {

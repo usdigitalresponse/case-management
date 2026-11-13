@@ -98,7 +98,7 @@ export interface ReviewQueueItem extends QueuedInvoice {
 
 export type QueueView = 'open' | 'finished' | 'lines_decided' | 'all';
 // A person's: 'waiting' (in review) and 'done' (decided).
-export type QueueShow = 'all' | 'mine' | 'unassigned' | 'flagged' | 'month' | 'sign_off' | 'decided' | 'completed' | 'approved' | 'waiting' | 'done';
+export type QueueShow = 'all' | 'mine' | 'unassigned' | 'reviewing' | 'flagged' | 'month' | 'sign_off' | 'decided' | 'completed' | 'approved' | 'waiting' | 'done';
 // search: exact matches before close ones, each newest first.
 export type QueueSort = 'waiting' | 'newest' | 'finished' | 'search';
 

@@ -65,3 +65,19 @@ export function listCaseFixes(): Promise<{ fixes: CaseFixRecord[] }> {
 export function undoCaseFix(caseCorrectionId: string): Promise<{ restored: number; leftAsIs: number }> {
   return request(`/api/edit-data/fixes/${caseCorrectionId}/undo`, { method: 'POST', body: '{}' });
 }
+
+// Settings › Merge duplicates: several cases moved into the one kept, all or none.
+export interface CaseMerge {
+  keptCaseId: string;
+  caseIds: string[];
+  // Per moving case: which pre-authorization to keep, where both cases have one for a provider.
+  keepPreauthorizations?: Record<string, Record<string, 'moved' | 'kept'>>;
+}
+
+export function previewCaseMerge(merge: CaseMerge): Promise<{ cases: Array<{ caseId: string } & CaseFixPreview> }> {
+  return request('/api/edit-data/merges/preview', { method: 'POST', body: JSON.stringify(merge) });
+}
+
+export function mergeCases(merge: CaseMerge): Promise<{ caseCorrectionIds: string[] }> {
+  return request('/api/edit-data/merges', { method: 'POST', body: JSON.stringify(merge) });
+}

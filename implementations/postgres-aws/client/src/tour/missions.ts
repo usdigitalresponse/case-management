@@ -148,7 +148,7 @@ const staffFiling: MissionDefinition = {
     {
       id: 'which-case',
       role: 'staff',
-      goal: 'Under “Which case is it for?”, add the paper’s case: its number and county are all it asks.',
+      goal: 'Add the paper’s county beside its case number, then add its case under “Which case is it for?”.',
       before: 'Each case was typed into one more system before its bills could be paid.',
       now: 'A case is found by its number in its county, or added from them. Work that isn’t for one case says so instead.',
       path: entryPath,
@@ -394,16 +394,6 @@ const answerFinish: MissionDefinition = {
       goal: 'As the reviewer, decide the line that was asked about.',
       path: invoicePath,
       done: { request: { method: 'PUT', path: (ctx) => new RegExp(`^/api/invoices/${tourInvoiceId(ctx)}/lines/${ID}/decision$`) } },
-    },
-    {
-      id: 'which-case',
-      role: 'staff',
-      goal: 'Under “Which case is it for?”, add the paper’s case: its number and county are all it asks.',
-      before: 'Each case was typed into one more system before its bills could be paid.',
-      now: 'A case is found by its number in its county, or added from them. Work that isn’t for one case says so instead.',
-      path: entryPath,
-      target: { text: 'Which case is it for?' },
-      done: { request: { method: 'PUT', path: (ctx) => new RegExp(`^/api/invoices/${enteredId(ctx)}/case-choice$`) } },
     },
     {
       id: 'finish',
