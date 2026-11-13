@@ -7,7 +7,7 @@
 .change-note__text .link-button { font-size: var(--text-13); font-weight: 600; }
 .change-note__show { display: block; margin-top: var(--space-3); font-weight: 600; }
 .removed-lines { margin-top: var(--space-4); }
-.removed-lines caption { padding: var(--space-4) var(--space-6); text-align: left; font-size: var(--text-12); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--color-on-surface-variant); }
+.removed-lines caption { padding: var(--space-4) var(--space-6); text-align: left; color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .removed-lines td { color: var(--color-on-surface-muted); }
 .removed-lines .tag { display: block; width: fit-content; margin-top: var(--space-3); }
 @media (max-width: 64rem) {
@@ -97,7 +97,7 @@
 /* Totals and sign-off */
 .totals-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-6) var(--space-9); margin-top: var(--space-6); padding: var(--space-6) var(--space-8); }
 .totals-bar dl { display: flex; flex-wrap: wrap; gap: var(--space-6) var(--space-10); margin: 0; }
-.totals-bar dt { font-size: var(--text-11); text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
+.totals-bar dt { color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .totals-bar dd { margin: var(--space-3) 0 0; }
 .total-figure { font-size: var(--text-20); font-weight: 700; }
 .total-figure--good { color: var(--color-success); }
@@ -114,7 +114,7 @@
 /* Case card and matching on the review page */
 .invoice-case-card { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6) var(--space-9); align-items: start; margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-7); }
 .invoice-case-card p { margin: var(--space-3) 0 0; }
-.invoice-case-card__eyebrow { margin: 0 0 var(--space-3); font-size: var(--text-11); text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
+.invoice-case-card__eyebrow { margin: 0 0 var(--space-3); color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .invoice-case-card__client { font-family: var(--font-serif); font-size: var(--text-20); font-weight: 700; text-decoration: none; }
 .invoice-case-card__links { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-8); margin-top: var(--space-4); }
 @media (max-width: 52rem) {

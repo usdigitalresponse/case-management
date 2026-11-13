@@ -24,7 +24,7 @@
   .page-title-row > .title-actions { grid-column: 1; grid-row: auto; order: 1; margin-top: var(--space-6); justify-content: flex-start; }
 }
 /* A list or queue page's title: Headline/Medium, as in design I's list frames. */
-.app-main h1.page-title--list, .portal-page h1.page-title--list { font-size: var(--text-26); line-height: 1.4; letter-spacing: 0; }
+.app-main h1.page-title--list, .portal-page h1.page-title--list { font: var(--headline-medium); letter-spacing: var(--tracking-headline-medium); }
 .page-title-row h1 { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
 .title-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3) var(--space-6); margin: 0; color: var(--color-on-surface-variant); font-size: var(--text-15); }
 .title-meta strong { color: var(--color-on-surface); }
@@ -34,7 +34,7 @@
 .breadcrumb a:hover { text-decoration: underline; }
 /* Facts strip and progress */
 .facts-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-6); margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-7); }
-.facts-strip dt, .file-case-number dt { margin: 0 0 var(--space-3); font-size: var(--text-11); text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
+.facts-strip dt, .file-case-number dt { margin: 0 0 var(--space-3); color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .facts-strip dd, .file-case-number dd { margin: 0; font: var(--title-medium); }
 .facts-strip dd .cell-note, .file-case-number dd .cell-note { font: var(--body-medium); color: var(--color-on-surface-variant); }
 .progress { display: block; width: 100%; max-width: 7rem; height: 4px; margin-top: var(--space-4); background: var(--color-outline-subtle); border-radius: var(--radius-mark); overflow: hidden; }
@@ -62,7 +62,7 @@
 .duplicate-person__facts dd { margin: 0; overflow-wrap: anywhere; }
 .merge-sides { margin-bottom: var(--space-6); }
 .merge-side { padding: var(--space-7) var(--space-8); }
-.merge-side h2 { margin: 0 0 var(--space-4); font: var(--title-small); color: var(--color-on-surface-variant); text-transform: uppercase; letter-spacing: .5px; }
+.merge-side h2 { margin: 0 0 var(--space-4); color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .merge-side--retired { background: var(--color-surface-container-low); }
 .merge-side__actions { display: flex; flex-wrap: wrap; gap: var(--space-6); margin-top: var(--space-5); }
 .merge-notes { margin: 0 0 var(--space-8); padding-left: var(--space-8); font: var(--body-medium); }

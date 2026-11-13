@@ -11,7 +11,7 @@ button, input, select, textarea { font: inherit; }
 .muted { color: var(--color-on-surface-muted); }
 .cell-note { display: block; margin-top: var(--space-2); font-size: var(--text-13); line-height: 1.35; color: var(--color-on-surface-muted); }
 .cell-flag { display: block; margin-top: var(--space-2); font-size: var(--text-13); line-height: 1.35; color: var(--color-on-tertiary-container); }
-.empty-note { padding: var(--space-9) var(--space-6); text-align: center; color: var(--color-on-surface-muted); background: var(--color-surface); border: 1px dashed var(--color-outline-subtle); border-radius: var(--radius-medium); }
+.empty-note { padding: var(--space-9) var(--space-6); text-align: center; color: var(--color-on-surface-muted); background: var(--color-surface); border: 1px dashed var(--color-outline-subtle); border-radius: var(--radius-large); }
 .field-error { margin: var(--field-gap) 0 0; }
 .link-button { border: 0; padding: 0; background: none; color: var(--color-primary); cursor: pointer; font-size: inherit; text-decoration: none; }
 .link-button:hover:not(:disabled) { text-decoration: underline; }

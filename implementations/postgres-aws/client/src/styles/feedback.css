@@ -1,6 +1,6 @@
 /* Tags, notices, toasts and flags on entered details. */
 /* Tags (components/ui/Tag.tsx), including status and filter tags. */
-.tag { display: inline-flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-radius: var(--radius-small); font-family: var(--font-sans); font-size: var(--text-11); font-weight: 600; letter-spacing: .2px; line-height: 1.25; background: var(--color-secondary-container); color: var(--color-on-secondary-container); white-space: nowrap; border: 0; }
+.tag { display: inline-flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); border-radius: var(--radius-small); font: var(--label-small); letter-spacing: var(--tracking-label-small); background: var(--color-secondary-container); color: var(--color-on-secondary-container); white-space: nowrap; border: 0; }
 .tag--success { background: var(--color-success-container); color: var(--color-on-success-container); }
 .tag--warning { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); }
 .tag--danger { background: var(--color-error-container); color: var(--color-on-error-container); }
@@ -27,7 +27,7 @@
 .notice--success { --notice-strong: var(--color-success); background: var(--color-success-container); border-color: var(--color-success); color: var(--color-on-success-container); }
 .notice--danger { --notice-strong: var(--color-error); background: var(--color-error-container); border-color: var(--color-error); color: var(--color-on-error-container); }
 /* Message with Undo, at the bottom of the screen. */
-.toast { position: fixed; z-index: 30; left: 50%; bottom: 2rem; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-8); padding: var(--space-5) var(--space-6); border-radius: var(--radius-medium); background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); box-shadow: var(--elevation-3); font-size: var(--text-15); }
+.toast { position: fixed; z-index: 30; left: 50%; bottom: 2rem; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-8); padding: var(--space-5) var(--space-6); border-radius: var(--radius-large); background: var(--color-inverse-surface); color: var(--color-on-inverse-surface); box-shadow: var(--elevation-3); font-size: var(--text-15); }
 .toast__undo { border: 0; background: none; color: var(--color-inverse-primary); font-weight: 700; cursor: pointer; padding: 0; }
 /* A Tag marking what a submitter entered rather than chose. */
 .entered-flag { margin: var(--space-2) var(--space-3) 0 0; white-space: normal; }

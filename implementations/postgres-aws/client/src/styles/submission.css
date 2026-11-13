@@ -44,7 +44,7 @@
 .submission__lines > .notice { margin-bottom: var(--space-6); }
 .check-lines { overflow-x: auto; }
 .check-lines__table { width: 100%; border-collapse: collapse; font-size: var(--text-15); }
-.check-lines__table th { padding: var(--space-4) var(--space-5); background: var(--color-surface-container-low); border-bottom: 1px solid var(--color-outline-subtle); color: var(--color-on-surface-variant); font-size: var(--text-11); font-weight: 600; letter-spacing: .04em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.check-lines__table th { padding: var(--space-4) var(--space-5); background: var(--color-surface-container-low); border-bottom: 1px solid var(--color-outline-subtle); color: var(--color-on-surface-variant); text-align: left; white-space: nowrap; font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .check-lines__table td { padding: var(--space-5) var(--space-5); border-bottom: 1px solid var(--color-outline-subtle); vertical-align: top; }
 .check-lines__table .amount { text-align: right; white-space: nowrap; }
 /* One tbody per line: figures, then what was done below. */
@@ -97,7 +97,7 @@
 .manual-entry__offer .link-button { font-weight: 600; }
 .check-lines__totals { display: flex; gap: var(--space-8); text-align: right; }
 .check-lines__totals > div { display: flex; flex-direction: column; gap: var(--space-2); }
-.check-lines__totals > div > span:first-child { color: var(--color-on-surface-variant); font-size: var(--text-11); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.check-lines__totals > div > span:first-child { color: var(--color-on-surface-variant); font: var(--label-small); letter-spacing: var(--tracking-label-small); }
 .check-lines__asking strong { font-size: var(--text-20); }
 .edit-line { display: flex; flex-direction: column; gap: var(--space-6); padding: var(--space-7) var(--space-8); }
 .edit-line h3 { margin: 0; font-size: var(--text-18); }
@@ -112,11 +112,11 @@
 .edit-line .field-hint { margin: 0; }
 .edit-line__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }
 .edit-line__remove { margin-left: auto; }
-.send-summary { display: grid; grid-template-columns: auto 1fr; gap: var(--space-4) var(--space-8); margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-6); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-medium); background: var(--color-surface-container-low); font-size: var(--text-15); }
+.send-summary { display: grid; grid-template-columns: auto 1fr; gap: var(--space-4) var(--space-8); margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-6); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-large); background: var(--color-surface-container-low); font-size: var(--text-15); }
 .send-summary dt { color: var(--color-on-surface-variant); font-size: var(--text-11); align-self: center; }
 .send-summary dd { margin: 0; }
 .send-summary__total { font-size: var(--text-18); font-weight: 700; }
-.attest { display: flex; align-items: flex-start; gap: var(--space-4); margin: var(--space-4) 0 var(--space-3); padding: var(--space-5) var(--space-6); border: 1px solid var(--color-primary-fixed-dim); border-radius: var(--radius-medium); background: var(--color-primary-container-low); font: var(--body-medium); cursor: pointer; }
+.attest { display: flex; align-items: flex-start; gap: var(--space-4); margin: var(--space-4) 0 var(--space-3); padding: var(--space-5) var(--space-6); border: 1px solid var(--color-primary-fixed-dim); border-radius: var(--radius-large); background: var(--color-primary-container-low); font: var(--body-medium); cursor: pointer; }
 .attest input { margin: var(--space-2) 0 0; }
 /* Entering: under a line's description, asking about it on the left and
    deciding it on the right, on one row (EntryLines). */

@@ -17,12 +17,12 @@
 .app-sidebar a:not(.btn):hover { background: var(--color-surface-container); }
 /* Bold and a bar too, so the selection doesn't rest on color alone. */
 .app-sidebar a:not(.btn).active { background: var(--color-primary-container); color: var(--color-on-primary-container); font-weight: 600; box-shadow: inset 3px 0 0 var(--color-primary); }
-.nav-count { font: var(--label-small); letter-spacing: .2px; color: var(--color-on-surface-variant); }
+.nav-count { font: var(--label-small); letter-spacing: var(--tracking-label-small); color: var(--color-on-surface-variant); }
 .app-sidebar a.active .nav-count { color: var(--color-primary); }
 /* A count tag beside a section heading. */
 .heading-count { margin-left: var(--space-4); vertical-align: .2em; }
 .nav-group { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
-.nav-group h2 { padding: calc(var(--space-6) + var(--space-2)) 0 calc(var(--space-3) + var(--space-2)) var(--space-4); margin: 0; font: var(--title-small); line-height: 1.25; text-transform: uppercase; letter-spacing: .6px; color: var(--color-on-surface-variant); }
+.nav-group h2 { padding: calc(var(--space-6) + var(--space-2)) 0 calc(var(--space-3) + var(--space-2)) var(--space-4); margin: 0; color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .nav-group button:disabled { color: var(--color-on-surface-muted); cursor: not-allowed; justify-content: flex-start; gap: var(--space-4); }
 .app-main { min-width: 0; padding: calc(var(--space-8) + var(--space-3)) var(--space-9) var(--space-15); }
 /* <main tabIndex={-1}> is a skip-link landing target, not an interactive
@@ -37,7 +37,7 @@
   .page-loading { animation-duration: 1ms; }
 }
 /* Headline/Large. */
-.app-main h1, .portal-page h1 { font-family: var(--font-serif); font-size: var(--text-32); font-weight: 600; letter-spacing: -.5px; margin: 0 0 var(--space-5); line-height: 1.2; }
+.app-main h1, .portal-page h1 { margin: 0 0 var(--space-5); font: var(--headline-large); letter-spacing: var(--tracking-headline-large); }
 .page-heading { margin-bottom: var(--space-8); }
 /* As a breadcrumb, as on design I's Settings. */
 .eyebrow { margin: 0 0 var(--space-4); color: var(--color-on-surface-muted); font-size: var(--text-11); }

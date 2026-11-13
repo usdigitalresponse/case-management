@@ -6,7 +6,7 @@
 .upload-card__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5) var(--space-7); }
 .upload-card__actions .field-hint { margin: 0; }
 .upload-card > .notice { margin: 0; }
-.drop-zone { cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: var(--space-4); padding: var(--space-8); border: 2px dashed var(--color-outline); border-radius: var(--radius-medium); background: var(--color-surface-container-low); text-align: center; font: var(--body-medium); color: var(--color-on-surface-variant); }
+.drop-zone { cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: var(--space-4); padding: var(--space-8); border: 2px dashed var(--color-outline); border-radius: var(--radius-large); background: var(--color-surface-container-low); text-align: center; font: var(--body-medium); color: var(--color-on-surface-variant); }
 .drop-zone strong { font: var(--label-large); color: var(--color-on-surface); }
 .drop-zone--over { border-style: solid; border-color: var(--color-primary); background: var(--color-primary-container-low); }
 .drop-zone--error { border-color: var(--color-error); }

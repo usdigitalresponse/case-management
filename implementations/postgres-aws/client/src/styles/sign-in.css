@@ -34,7 +34,7 @@
 .login-panel .code-box { width: 2.6rem; height: 3rem; font-size: var(--text-20); }
 .portal-sign-in { min-height: calc(100vh - 57px); box-sizing: border-box; padding: var(--space-15) var(--space-6) var(--space-11); background: var(--color-surface-container); }
 .portal-sign-in:focus { outline: none; }
-.portal-sign-in__card { max-width: 27.5rem; box-sizing: border-box; margin: 0 auto; padding: var(--space-9); background: var(--color-surface); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-medium); }
+.portal-sign-in__card { max-width: 27.5rem; box-sizing: border-box; margin: 0 auto; padding: var(--space-9); background: var(--color-surface); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-large); }
 .portal-sign-in__note { max-width: 27.5rem; margin: var(--space-8) auto 0; text-align: center; color: var(--color-on-surface-variant); font-size: var(--text-13); }
 @media (max-width: 30rem) {
   .portal-sign-in { padding-top: var(--space-9); }

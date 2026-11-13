@@ -34,7 +34,7 @@
 .time-log-entries .original-document__bar h2 { white-space: normal; }
 .time-log-entries__frame { background: var(--color-surface); padding: 0; }
 .time-log-entries__table { width: 100%; border-collapse: collapse; font-size: var(--text-13); }
-.time-log-entries__table th { position: sticky; top: 0; padding: var(--space-4) var(--space-4); text-align: left; background: var(--color-surface-container-low); color: var(--color-on-surface-variant); font-size: var(--text-11); letter-spacing: .04em; text-transform: uppercase; }
+.time-log-entries__table th { position: sticky; top: 0; padding: var(--space-4) var(--space-4); text-align: left; background: var(--color-surface-container-low); color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .time-log-entries__table td { padding: var(--space-4) var(--space-4); vertical-align: top; border-bottom: 1px solid var(--color-outline-subtle); }
 .time-log-entries__table tr.is-focused td { background: var(--color-primary-container); }
 .time-log-entries__table tr.is-outside td { color: var(--color-on-surface-muted); }
