@@ -266,11 +266,6 @@ export function updateDraftInvoice(
 }
 
 // The case number as typed, on a draft; empty clears it.
-// A draft filed by person, put under one of its sender's cases, or taken off it (null).
-export function setDraftCase(invoiceId: string, caseId: string | null): Promise<{ caseId: string | null; caseNumber: string | null }> {
-  return request(`/api/portal/invoices/${invoiceId}/case`, { method: 'PUT', body: JSON.stringify({ caseId }) });
-}
-
 export function setDraftCaseNumber(invoiceId: string, caseNumber: string): Promise<{ invoiceId: string; caseNumber: string | null }> {
   return request(`/api/portal/invoices/${invoiceId}/case-number`, { method: 'PUT', body: JSON.stringify({ caseNumber }) });
 }
@@ -307,10 +302,11 @@ export function transitionInvoice(
   invoiceId: string,
   transition: InvoiceTransition,
   receipt?: InvoiceReceipt,
-): Promise<{ invoiceId: string; status?: SendStatus }> {
+  // Sent by staff: why the case they chose couldn't be matched, if it couldn't.
+): Promise<{ invoiceId: string; status?: SendStatus; caseProblem?: string | null }> {
   // Sending names the browser's zone, so the emailed receipt's time matches the sender's day.
   const body = transition === 'submit' ? { ...receipt, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } : receipt;
-  return request<{ invoiceId: string; status?: SendStatus }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
+  return request<{ invoiceId: string; status?: SendStatus; caseProblem?: string | null }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
     method: 'POST',
     body: body ? JSON.stringify(body) : undefined,
   });

@@ -2,48 +2,33 @@
 import { useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import { ADD_NEW, PickOrAdd } from '../PickOrAdd';
-import { apiErrorMessage, caseOptionLabel, searchCases, searchProviders, decidePreauthorizationRequest, matchPreauthorizationRequest, type PreauthorizationRequestDetail, type PreauthorizationRequestRow, type RequestOutcome } from '../../api/client';
+import { apiErrorMessage, caseOptionLabel, fieldError, searchCases, searchProviders, decidePreauthorizationRequest, matchPreauthorizationRequest, type PreauthorizationMatch, type PreauthorizationRequestDetail, type PreauthorizationRequestRow, type RequestOutcome } from '../../api/client';
+import { CountyPicker } from '../CountyPicker';
+import { SegmentedChoice } from '../ui/SegmentedChoice';
+import type { CountyValue } from '../../counties';
 import { Notice } from '../ui/Notice';
 import { Button } from '../ui/Button';
 
 export function MatchForm({ request, onMatched }: { request: PreauthorizationRequestRow; onMatched: (next: PreauthorizationRequestDetail) => void }) {
   const [error, setError] = useState<string | null>(null);
-  const [casePick, setCasePick] = useState('');
   const [providerPick, setProviderPick] = useState('');
-  const match = (input: { caseId?: string; professionalId?: string }) =>
+  const match = (input: PreauthorizationMatch) =>
     matchPreauthorizationRequest(request.preauthorizationRequestId, input).then(onMatched, (err: unknown) => setError(apiErrorMessage(err, 'Could not match it.')));
-  const pick = (value: string, set: (value: string) => void, input: (value: string) => { caseId?: string; professionalId?: string }) => {
-    set(value);
-    if (value && value !== ADD_NEW) void match(input(value));
-  };
   return (
     <section className="card compact-card">
       <h2>Match it</h2>
       <p className="compact-hint">Match what the requester entered to records before deciding. Their entries stay on the request.</p>
       {error && <Notice tone="danger">{error}</Notice>}
-      {!request.caseId && (
-        <PickOrAdd
-          id="match-case"
-          label={`Case for ${request.proposedCaseNumber ?? 'this request'}`}
-          value={casePick}
-          onChange={(value) => pick(value, setCasePick, (caseId) => ({ caseId }))}
-          addLabel="+ Add the case"
-          placeholder="Choose a case"
-          options={[]}
-          search={(query) => searchCases(query).then((found) => found.map((row) => ({ value: row.caseId, label: caseOptionLabel(row) })))}
-        >
-          <RouterLink to={`/cases/new?${new URLSearchParams(request.proposedCaseNumber ? { number: request.proposedCaseNumber } : {})}`}>
-            Add case {request.proposedCaseNumber}
-          </RouterLink>
-          , then come back and choose it.
-        </PickOrAdd>
-      )}
+      {!request.caseId && <RequestCaseStep request={request} match={match} />}
       {!request.professionalId && (
         <PickOrAdd
           id="match-provider"
           label={`Provider for ${request.proposedProviderName ?? 'this request'}`}
           value={providerPick}
-          onChange={(value) => pick(value, setProviderPick, (professionalId) => ({ professionalId }))}
+          onChange={(value) => {
+            setProviderPick(value);
+            if (value && value !== ADD_NEW) void match({ professionalId: value });
+          }}
           addLabel="+ Add the provider"
           placeholder="Search by name or email"
           options={[]}
@@ -53,6 +38,88 @@ export function MatchForm({ request, onMatched }: { request: PreauthorizationReq
         </PickOrAdd>
       )}
     </section>
+  );
+}
+
+// The case step as on an invoice (model/rules.yaml match_invoice_to_case): a
+// case chosen, one added from its number and county, or not for one case.
+function RequestCaseStep({ request, match }: { request: PreauthorizationRequestRow; match: (input: PreauthorizationMatch) => Promise<void> }) {
+  const [casePick, setCasePick] = useState('');
+  const [caseNumber, setCaseNumber] = useState(request.proposedCaseNumber ?? '');
+  const [county, setCounty] = useState<CountyValue | null>(null);
+  const [clientName, setClientName] = useState('');
+  const [similarListed, setSimilarListed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // The county comes first: a case is found in it, and work not for one case counts under it.
+  const countyId = county?.countyId ?? request.proposedCountyId ?? request.countyId ?? null;
+  const countyHint = county ? undefined : request.proposedCountyId ? 'The county the requester gave.' : !countyId ? 'Add the county first.' : undefined;
+  async function addCase(confirmedNew: boolean) {
+    setError(null);
+    try {
+      await matchPreauthorizationRequest(request.preauthorizationRequestId, {
+        newCase: { caseNumber, countyId, clientName: clientName.trim() || undefined, confirmedNew },
+      }).then(() => match({}));
+    } catch (err) {
+      setSimilarListed(Boolean(fieldError(err, 'confirmedNew')));
+      setError(apiErrorMessage(err, 'The case could not be added.'));
+    }
+  }
+  return (
+    <div className="case-step">
+      <SegmentedChoice
+        label="Which case is it for?"
+        value={request.notForCase ? 'none' : 'case'}
+        options={[
+          { value: 'case', label: 'For a case' },
+          { value: 'none', label: 'Not for one case' },
+        ]}
+        onChange={(value) => void match(value === 'none' ? { notForCase: true, ...(countyId ? { countyId } : {}) } : { notForCase: false })}
+      />
+      <CountyPicker
+        id="match-case-county"
+        value={county}
+        onChange={(value) => {
+          setCounty(value);
+          if (request.notForCase && value?.countyId) void match({ notForCase: true, countyId: value.countyId });
+        }}
+        hint={countyHint}
+      />
+      {request.notForCase ? (
+        <p className="field-hint">
+          For work like court observation{request.countyName ? ` in ${request.countyName}` : ''}. Approving it records the decision and amount only, with
+          no pre-authorization or limit.
+        </p>
+      ) : (
+        <PickOrAdd
+          id="match-case"
+          label={`Case for ${request.proposedCaseNumber ?? 'this request'}`}
+          value={casePick}
+          onChange={(value) => {
+            setCasePick(value);
+            if (value && value !== ADD_NEW) void match({ caseId: value, ...(countyId ? { countyId } : {}) });
+          }}
+          addLabel={`+ Add case ${caseNumber || 'from its number'}`}
+          placeholder="Search by case number or client"
+          options={[]}
+          search={(query) => searchCases(query).then((found) => found.map((row) => ({ value: row.caseId, label: caseOptionLabel(row) })))}
+        >
+          <div className="usa-form-group">
+            <label className="usa-label" htmlFor="match-case-number">Case number</label>
+            <input id="match-case-number" className="usa-input" value={caseNumber} onChange={(event) => setCaseNumber(event.target.value)} />
+          </div>
+          <div className="usa-form-group">
+            <label className="usa-label" htmlFor="match-case-client">
+              Client’s name <span className="field-hint">(optional)</span>
+            </label>
+            <input id="match-case-client" className="usa-input" value={clientName} onChange={(event) => setClientName(event.target.value)} />
+          </div>
+          {error && <p className="field-error" role="alert">{error}</p>}
+          <Button kind="primary" disabled={!caseNumber.trim() || !countyId} onClick={() => void addCase(similarListed)}>
+            {similarListed ? 'It’s a different case: add it' : 'Add the case'}
+          </Button>
+        </PickOrAdd>
+      )}
+    </div>
   );
 }
 

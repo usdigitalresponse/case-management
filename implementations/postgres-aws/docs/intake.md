@@ -1,6 +1,8 @@
 # Intake handler design notes
 
-How case intake is handled on the server. See also [`api.md`](api.md) and
+How case intake is handled on the server. `createCase` now serves only the
+demo seed, the guided tour and tests: staff add cases through a request's
+case step (`src/cases/caseStep.ts`; see "The case step" in `api.md`). See also [`api.md`](api.md) and
 [`../MAPPING.md`](../MAPPING.md).
 
 - **Request validation**: `src/intake/validation.ts` defines a Zod schema for
@@ -50,8 +52,8 @@ How case intake is handled on the server. See also [`api.md`](api.md) and
   beside the people on it, then its invoices and case rates, and at the
   foot "Closing the case here": a cleanup any staff member may do once no
   invoice is in review and every decided one is marked completed. Matching
-  a later invoice to a closed case ("Match and reopen" on the review page,
-  or a closed case chosen on Intake) reopens it.
+  a later invoice to a closed case (from the case step on the check or review
+  page) reopens it.
 - **Look-up pages** (design I, I51–I53): Providers (`/vendors`) lists each
   provider with their kind (changed inline by administrators), today's rate,
   their office and who can send their invoices: themselves once they can sign

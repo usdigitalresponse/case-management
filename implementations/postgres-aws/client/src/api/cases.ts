@@ -219,14 +219,50 @@ export interface CaseByNumber {
   caseNumber: string | null;
   otherNumbers: string[];
   clientDisplayName: string | null;
+  countyId: string | null;
   countyDisplayName: string | null;
   closed: boolean;
   match: 'exact' | 'close';
 }
 
-// Cases with the number an invoice filed by person gives.
-export function findCaseMatches(invoiceId: string): Promise<{ cases: CaseByNumber[] }> {
-  return request(`/api/invoices/${invoiceId}/case-matches`);
+// The case step (server/src/cases/caseStep.ts): the same number in the
+// invoice's county, chosen without asking, and close ones staff must say about.
+export interface CaseStepMatches {
+  exact: CaseByNumber | null;
+  similar: CaseByNumber[];
+  // The same number in another county: a hint only, never offered.
+  elsewhere: CaseByNumber[];
+}
+
+export type CaseChoiceInput =
+  | { choice: 'existing'; caseId: string }
+  | { choice: 'new'; clientName?: string; confirmedNew?: boolean; caseNumber?: string }
+  | { choice: 'none' }
+  | { choice: null };
+
+export interface CaseChoiceResult {
+  caseId: string | null;
+  addedCaseId: string | null;
+  caseProblem: string | null;
+}
+
+// For an invoice in review; caseNumber is one the reviewer typed.
+export function findCaseMatches(invoiceId: string, caseNumber?: string): Promise<CaseStepMatches> {
+  return request(`/api/invoices/${invoiceId}/case-matches${caseNumber ? `?caseNumber=${encodeURIComponent(caseNumber)}` : ''}`);
+}
+
+// A reviewer says which case an invoice in review is for, adding it if need be.
+export function chooseCaseInReview(invoiceId: string, input: CaseChoiceInput): Promise<CaseChoiceResult> {
+  return request(`/api/invoices/${invoiceId}/case-choice`, { method: 'PUT', body: JSON.stringify(input) });
+}
+
+// On a staff member's draft, matched or added when it is sent.
+export function findDraftCaseMatches(invoiceId: string): Promise<CaseStepMatches> {
+  return request(`/api/portal/invoices/${invoiceId}/case-matches`);
+}
+
+export function setDraftCaseChoice(invoiceId: string, input: CaseChoiceInput): Promise<{ invoiceId: string; caseChoice: CaseChoiceInput['choice'] }> {
+  return request(`/api/portal/invoices/${invoiceId}/case-choice`, { method: 'PUT', body: JSON.stringify(input) });
 }
 
 export function setCaseReviewer(caseId: string, userAccountId: string): Promise<AssignedPerson | null> {
@@ -313,43 +349,6 @@ export interface CountyChoice {
 
 export function listCounties(): Promise<{ counties: CountyOption[] }> {
   return request('/api/portal/counties');
-}
-
-export interface CreateCaseIdentifierInput {
-  identifierTypeId: string;
-  issuer: string;
-  value: string;
-  isPrimary?: boolean;
-}
-
-export interface CreateCaseInput {
-  requestId: string;
-  // An existing person, or a new one created with the case.
-  personId?: string;
-  newClient?: { displayName: string; email?: string; confirmedNew?: boolean };
-  caseNumber?: string;
-  participantRoleId: string;
-  statusId: string;
-  effectiveAt: string;
-  countyId?: string;
-  countyName?: string;
-  caseCategoryId?: string;
-  organizationId?: string;
-  officeId?: string;
-  jurisdictionId?: string;
-  preferredLanguageId?: string;
-  identifier?: CreateCaseIdentifierInput;
-}
-
-export interface CreateCaseResult {
-  caseId: string;
-  caseParticipantId: string;
-  caseLifecycleEventId: string;
-  caseIdentifierId: string | null;
-}
-
-export function createCase(input: CreateCaseInput): Promise<CreateCaseResult> {
-  return request<CreateCaseResult>('/api/cases', { method: 'POST', body: JSON.stringify(input) });
 }
 
 // --- External portal (view/log time, submit invoices) ---------------------

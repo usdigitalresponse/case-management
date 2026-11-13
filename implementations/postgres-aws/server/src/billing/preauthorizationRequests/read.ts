@@ -40,8 +40,10 @@ const requestColumns = {
   outcomeCode: preauthorizationRequestOutcomes.code,
   outcomeName: preauthorizationRequestOutcomes.displayName,
   decisionReason: preauthorizationRequest.decisionReason,
-  approvedAmount: preauthorizationDecision.approvedAmount,
-  approvedHourlyRate: preauthorizationDecision.approvedHourlyRate,
+  // Not for one case, the decision is kept on the request alone.
+  notForCase: preauthorizationRequest.notForCase,
+  approvedAmount: sql<string | null>`coalesce(${preauthorizationDecision.approvedAmount}, ${preauthorizationRequest.approvedAmount})`,
+  approvedHourlyRate: sql<string | null>`coalesce(${preauthorizationDecision.approvedHourlyRate}, ${preauthorizationRequest.approvedHourlyRate})`,
   requestedByUserAccountId: preauthorizationRequest.requestedByUserAccountId,
   requestedByName: requester.displayName,
   requestedForName: requestedFor.displayName,
@@ -61,7 +63,7 @@ function selectRequests(db: DatabaseOrTransaction, cursor?: SQL<string[]>) {
     .leftJoin(preauthorizationRequestOutcomes, eq(preauthorizationRequest.outcomeId, preauthorizationRequestOutcomes.id))
     .leftJoin(preauthorizationDecision, eq(preauthorizationRequest.preauthorizationDecisionId, preauthorizationDecision.preauthorizationDecisionId))
     .leftJoin(caseTable, eq(preauthorizationRequest.caseId, caseTable.caseId))
-    .leftJoin(county, eq(caseTable.countyId, county.countyId))
+    .leftJoin(county, eq(county.countyId, sql`coalesce(${caseTable.countyId}, ${preauthorizationRequest.countyId})`))
     .leftJoin(provider, eq(preauthorizationRequest.professionalId, provider.professionalId))
     .leftJoin(professionalKinds, eq(preauthorizationRequest.professionalKindId, professionalKinds.id))
     .innerJoin(requester, eq(preauthorizationRequest.requestedByUserAccountId, requester.userAccountId))
@@ -106,12 +108,13 @@ async function withCaseFacts(db: DatabaseOrTransaction, rows: RequestRow[]) {
   const professionals = [...new Set(rows.flatMap((row) => (row.professionalId ? [row.professionalId] : [])))];
   const [numbers, summaries] = await Promise.all([loadCaseNumbers(db, caseIds), loadPreauthorizationSummariesByCase(db, caseIds, professionals)]);
   return rows.map((row) => {
-    const proposed = (row.proposedDetails ?? {}) as { case?: { caseNumber?: string }; provider?: { name?: string } };
+    const proposed = (row.proposedDetails ?? {}) as { case?: { caseNumber?: string; countyId?: string | null }; provider?: { name?: string } };
     const limit = row.caseId && row.professionalId ? ((summaries.get(row.caseId) ?? []).find((s) => s.professionalId === row.professionalId) ?? null) : null;
     return {
       ...row,
       caseNumber: row.caseId ? (numbers.get(row.caseId)?.caseNumber ?? null) : null,
       proposedCaseNumber: proposed.case?.caseNumber ?? null,
+      proposedCountyId: proposed.case?.countyId ?? null,
       proposedProviderName: proposed.provider?.name ?? null,
       limit,
     };

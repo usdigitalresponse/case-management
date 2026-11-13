@@ -34,6 +34,8 @@ import { extractionsSettled } from '../src/imports/extractionJobs';
 import { memoryStore } from './memoryStore';
 import { reviewInvoiceLine } from '../src/billing/reviewInvoiceLine';
 import { finishReview, reopenReview } from '../src/billing/reviewRounds';
+import { chooseCaseInReview, setDraftCaseChoice } from '../src/billing/caseChoice';
+import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
 import { reassignReviewer } from '../src/billing/reviewAssignment';
 import { askQuestion } from '../src/billing/reviewQuestions';
 import { setReviewSettings } from '../src/billing/reviewSettings';
@@ -91,8 +93,10 @@ async function upload(lines: Array<{ amount: number; description: string }>) {
     submit: false,
     enterInReview: true,
     caseNumber: '26-CR-00418',
+    countyId: fixtures.countyId,
     lines: lines.map((line) => ({ lineType: 'expense' as const, serviceDate: '2026-02-02', ...line })),
   });
+  await chooseCaseInReview(testDb, reviewer, invoiceId, { choice: 'none' });
   return invoiceId;
 }
 
@@ -162,6 +166,16 @@ describe('entering an upload in review', () => {
       [parking!.invoiceLineId, null],
       [expect.any(String), null],
     ]);
+  });
+
+  it('can’t finish its first round until staff say which case it is for', async () => {
+    const invoiceId = await upload([{ amount: 40, description: 'Copies' }]);
+    await chooseCaseInReview(testDb, reviewer, invoiceId, { choice: null });
+    const [copies] = await savedLines(invoiceId);
+    await decideLine(reviewer, invoiceId, copies!.invoiceLineId, { outcome: 'approved' });
+    await expect(finishReview(testDb, reviewer, invoiceId, receipt)).rejects.toMatchObject({ fieldErrors: { caseChoice: expect.any(String) } });
+    await chooseCaseInReview(testDb, reviewer, invoiceId, { choice: 'none' });
+    await finishReview(testDb, reviewer, invoiceId, receipt);
   });
 
   it('freezes the lines when the first round is finished, and not before', async () => {
@@ -315,6 +329,7 @@ describe('entering an upload in review', () => {
       caseId: null,
       professionalId,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       enterInReview: true,
     });
     const other = await createStaff('reviewer', 'Reviewer Two');
@@ -334,6 +349,7 @@ describe('entering an upload in review', () => {
     // Confirmed once; finishing doesn't confirm or undo anything again.
     await decideLine(other, invoiceId, research!.invoiceLineId, { outcome: 'approved' });
     await confirmEnteredImport(testDb, noFiles, other, invoiceId);
+    await chooseCaseInReview(testDb, other, invoiceId, { choice: 'none' });
     await finishReview(testDb, other, invoiceId, receipt);
     expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.invoice.statusCode).toBe('awaiting_sign_off');
   });
@@ -483,6 +499,7 @@ describe('entering an upload in review', () => {
       caseId: null,
       professionalId,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       enterInReview: true,
       ...receipt,
     });
@@ -502,8 +519,10 @@ describe('entering an upload in review', () => {
       submit: false,
       enterInReview: true,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
     });
+    await chooseCaseInReview(testDb, reviewer, invoiceId, { choice: 'none' });
     const [research] = await savedLines(invoiceId);
     expect(research!.amount).toBe('0.00');
     await decideLine(reviewer, invoiceId, research!.invoiceLineId, { outcome: 'approved' });
@@ -532,6 +551,7 @@ describe('entering an upload in review', () => {
       submit: false,
       enterInReview: true,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
     });
     const chosen = await sender(150);
@@ -575,6 +595,7 @@ describe('whom an entry is from', () => {
       submit: false,
       enterInReview: true,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
     });
     expect((await savedLines(invoiceId))[0]!.amount).toBe('0.00');
@@ -635,6 +656,7 @@ describe('removing someone added by mistake', () => {
       submit: false,
       enterInReview: true,
       caseNumber: '26-CR-00418',
+      countyId: fixtures.countyId,
       lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Research' }],
     });
     const [research] = await savedLines(invoiceId);
@@ -705,9 +727,12 @@ describe('removing someone added by mistake', () => {
       caseId: null,
       professionalId,
       caseNumber: '26-CR-00418',
-      ...receipt,
+      countyId: fixtures.countyId,
+      submit: false,
       lines: [{ lineType: 'expense', serviceDate: '2026-02-02', amount: 40, description: 'Copies' }],
     });
+    await setDraftCaseChoice(testDb, actor, invoiceId, { choice: 'none' });
+    await submitInvoice(testDb, actor, invoiceId, { ...receipt, filedByPerson: true });
     await recallInvoice(testDb, actor, invoiceId);
     await expect(removeProfessional(testDb, approver, professionalId)).rejects.toBeInstanceOf(ConflictError);
   });

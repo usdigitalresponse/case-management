@@ -6,7 +6,7 @@ import { ValidationError } from '../../errors';
 import { fieldErrorsFromZodIssues } from '../../intake/validation';
 import { caseTable, expenseTypes, invoice, invoiceApprovalChain, invoiceAttestation, invoiceEvent, invoiceEventTypes, invoiceLine, person, professional, trip, userAccount } from '../../db/schema';
 import { isStaffAccount, resolvePortalActor, type PortalActor } from '../../portal/portalActor';
-import { hasUnmatchedTimekeepers, needsMatching } from '../proposedDetails';
+import { hasUnmatchedTimekeepers, needsMatching, requireCaseAnswered, requireNotForCaseCounty } from '../proposedDetails';
 import { formatMoney } from '../money';
 import { sendEmail } from '../../email/sendEmail';
 import { recordInvoiceEvent } from '../invoiceEvents';
@@ -25,7 +25,7 @@ import { InvoiceStateError, MILEAGE_EXPENSE_TYPE_CODE } from './lineInput';
 import { lockOwnInvoice, statusId } from './drafts';
 
 // Snapshot layout version (model/README.md).
-export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.12.0';
+export const SUBMISSION_SNAPSHOT_SPEC_VERSION = '0.13.0';
 
 async function buildSubmissionSnapshot(
   tx: Transaction,
@@ -110,8 +110,11 @@ export async function submitInTx(
     throw new InvoiceStateError('Only a draft can be submitted.');
   }
   if (options.filedByPerson) {
-    if (!locked.caseNumberAsTyped) {
-      throw new ValidationError({ caseNumber: 'Add the case number before you send.' });
+    // External submitters may leave the case question unanswered (match_invoice_to_case).
+    if (staff) {
+      requireCaseAnswered(locked);
+    } else {
+      requireNotForCaseCounty(locked);
     }
     if (!locked.professionalId) {
       throw new ValidationError({ professionalId: 'Choose who this invoice is from before you send.' });
@@ -138,7 +141,7 @@ export async function submitInTx(
   }
   await requireImportedDates(tx, invoiceId);
   // Only staff may send one to review without a case (match_invoice_to_case).
-  if (await needsMatching(tx, locked, { withoutCase: staff && options.withoutCase })) {
+  if (await needsMatching(tx, locked, { withoutCase: staff && options.withoutCase, filedByPerson: options.filedByPerson })) {
     // What can be checked before matching is checked now, for the submitter.
     if (locked.professionalId !== null && !(await hasUnmatchedTimekeepers(tx, invoiceId))) {
       await priceLines(tx, invoiceId, { billedProfessionalId: locked.professionalId, unmatchedMeansBilled: true, strict: true });

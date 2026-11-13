@@ -116,10 +116,7 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
 
 // Pages in both the staff app and the portal.
 const sharedLoaders = {
-  intake: preload(() => [resources.invoiceIntake, resources.myInvoices({ show: 'case_drafts' })]),
-  newCase: preload(() => [resources.referenceData]),
   uploadByPerson: preload(() => [resources.billableProfessionals(null)]),
-  uploadByCase: preload(() => [resources.uploadCases, resources.billableProfessionals(null)]),
   invoice: preload((args) => [resources.myInvoice(param(args, 'invoiceId')), resources.myCases]),
   invoiceDetail: preload((args) => [resources.myInvoice(param(args, 'invoiceId'))]),
   imports: preload(() => [resources.myCases, resources.invoiceImports]),
@@ -136,5 +133,4 @@ export const portalLoaders = {
   }),
   preauthorizations: preload(() => [resources.myPreauthorizationRequests]),
   preauthorizationRequest: preload((args) => [resources.preauthorizationRequest(param(args, 'requestId'))]),
-  newInvoice: preload(() => [resources.myCases]),
 };

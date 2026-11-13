@@ -1,4 +1,4 @@
-spec_version: "0.12.0"
+spec_version: "0.13.0"
 status: draft
 kind: business_rules
 
@@ -24,7 +24,7 @@ rules:
       - List open cases for staff whose case numbers or identifiers match ignoring case, punctuation and leading zeros, and pairs any staff member flagged, grouping everything linked by any pair. Never show the list to external submitters.
       - A case number is only unique within its county, so never list or flag two cases whose counties are both set and differ. A missing county doesn't rule a pair out; a matching one is shown as supporting the match.
       - Any active staff user may flag two open cases in the same county (or without one) as possibly one, or record that a listed pair are different, with an optional note; record the actor and time.
-      - Cases belong to the external case management system, so never merge them here. Staff clean up by closing the extra case (preserve_case_lifecycle) once its invoices are finished, which takes it off the list.
+      - Cases belong to the external case management system, so never merge them here. Staff clean up by closing the extra case (preserve_case_lifecycle) once its invoices are finished, which takes it off the list, or an administrator moves its requests to the case kept (correct_case_records).
 
   merge_duplicate_people:
     description: Merge a person recorded twice into the record kept, on an administrator's confirmation.
@@ -331,7 +331,7 @@ rules:
     trigger: before_submit
     outcome: blocking
     requirements:
-      - Require one case, one provider/payee, at least one line and a currency for each request; all lines belong to that case. A staff-entered request may instead have no case (match_invoice_to_case); then none of its lines has one. A staff draft with no case may also leave its provider to be chosen on matching. A request sent for matching may have no case or provider, with or without the submitter's entered details for them (match_invoice_to_case).
+      - Require one provider/payee, at least one line and a currency for each request. A request has at most one case, and all its lines belong to it; one with no case (match_invoice_to_case) has none on any line. Staff sending a request filed by person must have said which case it is for, or that it is not for one case; an external submitter may leave it unsaid. A request sent for matching before that step existed may have no case or provider, with or without the submitter's entered details for them.
       - Require both billing period bounds or neither and reject inverted periods, including supporting invoices.
       - Requested line and allocation amounts must be positive; submitted_total equals the sum of request lines.
       - An invoice line sets at most one of source_time_entry_id or source_expense_id, and the referenced time_entry or expense must be on the same case; a manual line sets neither.
@@ -488,8 +488,9 @@ rules:
       - Before sending, the requester sees the provider's limit on the case (apply_preauthorization_limit), what has been billed against it and, when the total asked for is within the threshold, that no pre-authorization is needed. They may still send it.
       - When the provider has no CV or no current fee schedule or quote on file, the request asks for them (request_provider_documents); it can be sent without them, marked as missing them.
       - Any active staff user may ask the requester for more information (preauthorization_question); the request is then info_requested until every question is answered, by the requester or by staff recording an answer received another way. Questions and answers are recorded once, never changed, visible to the requester and staff, and never exported.
-      - Staff decide a request once, recording the outcome, reason and actor - approved, denied, not_needed (within the threshold), duplicate or moot (the work was already done). Denial, not_needed, duplicate and moot need a reason, which the requester sees. A request whose case or provider is only proposed is matched first (match_invoice_to_case applies as for requests for payment).
-      - Approving sets the amount and optionally the hourly rate, which may differ from what was asked. It records a decision on the provider's preauthorization for the case - its first approval, or a revised decision with the approved total - under preserve_authorization_decisions, so an approved total below what is already approved for the provider is refused.
+      - A request may also be for work not for one case, such as court observation, giving only its county.
+      - Staff decide a request once, recording the outcome, reason and actor - approved, denied, not_needed (within the threshold), duplicate or moot (the work was already done). Denial, not_needed, duplicate and moot need a reason, which the requester sees. Before approving, staff match a provider that is only proposed, and say which case it is for with the same case step as a request for payment (match_invoice_to_case): a case found by number and county, one added from them (add_case_from_request), or not for one case.
+      - Approving sets the amount and optionally the hourly rate, which may differ from what was asked. For a case, it records a decision on the provider's preauthorization for the case - its first approval, or a revised decision with the approved total - under preserve_authorization_decisions, so an approved total below what is already approved for the provider is refused. Not for one case, it records the decision and amount on the request only, setting no preauthorization or limit.
       - The requester may withdraw a request not yet decided. Decided and withdrawn requests are kept and never changed; asking again is a new request.
 
   apply_preauthorization_limit:
@@ -503,6 +504,7 @@ rules:
       - Thresholds apply to providers of the configured professional kinds (such as investigators and experts), not to an appointed attorney's own fees. With no threshold set, nothing is needed below a preauthorization's ceiling and a provider without one has no limit.
       - What counts against the limit is the approved amount of signed-off requests for that provider on the case and the requested amount of their requests still in review, until allocation draws (validate_authorization_draws) are built.
       - Limits warn; they never block approving a request.
+      - A request for payment or a preauthorization request not for one case has no limit to count against.
 
   explain_preauthorization_overrun:
     description: Ask for the reason a provider's work went past its limit, without refusing payment for it.
@@ -668,24 +670,48 @@ rules:
       - The professionals billed may view and export the request like its submitter, read-only; they did not submit it and cannot recall or edit it.
       - The staff user who entered a request may also review its lines. Sign-off still requires a user other than the submitter (decide_invoice_lines).
       - Staff may read and record time for professionals on the cases they enter requests for, as a delegate may.
-      - Staff may save a request before its case is known; it waits in invoice intake (match_invoice_to_case) and may then be for any active professional.
+      - Staff may save a draft before saying which case it is for, but must say so, or that it is not for one case, before sending it or, for one entered in review, before finishing its first round (match_invoice_to_case). It may be for any active professional.
 
   match_invoice_to_case:
-    description: Hold requests whose case is not yet known until staff match them to a case, or review them without one.
+    description: Say which case a request filed by person is for - an existing case, a case added from it, or not for one case - streamlining the common case where the file gives its number and county.
     applies_to: invoice
     trigger: before_update
     outcome: blocking
     requirements:
-      - A staff-entered draft request with no case is listed in invoice intake, with imports still being read or confirmed whose case is not known.
-      - Matching is manual. Any active staff user may match a draft request to a case (reopening one closed here as a cleanup), setting the case on the request and all its lines; a submitted request is not rematched. A request filed by person with no case may be matched to a case while its lines are reviewed (a case closed here as a cleanup is reopened first, preserve_case_lifecycle), listing cases whose number matches the one the request gives exactly or closely; its prices and default rates stay as sent, and case rates that would now apply are flagged (set_case_rate). Staff may add the case from the request's number instead, refusing a duplicate case number or a probable duplicate client. When an imported file clearly names one case (and, if several professionals share it, one of them), that case and professional may be offered first; staff still choose, and an offered case that has since closed is not offered.
-      - A request saved without its provider gets one on matching, chosen from active professionals, and its time with no one named is then priced as theirs; until then it cannot be submitted, even without a case.
-      - Every professional the request relies on must be assigned to the case on matching; on request, matching assigns any who are not, as an external submitter. Record a matched_to_case request event with the actor.
-      - Staff may instead add the case first and match the request to it in the same step.
+      - Each request filed by person answers one case question (case_choice) - for a case, or not for one case (such as court observation, which keeps only its own county, and so needs one before it is sent or its first round is finished) - using the case number and county read from its file, editable before sending. Staff entering a request must answer it before sending, or, for one entered in review (enter_request_in_review), before finishing its first round. An external submitter may answer "not for one case", put the request under one of their own cases (below), or leave it unanswered with or without a typed number.
+      - For a case, staff find it by number within the county, so the request needs its county before a case is chosen or added. The same number, ignoring case, on a case in the same county is chosen without asking. A number matching only when punctuation, spacing and leading zeros are ignored, on a case in the same county or with no county, is offered, and staff must say whether it is that case or a new one (add_case_from_request) before going on. A case in another county is never offered; the same number there is shown only as a hint that the request's county may be wrong. A chosen case with no county takes the request's, recorded with the actor. With no match, a new case is added.
+      - A draft keeps the answer until it is sent; changing its case number or county clears an answer for a case, so it is asked again. The request is then sent with no case and matched to the chosen or added case at once. In review, a choice applies at once. Matching keeps the request's prices and default rates as sent, flags case rates that would now apply (set_case_rate), assigns every professional it bills who isn't on the case as an external submitter, reopens a case closed here as a cleanup (preserve_case_lifecycle), and records a matched_to_case request event with the actor. A request that has its case is not matched again here (correct_case_records).
+      - An external submitter's answer never creates or chooses a case of the organization's. Where they typed a number that is the same as an existing case's in the request's county, review offers that case as a suggestion; staff still choose. Their typed number stays beside the case's; reviewers correct it beside, never over.
       - A submitter filing a draft by person may instead put it under a case the professional whose work it is is assigned to and they may bill for, or take it off again; its case number becomes the case's, its lines are priced again, and on sending it goes to review with that case. A submitter's case list shows the open cases of the professionals they bill for, with each one's own pre-authorized amount and never the whole case's, whose approved total includes other professionals' requests.
-      - A submitter who can't find the case, provider or a line's timekeeper may enter what they know instead (proposed_case, proposed_provider, proposed_timekeeper_name), or leave it unchosen; this never creates a case, person or professional. They may then send the request for matching (send_for_matching) with the attestation, and it waits in invoice intake. Staff match each entry to an existing record or create one prefilled from it, refusing a probable duplicate rather than creating it; then the request is released to review (release_to_review) and handled as if just submitted. Until then the submitter may recall it to draft, and any active staff user may send it back to their drafts (return_to_submitter) with a reason. Unlike sign-off comments, that reason is for the submitter: it is shown with the request, which is marked as needing changes and listed first among theirs, until they send it again. Anything staff already matched stays matched.
-      - Entered details are kept after matching, and wherever the request is shown for intake or review it is clearly marked which case, provider or timekeeper the submitter entered rather than chose.
-      - The submitter may submit a request with no case only by choosing to review it without one. It is then reviewed and signed off like any other, with no assignment, pre-authorization or case-based rate checks, and warnings that this system did not check its case, its professional's assignment or any pre-authorization.
+      - A reviewer may answer or change the case question for a request in review without a case. Signing off never needs a case. A chosen case must be in the request's county, or have none yet. A request whose own county later differs from its case's is flagged in review, never refused.
+      - A request with no case is reviewed and signed off like any other, with no assignment, pre-authorization or case-based rate checks, and warnings that this system did not check its case, its professional's assignment or any pre-authorization. It counts under its own county (record_case_county).
       - Exports and the billing record of a request with no case carry the same warning in place of the case number.
+      - Retired: invoice intake, sending for matching (send_for_matching) and the case-based new-invoice form and upload. Requests already sent for matching may still be matched and released to review (release_to_review); nothing new is sent there.
+
+  add_case_from_request:
+    description: Let staff add a case from a request's case number and county, without re-entering what the external case management system holds.
+    applies_to: case
+    trigger: before_create
+    outcome: blocking
+    requirements:
+      - Only staff add a case this way, from a request for payment or a preauthorization request, with its case number and county (or a setting recorded in place of a county), and optionally the client's name. Nothing else is asked; cases are added only this way.
+      - Refuse a number that is already a case's in that county, offering that case instead. When a case in that county, or with no county, has a close number (match_invoice_to_case), add it only once staff confirm it is a different case.
+      - A request for payment's case is added when the request is sent, or at once when chosen in review; a preauthorization request's, when chosen. Two cases with the same number are never added in one county, even at once. If matching a request to the case added from it fails, trying again matches that case rather than adding another. Record the opening lifecycle event with the actor and the request it was added from.
+      - A client's name adds a person in the client role on the case; possible duplicate people are listed for review (flag_possible_duplicate_client), never merged automatically. Without one the case has no client participant.
+
+  correct_case_records:
+    description: Let administrators fix cases added by mistake, and requests on the wrong case, in Settings, Edit data.
+    applies_to: case
+    trigger: before_update
+    outcome: blocking
+    requirements:
+      - Only an administrator. List cases added from requests, newest first, narrowable to those with a close number on another case in the same county, or the same number on a case in another county (shown as a hint, never joined), each with who added it, when, from which request, and its requests.
+      - Same case as another in the same county - move its requests for payment, their lines, imports and case rates set on them, its preauthorization requests and preauthorizations, and its active assignments to the kept case, then close it as added by mistake. Requests keep their prices and decisions, including signed-off ones, which then count under the kept case. Where both cases have a preauthorization for the same provider, the administrator chooses which to keep; the other stays on the closed case with its history. Other requests on the kept case that a moved case rate would now price are flagged, never repriced.
+      - Wrong number, county or client - correct them on the case; requests keep the number they were sent with. A client's name is corrected on their person only when nothing but this case refers to them; otherwise a new person becomes the case's client and the earlier one's client role on it ends.
+      - Not for one case - take its requests and preauthorization requests off it (they keep their own county, else take the case's, and become not for one case), and ask again on any draft that chose it, then close it as added by mistake.
+      - Before any fix, show exactly what will move or change; each fix is all or none. A case closed as added by mistake leaves every list, search and picker, and stays in history.
+      - Record every value a fix changed with its prior value, the administrator and the time. An administrator may undo a fix, restoring each value still as the fix left it and leaving anything changed since. Assignments the fix ended stay ended (preserve_case_lifecycle).
+      - Possible duplicate people and cases are to move here later (flag_possible_duplicate_client, flag_possible_duplicate_case).
 
   add_professional_without_login:
     description: Let staff add a professional who has not signed in, so a request can say whose work it is.
@@ -738,6 +764,7 @@ rules:
       - A user who may set the county may add one that isn't listed by typing its name. A name matching an existing county, ignoring case, spacing, punctuation and the word "county", reuses that county rather than adding a duplicate; one that is no longer active is refused, not reactivated. Record the actor. Adding a county grants no access.
       - Changing a county names the new one or clears it explicitly; a change saying neither is refused. A change after submission is recorded with the county it replaced.
       - An import may suggest the county from the file (a labelled county, a setting the file names but none of its items mention, or a place named as a court's county), preferring an existing county; the user confirms or changes it, and a county named only in the file is added only when the user goes on with it.
+      - A request counts under its case's county; one with no case, under its own (match_invoice_to_case).
       - Unresolved: whether counties a submitter adds need staff review before others are offered them.
 
   authorize_invoice_review:

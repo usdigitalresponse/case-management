@@ -16,12 +16,13 @@ import { loadPreauthorizationSummaries, setPreauthorizedAmount } from '../src/bi
 import { addThreshold, getThresholdSettings, setKindThresholdApplies, thresholdFor } from '../src/billing/preauthorizationThresholds';
 import { loadOverrunExplanations } from '../src/billing/overrunExplanation';
 import { addDocument, providerDocumentStatus } from '../src/billing/preauthorizationRequests/providerRecords';
-import { answerRequestQuestion, askRequestQuestion, decidePreauthorizationRequest, withdrawPreauthorizationRequest } from '../src/billing/preauthorizationRequests/decide';
+import { answerRequestQuestion, askRequestQuestion, decidePreauthorizationRequest, matchPreauthorizationRequest, withdrawPreauthorizationRequest } from '../src/billing/preauthorizationRequests/decide';
 import { createPreauthorizationRequest, previewRequest } from '../src/billing/preauthorizationRequests/submit';
 import { getPreauthorizationRequest, listOwnPreauthorizationRequests, listPreauthorizationRequests } from '../src/billing/preauthorizationRequests/read';
 import { preauthorizationUsageByCounty } from '../src/billing/preauthorizationUsage';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../src/errors';
-import { caseAssignment, county, preauthorizationDecision, userAccount } from '../src/db/schema';
+import { caseAssignment, caseTable, county, invoice, preauthorizationDecision, preauthorizationRequest, userAccount } from '../src/db/schema';
+import { fixCase, undoCaseFix } from '../src/cases/caseCorrections';
 
 let fixtures: BaselineFixtureIds;
 let admin: string;
@@ -203,10 +204,88 @@ describe('requests', () => {
     await expect(
       decidePreauthorizationRequest(testDb, staff, preauthorizationRequestId, { outcome: 'approved', approvedAmount: 1200 }),
     ).rejects.toThrow(
-      expect.objectContaining({ fieldErrors: { outcome: 'Match the case and provider before approving.' } }),
+      expect.objectContaining({ fieldErrors: { outcome: expect.stringContaining('Match the provider') } }),
     );
     const view = await getPreauthorizationRequest(testDb, staff, preauthorizationRequestId);
     expect(view.request).toMatchObject({ proposedCaseNumber: 'SYN-404', proposedProviderName: 'Synthetic Investigations' });
+  });
+
+  it('add the case from its number and county when staff match it', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, {
+      ...request(caseId, attorney.professionalId, 1200),
+      caseId: null,
+      proposedCase: { caseNumber: 'SYN-405', countyId: fixtures.countyId },
+    });
+    const matched = await matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, {
+      newCase: { caseNumber: 'SYN-405', countyId: fixtures.countyId },
+    });
+    expect(matched.addedCaseId).toBeTruthy();
+    const [added] = await testDb.select().from(caseTable).where(eq(caseTable.caseId, matched.addedCaseId!));
+    expect(added).toMatchObject({ externalReference: 'SYN-405', addedFromPreauthorizationRequestId: preauthorizationRequestId });
+    await decidePreauthorizationRequest(testDb, staff, preauthorizationRequestId, { outcome: 'approved', approvedAmount: 1200 });
+    const [limit] = await loadPreauthorizationSummaries(testDb, matched.addedCaseId!, [attorney.professionalId]);
+    expect(limit).toMatchObject({ source: 'preauthorized', ceiling: '1200.00' });
+  });
+
+  it('refuse a case in another county than the request’s', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const [other] = await testDb.insert(county).values({ displayName: 'Synthetic County C' }).returning();
+    const elsewhere = await newCase(other!.countyId);
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, {
+      ...request(caseId, attorney.professionalId, 1200),
+      caseId: null,
+      proposedCase: { caseNumber: 'SYN-406', countyId: fixtures.countyId },
+    });
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId: elsewhere })).rejects.toThrow(ValidationError);
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId })).resolves.toMatchObject({ request: { caseId } });
+  });
+
+  it('need a county for work not for one case, and to find a chosen case in', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, {
+      ...request(caseId, attorney.professionalId, 600),
+      caseId: null,
+      proposedCase: { caseNumber: 'SYN-407' },
+    });
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { notForCase: true })).rejects.toThrow(ValidationError);
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId })).rejects.toThrow(ValidationError);
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId, countyId: fixtures.countyId })).resolves.toMatchObject({ request: { caseId } });
+  });
+
+  it('keep their own county when an administrator takes them off a case added by mistake', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const [other] = await testDb.insert(county).values({ displayName: 'Synthetic County D' }).returning();
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, request(caseId, attorney.professionalId, 900));
+    await testDb.update(preauthorizationRequest).set({ countyId: other!.countyId }).where(eq(preauthorizationRequest.preauthorizationRequestId, preauthorizationRequestId));
+
+    const { caseCorrectionId } = await fixCase(testDb, admin, { kind: 'not_for_case', caseId });
+    const [taken] = await testDb.select().from(preauthorizationRequest).where(eq(preauthorizationRequest.preauthorizationRequestId, preauthorizationRequestId));
+    expect(taken).toMatchObject({ caseId: null, notForCase: true, countyId: other!.countyId });
+    await undoCaseFix(testDb, admin, caseCorrectionId);
+    const [back] = await testDb.select().from(preauthorizationRequest).where(eq(preauthorizationRequest.preauthorizationRequestId, preauthorizationRequestId));
+    expect(back).toMatchObject({ caseId, notForCase: false, countyId: other!.countyId });
+  });
+
+  it('record only the decision for work not for one case, setting no limit', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const decisionsBefore = await testDb.select().from(preauthorizationDecision);
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, {
+      ...request(caseId, attorney.professionalId, 900),
+      caseId: null,
+      notForCase: true,
+      countyId: fixtures.countyId,
+      serviceDescription: 'Court observation',
+    });
+    await decidePreauthorizationRequest(testDb, staff, preauthorizationRequestId, { outcome: 'approved', approvedAmount: 900 });
+    const view = await getPreauthorizationRequest(testDb, staff, preauthorizationRequestId);
+    expect(view.request).toMatchObject({ caseId: null, notForCase: true, statusCode: 'approved', approvedAmount: '900.00', countyId: fixtures.countyId });
+    expect(await testDb.select().from(preauthorizationDecision)).toHaveLength(decisionsBefore.length);
   });
 });
 
@@ -232,6 +311,23 @@ describe('overruns', () => {
     const { invoices } = await listReviewQueue(testDb, 'all', { caseId });
     const flagged = invoices.find((row) => row.invoiceId === invoiceId)!;
     expect(flagged.flags).toContainEqual(expect.objectContaining({ kind: 'preauthorization', message: 'Over the threshold $1,000.00' }));
+  });
+});
+
+describe('overruns before a case is matched', () => {
+  it('are found by the number read from the file, on a case the provider is assigned to', async () => {
+    const caseId = await newCase();
+    const investigator = await newProvider(caseId, { bound: true });
+    await addThreshold(testDb, admin, { countyId: null, amount: 1000, effectiveFrom: '2025-01-01' });
+    await createInvoice(testDb, investigator, { attested: true, caseId, lines: [hours(8)] });
+    const caseNumber = 'CR-26-0042';
+    await testDb.update(caseTable).set({ externalReference: caseNumber }).where(eq(caseTable.caseId, caseId));
+    await expect(createInvoice(testDb, investigator, { attested: true, caseId: null, caseNumber, lines: [hours(4)] })).rejects.toThrow(
+      expect.objectContaining({ fieldErrors: { overrunExplanation: expect.stringMatching(/over the \$1,000\.00 threshold/) } }),
+    );
+    const { invoiceId } = await createInvoice(testDb, investigator, { attested: true, caseId: null, caseNumber, lines: [hours(4)], overrunExplanation: 'Synthetic' });
+    const [sent] = await testDb.select({ caseId: invoice.caseId }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(sent?.caseId).toBeNull();
   });
 });
 

@@ -9,6 +9,7 @@ import { recordCeilingInTx } from '../preauthorizations';
 import { CLOSING_STATUS, DECISION_OUTCOMES, OPEN_STATUSES, money, parse } from './requestRules';
 import { currentPreauthorizationId } from './submit';
 import { getPreauthorizationRequest } from './read';
+import { addCaseFromRequest, fillCaseCounty, requireChoosableCase } from '../../cases/caseStep';
 
 // --- changes ---------------------------------------------------------------
 
@@ -25,6 +26,9 @@ async function lockOpenRequest(tx: Transaction, requestId: string) {
       receivedAt: preauthorizationRequest.receivedAt,
       requestedRate: preauthorizationRequest.requestedRate,
       rateBasis: preauthorizationRequest.rateBasis,
+      notForCase: preauthorizationRequest.notForCase,
+      countyId: preauthorizationRequest.countyId,
+      proposedDetails: preauthorizationRequest.proposedDetails,
     })
     .from(preauthorizationRequest)
     .innerJoin(preauthorizationRequestStatuses, eq(preauthorizationRequest.statusId, preauthorizationRequestStatuses.id))
@@ -92,31 +96,73 @@ export async function answerRequestQuestion(db: Database, actorUserAccountId: st
   return getPreauthorizationRequest(db, actorUserAccountId, requestId);
 }
 
+// The case step, as for a request for payment (../../cases/caseStep.ts): a
+// case chosen, one added from its number and county, or not for one case.
+const matchSchema = z.object({
+  caseId: z.uuid().optional(),
+  newCase: z
+    .object({
+      caseNumber: z.string().trim().max(100),
+      countyId: z.uuid().nullable(),
+      clientName: z.string().trim().max(200).optional(),
+      confirmedNew: z.boolean().optional(),
+    })
+    .optional(),
+  notForCase: z.boolean().optional(),
+  // The request's county: for one not for one case, or to find a chosen case in.
+  countyId: z.uuid().optional(),
+  professionalId: z.uuid().optional(),
+});
+
 export async function matchPreauthorizationRequest(db: Database, actorUserAccountId: string, requestId: string, rawInput: unknown) {
   await requireStaff(db, actorUserAccountId, 'Only staff can match a request.');
-  const input = parse(z.object({ caseId: z.uuid().optional(), professionalId: z.uuid().optional() }), rawInput);
+  const input = parse(matchSchema, rawInput);
+  let addedCaseId: string | null = null;
   await db.transaction(async (tx) => {
     const locked = await lockOpenRequest(tx, requestId);
-    const caseId = input.caseId ?? locked.caseId;
     const professionalId = input.professionalId ?? locked.professionalId;
-    if (input.caseId) {
-      const [row] = await tx.select({ id: caseTable.caseId }).from(caseTable).where(eq(caseTable.caseId, input.caseId));
-      if (!row) throw new NotFoundError('Case not found.');
-    }
     if (input.professionalId) {
       const [row] = await tx.select({ id: professional.professionalId }).from(professional).where(eq(professional.professionalId, input.professionalId));
       if (!row) throw new NotFoundError('Provider not found.');
+    }
+    let caseId = locked.caseId;
+    let notForCase = locked.notForCase;
+    const proposedCounty = (locked.proposedDetails as { case?: { countyId?: string | null } } | null)?.case?.countyId ?? null;
+    let chosenCounty: string | null = null;
+    if (input.caseId) {
+      const [row] = await tx.select({ id: caseTable.caseId, closedAsMistake: caseTable.closedAsMistake }).from(caseTable).where(eq(caseTable.caseId, input.caseId));
+      if (!row || row.closedAsMistake) throw new NotFoundError('Case not found.');
+      chosenCounty = input.countyId ?? locked.countyId ?? proposedCounty;
+      await requireChoosableCase(tx, input.caseId, chosenCounty);
+      caseId = input.caseId;
+      notForCase = false;
+    } else if (input.newCase) {
+      addedCaseId = await addCaseFromRequest(tx, actorUserAccountId, input.newCase, { preauthorizationRequestId: requestId });
+      caseId = addedCaseId;
+      notForCase = false;
+    } else if (input.notForCase !== undefined) {
+      caseId = null;
+      notForCase = input.notForCase;
+    }
+    const ownCounty = notForCase ? (input.countyId ?? locked.countyId ?? proposedCounty) : null;
+    if (notForCase && !ownCounty) {
+      throw new ValidationError({ countyId: 'Add the county: work not for one case counts under it.' });
+    }
+    if (caseId && chosenCounty) {
+      await fillCaseCounty(tx, actorUserAccountId, caseId, chosenCounty);
     }
     await tx
       .update(preauthorizationRequest)
       .set({
         caseId,
         professionalId,
+        notForCase,
+        countyId: ownCounty,
         preauthorizationId: caseId ? await currentPreauthorizationId(tx, caseId, professionalId) : null,
       })
       .where(eq(preauthorizationRequest.preauthorizationRequestId, requestId));
   });
-  return getPreauthorizationRequest(db, actorUserAccountId, requestId);
+  return { ...(await getPreauthorizationRequest(db, actorUserAccountId, requestId)), addedCaseId };
 }
 
 const decisionSchema = z
@@ -148,8 +194,8 @@ export async function decidePreauthorizationRequest(db: Database, actorUserAccou
     if (locked.statusCode !== 'submitted') {
       throw new ValidationError({ outcome: 'Record the answer to every question before approving.' });
     }
-    if (!locked.caseId || !locked.professionalId) {
-      throw new ValidationError({ outcome: 'Match the case and provider before approving.' });
+    if (!locked.professionalId || (!locked.caseId && !locked.notForCase)) {
+      throw new ValidationError({ outcome: 'Match the provider, and the case or that it isn’t for one case, before approving.' });
     }
     const hourlyRate =
       input.approvedHourlyRate !== undefined
@@ -157,6 +203,11 @@ export async function decidePreauthorizationRequest(db: Database, actorUserAccou
         : locked.rateBasis === 'hourly'
           ? locked.requestedRate
           : undefined;
+    if (!locked.caseId) {
+      // Not for one case: the decision only, with no preauthorization or limit.
+      await setStatus(tx, requestId, 'approved', { ...decided, approvedAmount: input.approvedAmount!.toFixed(2), approvedHourlyRate: hourlyRate ?? null });
+      return;
+    }
     const { preauthorizationId, decisionId } = await recordCeilingInTx(tx, actorUserAccountId, {
       caseId: locked.caseId,
       professionalId: locked.professionalId,

@@ -236,8 +236,12 @@ form relies on this being airtight.
   and highlighted on the check page; one names none, so its draft shows
   "Not added yet". Three print a county line ("Superior Court of County B",
   "County: County A", "Post-conviction petition"), which the seed checks is
-  read back. The cases, their numbers and pre-authorizations stay for
-  the hidden case pages and Intake's fallback. Each demo person has a
+  read back. Demo cases are spread over Counties A to C, each recorded as added
+  from its first invoice; a typed number that is a case's own is put in that
+  case's county, so review suggests it. One staff invoice is court observation
+  not for one case (County C), with a pre-authorization request likewise, and
+  one added a case whose number is a demo case's without dashes, for Edit
+  data's similar numbers. Each demo person has a
   synthetic firm they're paid through and a 555-01xx phone number; the
   investigator and expert have approved rates of their own, and the demo
   partner's new invoices go to the first demo reviewer. One emailed
@@ -299,14 +303,31 @@ form relies on this being airtight.
   is no environment allowlist and no sync with the external case management
   system. Administrators can add a delegate, or make an existing provider
   one, only for an existing office; adding offices is not built.
-- **No case started from an invoice** (design J): `match_invoice_to_case`
-  lets staff add the case while matching, but the review page and Intake
-  here only match to an existing case, or the invoice is reviewed without
-  one. `/cases/new` remains, off the menu, for a pre-authorization request
-  whose case wasn't listed. The earlier case-based new-invoice form and
-  upload (`portal/PortalNewInvoice.tsx`, `portal/PortalUpload.tsx`, off the
-  sidebar) still let staff add a case with an invoice. How a case should be
-  added at all is under discussion with design.
+- **Cases added through invoices** (`add_case_from_request`,
+  `match_invoice_to_case`): staff add a case only through a request's case
+  step (`src/cases/caseStep.ts`, `src/billing/caseChoice.ts`,
+  `client/src/components/CaseStep.tsx`), with its number, county and an
+  optional client. A staff draft's answer is applied right after it is sent,
+  outside the sending transaction: if matching then fails, the invoice stays
+  in review without a case, its choice kept, and the sender is told to choose
+  it on the review page; a case added before the failure is kept, and the
+  next try matches it rather than adding another. Changing the case question in review records no
+  request event of its own (matching does, `matched_to_case`). The
+  pre-authorization match form has the same choices in its own layout rather
+  than the shared component. The case-based new-invoice form and upload,
+  Intake's page and `/cases/new` were deleted; their addresses redirect, and
+  `GET /api/invoices/intake` remains only for "Your unfinished drafts" on To
+  review. Requests already sent for matching can still be matched there by API,
+  but nothing new reaches that state. Usage by county still counts a
+  pre-authorization request only through its case, so one not for one case
+  isn't in it yet.
+- **Edit data** (`correct_case_records`, `src/cases/caseCorrections.ts`):
+  administrators move a case's requests to the same case, correct it, or take
+  its requests off it, each recorded value by value in `case_correction_change`
+  and undoable. A client added by a correction is undone by ending their role,
+  not deleting the person. Moving case rates doesn't itself flag other
+  invoices; rates are compared when each invoice is read. Possible duplicate
+  people and cases haven't moved here yet.
 - **Guided tour material**: each tour run makes its own synthetic case
   and invoices (`server/src/demoTour/`), which show in the shared demo's
   queues beside the seeded ones, unlabelled. An hourly sweep deletes a run

@@ -3,22 +3,23 @@ import { apiErrorMessage, setDraftCaseNumber } from '../../api/client';
 import { CaseNumberBox } from '../../components/CaseNumberBox';
 import { EXTERNAL_SYSTEM_NAME } from '../../externalSystem';
 
-// The typed case number, saved as a draft.
+// The case number on a staff draft, read from the file or typed, saved as it changes.
 export function TypedCaseNumber({
   invoiceId,
   value,
   onChange,
   editable,
-  missing,
   fromName,
   hasFile,
   readFromFile,
-  own,
   corrected,
   chosenCase = null,
   onFocus,
+  onSaved,
   county,
 }: {
+  // Once a changed number is saved, so the case it finds is looked up again.
+  onSaved?: () => void;
   invoiceId: string;
   county: ReactNode;
   // The sender's case it is under, instead of a typed number.
@@ -28,12 +29,9 @@ export function TypedCaseNumber({
   value: string;
   onChange: (value: string) => void;
   editable: boolean;
-  missing: boolean;
   fromName: string;
   hasFile: boolean;
   readFromFile: boolean;
-  // The submitter's own, not one staff entered.
-  own: boolean;
   onFocus: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -43,20 +41,18 @@ export function TypedCaseNumber({
     const previous = saved.current;
     saved.current = value;
     setError(null);
-    setDraftCaseNumber(invoiceId, value).catch((err: unknown) => {
+    setDraftCaseNumber(invoiceId, value).then(onSaved, (err: unknown) => {
       saved.current = previous;
       setError(apiErrorMessage(err, 'The case number could not be saved. Try again.'));
     });
   }
-  const yours = own ? 'your' : 'the';
   const hint = (() => {
-    if (chosenCase) return `The number of the case you chose, ${chosenCase}.`;
-    if (missing) return 'Add the case number before you send.';
-    if (corrected) return `Corrected by the billing office. ${own ? 'You' : 'The sender'} typed ${value || 'none'}.`;
-    if (!editable) return own ? 'As you typed it. The billing office did not change it.' : 'As typed. It is not checked against a list of cases.';
-    if (readFromFile) return `We read this from ${yours} file. Change it if it is wrong.`;
+    if (chosenCase) return `The number of its case, ${chosenCase}.`;
+    if (corrected) return `Corrected by the billing office. The file said ${value || 'none'}.`;
+    if (!editable) return 'As typed. It is not checked against a list of cases.';
+    if (readFromFile) return 'Read from the file. Change it if it is wrong.';
     if (value.trim()) return 'Change it if it is wrong.';
-    return hasFile ? `We could not find a case number in ${yours} file.` : `Type the case number from ${yours} court papers.`;
+    return hasFile ? 'None found in the file. Type it as it is written on the invoice.' : 'Type it as it is written on the invoice.';
   })();
   return (
     <CaseNumberBox
@@ -67,22 +63,13 @@ export function TypedCaseNumber({
       readOnly={!editable}
       hint={hint}
       error={error}
-      missing={missing}
       onChange={onChange}
       onSave={save}
       onFocus={onFocus}
       county={county}
     >
       {chosenCase ? (
-        <strong>Filed under the case you chose above.</strong>
-      ) : own ? (
-        <>
-          <strong>Your invoice is filed under your name, not under a case.</strong>
-          <p>
-            Type the case number from your court papers. The billing office uses it to find the case in its own system.
-            This tool does not check it against a list of cases.
-          </p>
-        </>
+        <strong>Filed under its case.</strong>
       ) : (
         <>
           {/* While editable, whom it is filed under is chosen just above (InvoiceDetailsFields). */}

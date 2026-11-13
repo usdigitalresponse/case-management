@@ -26,6 +26,9 @@ import {
 
 export type ReferenceTable = ReturnType<typeof referenceTable>;
 
+export const CASE_CHOICES = ['existing', 'new', 'none'] as const;
+export type CaseChoice = (typeof CASE_CHOICES)[number];
+
 function referenceTable(name: string) {
   return pgTable(name, {
     id: uuid('id').primaryKey().defaultRandom(),
@@ -220,6 +223,13 @@ export const caseTable = pgTable(
     officeId: uuid('office_id').references(() => office.officeId),
     jurisdictionId: uuid('jurisdiction_id').references(() => jurisdictions.id),
     preferredLanguageId: uuid('preferred_language_id').references(() => languages.id),
+    // Where staff added it from (model/rules.yaml add_case_from_request).
+    addedFromInvoiceId: uuid('added_from_invoice_id').references((): AnyPgColumn => invoice.invoiceId),
+    addedFromPreauthorizationRequestId: uuid('added_from_preauthorization_request_id').references(
+      (): AnyPgColumn => preauthorizationRequest.preauthorizationRequestId,
+    ),
+    // Closed by an administrator as added by mistake; left out of every list (../cases/caseCorrections.ts).
+    closedAsMistake: boolean('closed_as_mistake').notNull().default(false),
   },
   (table) => [
     // Postgres doesn't auto-index FK columns; GET /api/cases filters on all
@@ -485,8 +495,15 @@ export const invoice = pgTable(
     linesVersion: integer('lines_version').notNull().default(0),
     linesChangedAt: timestamp('lines_changed_at', { withTimezone: true }),
     linesChangedByUserAccountId: uuid('lines_changed_by_user_account_id').references(() => userAccount.userAccountId),
+    // The case question (model/rules.yaml match_invoice_to_case): existing, new or none; null while unanswered.
+    caseChoice: text('case_choice').$type<CaseChoice>(),
+    // On a draft: the existing case it is matched to when sent.
+    chosenCaseId: uuid('chosen_case_id').references((): AnyPgColumn => caseTable.caseId),
+    // On a draft whose case is added when sent.
+    newCaseClientName: text('new_case_client_name'),
   },
   (table) => [
+    check('invoice_case_choice_check', sql`${table.caseChoice} in ('existing', 'new', 'none')`),
     index('invoice_professional_id_idx').on(table.professionalId),
     index('invoice_case_id_idx').on(table.caseId),
     // For invoices by case number (src/billing/caseNumberMatches.ts).
@@ -1015,6 +1032,11 @@ export const preauthorizationRequest = pgTable(
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     withdrawnByUserAccountId: uuid('withdrawn_by_user_account_id').references(() => userAccount.userAccountId),
     withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+    // Work not for one case: approving records only the amount here, never a preauthorization.
+    notForCase: boolean('not_for_case').notNull().default(false),
+    countyId: uuid('county_id').references(() => county.countyId),
+    approvedAmount: numeric('approved_amount', { precision: 12, scale: 2 }),
+    approvedHourlyRate: numeric('approved_hourly_rate', { precision: 12, scale: 2 }),
   },
   (table) => [
     index('preauthorization_request_case_idx').on(table.caseId),
@@ -1332,6 +1354,47 @@ export const personMergeChange = pgTable(
     toValue: text('to_value'),
   },
   (table) => [index('person_merge_change_merge_idx').on(table.personMergeId)],
+);
+
+// An administrator's fix to a case added by mistake (model/rules.yaml
+// correct_case_records; ../cases/caseCorrections.ts).
+export const caseCorrection = pgTable(
+  'case_correction',
+  {
+    caseCorrectionId: uuid('case_correction_id').primaryKey().defaultRandom(),
+    caseId: uuid('case_id').notNull().references(() => caseTable.caseId),
+    kind: text('kind').notNull().$type<'same_case' | 'corrected' | 'not_for_case'>(),
+    keptCaseId: uuid('kept_case_id').references(() => caseTable.caseId),
+    correctedByUserAccountId: uuid('corrected_by_user_account_id')
+      .notNull()
+      .references(() => userAccount.userAccountId),
+    correctedAt: timestamp('corrected_at', { withTimezone: true }).notNull(),
+    undoneByUserAccountId: uuid('undone_by_user_account_id').references(() => userAccount.userAccountId),
+    undoneAt: timestamp('undone_at', { withTimezone: true }),
+  },
+  (table) => [
+    check('case_correction_kind_check', sql`${table.kind} in ('same_case', 'corrected', 'not_for_case')`),
+    index('case_correction_case_idx').on(table.caseId),
+  ],
+);
+
+// Every value a correction changed, so undoing it puts each back. Insert-only.
+export const caseCorrectionChange = pgTable(
+  'case_correction_change',
+  {
+    caseCorrectionChangeId: uuid('case_correction_change_id').primaryKey().defaultRandom(),
+    caseCorrectionId: uuid('case_correction_id')
+      .notNull()
+      .references(() => caseCorrection.caseCorrectionId),
+    // Undone last first.
+    position: integer('position').notNull(),
+    tableName: text('table_name').notNull(),
+    columnName: text('column_name').notNull(),
+    rowId: uuid('row_id').notNull(),
+    fromValue: text('from_value'),
+    toValue: text('to_value'),
+  },
+  (table) => [index('case_correction_change_correction_idx').on(table.caseCorrectionId)],
 );
 
 // Staff flagging two cases as possibly one case recorded twice, or finding

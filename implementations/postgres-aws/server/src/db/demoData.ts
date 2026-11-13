@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { faker } from '@faker-js/faker';
 import { db } from './client';
 import { resetAndSeedBaselineFixtures } from './fixtures';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import {
   person,
   personAffiliation,
@@ -12,6 +12,9 @@ import {
   userAccount,
   caseCategories,
   caseAssignment,
+  caseLifecycleEvent,
+  caseTable,
+  county,
   caseIdentifier,
   invoice,
   invoiceLine,
@@ -33,6 +36,9 @@ import { createCase } from '../intake/createCase';
 import { applyLineRate } from '../billing/caseRates';
 import { createTimeEntry } from '../portal/createTimeEntry';
 import { createInvoice } from '../portal/createInvoice';
+import { setDraftCaseNumber, setDraftCounty } from '../billing/invoiceLifecycle/drafts';
+import { submitInvoice } from '../billing/invoiceLifecycle/submit';
+import { applyCaseChoiceAfterSend, setDraftCaseChoice } from '../billing/caseChoice';
 import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
@@ -64,6 +70,13 @@ const ASSIGNED_CASE_COUNT = 6;
 async function seedDemoCases(fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>): Promise<string[]> {
   const categories = await db.select().from(caseCategories);
   const caseIds: string[] = [];
+  // Spread across counties, so By county and the case step's county matching show.
+  const counties = await db
+    .select({ countyId: county.countyId })
+    .from(county)
+    .where(and(eq(county.active, true), eq(county.isCounty, true)))
+    .orderBy(asc(county.displayName))
+    .limit(3);
 
   for (let i = 0; i < DEMO_CASE_COUNT; i += 1) {
     const givenName = faker.person.firstName();
@@ -91,7 +104,7 @@ async function seedDemoCases(fixtures: Awaited<ReturnType<typeof resetAndSeedBas
         participantRoleId: fixtures.clientParticipantRoleId,
         statusId: fixtures.caseStatusOpenId,
         effectiveAt: faker.date.recent({ days: 180 }),
-        countyId: fixtures.countyId,
+        countyId: counties[i % counties.length]?.countyId ?? fixtures.countyId,
         caseCategoryId: category.id,
       },
     );
@@ -996,5 +1009,86 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
   }
   await seedDemoUploads({ partner, colleague, staffUserAccountId: fixtures.staffUserAccountId });
   await seedDemoPossibleDuplicate(fixtures.staffUserAccountId, colleague);
+  await seedDemoCaseStep(fixtures, professionals);
   return { caseCount: DEMO_CASE_COUNT, assignmentCount: assignments.length, staffCount: staffUserAccountIds.length };
+}
+
+// Cases are added through invoices (model/rules.yaml add_case_from_request):
+// each demo case is recorded as added from its first invoice, a sender's
+// number that is a case's own is in its county so review suggests it, and
+// the case step's other outcomes each have an example.
+async function seedDemoCaseStep(fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>, professionals: DemoProfessional[]): Promise<void> {
+  await db.update(invoice).set({ caseChoice: 'existing' }).where(isNotNull(invoice.caseId));
+  await db.execute(sql`
+    update ${caseTable} c set added_from_invoice_id = first.invoice_id
+    from (select distinct on (case_id) case_id, invoice_id from ${invoice} where case_id is not null order by case_id, submitted_at nulls last) first
+    where first.case_id = c.case_id`);
+  await db.execute(sql`
+    update ${caseLifecycleEvent} set reason_detail = 'Added from an invoice'
+    where sequence_number = 1 and case_id in (select case_id from ${caseTable} where added_from_invoice_id is not null)`);
+  // A number typed exactly as a case's, in that case's county.
+  await db.execute(sql`
+    update ${invoice} i set county_id = c.county_id
+    from ${caseTable} c
+    where i.case_id is null and c.county_id is not null
+      and exists (
+        select 1 from case_identifier ci
+        where ci.case_id = c.case_id and upper(ci.value) = upper(coalesce(i.case_number_corrected, i.case_number_as_typed)))`);
+
+  const staff = await resolvePortalActor(db, fixtures.staffUserAccountId);
+  const [attorney, , investigator] = professionals;
+  if (!attorney || !investigator) {
+    throw new Error('Expected demo professionals for the case step.');
+  }
+  const [countyC] = await db.select({ countyId: county.countyId }).from(county).where(eq(county.displayName, 'County C'));
+  const receipt = { filedByPerson: true, receivedVia: 'email', receivedOn: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) };
+  const sendAs = async (input: { professionalId: string; caseNumber?: string; countyId: string; choice: 'new' | 'none'; lines: Array<{ lineType: 'time'; serviceDate: string; quantity: number; description: string }> }) => {
+    const { invoiceId } = await createInvoice(db, staff, { caseId: null, professionalId: input.professionalId, submit: false, lines: input.lines });
+    if (input.caseNumber) await setDraftCaseNumber(db, staff, invoiceId, { caseNumber: input.caseNumber });
+    await setDraftCounty(db, staff, invoiceId, { countyId: input.countyId });
+    await setDraftCaseChoice(db, staff, invoiceId, input.choice === 'new' ? { choice: 'new', confirmedNew: true } : { choice: 'none' });
+    await submitInvoice(db, staff, invoiceId, receipt);
+    await applyCaseChoiceAfterSend(db, fixtures.staffUserAccountId, invoiceId);
+    return invoiceId;
+  };
+
+  // Not for one case: court observation, counted by its county alone.
+  if (countyC) {
+    await sendAs({
+      professionalId: attorney.professionalId,
+      countyId: countyC.countyId,
+      choice: 'none',
+      lines: [{ lineType: 'time', serviceDate: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10), quantity: 3, description: 'Court observation' }],
+    });
+    await createPreauthorizationRequest(db, staff, {
+      notForCase: true,
+      countyId: countyC.countyId,
+      professionalId: attorney.professionalId,
+      serviceDescription: 'Court observation across the term',
+      rateBasis: 'hourly',
+      requestedRate: 95,
+      estimatedQuantity: 12,
+      requestedAmount: 1140,
+      justification: 'Observing the calendar before several clients’ hearings; not for one case.',
+      receivedVia: 'Email',
+    });
+  }
+
+  // Added by mistake: a number written without its dashes, close to a case in the same county, said to be new.
+  const [listed] = await db
+    .select({ value: caseIdentifier.value, countyId: caseTable.countyId })
+    .from(caseIdentifier)
+    .innerJoin(caseTable, eq(caseIdentifier.caseId, caseTable.caseId))
+    .where(and(eq(caseIdentifier.isPrimary, true), isNotNull(caseTable.countyId), isNull(caseTable.closedOn)))
+    .orderBy(asc(caseIdentifier.value))
+    .limit(1);
+  if (listed?.countyId) {
+    await sendAs({
+      professionalId: investigator.professionalId,
+      caseNumber: listed.value.replace(/-/g, ''),
+      countyId: listed.countyId,
+      choice: 'new',
+      lines: [{ lineType: 'time', serviceDate: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10), quantity: 2, description: 'Interviewed a witness' }],
+    });
+  }
 }

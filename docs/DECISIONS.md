@@ -548,6 +548,28 @@ management system, so possible duplicate cases are listed for review only:
 staff mark a pair as different or close the extra case here, and cases are
 never merged.
 
+### Cases added through invoices, and fixed in Edit data
+
+There is no sync with the external case management system, so cases are added
+here only from requests: an invoice or a pre-authorization request. Staff
+answer one question, "Which case is it for?": for a case, found by the
+request's number within its county (the same number is chosen without
+asking, a close one makes staff say whether it is that case or a new one, and
+a case in another county is never offered) or added from that number, county
+and an optional client name; or not for one case, such as court observation,
+which is reviewed, signed off and counted by its county alone. Staff must
+answer before sending; external senders may leave it, and never choose or
+add the organization's cases, though a number they typed that is a case's own
+is suggested to the reviewer. Signing off never needs a case. A
+pre-authorization not for one case records its decision only, with no limit.
+The case-based new-invoice form and upload, Intake and the new case page are
+retired. Administrators fix cases added by mistake in Settings, Edit data:
+moving a case's requests to the same case recorded twice (signed-off ones
+included), correcting it, or taking its requests off it, after a preview of
+exactly what changes; every fix can be undone. Duplicate merging is to move
+there later. See `match_invoice_to_case`, `add_case_from_request` and
+`correct_case_records` in `model/rules.yaml`.
+
 
 ## Deferred Decisions
 

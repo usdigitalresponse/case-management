@@ -1,5 +1,6 @@
-// Design I's sender pages: a draft filed by person put under one of the
-// sender's cases, and their case list.
+// A sender's draft and its case: only one started from their case is under it;
+// otherwise the billing office adds the number or case in review (design K).
+// And their case list.
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
@@ -13,7 +14,9 @@ import { createInvoice } from '../src/portal/createInvoice';
 import { resolvePortalActor } from '../src/portal/portalActor';
 import { listPortalCases } from '../src/portal/listPortalCases';
 import { assignExternalSubmitterToCase } from '../src/cases/assignExternalSubmitterToCase';
-import { setDraftCase } from '../src/billing/invoiceLifecycle/drafts';
+import { setDraftCaseNumber } from '../src/billing/invoiceLifecycle/drafts';
+import { setDraftCaseChoice } from '../src/billing/caseChoice';
+import { ForbiddenError } from '../src/errors';
 import { submitInvoice } from '../src/billing/invoiceLifecycle/submit';
 import { setPreauthorizedAmount } from '../src/billing/preauthorizations';
 import { applyLineRate } from '../src/billing/caseRates';
@@ -55,6 +58,7 @@ async function newSender(email: string) {
   return { actor: await resolvePortalActor(testDb, account!.userAccountId), professionalId, userAccountId: account!.userAccountId };
 }
 
+// The number stands in for one read from the sender's file.
 async function draft(actor: Awaited<ReturnType<typeof newSender>>['actor'], caseNumber: string) {
   const { invoiceId } = await createInvoice(testDb, actor, {
     caseId: null,
@@ -65,13 +69,22 @@ async function draft(actor: Awaited<ReturnType<typeof newSender>>['actor'], case
   return invoiceId;
 }
 
-describe('a draft filed by person', () => {
-  it('goes under one of its sender’s cases, priced at the case’s rate, and straight to review when sent', async () => {
+// Started from one of the sender's cases.
+async function draftOnCase(actor: Awaited<ReturnType<typeof newSender>>['actor'], caseId: string) {
+  const { invoiceId } = await createInvoice(testDb, actor, {
+    caseId,
+    submit: false,
+    lines: [{ lineType: 'time', serviceDate: '2026-03-02', quantity: 2, description: 'Review' }],
+  });
+  return invoiceId;
+}
+
+describe('a sender’s draft and its case', () => {
+  it('started from one of its sender’s cases, is priced at the case’s rate and goes straight to review when sent', async () => {
     const sender = await newSender('sender@example.com');
     const caseId = await newCase('26-CR-00211');
     await assignExternalSubmitterToCase(testDb, fixtures.staffUserAccountId, caseId, { professionalId: sender.professionalId });
-    const onCase = await draft(sender.actor, '26-CR-00211');
-    await setDraftCase(testDb, sender.actor, onCase, { caseId });
+    const onCase = await draftOnCase(sender.actor, caseId);
     await submitInvoice(testDb, sender.actor, onCase, { attested: true, filedByPerson: true });
     const sentLine = (await loadInvoiceDetail(testDb, onCase, 'staff'))!.lines[0]!;
     await applyLineRate(testDb, reviewer, onCase, sentLine.invoiceLineId, {
@@ -82,12 +95,10 @@ describe('a draft filed by person', () => {
       basedOnCaseRateId: null,
     });
 
-    const invoiceId = await draft(sender.actor, '26cr211');
-    const result = await setDraftCase(testDb, sender.actor, invoiceId, { caseId });
-
-    expect(result).toMatchObject({ caseId, caseNumber: '26-CR-00211' });
+    const invoiceId = await draftOnCase(sender.actor, caseId);
     let detail = (await loadInvoiceDetail(testDb, invoiceId, 'staff'))!;
-    expect(detail.invoice).toMatchObject({ caseId, caseNumberAsTyped: '26-CR-00211', submittedTotal: '240.00' });
+    expect(detail.caseNumber).toBe('26-CR-00211');
+    expect(detail.invoice).toMatchObject({ caseId, submittedTotal: '240.00' });
     expect(detail.lines[0]).toMatchObject({ rateSource: 'case_person' });
 
     await submitInvoice(testDb, sender.actor, invoiceId, { attested: true, filedByPerson: true });
@@ -95,24 +106,20 @@ describe('a draft filed by person', () => {
     expect(detail.invoice).toMatchObject({ caseId, statusCode: 'submitted' });
   });
 
-  it('can be taken off the case again, keeping its number', async () => {
+  it('never takes a case number, case or answer from the sender: the billing office adds them in review', async () => {
     const sender = await newSender('sender@example.com');
-    const caseId = await newCase('26-CR-00211');
-    await assignExternalSubmitterToCase(testDb, fixtures.staffUserAccountId, caseId, { professionalId: sender.professionalId });
     const invoiceId = await draft(sender.actor, '26-CR-00211');
-    await setDraftCase(testDb, sender.actor, invoiceId, { caseId });
 
-    await setDraftCase(testDb, sender.actor, invoiceId, { caseId: null });
-
-    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.invoice).toMatchObject({ caseId: null, caseNumberAsTyped: '26-CR-00211' });
+    await expect(setDraftCaseNumber(testDb, sender.actor, invoiceId, { caseNumber: '26-CR-00999' })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(setDraftCaseChoice(testDb, sender.actor, invoiceId, { choice: 'none' })).rejects.toBeInstanceOf(ForbiddenError);
+    expect((await loadInvoiceDetail(testDb, invoiceId, 'staff'))!.invoice).toMatchObject({ caseNumberAsTyped: '26-CR-00211', caseChoice: null });
   });
 
   it('is refused a case its sender isn’t on', async () => {
     const sender = await newSender('sender@example.com');
     const caseId = await newCase('26-CR-00211');
-    const invoiceId = await draft(sender.actor, '26-CR-00211');
 
-    await expect(setDraftCase(testDb, sender.actor, invoiceId, { caseId })).rejects.toBeInstanceOf(NotAssignedToCaseError);
+    await expect(draftOnCase(sender.actor, caseId)).rejects.toBeInstanceOf(NotAssignedToCaseError);
   });
 });
 

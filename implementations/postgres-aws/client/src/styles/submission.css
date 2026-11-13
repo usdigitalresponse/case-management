@@ -27,10 +27,16 @@
 .case-number-box .field-hint, .case-number-box .field-error { margin: var(--space-4) 0 0; }
 .case-number-box--missing .usa-input { border: 2px solid var(--color-tertiary); background: var(--color-tertiary-container); }
 .case-number-box--missing .field-error { color: var(--color-on-tertiary-container); }
+/* An external sender's case number, read from their file (design K6). */
+.file-case-number { display: grid; grid-template-columns: minmax(14rem, 22rem) 1fr; gap: var(--space-6) var(--space-9); align-items: start; margin-bottom: var(--space-6); padding: var(--space-6) var(--space-7); }
+.file-case-number dl { margin: 0; }
+.file-case-number dd .cell-note { display: block; margin-top: var(--space-3); }
+.file-case-number__why { font-size: var(--text-15); }
+.file-case-number__why p { margin: var(--space-3) 0 0; color: var(--color-on-surface-variant); }
 .case-number-box__why { padding-top: var(--space-8); font-size: var(--text-15); }
 .case-number-box__why p { margin: var(--space-3) 0 0; color: var(--color-on-surface-variant); }
 @media (max-width: 40em) {
-  .case-number-box { grid-template-columns: 1fr; }
+  .case-number-box, .file-case-number { grid-template-columns: 1fr; }
   .case-number-box__why { padding-top: 0; }
 }
 .submission__layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 8fr); gap: var(--space-6); align-items: start; }

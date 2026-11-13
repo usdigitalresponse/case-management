@@ -1,7 +1,7 @@
 // Cases whose number, or any of their other numbers, is the one an invoice
 // gives: exactly, else closely (../billing/caseNumbers.ts closeKey). For
 // matching an invoice filed by person to its case.
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { unionAll } from 'drizzle-orm/pg-core';
 import type { DatabaseOrTransaction } from '../db/client';
 import { caseIdentifier, caseTable, county, person } from '../db/schema';
@@ -14,6 +14,7 @@ export interface CaseByNumber {
   caseNumber: string | null;
   otherNumbers: string[];
   clientDisplayName: string | null;
+  countyId: string | null;
   countyDisplayName: string | null;
   closed: boolean;
   match: 'exact' | 'close';
@@ -27,24 +28,24 @@ export async function findCasesByNumber(db: DatabaseOrTransaction, caseNumber: s
     db.select({ caseId: caseTable.caseId }).from(caseTable).where(eq(sql`case_number_close_key(${caseTable.externalReference})`, wantedClose)),
     db.select({ caseId: caseIdentifier.caseId }).from(caseIdentifier).where(eq(sql`case_number_close_key(${caseIdentifier.value})`, wantedClose)),
   );
-  const [cases, identifiers] = await Promise.all([
-    db
+  // One at a time: a transaction's client runs its queries in turn.
+  const cases = await db
       .select({
         caseId: caseTable.caseId,
         externalReference: caseTable.externalReference,
         clientDisplayName: person.displayName,
+        countyId: caseTable.countyId,
         countyDisplayName: county.displayName,
         closedOn: caseTable.closedOn,
       })
       .from(caseTable)
       .leftJoin(person, eq(caseTable.clientId, person.personId))
       .leftJoin(county, eq(caseTable.countyId, county.countyId))
-      .where(inArray(caseTable.caseId, keyed)),
-    db
+      .where(and(inArray(caseTable.caseId, keyed), eq(caseTable.closedAsMistake, false)));
+  const identifiers = await db
       .select({ caseId: caseIdentifier.caseId, value: caseIdentifier.value })
       .from(caseIdentifier)
-      .where(inArray(caseIdentifier.caseId, keyed)),
-  ]);
+      .where(inArray(caseIdentifier.caseId, keyed));
   const identifiersOf = groupBy(identifiers, (row) => row.caseId);
   const wanted = caseNumber.toUpperCase();
   const found = cases.flatMap((row) => {
@@ -65,6 +66,7 @@ export async function findCasesByNumber(db: DatabaseOrTransaction, caseNumber: s
       caseNumber: numbers.get(row.caseId)?.caseNumber ?? null,
       otherNumbers: numbers.get(row.caseId)?.otherNumbers ?? [],
       clientDisplayName: row.clientDisplayName,
+      countyId: row.countyId,
       countyDisplayName: row.countyDisplayName,
       closed: row.closedOn !== null,
       match,

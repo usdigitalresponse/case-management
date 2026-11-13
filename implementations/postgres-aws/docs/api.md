@@ -699,9 +699,9 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     that each other are duplicates. Only the spreadsheet template has a
     case column; other files' lines name no case, so a PDF's own text or
     each line's description is used.
-  - The case-based upload (`client/src/portal/PortalUpload.tsx`, now
-    reached only from staff Intake; submitters use the upload filed by
-    person, above) reads a file before its case is chosen, with the same
+  - The case-based upload's page is retired (cases are added through
+    invoices; see "The case step"), but the upload filed by person, above,
+    uses the same routes. They read a file before its case is chosen, with the same
     read machinery: `POST /api/portal/uploads` stores and reads it, `GET
     .../uploads/:id` reports progress and then what was read (line count,
     invoice number, billing period, stated total), the cases it may go to
@@ -1096,6 +1096,64 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     Drafts and withdrawn invoices aren't exported. Not supported: exporting
     an earlier, recalled attempt; bulk export. Exports are not audited, as
     decided.
+- **The case step** (`model/rules.yaml` `match_invoice_to_case`,
+  `add_case_from_request`; `src/cases/caseStep.ts`, `src/billing/caseChoice.ts`):
+  cases are added only through requests; `POST /api/cases` is gone. A case is
+  found by number within the request's county (`caseStepMatches`): `exact`
+  is the same number, ignoring case, on a case in that county; `similar` are
+  close numbers (`case_number_close_key`) in that county or on a case with
+  none. Cases closed as added by mistake are never found.
+  - `GET /api/portal/invoices/:id/case-matches` (staff, own draft) and `GET
+    /api/invoices/:id/case-matches[?caseNumber=]` (staff, in review; a
+    number the reviewer typed) return `{ exact, similar, elsewhere }`;
+    `elsewhere` is the same number on cases in other counties, a hint only.
+  - `PUT /api/portal/invoices/:id/case-choice` keeps a draft's answer:
+    `{ choice: 'existing', caseId }`, `{ choice: 'new', clientName?,
+    confirmedNew? }`, `{ choice: 'none' }` or `{ choice: null }`. External
+    submitters may send only `none` or `null` (403 otherwise). `new` needs
+    the draft's number and county, is refused for a number already used in
+    that county, and needs `confirmedNew` when a similar one is listed.
+    `existing` needs the draft's county and is refused for a case in another
+    county; a chosen case with no county takes the invoice's when matched
+    (`fillCaseCounty`, an `audit_event` `county_changed`). Sending, or finishing
+    an entry, refuses `none` without a county. Changing a draft's
+    case number or county clears an `existing` or `new` answer.
+  - Sending (`POST /api/portal/invoices/:id/submit`, `filedByPerson`)
+    refuses a staff draft with no answer (field `caseChoice`); an external
+    one needs neither a number nor an answer. Once a staff member's is sent,
+    the route matches it to the chosen case, or adds the case first
+    (`applyCaseChoiceAfterSend`), and returns `caseId` and `caseProblem`: why
+    it couldn't, after which the invoice is in review without a case.
+  - `PUT /api/invoices/:id/case-choice` (staff, in review without a case)
+    applies the same answers at once, matching through `matchInvoiceToCase`
+    (prices kept as sent, providers assigned, a closed case reopened) and
+    returning `{ caseId, addedCaseId, caseProblem }`. Finishing the first
+    round of an entry in review refuses one with no answer. Adding a case
+    takes a per-county advisory lock, so one number is never added twice in
+    a county; if matching fails after the case was added, a retry matches the
+    case added from that invoice rather than adding another.
+  - `POST /api/preauthorizations/requests/:id/match` also takes `newCase: {
+    caseNumber, countyId, clientName?, confirmedNew? }` or `notForCase` (with
+    `countyId`). Approving one not for one case records `approved_amount`
+    and `approved_hourly_rate` on the request, with no preauthorization.
+- **Edit data** (`correct_case_records`; `src/cases/caseCorrections.ts`,
+  `src/routes/editData.ts`, administrators only): `GET /api/edit-data/cases[?show=similar]`
+  lists cases added from requests, newest first, with each one's similar
+  cases in its county. `POST /api/edit-data/cases/preview` and `POST
+  /api/edit-data/fixes` take `{ kind: 'same_case', caseId, keptCaseId,
+  keepPreauthorizations? }`, `{ kind: 'corrected', caseId, caseNumber?,
+  countyId?, clientName? }` or `{ kind: 'not_for_case', caseId }`; the
+  preview lists what would change, and the fix applies it in one
+  transaction, recording each value in `case_correction_change`. Moving
+  refuses a case in another county, and asks which pre-authorization to
+  keep where both cases have one for a provider. Closing as added by
+  mistake records a lifecycle event and sets `case.closed_as_mistake`, which
+  every case list, count and lookup leaves out. `GET /api/edit-data/fixes`
+  lists recent fixes; `POST /api/edit-data/fixes/:id/undo` restores each
+  value still as the fix left it and reopens a closed case, without bringing
+  back assignments it ended. A corrected client's name renames their person
+  only when nothing else refers to them; otherwise a new person becomes the
+  client. Taking requests off a case asks again on any draft that chose it.
 - **Closing a case**: `POST /api/cases/:id/close` (`requireFullUser`,
   `src/cases/closeCase.ts`) is the counterpart to opening
   (`src/intake/createCase.ts`). The case's real status lives in the
@@ -1172,7 +1230,9 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   close the tour, or any sign-in but the tour's own switches),
   `POST /api/portal/invoices`, `POST /api/portal/uploads/:id/draft`,
   `POST /api/preauthorizations/requests`, `POST /api/professionals` and
-  `POST /api/cases` (and its client, if made new) tag what they create to it (`tagTourRecord` in
+  `PUT /api/invoices/:id/case-choice`, `POST /api/portal/invoices/:id/submit`
+  and `POST /api/preauthorizations/requests/:id/match` (a case added by the
+  case step) tag what they create to it (`tagTourRecord` in
   `src/demoTour/tourRuns.ts`). An hourly sweep in the server process, only
   where the tour is mounted, deletes runs over a day old: their records,
   everything referencing them by foreign key (found from the database's own

@@ -124,6 +124,25 @@ describe('an external submitter', () => {
     expect((await submitter.call('GET', `/api/invoices/${invoiceId}`)).status).toBe(403);
   });
 
+  it('cannot look up, choose or answer cases for an invoice, nor give its case number', async () => {
+    const submitter = await createSubmitter();
+    const { invoiceId } = await createSubmittedInvoice(submitter);
+    expect((await submitter.call('GET', `/api/invoices/${invoiceId}/case-matches`)).status).toBe(403);
+    expect((await submitter.call('PUT', `/api/invoices/${invoiceId}/case-choice`, { choice: 'none' })).status).toBe(403);
+    expect((await submitter.call('GET', `/api/portal/invoices/${invoiceId}/case-matches`)).status).toBe(404);
+    expect((await submitter.call('PUT', `/api/portal/invoices/${invoiceId}/case-choice`, { choice: 'existing', caseId: randomUUID() })).status).toBe(403);
+    expect((await submitter.call('PUT', `/api/portal/invoices/${invoiceId}/case-choice`, { choice: 'none' })).status).toBe(403);
+    expect((await submitter.call('PUT', `/api/portal/invoices/${invoiceId}/case-number`, { caseNumber: '26-CR-00001' })).status).toBe(403);
+    expect((await submitter.call('PUT', `/api/portal/invoices/${invoiceId}/case`, { caseId: randomUUID() })).status).toBe(404);
+    const typed = await submitter.call('POST', '/api/portal/invoices', {
+      caseId: null,
+      caseNumber: '26-CR-00001',
+      submit: false,
+      lines: [{ lineType: 'expense', amount: 10, serviceDate: '2026-02-02' }],
+    });
+    expect(typed.status).toBe(403);
+  });
+
   it("cannot read, withdraw or delete another submitter's invoice", async () => {
     const owner = await createSubmitter();
     const other = await createSubmitter();
@@ -193,6 +212,25 @@ describe('staff without the administrator role', () => {
     expect((await staff('POST', '/api/settings/demo/reset', {})).status).toBe(403);
     // The same request passes the gate for an administrator and fails on its content.
     expect((await (await asStaff('admin'))('POST', '/api/settings/professional-kinds', {})).status).toBe(400);
+  });
+
+  it('cannot open Edit data, which is for administrators only', async () => {
+    const staff = await asStaff('staff');
+    const admin = await asStaff('admin');
+    const external = (await createSubmitter()).call;
+    for (const [method, path] of [
+      ['GET', '/api/edit-data/cases'],
+      ['GET', '/api/edit-data/fixes'],
+      ['POST', '/api/edit-data/cases/preview'],
+      ['POST', '/api/edit-data/fixes'],
+      ['POST', `/api/edit-data/fixes/${randomUUID()}/undo`],
+    ] as const) {
+      const body = method === 'GET' ? undefined : {};
+      expect([path, (await staff(method, path, body)).status]).toEqual([path, 403]);
+      expect([path, (await external(method, path, body)).status]).toEqual([path, 403]);
+    }
+    expect((await admin('GET', '/api/edit-data/cases')).status).toBe(200);
+    expect((await admin('POST', '/api/edit-data/fixes', {})).status).toBe(400);
   });
 
   it("reads external users but can't search, add or turn their sign-in on or off", async () => {

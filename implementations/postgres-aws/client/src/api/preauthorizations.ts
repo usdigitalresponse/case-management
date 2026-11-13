@@ -14,6 +14,9 @@ export interface PreauthorizationRequestRow {
   caseId: string | null;
   caseNumber: string | null;
   proposedCaseNumber: string | null;
+  proposedCountyId: string | null;
+  // Work not for one case: its decision is kept on the request alone.
+  notForCase: boolean;
   countyId: string | null;
   countyName: string | null;
   professionalId: string | null;
@@ -144,7 +147,16 @@ export function answerPreauthorizationQuestion(requestId: string, questionId: st
   });
 }
 
-export function matchPreauthorizationRequest(requestId: string, input: { caseId?: string; professionalId?: string }) {
+export type PreauthorizationMatch = {
+  caseId?: string;
+  professionalId?: string;
+  // Added from its number and county (server/src/cases/caseStep.ts).
+  newCase?: { caseNumber: string; countyId: string | null; clientName?: string; confirmedNew?: boolean };
+  notForCase?: boolean;
+  countyId?: string;
+};
+
+export function matchPreauthorizationRequest(requestId: string, input: PreauthorizationMatch) {
   return request<PreauthorizationRequestDetail>(`/api/preauthorizations/requests/${requestId}/match`, { method: 'POST', body: JSON.stringify(input) });
 }
 

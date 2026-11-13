@@ -5,7 +5,6 @@ import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import { apiErrorMessage, enterInReview, type ReviewQueueItem } from '../api/client';
 import { reviewPath } from '../staffPaths';
 import { checkLinesPath } from '../portal/checkQueue';
-import { INTAKE_PATH } from '../portal/useShell';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
 import { useBatchedResource } from '../hooks/useBatchedResource';
@@ -28,8 +27,7 @@ import { submittedByLabel } from '../reviewTotals';
 import { useSearchParamState } from '../hooks/useSearchParamState';
 import { FilterTag } from '../components/ui/Tag';
 
-// This staff member's unfinished work, and, since Intake is off the sidebar,
-// anything held there. For a reviewer: invoices they're still entering, and
+// This staff member's unfinished work. For a reviewer: invoices they're still entering, and
 // any draft from before uploads went straight into review, continued the
 // same way. For other staff: their unsent drafts.
 function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccountId: string; entering: ReviewQueueItem[]; onDeletedEntry: () => void }) {
@@ -40,7 +38,6 @@ function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccou
   const { data, reload } = useResource(invoiceIntake);
   const items = data?.items ?? [];
   const drafts = items.filter((item) => item.invoiceId && item.stage !== 'sent' && item.enteredByUserAccountId === userAccountId);
-  const held = items.filter((item) => item.stage === 'sent');
   const onDeleted = () => {
     void reload();
     onDeletedEntry();
@@ -68,12 +65,6 @@ function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccou
   );
   return (
     <>
-      {held.length > 0 && (
-        <Notice tone="warning">
-          {held.length} {held.length === 1 ? 'invoice waits' : 'invoices wait'} on <RouterLink to={INTAKE_PATH}>Intake</RouterLink> to be
-          matched.
-        </Notice>
-      )}
       {(drafts.length > 0 || (reviews && entering.length > 0)) && (
         <section className="your-drafts" aria-labelledby="your-drafts-heading">
           <h2 id="your-drafts-heading">Your unfinished drafts</h2>

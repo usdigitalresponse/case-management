@@ -3,7 +3,8 @@ import { EntryBadge } from '../../components/EntryBadge';
 import { EnteredCaseNumber, EntryReceipt } from '../../components/EntryLines';
 import { Notice } from '../../components/ui/Notice';
 import { InvoiceDetailsFields } from '../../components/InvoiceDetailsFields';
-import { CaseCard, CaseMatch } from '../../components/CaseCard';
+import { CaseCard } from '../../components/CaseCard';
+import { CaseStep } from '../../components/CaseStep';
 import { CaseNumberReview } from '../../components/CaseNumberReview';
 import type { ReviewFacts } from './reviewFacts';
 import type { ReviewPage } from './useReviewPage';
@@ -60,7 +61,7 @@ export function EntryAndCase({ page, facts }: { page: ReviewPage; facts: ReviewF
           }}
         />
       )}
-      {entering && <EnteredCaseNumber invoice={invoice} />}
+      {entering && <EnteredCaseNumber invoice={invoice} onSaved={() => void refresh()} />}
       {!byPerson && (
         <CaseCard
           invoice={invoice}
@@ -79,7 +80,15 @@ export function EntryAndCase({ page, facts }: { page: ReviewPage; facts: ReviewF
           onCorrected={reloadWith}
         />
       )}
-      {byPerson && inReview && !data.entryOpen && Boolean(permissions?.reviewLines) && <CaseMatch invoice={invoice} onMatched={reloadWith} />}
+      {byPerson && inReview && (!data.entryOpen || entering) && Boolean(permissions?.reviewLines) && (
+        <CaseStep
+          invoice={invoice}
+          mode="review"
+          missing={entering && facts.everyLineDecided}
+          beforeChange={entering ? () => saveEdits.current() : undefined}
+          onChanged={(message) => (message ? reloadWith(message) : void refresh())}
+        />
+      )}
     </>
   );
 }

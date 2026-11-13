@@ -5,9 +5,11 @@ import { Link as RouterLink, useNavigate } from 'react-router';
 import {
   addProfessional,
   apiErrorMessage,
+  chooseCaseInReview,
   createInvoice,
   createUploadDraft,
   invoiceTemplateUrl,
+  setDraftCaseChoice,
   type InvoiceReceipt,
 } from '../api/client';
 import { useResource } from '../hooks/useResource';
@@ -25,6 +27,7 @@ import { PORTAL_HOME_PATH, useShell } from '../portal/useShell';
 import { reviewPath } from '../staffPaths';
 import { useAuth } from '../AuthContext';
 import { Button } from '../components/ui/Button';
+import { CaseNumberField, type UploadCaseNumber } from '../components/upload/CaseNumberField';
 
 // Staff who review take their own uploads straight into review.
 function useReviewsOwnUploads() {
@@ -52,6 +55,8 @@ export default function UploadInvoices() {
   const asks = asksWho(staff, billable);
   const [sender, setSender] = useState('');
   const [receipt, setReceipt] = useState<InvoiceReceipt>({});
+  const [caseNumber, setCaseNumber] = useState<UploadCaseNumber>({ value: '', edited: false, notForCase: false });
+  const caseNumberInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   // Set once going on was tried, so missing fields are marked where they are.
@@ -92,6 +97,14 @@ export default function UploadInvoices() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready.map(({ entry }) => entry.key).join(), asks]);
 
+  // One invoice's number is given here; with several files, each one's is read from it and checked next.
+  const asksCaseNumber = staff && !many;
+  const onlyRead = ready.length === 1 ? ready[0]!.read.read.caseNumber?.trim() : undefined;
+  useEffect(() => {
+    if (onlyRead && !caseNumber.edited) setCaseNumber((current) => ({ ...current, value: onlyRead }));
+  }, [onlyRead, caseNumber.edited]);
+  const caseNumberMissing = asksCaseNumber && !caseNumber.notForCase && !caseNumber.value.trim();
+
   const topChosen = chosen(sender) || (sender === ADD_NEW && Boolean(draft));
   const senderFor = (own: string | undefined, top: string) => (asks ? own || top : self?.professionalId);
   // By hand, the one above; with files, only those without their own need it.
@@ -100,8 +113,10 @@ export default function UploadInvoices() {
     receivedVia: tried && staff && !receipt.receivedVia ? 'Choose how it arrived.' : undefined,
     receivedOn: tried && staff && !receipt.receivedOn ? 'Enter the date it arrived.' : undefined,
     sender: tried && asks && !topChosen ? (sender === ADD_NEW ? 'Give their first and last name, and their role.' : 'Choose whose work it is.') : undefined,
+    caseNumber: tried && caseNumberMissing ? 'Enter the case number on the invoice.' : undefined,
   };
-  const complete = (byHand: boolean) => !(staff && !(receipt.receivedVia && receipt.receivedOn)) && !senderMissing(byHand);
+  const complete = (byHand: boolean) =>
+    !(staff && !(receipt.receivedVia && receipt.receivedOn)) && !senderMissing(byHand) && !caseNumberMissing;
 
   // The one chosen above, adding someone new first.
   async function topSender(): Promise<string> {
@@ -125,11 +140,19 @@ export default function UploadInvoices() {
     if (busy) return;
     if (!complete(byHand)) {
       setTried(true);
+      if (caseNumberMissing) caseNumberInput.current?.focus();
       return;
     }
     setBusy(true);
     setMessage(null);
     const received = staff ? receipt : {};
+    const typedNumber = asksCaseNumber && !caseNumber.notForCase ? caseNumber.value.trim() : undefined;
+    // Not for one case is the case step's answer, kept on the draft or given in review.
+    const answerNotForCase = async (invoiceId: string) => {
+      if (!(asksCaseNumber && caseNumber.notForCase)) return;
+      if (reviews) await chooseCaseInReview(invoiceId, { choice: 'none' });
+      else await setDraftCaseChoice(invoiceId, { choice: 'none' });
+    };
     try {
       const top = await topSender();
       if (byHand) {
@@ -139,8 +162,10 @@ export default function UploadInvoices() {
           submit: false,
           enterInReview: reviews,
           lines: [],
+          caseNumber: typedNumber,
           ...received,
         });
+        await answerNotForCase(created.invoiceId);
         finish([created.invoiceId]);
         return;
       }
@@ -154,12 +179,16 @@ export default function UploadInvoices() {
             professionalId: senderFor(entry.details, top) ?? null,
             ...readPeriod(read.read),
             invoiceNumber: read.read.invoiceNumber?.trim() || undefined,
-            caseNumber: read.read.caseNumber?.trim() || undefined,
+            caseNumber: asksCaseNumber ? typedNumber : read.read.caseNumber?.trim() || undefined,
             ...countyChoiceOf(read.read.county),
             // Reviewers enter and decide it in one pass, on its review.
             enterInReview: reviews,
             ...received,
           }));
+        if (!entry.created) {
+          // eslint-disable-next-line no-await-in-loop
+          await answerNotForCase(created.invoiceId);
+        }
         update(entry.key, { created });
         made.push(created.invoiceId);
       }
@@ -214,8 +243,11 @@ export default function UploadInvoices() {
                   />
                 </div>
               )}
+              {asksCaseNumber && (
+                <CaseNumberField value={caseNumber} onChange={setCaseNumber} error={fieldErrors.caseNumber} inputRef={caseNumberInput} />
+              )}
             </div>
-            {/* Adding someone opens here, under all three, so none of them moves. */}
+            {/* Adding someone opens here, under all four, so none of them moves. */}
             <div ref={setAddRow} />
           </div>
         )}
@@ -298,8 +330,8 @@ export default function UploadInvoices() {
       </p>
       {reviews && (
         <Notice tone="info">
-          An invoice filed here keeps who billed it, how and when it arrived, and the case number as written on it. You enter and decide
-          its lines in one pass, then finish the review.
+          An invoice filed here keeps who billed it, how and when it arrived, and the case number as written on the paper. You enter and
+          decide its lines in one pass, then finish the review.
         </Notice>
       )}
     </div>

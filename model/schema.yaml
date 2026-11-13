@@ -1,4 +1,4 @@
-spec_version: "0.12.0"
+spec_version: "0.13.0"
 status: draft
 kind: domain_schema
 
@@ -102,6 +102,22 @@ entities:
         type: reference
         required: false
         reference_data: languages
+      added_from_invoice_id:
+        type: uuid
+        required: false
+        references: invoice.invoice_id
+        description: The request for payment staff added this case from (add_case_from_request).
+      added_from_preauthorization_request_id:
+        type: uuid
+        required: false
+        references: preauthorization_request.preauthorization_request_id
+        description: The preauthorization request staff added this case from (add_case_from_request).
+      closed_as_mistake:
+        type: boolean
+        required: false
+        description: True once an administrator closed it as added by mistake (correct_case_records); it then leaves
+          every list, search and picker. Absent means false. A plain field set with its closing event, not a
+          projection.
 
   office:
     display_name: Office
@@ -611,7 +627,7 @@ entities:
         type: uuid
         required: false
         references: case.case_id
-        description: Empty while staff hold the request in invoice intake, or when they chose to review it without a case (match_invoice_to_case).
+        description: Empty until the request is matched to its case, and for a request not for one case (match_invoice_to_case).
       service_provider_id:
         type: uuid
         required: true
@@ -646,6 +662,21 @@ entities:
         type: boolean
         required: false
         description: True when a reviewing staff member entered the request straight into their own review (enter_request_in_review); absent means false. Its lines stay editable until the attempt's snapshot is frozen on finishing the first round.
+      case_choice:
+        type: string
+        required: false
+        description: The answer to the case question for a request filed by person (match_invoice_to_case) - existing
+          (a case found by number and county), new (a case to add from them) or none (not for one case). Empty while
+          unanswered; staff must answer before sending, an external submitter need not.
+      chosen_case_id:
+        type: uuid
+        required: false
+        references: case.case_id
+        description: On a draft, the existing case chosen; the request is matched to it when sent.
+      new_case_client_name:
+        type: string
+        required: false
+        description: On a draft whose case is to be added, the client's name it is added with, if given.
 
   invoice_line:
     display_name: Invoice Line
@@ -1315,7 +1346,8 @@ entities:
         type: uuid
         required: false
         references: case.case_id
-        description: Empty while the case is only proposed; staff match it before deciding.
+        description: Empty while the case is only proposed, and for work not for one case; staff choose or add the case,
+          or say it is not for one case, before approving.
       service_provider_id:
         type: uuid
         required: false
@@ -1395,7 +1427,25 @@ entities:
         type: uuid
         required: false
         references: preauthorization_decision.preauthorization_decision_id
-        description: The ceiling decision an approval recorded.
+        description: The ceiling decision an approval for a case recorded.
+      not_for_case:
+        type: boolean
+        required: false
+        description: True when the work is not for one case, such as court observation; it then sets no
+          preauthorization or limit (request_preauthorization). Absent means false.
+      county_id:
+        type: uuid
+        required: false
+        references: county.county_id
+        description: The county of a request not for one case.
+      approved_amount:
+        type: money
+        required: false
+        description: For a request not for one case, the total approved, recorded once with its decision.
+      approved_hourly_rate:
+        type: money
+        required: false
+        description: For a request not for one case, the hourly rate approved, if any.
       decided_by_user_account_id:
         type: uuid
         required: false
@@ -1723,6 +1773,80 @@ entities:
         type: uuid
         required: true
         references: person_merge.person_merge_id
+      position:
+        type: integer
+        required: true
+        description: Order applied; an undo goes in reverse.
+      table_name:
+        type: string
+        required: true
+      column_name:
+        type: string
+        required: true
+      row_id:
+        type: uuid
+        required: true
+      from_value:
+        type: string
+        required: false
+        data_role: snapshot
+      to_value:
+        type: string
+        required: false
+        data_role: snapshot
+
+  case_correction:
+    display_name: Case Correction
+    description: An administrator's fix to a case added by mistake, in Settings, Edit data (correct_case_records) -
+      moving its requests to the same case recorded twice, correcting its details, or taking its requests off it.
+      Every value it changed is recorded (case_correction_change) so it can be undone; undoing records who and when.
+    primary_key: case_correction_id
+    fields:
+      case_correction_id:
+        type: uuid
+        required: true
+        generated: true
+      case_id:
+        type: uuid
+        required: true
+        references: case.case_id
+      kind:
+        type: string
+        required: true
+        description: same_case, corrected or not_for_case.
+      kept_case_id:
+        type: uuid
+        required: false
+        references: case.case_id
+        description: For same_case, the case its requests moved to.
+      corrected_by_user_account_id:
+        type: uuid
+        required: true
+        references: user_account.user_account_id
+      corrected_at:
+        type: datetime
+        required: true
+      undone_by_user_account_id:
+        type: uuid
+        required: false
+        references: user_account.user_account_id
+      undone_at:
+        type: datetime
+        required: false
+
+  case_correction_change:
+    display_name: Case Correction Change
+    description: One value a case correction changed, with its prior value. Recorded once and never changed.
+    primary_key: case_correction_change_id
+    fields:
+      case_correction_change_id:
+        type: uuid
+        required: true
+        generated: true
+      case_correction_id:
+        type: uuid
+        required: true
+        references: case_correction.case_correction_id
       position:
         type: integer
         required: true

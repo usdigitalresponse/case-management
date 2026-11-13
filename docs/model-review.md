@@ -169,6 +169,23 @@ rows (`request_provider_documents`), and staff see usage by county
 (`report_preauthorization_usage`). The snapshot layout is unchanged apart from
 `spec_version`.
 
+Model files are now 0.13.0: cases are added through requests. A request filed
+by person answers one case question, `invoice.case_choice` (an existing case
+found by number and county, a new case added from them, or not for one case,
+such as court observation); staff must answer before sending, external
+submitters need not, and sign-off never needs a case (`match_invoice_to_case`).
+Staff add a case with only its number, county and optional client name, refusing
+a number already used in that county and confirming one close to another
+(`add_case_from_request`); `case.added_from_invoice_id` and
+`added_from_preauthorization_request_id` say where it came from. A
+preauthorization request may be not for one case, recording its decision and
+amount without a preauthorization or limit. Administrators fix cases added by
+mistake in Settings, Edit data (`correct_case_records`), recorded in
+`case_correction` and `case_correction_change` so each fix can be undone, and
+`case.closed_as_mistake` takes a case closed that way out of lists. Invoice
+intake and `send_for_matching` are retired. The snapshot layout is unchanged
+apart from `spec_version`.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |
