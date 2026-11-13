@@ -118,7 +118,7 @@ describe('applying billing rules', () => {
     const draft = await loadInvoiceDetail(testDb, invoiceId);
     expect(draft!.ruleFindings.map((finding) => finding.rule).sort()).toEqual(['billing_period', 'long_entry', 'time_increment']);
     expect(draft!.ruleFindings.find((finding) => finding.rule === 'time_increment')?.message).toBe(
-      `"Work 1.33": 1.33 h isn't a whole multiple of 0.1 h.`,
+      `"Work 1.33": 1.33 hours isn't a whole multiple of 0.1 hours.`,
     );
 
     await submitInvoice(testDb, actor, invoiceId, { attested: true });
@@ -138,7 +138,7 @@ describe('applying billing rules', () => {
     await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [time(6)] });
     await createInvoice(testDb, actor, { attested: true, caseId, lines: [time(5)] });
     await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [time(4)] })).rejects.toThrow(
-      refused(/Synthetic Attorney has 9 h billed on 2026-02-02, counting submitted invoices; the daily cap is 8 h/),
+      refused(/Synthetic Attorney has 9 hours billed on Feb 2, 2026, counting submitted invoices; the daily cap is 8 hours/),
     );
     await createInvoice(testDb, actor, { attested: true, caseId, lines: [time(3)] });
   });
@@ -176,7 +176,7 @@ describe('applying billing rules', () => {
 
     const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, submit: false, lines: [time(4)] });
     expect((await evaluateBillingRules(testDb, invoiceId)).map((finding) => finding.message)).toContain(
-      'Synthetic Attorney has 10 h billed on 2026-02-02, counting submitted invoices; the daily cap is 8 h.',
+      'Synthetic Attorney has 10 hours billed on Feb 2, 2026, counting submitted invoices; the daily cap is 8 hours.',
     );
   });
 

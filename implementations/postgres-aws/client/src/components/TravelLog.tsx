@@ -35,12 +35,12 @@ function routeMiles(line: PortalInvoiceLine): number | undefined {
   return line.routeDistance === null ? undefined : Number(line.routeDistance) * (line.roundTrip ? 2 : 1);
 }
 
-// Under a flagged mileage line: "Driving route is 14.6 mi. 15.4 mi more claimed, over tolerance."
+// Under a flagged mileage line: "Driving route is 14.6 miles. 15.4 miles more claimed, over the distance allowed."
 export function overRouteNote(line: PortalInvoiceLine): string | null {
   const route = routeMiles(line);
   if (route === undefined) return null;
   const over = Number(line.quantity ?? 0) - route;
-  return `Driving route is ${Number(route.toFixed(1))} mi. ${Number(over.toFixed(1))} mi more claimed, over tolerance.`;
+  return `Driving route is ${Number(route.toFixed(1))} miles. ${Number(over.toFixed(1))} miles more claimed, over the distance allowed.`;
 }
 
 // Staff only: set a flagged trip's warning aside for stops on the way, or put it back.
@@ -139,7 +139,7 @@ export function TravelLog({
             header: 'Travel time',
             render: ({ travel }) => {
               const hours = travel?.quantity ?? travel?.sourceDurationHours;
-              return hours ? `${Number(hours)} h` : '—';
+              return hours ? `${Number(hours)} hours` : '—';
             },
           },
           { header: 'Miles claimed', render: ({ mileage }) => (mileage?.quantity ? Number(mileage.quantity) : '—') },
@@ -157,10 +157,10 @@ export function TravelLog({
               const isFlagged = flagged.has(mileage.invoiceLineId);
               return (
                 <>
-                  {Number(route.toFixed(1))} mi
+                  {Number(route.toFixed(1))} miles
                   {(over >= 0.5 || isFlagged) && (
                     <span className={isFlagged ? 'trip-note trip-note--flagged' : 'trip-note'}>
-                      {Number(over.toFixed(1))} mi more claimed{isFlagged ? ', over tolerance' : ''}
+                      {Number(over.toFixed(1))} miles more claimed{isFlagged ? ', over the distance allowed' : ''}
                     </span>
                   )}
                   {isFlagged && stops && <StopsNote lineId={mileage.invoiceLineId} stops={stops} />}

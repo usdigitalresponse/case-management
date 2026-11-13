@@ -7,8 +7,6 @@ import { CaseNumberCell, FromCell, openInvoiceColumn, QuestionChips } from './In
 import { formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 
-const IN_REVIEW = ['submitted', 'under_review', 'awaiting_answer', 'awaiting_sign_off'];
-
 export function SentInvoicesTable({
   invoices,
   showFrom,
@@ -47,7 +45,7 @@ export function SentInvoicesTable({
         </>
       ),
     },
-    openInvoiceColumn((invoice) => (IN_REVIEW.includes(invoice.statusCode) ? 'Review' : 'View')),
+    openInvoiceColumn(),
   ];
   return <RecordTable className="queue-table" rows={invoices} rowKey={(invoice) => invoice.invoiceId} emptyMessage={emptyMessage} columns={columns} />;
 }

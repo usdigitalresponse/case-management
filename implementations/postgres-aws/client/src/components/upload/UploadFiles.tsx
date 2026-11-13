@@ -33,7 +33,7 @@ export function Steps({ reviewing = false }: { reviewing?: boolean }) {
     <StepList
       label="Steps"
       current={0}
-      steps={reviewing ? ['Upload', 'Check and review the lines', 'Finish the review'] : ['Upload', 'Check the lines', 'Send for review']}
+      steps={reviewing ? ['Upload', 'Check and review the lines', 'Finish review'] : ['Upload', 'Check', 'Send for review']}
     />
   );
 }
@@ -86,13 +86,13 @@ export function DropZone({ hasFiles, onFiles }: { hasFiles: boolean; onFiles: (f
         }}
       />
       <strong>{over ? 'Drop the files to add them' : hasFiles ? 'Drop more invoice files here, or choose files' : 'Drop invoice files here, or choose files'}</strong>
-      <span>PDF, LEDES 1998B, Excel (.xlsx) or CSV. One invoice per file, up to 10 MB each.</span>
+      <span>PDF, Excel (.xlsx), CSV or a LEDES legal billing file. One invoice per file, up to 10 MB each.</span>
       {/* Its click reaches the zone, which opens the picker. */}
       <Button kind="secondary">Choose files</Button>
       {refused.length > 0 && (
         <p className="drop-zone__error" role="alert">
           <span aria-hidden="true">×</span> {refused.join(', ')} {refused.length === 1 ? 'is not a file type' : 'are not file types'} this tool can
-          read. Choose a PDF, LEDES, Excel or CSV file.
+          read. Choose a PDF, Excel, CSV or LEDES legal billing file.
         </p>
       )}
     </div>

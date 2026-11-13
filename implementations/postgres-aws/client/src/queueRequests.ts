@@ -14,7 +14,7 @@ export type ToReviewSortId = (typeof TO_REVIEW_SORTS)[number]['id'];
 export const FINISHED_FILTERS = [
   { id: 'month', label: 'This month' },
   { id: 'sign_off', label: 'Waiting for sign-off' },
-  { id: 'decided', label: 'Decided' },
+  { id: 'decided', label: 'Signed off' },
   { id: 'completed', label: 'Completed' },
   { id: 'all', label: 'All' },
 ] as const;
@@ -78,7 +78,7 @@ export function searchRequest(params: URLSearchParams): QueueRequest {
 export const PERSON_FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'waiting', label: 'Waiting' },
-  { id: 'decided', label: 'Decided' },
+  { id: 'decided', label: 'Signed off' },
 ] as const;
 export type PersonFilterId = (typeof PERSON_FILTERS)[number]['id'];
 

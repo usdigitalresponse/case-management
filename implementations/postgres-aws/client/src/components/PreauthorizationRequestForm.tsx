@@ -277,7 +277,7 @@ export function PreauthorizationRequestForm({
       )}
       <div className="dialog__actions">
         <Button type="submit" kind="primary" disabled={saving || !(total > 0)}>
-          {saving ? 'Sending…' : staff ? 'Record the request' : 'Send the request'}
+          {saving ? 'Sending…' : staff ? 'Record request' : 'Send request'}
         </Button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
       </div>

@@ -118,7 +118,7 @@ export function QuestionForm({
           autoFocus
           onChange={(event) => setQuestion(event.target.value)}
         />
-        <Button type="submit" kind="primary" disabled={!question.trim() || saving}>Ask</Button>
+        <Button type="submit" kind="primary" disabled={!question.trim() || saving}>Send question</Button>
         <button type="button" className="link-button" onClick={onCancel}>Cancel</button>
       </div>
       <span className="cell-note">

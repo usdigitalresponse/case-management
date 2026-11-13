@@ -2,14 +2,14 @@ import { calendarDateInReportingTimeZone, timeInReportingTimeZone } from './repo
 
 const dayMonthYear = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
-// A calendar date ("2026-09-04") as the design writes it: "4 Sep 2026"; anything unreadable as given.
+// A calendar date ("2026-09-04") as the design writes it: "Sep 4, 2026"; anything unreadable as given.
 export function formatCalendarDate(isoDate: string): string {
   const date = new Date(`${isoDate}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) {
     return isoDate;
   }
   const parts = Object.fromEntries(dayMonthYear.formatToParts(date).map((part) => [part.type, part.value]));
-  return `${parts.day} ${parts.month} ${parts.year}`;
+  return `${parts.month} ${parts.day}, ${parts.year}`;
 }
 
 // A zone the sender's browser named, if Intl knows it.
@@ -23,7 +23,7 @@ function knownZone(timeZone: string | undefined): string | undefined {
   }
 }
 
-// In the given zone if known, else the reporting zone: "10 Nov 2026, 9:14 PM PST".
+// In the given zone if known, else the reporting zone: "Nov 10, 2026, 9:14 PM PST".
 export function formatInstant(instant: Date, timeZone?: string): string {
   const zone = knownZone(timeZone);
   if (!zone) {

@@ -33,9 +33,9 @@ const invoice = (patch: Partial<InvoiceRecord>): InvoiceRecord => ({
 
 describe('formatSpan', () => {
   it('shortens a period within one month or year', () => {
-    expect(formatSpan('2026-09-01', '2026-09-30')).toBe('1 to 30 Sep 2026');
-    expect(formatSpan('2026-08-01', '2026-09-30')).toBe('1 Aug to 30 Sep 2026');
-    expect(formatSpan('2025-12-01', '2026-01-31')).toBe('1 Dec 2025 to 31 Jan 2026');
+    expect(formatSpan('2026-09-01', '2026-09-30')).toBe('Sep 1 to 30, 2026');
+    expect(formatSpan('2026-08-01', '2026-09-30')).toBe('Aug 1 to Sep 30, 2026');
+    expect(formatSpan('2025-12-01', '2026-01-31')).toBe('Dec 1, 2025 to Jan 31, 2026');
     expect(formatSpan(null, null)).toBe('—');
   });
 });

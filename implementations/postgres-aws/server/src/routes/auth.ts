@@ -72,7 +72,7 @@ export function createAuthRouter(options: AuthRouterOptions): Router {
         !limiter.take(`request:ip:${req.ip}`, SIGN_IN_LIMITS.codesPerAddress) ||
         (email && !limiter.take(`request:email:${email}`, SIGN_IN_LIMITS.codesPerEmail))
       ) {
-        res.status(429).json({ error: 'Too many codes asked for. Wait an hour, or use the last code we sent.' });
+        res.status(429).json({ error: 'Too many codes asked for. Wait an hour, or use the last code sent to you.' });
         return;
       }
       // The same response whether or not they may sign in, so it can't be used to find out who may.

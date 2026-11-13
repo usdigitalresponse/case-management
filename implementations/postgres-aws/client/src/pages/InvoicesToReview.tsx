@@ -232,7 +232,7 @@ export default function InvoicesToReview() {
                 </>
               ) : (
                 <>
-                  <span className="muted">Not assigned</span>
+                  <span className="muted">No reviewer yet</span>
                   {canAssign && (
                     <span className="cell-note">
                       <AssignReviewer
@@ -252,7 +252,7 @@ export default function InvoicesToReview() {
             className: (invoice) => (isLate(invoice) ? 'late' : undefined),
             render: (invoice) => `${invoice.workingDaysWaiting} ${invoice.workingDaysWaiting === 1 ? 'day' : 'days'}`,
           },
-          openInvoiceColumn(() => 'Review'),
+          openInvoiceColumn(),
         ]}
       />
       <MoreOnScroll list={list} what="invoices" />

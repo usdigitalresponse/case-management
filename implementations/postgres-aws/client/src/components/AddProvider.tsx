@@ -67,7 +67,7 @@ export function AddProvider({
     <div className={inline ? 'intake-provider' : 'card compact-card intake-provider'}>
       {!inline && (
         <>
-          <h2>Add a provider</h2>
+          <h2>Add provider</h2>
           <p className="compact-hint">
             An attorney, expert or vendor not in the system yet. Their kind sets the rate their time is priced at.
           </p>

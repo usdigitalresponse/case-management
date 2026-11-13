@@ -82,7 +82,7 @@ export function CheckLinesTable({
   extra,
   detail,
   footer,
-  addLabel = 'Add a line we missed',
+  addLabel = 'Add a missing line',
   onEditLine,
   edited,
   ownFile = true,

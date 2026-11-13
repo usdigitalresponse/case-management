@@ -65,7 +65,7 @@ describe('invoices to review', () => {
     expect(Object.fromEntries(api.calls.find((call) => call.path === '/api/invoices')!.query)).toEqual({ view: 'open', show: 'all', sort: 'waiting', counts: 'all,mine,unassigned,flagged' });
 
     fireEvent.click(screen.getByRole('button', { name: /Has a flag/ }));
-    expect(await screen.findByText(/Flagged Sender/)).toBeTruthy();
+    expect(await screen.findByRole('rowheader', { name: /Flagged Sender/ })).toBeTruthy();
     await waitFor(() => expect(api.calls.some((call) => call.path === '/api/invoices' && call.query.get('show') === 'flagged')).toBe(true));
   });
 });

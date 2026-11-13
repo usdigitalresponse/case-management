@@ -2,7 +2,7 @@
 export const QUEUE_FILTERS = [
   { id: 'everyone', label: "Everyone's" },
   { id: 'mine', label: 'Assigned to you' },
-  { id: 'unassigned', label: 'Not assigned yet' },
+  { id: 'unassigned', label: 'No reviewer yet' },
   { id: 'flagged', label: 'Has a flag' },
 ] as const;
 export type QueueFilterId = (typeof QUEUE_FILTERS)[number]['id'];

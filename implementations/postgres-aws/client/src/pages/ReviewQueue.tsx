@@ -149,7 +149,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
                       }}
                     />
                   ) : (
-                    <span className="muted">Not assigned</span>
+                    <span className="muted">No reviewer yet</span>
                   ),
               }
             : { header: 'Status', render: (invoice) => <InvoiceStatus invoice={invoice} onCompleted={reload} /> },
@@ -162,7 +162,7 @@ export default function ReviewQueue({ view }: { view: 'open' | 'finished' }) {
                 },
               ]
             : []),
-          openInvoiceColumn(() => (open ? 'Review' : 'View')),
+          openInvoiceColumn(),
         ]}
       />
       <MoreOnScroll list={list} what="invoices" />

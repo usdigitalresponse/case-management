@@ -54,7 +54,7 @@ export default function Exports() {
           { header: 'Signed off', render: (invoice) => (invoice.finishedAt ? formatDay(invoice.finishedAt) : '—') },
           { header: 'Approved', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.approvedTotal ?? 0)}</strong> },
           { header: 'Export', align: 'right', render: (invoice) => <InvoiceExportButton scope="staff" invoiceId={invoice.invoiceId} /> },
-          openInvoiceColumn(() => 'View'),
+          openInvoiceColumn(),
         ]}
       />
       <MoreOnScroll list={list} what="invoices" />

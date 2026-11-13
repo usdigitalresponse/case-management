@@ -61,7 +61,7 @@ describe('the totals notice', () => {
     });
     expect(notice).toEqual({
       tone: 'warning',
-      text: 'Your file says the total is $1,044.80. The lines we read add up to $1,058.80, which is $14.00 more. Check line 3: we could not read the miles clearly.',
+      text: 'Your file says the total is $1,044.80. The lines read from it add up to $1,058.80, which is $14.00 more. Check line 3: we could not read the miles clearly.',
     });
   });
 

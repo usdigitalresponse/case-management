@@ -248,7 +248,7 @@ export function EntryLines({
             const line = lineAt(index);
             return line ? form(line) : null;
           }}
-          addLabel={fileSource ? 'Add a line we missed' : 'Add a line'}
+          addLabel={fileSource ? 'Add a missing line' : 'Add a line'}
           ownFile={false}
           footer={
             <div className="check-lines__totals">

@@ -11,7 +11,7 @@ export interface EmailedLine {
   questions?: string[];
 }
 
-// "Line 3: Feb 2, 2026, Time, Research, 2.00 h, $300.00"
+// "Line 3: Feb 2, 2026, Time, Research, 2.00 hours, $300.00"
 function lineDetails({ line, number }: EmailedLine): string {
   const hours = lineHours(line);
   const parts = [lineDate(line), lineType(line), lineDescription(line), hours === '—' ? null : hours, formatMoney(line.amount)];
