@@ -34,9 +34,9 @@
 .breadcrumb a:hover { text-decoration: underline; }
 /* Facts strip and progress */
 .facts-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--space-6); margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-7); }
-.facts-strip dt { margin: 0 0 var(--space-3); font-size: var(--text-11); text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
-.facts-strip dd { margin: 0; font: var(--title-medium); }
-.facts-strip dd .cell-note { font: var(--body-medium); color: var(--color-on-surface-variant); }
+.facts-strip dt, .file-case-number dt { margin: 0 0 var(--space-3); font-size: var(--text-11); text-transform: uppercase; letter-spacing: .04em; color: var(--color-on-surface-variant); font-weight: 600; }
+.facts-strip dd, .file-case-number dd { margin: 0; font: var(--title-medium); }
+.facts-strip dd .cell-note, .file-case-number dd .cell-note { font: var(--body-medium); color: var(--color-on-surface-variant); }
 .progress { display: block; width: 100%; max-width: 7rem; height: 4px; margin-top: var(--space-4); background: var(--color-outline-subtle); border-radius: var(--radius-mark); overflow: hidden; }
 .progress span { display: block; width: var(--done); height: 100%; background: var(--color-primary); }
 .page-tabs { margin-bottom: var(--space-6); }

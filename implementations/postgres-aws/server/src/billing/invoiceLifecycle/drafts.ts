@@ -4,17 +4,15 @@ import { eq } from 'drizzle-orm';
 import { type Database, type Transaction } from '../../db/client';
 import { firstRow } from '../../db/rowHelpers';
 import { getReferenceId } from '../../db/referenceLookups';
-import { ValidationError } from '../../errors';
+import { ForbiddenError, ValidationError } from '../../errors';
 import { fieldErrorsFromZodIssues } from '../../intake/validation';
-import { caseTable, invoice, invoiceImport, invoiceLine, invoiceStatuses } from '../../db/schema';
-import { authorizeBilling, type PortalActor } from '../../portal/portalActor';
+import { invoice, invoiceStatuses } from '../../db/schema';
+import { authorizeBilling, isStaffAccount, type PortalActor } from '../../portal/portalActor';
 import { type ProposedCase, type ProposedProvider } from '../proposedDetails';
 import { InvoiceNotFoundError } from '../reviewInvoiceLine';
 import { recordInvoiceEvent } from '../invoiceEvents';
 import { CONFIRMED_IMPORT_STATUS_CODE, findImportForInvoice } from '../../imports/importedTimeEntries';
-import { priceLines } from '../priceLines';
 import { caseNumberInput, cleanCaseNumber } from '../caseNumbers';
-import { loadCaseNumbers } from '../invoiceDetail';
 import { parseCountyChoice, resolveCountyChange, shownInvoiceCounty } from '../../cases/counties';
 import { changeSenderInTx, parseDetails, parseSender, setDetailsInTx } from '../uploadDetails';
 import { DRAFT_INVOICE_STATUS_CODE } from '../invoiceStatusCodes';
@@ -75,6 +73,12 @@ export async function lockOwnInvoice(tx: Transaction, actor: PortalActor, invoic
   return { locked, billable };
 }
 
+export async function requireStaffForCase(db: Database | Transaction, actor: PortalActor) {
+  if (!(await isStaffAccount(db, actor.userAccountId))) {
+    throw new ForbiddenError('staff_only', 'The billing office adds the case number during review.');
+  }
+}
+
 export async function updateDraftInvoice(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
   const content = parseDraftContent(rawInput);
   return db.transaction(async (tx) => {
@@ -90,7 +94,9 @@ export async function updateDraftInvoice(db: Database, actor: PortalActor, invoi
   });
 }
 
+// Staff only: an external sender's number is the one read from their file (model/rules.yaml match_invoice_to_case).
 export async function setDraftCaseNumber(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
+  await requireStaffForCase(db, actor);
   const parsed = z.object({ caseNumber: caseNumberInput }).safeParse(rawInput);
   if (!parsed.success) {
     throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
@@ -103,40 +109,6 @@ export async function setDraftCaseNumber(db: Database, actor: PortalActor, invoi
       .set({ caseNumberAsTyped: caseNumber, ...(caseNumber === locked.caseNumberAsTyped ? {} : askCaseAgain(locked)) })
       .where(eq(invoice.invoiceId, invoiceId));
     return { invoiceId, caseNumber };
-  });
-}
-
-// A draft filed by person, put under one of its sender's cases or taken off it
-// again (null): with a case, its number is the case's and it goes straight to
-// review when sent. Its lines are priced again, so case rates apply.
-export async function setDraftCase(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
-  const parsed = z.object({ caseId: z.uuid().nullable() }).safeParse(rawInput);
-  if (!parsed.success) {
-    throw new ValidationError({ caseId: 'Choose a case, or say it isn’t listed.' });
-  }
-  const { caseId } = parsed.data;
-  return db.transaction(async (tx) => {
-    const locked = await lockOwnDraft(tx, actor, invoiceId);
-    let caseNumber = locked.caseNumberAsTyped;
-    if (caseId) {
-      if (!locked.professionalId) {
-        throw new ValidationError({ caseId: 'Choose whose work it is first.' });
-      }
-      const [target] = await tx.select({ closedOn: caseTable.closedOn }).from(caseTable).where(eq(caseTable.caseId, caseId));
-      if (!target || target.closedOn) {
-        throw new ValidationError({ caseId: 'Choose an open case.' });
-      }
-      // Only a case the person whose work it is is on, and that the sender bills for.
-      await authorizeBilling(tx, actor, caseId, locked.professionalId);
-      caseNumber = (await loadCaseNumbers(tx, [caseId])).get(caseId)?.caseNumber ?? caseNumber;
-    }
-    await tx.update(invoice).set({ caseId, caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
-    await tx.update(invoiceLine).set({ caseId }).where(eq(invoiceLine.invoiceId, invoiceId));
-    await tx.update(invoiceImport).set({ caseId }).where(eq(invoiceImport.invoiceId, invoiceId));
-    if (locked.professionalId) {
-      await priceLines(tx, invoiceId, { billedProfessionalId: locked.professionalId, unmatchedMeansBilled: true, strict: false });
-    }
-    return { invoiceId, caseId, caseNumber };
   });
 }
 

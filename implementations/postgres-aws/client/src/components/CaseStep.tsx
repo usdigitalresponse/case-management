@@ -109,10 +109,7 @@ function CaseLookup({
   saving: boolean;
   save: (input: CaseChoiceInput, message?: string) => Promise<void>;
 }) {
-  const ownNumber = invoice.caseNumberCorrected ?? invoice.caseNumberAsTyped ?? '';
-  // In review, a number for an invoice that gives none.
-  const [typed, setTyped] = useState('');
-  const number = (ownNumber || typed).trim();
+  const number = (invoice.caseNumberCorrected ?? invoice.caseNumberAsTyped ?? '').trim();
   const { data } = useResource(number && invoice.countyId ? caseMatches(invoice.invoiceId, number, invoice.countyId, mode === 'draft') : null);
   const [picked, setPicked] = useState<string | null>(null);
   const [clientName, setClientName] = useState(invoice.newCaseClientName ?? '');
@@ -150,18 +147,11 @@ function CaseLookup({
 
   return (
     <>
-      {mode === 'review' && !ownNumber && (
-        <div className="usa-form-group">
-          <label className="usa-label" htmlFor={`case-step-number-${invoice.invoiceId}`}>
-            Case number
-          </label>
-          <input id={`case-step-number-${invoice.invoiceId}`} className="usa-input" value={typed} onChange={(event) => setTyped(event.target.value)} />
-        </div>
-      )}
+      {/* Nothing to match without a number (design K69): it is added in the case number box. */}
       {!number || !invoice.countyId ? (
         <p className="field-hint">
           {invoice.countyId
-            ? 'Type its case number to find its case, or add one.'
+            ? `Add the case number${mode === 'review' ? ' above' : ''} to find its case, or add one.`
             : `Add ${number ? 'its' : 'the case number and'} county to find its case, or add one.`}
         </p>
       ) : !data ? (
@@ -180,7 +170,6 @@ function CaseLookup({
             saving={saving}
             save={save}
             number={number}
-            typedNumber={ownNumber ? undefined : number}
             exact={exact}
             similar={similar}
             picked={picked}
@@ -200,7 +189,6 @@ function Found({
   saving,
   save,
   number,
-  typedNumber,
   exact,
   similar,
   picked,
@@ -213,7 +201,6 @@ function Found({
   saving: boolean;
   save: (input: CaseChoiceInput, message?: string) => Promise<void>;
   number: string;
-  typedNumber: string | undefined;
   exact: CaseByNumber | null;
   similar: CaseByNumber[];
   picked: string | null;
@@ -223,7 +210,7 @@ function Found({
 }) {
   const county = invoice.countyDisplayName ?? 'this county';
   const addNew = (confirmedNew: boolean) =>
-    save({ choice: 'new', clientName: clientName.trim() || undefined, confirmedNew, caseNumber: typedNumber }, `Case ${number} added.`);
+    save({ choice: 'new', clientName: clientName.trim() || undefined, confirmedNew }, `Case ${number} added.`);
 
   if (exact) {
     return mode === 'draft' ? (
@@ -237,7 +224,7 @@ function Found({
           <span className="case-step__tag case-step__tag--found">Suggested</span> {caseLabel(exact)} <RouterLink to={`/cases/${exact.caseId}`}>Open the case</RouterLink>
         </p>
         <Button kind="primary" disabled={saving} onClick={() => void save({ choice: 'existing', caseId: exact.caseId }, `Matched to case ${exact.caseNumber ?? number}.`)}>
-          {exact.closed ? 'Use this case and reopen it' : 'Use this case'}
+          {exact.closed ? 'Match to this case and reopen it' : 'Match to this case'}
         </Button>
       </div>
     );
@@ -309,8 +296,14 @@ function Found({
           disabled={saving || !picked}
           onClick={() => void (picked === 'new' ? addNew(true) : picked && save({ choice: 'existing', caseId: picked }, 'Matched to its case.'))}
         >
-          {picked === 'new' ? `Add case ${number} and match` : 'Match'}
+          {picked === 'new' ? `Add case ${number} and match` : 'Match to this case'}
         </Button>
+      )}
+      {mode === 'review' && (
+        <p className="field-hint">
+          Matching keeps the invoice’s prices and the number as typed. If no case here is right, choose the new one, and the tool lists {number} as
+          its own case.
+        </p>
       )}
       {mode === 'draft' && <p className="field-hint">The invoice keeps {number} as typed beside the case.</p>}
     </>

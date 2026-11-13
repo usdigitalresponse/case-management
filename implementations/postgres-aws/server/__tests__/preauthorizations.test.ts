@@ -21,7 +21,7 @@ import { createPreauthorizationRequest, previewRequest } from '../src/billing/pr
 import { getPreauthorizationRequest, listOwnPreauthorizationRequests, listPreauthorizationRequests } from '../src/billing/preauthorizationRequests/read';
 import { preauthorizationUsageByCounty } from '../src/billing/preauthorizationUsage';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../src/errors';
-import { caseAssignment, caseTable, county, preauthorizationDecision, preauthorizationRequest, userAccount } from '../src/db/schema';
+import { caseAssignment, caseTable, county, invoice, preauthorizationDecision, preauthorizationRequest, userAccount } from '../src/db/schema';
 import { fixCase, undoCaseFix } from '../src/cases/caseCorrections';
 
 let fixtures: BaselineFixtureIds;
@@ -311,6 +311,23 @@ describe('overruns', () => {
     const { invoices } = await listReviewQueue(testDb, 'all', { caseId });
     const flagged = invoices.find((row) => row.invoiceId === invoiceId)!;
     expect(flagged.flags).toContainEqual(expect.objectContaining({ kind: 'preauthorization', message: 'Over the threshold $1,000.00' }));
+  });
+});
+
+describe('overruns before a case is matched', () => {
+  it('are found by the number read from the file, on a case the provider is assigned to', async () => {
+    const caseId = await newCase();
+    const investigator = await newProvider(caseId, { bound: true });
+    await addThreshold(testDb, admin, { countyId: null, amount: 1000, effectiveFrom: '2025-01-01' });
+    await createInvoice(testDb, investigator, { attested: true, caseId, lines: [hours(8)] });
+    const caseNumber = 'CR-26-0042';
+    await testDb.update(caseTable).set({ externalReference: caseNumber }).where(eq(caseTable.caseId, caseId));
+    await expect(createInvoice(testDb, investigator, { attested: true, caseId: null, caseNumber, lines: [hours(4)] })).rejects.toThrow(
+      expect.objectContaining({ fieldErrors: { overrunExplanation: expect.stringMatching(/over the \$1,000\.00 threshold/) } }),
+    );
+    const { invoiceId } = await createInvoice(testDb, investigator, { attested: true, caseId: null, caseNumber, lines: [hours(4)], overrunExplanation: 'Synthetic' });
+    const [sent] = await testDb.select({ caseId: invoice.caseId }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(sent?.caseId).toBeNull();
   });
 });
 

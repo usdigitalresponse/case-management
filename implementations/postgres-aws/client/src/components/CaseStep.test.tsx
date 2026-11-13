@@ -91,25 +91,21 @@ describe('the case step in review', () => {
 
     expect(await screen.findByText('Suggested')).toBeTruthy();
     expect(api.calls.some((call) => call.method === 'PUT')).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Use this case' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Match to this case' }));
     await waitFor(() => expect(onChanged).toHaveBeenCalledWith('Matched to case CR-24-0477.'));
     expect(api.calls.find((call) => call.method === 'PUT')!.body).toEqual({ choice: 'existing', caseId: 'case-1' });
   });
 
-  it('lets a reviewer type a number for an invoice that gives none, and add its case', async () => {
-    const api = fakeApi({
-      ...signedIn(REVIEWER),
-      'GET /api/invoices/:id/case-matches': { exact: null, similar: [], elsewhere: [] },
-      'PUT /api/invoices/:id/case-choice': { caseId: 'case-9', addedCaseId: 'case-9', caseProblem: null },
-    });
+  it('matches nothing for an invoice that gives no number: the reviewer adds it in the case number box first', async () => {
+    const api = fakeApi({ ...signedIn(REVIEWER) });
     await renderPage(<CaseStep invoice={draft({ caseNumberAsTyped: null, statusCode: 'submitted' })} mode="review" onChanged={() => {}} />, {
       path: '/',
       url: '/',
     });
 
-    fireEvent.change(await screen.findByLabelText('Case number'), { target: { value: 'CR-26-2000' } });
-    fireEvent.click(await screen.findByRole('button', { name: 'Add case CR-26-2000 and match' }));
-    await waitFor(() => expect(api.calls.find((call) => call.method === 'PUT')!.body).toEqual({ choice: 'new', confirmedNew: false, caseNumber: 'CR-26-2000' }));
+    expect(await screen.findByText('Add the case number above to find its case, or add one.')).toBeTruthy();
+    expect(screen.queryByLabelText('Case number')).toBeNull();
+    expect(api.calls.some((call) => call.path.includes('case-matches'))).toBe(false);
   });
 
   it('says when the number is a case in another county, without offering it', async () => {
@@ -119,7 +115,7 @@ describe('the case step in review', () => {
     });
     await renderPage(<CaseStep invoice={draft({ statusCode: 'submitted' })} mode="review" onChanged={() => {}} />, { path: '/', url: '/' });
     expect(await screen.findByText(/Case CR-24-0477 is also in County B\. If this invoice’s county is wrong, correct it first\./)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Use this case/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Match to this case/ })).toBeNull();
   });
 });
 

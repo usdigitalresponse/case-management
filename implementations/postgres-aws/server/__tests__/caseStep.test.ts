@@ -250,7 +250,7 @@ describe('counties in the case step', () => {
 });
 
 describe('external submitters', () => {
-  it('may send without a case or number, and answer only “not for one case”', async () => {
+  it('may send without a case number, and never answer the case question', async () => {
     const attorney = await sender('attorney@example.com');
     const { invoiceId } = await createInvoice(testDb, attorney.actor, {
       caseId: null,
@@ -259,10 +259,8 @@ describe('external submitters', () => {
     });
     const caseId = await addCase('CR-24-0477', fixtures.countyId);
     await expect(setDraftCaseChoice(testDb, attorney.actor, invoiceId, { choice: 'existing', caseId })).rejects.toThrow(ForbiddenError);
-    await setDraftCaseChoice(testDb, attorney.actor, invoiceId, { choice: 'none' });
-    // Work not for one case counts under its county.
-    await expect(submitInvoice(testDb, attorney.actor, invoiceId, { filedByPerson: true, attested: true })).rejects.toMatchObject({ fieldErrors: { countyId: expect.any(String) } });
-    await setDraftCounty(testDb, attorney.actor, invoiceId, { countyId: fixtures.countyId });
+    await expect(setDraftCaseChoice(testDb, attorney.actor, invoiceId, { choice: 'none' })).rejects.toThrow(ForbiddenError);
+    await expect(setDraftCaseNumber(testDb, attorney.actor, invoiceId, { caseNumber: 'CR-24-0477' })).rejects.toThrow(ForbiddenError);
     expect(await submitInvoice(testDb, attorney.actor, invoiceId, { filedByPerson: true, attested: true })).toEqual({ invoiceId, status: 'submitted' });
   });
 });
@@ -270,12 +268,13 @@ describe('external submitters', () => {
 describe('a reviewer choosing the case in review', () => {
   async function sentExternally(caseNumber: string) {
     const attorney = await sender(`attorney-${caseNumber}@example.com`);
+    // The number stands in for one read from the sender's file.
     const { invoiceId } = await createInvoice(testDb, attorney.actor, {
       caseId: null,
+      caseNumber,
       submit: false,
       lines: [{ lineType: 'time', serviceDate: '2026-02-02', quantity: 2, description: 'Review' }],
     });
-    await setDraftCaseNumber(testDb, attorney.actor, invoiceId, { caseNumber });
     await setDraftCounty(testDb, attorney.actor, invoiceId, { countyId: fixtures.countyId });
     await submitInvoice(testDb, attorney.actor, invoiceId, { filedByPerson: true, attested: true });
     return invoiceId;

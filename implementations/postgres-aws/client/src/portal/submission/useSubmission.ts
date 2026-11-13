@@ -160,7 +160,7 @@ export function useSubmission({
 
   async function startSending() {
     const noSender = byPerson && !invoice.professionalId;
-    // External senders may leave the case question unanswered (model/rules.yaml match_invoice_to_case).
+    // External senders never answer the case question (model/rules.yaml match_invoice_to_case).
     const noCaseAnswer =
       byPerson && staff && !invoice.caseId && (!invoice.caseChoice || (invoice.caseChoice === 'none' && !invoice.countyId));
     setSenderMissing(noSender);
@@ -169,7 +169,7 @@ export function useSubmission({
     // The case number box otherwise saves only on losing focus.
     if (!(await flush())) return;
     try {
-      if (byPerson && !invoice.caseId) await setDraftCaseNumber(invoice.invoiceId, typedCaseNumber);
+      if (byPerson && staff && !invoice.caseId) await setDraftCaseNumber(invoice.invoiceId, typedCaseNumber);
       setSending(true);
     } catch (err) {
       setError(apiErrorMessage(err, 'The case number could not be saved. Try again.'));

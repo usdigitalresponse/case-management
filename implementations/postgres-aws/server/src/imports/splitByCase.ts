@@ -9,7 +9,7 @@ import { caseAssignment, caseIdentifier, caseTable, invoice, person, supportingI
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues, withBillingPeriod } from '../intake/validation';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
-import { billableProfessionalIds, representedProfessionalIds, type PortalActor } from '../portal/portalActor';
+import { billableProfessionalIds, isStaffAccount, representedProfessionalIds, type PortalActor } from '../portal/portalActor';
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile } from './detectFormat';
 import { extractIntoDraft } from './invoiceImports/read';
@@ -472,7 +472,8 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
         proposedProvider: input.proposedProvider,
       });
       await recordReceipt(tx, invoiceId, { receivedVia: input.receivedVia, receivedOn: input.receivedOn });
-      const caseNumber = cleanCaseNumber(input.caseNumber);
+      // An external sender's is the one read from their file, never typed.
+      const caseNumber = (await isStaffAccount(tx, actor.userAccountId)) ? cleanCaseNumber(input.caseNumber) : (readCaseNumber(parsed)?.value ?? null);
       if (caseNumber) {
         await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
       }

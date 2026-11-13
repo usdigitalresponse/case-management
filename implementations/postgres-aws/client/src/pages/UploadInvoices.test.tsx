@@ -73,4 +73,32 @@ describe('uploading an invoice', () => {
     expect(api.callsTo('POST', /\/draft$/)).toEqual([]);
     expect(api.unhandled).toEqual([]);
   });
+
+  it('fills staff’s case number from the file, and stops filing without one (design K68)', async () => {
+    const api = fakeApi({
+      ...lineEditorRoutes(),
+      ...signedIn(REVIEWER),
+      'GET /api/portal/receipt-channels': { channels: [{ code: 'email', displayName: 'Email' }] },
+      'POST /api/portal/uploads': { uploadReadId: 'read-1' },
+      'GET /api/portal/uploads/:id': ready,
+    });
+    await renderPage(<UploadInvoices />, { path: '/upload', url: '/upload' });
+    const input = (await screen.findByLabelText(/./, { selector: 'input[type="file"]' })) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['%PDF-1.7'], 'august.pdf', { type: 'application/pdf' })] } });
+    const caseNumber = (await screen.findByLabelText('Case number')) as HTMLInputElement;
+    await waitFor(() => expect(caseNumber.value).toBe('26-CR-0001'));
+
+    fireEvent.change(caseNumber, { target: { value: '' } });
+    const go = await screen.findByRole('button', { name: 'Continue' });
+    await waitFor(() => expect((go as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(go);
+
+    expect(await screen.findByText('Enter the case number on the invoice.')).toBeTruthy();
+    expect(document.activeElement).toBe(caseNumber);
+    expect(api.callsTo('POST', /\/draft$/)).toEqual([]);
+
+    fireEvent.click(screen.getByLabelText('Not for one case, such as court observation'));
+    expect(caseNumber.disabled).toBe(true);
+    expect(screen.queryByText('Enter the case number on the invoice.')).toBeNull();
+  });
 });

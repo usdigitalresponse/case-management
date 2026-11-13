@@ -72,18 +72,19 @@ describe('sending an invoice filed by person', () => {
 
   const send = { filedByPerson: true, receivedVia: 'email', receivedOn: '2026-02-03' };
 
-  it('lets an attorney send their own straight to review, attesting to the case number they give', async () => {
+  it('lets an attorney send their own straight to review, attesting to the case number read from their file', async () => {
     const email = 'attorney@example.com';
     const [account] = await testDb.insert(userAccount).values({ displayName: email, email, active: true }).returning();
     const professionalId = await ensureProfessionalForUserAccount(testDb, account!.userAccountId, email);
     await giveRate(testDb, fixtures.staffUserAccountId, professionalId, 100);
     const attorney = await resolvePortalActor(testDb, account!.userAccountId);
+    // The number stands in for one read from their file.
     const { invoiceId } = await createInvoice(testDb, attorney, {
       caseId: null,
+      caseNumber: '26-CR-00418',
       submit: false,
       lines: [{ lineType: 'expense', amount: 80, serviceDate: '2026-02-02' }],
     });
-    await setDraftCaseNumber(testDb, attorney, invoiceId, { caseNumber: '26-CR-00418' });
     expect(await submitInvoice(testDb, attorney, invoiceId, { filedByPerson: true, attested: true })).toEqual({ invoiceId, status: 'submitted' });
     const [attestation] = await testDb
       .select({ statement: invoiceAttestation.statement })

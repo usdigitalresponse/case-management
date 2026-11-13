@@ -63,16 +63,16 @@ export async function caseStepFor(db: DatabaseOrTransaction, invoiceId: string, 
   return caseStepMatches(db, caseNumber ?? currentCaseNumber(row), row.countyId);
 }
 
-// On a draft: staff may give any answer; an external submitter only "not for one case" or none.
+// On a staff draft; external senders never answer it (the billing office does in review).
 export async function setDraftCaseChoice(db: Database, actor: PortalActor, invoiceId: string, rawInput: unknown) {
   const input = parseChoice(rawInput);
-  if (input.choice !== 'none' && input.choice !== null && !(await isStaffAccount(db, actor.userAccountId))) {
+  if (!(await isStaffAccount(db, actor.userAccountId))) {
     throw new ForbiddenError('staff_only', 'Only the billing office chooses or adds a case.');
   }
   return db.transaction(async (tx) => {
     const locked = await lockOwnDraft(tx, actor, invoiceId);
     if (locked.caseId) {
-      throw new ValidationError({ caseChoice: 'It is under one of your cases. Take it off that case first.' });
+      throw new ValidationError({ caseChoice: 'It is already under a case.' });
     }
     if (input.choice === 'existing') {
       await requireChoosableCase(tx, input.caseId, locked.countyId);

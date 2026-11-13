@@ -266,11 +266,6 @@ export function updateDraftInvoice(
 }
 
 // The case number as typed, on a draft; empty clears it.
-// A draft filed by person, put under one of its sender's cases, or taken off it (null).
-export function setDraftCase(invoiceId: string, caseId: string | null): Promise<{ caseId: string | null; caseNumber: string | null }> {
-  return request(`/api/portal/invoices/${invoiceId}/case`, { method: 'PUT', body: JSON.stringify({ caseId }) });
-}
-
 export function setDraftCaseNumber(invoiceId: string, caseNumber: string): Promise<{ invoiceId: string; caseNumber: string | null }> {
   return request(`/api/portal/invoices/${invoiceId}/case-number`, { method: 'PUT', body: JSON.stringify({ caseNumber }) });
 }

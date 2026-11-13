@@ -24,11 +24,13 @@ describe('sending an invoice', () => {
       'GET /api/portal/receipt-channels': { channels: [] },
       'GET /api/my-cases': { cases: [], professionals: [] },
       'PUT /api/portal/invoices/:id': { invoiceId: 'inv-1' },
-      'PUT /api/portal/invoices/:id/case-number': { invoiceId: 'inv-1', caseNumber: '26-CR-0001' },
       'POST /api/portal/invoices/:id/submit': { invoiceId: 'inv-1', status: 'submitted' },
     });
     await openCheck();
     fireEvent.change(await screen.findByDisplayValue('Client meeting'), { target: { value: 'Client meeting and call' } });
+    // The case number is only read from the file (design K6).
+    expect(screen.getByText('Each invoice is for one case.')).toBeTruthy();
+    expect(screen.queryByRole('textbox', { name: 'Case number' })).toBeNull();
 
     // Enabled once the rates arrive, which may be after the lines.
     const start = screen.getByRole('button', { name: 'Send for review' }) as HTMLButtonElement;

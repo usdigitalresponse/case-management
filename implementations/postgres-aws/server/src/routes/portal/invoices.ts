@@ -15,7 +15,7 @@ import { ValidationError } from '../../errors';
 import { canPortalReaderReadInvoice, isExportableStatus } from '../../billing/invoiceAccess';
 import { decisionCommentsOf, loadInvoiceDetail, type InvoiceDetail } from '../../billing/invoiceDetail';
 import { recallInvoice, withdrawInvoice } from '../../billing/invoiceLifecycle/withdraw';
-import { setDraftCase, setDraftCaseNumber, setDraftCounty, setDraftDetails, setDraftSender, updateDraftInvoice } from '../../billing/invoiceLifecycle/drafts';
+import { requireStaffForCase, setDraftCaseNumber, setDraftCounty, setDraftDetails, setDraftSender, updateDraftInvoice } from '../../billing/invoiceLifecycle/drafts';
 import { submitInvoice } from '../../billing/invoiceLifecycle/submit';
 import { applyCaseChoiceAfterSend, caseStepFor, setDraftCaseChoice } from '../../billing/caseChoice';
 import { listCounties } from '../../cases/counties';
@@ -32,7 +32,10 @@ const router = Router();
 router.post(
   '/invoices',
   asyncHandler(async (req, res) => {
-    const result = await createInvoice(db, await sessionActor(req), req.body);
+    const actor = await sessionActor(req);
+    // An external sender's case number is only ever read from their file.
+    if (req.body?.caseNumber !== undefined) await requireStaffForCase(db, actor);
+    const result = await createInvoice(db, actor, req.body);
     await tagTourRecord(req, 'invoice', result.invoiceId);
     res.status(201).json(result);
   }),
@@ -49,13 +52,6 @@ router.put(
   '/invoices/:id/case-number',
   asyncHandler(async (req, res) => {
     res.json(await setDraftCaseNumber(db, await sessionActor(req), req.params.id as string, req.body));
-  }),
-);
-
-router.put(
-  '/invoices/:id/case',
-  asyncHandler(async (req, res) => {
-    res.json(await setDraftCase(db, await sessionActor(req), req.params.id as string, req.body));
   }),
 );
 
