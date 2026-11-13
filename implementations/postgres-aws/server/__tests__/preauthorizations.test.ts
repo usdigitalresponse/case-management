@@ -182,7 +182,20 @@ describe('requests', () => {
 
     const first = await listPreauthorizationRequests(testDb, staff, { status: 'approved' }, { limit: 1, after: null });
     expect(first.items.map((row) => row.preauthorizationRequestId)).toEqual([approved.preauthorizationRequestId]);
-    expect('summary' in first && first.summary.counts).toEqual({ submitted: 1, info_requested: 1, approved: 1, not_needed: 0, denied: 0, withdrawn: 0, all: 3 });
+    expect('summary' in first && first.summary.counts).toEqual({
+      submitted: 1,
+      info_requested: 1,
+      approved: 1,
+      not_needed: 0,
+      denied: 0,
+      withdrawn: 0,
+      in_review: 2,
+      decided: 1,
+      all: 3,
+    });
+    // In review is waiting and waiting for information together (design K54).
+    const inReview = await listPreauthorizationRequests(testDb, staff, { status: 'in_review' }, { limit: 10, after: null });
+    expect(inReview.items.map((row) => row.preauthorizationRequestId).sort()).toEqual([waiting.preauthorizationRequestId, asked.preauthorizationRequestId].sort());
 
     const more = await createPreauthorizationRequest(testDb, attorney, request(caseId, expert.professionalId, 700));
     const open = await listPreauthorizationRequests(testDb, staff, { status: 'submitted' }, { limit: 1, after: null });

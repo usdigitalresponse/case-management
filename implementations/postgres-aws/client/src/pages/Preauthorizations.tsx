@@ -20,16 +20,9 @@ import { Tabs } from '../components/ui/Tabs';
 import { preauthorizationRequestsRequest, REQUEST_STATUS_TABS, type RequestStatusTab } from '../caseRequests';
 import { Button } from '../components/ui/Button';
 import { Notice } from '../components/ui/Notice';
+import { UsedBar } from '../components/UsedBar';
 
-const STATUS_LABELS: Record<RequestStatusTab, string> = {
-  submitted: 'Waiting',
-  info_requested: 'Waiting for information',
-  approved: 'Approved',
-  not_needed: 'Not needed',
-  denied: 'Denied',
-  withdrawn: 'Withdrawn',
-  all: 'All',
-};
+const STATUS_LABELS: Record<RequestStatusTab, string> = { all: 'All', in_review: 'In review', decided: 'Decided' };
 
 export const preauthorizationPath = (requestId: string) => `/preauthorizations/${requestId}`;
 
@@ -89,7 +82,7 @@ function Requests() {
         )}
         {!recording && (
           <Button kind="secondary" onClick={() => setRecording(true)}>
-            Record a request
+            Record request
           </Button>
         )}
       </div>
@@ -206,7 +199,7 @@ function UsageByCounty() {
         )}
       </div>
       <p className="compact-hint">
-        Requests count by date received. Billed, left and over are as of today, for cases with a request or invoice in the period.
+        Requests count by date received. Used, left and over are as of today, for cases with a request or invoice in the period.
       </p>
       {!data ? (
         <LoadState error={error} what="usage" />
@@ -234,8 +227,7 @@ function UsageByCounty() {
               ),
             },
             { header: 'Asked for / approved', render: (row) => <>{formatMoney(row.requested)}<span className="cell-note">{formatMoney(row.approved)} approved</span></> },
-            { header: 'Billed', render: (row) => <>{formatMoney(Number(row.billedApproved) + Number(row.billedWaiting))}<span className="cell-note">{formatMoney(row.billedWaiting)} waiting</span></> },
-            { header: 'Left', render: (row) => formatMoney(row.left) },
+            { header: 'Used and left', render: (row) => <UsedAndLeft row={row} /> },
             {
               header: 'Over their limit',
               render: (row) =>
@@ -267,6 +259,26 @@ function UsageByCounty() {
         A provider is over their limit when what they billed on a case passes what was pre-authorized, or the threshold if nothing was.
         Going over is explained by the sender and flagged for the reviewer, never refused.
       </Notice>
+    </>
+  );
+}
+
+// Billed so far against each limit, with a bar for the share used (design K55).
+function UsedAndLeft({ row }: { row: CountyUsage }) {
+  const approved = Number(row.billedApproved);
+  const waiting = Number(row.billedWaiting);
+  const used = approved + waiting;
+  const left = Math.max(0, Number(row.left));
+  const limit = used + left;
+  return (
+    <>
+      <strong>{formatMoney(used)} used</strong>
+      <UsedBar approved={approved} waiting={waiting} limit={limit} />
+      <span className="cell-note">
+        {limit > 0 ? `${Math.round((used / limit) * 100)}% used. ` : ''}
+        {formatMoney(left)} left.
+      </span>
+      {waiting > 0 && <span className="cell-note">{formatMoney(waiting)} of it waits for a decision</span>}
     </>
   );
 }
