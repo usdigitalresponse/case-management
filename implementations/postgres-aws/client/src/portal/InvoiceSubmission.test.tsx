@@ -62,6 +62,8 @@ describe('sending an invoice', () => {
     });
     const page = await openCheck();
     fireEvent.change(await screen.findByDisplayValue('Client meeting'), { target: { value: 'Client meeting and call' } });
+    // Unpriced edits aren't saved, so wait for the rates.
+    await waitFor(() => expect((screen.getByRole('button', { name: 'Send for review' }) as HTMLButtonElement).disabled).toBe(false));
 
     fireEvent.click(screen.getByRole('button', { name: 'Save and finish later' }));
 

@@ -156,6 +156,8 @@ export function useLineEntry({
     const asSaved = (line: LineDraft | undefined) => JSON.stringify(line ? linesFromDrafts([line]) : null);
     const differs = (line: LineDraft) => asSaved(line) !== asSaved(saved.current.find((was) => was.invoiceLineId === line.invoiceLineId));
     const touched = next.filter((line, at) => line !== lines[at] && line.invoiceLineId);
+    // Now, not at the next render, so a reload whose effect is still pending doesn't overwrite this edit.
+    editedNow.current = new Set([...editedNow.current, ...touched.filter(differs).map((line) => line.invoiceLineId!)]);
     setEdited((current) => {
       const updated = new Set(current);
       for (const line of touched) {
