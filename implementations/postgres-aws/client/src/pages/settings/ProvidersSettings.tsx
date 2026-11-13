@@ -30,7 +30,7 @@ function sentBy(vendor: VendorRecord): string {
 }
 
 // The kind whose rates price this provider's time.
-function Kind({ vendor, kinds, editable, onChanged }: { vendor: VendorRecord; kinds: ProfessionalKind[] | null; editable: boolean; onChanged: (rates: ProfessionalKind['rates']) => void }) {
+function Kind({ vendor, kinds, editable, onChanged }: { vendor: VendorRecord; kinds: ProfessionalKind[] | null; editable: boolean; onChanged: () => void }) {
   const [kindId, setKindId] = useState(vendor.professionalKindId ?? '');
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +40,7 @@ function Kind({ vendor, kinds, editable, onChanged }: { vendor: VendorRecord; ki
     setError(null);
     try {
       await setProfessionalKind(vendor.professionalId, next || null);
-      onChanged(kinds?.find((candidate) => candidate.professionalKindId === next)?.rates ?? []);
+      onChanged();
     } catch (err) {
       setKindId(previous);
       setError(apiErrorMessage(err, 'The kind could not be changed.'));
@@ -111,8 +111,6 @@ export function ProvidersSettings({ isAdmin }: { isAdmin: boolean }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [message, setMessage] = useState<SaveMessage | null>(null);
-  // A kind just changed here prices their time at its rates.
-  const [changedRates, setChangedRates] = useState<Record<string, ProfessionalKind['rates']>>({});
   const saved = (text: string) => {
     setAdding(false);
     setEditing(null);
@@ -176,15 +174,18 @@ export function ProvidersSettings({ isAdmin }: { isAdmin: boolean }) {
               {
                 header: 'Kind',
                 render: (vendor) => (
+                  // Keyed by kind, so a kind changed in the Edit form shows once the list reloads.
                   <Kind
+                    key={vendor.professionalKindId ?? 'none'}
                     vendor={vendor}
                     kinds={kinds}
                     editable={isAdmin}
-                    onChanged={(rates) => setChangedRates((current) => ({ ...current, [vendor.professionalId]: rates }))}
+                    // Reloaded, since their own rate, if any, still comes before the kind's.
+                    onChanged={() => setVersion((v) => v + 1)}
                   />
                 ),
               },
-              { header: 'Rate today', render: (vendor) => rateText(changedRates[vendor.professionalId] ?? vendor.rates) },
+              { header: 'Rate today', render: (vendor) => rateText(vendor.rates) },
               { header: 'Office', render: (vendor) => vendor.officeDisplayName ?? <span className="muted">None</span> },
               { header: 'Who can send their invoices', render: (vendor) => sentBy(vendor) },
               {

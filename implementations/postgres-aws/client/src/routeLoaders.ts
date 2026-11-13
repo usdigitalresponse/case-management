@@ -83,19 +83,33 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
       { searchParams: ['keep', 'retire'] },
     ),
     personRecords: preload((args) => (searched(args) ? [resources.personRecords(searched(args))] : []), { searchParams: ['q'] }),
-    settings: preload((args) => [
-      resources.externalUsers(searchOf(args).get('externalQ') ?? ''),
-      resources.professionalKinds,
-      resources.reviewSettings,
-      resources.reviewPeople,
-      resources.decisionReasonSettings,
-      resources.mileageRates,
-      resources.timeCategoryRates,
-      resources.thresholdSettings,
-      resources.billingRuleSettings,
-      ...(user()?.isAdmin ? [resources.staffRoles, resources.delegateOffices] : []),
-      ...(user()?.demoMode ? [resources.ownDemoRole] : []),
-    ], { searchParams: ['externalQ'] }),
+    // Only the chosen tab's data (pages/Settings.tsx), so Merge duplicates' comparisons run only there.
+    settings: preload((args) => {
+      const params = searchOf(args);
+      const admin = Boolean(user()?.isAdmin);
+      switch (params.get('tab') ?? 'review') {
+        case 'people':
+          return [resources.reviewPeople, ...(admin ? [resources.staffRoles] : [])];
+        case 'rates':
+          return [resources.professionalKinds, resources.mileageRates, resources.timeCategoryRates];
+        case 'preauthorization':
+          return [resources.thresholdSettings, resources.professionalKinds];
+        case 'rules':
+          return [resources.billingRuleSettings];
+        case 'providers':
+          return [resources.providerList(params.get('providerQ')?.trim() ?? ''), ...(admin ? [resources.professionalKinds] : [])];
+        case 'office-staff':
+          return [resources.externalUsers(params.get('externalQ') ?? ''), ...(admin ? [resources.delegateOffices] : [])];
+        case 'duplicates':
+          return [resources.possibleDuplicateCases, resources.possibleDuplicates, resources.personMerges];
+        case 'edit-data':
+          return [];
+        case 'demo':
+          return user()?.demoMode ? [resources.ownDemoRole] : [];
+        default:
+          return [resources.reviewSettings, resources.reviewPeople, resources.decisionReasonSettings];
+      }
+    }, { searchParams: ['tab', 'externalQ', 'providerQ'] }),
     caseDetail: preload((args) => [resources.caseDetail(param(args, 'caseId')), resources.caseInvoices(param(args, 'caseId')), resources.caseInvoiceList(param(args, 'caseId'))]),
     person: preload((args) => {
       const professionalId = param(args, 'professionalId');

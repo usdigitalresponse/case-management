@@ -78,7 +78,11 @@ describe('Settings › Merge duplicates (design K67)', () => {
   });
 
   it('merges two cases by moving the other’s invoices to the one kept, after showing what moves', async () => {
-    const api = fakeApi({ ...routes(), 'POST /api/edit-data/cases/preview': preview, 'POST /api/edit-data/fixes': { caseCorrectionId: 'fix-1', changed: 4 } });
+    const api = fakeApi({
+      ...routes(),
+      'POST /api/edit-data/merges/preview': { cases: [{ caseId: 'case-1', ...preview }] },
+      'POST /api/edit-data/merges': { caseCorrectionIds: ['fix-1'] },
+    });
     await render();
     fireEvent.click(await screen.findByRole('button', { name: 'Merge 26CR418 and 26-CR-0418' }));
     const dialog = screen.getByRole('dialog');
@@ -88,7 +92,7 @@ describe('Settings › Merge duplicates (design K67)', () => {
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Merge' }));
 
     expect(await screen.findByText(/1 invoice moved to 26CR418, and 26-CR-0418 closed\./)).toBeTruthy();
-    expect(api.callsTo('POST', '/api/edit-data/fixes')[0]?.body).toEqual({ kind: 'same_case', caseId: 'case-1', keptCaseId: 'case-2', keepPreauthorizations: {} });
+    expect(api.callsTo('POST', '/api/edit-data/merges')[0]?.body).toEqual({ keptCaseId: 'case-2', caseIds: ['case-1'], keepPreauthorizations: {} });
   });
 
   it('lets any staff member say a pair is not the same, but only administrators merge', async () => {
@@ -98,9 +102,25 @@ describe('Settings › Merge duplicates (design K67)', () => {
     expect(screen.queryByRole('button', { name: /^Merge/ })).toBeNull();
     expect(screen.queryByRole('link', { name: /^Merge/ })).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Not the same : 26CR418 and 26-CR-0418' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Not the same : 26-CR-0418 and 26CR418' }));
     fireEvent.click(within(screen.getByRole('dialog')).getAllByRole('button')[0]!);
-    await waitFor(() => expect(api.callsTo('POST', '/api/cases/possible-duplicates')[0]?.body).toMatchObject({ caseIds: ['case-2', 'case-1'], outcome: 'not_duplicate' }));
+    await waitFor(() => expect(api.callsTo('POST', '/api/cases/possible-duplicates')[0]?.body).toMatchObject({ caseIds: ['case-1', 'case-2'], outcome: 'not_duplicate' }));
+  });
+
+  it('merges a person recorded three times in one go, keeping the most complete record', async () => {
+    const three: PossibleDuplicate = {
+      people: [
+        ...people.people,
+        { personId: 'person-c', displayName: 'J. Example', email: null, dateOfBirth: null, provider: null, caseCount: 2, invoiceCount: 0 },
+      ],
+      pairs: [...people.pairs, { personIds: ['person-b', 'person-c'], reasons: ['same_name'], flagged: null }],
+    };
+    fakeApi({ ...routes(), 'GET /api/people/possible-duplicates': { duplicates: [three] } });
+    await render();
+    const row = (await screen.findByRole('rowheader', { name: /Jordan Example, J\. Example and Jordan Exampel/ })).closest('tr')!;
+    expect(within(row).getByText('3, none and none')).toBeTruthy();
+    expect(within(row).getAllByRole('button', { name: /^Not the same/ })).toHaveLength(2);
+    expect(within(row).getByRole('link', { name: /^Merge/ }).getAttribute('href')).toBe('/people/merge?keep=person-a&retire=person-c%2Cperson-b');
   });
 
   it('offers an administrator Undo after merging people', async () => {

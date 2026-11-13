@@ -11,7 +11,7 @@ import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
-import { duplicatesPath, personPath } from '../staffPaths';
+import { duplicatesPath, personPath, settingsPath } from '../staffPaths';
 import { useSearchParamState, useSearchParamText } from '../hooks/useSearchParamState';
 import { FilterTag } from '../components/ui/Tag';
 
@@ -113,7 +113,7 @@ export default function People() {
       <p className="compact-hint">
         A provider here can sign in and send invoices with the email shown once an administrator turns it on. Rates set here are the ones
         reviewers check invoices against. Administrators add and change providers in{' '}
-        <RouterLink to="/settings#settings-providers">Settings</RouterLink>.
+        <RouterLink to={settingsPath('providers')}>Settings</RouterLink>.
       </p>
     </div>
   );

@@ -5,7 +5,7 @@ import { invoiceOverview } from '../resources';
 import { PageHeading } from '../components/PageHeading';
 import { Notice } from '../components/ui/Notice';
 import { RecordTable } from '../components/RecordTable';
-import { formatDate } from '../formatDateTime';
+import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { reviewPath } from '../staffPaths';
 
@@ -17,7 +17,7 @@ const STEPS: Record<OverviewStep, { label: string; description: string; empty: s
     empty: 'No invoices here.',
     route: '/?show=unassigned',
   },
-  being_reviewed: { label: 'Being reviewed', description: 'A reviewer is deciding the lines.', empty: 'No invoices here.', route: '/?show=everyone' },
+  being_reviewed: { label: 'Being reviewed', description: 'A reviewer is deciding the lines.', empty: 'No invoices here.', route: '/?show=reviewing' },
   sign_off: {
     label: 'Waiting for sign-off',
     description: 'Every line is decided. The approver has not signed off yet.',
@@ -107,7 +107,7 @@ export default function InvoiceOverview() {
               ),
             },
             { header: 'What changed', render: (change) => change.what },
-            { header: 'When', render: (change) => formatDate(change.when.slice(0, 10)) },
+            { header: 'When', render: (change) => formatDay(change.when) },
             { header: 'By', render: (change) => change.by ?? '—' },
           ]}
         />

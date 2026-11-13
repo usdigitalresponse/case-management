@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { db } from '../db/client';
 import { getSessionUser, requireFullUser } from '../auth/session';
 import { requireAdmin } from '../auth/requireAdmin';
-import { fixCase, listAddedCases, listCaseFixes, previewCaseFix, undoCaseFix } from '../cases/caseCorrections';
+import { fixCase, listAddedCases, listCaseFixes, mergeCases, previewCaseFix, previewCaseMerge, undoCaseFix } from '../cases/caseCorrections';
 import { forgetDuplicates } from '../duplicateMembers';
 import { asyncHandler } from './asyncHandler';
 
@@ -22,6 +22,23 @@ router.post(
   '/cases/preview',
   asyncHandler(async (req, res) => {
     res.json(await previewCaseFix(db, req.body));
+  }),
+);
+
+// Settings › Merge duplicates: several cases moved into the one kept, all or none.
+router.post(
+  '/merges/preview',
+  asyncHandler(async (req, res) => {
+    res.json(await previewCaseMerge(db, getSessionUser(req)!.userAccountId, req.body));
+  }),
+);
+
+router.post(
+  '/merges',
+  asyncHandler(async (req, res) => {
+    const merged = await mergeCases(db, getSessionUser(req)!.userAccountId, req.body);
+    forgetDuplicates('cases');
+    res.status(201).json(merged);
   }),
 );
 

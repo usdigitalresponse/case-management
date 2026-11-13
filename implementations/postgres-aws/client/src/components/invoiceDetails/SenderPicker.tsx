@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
-import { Link as RouterLink } from 'react-router';
+import { PersonDialog } from '../PersonDialog';
 import type { BillableProfessional } from '../../api/client';
 import { useShell } from '../../portal/useShell';
 import type { AddedProvider } from '../AddProvider';
@@ -47,7 +47,8 @@ export function SenderPicker({
   onDraft,
   addInSettings = false,
 }: {
-  // Administrators add someone new in Settings › Providers instead (design K60).
+  // Administrators add someone new with Settings' Add provider form, in a dialog
+  // so the page keeps what was entered (design K60).
   addInSettings?: boolean;
   // Opens the add row there, so the fields beside the picker don't move.
   addRowIn?: HTMLElement | null;
@@ -70,6 +71,7 @@ export function SenderPicker({
   const [added, setAdded] = useState<Added[]>([]);
   // Added from the open row, which stays open until something else is chosen.
   const [current, setCurrent] = useState<Added | null>(null);
+  const [addingProvider, setAddingProvider] = useState(false);
   // A new row each time "add" is chosen again.
   const [round, setRound] = useState(0);
   const inRow = current !== null && value === current.professionalId;
@@ -157,9 +159,9 @@ export function SenderPicker({
         <>
           <p id={`${id}-hint`} className="field-hint">{hint}</p>
           {addInSettings ? (
-            <RouterLink className="sender-add" to="/settings#settings-providers">
-              Not listed? Add them in Settings
-            </RouterLink>
+            <button type="button" className="link-button sender-add" disabled={disabled} onClick={() => setAddingProvider(true)}>
+              Not listed? Add provider
+            </button>
           ) : (
             <button
               type="button"
@@ -175,6 +177,16 @@ export function SenderPicker({
             </button>
           )}
         </>
+      )}
+      {addingProvider && (
+        <PersonDialog
+          onClose={() => setAddingProvider(false)}
+          onSaved={(provider) => {
+            setAddingProvider(false);
+            setAdded((list) => [...list, provider]);
+            onChange(provider.professionalId);
+          }}
+        />
       )}
       {shown === ADD_NEW && onDraft && placeAddRow(<NewSenderFields key={round} id={`${id}-new`} onChange={onDraft} />)}
       {shown === ADD_NEW && !onDraft && placeAddRow(

@@ -1,7 +1,7 @@
 // The review queue a batch at a time (../lists/batches.ts): filtered, counted
 // and sorted in the database, each batch described as the whole queue is
 // (./reviewQueue.ts). Filters read only the invoice row, so counts need no joins.
-import { and, count, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, count, eq, isNotNull, isNull, sql, type SQL } from 'drizzle-orm';
 import { invoiceCaseNumber, isPrimaryIdentifierOf, joinedInvoiceCaseNumber, primaryIdentifier } from '../cases/caseNumberSql';
 import { countyOrderKeys } from '../cases/counties';
 import type { Database } from '../db/client';
@@ -15,12 +15,12 @@ import { getReviewSettings } from './reviewSettings';
 import { workingDaysBetween } from './workingDays';
 import { approvedTotalOf, finishedAt, holderOf, reviewerOf } from './queueSql';
 import { describeQueue, scopeConditions, withMatches, type QueueRow, type QueueScope, type QueueView } from './reviewQueue';
-import { APPROVED_INVOICE_STATUS_CODE, AWAITING_SIGN_OFF_INVOICE_STATUS_CODE, DECIDED_INVOICE_STATUS_CODES, IN_REVIEW_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
+import { APPROVED_INVOICE_STATUS_CODE, AWAITING_SIGN_OFF_INVOICE_STATUS_CODE, DECIDED_INVOICE_STATUS_CODES, IN_REVIEW_INVOICE_STATUS_CODES, LINE_REVIEW_STATUS_CODES } from './invoiceStatusCodes';
 import { afterCursor, cursorColumn, filledBatch, newestFirst, oldestFirst, oneBatch, orderByKeys, sortKey, withoutCursor, type Batch, type BatchRequest, type SortKey } from '../lists/batches';
 
 // The pages' filters: To review's, Finished's, then Exports'; 'all' is everything.
 // A person's: 'waiting' (in review) and 'done' (decided).
-export const QUEUE_SHOWS = ['all', 'mine', 'unassigned', 'flagged', 'month', 'sign_off', 'decided', 'completed', 'approved', 'waiting', 'done'] as const;
+export const QUEUE_SHOWS = ['all', 'mine', 'unassigned', 'reviewing', 'flagged', 'month', 'sign_off', 'decided', 'completed', 'approved', 'waiting', 'done'] as const;
 export type QueueShow = (typeof QUEUE_SHOWS)[number];
 // search: exact matches before close ones, each newest first.
 export const QUEUE_SORTS = ['waiting', 'newest', 'finished', 'search'] as const;
@@ -61,7 +61,7 @@ function exactMatch(q: string): SQL | undefined {
 
 // Filters worked out per invoice: their matches are found first, on the invoice
 // table alone, since the planner can't guess how many pass and joins them badly.
-const PER_INVOICE: QueueShow[] = ['mine', 'unassigned', 'month', 'decided', 'completed'];
+const PER_INVOICE: QueueShow[] = ['mine', 'unassigned', 'reviewing', 'month', 'decided', 'completed'];
 
 async function showingIds(db: Database, show: QueueShow, base: SQL | undefined, showing: SQL | undefined | null) {
   if (!showing || !PER_INVOICE.includes(show)) return showing;
@@ -109,6 +109,9 @@ function shown(show: QueueShow, actorUserAccountId: string, now: Date): SQL | un
       );
     case 'unassigned':
       return isNull(reviewerOf);
+    // Invoice overview's "Being reviewed": lines still being decided, with a reviewer.
+    case 'reviewing':
+      return and(sql`${statusCode} in (${sql.join(LINE_REVIEW_STATUS_CODES.map((code) => sql`${code}`), sql`, `)})`, isNotNull(reviewerOf));
     case 'flagged':
       return null;
     case 'month':

@@ -425,7 +425,8 @@ or scheduled here; each links to where it is described.
 
 1. Production sign-in: which identity provider staff use (`MAPPING.md`
    "Known gaps", Auth). External users are let in by administrators in
-   Settings → External users.
+   Settings › Providers (a provider's Active column) and Settings › Office
+   billing staff.
 2. Scan uploaded files for malware before reading them, which
    `validate_invoice_import` requires (`MAPPING.md` "Known gaps", Upload
    scanning).

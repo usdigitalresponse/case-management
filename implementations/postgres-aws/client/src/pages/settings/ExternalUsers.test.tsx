@@ -76,10 +76,14 @@ describe('external users in Settings', () => {
     const turnOn = screen.getByRole('button', { name: 'Add email and turn on sign-in' }) as HTMLButtonElement;
     expect(turnOn.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'eli@example.test' } });
+    // Office billing staff send for an office, so an existing person needs one too.
+    expect(turnOn.disabled).toBe(true);
+    await screen.findByRole('option', { name: 'North Office' });
+    fireEvent.change(screen.getByLabelText('Office'), { target: { value: 'office-1' } });
     fireEvent.click(turnOn);
 
     expect(await screen.findByText(/Eli Example can now sign in at .*\/submit with eli@example.test/)).toBeTruthy();
-    expect(api.callsTo('POST', '/api/settings/external-users')[0]?.body).toEqual({ personId: 'person-e', email: 'eli@example.test' });
+    expect(api.callsTo('POST', '/api/settings/external-users')[0]?.body).toEqual({ personId: 'person-e', email: 'eli@example.test', officeId: 'office-1' });
     expect(api.unhandled).toEqual([]);
   });
 

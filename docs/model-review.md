@@ -186,6 +186,19 @@ mistake in Settings, Edit data (`correct_case_records`), recorded in
 intake and `send_for_matching` are retired. The snapshot layout is unchanged
 apart from `spec_version`.
 
+Model files are now 0.14.0, for design K. External submitters no longer answer
+the case question or type a case number: theirs is the number read from their
+file, and staff add or correct it in review; staff filing a request give its
+case number unless it is not for one case (`match_invoice_to_case`). A request
+with no case yet is checked for going over its limit against the one open case
+its number names that its provider is assigned to, as a warning only
+(`explain_preauthorization_overrun`). Possible duplicate cases and people are
+listed together, flagged on each record's page, and a case "merge" is the
+same-case fix (`flag_possible_duplicate_case`, `correct_case_records`); a
+professional's sign-in is turned on among the providers and a delegate's among
+the office billing staff (`manage_external_sign_in`). The snapshot layout is
+unchanged apart from `spec_version`.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

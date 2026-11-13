@@ -40,25 +40,29 @@ case step (`src/cases/caseStep.ts`; see "The case step" in `api.md`). See also [
   Cases come in with their invoices, so stages follow them
   (`server/src/cases/caseStage.ts`): Needs assignment when a waiting
   invoice has no reviewer, Billing when every waiting one has, Closing after
-  an approved one, else Represented. Case overview has a card per stage
+  an approved one, else Represented. Case overview (off the sidebar since
+  design K, which leads with Invoice overview) has a card per stage
   with its count and a "Recently changed" table (`GET
   /api/cases/recent-changes`: the latest invoice events on cases, as
   words, such as "sent, no reviewer assigned yet", and case openings and
   closings, with who). Neither list has Add case, and the case page has no
   Add person (corrected in design I). All cases has All /
   Open / Closed chips, the county filter and a search, with design I's
-  columns. A case's page has its facts, a "Pre-authorized and billed" card
+  columns and, from design K48, an inert "Open ↗" to the case in the external
+  system. A case's page says when it may be a duplicate of another (K49). A case's page has its facts, a "Pre-authorized and billed" card
   per pre-authorization (approved, waiting, what would be left, and a bar)
   beside the people on it, then its invoices and case rates, and at the
   foot "Closing the case here": a cleanup any staff member may do once no
   invoice is in review and every decided one is marked completed. Matching
   a later invoice to a closed case (from the case step on the check or review
   page) reopens it.
-- **Look-up pages** (design I, I51–I53): Providers (`/vendors`) lists each
-  provider with their kind (changed inline by administrators), today's rate,
-  their office and who can send their invoices: themselves once they can sign
-  in, and their office's billing delegates (`GET /api/professionals` with
-  `src/professionals/providerOffices.ts`). Clients lists every case's client
+- **Look-up pages** (design I, I51–I53; design K30, K51): Providers (`/people`)
+  lists everyone who bills, read-only. Settings › Providers lists each provider
+  with their kind (changed inline by administrators), today's rate, their office,
+  who can send their invoices (themselves once they can sign in, and their
+  office's billing delegates) and Active, whether they may sign in
+  (`GET /api/professionals` with `src/professionals/providerOffices.ts`); the old
+  `/vendors` address redirects there. Clients lists every case's client
   with its case, county, opened date and status (from `GET /api/cases`).
   Organizations adds how many cases each has. Gap: organizations can't be
   edited here, so I53's Edit isn't built.

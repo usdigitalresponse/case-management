@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createBrowserRouter, Link, Navigate, NavLink, Outlet, RouterProvider, useLocation, useNavigate, useNavigation, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './AuthContext';
-import { MERGE_PEOPLE_PATH, searchPath, duplicatesPath } from './staffPaths';
+import { MERGE_PEOPLE_PATH, searchPath, duplicatesPath, settingsPath } from './staffPaths';
 import { RETIRED_INTAKE_PATH, NEW_INVOICE_PATH, STAFF_UPLOAD_PATH, UPLOAD_PATH } from './portal/useShell';
 import { EXTERNAL_SYSTEM_NAME } from './externalSystem';
 import { Notice } from './components/ui/Notice';
@@ -210,7 +210,7 @@ function staffRoutes(user: () => AuthenticatedUser | null): RouteObject[] {
             { path: '/cases', ...page(() => import('./pages/CaseList')), ...loaders.cases },
             { path: '/cases/:caseId', ...page(() => import('./pages/CaseDetail')), ...loaders.caseDetail },
             // Providers are changed in Settings (design K51).
-            { path: '/vendors', element: <Navigate to="/settings#settings-providers" replace /> },
+            { path: '/vendors', element: <Navigate to={settingsPath('providers')} replace /> },
             { path: '/preauthorizations', ...page(() => import('./pages/Preauthorizations')), ...loaders.preauthorizations },
             { path: '/preauthorizations/:requestId', lazy: async () => ({ Component: (await import('./pages/Preauthorizations')).StaffPreauthorizationRequest }), ...loaders.preauthorizationRequest },
             { path: '/settings', ...page(() => import('./pages/Settings')), ...loaders.settings },

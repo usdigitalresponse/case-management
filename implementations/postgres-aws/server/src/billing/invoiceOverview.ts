@@ -9,9 +9,9 @@ import { INVOICE_CHANGES, SENT_CODES } from '../cases/caseSummaries';
 import { completionMarkedAt } from './invoiceEvents';
 import { reviewerOf } from './queueSql';
 import {
-  AWAITING_MATCH_INVOICE_STATUS_CODE,
   AWAITING_SIGN_OFF_INVOICE_STATUS_CODE,
   DECIDED_INVOICE_STATUS_CODES,
+  IN_REVIEW_INVOICE_STATUS_CODES,
   LINE_REVIEW_STATUS_CODES,
 } from './invoiceStatusCodes';
 
@@ -22,9 +22,9 @@ const statusCode = sql<string>`(select code from invoice_statuses where id = ${i
 const statusIn = (codes: string[]) => sql`${statusCode} in (${sql.join(codes.map((code) => sql`${code}`), sql`, `)})`;
 const inLineReview = statusIn(LINE_REVIEW_STATUS_CODES);
 
-// Waiting to be matched counts as having no reviewer yet: reviewers act on it (design J).
+// The same invoices as the queue filter each step's "See all" opens (./reviewQueueBatches.ts).
 const STEP_WHERE: Record<OverviewStep, SQL> = {
-  no_reviewer: sql`((${inLineReview} and ${reviewerOf} is null) or ${statusCode} = ${AWAITING_MATCH_INVOICE_STATUS_CODE})`,
+  no_reviewer: sql`(${statusIn(IN_REVIEW_INVOICE_STATUS_CODES)} and ${reviewerOf} is null)`,
   being_reviewed: sql`(${inLineReview} and ${reviewerOf} is not null)`,
   sign_off: sql`${statusCode} = ${AWAITING_SIGN_OFF_INVOICE_STATUS_CODE}`,
   not_completed: sql`(${statusIn(DECIDED_INVOICE_STATUS_CODES)} and ${completionMarkedAt} is null)`,

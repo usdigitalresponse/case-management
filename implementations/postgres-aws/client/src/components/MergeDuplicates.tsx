@@ -1,14 +1,15 @@
 // Settings › Merge duplicates (design K67): possible duplicate cases and people
-// in one table. Any staff member flags a pair or says it is not the same; only
-// administrators merge. A person is merged after a preview (../pages/MergePeople.tsx);
-// a case belongs to the external system, so "merging" it moves its invoices to
-// the case kept and closes it as added by mistake (Edit data), undone there.
+// in one table, a row per group of records that may be one. Any staff member
+// flags a pair or says a pair is not the same; only administrators merge a
+// group, all or none. People are merged after a preview (../pages/MergePeople.tsx);
+// a case belongs to the external system, so "merging" cases moves their invoices
+// to the case kept and closes the others as added by mistake, each undone in Edit data.
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {
   apiErrorMessage,
-  fixCase,
-  previewCaseFix,
+  mergeCases,
+  previewCaseMerge,
   reviewPossibleDuplicate,
   reviewPossibleDuplicateCase,
   undoPersonMerges,
@@ -22,7 +23,7 @@ import {
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
 import { personMerges, possibleDuplicateCases, possibleDuplicates } from '../resources';
-import { mergePath } from '../staffPaths';
+import { mergePath, settingsPath } from '../staffPaths';
 import { LoadState } from './LoadState';
 import { RecordTable } from './RecordTable';
 import { NotDuplicateDialog, plural } from './NotDuplicateDialog';
@@ -40,38 +41,51 @@ const PERSON_REASONS: Record<DuplicateReason, string> = {
   flagged: 'Flagged by staff',
 };
 
+interface Pair {
+  ids: [string, string];
+  why: string;
+}
+
 type Row =
-  | { kind: 'case'; key: string; records: [DuplicateCase, DuplicateCase]; why: string }
-  | { kind: 'person'; key: string; records: [DuplicatePerson, DuplicatePerson]; labels: [string, string]; why: string };
+  | { kind: 'case'; key: string; records: DuplicateCase[]; pairs: Pair[] }
+  | { kind: 'person'; key: string; records: DuplicatePerson[]; labels: Map<string, string>; pairs: Pair[] };
 
-const invoices = (a: number, b: number) => `${a || 'none'} and ${b || 'none'}`;
+// "A, B and C".
+const listed = (names: string[]) => (names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`);
 
-// The record with more on it is offered as the one to keep.
-const heavierFirst = <T extends { invoiceCount: number }>(a: T, b: T): [T, T] => (b.invoiceCount > a.invoiceCount ? [b, a] : [a, b]);
+// The record with the most on it is offered as the one to keep.
+const caseWeight = (record: DuplicateCase) => record.invoiceCount;
+const personWeight = (person: DuplicatePerson) => person.invoiceCount + person.caseCount + (person.provider?.signInEmail ? 1 : 0);
+const heaviestFirst = <T,>(records: T[], weight: (record: T) => number) => [...records].sort((a, b) => weight(b) - weight(a));
 
 function rowsOf(cases: PossibleDuplicateCase[], people: PossibleDuplicate[]): Row[] {
-  const caseRows: Row[] = cases.flatMap((group) =>
-    group.pairs.map((pair) => {
-      const [a, b] = pair.caseIds.map((id) => group.cases.find((record) => record.caseId === id)!) as [DuplicateCase, DuplicateCase];
-      const why = pair.reasons.filter((reason) => reason !== 'same_county').map((reason) => CASE_REASONS[reason]).join('; ');
-      return { kind: 'case' as const, key: pair.caseIds.join('|'), records: heavierFirst(a, b), why };
-    }),
-  );
-  const personRows: Row[] = people.flatMap((group) => {
-    const labels = personLabels(group.people);
-    return group.pairs.map((pair) => {
-      const [a, b] = heavierFirst(...(pair.personIds.map((id) => group.people.find((one) => one.personId === id)!) as [DuplicatePerson, DuplicatePerson]));
-      return {
-        kind: 'person' as const,
-        key: pair.personIds.join('|'),
-        records: [a, b] as [DuplicatePerson, DuplicatePerson],
-        labels: [labels.get(a.personId)!, labels.get(b.personId)!] as [string, string],
-        why: pair.reasons.map((reason) => PERSON_REASONS[reason]).join('; '),
-      };
-    });
-  });
+  const caseRows: Row[] = cases.map((group) => ({
+    kind: 'case',
+    key: group.cases.map((record) => record.caseId).join('|'),
+    records: heaviestFirst(group.cases, caseWeight),
+    pairs: group.pairs.map((pair) => ({
+      ids: pair.caseIds,
+      why: pair.reasons.filter((reason) => reason !== 'same_county').map((reason) => CASE_REASONS[reason]).join('; '),
+    })),
+  }));
+  const personRows: Row[] = people.map((group) => ({
+    kind: 'person',
+    key: group.people.map((one) => one.personId).join('|'),
+    records: heaviestFirst(group.people, personWeight),
+    labels: personLabels(group.people),
+    pairs: group.pairs.map((pair) => ({ ids: pair.personIds, why: pair.reasons.map((reason) => PERSON_REASONS[reason]).join('; ') })),
+  }));
   return [...caseRows, ...personRows];
 }
+
+const idOf = (row: Row, index: number) => (row.kind === 'case' ? row.records[index]!.caseId : row.records[index]!.personId);
+
+function nameOf(row: Row, id: string): string {
+  if (row.kind === 'person') return row.labels.get(id) ?? 'Someone';
+  return row.records.find((record) => record.caseId === id)?.caseNumber ?? 'No case number';
+}
+
+const namesOf = (row: Row) => listed(row.records.map((_, index) => nameOf(row, idOf(row, index))));
 
 export function MergeDuplicates() {
   const { user } = useAuth();
@@ -81,8 +95,8 @@ export function MergeDuplicates() {
   const people = useResource(possibleDuplicates, { resetKey: version });
   const [message, setMessage] = useState<SaveMessage | null>(null);
   const [flagging, setFlagging] = useState<'case' | 'person' | null>(null);
-  const [dismissing, setDismissing] = useState<Row | null>(null);
-  const [mergingCases, setMergingCases] = useState<[DuplicateCase, DuplicateCase] | null>(null);
+  const [dismissing, setDismissing] = useState<{ row: Row; pair: Pair } | null>(null);
+  const [mergingCases, setMergingCases] = useState<DuplicateCase[] | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: merges } = useResource(personMerges, { resetKey: version });
@@ -116,7 +130,6 @@ export function MergeDuplicates() {
 
   const error = cases.error ?? people.error;
   const rows = cases.data && people.data ? rowsOf(cases.data, people.data) : null;
-  const name = (row: Row, index: 0 | 1) => (row.kind === 'case' ? (row.records[index].caseNumber ?? 'No case number') : row.labels[index]);
 
   return (
     <>
@@ -163,40 +176,53 @@ export function MergeDuplicates() {
               rowHeader: true,
               render: (row) => (
                 <>
-                  <strong>
-                    {name(row, 0)} and {name(row, 1)}
-                  </strong>
+                  <strong>{namesOf(row)}</strong>
                   <span className="cell-note">
                     {row.kind === 'case'
-                      ? ['Cases', row.records[0].clientDisplayName, row.records[0].countyDisplayName].filter(Boolean).join('. ')
-                      : row.records[0].provider
-                        ? `Providers${row.records[0].provider.kind ? `. ${row.records[0].provider.kind}` : ''}`
+                      ? ['Cases', row.records[0]!.clientDisplayName, row.records[0]!.countyDisplayName].filter(Boolean).join('. ')
+                      : row.records.some((one) => one.provider)
+                        ? 'Providers'
                         : 'People'}
                   </span>
                 </>
               ),
             },
-            { header: 'Why they look alike', render: (row) => row.why },
-            { header: 'Invoices on each', render: (row) => invoices(row.records[0].invoiceCount, row.records[1].invoiceCount) },
+            {
+              header: 'Why they look alike',
+              render: (row) => (
+                <ul className="plain-list">
+                  {row.pairs.map((pair) => (
+                    <li key={pair.ids.join('|')}>
+                      {row.pairs.length > 1 && `${nameOf(row, pair.ids[0])} and ${nameOf(row, pair.ids[1])}: `}
+                      {pair.why}{' '}
+                      <button type="button" className="link-button" onClick={() => setDismissing({ row, pair })}>
+                        Not the same{' '}
+                        <span className="usa-sr-only">
+                          : {nameOf(row, pair.ids[0])} and {nameOf(row, pair.ids[1])}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ),
+            },
+            { header: 'Invoices on each', render: (row) => listed(row.records.map((record) => String(record.invoiceCount || 'none'))) },
             {
               header: 'What to do',
-              render: (row) => (
-                <span className="row-actions">
-                  {isAdmin &&
-                    (row.kind === 'case' ? (
-                      <Button small onClick={() => setMergingCases(row.records)}>
-                        Merge <span className="usa-sr-only">{`${name(row, 0)} and ${name(row, 1)}`}</span>
-                      </Button>
-                    ) : (
-                      <Link className={buttonClass('secondary', { small: true })} to={mergePath(row.records[0].personId, [row.records[1].personId])}>
-                        Merge <span className="usa-sr-only">{`${name(row, 0)} and ${name(row, 1)}`}</span>
-                      </Link>
-                    ))}
-                  <button type="button" className="link-button" onClick={() => setDismissing(row)}>
-                    Not the same <span className="usa-sr-only">{`: ${name(row, 0)} and ${name(row, 1)}`}</span>
-                  </button>
-                </span>
-              ),
+              render: (row) =>
+                isAdmin &&
+                (row.kind === 'case' ? (
+                  <Button small onClick={() => setMergingCases(row.records)}>
+                    Merge <span className="usa-sr-only">{namesOf(row)}</span>
+                  </Button>
+                ) : (
+                  <Link
+                    className={buttonClass('secondary', { small: true })}
+                    to={mergePath(row.records[0]!.personId, row.records.slice(1).map((one) => one.personId))}
+                  >
+                    Merge <span className="usa-sr-only">{namesOf(row)}</span>
+                  </Link>
+                )),
             },
           ]}
         />
@@ -205,7 +231,7 @@ export function MergeDuplicates() {
       <h3>Recent merges of people</h3>
       <RecentMerges version={version} undoing={undoing} onUndo={(ids) => void undo(ids)} />
       <p className="compact-hint">
-        A case merge is undone in <Link to="/settings?tab=edit-data">Edit data</Link>, under its recent fixes.
+        A case merge is undone in <Link to={settingsPath('edit-data')}>Edit data</Link>, under its recent fixes, one case at a time.
       </p>
 
       {flagging === 'case' && (
@@ -228,12 +254,12 @@ export function MergeDuplicates() {
       )}
       {dismissing && (
         <NotDuplicateDialog
-          what={dismissing.kind === 'case' ? 'case' : 'person'}
-          names={[name(dismissing, 0), name(dismissing, 1)]}
+          what={dismissing.row.kind === 'case' ? 'case' : 'person'}
+          names={[nameOf(dismissing.row, dismissing.pair.ids[0]), nameOf(dismissing.row, dismissing.pair.ids[1])]}
           save={(note) =>
-            dismissing.kind === 'case'
-              ? reviewPossibleDuplicateCase({ caseIds: [dismissing.records[0].caseId, dismissing.records[1].caseId], outcome: 'not_duplicate', note })
-              : reviewPossibleDuplicate({ personIds: [dismissing.records[0].personId, dismissing.records[1].personId], outcome: 'not_duplicate', note })
+            dismissing.row.kind === 'case'
+              ? reviewPossibleDuplicateCase({ caseIds: dismissing.pair.ids, outcome: 'not_duplicate', note })
+              : reviewPossibleDuplicate({ personIds: dismissing.pair.ids, outcome: 'not_duplicate', note })
           }
           onClose={() => setDismissing(null)}
           onDone={(text) => {
@@ -244,7 +270,7 @@ export function MergeDuplicates() {
       )}
       {mergingCases && (
         <MergeCasesDialog
-          pair={mergingCases}
+          group={mergingCases}
           onClose={() => setMergingCases(null)}
           onMerged={(text) => {
             setMergingCases(null);
@@ -256,26 +282,28 @@ export function MergeDuplicates() {
   );
 }
 
-// Which case to keep, what moving the other's invoices does, then the move.
-function MergeCasesDialog({ pair, onClose, onMerged }: { pair: [DuplicateCase, DuplicateCase]; onClose: () => void; onMerged: (message: string) => void }) {
-  const [keptId, setKeptId] = useState(pair[0].caseId);
-  const kept = pair.find((record) => record.caseId === keptId)!;
-  const moving = pair.find((record) => record.caseId !== keptId)!;
-  const [keep, setKeep] = useState<Record<string, 'moved' | 'kept'>>({});
-  const [preview, setPreview] = useState<CaseFixPreview | null>(null);
+// Which case to keep, what moving each of the others does, then the moves, all or none.
+function MergeCasesDialog({ group, onClose, onMerged }: { group: DuplicateCase[]; onClose: () => void; onMerged: (message: string) => void }) {
+  const [keptId, setKeptId] = useState(group[0]!.caseId);
+  const kept = group.find((record) => record.caseId === keptId)!;
+  const moving = group.filter((record) => record.caseId !== keptId);
+  const [keep, setKeep] = useState<Record<string, Record<string, 'moved' | 'kept'>>>({});
+  const [preview, setPreview] = useState<Array<{ caseId: string } & CaseFixPreview> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fix = { kind: 'same_case' as const, caseId: moving.caseId, keptCaseId: kept.caseId, keepPreauthorizations: keep };
-  const label = (record: DuplicateCase) => caseLabel(record);
+  const merge = { keptCaseId: kept.caseId, caseIds: moving.map((record) => record.caseId), keepPreauthorizations: keep };
+  const numberOf = (caseId: string) => group.find((record) => record.caseId === caseId)?.caseNumber ?? 'the other case';
+  const keptNumber = kept.caseNumber ?? 'the case kept';
 
   async function run(action: 'preview' | 'merge') {
     setBusy(true);
     setError(null);
     try {
-      if (action === 'preview') setPreview(await previewCaseFix(fix));
+      if (action === 'preview') setPreview((await previewCaseMerge(merge)).cases);
       else {
-        await fixCase(fix);
-        onMerged(`${plural(preview?.invoices.length ?? 0, 'invoice')} moved to ${kept.caseNumber ?? 'the case kept'}, and ${moving.caseNumber ?? 'the other'} closed. Undo it in Edit data.`);
+        await mergeCases(merge);
+        const invoices = preview?.reduce((sum, one) => sum + one.invoices.length, 0) ?? 0;
+        onMerged(`${plural(invoices, 'invoice')} moved to ${keptNumber}, and ${listed(moving.map((record) => record.caseNumber ?? 'a case'))} closed. Undo each in Edit data.`);
       }
     } catch (err) {
       setError(apiErrorMessage(err, 'The cases could not be merged.'));
@@ -284,12 +312,12 @@ function MergeCasesDialog({ pair, onClose, onMerged }: { pair: [DuplicateCase, D
     }
   }
 
-  const choicesMissing = preview?.preauthorizationChoices.some((choice) => !keep[choice.professionalId]) ?? false;
+  const choicesMissing = preview?.some((one) => one.preauthorizationChoices.some((choice) => !keep[one.caseId]?.[choice.professionalId])) ?? false;
   return (
-    <Dialog title="Merge two cases" onClose={onClose} className="dialog--wide">
+    <Dialog title={group.length > 2 ? `Merge ${group.length} cases` : 'Merge two cases'} onClose={onClose} className="dialog--wide">
       <fieldset className="case-step__choices">
         <legend className="case-step__question">Which case do you keep?</legend>
-        {pair.map((record) => (
+        {group.map((record) => (
           <label key={record.caseId} className="radio-row">
             <input
               type="radio"
@@ -302,35 +330,42 @@ function MergeCasesDialog({ pair, onClose, onMerged }: { pair: [DuplicateCase, D
               }}
             />
             <span>
-              {label(record)} <span className="cell-note">{plural(record.invoiceCount, 'invoice')}</span>
+              {caseLabel(record)} <span className="cell-note">{plural(record.invoiceCount, 'invoice')}</span>
             </span>
           </label>
         ))}
       </fieldset>
       <p>
-        The invoices and pre-authorizations on {moving.caseNumber ?? 'the other case'} move to {kept.caseNumber ?? 'the case kept'}, and{' '}
-        {moving.caseNumber ?? 'it'} is closed as added by mistake. Each invoice keeps the number as typed.
+        The invoices and pre-authorizations on {listed(moving.map((record) => record.caseNumber ?? 'the other cases'))} move to {keptNumber}, and{' '}
+        {moving.length > 1 ? 'those cases are' : 'it is'} closed as added by mistake, all or none. Each invoice keeps the number as typed.
       </p>
       {preview && (
         <div className="decision-panel">
-          <p>
-            <strong>{plural(preview.invoices.length, 'invoice')}</strong> and {plural(preview.preauthorizationRequests.length, 'pre-authorization request')} move.
-          </p>
-          {preview.preauthorizationChoices.map((choice) => (
-            <fieldset key={choice.professionalId}>
-              <legend>Both cases have a pre-authorization for {choice.providerDisplayName ?? 'a provider'}. Which do you keep?</legend>
-              {(['kept', 'moved'] as const).map((which) => (
-                <label key={which} className="radio-row">
-                  <input
-                    type="radio"
-                    name={`keep-${choice.professionalId}`}
-                    checked={keep[choice.professionalId] === which}
-                    onChange={() => setKeep((current) => ({ ...current, [choice.professionalId]: which }))}
-                  />
-                  {which === 'kept' ? `The one on ${kept.caseNumber ?? 'the case kept'}` : `The one on ${moving.caseNumber ?? 'the other case'}`}
-                </label>
+          {preview.map((one) => (
+            <div key={one.caseId}>
+              <p>
+                From {numberOf(one.caseId)}: <strong>{plural(one.invoices.length, 'invoice')}</strong> and{' '}
+                {plural(one.preauthorizationRequests.length, 'pre-authorization request')}.
+              </p>
+              {one.preauthorizationChoices.map((choice) => (
+                <fieldset key={choice.professionalId}>
+                  <legend>
+                    Both {numberOf(one.caseId)} and {keptNumber} have a pre-authorization for {choice.providerDisplayName ?? 'a provider'}. Which do you keep?
+                  </legend>
+                  {(['kept', 'moved'] as const).map((which) => (
+                    <label key={which} className="radio-row">
+                      <input
+                        type="radio"
+                        name={`keep-${one.caseId}-${choice.professionalId}`}
+                        checked={keep[one.caseId]?.[choice.professionalId] === which}
+                        onChange={() => setKeep((current) => ({ ...current, [one.caseId]: { ...current[one.caseId], [choice.professionalId]: which } }))}
+                      />
+                      {which === 'kept' ? `The one on ${keptNumber}` : `The one on ${numberOf(one.caseId)}`}
+                    </label>
+                  ))}
+                </fieldset>
               ))}
-            </fieldset>
+            </div>
           ))}
         </div>
       )}

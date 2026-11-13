@@ -163,7 +163,7 @@ export async function listPreauthorizationRequests(db: DatabaseOrTransaction, ac
   if (filter.from) conditions.push(sql`${preauthorizationRequest.receivedAt} >= ${filter.from}::date`);
   if (filter.to) conditions.push(sql`${preauthorizationRequest.receivedAt} < (${filter.to}::date + 1)`);
   const anyStatus = conditions.length ? and(...conditions) : undefined;
-  const status = filter.status ? inArray(preauthorizationRequestStatuses.code, REQUEST_STATUS_GROUPS[filter.status] ?? [filter.status]) : undefined;
+  const status = filter.status ? inArray(preauthorizationRequestStatuses.code, (Object.hasOwn(REQUEST_STATUS_GROUPS, filter.status) ? REQUEST_STATUS_GROUPS[filter.status]! : [filter.status])) : undefined;
   if (batch.after) return requestBatch(db, and(anyStatus, status), batch);
   const [page, counts] = await Promise.all([requestBatch(db, and(anyStatus, status), batch), countByStatus(db, anyStatus)]);
   return { ...page, summary: { counts } };

@@ -101,6 +101,18 @@ describe('office billing staff', () => {
     expect(await names(false)).toEqual(['Fay Provider', 'Gil Delegate']);
     expect(await names(true)).toEqual(['Gil Delegate']);
   });
+
+  it('turns on someone already on file with the office they send for, all or none', async () => {
+    const { professionalId } = await addProfessional(testDb, admin, { displayName: 'Hal Provider', email: 'hal@example.com', professionalKindId: kindId });
+    const [{ personId }] = (await testDb.select({ personId: professional.personId }).from(professional).where(eq(professional.professionalId, professionalId))) as [{ personId: string }];
+
+    await expect(turnOnExternalSignIn(testDb, admin, { personId, officeId: '00000000-0000-4000-8000-000000000000' })).rejects.toThrow(ValidationError);
+    expect((await searchExternalUsers(testDb, 'hal'))[0]).toMatchObject({ signInEnabled: false, delegateFor: [] });
+
+    const user = await turnOnExternalSignIn(testDb, admin, { personId, officeId: fixtures.officeId });
+    expect(user).toMatchObject({ signInEnabled: true, delegateFor: [{ officeId: fixtures.officeId }] });
+    expect((await listExternalUsers(testDb, 'hal', firstBatch, { officeStaff: true })).items).toHaveLength(1);
+  });
 });
 
 describe('making a provider a delegate', () => {
