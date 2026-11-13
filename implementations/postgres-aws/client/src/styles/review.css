@@ -29,7 +29,6 @@
 .review-table .line-date { font-weight: 600; white-space: nowrap; }
 .review-table tr.is-rejected td:not(.decision-cell) { opacity: .6; }
 .review-table tr.is-open, .review-table tr.detail-row { background: var(--color-primary-container-low); }
-.review-table tr.is-flagged { background: var(--color-tertiary-container); }
 .data-card table.review-table tbody tr.detail-row:hover { background: var(--color-primary-container-low); }
 .data-card table tr.detail-row td { padding: 0; }
 .decision-cell { min-width: 21rem; }
@@ -39,7 +38,7 @@
 .decision-bar button { margin: 0 0 0 calc(var(--space-1) * -1); padding: var(--space-4) var(--space-5); border: 1px solid var(--color-primary); background: var(--color-surface); color: var(--color-primary); font: inherit; font-size: var(--text-13); font-weight: 600; cursor: pointer; }
 .decision-bar button:first-child { margin-left: 0; border-radius: var(--radius-small) 0 0 var(--radius-small); }
 .decision-bar button:last-child { border-radius: 0 var(--radius-small) var(--radius-small) 0; }
-.decision-bar button:hover:not(:disabled) { background: var(--color-primary-container-low); }
+.decision-bar button:hover:not(:disabled, .is-active) { background: var(--color-primary-container-low); }
 .decision-bar button.is-active { position: relative; background: var(--color-primary); color: var(--color-surface); }
 .decision-bar .decision-bar__reject { color: var(--color-error); }
 .decision-bar .decision-bar__reject.is-active { background: var(--color-error); border-color: var(--color-error); }
@@ -80,8 +79,10 @@
 .decision-panel h3 { margin: 0 0 var(--space-5); font-size: var(--text-15); }
 .decision-panel__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: var(--space-7) var(--space-9); }
 .decision-panel fieldset { margin: 0; padding: 0; border: 0; }
-.decision-panel legend { margin-bottom: var(--space-4); font-weight: 600; font-size: var(--text-15); }
+.decision-panel legend { margin-bottom: var(--space-4); font-weight: 600; font-size: var(--text-13); }
 .decision-panel label { font-size: var(--text-13); color: var(--color-on-surface-variant); }
+.decision-panel label:not(.radio-row) { font-weight: 600; color: var(--color-on-surface); }
+.decision-panel label .cell-note { font-weight: 400; color: var(--color-on-surface-variant); }
 .decision-panel input[type="number"], .decision-panel textarea, .send-back-form textarea { width: 100%; margin-top: var(--space-3); }
 .decision-panel__result { margin: var(--space-5) 0 0; }
 .decision-panel__result strong { display: block; font-size: var(--text-18); color: var(--color-on-surface); }
@@ -107,8 +108,11 @@
 .sign-off-panel { margin-top: var(--space-7); padding: var(--space-6) var(--space-8); }
 .sign-off-panel h2 { margin: 0 0 var(--space-4); font-size: var(--text-18); }
 .sign-off-panel p { margin: 0 0 var(--space-4); }
-.send-back-form label { display: block; max-width: 36rem; font-weight: 600; }
-.history-list { margin: 0; padding-left: var(--space-6); }
+.send-back-form { display: block; max-width: 36rem; font-weight: 600; }
+.send-back-form .cell-note { font-weight: 400; }
+.history-list { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.history-list .tag { margin-right: var(--space-4); }
+.history-list .cell-note { display: block; margin-top: var(--space-3); }
 .sign-off-approvers { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3) var(--space-6); margin: 0 0 var(--space-6); font-size: var(--text-15); }
 .inline-editor { flex-basis: 100%; max-width: 28rem; padding: var(--space-5) var(--space-6); }
 /* Case card and matching on the review page */

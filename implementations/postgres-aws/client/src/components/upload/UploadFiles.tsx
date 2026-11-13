@@ -1,6 +1,7 @@
 // Files chosen to upload: the drop zone, each file's card and the reads behind them.
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import { apiErrorMessage, deleteInvoice, discardUpload, getUpload, startUpload, type UploadRead } from '../../api/client';
+import { RemoveFileButton } from '../ui/RemoveFileButton';
 import { ImportProgressNote } from '../ImportProgressNote';
 import { countOf } from '../../portal/importProgress';
 import { Button } from '../ui/Button';
@@ -146,17 +147,19 @@ export function FileCard({
     <li className={`card file-card${current && many ? ' file-card--current' : ''}`}>
       <span className="file-card__badge" aria-hidden="true">{fileBadge(entry.file.name)}</span>
       <span className="file-card__name">
-        <strong>{entry.file.name}</strong>
+        <span className="file-card__title">
+          <strong>{entry.file.name}</strong>
+          {onRemove && (
+            <RemoveFileButton
+              fileName={entry.file.name}
+              onRemove={onRemove}
+              consequence={<>{entry.file.name} is taken off this upload, and nothing read from it is kept.</>}
+            />
+          )}
+        </span>
         <span>{meta}</span>
       </span>
-      <span className="file-card__status">
-        {status}
-        {onRemove && (
-          <button type="button" className="link-button" onClick={onRemove}>
-            Remove file
-          </button>
-        )}
-      </span>
+      <span className="file-card__status">{status}</span>
     </li>
   );
 }

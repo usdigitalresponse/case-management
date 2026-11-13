@@ -65,3 +65,5 @@
 
 /* After a list loaded a batch at a time (MoreOnScroll): says when more is loading or failed. */
 .more-on-scroll { min-height: var(--space-6); margin-top: var(--space-4); text-align: center; font-size: var(--text-13); color: var(--color-on-surface-muted); }
+/* A row a check flagged, such as a close match or a trip over the driving route. */
+.data-card table tr.is-flagged, .data-card table tbody tr.is-flagged:hover { background: var(--color-tertiary-container); }

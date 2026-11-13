@@ -3,7 +3,7 @@
    sign-ins sit quietly at the foot of each card. */
 .login-page { position: relative; min-height: 100vh; box-sizing: border-box; padding: var(--space-14) var(--space-8) var(--space-11); background: var(--color-surface-container); }
 .login-intro { max-width: 52rem; margin: 0 auto var(--space-9); text-align: center; }
-.login-intro h1 { margin: 0; font-size: var(--text-26); letter-spacing: -.02em; }
+.login-intro h1 { margin: 0; font: var(--headline-medium); }
 .login-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: var(--space-7); max-width: 52rem; margin: 0 auto; }
 .login-panel { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-8); box-shadow: var(--elevation-1); }
 .login-panel h1, .login-panel h2 { margin: 0; font-size: var(--text-18); }

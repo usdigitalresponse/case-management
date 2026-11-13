@@ -6,6 +6,8 @@ import { formatDate, formatDay } from '../../formatDateTime';
 import { formatMoney } from '../../formatMoney';
 import { Notice } from '../ui/Notice';
 import { Button } from '../ui/Button';
+import { FileButton } from '../ui/FileButton';
+import { RemoveFileButton } from '../ui/RemoveFileButton';
 
 const PURPOSES: Array<{ id: LinkedDocument['purposeCode']; label: string }> = [
   { id: 'cv', label: 'CV' },
@@ -14,13 +16,24 @@ const PURPOSES: Array<{ id: LinkedDocument['purposeCode']; label: string }> = [
   { id: 'supporting', label: 'Something else' },
 ];
 
-export function DocumentList({ documents }: { documents: LinkedDocument[] }) {
+// onRetire, where files may still be added, shows a ✕ that takes one off the list after asking.
+export function DocumentList({ documents, onRetire, from }: { documents: LinkedDocument[]; onRetire?: (doc: LinkedDocument) => unknown; from?: string }) {
   if (documents.length === 0) return <p className="muted">None yet.</p>;
   return (
     <ul className="plain-list">
       {documents.map((doc) => (
         <li key={doc.documentId}>
-          <a href={linkedDocumentUrl(doc.documentId)}>{doc.displayName}</a> <span className="cell-note">{doc.purposeName}, added {formatDay(doc.recordedAt)}</span>
+          <span className="file-name">
+            <a href={linkedDocumentUrl(doc.documentId)}>{doc.displayName}</a>
+            {onRetire && (
+              <RemoveFileButton
+                fileName={doc.displayName}
+                onRemove={() => onRetire(doc)}
+                consequence={<>{doc.displayName} is taken off {from ?? 'this list'}. It is kept, and you can undo this.</>}
+              />
+            )}
+          </span>{' '}
+          <span className="cell-note">{doc.purposeName}, added {formatDay(doc.recordedAt)}</span>
         </li>
       ))}
     </ul>
@@ -42,28 +55,20 @@ export function AddDocument({ onAdd, defaultPurpose }: { onAdd: (file: File, pur
           ))}
         </select>
       </div>
-      <div className="usa-form-group">
-        <label className="usa-label" htmlFor={`${id}-file`}>File (PDF, Word or image)</label>
-        <input
-          id={`${id}-file`}
-          className="usa-file-input"
-          type="file"
-          disabled={busy}
-          accept=".pdf,.docx,.png,.jpg,.jpeg"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            setBusy(true);
-            setError(null);
-            onAdd(file, purpose)
-              .catch((err: unknown) => setError(apiErrorMessage(err, 'The file could not be added.')))
-              .finally(() => {
-                setBusy(false);
-                event.target.value = '';
-              });
-          }}
-        />
-      </div>
+      <FileButton
+        accept=".pdf,.docx,.png,.jpg,.jpeg"
+        disabled={busy}
+        onChoose={(file) => {
+          setBusy(true);
+          setError(null);
+          onAdd(file, purpose)
+            .catch((err: unknown) => setError(apiErrorMessage(err, 'The file could not be added.')))
+            .finally(() => setBusy(false));
+        }}
+      >
+        {busy ? 'Adding…' : 'Choose file'}
+        <span className="usa-sr-only"> (PDF, Word or image)</span>
+      </FileButton>
       {error && <p className="field-error" role="alert">{error}</p>}
     </div>
   );

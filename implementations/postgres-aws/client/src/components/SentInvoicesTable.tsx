@@ -11,6 +11,7 @@ export function SentInvoicesTable({
   invoices,
   showFrom,
   caseNumberNote,
+  rowClassName,
   emptyMessage,
   onChanged,
 }: {
@@ -18,6 +19,7 @@ export function SentInvoicesTable({
   showFrom: boolean;
   // In place of how many others share the number.
   caseNumberNote?: (invoice: ReviewQueueItem) => ReactNode;
+  rowClassName?: (invoice: ReviewQueueItem) => string | undefined;
   emptyMessage: string;
   onChanged: () => unknown;
 }) {
@@ -29,11 +31,12 @@ export function SentInvoicesTable({
       render: (invoice) => <CaseNumberCell invoice={invoice} note={caseNumberNote?.(invoice)} />,
     },
     { header: 'Billing period', render: (invoice) => formatPeriod(invoice.periodStart, invoice.periodEnd) },
-    { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDay(invoice.submittedAt) : '—') },
+    { header: 'Submitted', className: 'nowrap', render: (invoice) => (invoice.submittedAt ? formatDay(invoice.submittedAt) : '—') },
     { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
     {
       header: 'Approved',
       align: 'right',
+      className: (invoice) => (invoice.approvedTotal !== null ? 'approved-amount' : undefined),
       render: (invoice) => (invoice.approvedTotal !== null ? formatMoney(invoice.approvedTotal) : <span className="muted">None yet</span>),
     },
     {
@@ -47,5 +50,5 @@ export function SentInvoicesTable({
     },
     openInvoiceColumn(),
   ];
-  return <RecordTable className="queue-table" rows={invoices} rowKey={(invoice) => invoice.invoiceId} emptyMessage={emptyMessage} columns={columns} />;
+  return <RecordTable className="queue-table" rows={invoices} rowKey={(invoice) => invoice.invoiceId} rowClassName={rowClassName} emptyMessage={emptyMessage} columns={columns} />;
 }

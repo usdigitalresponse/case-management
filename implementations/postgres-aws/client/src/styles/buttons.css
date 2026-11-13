@@ -11,3 +11,12 @@
 .btn--select { color: var(--color-on-surface); font-weight: 600; }
 .btn--select .muted { font-weight: 400; }
 .btn--small { min-height: 1.8rem; padding: var(--space-3) var(--space-4); font-size: var(--text-12); }
+/* A file field as a button, and the ✕ that removes a file (components/ui/FileButton.tsx, RemoveFileButton.tsx). */
+.file-button { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
+.file-button__button { cursor: pointer; }
+.file-button__button:focus-within { box-shadow: var(--focus-ring); }
+.file-button__button[aria-disabled="true"] { background: var(--color-surface-container-high); border-color: var(--color-surface-container-high); color: var(--color-on-surface-muted); cursor: not-allowed; }
+.file-name { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-13); color: var(--color-on-surface-variant); overflow-wrap: anywhere; }
+.file-remove { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: var(--radius-small); background: none; color: var(--color-on-surface-muted); font-size: var(--text-13); cursor: pointer; }
+.file-remove:hover:not(:disabled) { background: var(--color-surface-container); color: var(--color-on-surface); }
+.file-remove:focus-visible { box-shadow: var(--focus-ring); outline: none; }

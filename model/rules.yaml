@@ -1,4 +1,4 @@
-spec_version: "0.14.0"
+spec_version: "0.15.0"
 status: draft
 kind: business_rules
 
@@ -526,6 +526,7 @@ rules:
     requirements:
       - Staff and anyone who may bill for a provider may add the provider's CV, fee schedule or quote, linked to the provider with its purpose, and a provider_service_rate for each service it lists, with its date. A newer document supersedes an older one, which is kept.
       - A provider's documents are kept records, not working copies of a request's files, and stay while the provider is on record.
+      - Anyone who may add a file to an open request or to a provider may retire it, for one added by mistake. A retired file leaves every list but is kept, with who retired it and when, and may be restored the same way; each retirement and restoration is audited.
       - A preauthorization request for a provider with no CV, or no fee schedule or quote, asks for it; staff see which are missing when deciding.
 
   report_preauthorization_usage:

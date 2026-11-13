@@ -100,6 +100,7 @@ export default function CaseList() {
               { header: 'County', render: (caseRecord) => county.nameOf(caseRecord.countyId) ?? '—' },
               {
                 header: 'Who works on it',
+                className: 'case-list-table__people',
                 render: (caseRecord) => (caseRecord.workers.length > 0 ? caseRecord.workers.join(', ') : <span className="muted">No one yet</span>),
               },
               { header: 'Pre-authorized', render: (caseRecord) => (caseRecord.preauthorized ? formatMoney(caseRecord.preauthorized) : '—') },

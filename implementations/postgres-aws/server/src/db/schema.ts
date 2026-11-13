@@ -1138,6 +1138,9 @@ export const documentLink = pgTable(
     // Stands in for service_provider_id.
     professionalId: uuid('professional_id').references(() => professional.professionalId),
     purposeId: uuid('purpose_id').notNull().references(() => documentPurposes.id),
+    // Taken off its request or provider but kept; restoring clears both.
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
+    retiredByUserAccountId: uuid('retired_by_user_account_id').references(() => userAccount.userAccountId),
   },
   (table) => [
     index('document_link_professional_idx').on(table.professionalId),

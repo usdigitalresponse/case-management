@@ -79,7 +79,7 @@ export default function PersonPage() {
   }
 
   return (
-    <div>
+    <div className="record-page">
       <PageHeader
         crumbs={[{ label: 'Providers', to: '/people' }, { label: name }]}
         title={name}

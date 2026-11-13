@@ -1,6 +1,7 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { apiErrorMessage, uploadTimeLog, type TimeLogColumns } from '../../../api/client';
-import { Button, buttonClass } from '../../../components/ui/Button';
+import { Button } from '../../../components/ui/Button';
+import { FileButton } from '../../../components/ui/FileButton';
 
 // The columns a reviewer can choose; time spent is chosen with its unit.
 const CHOSEN_FIELDS = [
@@ -135,7 +136,6 @@ export function TimeLogUpload({
   const [headers, setHeaders] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const input = useRef<HTMLInputElement>(null);
 
   async function send(chosen: File, chosenColumns?: TimeLogColumns) {
     setSaving(true);
@@ -153,29 +153,21 @@ export function TimeLogUpload({
       setError(apiErrorMessage(err, 'The time log could not be read. Try again.'));
     } finally {
       setSaving(false);
-      if (input.current) input.current.value = '';
     }
   }
 
   return (
     <div className="time-log-upload">
-      <label className={buttonClass('secondary', { className: 'time-log-upload__button' })}>
+      <FileButton
+        accept=".xlsx,.csv"
+        disabled={saving}
+        onChoose={(chosen) => {
+          setFile(chosen);
+          void send(chosen);
+        }}
+      >
         {saving ? 'Reading…' : replacing ? 'Upload another time log' : 'Upload a time log'}
-        <input
-          ref={input}
-          type="file"
-          accept=".xlsx,.csv"
-          className="usa-sr-only"
-          disabled={saving}
-          onChange={(event) => {
-            const chosen = event.target.files?.[0];
-            if (chosen) {
-              setFile(chosen);
-              void send(chosen);
-            }
-          }}
-        />
-      </label>
+      </FileButton>
       {onCancel && !headers && (
         <button type="button" className="link-button" onClick={onCancel}>
           Cancel

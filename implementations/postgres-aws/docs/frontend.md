@@ -185,6 +185,16 @@ How the React client is built and why. Schema mapping and gaps are in
         page, and added on each request's "On file" card, which also records their quoted
         fees (`QuotedFees`). While a question is open, the sender also gets an upload right
         under the answer box, so a file the question asks for goes in beside the answer.
+        A ✕ beside a file on the request's cards (an open request's, for "Attached to this
+        request") retires it after asking: `POST /api/preauthorizations/documents/:id/retire`
+        sets `document_link.retired_at` and `retired_by_user_account_id`, so it leaves every
+        list and the "missing" check but is kept, and the toast's Undo calls `.../restore`.
+        Both are audited (`document_retired`, `document_restored`) and allowed to whoever may
+        add the file (`providerRecords.ts`).
+      - File fields (`components/ui/FileButton.tsx`) are an outlined "Choose file" button;
+        a chosen or uploaded file's ✕ (`RemoveFileButton.tsx`) always asks first, in a dialog,
+        on the request form, the invoice upload, the bulk upload's rows, the time log and the
+        request's cards.
       - Usage by county (`billing/preauthorizationUsage.ts`, the page's "By county" tab):
         requests received in the period by status and amount, then each provider's limit,
         billed and over on cases with a request or invoice in the period, by the case's

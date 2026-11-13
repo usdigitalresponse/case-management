@@ -64,7 +64,6 @@ input[type=search] { appearance: none; }
   opacity: 1;
 }
 [type=file] { margin-top: var(--field-gap); padding: 0; border: none; }
-.usa-file-input { display: block; width: 100%; max-width: 30rem; }
 
 /* Editing inside a table row: a compact size the design doesn't specify. */
 .check-lines__input, .row-edit__input, .settings-role, .line-meta .usa-select, .kind-cell .usa-select, .split-assignment .usa-select {

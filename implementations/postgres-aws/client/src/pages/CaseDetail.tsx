@@ -213,7 +213,7 @@ export default function CaseDetail() {
   ];
 
   return (
-    <div>
+    <div className="record-page">
       <PageHeader
         crumbs={[{ label: 'All cases', to: '/cases' }, { label: detail.case.clientDisplayName ?? 'Case' }, { label: caseNumber }]}
         title={detail.case.clientDisplayName ?? 'Case'}
@@ -239,7 +239,7 @@ export default function CaseDetail() {
         <Fact label="County">
           <strong>{detail.case.countyDisplayName ?? '—'}</strong>
         </Fact>
-        <Fact label="Who reviews its invoices" note="Change in Settings or here">
+        <Fact label="Who reviews its invoices">
           {billing && (
             <CaseReviewer
               caseId={detail.case.caseId}

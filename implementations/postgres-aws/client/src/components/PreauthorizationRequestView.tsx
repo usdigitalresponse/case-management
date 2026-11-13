@@ -1,7 +1,7 @@
 // One request for staff and its requester: details, questions, documents, limit and decision.
 import { useState } from 'react';
 import { useLocation } from 'react-router';
-import { apiErrorMessage, uploadProviderDocument, uploadRequestDocument, withdrawPreauthorizationRequest, type PreauthorizationRequestDetail } from '../api/client';
+import { apiErrorMessage, restoreDocument, retireDocument, uploadProviderDocument, uploadRequestDocument, withdrawPreauthorizationRequest, type LinkedDocument, type PreauthorizationRequestDetail } from '../api/client';
 import { useResource } from '../hooks/useResource';
 import { preauthorizationRequest } from '../resources';
 import { formatDay, formatDateTime } from '../formatDateTime';
@@ -15,12 +15,15 @@ import { RequestStatus, caseText, providerText, rateText } from './preauthorizat
 import { AddDocument, DocumentList, QuotedFees } from './preauthorizationRequest/ProviderOnFile';
 import { DecisionForm, MatchForm } from './preauthorizationRequest/StaffForms';
 import { Questions } from './preauthorizationRequest/RequestQuestions';
+import { Toast, useToast } from './Toast';
 
 export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requestId: string; staff: boolean; crumbs: Array<{ label: string; to?: string }> }) {
   const { data, error, reload } = useResource(preauthorizationRequest(requestId));
   // Each change returns the request as it now is.
   const [changedTo, setChangedTo] = useState<PreauthorizationRequestDetail | null>(null);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [toast, setToast] = useToast(8000);
+  const [fileError, setFileError] = useState<string | null>(null);
   const sentUploadError = (useLocation().state as { uploadError?: string | null } | null)?.uploadError ?? null;
   const detail = changedTo?.request.preauthorizationRequestId === requestId ? changedTo : data;
   if (!detail) return <LoadState error={error} what="request" />;
@@ -33,6 +36,13 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
   const open = request.statusCode === 'submitted' || request.statusCode === 'info_requested';
   const limit = request.limit;
   const billed = limit ? Number(limit.approvedSoFar) + Number(limit.waiting) : null;
+  const retire = (doc: LinkedDocument) => {
+    setFileError(null);
+    return retireDocument(doc.documentId)
+      .then(refetch)
+      .then(() => setToast({ message: `${doc.displayName} removed.`, undo: () => restoreDocument(doc.documentId).then(refetch) }))
+      .catch((err: unknown) => setFileError(apiErrorMessage(err, 'The file could not be removed.')));
+  };
   return (
     <div className="preauth-page">
       <PageHeader
@@ -131,10 +141,11 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
           />
         </section>
       )}
+      {fileError && <Notice tone="danger">{fileError}</Notice>}
       <div className="case-columns">
         <section className="card compact-card">
           <h2>Attached to this request</h2>
-          <DocumentList documents={detail.documents} />
+          <DocumentList documents={detail.documents} onRetire={open ? retire : undefined} from="this request" />
           {open && <AddDocument defaultPurpose="supporting" onAdd={(file, purpose) => uploadRequestDocument(request.preauthorizationRequestId, file, purpose).then(refetch)} />}
         </section>
         {detail.providerDocuments && request.professionalId && (
@@ -145,7 +156,7 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
                 Missing: {detail.providerDocuments.missing.map((code) => (code === 'cv' ? 'CV' : 'fee schedule or quote')).join(' and ')}.
               </Notice>
             )}
-            <DocumentList documents={detail.providerDocuments.documents} />
+            <DocumentList documents={detail.providerDocuments.documents} onRetire={retire} from={`${request.providerName}'s file`} />
             <AddDocument
               defaultPurpose={detail.providerDocuments.missing[0] ?? 'fee_schedule'}
               onAdd={(file, purpose) => uploadProviderDocument(request.professionalId!, file, purpose).then(refetch)}
@@ -156,6 +167,7 @@ export function PreauthorizationRequestView({ requestId, staff, crumbs }: { requ
       </div>
       {staff && detail.canDecide && (!request.caseId || !request.professionalId) && <MatchForm request={request} onMatched={changed} />}
       {staff && detail.canDecide && <DecisionForm key={request.statusCode} request={request} onDecided={changed} />}
+      <Toast toast={toast} />
     </div>
   );
 }

@@ -10,10 +10,9 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { PreauthorizationRequestForm } from '../components/PreauthorizationRequestForm';
-import { caseText, providerText, rateText, RequestStatus } from '../components/preauthorizationRequest/requestText';
+import { requestColumns } from '../components/preauthorizationRequest/requestText';
 import { PreauthorizationRequestView } from '../components/PreauthorizationRequestView';
 import { downloadCsv } from '../downloadCsv';
-import { formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { FilterTag } from '../components/ui/Tag';
 import { Tabs } from '../components/ui/Tabs';
@@ -60,6 +59,7 @@ function Requests() {
     // Replaced, so arrowing across tabs leaves one history entry.
     setParams(merged, { preventScrollReset: true, replace: true });
   };
+  const columns = requestColumns(preauthorizationPath);
   return (
     <>
       <div className="list-controls">
@@ -98,27 +98,13 @@ function Requests() {
           rowKey={(row) => row.preauthorizationRequestId}
           emptyMessage="No requests here."
           columns={[
-            {
-              header: 'Number',
-              width: '9%',
-              rowHeader: true,
-              render: (row) => (
-                <>
-                  <Link className="nowrap" to={preauthorizationPath(row.preauthorizationRequestId)}>{row.requestNumber}</Link>
-                  <span className="cell-note nowrap">{formatDay(row.receivedAt)}</span>
-                </>
-              ),
-            },
-            { header: 'Case', width: '13%', render: (row) => <><span className="nowrap">{caseText(row)}</span><span className="cell-note">{row.countyName ?? ''}</span></> },
-            { header: 'Asked by', width: '10%', render: (row) => row.requestedForName ?? row.requestedByName },
-            { header: 'Provider', width: '18%', render: (row) => <>{providerText(row)}<span className="cell-note">{row.kindName ?? row.serviceDescription}</span></> },
-            {
-              header: 'Asked for',
-              width: '12%',
-              render: (row) => <><span className="amount">{formatMoney(row.requestedAmount)}</span><span className="cell-note">{rateText(row)}</span></>,
-            },
-            { header: 'Approved', width: '10%', render: (row) => (row.approvedAmount ? <span className="amount">{formatMoney(row.approvedAmount)}</span> : '—') },
-            { header: 'Status', width: '14%', render: (row) => <RequestStatus request={row} /> },
+            { ...columns.number, width: '9%' },
+            { ...columns.case, width: '12%' },
+            { header: 'Asked by', width: '12%', render: (row) => row.requestedForName ?? row.requestedByName },
+            { ...columns.provider, width: '15%' },
+            { ...columns.askedFor, width: '14%' },
+            { ...columns.approved, width: '9%' },
+            { ...columns.status, width: '17%' },
             { header: 'Billed / left', width: '11%', render: (row) => <LimitCell row={row} /> },
           ]}
         />
@@ -211,10 +197,11 @@ function UsageByCounty() {
           rowKey={(row) => (row.countyName === 'All' ? 'total' : (row.countyId ?? 'none'))}
           emptyMessage="No requests or invoices in this period."
           columns={[
-            { header: 'County or setting', rowHeader: true, render: (row) => (row.countyName === 'All' ? <strong>All</strong> : row.countyName) },
-            { header: 'Threshold', render: (row) => (row.threshold ? formatMoney(row.threshold) : '—') },
+            { header: 'County or setting', width: '14%', rowHeader: true, render: (row) => (row.countyName === 'All' ? <strong>All</strong> : row.countyName) },
+            { header: 'Threshold', width: '10%', render: (row) => (row.threshold ? formatMoney(row.threshold) : '—') },
             {
               header: 'Requests',
+              width: '16%',
               render: (row) => (
                 <>
                   {count(row, 'submitted', row.requests.submitted)} waiting, {count(row, 'approved', row.requests.approved)} approved
@@ -226,10 +213,11 @@ function UsageByCounty() {
                 </>
               ),
             },
-            { header: 'Asked for / approved', render: (row) => <>{formatMoney(row.requested)}<span className="cell-note">{formatMoney(row.approved)} approved</span></> },
-            { header: 'Used and left', render: (row) => <UsedAndLeft row={row} /> },
+            { header: 'Asked for / approved', width: '13%', render: (row) => <>{formatMoney(row.requested)}<span className="cell-note">{formatMoney(row.approved)} approved</span></> },
+            { header: 'Used and left', width: '21%', render: (row) => <UsedAndLeft row={row} /> },
             {
               header: 'Over their limit',
+              width: '11%',
               render: (row) =>
                 row.over.providers === 0 ? (
                   <span className="muted">None</span>
@@ -242,6 +230,7 @@ function UsageByCounty() {
             },
             {
               header: 'Within the threshold',
+              width: '15%',
               render: (row) =>
                 row.withinThreshold.providers === 0 ? (
                   <span className="muted">None</span>

@@ -317,6 +317,16 @@ describe('merging people', () => {
   });
 });
 
+describe("a request's or provider's file", () => {
+  it('is retired or restored only by someone signed in who may add it', async () => {
+    const path = `/api/preauthorizations/documents/${randomUUID()}`;
+    expect((await caller(server)('POST', `${path}/retire`)).status).toBe(401);
+    const { call } = await createSubmitter();
+    expect((await call('POST', `${path}/retire`)).status).toBe(404);
+    expect((await call('POST', `${path}/restore`)).status).toBe(404);
+  });
+});
+
 describe('demo sign-ins turned off', () => {
   let off: TestServer;
   let call: Call;
