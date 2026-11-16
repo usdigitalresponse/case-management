@@ -37,6 +37,9 @@
 .facts-strip dt, .file-case-number dt { margin: 0 0 var(--space-3); color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .facts-strip dd, .file-case-number dd { margin: 0; font: var(--title-medium); }
 .facts-strip dd .cell-note, .file-case-number dd .cell-note { font: var(--body-medium); color: var(--color-on-surface-variant); }
+@media (max-width: 480px) {
+  .facts-strip { grid-template-columns: minmax(0, 1fr); }
+}
 .progress { display: block; width: 100%; max-width: 7rem; height: 4px; margin-top: var(--space-4); background: var(--color-outline-subtle); border-radius: var(--radius-mark); overflow: hidden; }
 .progress span { display: block; width: var(--done); height: 100%; background: var(--color-primary); }
 .page-tabs { margin-bottom: var(--space-6); }

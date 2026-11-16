@@ -41,7 +41,7 @@ function TopBar({ displayName, onLogout }: { displayName: string; onLogout: () =
       <a className="usa-skipnav" href="#main-content">Skip to main content</a>
       <header className="app-header">
         <AppBrand to="/" section={PRODUCT_NAME}>
-          <Tag tone="info">Works beside your {EXTERNAL_SYSTEM_NAME}</Tag>
+          <Tag tone="info" className="app-header__tag">Works beside your {EXTERNAL_SYSTEM_NAME}</Tag>
         </AppBrand>
         <form className="header-search" role="search" onSubmit={search}>
           <label className="usa-sr-only" htmlFor="header-search-input">Search invoices</label>
