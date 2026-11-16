@@ -441,8 +441,10 @@ How the React client is built and why. Schema mapping and gaps are in
   see the case pages in `intake.md`). A case is never started here: cases
   are added through their invoices. Each card's "View all" goes to
   `/cases?stage=<id>`, which `client/src/pages/CaseList.tsx` filters to that
-  stage. The sidebar
-  condenses on small screens and columns wrap into a vertical layout. The
+  stage. Smaller widths follow design K's `design/screens/tablet/` and
+  `phone/` screens: below 1024 pixels the header drops its "Works beside"
+  tag, below 900 the stage cards go one per row, and below 760 the sidebar, still grouped
+  under its headings, moves above the page. The
   header's `Messages`/`Timer` placeholders and "Search everything" box
   were removed outright (disabled controls with no planned near-term
   feature).

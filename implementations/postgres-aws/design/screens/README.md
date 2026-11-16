@@ -112,15 +112,17 @@ and [`phone/`](phone/) holds them at 390 pixels wide. Each file has the same
 name as the desktop screen it comes from, so `phone/invoice-overview.png` is
 the phone version of `invoice-overview.png`.
 
-The design had no rules of its own for smaller screens. These layouts follow
-the width rules already in the prototype's style sheets:
+The prototype's style sheets follow these width rules:
 
-- Below 1024 pixels, two-column pages become one column.
-- Below 760 pixels, the left menu moves above the page and the search box
-  gets its own row. A tablet at 768 pixels still has the left menu.
+- Below 1024 pixels, two-column pages become one column and the header
+  drops its "Works beside" tag.
+- Below 900 pixels, the overview cards go one per row.
+- Below 760 pixels, the left menu moves above the page, keeping its
+  headings, and the search box gets its own row. A tablet at 768 pixels
+  still has the left menu.
 - Below 700 pixels, form fields stack one above another.
 - Below 640 pixels, a page's buttons move under its title.
-- Below 480 pixels, page titles get smaller and the overview cards go one
+- Below 480 pixels, page titles get smaller and an invoice's facts go one
   per row.
 - Tables wider than the screen scroll sideways, so the images show them cut
   off at the right edge.

@@ -21,9 +21,6 @@
 .assign-staff-row .type-ahead { flex: 1; max-width: 400px; }
 .assign-staff-row .clearable__input { margin-top: 0; }
 @media (max-width: 900px) {
-  .stage-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-@media (max-width: 480px) {
   .stage-cards { grid-template-columns: 1fr; }
 }
 /* Case page */
