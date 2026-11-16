@@ -11,8 +11,8 @@ history stays in one file.
 
 ## What is here
 
-- [`screens/`](screens/README.md): one image per screen, with a list of what
-  each one shows and how to replace one.
+- [`screens/`](screens/README.md): one image per screen at desktop, tablet
+  and phone widths, with a list of what each one shows and how to replace one.
 - [`design-system/`](design-system/README.md): the colors, spacing, type
   styles and shadows as a tokens file that you can change and reuse.
 
