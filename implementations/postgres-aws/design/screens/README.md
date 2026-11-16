@@ -1,7 +1,8 @@
 # Screens
 
-One image per screen of the current design, each 1440 pixels wide. All
-names, places, emails and figures in them are made up.
+One image per screen of the current design at desktop width, 1440 pixels.
+The [`tablet/`](tablet/) and [`phone/`](phone/) folders hold the same screens
+at smaller widths. All names, places, emails and figures in them are made up.
 
 
 ## Signing in
@@ -103,6 +104,28 @@ names, places, emails and figures in them are made up.
 | [`settings-add-provider.png`](settings-add-provider.png) | Adding a provider |
 | [`settings-sign-off-and-thresholds.png`](settings-sign-off-and-thresholds.png) | Who signs off, time log checks and pre-authorization thresholds |
 | [`settings-merge-duplicates.png`](settings-merge-duplicates.png) | Merging duplicate cases and providers |
+
+## Tablet and phone
+
+The [`tablet/`](tablet/) folder holds every screen above at 768 pixels wide,
+and [`phone/`](phone/) holds them at 390 pixels wide. Each file has the same
+name as the desktop screen it comes from, so `phone/invoice-overview.png` is
+the phone version of `invoice-overview.png`.
+
+The design had no rules of its own for smaller screens. These layouts follow
+the width rules already in the prototype's style sheets:
+
+- Below 1024 pixels, two-column pages become one column.
+- Below 760 pixels, the left menu moves above the page and the search box
+  gets its own row. A tablet at 768 pixels still has the left menu.
+- Below 700 pixels, form fields stack one above another.
+- Below 640 pixels, a page's buttons move under its title.
+- Below 480 pixels, page titles get smaller and the overview cards go one
+  per row.
+- Tables wider than the screen scroll sideways, so the images show them cut
+  off at the right edge.
+
+Each image is as tall as the whole page, not the height of a real screen.
 
 ## Replacing a screen
 
