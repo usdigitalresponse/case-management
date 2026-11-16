@@ -40,7 +40,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
 - **Emailed-code sign-in for external users**: `POST /auth/code/request`
   (body: `{ email }`) emails a 6-digit code (`src/auth/signInCode.ts`) if
   an administrator turned on sign-in for the external user with that email
-  in Settings → External users (`src/auth/externalSignIn.ts`) — it responds
+  in Settings › Providers or Office billing staff (`src/auth/externalSignIn.ts`) — it responds
   identically either way, so the endpoint can't be used to find out who may
   sign in.
   The code works once, for 10 minutes; a new request stops earlier codes
@@ -129,6 +129,11 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     (`src/billing/reviewQueueBatches.ts`, with the derived columns in SQL in
     `queueSql.ts`); `counts` names the filters whose counts the first
     batch's summary carries. `GET /api/invoices/counts` is the sidebar's.
+    `GET /api/invoices/overview` (staff) is Invoice overview's (design K47,
+    `src/billing/invoiceOverview.ts`): each step's count and oldest three
+    invoices (no reviewer yet, awaiting match included; being reviewed; waiting
+    for sign-off; decided but not marked completed), using the queue's own
+    filters, and the latest invoice events in words as `changes`.
   - `PUT|DELETE /api/invoices/:id/lines/:lineId/decision` sets or undoes a
     working decision (`invoice_line_working_decision`): approve, approve
     in part (corrected hours or rate on a line with hours, otherwise the
@@ -331,9 +336,15 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     an existing session can still read staff pages (sessions are signed
     cookies with no per-request account lookup).
   - External users (`src/people/externalUsers.ts`, model rule
-    `manage_external_sign_in`): Settings → External users lists who may sign
-    in with an emailed code (`GET /api/settings/external-users`, any staff
-    member, a batch at a time; `q` searches name and email). Administrators
+    `manage_external_sign_in`): Settings › Office billing staff lists who may
+    sign in with an emailed code (`GET /api/settings/external-users`, any staff
+    member, a batch at a time; `q` searches name and email; `officeStaff=1`, as
+    the page asks, leaves out providers who send for no office, whose sign-in is
+    the Active column of Settings › Providers). `GET /api/professionals` carries
+    each provider's `personId` and `externalSignInEnabled` for that column.
+    `POST /api/settings/external-users` with `{ personId, officeId }` turns on someone
+    already on file and makes them a delegate for that office together, all or none; with
+    sign-in already on, it only adds the office. Administrators
     search providers and office delegates (`GET .../candidates?q=`), list
     offices a new delegate may send for (`GET .../offices`), turn sign-in on
     for an existing person, adding an email if they have none, or add a new
@@ -699,9 +710,9 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     that each other are duplicates. Only the spreadsheet template has a
     case column; other files' lines name no case, so a PDF's own text or
     each line's description is used.
-  - The case-based upload (`client/src/portal/PortalUpload.tsx`, now
-    reached only from staff Intake; submitters use the upload filed by
-    person, above) reads a file before its case is chosen, with the same
+  - The case-based upload's page is retired (cases are added through
+    invoices; see "The case step"), but the upload filed by person, above,
+    uses the same routes. They read a file before its case is chosen, with the same
     read machinery: `POST /api/portal/uploads` stores and reads it, `GET
     .../uploads/:id` reports progress and then what was read (line count,
     invoice number, billing period, stated total), the cases it may go to
@@ -1005,7 +1016,7 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     don't change.
   - Travel time rate (design I): a person's own travel time rate
     (`professional_rate.travel_hourly_rate`, migration `0036`), set like
-    their other rates on Add a person and their page, comes before the
+    their other rates on Add provider and Edit in Settings › Providers, comes before the
     travel time setting and after a case rate (`defaultRates.ts`); the
     portal's price preview uses it too.
   - Gaps: no address autocomplete (it would cost calls per keystroke); one
@@ -1096,6 +1107,69 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     Drafts and withdrawn invoices aren't exported. Not supported: exporting
     an earlier, recalled attempt; bulk export. Exports are not audited, as
     decided.
+- **The case step** (`model/rules.yaml` `match_invoice_to_case`,
+  `add_case_from_request`; `src/cases/caseStep.ts`, `src/billing/caseChoice.ts`):
+  cases are added only through requests; `POST /api/cases` is gone. A case is
+  found by number within the request's county (`caseStepMatches`): `exact`
+  is the same number, ignoring case, on a case in that county; `similar` are
+  close numbers (`case_number_close_key`) in that county or on a case with
+  none. Cases closed as added by mistake are never found.
+  - `GET /api/portal/invoices/:id/case-matches` (staff, own draft) and `GET
+    /api/invoices/:id/case-matches[?caseNumber=]` (staff, in review; a
+    number the reviewer typed) return `{ exact, similar, elsewhere }`;
+    `elsewhere` is the same number on cases in other counties, a hint only.
+  - `PUT /api/portal/invoices/:id/case-choice` keeps a draft's answer:
+    `{ choice: 'existing', caseId }`, `{ choice: 'new', clientName?,
+    confirmedNew? }`, `{ choice: 'none' }` or `{ choice: null }`, staff only
+    (403 for external submitters, design K). `PUT /api/portal/invoices/:id/case-number`
+    and `POST /api/portal/invoices`'s `caseNumber` take anyone's number for their own
+    draft; an external submitter's is only suggested in review, never matched, and an
+    external upload's draft starts with the number read from its file
+    (`createDraftFromUpload`). The former `PUT /api/portal/invoices/:id/case`, a
+    sender putting a draft under their case, is removed. `new` needs
+    the draft's number and county, is refused for a number already used in
+    that county, and needs `confirmedNew` when a similar one is listed.
+    `existing` needs the draft's county and is refused for a case in another
+    county; a chosen case with no county takes the invoice's when matched
+    (`fillCaseCounty`, an `audit_event` `county_changed`). Sending, or finishing
+    an entry, refuses `none` without a county. Changing a draft's
+    case number or county clears an `existing` or `new` answer.
+  - Sending (`POST /api/portal/invoices/:id/submit`, `filedByPerson`)
+    refuses a staff draft with no answer (field `caseChoice`); an external
+    one needs neither a number nor an answer. Once a staff member's is sent,
+    the route matches it to the chosen case, or adds the case first
+    (`applyCaseChoiceAfterSend`), and returns `caseId` and `caseProblem`: why
+    it couldn't, after which the invoice is in review without a case.
+  - `PUT /api/invoices/:id/case-choice` (staff, in review without a case)
+    applies the same answers at once, matching through `matchInvoiceToCase`
+    (prices kept as sent, providers assigned, a closed case reopened) and
+    returning `{ caseId, addedCaseId, caseProblem }`. Finishing the first
+    round of an entry in review refuses one with no answer. Adding a case
+    takes a per-county advisory lock, so one number is never added twice in
+    a county; if matching fails after the case was added, a retry matches the
+    case added from that invoice rather than adding another.
+  - `POST /api/preauthorizations/requests/:id/match` also takes `newCase: {
+    caseNumber, countyId, clientName?, confirmedNew? }` or `notForCase` (with
+    `countyId`). Approving one not for one case records `approved_amount`
+    and `approved_hourly_rate` on the request, with no preauthorization.
+- **Edit data** (`correct_case_records`; `src/cases/caseCorrections.ts`,
+  `src/routes/editData.ts`, administrators only): `GET /api/edit-data/cases[?show=similar]`
+  lists cases added from requests, newest first, with each one's similar
+  cases in its county. `POST /api/edit-data/cases/preview` and `POST
+  /api/edit-data/fixes` take `{ kind: 'same_case', caseId, keptCaseId,
+  keepPreauthorizations? }`, `{ kind: 'corrected', caseId, caseNumber?,
+  countyId?, clientName? }` or `{ kind: 'not_for_case', caseId }`; the
+  preview lists what would change, and the fix applies it in one
+  transaction, recording each value in `case_correction_change`. Moving
+  refuses a case in another county, and asks which pre-authorization to
+  keep where both cases have one for a provider. Closing as added by
+  mistake records a lifecycle event and sets `case.closed_as_mistake`, which
+  every case list, count and lookup leaves out. `GET /api/edit-data/fixes`
+  lists recent fixes; `POST /api/edit-data/fixes/:id/undo` restores each
+  value still as the fix left it and reopens a closed case, without bringing
+  back assignments it ended. A corrected client's name renames their person
+  only when nothing else refers to them; otherwise a new person becomes the
+  client. Taking requests off a case asks again on any draft that chose it.
 - **Closing a case**: `POST /api/cases/:id/close` (`requireFullUser`,
   `src/cases/closeCase.ts`) is the counterpart to opening
   (`src/intake/createCase.ts`). The case's real status lives in the
@@ -1123,6 +1197,15 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   concurrent assignment and close can't leave an open assignment on a
   closed case (rejected with 409 `already_closed`). Deliberately not
   implemented: corrections, and reopening by hand (only matching reopens).
+- **Pre-authorization files** (`src/billing/preauthorizationRequests/providerRecords.ts`;
+  `model/rules.yaml` `request_provider_documents`): `POST
+  /api/preauthorizations/documents/:id/retire` and `.../restore` take a
+  request's or provider's file off its lists, or put it back, returning 204.
+  Either is allowed to whoever may add the file (for a request's, only while
+  it is open), locks the link and its request, and is audited
+  (`document_retired`, `document_restored`); repeating one changes nothing.
+  `GET /api/preauthorizations/documents/:id` refuses a retired file. Every
+  refusal is 404 "File not found.", so it never says whether a file exists.
 - **Demo sign-in**: `POST /auth/demo-login` logs in as the seeded
   synthetic staff account (`staff@example.invalid`, with a faker name)
   with no credentials.
@@ -1172,7 +1255,9 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   close the tour, or any sign-in but the tour's own switches),
   `POST /api/portal/invoices`, `POST /api/portal/uploads/:id/draft`,
   `POST /api/preauthorizations/requests`, `POST /api/professionals` and
-  `POST /api/cases` (and its client, if made new) tag what they create to it (`tagTourRecord` in
+  `PUT /api/invoices/:id/case-choice`, `POST /api/portal/invoices/:id/submit`
+  and `POST /api/preauthorizations/requests/:id/match` (a case added by the
+  case step) tag what they create to it (`tagTourRecord` in
   `src/demoTour/tourRuns.ts`). An hourly sweep in the server process, only
   where the tour is mounted, deletes runs over a day old: their records,
   everything referencing them by foreign key (found from the database's own
@@ -1201,12 +1286,13 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     same date of birth and family name, or a pair staff flagged; pairs whose
     latest `person_duplicate_review` is `not_duplicate` are left out. Each
     person comes with their provider profile, sign-in email and case and
-    invoice counts. `GET /api/people/possible-duplicates/count` returns
-    `{ groups }` for whether People shows its Review duplicates tab; the
-    count is kept in the server process for five minutes
-    (`src/duplicateCounts.ts`), replaced whenever the list is read, and
-    forgotten on a review, merge or undo, so a person added meanwhile may
-    take up to five minutes to show in it.
+    invoice counts; Settings › Merge duplicates reads it each time.
+    `GET /api/professionals/people/:id/possible-duplicates` returns `{ others:
+    [{ id, label }] }`, the people a provider may duplicate, for the notice on
+    their page. It comes from who each record may duplicate, kept in the server
+    process for five minutes (`src/duplicateMembers.ts`), replaced whenever the
+    list is read, and forgotten on a review, merge or undo, so a new duplicate may
+    take up to five minutes to show there.
   - `POST /api/people/possible-duplicates` (`{ personIds, outcome:
     'possible_duplicate' | 'not_duplicate', note? }`), any staff member,
     adds a review row; the pair's latest one stands.
@@ -1235,7 +1321,8 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
     (`ensureProfessional.ts`).
 - **Possible duplicate cases** (`model/rules.yaml`
   `flag_possible_duplicate_case`; `src/cases/possibleDuplicateCases.ts`,
-  `src/routes/cases.ts`), staff only and never merged:
+  `src/routes/cases.ts`), staff only and never truly merged (an administrator's
+  "merge" in Settings is Edit data's same-case fix, `POST /api/edit-data/fixes`):
   `GET /api/cases/possible-duplicates` groups open cases whose numbers or
   identifiers share `closeKey` (`src/billing/caseNumbers.ts`), plus flagged
   pairs, leaving out pairs found different (`case_duplicate_review`) and any
@@ -1243,8 +1330,13 @@ also [`frontend.md`](frontend.md), [`intake.md`](intake.md) and
   as `same_county`); `POST /api/cases/possible-duplicates` (`{ caseIds,
   outcome, note? }`) records a review of two open cases, refusing to flag
   two in different counties. Closing a case takes it off the list.
-  `GET /api/cases/possible-duplicates/count` is the same count for All
-  cases' tab, kept the same way and also forgotten when a case is closed.
+  `POST /api/edit-data/merges` (`{ keptCaseId, caseIds, keepPreauthorizations? }`,
+  administrators) moves several cases into the one kept, all or none, each as its own
+  same-case fix; `POST /api/edit-data/merges/preview` runs those moves and rolls them
+  back, so it shows each as it would be after the ones before it.
+  `GET /api/cases/:id/possible-duplicates` returns `{ others }` for the notice on
+  a case's page, kept the same way and also forgotten when a case is closed or
+  fixed.
 - **Indexes**: FK columns used as query filters/joins
   (`case.county_id`/`status_id`/`case_category_id`,
   `case_participant.case_id`, `case_identifier.case_id`) have plain B-tree

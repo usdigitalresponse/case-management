@@ -1,7 +1,4 @@
-// Errors that map to a specific HTTP response. Domain actions throw these
-// (or a named subclass, so tests and callers can tell cases apart), and
-// the error middleware in ./app.ts turns any of them into a response, so
-// routes need no per-action catch blocks.
+// Errors with an HTTP response, which ./app.ts's error middleware sends, so routes need no catch blocks.
 export abstract class AppError extends Error {
   abstract readonly status: number;
   abstract readonly code: string;

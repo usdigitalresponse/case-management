@@ -1,0 +1,70 @@
+// Settings, Edit data: administrators fix cases added by mistake (../cases/caseCorrections.ts).
+import { Router } from 'express';
+import { db } from '../db/client';
+import { getSessionUser, requireFullUser } from '../auth/session';
+import { requireAdmin } from '../auth/requireAdmin';
+import { fixCase, listAddedCases, listCaseFixes, mergeCases, previewCaseFix, previewCaseMerge, undoCaseFix } from '../cases/caseCorrections';
+import { forgetDuplicates } from '../duplicateMembers';
+import { asyncHandler } from './asyncHandler';
+
+const router = Router();
+router.use(requireFullUser, requireAdmin);
+
+// show: added (default) or similar, those with a close number on another case in their county.
+router.get(
+  '/cases',
+  asyncHandler(async (req, res) => {
+    res.json({ cases: await listAddedCases(db, { similarOnly: req.query.show === 'similar' }) });
+  }),
+);
+
+router.post(
+  '/cases/preview',
+  asyncHandler(async (req, res) => {
+    res.json(await previewCaseFix(db, req.body));
+  }),
+);
+
+// Settings › Merge duplicates: several cases moved into the one kept, all or none.
+router.post(
+  '/merges/preview',
+  asyncHandler(async (req, res) => {
+    res.json(await previewCaseMerge(db, getSessionUser(req)!.userAccountId, req.body));
+  }),
+);
+
+router.post(
+  '/merges',
+  asyncHandler(async (req, res) => {
+    const merged = await mergeCases(db, getSessionUser(req)!.userAccountId, req.body);
+    forgetDuplicates('cases');
+    res.status(201).json(merged);
+  }),
+);
+
+router.get(
+  '/fixes',
+  asyncHandler(async (_req, res) => {
+    res.json({ fixes: await listCaseFixes(db) });
+  }),
+);
+
+router.post(
+  '/fixes',
+  asyncHandler(async (req, res) => {
+    const fixed = await fixCase(db, getSessionUser(req)!.userAccountId, req.body);
+    forgetDuplicates('cases');
+    res.status(201).json(fixed);
+  }),
+);
+
+router.post(
+  '/fixes/:id/undo',
+  asyncHandler(async (req, res) => {
+    const undone = await undoCaseFix(db, getSessionUser(req)!.userAccountId, req.params.id as string);
+    forgetDuplicates('cases');
+    res.json(undone);
+  }),
+);
+
+export default router;

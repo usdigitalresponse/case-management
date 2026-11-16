@@ -1,8 +1,5 @@
-// Who a portal user may act for: themselves, as a delegate the active
-// professionals in their office (model/rules.yaml
-// authorize_delegated_submission), and as staff any professional on the
-// case (authorize_staff_invoice_entry). Either way the professional must be
-// assigned to the case.
+// Whom a portal user may act for: themselves, their office's active professionals as a delegate
+// (model/rules.yaml authorize_delegated_submission), or as staff anyone assigned to the case.
 import { and, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';
 import { caseAssignment, personAffiliation, professional, userAccount } from '../db/schema';
@@ -164,10 +161,8 @@ export async function billableProfessionalIds(
   return [...ids];
 }
 
-// The one check for billing (caseId, professionalId): the professional must
-// be billable on the case. Anyone who may bill on it may leave the
-// professional unknown, for matching (match_invoice_to_case). Returns whom
-// the actor may bill, for checking each line.
+// The professional must be billable on the case, or left unknown for matching (match_invoice_to_case).
+// Returns whom the actor may bill, for checking each line.
 export async function authorizeBilling(
   db: DatabaseOrTransaction,
   actor: PortalActor,

@@ -60,16 +60,9 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
     exports: preload((args) => [resources.reviewQueue(exportsRequest(searchOf(args))), resources.counties]),
     review: preload(({ params }) => [resources.invoiceForReview(params.invoiceId as string), resources.decisionReasons]),
     overview: preload(() => [resources.caseOverview, resources.recentCaseChanges]),
-    cases: preload((args) =>
-      searchOf(args).get('tab') === 'duplicates'
-        ? [resources.possibleDuplicateCases]
-        : [resources.cases(caseListRequest(searchOf(args))), resources.counties, resources.possibleDuplicateCaseCount],
-    ),
-    people: preload((args) =>
-      searchOf(args).get('tab') === 'duplicates'
-        ? [resources.possibleDuplicates, resources.personMerges]
-        : [resources.people(peopleRequest(searchOf(args))), resources.possibleDuplicateCount],
-    ),
+    invoiceOverview: preload(() => [resources.invoiceOverview]),
+    cases: preload((args) => [resources.cases(caseListRequest(searchOf(args))), resources.counties]),
+    people: preload((args) => [resources.people(peopleRequest(searchOf(args)))]),
     clients: preload((args) => [resources.cases(clientsRequest(searchOf(args)))]),
     organizations: preload(() => [resources.referenceData, resources.caseCounts]),
     preauthorizations: preload(({ request }) => {
@@ -80,7 +73,6 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
     alternateOpen: preload((args) => [resources.reviewQueue(alternateRequest('open', searchOf(args))), resources.counties]),
     alternateFinished: preload((args) => [resources.reviewQueue(alternateRequest('finished', searchOf(args))), resources.counties]),
     search: preload((args) => (searched(args) ? [resources.reviewQueue(searchRequest(searchOf(args))), resources.counties] : []), { searchParams: ['q'] }),
-    providers: preload((args) => [resources.providerList(searched(args))], { searchParams: ['q'] }),
     mergePeople: preload(
       ({ request }) => {
         const params = new URL(request.url).searchParams;
@@ -91,19 +83,33 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
       { searchParams: ['keep', 'retire'] },
     ),
     personRecords: preload((args) => (searched(args) ? [resources.personRecords(searched(args))] : []), { searchParams: ['q'] }),
-    settings: preload((args) => [
-      resources.externalUsers(searchOf(args).get('externalQ') ?? ''),
-      resources.professionalKinds,
-      resources.reviewSettings,
-      resources.reviewPeople,
-      resources.decisionReasonSettings,
-      resources.mileageRates,
-      resources.timeCategoryRates,
-      resources.thresholdSettings,
-      resources.billingRuleSettings,
-      ...(user()?.isAdmin ? [resources.staffRoles, resources.delegateOffices] : []),
-      ...(user()?.demoMode ? [resources.ownDemoRole] : []),
-    ], { searchParams: ['externalQ'] }),
+    // Only the chosen tab's data (pages/Settings.tsx), so Merge duplicates' comparisons run only there.
+    settings: preload((args) => {
+      const params = searchOf(args);
+      const admin = Boolean(user()?.isAdmin);
+      switch (params.get('tab') ?? 'review') {
+        case 'people':
+          return [resources.reviewPeople, ...(admin ? [resources.staffRoles] : [])];
+        case 'rates':
+          return [resources.professionalKinds, resources.mileageRates, resources.timeCategoryRates];
+        case 'preauthorization':
+          return [resources.thresholdSettings, resources.professionalKinds];
+        case 'rules':
+          return [resources.billingRuleSettings];
+        case 'providers':
+          return [resources.providerList(params.get('providerQ')?.trim() ?? ''), ...(admin ? [resources.professionalKinds] : [])];
+        case 'office-staff':
+          return [resources.externalUsers(params.get('externalQ') ?? ''), ...(admin ? [resources.delegateOffices] : [])];
+        case 'duplicates':
+          return [resources.possibleDuplicateCases, resources.possibleDuplicates, resources.personMerges];
+        case 'edit-data':
+          return [];
+        case 'demo':
+          return user()?.demoMode ? [resources.ownDemoRole] : [];
+        default:
+          return [resources.reviewSettings, resources.reviewPeople, resources.decisionReasonSettings];
+      }
+    }, { searchParams: ['tab', 'externalQ', 'providerQ'] }),
     caseDetail: preload((args) => [resources.caseDetail(param(args, 'caseId')), resources.caseInvoices(param(args, 'caseId')), resources.caseInvoiceList(param(args, 'caseId'))]),
     person: preload((args) => {
       const professionalId = param(args, 'professionalId');
@@ -116,10 +122,7 @@ export function staffLoaders(user: () => AuthenticatedUser | null) {
 
 // Pages in both the staff app and the portal.
 const sharedLoaders = {
-  intake: preload(() => [resources.invoiceIntake, resources.myInvoices({ show: 'case_drafts' })]),
-  newCase: preload(() => [resources.referenceData]),
   uploadByPerson: preload(() => [resources.billableProfessionals(null)]),
-  uploadByCase: preload(() => [resources.uploadCases, resources.billableProfessionals(null)]),
   invoice: preload((args) => [resources.myInvoice(param(args, 'invoiceId')), resources.myCases]),
   invoiceDetail: preload((args) => [resources.myInvoice(param(args, 'invoiceId'))]),
   imports: preload(() => [resources.myCases, resources.invoiceImports]),
@@ -136,5 +139,4 @@ export const portalLoaders = {
   }),
   preauthorizations: preload(() => [resources.myPreauthorizationRequests]),
   preauthorizationRequest: preload((args) => [resources.preauthorizationRequest(param(args, 'requestId'))]),
-  newInvoice: preload(() => [resources.myCases]),
 };

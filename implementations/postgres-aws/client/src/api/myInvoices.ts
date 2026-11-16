@@ -266,11 +266,6 @@ export function updateDraftInvoice(
 }
 
 // The case number as typed, on a draft; empty clears it.
-// A draft filed by person, put under one of its sender's cases, or taken off it (null).
-export function setDraftCase(invoiceId: string, caseId: string | null): Promise<{ caseId: string | null; caseNumber: string | null }> {
-  return request(`/api/portal/invoices/${invoiceId}/case`, { method: 'PUT', body: JSON.stringify({ caseId }) });
-}
-
 export function setDraftCaseNumber(invoiceId: string, caseNumber: string): Promise<{ invoiceId: string; caseNumber: string | null }> {
   return request(`/api/portal/invoices/${invoiceId}/case-number`, { method: 'PUT', body: JSON.stringify({ caseNumber }) });
 }
@@ -307,10 +302,11 @@ export function transitionInvoice(
   invoiceId: string,
   transition: InvoiceTransition,
   receipt?: InvoiceReceipt,
-): Promise<{ invoiceId: string; status?: SendStatus }> {
+  // Sent by staff: why the case they chose couldn't be matched, if it couldn't.
+): Promise<{ invoiceId: string; status?: SendStatus; caseProblem?: string | null }> {
   // Sending names the browser's zone, so the emailed receipt's time matches the sender's day.
   const body = transition === 'submit' ? { ...receipt, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } : receipt;
-  return request<{ invoiceId: string; status?: SendStatus }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
+  return request<{ invoiceId: string; status?: SendStatus; caseProblem?: string | null }>(`/api/portal/invoices/${invoiceId}/${transition}`, {
     method: 'POST',
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -374,9 +370,7 @@ export function getMyInvoice(invoiceId: string): Promise<PortalInvoice> {
 
 export type InvoiceExportFormat = 'pdf' | 'xlsx';
 
-// A plain link, not a fetch: the browser downloads the attachment with the
-// session cookie.
-// `omit` takes exportFieldKey values (exportChoices.ts).
+// A plain link: the browser downloads it with the session cookie. omit: exportFieldKey values (exportChoices.ts).
 export function invoiceExportUrl(scope: 'staff' | 'portal', invoiceId: string, format: InvoiceExportFormat, omit: string[] = []): string {
   const base = scope === 'staff' ? '/api/invoices' : '/api/portal/invoices';
   const query = new URLSearchParams({ format, ...(omit.length > 0 ? { omit: omit.join(',') } : {}) });

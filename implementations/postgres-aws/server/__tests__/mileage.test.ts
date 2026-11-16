@@ -158,7 +158,7 @@ describe('mileage distance rule', () => {
       expect.objectContaining({
         rule: 'mileage_distance',
         enforcement: 'warn',
-        message: expect.stringMatching(/claims 30 mi, more than 10% over the 20 mi driving route/),
+        message: expect.stringMatching(/claims 30 miles, over the 10% allowed above the 20 miles driving route/),
       }),
     ]);
     expect(lookups).toHaveLength(1);
@@ -170,7 +170,7 @@ describe('mileage distance rule', () => {
     await distanceRule('require', 10);
     fakeProvider({ '1 Court Plaza, Springfield': 20 });
     await expect(createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(30)] })).rejects.toMatchObject({
-      fieldErrors: { lines: expect.stringMatching(/more than 10% over/) },
+      fieldErrors: { lines: expect.stringMatching(/over the 10% allowed/) },
     });
     await expect(
       createInvoice(testDb, actor, { attested: true, caseId, lines: [trip(10, { tripOrigin: undefined, tripDestination: undefined })] }),

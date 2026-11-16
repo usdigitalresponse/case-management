@@ -157,7 +157,8 @@ their signed-off invoices on the case, and the requested total of those
 still in review. That approximates the model's
 `invoice_authorization_allocation` draws, which aren't built: nothing
 blocks approving past a limit. `document_link` is used only for request
-and provider targets.
+and provider targets; `retired_at` and `retired_by_user_account_id` mark a file
+taken off by mistake, kept and restorable but no longer opened.
 
 `document`, `invoice_import` and `time_entry.source_invoice_import_id` back
 structured invoice import (see "Invoice import" in `docs/api.md`).
@@ -236,8 +237,12 @@ form relies on this being airtight.
   and highlighted on the check page; one names none, so its draft shows
   "Not added yet". Three print a county line ("Superior Court of County B",
   "County: County A", "Post-conviction petition"), which the seed checks is
-  read back. The cases, their numbers and pre-authorizations stay for
-  the hidden case pages and Intake's fallback. Each demo person has a
+  read back. Demo cases are spread over Counties A to C, each recorded as added
+  from its first invoice; a typed number that is a case's own is put in that
+  case's county, so review suggests it. One staff invoice is court observation
+  not for one case (County C), with a pre-authorization request likewise, and
+  one added a case whose number is a demo case's without dashes, for Edit
+  data's similar numbers. Each demo person has a
   synthetic firm they're paid through and a 555-01xx phone number; the
   investigator and expert have approved rates of their own, and the demo
   partner's new invoices go to the first demo reviewer. One emailed
@@ -294,19 +299,37 @@ form relies on this being airtight.
   that partner's *production* login, versus their own separate IdP
   decision, remains open — matching the Dataverse comparison plan's
   "intake roles and permitted actions" gap. External users sign in with an
-  emailed code only once an administrator turns it on in Settings → External
-  users (`person.external_sign_in_enabled`, `manage_external_sign_in`); there
+  emailed code only once an administrator turns it on, for a provider in the
+  Active column of Settings › Providers and for office billing staff in Settings
+  › Office billing staff (`person.external_sign_in_enabled`, `manage_external_sign_in`); there
   is no environment allowlist and no sync with the external case management
   system. Administrators can add a delegate, or make an existing provider
   one, only for an existing office; adding offices is not built.
-- **No case started from an invoice** (design J): `match_invoice_to_case`
-  lets staff add the case while matching, but the review page and Intake
-  here only match to an existing case, or the invoice is reviewed without
-  one. `/cases/new` remains, off the menu, for a pre-authorization request
-  whose case wasn't listed. The earlier case-based new-invoice form and
-  upload (`portal/PortalNewInvoice.tsx`, `portal/PortalUpload.tsx`, off the
-  sidebar) still let staff add a case with an invoice. How a case should be
-  added at all is under discussion with design.
+- **Cases added through invoices** (`add_case_from_request`,
+  `match_invoice_to_case`): staff add a case only through a request's case
+  step (`src/cases/caseStep.ts`, `src/billing/caseChoice.ts`,
+  `client/src/components/CaseStep.tsx`), with its number, county and an
+  optional client. A staff draft's answer is applied right after it is sent,
+  outside the sending transaction: if matching then fails, the invoice stays
+  in review without a case, its choice kept, and the sender is told to choose
+  it on the review page; a case added before the failure is kept, and the
+  next try matches it rather than adding another. Changing the case question in review records no
+  request event of its own (matching does, `matched_to_case`). The
+  pre-authorization match form has the same choices in its own layout rather
+  than the shared component. The case-based new-invoice form and upload,
+  Intake's page and `/cases/new` were deleted; their addresses redirect, and
+  `GET /api/invoices/intake` remains only for "Your unfinished drafts" on To
+  review. Requests already sent for matching can still be matched there by API,
+  but nothing new reaches that state. Usage by county still counts a
+  pre-authorization request only through its case, so one not for one case
+  isn't in it yet.
+- **Edit data** (`correct_case_records`, `src/cases/caseCorrections.ts`):
+  administrators move a case's requests to the same case, correct it, or take
+  its requests off it, each recorded value by value in `case_correction_change`
+  and undoable. A client added by a correction is undone by ending their role,
+  not deleting the person. Moving case rates doesn't itself flag other
+  invoices; rates are compared when each invoice is read. Possible duplicate
+  people and cases haven't moved here yet.
 - **Guided tour material**: each tour run makes its own synthetic case
   and invoices (`server/src/demoTour/`), which show in the shared demo's
   queues beside the seeded ones, unlabelled. An hourly sweep deletes a run
@@ -329,16 +352,16 @@ form relies on this being airtight.
   always a candidate, so a long history of such invoices is read in full.
 - **Possible duplicate people** (`flag_possible_duplicate_client`,
   `merge_duplicate_people`; `src/people/possibleDuplicates.ts`,
-  `src/people/personMerges.ts`): found after the fact in People's Review
-  duplicates tab, not warned of while someone is being added (adding a
+  `src/people/personMerges.ts`): found after the fact in Settings › Merge
+  duplicates, and flagged on a provider's page, not warned of while someone is being added (adding a
   provider still refuses a used email, and a new client a same-name person
   unless confirmed). Every unmerged person is read and compared on each
-  load of the tab, fine at prototype scale but needing an indexed name key,
-  or a stored list of open pairs, for a large directory. Whether People and
-  All cases show the tab comes from a count kept in the server process for
-  five minutes (`src/duplicateCounts.ts`): one instance only, and a person
-  or case added meanwhile may not show in the count until it expires or the
-  tab is opened. Matching is exact on a normalized name, so spelling variants
+  load of Merge duplicates, fine at prototype scale but needing an indexed name
+  key, or a stored list of open pairs, for a large directory. The notices on case
+  and provider pages come from who each record may duplicate, kept in the server
+  process for five minutes (`src/duplicateMembers.ts`): one instance only, and a
+  new duplicate may not show on a page until it expires or Merge duplicates is
+  opened. Matching is exact on a normalized name, so spelling variants
   and nicknames are caught only when flagged. A merge is refused while both
   profiles sign in with different accounts, as one would lose their
   invoices; there is no way yet to move a second sign-in onto a person.
@@ -361,7 +384,10 @@ form relies on this being airtight.
   scanned for malware, which `validate_invoice_import` requires before parsing.
 - **Review questions**: no email tells the submitter a question is waiting;
   they see it on the invoice and its status in their list ("Question for
-  you").
+  you"). There's no email or Outlook integration either: an answer sent by
+  email is typed in by a reviewer, and the email itself isn't kept. See
+  "Email and mailbox integration" in
+  [`docs/integration.md`](../../docs/integration.md).
 - **Cleanup (next round)**: submitters see a sent invoice's lines in two
   different tables: `client/src/portal/CheckLinesTable.tsx` when it's filed
   by person, `client/src/components/InvoiceLinesTable.tsx` on

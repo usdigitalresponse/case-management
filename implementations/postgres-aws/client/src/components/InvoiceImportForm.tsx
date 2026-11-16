@@ -50,7 +50,7 @@ export function InvoiceImportForm({ caseId, professionalId }: { caseId: string |
         </Button>
       </div>
       <p className="compact-hint" id="invoice-file-hint">
-        A PDF invoice, LEDES 1998B, or the invoice template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}
+        A PDF invoice, a LEDES legal billing file, or the invoice template (<a href={invoiceTemplateUrl('xlsx')} download>XLSX</a> ·{' '}
         <a href={invoiceTemplateUrl('csv')} download>CSV</a>), up to 10 MB. You review the items before anything is
         submitted. The file stays with the invoice for reviewers to see; it is deleted if you discard it or
         withdraw the invoice.

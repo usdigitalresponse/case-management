@@ -1,7 +1,4 @@
-// Synthetic reporting zone pending per-organization configuration
-// (docs/intake.md). Shared by ./intake/createCase.ts (opening) and
-// ./cases/closeCase.ts (closing) — both need to turn an exact instant
-// into the calendar date a case's opened_on/closed_on columns store.
+// Synthetic, pending per-organization configuration (docs/intake.md).
 const REPORTING_TIME_ZONE = 'UTC';
 
 // Built once: making a formatter costs far more than using one.

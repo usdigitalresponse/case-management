@@ -1,5 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
+import { PersonDialog } from '../PersonDialog';
 import type { BillableProfessional } from '../../api/client';
 import { useShell } from '../../portal/useShell';
 import type { AddedProvider } from '../AddProvider';
@@ -44,7 +45,11 @@ export function SenderPicker({
   onRoleChanged,
   addRowIn,
   onDraft,
+  addInSettings = false,
 }: {
+  // Administrators add someone new with Settings' Add provider form, in a dialog
+  // so the page keeps what was entered (design K60).
+  addInSettings?: boolean;
   // Opens the add row there, so the fields beside the picker don't move.
   addRowIn?: HTMLElement | null;
   // Given, someone new is only described, for the page to add as it goes on.
@@ -66,6 +71,7 @@ export function SenderPicker({
   const [added, setAdded] = useState<Added[]>([]);
   // Added from the open row, which stays open until something else is chosen.
   const [current, setCurrent] = useState<Added | null>(null);
+  const [addingProvider, setAddingProvider] = useState(false);
   // A new row each time "add" is chosen again.
   const [round, setRound] = useState(0);
   const inRow = current !== null && value === current.professionalId;
@@ -152,19 +158,35 @@ export function SenderPicker({
       {shown !== ADD_NEW && (
         <>
           <p id={`${id}-hint`} className="field-hint">{hint}</p>
-          <button
-            type="button"
-            className="link-button sender-add"
-            disabled={disabled}
-            onClick={() => {
-              setCurrent(null);
-              setRound((count) => count + 1);
-              onChange(ADD_NEW);
-            }}
-          >
-            + Add new person
-          </button>
+          {addInSettings ? (
+            <button type="button" className="link-button sender-add" disabled={disabled} onClick={() => setAddingProvider(true)}>
+              Not listed? Add provider
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="link-button sender-add"
+              disabled={disabled}
+              onClick={() => {
+                setCurrent(null);
+                setRound((count) => count + 1);
+                onChange(ADD_NEW);
+              }}
+            >
+              + Add new person
+            </button>
+          )}
         </>
+      )}
+      {addingProvider && (
+        <PersonDialog
+          onClose={() => setAddingProvider(false)}
+          onSaved={(provider) => {
+            setAddingProvider(false);
+            setAdded((list) => [...list, provider]);
+            onChange(provider.professionalId);
+          }}
+        />
       )}
       {shown === ADD_NEW && onDraft && placeAddRow(<NewSenderFields key={round} id={`${id}-new`} onChange={onDraft} />)}
       {shown === ADD_NEW && !onDraft && placeAddRow(

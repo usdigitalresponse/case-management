@@ -10,7 +10,7 @@ import {
 } from '../api/client';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
-import { caseDetail, caseInvoiceList, caseInvoices } from '../resources';
+import { caseDetail, caseInvoiceList, caseInvoices, caseDuplicateOthers } from '../resources';
 import { useBatchedResource } from '../hooks/useBatchedResource';
 import { MoreOnScroll } from '../components/MoreOnScroll';
 import { DECIDED_STATUS_CODES, InvoiceStatus } from '../components/Completion';
@@ -29,7 +29,8 @@ import { formatDate, formatPeriod, formatDay } from '../formatDateTime';
 import { formatMoney } from '../formatMoney';
 import { stageLabel } from '../overviewStages';
 import { Button } from '../components/ui/Button';
-import { cssVars } from '../components/ui/cssVars';
+import { DuplicateNotice } from '../components/DuplicateNotice';
+import { UsedBar } from '../components/UsedBar';
 
 // Who reviews this case's new invoices, ahead of the default in Settings.
 function CaseReviewer({ caseId, reviewer, canChange, onChanged }: {
@@ -81,7 +82,6 @@ function PreauthorizedBilled({ summary, name }: { summary: PreauthorizationSumma
   const approved = Number(summary.approvedSoFar);
   const waiting = Number(summary.waiting);
   const left = ceiling - approved - waiting;
-  const share = (amount: number) => `${ceiling > 0 ? Math.min(100, Math.max(0, (amount / ceiling) * 100)) : 0}%`;
   return (
     <div className="preauth-billed">
       <dl>
@@ -105,10 +105,7 @@ function PreauthorizedBilled({ summary, name }: { summary: PreauthorizationSumma
           <dd className={left < 0 ? 'total-figure--cut' : undefined}>{formatMoney(Math.abs(left))}</dd>
         </div>
       </dl>
-      <div className="preauth-bar" aria-hidden="true" style={cssVars({ '--approved': share(approved), '--waiting': share(waiting) })}>
-        <span className="preauth-bar__approved" />
-        <span className="preauth-bar__waiting" />
-      </div>
+      <UsedBar approved={approved} waiting={waiting} limit={ceiling} />
       <p className="cell-note">Green is approved, blue is waiting for a decision.</p>
     </div>
   );
@@ -179,9 +176,7 @@ function PreauthorizedAmount({ caseId, people, onSaved }: {
   );
 }
 
-// The case as this tool sees it: mostly read-only, since cases may be
-// managed in an external system. Invoices on the case and who may submit
-// them are what matter here.
+// Mostly read-only, since cases belong to the external system: its invoices and who may submit them.
 export default function CaseDetail() {
   const { caseId } = useParams<{ caseId: string }>();
   const { user } = useAuth();
@@ -216,7 +211,7 @@ export default function CaseDetail() {
   ];
 
   return (
-    <div>
+    <div className="record-page">
       <PageHeader
         crumbs={[{ label: 'All cases', to: '/cases' }, { label: detail.case.clientDisplayName ?? 'Case' }, { label: caseNumber }]}
         title={detail.case.clientDisplayName ?? 'Case'}
@@ -228,8 +223,9 @@ export default function CaseDetail() {
         }
       />
       <p className="page-description">
-        Cases may be managed in your {EXTERNAL_SYSTEM_NAME}. They show here so invoices make sense.
+        Cases are managed in your {EXTERNAL_SYSTEM_NAME}.
       </p>
+      <DuplicateNotice what="case" others={caseDuplicateOthers(detail.case.caseId)} />
 
       <FactsStrip>
         <Fact label="Case number" note={billing?.otherCaseNumbers.length ? billing.otherCaseNumbers.join(', ') : undefined}>
@@ -241,7 +237,7 @@ export default function CaseDetail() {
         <Fact label="County">
           <strong>{detail.case.countyDisplayName ?? '—'}</strong>
         </Fact>
-        <Fact label="Who reviews its invoices" note="Change in Settings or here">
+        <Fact label="Who reviews its invoices">
           {billing && (
             <CaseReviewer
               caseId={detail.case.caseId}
@@ -330,7 +326,7 @@ export default function CaseDetail() {
                   </>
                 ),
               },
-              openInvoiceColumn((invoice) => (DECIDED_STATUS_CODES.includes(invoice.statusCode) ? 'View' : 'Review')),
+              openInvoiceColumn(),
             ]}
           />
         )}

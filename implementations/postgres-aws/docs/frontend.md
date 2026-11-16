@@ -8,7 +8,7 @@ How the React client is built and why. Schema mapping and gaps are in
   design): the staff app opens on the review queue, not the overview.
   - `/` is the queue filed by person (design G,
     `client/src/pages/InvoicesToReview.tsx`): everyone's invoices by
-    default (`?show=mine`, `unassigned`, `flagged` for the rest), each led
+    default (`?show=mine`, `unassigned`, `reviewing`, `flagged` for the rest), each led
     by who sent it, with its case number as typed and how many other sent
     invoices share it exactly or closely. The header search filters it by
     name or case number, however the number was typed. The earlier queue,
@@ -60,9 +60,9 @@ How the React client is built and why. Schema mapping and gaps are in
     the file's timekeeper names; a line matching no one falls back to the
     person most of the invoice's other lines matched, else the sender, when
     the draft is made and again on sending (`billing/timekeeperFallback.ts`).
-    So every invoice filed by person goes to review, and none waits on
-    Intake. A submitter's true-and-correct statement names the
-    case number (`attestationStatement`), and the receipt email shows it.
+    So every invoice filed by person goes to review. A submitter's
+    true-and-correct statement names the case number, if they gave one
+    (`attestationStatement`), and the receipt email shows it.
     Several files are checked one after another, by staff and submitters
     alike. With no file, or when none could be read, "Enter an invoice by
     hand" makes an empty draft filed the same way. Changing the sender re-runs
@@ -89,27 +89,28 @@ How the React client is built and why. Schema mapping and gaps are in
     anything lasting names them; unsent drafts and open entries naming them
     are left with no one chosen. The typed number is `invoice.case_number_as_typed`
     (migration `0020`), never checked against cases; close matches ignore
-    case, spaces, dashes and leading zeros. Intake's own drop zone and
-    manual entry still open the case-based upload
-    (`client/src/portal/PortalUpload.tsx`).
+    case, spaces, dashes and leading zeros.
   - The rest of design G (G13, G15–G24):
-    - **Sidebar**, as G: To review, Assigned to you, Finished; People, Exports; the external
-      system link. It keeps "+ Upload Invoices" and, for administrators, Settings. Design I
-      adds a Cases group (Case overview, All cases with the open count) and Providers, Clients
-      and Organizations; Intake and the case-led queue are off it but work by address. A staff
-      member's unsent drafts lead To review (from `GET /api/invoices/intake`), with a notice
-      linking to Intake if anything is ever held there.
-    - **People** (`/people`, `client/src/pages/People.tsx`) replaces Cases and Providers in the
-      sidebar. It lists everyone who can send invoices, with their role, who they are paid
-      through, today's approved rate, what is waiting and their last invoice
-      (`GET /api/professionals/people`, `server/src/professionals/peopleDirectory.ts`),
-      and a Review duplicates tab while there are possible duplicate people (below).
-    - **Add a person** (`components/PersonDialog.tsx`) takes a name, role, email, phone, paid
-      through, an approved hourly rate and a mileage rate. They can sign in with that email
-      straight away.
-    - **A person's page** (`/people/:id`, `pages/PersonPage.tsx`) has their details, this year's
-      totals, every invoice they sent and an export to CSV. Administrators edit details there;
-      a changed rate starts today.
+    - **Sidebar**, as design K: "+ Upload Invoices"; Invoices (Invoice overview, To review,
+      Assigned to you, Finished); Look up (Pre-authorizations, All cases with the open count,
+      Providers, Clients, Organizations, Exports); Your case management system, with an inert
+      "Open in a new tab ↗"; and, for administrators, Settings. Case overview and the
+      case-led queue are off it but work by address. A staff member's unsent drafts lead To
+      review (from `GET /api/invoices/intake`).
+    - **Providers** (`/people`, `client/src/pages/People.tsx`, design K30) lists everyone who
+      can send invoices, with their role, who they are paid through, today's approved rate,
+      what is waiting and their last invoice (`GET /api/professionals/people`,
+      `server/src/professionals/peopleDirectory.ts`). It is read-only: administrators add and
+      change providers in Settings › Providers (below).
+    - **Add provider** (`components/PersonDialog.tsx`, K31) takes a name, role, email, phone,
+      paid through, an approved hourly rate and a mileage rate. It opens from Settings ›
+      Providers, and from the upload page's "Not listed? Add provider" (administrators), in a
+      dialog so the page keeps what was entered; their sign-in is turned on separately.
+    - **A provider's page** (`/people/:id`, `pages/PersonPage.tsx`, K32) is read-only: their
+      details, this year's totals, a Documents card of their CV, fee schedule and quoted fees
+      (`ProviderDocuments`), every invoice they sent, and an export to CSV. Administrators get
+      "Change in Settings", which opens Settings › Providers filtered to them; a changed rate
+      starts today. A yellow notice says when they may be a duplicate (below).
     - **Per-person rates** (`professional_rate`, migration `0021`) replace the role's hourly rate
       and the general mileage rate from their effective date. Earlier work keeps the earlier
       rates (`professionalRates.ts` `ownFirst`). Rate checks and the decision reason say
@@ -125,20 +126,9 @@ How the React client is built and why. Schema mapping and gaps are in
       counts and "See all invoices with this case number". The facts show the person's
       approved rate.
     - **Cases on review** (design I; `match_invoice_to_case`): below the case number box,
-      "Match it to a case" lists cases whose number, or any other number they have, matches
-      the invoice's exactly or closely (`GET /api/invoices/:id/case-matches`,
-      `server/src/cases/casesByNumber.ts`; `client/src/components/CaseCard.tsx`). Matching
-      uses the intake match (`POST /api/invoices/intake/:id/case`), which now also takes an
-      invoice filed by person while its lines are reviewed: it sets the case, adds the
-      sender to it and records `matched_to_case`, but doesn't price lines again. The cases
-      are radio buttons with one Match button, an exact match chosen to start with and
-      a close one never, and a close match says so (design J, J61). A case is never started from an invoice: with no case to match,
-      the card says the invoice can be reviewed without one. Every review page is titled with the sender, as in I15; a matched
-      invoice then has a case card: "Client · case number", the number the invoice gave,
-      one line with the pre-authorized amount and what's approved so far, and "Open the
-      case". A mileage line over the driving route is highlighted in the line table with
-      the route and the miles over, as in the travel log (I20). Case rates that would now apply are flagged as
-      changed since it was sent (`caseRatesChangedSince`).
+      the case step (see "The case step" below) suggests, finds or adds the invoice's
+      case; matching keeps its sent prices, adds the sender to the case and records
+      `matched_to_case`.
     - **Possible double billing** (`flag_overlapping_invoice_period`;
       `client/src/components/BillingOverlaps.tsx`): a warning on the review page, and on the
       check page while it's a draft ("Some of these dates are already billed" for a
@@ -169,11 +159,13 @@ How the React client is built and why. Schema mapping and gaps are in
         they bill for is on, naming a provider on their cases or typing one (proposed
         details, as for invoices); staff record emailed ones from the staff
         Pre-authorizations page with how and when they arrived. Each gets `YY-NNN` on
-        receipt. That page's views (Requests, By county) and its status filters are
-        tabs (design J, `components/ui/Tabs.tsx`); each status tab shows its count (Waiting is
-        `submitted` only, so the counts add up to All), which
-        the first batch of `GET /api/preauthorizations/requests` carries as
-        `summary.counts` whichever status is listed. The form previews the limit and says when the total is within the
+        receipt. That page's views (Requests, By county) and its filters are tabs
+        (`components/ui/Tabs.tsx`): All, In review (waiting and waiting for information)
+        and Decided (approved, not needed, denied, withdrawn), as design K54, opening on
+        All. The server groups the statuses (`status=in_review` or `decided`) and the
+        first batch of `GET /api/preauthorizations/requests` carries every status's and
+        group's count as `summary.counts`, whichever is listed; a link naming one status
+        opens its group. The form previews the limit and says when the total is within the
         threshold. Staff ask questions (recorded once), match a proposed case or provider,
         and decide once: approved (a `recordCeilingInTx` decision on the provider's single
         pre-authorization; ceilings replace), denied, not needed, duplicate or moot, each
@@ -182,16 +174,48 @@ How the React client is built and why. Schema mapping and gaps are in
         takes its provider's approved, waiting and new total past their limit needs an
         explanation from a submitter (`SendDialog` shows the field; staff may record one);
         it is stored with the attempt, shown on the review page's case card and never
-        exported. Invoices filed by person without a case are not checked when sent; once
-        matched they are flagged with no explanation, and reviewers ask with a line question.
+        exported. An invoice filed by person without a case is checked when sent against the
+        one open case its number names that its provider is assigned to, as a warning only
+        (design K59); once matched, one sent without an explanation is flagged, and reviewers
+        ask with a line question.
       - Provider documents: CVs, fee schedules and quotes are `document` rows linked to the
         professional by `document_link` (PDF, .docx, PNG or JPEG), kept while the provider
         is on record, unlike invoice working copies; the fees they list are
-        `provider_service_rate` rows. Shown on a person's page and on each request.
+        `provider_service_rate` rows. Shown read-only in the Documents card of a provider's
+        page, and added on each request's "On file" card, which also records their quoted
+        fees (`QuotedFees`). While a question is open, the sender also gets an upload right
+        under the answer box, so a file the question asks for goes in beside the answer.
+        On these cards a chosen file is stored only on "Add file" (`AddDocument`), which
+        takes the place of "Choose file" once one is chosen; its ✕ before then just drops it. A ✕ beside a file on the request's cards (an open request's, for "Attached to this
+        request") retires it after asking: `POST /api/preauthorizations/documents/:id/retire`
+        sets `document_link.retired_at` and `retired_by_user_account_id`, so it leaves every
+        list and the "missing" check and can't be opened, but is kept; the toast's Undo
+        calls `.../restore`, showing an error if that fails.
+        Both are audited (`document_retired`, `document_restored`) and allowed to whoever may
+        add the file (`providerRecords.ts`).
+      - File fields (`components/ui/FileButton.tsx`) are an outlined "Choose file" button;
+        a chosen or uploaded file's ✕ (`RemoveFileButton.tsx`) always asks first, in a dialog,
+        on the request form, the invoice upload, the bulk upload's rows, the time log and the
+        request's cards.
       - Usage by county (`billing/preauthorizationUsage.ts`, the page's "By county" tab):
         requests received in the period by status and amount, then each provider's limit,
         billed and over on cases with a request or invoice in the period, by the case's
-        county, with a CSV download. Each count opens the filtered request list.
+        county, with a CSV download. Each count opens the filtered request list; request counts
+        of zero beyond waiting and approved are left out, and the amounts asked for and
+        approved on the period's requests are noted under them. The columns follow design J's
+        mockup: Authorized (current pre-authorized ceilings), Signed off (with what is in
+        review), Used (a bar of the share signed off in green and in review in blue;
+        `components/UsedBar.tsx`, shared with the case page and hidden from screen readers,
+        with the shares in words) and Left, in whole dollars (the CSV keeps cents), with the
+        "All" row set off as a total and one note under the table. Above the table, a line chart
+        (`components/UsageRunningTotals.tsx`, Recharts, loaded only on this tab) shows each
+        month's end in the period, for the table's cases and with its coverage: pre-authorized
+        ceilings in force, the approved amount of signed-off invoices they cover (by latest
+        sign-off, or the pre-authorization's grant if later), and, for the current month only,
+        that plus invoices still in review. Months carry the year when the period spans more
+        than one; periods over five years show no chart. Lines take their colors from the
+        design tokens through CSS; past months use today's approved amounts, not those at the
+        time. Demo data dates this history relative to the day of the reset.
     - **Search** (`/search`, `pages/SearchResults.tsx`, G24): the header search covers every
       sent invoice by name or case number, with exact and close matches listed and totalled
       apart, and an export to CSV. The queue no longer filters in place.
@@ -284,129 +308,48 @@ How the React client is built and why. Schema mapping and gaps are in
       `/person-records`.
   - Hidden, not removed: the case page's lifecycle history is off the page
     but its code remains (design I put Case overview, People, Clients and
-    Organizations back in the sidebar). Closing is at the foot of the case
-    page ("Closing the case here"), only once its invoices are finished. Starting a
-    case from an invoice is out of scope (design J): the review page and Intake
-    match an invoice to an existing case only, which adds its sender to it. The
-    new case page (`/cases/new`, `NewCaseIntake.tsx`) is off the menu and reached
-    only when staff match a pre-authorization request whose case wasn't listed.
+    Organizations back in the sidebar; design K put Invoice overview and Providers in
+    place of Case overview and People). Closing is at the foot of the case
+    page ("Closing the case here"), only once its invoices are finished. Cases are
+    added only through invoices and pre-authorization requests (the case step, below).
     The case pages have no Add case or Add person (`AddPersonToCase.tsx` stays,
     unused).
   - Links to the external case management system ("Open the case in…",
     the sidebar link) are disabled placeholders; nothing is integrated.
-  - Staff "Intake" (`/intake`, off the sidebar since design G;
-    `client/src/pages/InvoiceIntake.tsx`) is one page for invoices a
-    professional sent by email or from another tool (`model/rules.yaml`
-    `authorize_staff_invoice_entry`). It starts the same way as external submitters: dropping or
-    choosing files opens the upload (`client/src/portal/PortalUpload.tsx` at
-    `/portal/upload`) with them, and "Enter an invoice by hand" opens its
-    manual entry. There the case list offers every open case with an
-    assigned provider, a new case, or none yet with an optional "From"
-    provider; one held with no case waits under "Waiting for a case".
-    One file goes on to the import review page to check its lines; several
-    return to Intake with a banner. The older bulk import page
-    (`/portal/imports`) is no longer linked but still works. "Waiting for a
-    case" and "Drafts to finish" follow below. The old staff
-    `/new-invoice` redirects here. It reuses the portal's pages at the same
-    paths (`/portal/upload`, `/portal/imports/:id`, `/portal/invoices/:id`);
-    `portal/useShell.ts` switches the few links that differ, such as the
-    case page and where "back" goes, using `isStaff` from `/auth/me` (the
-    server's `isStaffAccount` role check, not the sign-in method). Staff-only
-    receipt fields come from `portal/ReceivedFields.tsx` `useReceipt`, and
-    every billing entry point checks `portalActor.ts` `authorizeBilling`. Any active
-    staff role may bill any professional assigned to the case:
-    `server/src/portal/portalActor.ts` treats a staff account as
-    representing every assigned professional, so time, invoice, import and
-    case-list checks all apply unchanged. Submitting requires how and when it
-    was received (`invoice.received_via_id`, `received_on`;
-    `server/src/billing/invoiceReceipt.ts`), and queue waiting time counts
-    from `received_on`. Staff finish their drafts on Intake; a submitted
-    one links to its review page.
-  - Intake's "Waiting for a case" (`server/src/billing/invoiceIntake.ts`)
-    lists staff drafts with no case (migration `0012` makes
-    `invoice.case_id` and `invoice_line.case_id` nullable) and caseless
-    imports still being read (`model/rules.yaml` `match_invoice_to_case`).
-    "Billing for" may be left blank (migration `0013` makes
-    `invoice.professional_id` nullable); Match then asks "From" and
-    reprices the time. With no case, any active professional can be chosen
-    and there is no unbilled-time picker. "Match to a case" (`POST
-    /api/invoices/intake/:id/case`) sets the case on the invoice, its lines
-    and its import, and who did the work on lines naming someone not listed
-    (`timekeepers`, by line), records `matched_to_case`, and with
-    `addMissing` assigns missing providers as external submitters. Its
-    case picker searches existing cases only (design J); the "From" and
-    per-line pickers can still add a provider on the spot (below). The
-    waiting list follows J66: From, Case number as typed, Sent, Amount,
-    What's missing (in words) and "Match it to a case".
-    A held file's draft keeps the case and professional its reading
-    suggested (`invoice_import.suggested_case_id` and
-    `suggested_professional_id`, migration `0017`, by the upload rules
-    below), and Match starts with them selected, marked "Named in the file:
-    check it", while the case is open and the provider active.
-    The invoice page's "Review without a case" submits with `withoutCase`;
-    then no time entries are created, the default reviewer applies (no
-    per-case reviewer), pre-authorization and case-rate limits are skipped,
-    and the queue (`no_case` flag), review page, exports and billing record
-    warn. Adding a provider (`POST /api/professionals`,
-    `server/src/professionals/addProfessional.ts`) creates a person and
-    professional with no account (`add_professional_without_login`);
-    `ensureProfessional.ts` links it on first sign-in by email.
-  - Adding what isn't listed (`model/rules.yaml` `match_invoice_to_case`):
-    every case and person picker is `client/src/components/PickOrAdd.tsx`,
-    whose first option adds one, showing its fields; given `search`, as for
-    staff's cases and providers (lists too long to load), it is a type-ahead
-    on the server's search with the same first option
-    (`components/NewEntryFields.tsx`; the type-ahead searches on New case
-    offer it first too). Nothing has to be
-    chosen to continue: what isn't known waits on Intake. A submitter's
-    entry is only details on the invoice (`invoice.proposed_case`,
-    `proposed_provider`, `invoice_line.proposed_timekeeper_name`, migration
-    `0018`, and `proposed_timekeeper_email`, `0019`; `server/src/billing/proposedDetails.ts`), kept after matching
-    and flagged "entered by the submitter" on Intake, their own page, the
-    review page and line tables. Staff create the record instead: a
-    provider through `AddProvider` inline (on an invoice with a case, also
-    assigned to it: `useAddedProviders`, used by "Billing for", the line
-    pickers and "Set work done by for several items"), a case through `POST /api/cases`
-    with `newClient` and `caseNumber` (kept as `external_reference`),
-    refusing an email or name already in the system unless confirmed as
-    someone else, and an existing case number. On the upload and manual
-    entry, a staff member's new case is created on continuing once whom it
-    bills is known, and the invoice matched to it; otherwise its details go
-    with the invoice to Intake. Naming someone not listed on one line
-    offers to use them for every other item. Sending an invoice whose
-    case, provider or any line's worker is still unknown
-    (`invoiceLifecycle/submit.ts` `submitInTx`) attests as usual but sets status
-    `awaiting_match` ("Waiting for its case") with a `sent_for_matching`
-    event, pricing strictly first when its provider is known; import
-    confirmation no longer needs every line matched, keeping a named but
-    unchosen timekeeper as `proposed_timekeeper_name`, and prices strictly
-    only once nothing is left to match. Intake lists these as "Sent by the
-    submitter"; matching the last of them releases it to review
-    (`releaseToReviewInTx`, `released_to_review` event): time entries,
-    strict pricing, rules, snapshot and routing run as on submission, and
-    the attestation is recorded with the sending time. The submitter may
-    recall it to draft until then; exports skip it. Staff may instead send
-    any of these back (`POST /api/invoices/intake/:id/return`, a reason
-    required; `returnToSubmitter`): it returns to draft with a
-    `returned_to_submitter` event holding the reason, and the latest such
-    event's reason (`invoiceEvents.ts` `returnedReason`) is shown on the
-    invoice, as a red "Needs changes" status, and under "Needs your
-    changes" at the top of Your invoices, until it's sent again. Intake's
-    held drafts are only those staff entered, so a returned or unsent
-    submitter's draft stays theirs. With no case, a
-    submitter may bill themselves or those they act for
-    (`billableProfessionalIds`), and anyone who may bill on a case may leave
-    its provider unknown.
-    Gaps: only the staff member who entered a draft can submit it; a
-    request whose lines fail strict pricing at release (e.g. a time line
-    with no hours for someone new) is matched but stays waiting, with the
-    reason shown, until staff send it back; the inline new case takes only the
-    client's name and email, the case number, role and status (the rest is
-    added on the case page; an existing client is chosen on New case); a
-    one-person file split across cases
-    needs a case for every line; added assignments start on matching,
-    which passes because assignment is checked as of now, not on each
-    line's service date (as for delegates, below).
+  - **Retired**: staff Intake (`/intake`), the case-based new-invoice form
+    (`/new-invoice`, `NewInvoiceForm`) and upload (staff `/portal/upload`), and the
+    new case page (`/cases/new`) were deleted once cases came to be added through
+    invoices; their addresses redirect to To review, the upload filed by person and
+    All cases. Staff enter invoices by person on the upload page, and a staff
+    member's unsent drafts lead To review.
+  - **The case step** (`client/src/components/CaseStep.tsx`; `match_invoice_to_case`,
+    `add_case_from_request`): one "Which case is it for?" card with a For a case / Not
+    for one case segmented choice, under the case number and county on the staff check
+    page, and on the review page for an invoice in review without a case (including
+    a staff upload still being entered). For a case, it looks up the invoice's number
+    in its county (`caseMatches` resource): staff filing an invoice give its number on the
+    upload page ("Case number", filled from the file and left blank when it is not for one case,
+    which is answered in this step, `components/upload/CaseNumberField.tsx`, design K60). On a draft, the same number is chosen
+    without asking and a number nothing matches becomes a new case, added when sent,
+    with an optional client name; a close number lists the similar cases and "Add case
+    … in …" as radio buttons with none chosen. In review, the same number is only a
+    "Suggested" case with "Match to this case", and choosing applies at once. For an
+    invoice whose file gave no number, a yellow notice asks the reviewer to add it in the
+    case number box above (`CaseNumberReview.tsx`, K69); nothing is matched until then. With no county it asks for one
+    first; the same number in another county is a hint above, never a choice. Not
+    for one case says the county counts it, and asks for one when there is none. The
+    review page's county field says when the case is in another county. Staff can't send, or finish an entry's first round, without an answer;
+    a match that fails after sending is reported in the sent toast. External senders
+    never get the case step (design K6). The
+    pre-authorization match form (`preauthorizationRequest/StaffForms.tsx`) asks the
+    same question with its county first, choosing a case by search or adding one from
+    its number, county and client.
+  - **Settings, Edit data** (`pages/settings/EditData.tsx`, administrators only, a
+    `?tab=edit-data` tab beside Settings): cases added from requests (or only those with
+    a similar number, or the same number in another county, shown as a note), each with a Fix row: what's wrong (the same case as another,
+    its number, county or client, or its invoices aren't for one case), "See what
+    changes" (the server's preview, with any pre-authorization to keep), then the fix.
+    Recent fixes can be undone.
   - The external portal follows the invoice submission design: one top
     bar (the brand, design I's tabs Your invoices, Your cases and Import
     invoices, which opens the several-files import at `/portal/imports`,
@@ -444,19 +387,22 @@ How the React client is built and why. Schema mapping and gaps are in
     time here: it is kept in the external system, so the time section and
     the case page's new-invoice form are hidden (`SENDERS_LOG_TIME` in
     `PortalCaseDetail.tsx`), not deleted.
-  - On the check page, "Which case is it?" offers the cases of the person
-    whose work it is, or "Not listed" to type the number as before
-    (`CaseChoice` in `portal/submission/CaseChoice.tsx`). Choosing one
-    (`PUT /api/portal/invoices/:id/case`, `setDraftCase` in
-    `billing/invoiceLifecycle/drafts.ts`) sets the draft's case and its number to
-    the case's and prices its lines again, so case rates apply; it is still
-    sent as filed by person and goes straight to review with its case.
+  - On the check page, senders type or change the case number in the same field as staff
+    (`portal/submission/TypedCaseNumber.tsx`), one of the invoice's details beside the billing
+    period and invoice number (`InvoiceDetailsFields.tsx`, staff's county beside it), with
+    its explainer on one line under that row. It starts as the number read from the file,
+    may be left blank, and "Each invoice is for one case" explains it. Senders can't
+    choose a case or answer "Not for one case"; the server refuses both, and the number
+    is only suggested to the reviewer, who adds or corrects it in review. Once sent, it is
+    shown read-only (`FileCaseNumber.tsx`). An invoice started from one of their cases is
+    under that case. This reverses design K6, which read the number only from the file,
+    so an invoice entered by hand could never carry one.
     An invoice opens on its own page (see "Checking the lines" and
     "Sending" under "Invoice import" in `api.md`); a draft's row says what
     the submitter changed from the file so far. Gap: the design's "Paid"
     status waits on external completion records, which aren't built. Staff
-    open portal invoice pages from Intake in their own shell, where the
-    older draft editor (`PortalInvoiceDetail.tsx`) still applies.
+    may still open portal invoice pages by address in their own shell, where
+    the older draft editor (`PortalInvoiceDetail.tsx`) still applies.
 - **Design system**: color roles, type roles, spacing, radius and elevation
   follow the team's Figma design system, itself built on a Keystone-style
   role scheme, and keep its names (`--color-primary`,
@@ -465,35 +411,46 @@ How the React client is built and why. Schema mapping and gaps are in
   through Fontsource, so no font request leaves the app. Body text is 13px,
   tables included. Page titles are Headline/Medium (26px) on list, queue
   and upload pages (`PageHeader`/`PageHeading` `list`) and Headline/Large
-  (32px) on single-record and settings pages. Dates read day, short month, year ("3 Aug 2026",
-  `src/formatDateTime.ts`). USWDS's stylesheet is not loaded: the few of its
+  (32px) on single-record and settings pages. Dates read the American way ("Aug 3, 2026"),
+  and a period once ("Feb 1 to 28, 2026", `src/formatDateTime.ts`). USWDS's stylesheet is not loaded: the few of its
   rules the pages rely on are in `styles/reset.css` and `styles/controls.css`,
   and `@trussworks/react-uswds` still renders form markup. How the Figma
   components map to code, and what to change for a new design system, is in
   `docs/design-system.md`. Every font size, margin, padding, gap,
-  radius and color in `styles/` is a token; line heights, letter spacing and
-  widths are still literal. The shell follows design I: a gold rule under
+  radius and color in `styles/` is a token. Type roles carry Figma's line heights, and its
+  letter spacing is in `--tracking-*` tokens; the only text in capitals is Title/Small
+  (table headers, facts, totals and card titles). Corners follow Figma: small 4px
+  (buttons, tags, notices), medium 6px and large 8px (cards, dialogs, drop zones).
+  Widths are still literal. The shell follows design I: a gold rule under
   the header (with `ORGANIZATION_NAME` before the product's name when set),
   a white sidebar on a grey page, and the senders' pages in a centred
   1,000px column. Gaps: the gold used for focus rings and for missing or
   flagged markers is under 3:1 against white, short of the non-text
   contrast minimum; it stays as specified until the design changes it.
-- **Case overview** (`/overview`, in the sidebar's Cases group since design
-  I): four stage cards (Needs assignment, Represented, Billing, Closing),
+- **Invoice overview** (`/invoice-overview`, `client/src/pages/InvoiceOverview.tsx`,
+  design K47) leads the sidebar's Invoices: four step cards (No reviewer yet; Being
+  reviewed; Waiting for sign-off; Signed off, not completed), each with its count and its
+  oldest three invoices, then "Recently changed", dated in the viewer's zone
+  (`GET /api/invoices/overview`, `server/src/billing/invoiceOverview.ts`). "See all" opens
+  To review (No reviewer yet, or Being reviewed, a To review filter added for it) or
+  Finished with the queue's own filter for that step, so the counts agree. Invoices still
+  waiting to be matched, from the retired matching step, aren't counted.
+- **Case overview** (`/overview`, off the sidebar since design K, still by address): four stage cards (Needs assignment, Represented, Billing, Closing),
   each with its count and up to three cases, then "Recently changed". Cases
   are bucketed by their derived stage (`server/src/cases/caseStage.ts`;
   see the case pages in `intake.md`). A case is never started here: cases
-  come in with their invoices. Each card's "View all" goes to
+  are added through their invoices. Each card's "View all" goes to
   `/cases?stage=<id>`, which `client/src/pages/CaseList.tsx` filters to that
   stage. The sidebar
   condenses on small screens and columns wrap into a vertical layout. The
   header's `Messages`/`Timer` placeholders and "Search everything" box
   were removed outright (disabled controls with no planned near-term
   feature).
-- **Lookup directories**: the sidebar's People (`/people`), Clients
-  (`/clients`), Providers (`/vendors`; attorneys, experts and vendors), and
-  Organizations (`/organizations`). People and Providers share
-  `client/src/components/SearchDirectory.tsx` (search box + results table):
+- **Lookup directories**: the sidebar's Providers (`/people`, above), Clients
+  (`/clients`) and Organizations (`/organizations`). The old Providers page (`/vendors`)
+  is now Settings › Providers, and its address redirects there. The person search
+  (`/person-records`) uses `client/src/components/SearchDirectory.tsx` (search box +
+  results table):
   - People and Providers hit a server search endpoint (`GET /api/people`,
     `/api/professionals`, both `requireFullUser`), a batch at a time;
     Clients is `GET /api/cases` by client and Organizations counts cases from
@@ -501,10 +458,13 @@ How the React client is built and why. Schema mapping and gaps are in
     query first; Providers lists everyone before one.
   - `GET /api/professionals` (`src/routes/professionals.ts`) used to
     return `[]` without a query and was otherwise unused by the client;
-    it now also backs the Providers list, listing everyone when no query is
-    given; its Add button uses the same form the pickers add providers with
-    (`client/src/components/AddProvider.tsx`, `POST /api/professionals`).
-    Administrators also get "Edit", in the row itself (`PATCH /api/professionals/:id`,
+    it now also backs Settings › Providers (`pages/settings/ProvidersSettings.tsx`,
+    design K51), listing everyone when no query is given, with each one's kind (a
+    select for administrators), today's rate, office, who can send their invoices and
+    Active, whether they may sign in (Turn on / Turn off). "Add provider" and each
+    row's "Edit" open the same form (`PersonDialog`, `POST /api/professionals`); Edit
+    also offers Remove, for someone added by mistake. Edits are saved with
+    (`PATCH /api/professionals/:id`,
     `src/professionals/editProfessional.ts`): the name, and the email of
     someone who hasn't signed in (refused if in use,
     `src/people/emails.ts`), so one added without an email can get it later
@@ -519,48 +479,43 @@ How the React client is built and why. Schema mapping and gaps are in
     `OrganizationsDirectory.tsx` just filters that client-side, the same
     way `CaseList.tsx` filters its own full case list.
   - Reports has no backend at all and stays disabled.
-- **External users** (Settings, `#settings-external-users`,
-  `client/src/pages/settings/ExternalUsers.tsx`), apart from internal staff:
-  who may sign in with an emailed code, on or off, searched by name or email
-  (`?externalQ=`) and loaded a batch at a time. Administrators get "Let an
-  external user sign in": a `PickOrAdd` search over providers and office
-  delegates, then turning on someone with an email, adding an email for
-  someone without one, or adding a new external user who sends for their
-  own work (kind) or an office's providers (office). The confirmation gives
-  the `/submit` address to pass on; nothing is emailed. Each row's
-  "Offices…" (administrators) opens a dialog to make them, provider or not,
-  a billing delegate for another office, or stop one. A person's page
-  shows "External sign-in: On/Off" read-only.
-- **Possible duplicates** are a "Review duplicates" tab on People and on All
-  cases (`?tab=duplicates`, `client/src/components/DuplicatesTabs.tsx`),
-  beside the list, with the number of groups. The tabs appear only while
-  there is something to review or the tab is open; there is no sidebar
-  link, and the old `/possible-duplicates` addresses redirect to the
-  matching tab or to Merge review. While the tab is open, the page's own
-  list isn't loaded.
-  Both pages have a "Flag possible duplicates" header action, always there,
-  which opens the tab with the flag dialog. Each page's loader loads only
-  the number of groups (`/possible-duplicates/count`, remembered by the
-  server); the list itself loads when the tab is opened, and its length
-  then replaces the remembered count.
-  - People (`client/src/components/DuplicatePeople.tsx`): one card per group,
-    a person who may have several records, clients included, each record
-    with its email, sign-in, date of birth, whether it sends invoices and its
-    case and invoice counts, and each matching pair with why (same email,
-    same name, same date of birth and last name, flagged) and its own "Not
-    the same person". Records sharing a name are told apart by email. The
-    record with the most on it is offered as the one to keep and the rest as
-    the ones to merge in. Flagging takes two person searches
-    (`TypeAheadPicker` without an add option, since flagging never adds
-    anyone). "Recent merges" lists merges with Undo for administrators (an
-    inline confirmation); after a merge the tab shows it with one Undo for
-    every record merged at once.
-  - All cases (`client/src/components/DuplicateCases.tsx`): one card per
-    group of open cases, each linking to its case page, with "Not the same
-    case" per pair. Flagging takes two case type-aheads; the second offers
-    only cases in the first one's county, or without one, as cases in
-    different counties are never listed. There is no merge: the hint says to
-    close the extra case from its page once its invoices are finished.
+- **External users' sign-in**, apart from internal staff: a provider's is the Active
+  column of Settings › Providers (above). **Office billing staff** (Settings,
+  `?tab=office-staff`, `client/src/pages/settings/ExternalUsers.tsx`) lists the
+  others who may sign in with an emailed code: people who aren't providers, or who send
+  for an office (`GET /api/settings/external-users?officeStaff=1`), searched by name or
+  email (`?externalQ=`) and loaded a batch at a time. Administrators get "Add office
+  billing staff": a `PickOrAdd` search, then the office they send for, required for
+  someone already on file too, which turns on their sign-in (adding an email for someone
+  without one) and adds the office together, or adding someone new who sends for an
+  office's providers. The confirmation gives the `/submit` address to pass on; nothing is
+  emailed. Each row's "Offices…" (administrators) opens a dialog to make them, provider
+  or not, a billing delegate for another office, or stop one.
+- **Settings** (`pages/Settings.tsx`) is one row of tabs, one section each, as
+  K51 and K67 show one at a time: Invoice review, People who use this tool, Rates,
+  Pre-authorization thresholds, Billing rules and codes, Providers, Office billing
+  staff, Merge duplicates, and, for administrators, Edit data, and on demo servers,
+  Demo. The tab is `?tab=` (`settingsPath` in `staffPaths.ts`); old `#settings-…`
+  links open the matching tab. Its route loader loads only the chosen tab's data.
+- **Merge duplicates** (Settings, `?tab=duplicates`,
+  `client/src/components/MergeDuplicates.tsx`, design K67): one table of possible
+  duplicate cases and people, a row per group of records that may be one, with why each
+  pair looks alike and the invoices on each, worked out afresh when the tab opens. Any
+  staff member gets "Not the same" on each pair and "Flag two cases" / "Flag two people"
+  (two type-aheads; the second case offers only the first one's county, or none). Only
+  administrators get "Merge", for the whole group, all or none: for people, the merge
+  review below, with the most complete record kept; for cases, a dialog to choose the
+  case kept (the one with most invoices is offered), see what moves from each of the
+  others (`POST /api/edit-data/merges/preview`), choose between two pre-authorizations
+  for one provider, and confirm (`POST /api/edit-data/merges`), each case moved being
+  Edit data's same-case fix, undone there one at a time. "Recent merges of people" lists merges with Undo for administrators;
+  after a merge it shows one Undo for every record merged at once. The Review duplicates
+  tabs on Providers and All cases are gone; their old addresses (`?tab=duplicates`,
+  `/possible-duplicates`) redirect here. A case's page and a provider's page show a
+  yellow notice naming the record it may duplicate (`DuplicateNotice.tsx`, from
+  `GET /api/cases/:id/possible-duplicates` and
+  `GET /api/professionals/people/:id/possible-duplicates`), with a link here for
+  administrators.
 - **Merge review** (`/people/merge?keep=&retire=a,b`,
   `client/src/pages/MergePeople.tsx`) is the confirmation step: the kept
   record and each one merged in, each with "Keep this one instead" and,
@@ -569,7 +524,7 @@ How the React client is built and why. Schema mapping and gaps are in
   empty details filled in and from whom; and what doesn't change. Staff see
   all of it; only an administrator gets the merge form, whose button stays
   disabled until they tick that the records are the same person; a merge
-  or Cancel returns to People's Review duplicates tab. The demo
+  or Cancel returns to Settings › Merge duplicates. The demo
   seed adds one possible duplicate, a demo provider added again under
   another email (`seedDemoPossibleDuplicate` in
   `server/src/db/demoData.ts`); nothing else in the demo is duplicated.
@@ -583,8 +538,7 @@ How the React client is built and why. Schema mapping and gaps are in
   `personDisplayName` alongside the raw `person_id` — added specifically so
   the client shows a readable name instead of a UUID (the Faker-generated
   synthetic names are otherwise invisible in the UI).
-- **Type-ahead pickers**: the person picker (`NewCaseIntake`) and the
-  staff picker (`AssignStaffForm`) share
+- **Type-ahead pickers**: the person and staff pickers (`AssignStaffForm`) share
   `client/src/components/TypeAheadPicker.tsx`, built on Downshift's
   `useCombobox` (keyboard handling and ARIA wiring) with its own minimal
   styling. It searches the server (`GET /api/people?q=` /
@@ -687,8 +641,9 @@ How the React client is built and why. Schema mapping and gaps are in
   margin, padding, gap or radius outside `tokens.css` and `reset.css`, and
   ESLint rejects a `style` prop not built with `cssVars`.
 - **Guided tour** (`src/tour/`): on demo servers with both demo sign-ins
-  on, the sign-in page offers a tour beside the usual demo dropdowns,
-  which stay as they were; nothing starts it by itself. Missions are data
+  on, a small "Take a guided tour" button in the sign-in page's top right
+  (design K1) opens a dialog with the whole tour or one part of it; the usual
+  demo dropdowns stay as they were, and nothing starts it by itself. Missions are data
   (`missions.ts`): each step names a goal, the problem it answers as
   "Before → Now" in generic terms, where it happens and what completes
   it — reaching a page, or a change the visitor made, seen through
@@ -696,7 +651,8 @@ How the React client is built and why. Schema mapping and gaps are in
   except for steps that only ask the visitor to look. `TourProvider`
   (`TourContext.tsx`) sits above both apps and keeps its state in
   `sessionStorage` (`tourState.ts`, unit tested), so it survives the
-  sign-in switches between roles and a reload. `TourChrome`
+  sign-in switches between roles and a reload; any other sign-in or
+  sign-out drops it, as the server ends the run then. `TourChrome`
   (`GuidePanel.tsx`) docks the guide beside the page in both shells (a
   bottom sheet on phones), never over it; "Show me" outlines a control,
   and "Fill in a suggestion" sets a field through its own events
@@ -712,7 +668,7 @@ How the React client is built and why. Schema mapping and gaps are in
   Everything else stays in Node.
 - **`ReferenceSelect`** and **`RecordTable`** (`src/components/`) are the
   shared "label + select + reference-data options" and "empty vs.
-  bordered table" shapes used by `NewCaseIntake`/`CaseDetail`.
+  bordered table" shapes used by `CaseDetail` and others.
 - **Client/server type duplication**: `client/src/api/`'s
   `CaseRecord`/`CaseParticipant`/etc. mirror shapes from
   `server/src/db/schema.ts` by hand, with no shared types package across

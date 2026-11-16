@@ -64,8 +64,8 @@ export async function loadCaseListExtras(db: DatabaseOrTransaction, caseIds: str
 }
 
 // Invoice events worth showing on the overview, as words.
-const SENT_CODES = ['submitted', 'released_to_review'];
-const INVOICE_CHANGES: Record<string, string> = {
+export const SENT_CODES = ['submitted', 'released_to_review'];
+export const INVOICE_CHANGES: Record<string, string> = {
   submitted: 'sent for review',
   released_to_review: 'sent for review',
   matched_to_case: 'matched to this case',

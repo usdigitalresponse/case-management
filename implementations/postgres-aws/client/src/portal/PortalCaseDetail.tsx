@@ -15,7 +15,6 @@ import { useResource } from '../hooks/useResource';
 import { useBatchedResource } from '../hooks/useBatchedResource';
 import { MoreOnScroll } from '../components/MoreOnScroll';
 import { billableProfessionals, myCaseInvoices, myCases as myCasesResource, myTimeEntries } from '../resources';
-import { NewInvoiceForm } from './NewInvoiceForm';
 import { UPLOAD_PATH } from './useShell';
 import { MyInvoicesTable } from './MyInvoicesTable';
 import { RecordTable } from '../components/RecordTable';
@@ -277,18 +276,7 @@ function TimeEntrySection({
   );
 }
 
-function InvoiceSection({
-  caseId,
-  billable,
-  entries,
-  onInvoiced,
-}: {
-  caseId: string;
-  billable: BillableProfessional[];
-  entries: TimeEntryRecord[] | null;
-  // Billing changes what time is unbilled.
-  onInvoiced: () => void;
-}) {
+function InvoiceSection({ caseId }: { caseId: string }) {
   const [showWithdrawn, setShowWithdrawn] = useState(false);
   const list = useBatchedResource(myCaseInvoices(caseId, showWithdrawn));
   const { items: data, error, reload } = list;
@@ -319,23 +307,12 @@ function InvoiceSection({
       )}
       <MoreOnScroll list={list} what="invoices" />
 
-      {SENDERS_LOG_TIME && (
-        <NewInvoiceForm
-          caseId={caseId}
-          billable={billable}
-          entries={entries}
-          onSaved={() => {
-            void reload();
-            onInvoiced();
-          }}
-        />
-      )}
     </section>
   );
 }
 
-// Hidden, not deleted: senders log time, and invoice it from here, in the
-// external case management system (design I).
+
+// Hidden, not deleted: senders log time in the external case management system (design I).
 const SENDERS_LOG_TIME = false;
 
 export default function PortalCaseDetail() {
@@ -381,7 +358,7 @@ export default function PortalCaseDetail() {
           onLogged={refreshTime}
         />
       )}
-      {billable && <InvoiceSection caseId={caseId} billable={billable} entries={entries} onInvoiced={refreshTime} />}
+      {billable && <InvoiceSection caseId={caseId} />}
     </div>
   );
 }

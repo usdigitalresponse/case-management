@@ -1,8 +1,6 @@
 import { useRef, type JSX } from 'react';
 
-// A text input with a ✕ clear button, shown whenever there's text. Shares
-// its .clearable styling with TypeAheadPicker's field. Clearing empties
-// the value and puts focus back in the input.
+// A text input whose ✕ button empties it and refocuses (.clearable, as TypeAheadPicker's).
 export function SearchInput({
   value,
   onChange,

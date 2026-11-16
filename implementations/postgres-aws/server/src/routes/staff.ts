@@ -1,10 +1,4 @@
-// Lets a full user search for another staff member to assign to a case
-// (../routes/cases.ts POST /:id/staff-assignments) — the staff-side
-// counterpart to ../routes/professionals.ts's vendor search. "Staff" means
-// a user_account created through SSO login, marked by one of
-// ../auth/staffAccountRole.ts's roles; a vendor's email-code account
-// never gets one, so it's excluded here even
-// though both live in the same user_account table.
+// Staff search, to assign one to a case: accounts with a staff role (../auth/staffAccountRole.ts).
 import { Router } from 'express';
 import { and, asc, ilike, inArray, or } from 'drizzle-orm';
 import { db } from '../db/client';

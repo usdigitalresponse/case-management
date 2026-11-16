@@ -33,9 +33,8 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
   policy = data.aws_iam_policy_document.ecs_execution_secrets.json
 }
 
-# The application's own runtime role. Empty for now — the app doesn't call
-# any other AWS service yet (see MAPPING.md); add permissions here as that
-# changes, rather than widening the execution role above.
+# The app's runtime role, empty until it calls another AWS service (MAPPING.md); add permissions here, not
+# to the execution role.
 resource "aws_iam_role" "ecs_task" {
   name               = "${local.name_prefix}-ecs-task"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume_role.json

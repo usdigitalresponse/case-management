@@ -29,7 +29,7 @@ function CountyNote({ invoice }: { invoice: ReviewQueueItem }) {
 export function FromCell({ invoice }: { invoice: ReviewQueueItem }) {
   return (
     <>
-      {submittedByLabel(invoice)}
+      <span className="nowrap">{submittedByLabel(invoice)}</span>
       <span className="cell-note">{invoice.professionalKindDisplayName ?? 'Professional'}</span>
     </>
   );
@@ -74,9 +74,7 @@ export function FlagNotes({ invoice }: { invoice: ReviewQueueItem }) {
   );
 }
 
-// Questions to the submitter while the round isn't finished: unanswered ones
-// hold review, answered ones are back with the reviewer.
-// The row's live state: still being entered, and questions waiting or answered.
+// The row's live state: still being entered, and questions waiting (holding review) or answered.
 export function QuestionChips({ invoice }: { invoice: ReviewQueueItem }) {
   const { openQuestionCount: open, answeredQuestionCount: answered, beingEntered } = invoice;
   if (open === 0 && answered === 0 && !beingEntered) {
@@ -91,16 +89,16 @@ export function QuestionChips({ invoice }: { invoice: ReviewQueueItem }) {
   );
 }
 
-// The row's link to the invoice, last in the row.
-export function openInvoiceColumn(label: (invoice: ReviewQueueItem) => string): RecordTableColumn<ReviewQueueItem> {
+// "Open", last on every row (design K), named in full for screen readers.
+export function openInvoiceColumn(): RecordTableColumn<ReviewQueueItem> {
   return {
     header: 'Open',
     hiddenHeader: true,
     align: 'right',
     render: (invoice) => (
       <RouterLink className="row-action" to={`/billing/${invoice.invoiceId}`}>
-        {label(invoice)} <span aria-hidden="true">→</span>
-        <span className="usa-sr-only"> invoice for {invoice.caseClientDisplayName ?? 'this case'}</span>
+        Open <span aria-hidden="true">→</span>
+        <span className="usa-sr-only"> the invoice from {invoice.professionalDisplayName ?? invoice.submittedByDisplayName ?? 'its sender'}</span>
       </RouterLink>
     ),
   };

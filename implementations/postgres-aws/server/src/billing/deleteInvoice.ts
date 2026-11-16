@@ -1,7 +1,5 @@
-// Deletes the submitter's draft or withdrawn request if no review decision
-// was ever recorded, or an upload still being entered in review
-// (model/workflows.yaml payment_request delete), with everything that hangs
-// off it.
+// Deletes a draft or withdrawn request with no recorded decision, or an upload still being entered in review,
+// with everything hanging off it (model/workflows.yaml payment_request delete).
 import { z } from 'zod';
 import { and, eq, inArray, isNotNull, ne, notInArray, sql, type SQL } from 'drizzle-orm';
 import type { Database } from '../db/client';

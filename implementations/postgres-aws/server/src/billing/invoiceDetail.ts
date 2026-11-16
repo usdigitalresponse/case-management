@@ -75,8 +75,15 @@ const headerColumns = {
   // Its own, else its case's.
   countyId: county.countyId,
   countyDisplayName: county.displayName,
+  // Its case's county, only when the invoice's own differs from it.
+  caseCountyDisplayName: sql<string | null>`(select case_county.display_name from county case_county
+    where case_county.county_id = ${caseTable.countyId} and ${invoice.countyId} is not null and case_county.county_id <> ${invoice.countyId})`,
   // A staff upload, under review from the start (./enterInReview.ts).
   enteredInReview: invoice.enteredInReview,
+  // The case question (./caseChoice.ts), and on a draft the answer it is sent with.
+  caseChoice: invoice.caseChoice,
+  chosenCaseId: invoice.chosenCaseId,
+  newCaseClientName: invoice.newCaseClientName,
   linesVersion: invoice.linesVersion,
   linesChangedAt: invoice.linesChangedAt,
   linesChangedByUserAccountId: invoice.linesChangedByUserAccountId,
@@ -103,9 +110,7 @@ export function selectInvoiceHeaders(db: DatabaseOrTransaction, cursor?: SQL<str
 // As sent: without the list cursor.
 export type InvoiceHeader = Omit<Awaited<ReturnType<typeof selectInvoiceHeaders>>[number], 'cursor'>;
 
-// A case's number is its primary identifier, else its external reference;
-// its other identifiers (such as court numbers) are listed after it.
-// Invoices with no case (null) have no numbers.
+// A case's number is its primary identifier, else its external reference; other identifiers follow.
 export async function loadCaseNumbers(db: DatabaseOrTransaction, maybeCaseIds: Array<string | null>) {
   const result = new Map<string | null, { caseNumber: string | null; otherNumbers: string[] }>();
   const caseIds = maybeCaseIds.filter((caseId): caseId is string => caseId !== null);

@@ -20,7 +20,7 @@ export function ruleSummary(rule: BillingRule): string {
   const { increment, hours, withinMonth, tolerancePercent, averageSpeedMph } = rule.parameters;
   const text = {
     billing_codes: "a task code from the agency's list on each time item, including travel time",
-    time_increment: `time in steps of ${increment} h`,
+    time_increment: `time in steps of ${increment} hours`,
     daily_hour_cap: `at most ${hours} h per person per day`,
     long_entry: `single entries over ${hours} h are flagged`,
     billing_period: withinMonth ? 'a billing period within one calendar month' : 'a billing period',

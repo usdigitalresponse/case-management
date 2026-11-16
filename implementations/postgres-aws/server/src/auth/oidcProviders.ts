@@ -1,6 +1,4 @@
-// Full-user ("sso") sign-in: one OIDC strategy implementation, registered
-// once per configured provider, rather than a different passport strategy
-// library per identity provider. See ../../docs/api.md "Multi-IdP SSO".
+// Staff SSO: one OIDC strategy registered per configured provider (../../docs/api.md "Multi-IdP SSO").
 import passport from 'passport';
 import { Strategy as OidcStrategy, type Profile } from 'passport-openidconnect';
 import { db } from '../db/client';
@@ -12,14 +10,9 @@ export interface AuthenticatedUser {
   userAccountId: string;
   email: string;
   displayName: string;
-  // Distinguishes a full agency login (any configured OIDC provider) from
-  // an external user admitted only by an emailed code
-  // (../auth/signInCode.ts) — routes that external users must not reach
-  // should check this rather than assume every session is a full user.
+  // Staff SSO, or an external user's emailed code; routes external users must not reach check this.
   authType: 'sso' | 'email-code';
-  // Which provider the session actually authenticated through (e.g.
-  // 'google', 'microsoft') — display/audit only; authorization logic
-  // should use authType, not this.
+  // For display and audit only; authorization uses authType.
   ssoProvider?: string;
 }
 
@@ -33,9 +26,7 @@ export interface OidcProviderConfig {
   clientID: string;
   clientSecret: string;
   callbackURL: string;
-  // Only emails in these domains may authenticate through *this*
-  // provider — not a single flat allowlist, so a domain can't sign in
-  // through the wrong IdP.
+  // Per provider, so a domain can't sign in through the wrong one.
   allowedDomains: string[];
 }
 
@@ -51,11 +42,7 @@ function isAllowedEmail(email: string, allowedDomains: string[]): boolean {
 
 type ProviderConfigRest = Omit<OidcProviderConfig, 'id' | 'displayName'>;
 
-// One entry per supported IdP: which env vars gate it being enabled at
-// all, and how to turn those (guaranteed-present, by the time
-// `buildConfig` runs) values into the rest of the config. Adding a third
-// provider means adding one entry here, not another copy-pasted
-// if-env-vars-set-then-push block.
+// One entry per supported provider: the env vars that turn it on, and its config built from them.
 interface ProviderDefinition {
   id: string;
   displayName: string;
@@ -103,12 +90,7 @@ const PROVIDER_DEFINITIONS: ProviderDefinition[] = [
   },
 ];
 
-// Returns the named env vars as a Record<string, string>, or undefined if
-// any of them isn't set. `noUncheckedIndexedAccess` still types a lookup
-// into the result as `string | undefined` (the index signature doesn't
-// know a given key was checked) — ../db/rowHelpers.ts's `firstRow` narrows
-// the same kind of "already guaranteed, TS just can't see it" case for
-// query results; `requireEnvValue` below does the same for this one.
+// The named env vars, or undefined if any isn't set.
 function getRequiredEnv(names: string[]): Record<string, string> | undefined {
   const values: Record<string, string> = {};
   for (const name of names) {
@@ -149,10 +131,7 @@ export function passportStrategyName(providerId: string): string {
   return `oidc:${providerId}`;
 }
 
-// Registers a passport strategy per configured provider, skipping any
-// whose credentials aren't set, and returns the list so app.ts/routes/auth.ts
-// know what to mount and the client can render sign-in buttons without
-// hardcoding a provider name.
+// Registers a strategy per provider with credentials set, returning them for the routes and sign-in buttons.
 export function configureOidcProviders(): OidcProviderConfig[] {
   const configs = buildProviderConfigs();
 
@@ -168,18 +147,10 @@ export function configureOidcProviders(): OidcProviderConfig[] {
           clientID: config.clientID,
           clientSecret: config.clientSecret,
           callbackURL: config.callbackURL,
-          // passport-openidconnect always prepends 'openid' itself
-          // (lib/strategy.js), so listing it here too would send a
-          // harmless but duplicated "openid openid profile email" scope.
+          // passport-openidconnect adds 'openid' itself.
           scope: ['profile', 'email'],
-          // Without this, passport-openidconnect's default heuristic skips
-          // the userInfoURL fetch entirely for a 3-arg verify callback (see
-          // node_modules/passport-openidconnect/lib/strategy.js
-          // _shouldLoadUserProfile) and emailFromProfile only ever sees
-          // ID-token claims. Google's ID token includes `email` by
-          // default, masking this, but Microsoft Entra ID's v2.0 ID token
-          // commonly omits it — without this flag, an allowed Microsoft
-          // user would be wrongly rejected as "not allowed to sign in."
+          // Fetch userinfo even for a 3-argument verify callback: Microsoft Entra ID's ID token often lacks the email,
+          // so an allowed user would otherwise be refused.
           skipUserProfile: false,
         },
         (_issuer, profile, done) => {

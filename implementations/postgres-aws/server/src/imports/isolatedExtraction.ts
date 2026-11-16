@@ -1,22 +1,14 @@
-// Reads uploaded documents in a child process with a time limit and a
-// JavaScript heap limit (model/rules.yaml validate_invoice_import: parse in
-// isolation with time and memory limits), so a hostile or pathological file
-// fails its import, not the server. Memory outside the heap (page images,
-// text recognition's WebAssembly) is bounded only by the render size cap;
-// a container memory limit has to cap the rest.
-// INVOICE_EXTRACTION_ISOLATION=inline reads in-process instead, as the tests
-// do.
+// Reads uploads in a child process with time and heap limits (model/rules.yaml validate_invoice_import), so a
+// hostile file fails its import, not the server; memory outside the heap needs a container limit.
+// INVOICE_EXTRACTION_ISOLATION=inline reads in-process instead, as the tests do.
 import { fork } from 'node:child_process';
 import { extname, join } from 'node:path';
 import type { ExtractionProgress } from './extractors/types';
 import { UnreadableInvoiceFileError, type ParsedInvoice } from './parsedInvoice';
 
-// The reader's JavaScript heap peaked under 20 MB on a 12-page scan; nearly
-// all its memory is recognition's and page images', which the container
-// limit bounds (docker-compose.prod.yml). This only stops runaway scripts.
+// Only stops runaway scripts: the heap peaked under 20 MB on a 12-page scan.
 const DEFAULT_MEMORY_LIMIT_MB = 512;
-// A value this small is almost certainly a typo (e.g. one meant in GB), and
-// would leave readers too little to load PDF.js.
+// Smaller is surely a typo, and too little to load PDF.js.
 const MIN_MEMORY_LIMIT_MB = 64;
 
 export function memoryLimitMb(env: NodeJS.ProcessEnv = process.env): number {

@@ -175,6 +175,9 @@ dotnet run --project implementations/dataverse/SetupTests/SetupTests.csproj
 - Time log checks (`check_lines_against_time_log`): nothing reads a case's time
   log or compares it with a request's lines, and the setting that blocks
   approving flagged lines is not provisioned.
+- Retiring a request's or provider's file (`request_provider_documents`): the
+  review package carries `document_link.retired_at` from the model, but nothing
+  hides a retired link, restores it or audits either.
 
 Next workflow work should implement these using supported Dataverse capabilities
 and Solution tooling, with shared scenarios and server-side checks. Avoid growing

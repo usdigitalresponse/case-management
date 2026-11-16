@@ -4,6 +4,7 @@ import { formatDate, formatPeriod } from '../../../formatDateTime';
 import { Notice } from '../../../components/ui/Notice';
 import { Button } from '../../../components/ui/Button';
 import { Tag } from '../../../components/ui/Tag';
+import { RemoveFileButton } from '../../../components/ui/RemoveFileButton';
 import { type LogPerson, entryLabel, hours } from './timeLogText';
 import { ColumnChooser, TimeLogUpload, columnsUsed } from './TimeLogUpload';
 
@@ -54,7 +55,17 @@ export function TimeLogSummary({
         <div>
           <h2 id="time-log-heading">Checked against a time log</h2>
           <p className="cell-note">
-            {log.fileName}. Kept only until you finish the review.
+            Kept only until you finish the review:{' '}
+            <span className="file-name">
+              {log.fileName}
+              {canChange && !replacing && (
+                <RemoveFileButton
+                  fileName={log.fileName}
+                  onRemove={() => act(() => removeTimeLog(invoiceId), 'Time log removed.')}
+                  consequence={<>{log.fileName} is deleted, and its lines are no longer checked against it. You can upload another.</>}
+                />
+              )}
+            </span>
           </p>
         </div>
         <div className="link-row">
@@ -65,9 +76,6 @@ export function TimeLogSummary({
             <>
               <button type="button" className="link-button" onClick={() => setReplacing(true)}>
                 Upload another
-              </button>
-              <button type="button" className="link-button" onClick={() => void act(() => removeTimeLog(invoiceId), 'Time log removed.')}>
-                Remove it
               </button>
             </>
           )}

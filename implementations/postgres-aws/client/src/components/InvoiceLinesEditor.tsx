@@ -81,10 +81,8 @@ export function InvoiceLinesEditor({
   // A switch away from a trip that would drop some of it, until confirmed.
   const [pendingSwitch, setPendingSwitch] = useState<{ index: number; kind: DraftKind; drops: string[] }>();
   const showTimekeeper = timekeepers.length > 1 || Boolean(importReview);
-  // Staff review's columns (client/src/pages/InvoiceReview.tsx), led by the
-  // kind of item, which decides whether it takes hours or an amount; a trip
-  // takes its miles and costs below. Who did it and its code sit under the
-  // description. Widths and the narrow layouts are in styles/line-editor.css.
+  // Staff review's columns, led by the kind of item, which decides hours or an amount; a trip's miles
+  // and costs go below, and who did it and its code under the description (styles/line-editor.css).
   const columns = ['Kind', 'Date', 'What was done', 'Hours', 'Rate', 'Amount', ''];
 
   function update(index: number, changes: Partial<LineDraft>) {

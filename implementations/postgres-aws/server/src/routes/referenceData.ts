@@ -1,7 +1,4 @@
-// Read-only reference data for building forms (currently just the intake
-// form). One combined response rather than one endpoint per lookup table —
-// the client needs all of them together for a single form, and none of
-// this data is large enough to justify pagination.
+// Read-only reference data for forms, in one small response.
 import { Router } from 'express';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/client';
@@ -20,8 +17,6 @@ import { requireFullUser } from '../auth/session';
 import { asyncHandler } from './asyncHandler';
 
 const router = Router();
-// Full staff access only — this backs the intake form, which external
-// (email-code) users never see.
 router.use(requireFullUser);
 
 router.get(

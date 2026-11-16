@@ -8,8 +8,8 @@ import { invoiceApprovalStepTypes, invoiceReviewAssignment, invoice, invoiceStat
 import { listDecisionReasons } from '../billing/decisionReasons';
 import { billingRecordCsv, billingRecordXlsx, loadBillingRecord, OMITTABLE_BILLING_RECORD_COLUMNS } from '../billing/billingRecord';
 import { listInvoiceIntake, matchInvoiceToCase, returnToSubmitter } from '../billing/invoiceIntake';
-import { findCasesByNumber } from '../cases/casesByNumber';
-import { currentCaseNumber } from '../billing/caseNumbers';
+import { caseStepFor, chooseCaseInReview } from '../billing/caseChoice';
+import { tagTourCase } from '../demoTour/tourRuns';
 import { INVOICE_EXPORT_MEDIA_TYPES } from '../billing/exportInvoice';
 import { loadInvoiceDetail, loadSenderEmail } from '../billing/invoiceDetail';
 import { findBillingOverlaps } from '../billing/billingOverlaps';
@@ -37,6 +37,7 @@ import { listReviewPeople } from '../billing/reviewAccess';
 import { allowedToSignOff, getReviewSettings } from '../billing/reviewSettings';
 import { shownRoleName } from '../auth/staffAccountRole';
 import { listReviewQueueBatch, openQueueCounts, QUEUE_SHOWS, QUEUE_SORTS } from '../billing/reviewQueueBatches';
+import { invoiceOverview, loadRecentInvoiceChanges } from '../billing/invoiceOverview';
 import { batchRequest } from '../lists/batches';
 import { caseNumberMatchesFor } from '../billing/caseNumberMatches';
 import { listRates, rateOn } from '../billing/professionalRates';
@@ -72,6 +73,15 @@ function uuidOrUndefined(value: unknown, name: string): string | undefined {
   if (typeof value === 'string' && z.uuid().safeParse(value).success) return value;
   throw new ValidationError({ [name]: 'That is not a valid id.' });
 }
+
+// Invoice overview (design K47): each step of review, and the latest changes.
+router.get(
+  '/overview',
+  asyncHandler(async (_req, res) => {
+    const [overview, changes] = await Promise.all([invoiceOverview(db), loadRecentInvoiceChanges(db)]);
+    res.json({ ...overview, changes });
+  }),
+);
 
 router.get(
   '/',
@@ -225,12 +235,23 @@ async function loadOrThrow(invoiceId: string) {
   return detail;
 }
 
-// Cases with the number this invoice gives, to match it to one.
+// The cases this invoice's number, or one a reviewer types, finds within its county (../cases/caseStep.ts).
 router.get(
   '/:id/case-matches',
   asyncHandler(async (req, res) => {
-    const detail = await loadOrThrow(req.params.id as string);
-    res.json({ cases: await findCasesByNumber(db, currentCaseNumber(detail.invoice)) });
+    await loadOrThrow(req.params.id as string);
+    const typed = typeof req.query.caseNumber === 'string' ? req.query.caseNumber.slice(0, 100) : undefined;
+    res.json(await caseStepFor(db, req.params.id as string, typed));
+  }),
+);
+
+// A reviewer says which case it is for, adding one if need be (../billing/caseChoice.ts).
+router.put(
+  '/:id/case-choice',
+  asyncHandler(async (req, res) => {
+    const result = await chooseCaseInReview(db, actorId(req), req.params.id as string, req.body);
+    await tagTourCase(req, result.addedCaseId);
+    res.json(result);
   }),
 );
 

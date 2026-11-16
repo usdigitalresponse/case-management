@@ -100,7 +100,7 @@ async function tourCase(db: Database, accounts: TourAccounts, runId: string) {
     // A new client, made for this case.
     ...(made?.clientId ? [{ table: 'person' as const, id: made.clientId }] : []),
   ]);
-  return { caseId, caseNumber, clientName };
+  return { caseId, caseNumber, clientName, countyId: anyCounty?.countyId ?? null };
 }
 
 async function lineIds(db: Database, invoiceId: string): Promise<string[]> {
@@ -160,7 +160,8 @@ export async function createTourMaterial(
   await db.insert(demoTourRun).values({ demoTourRunId: run.runId, mission });
 
   if (mission === 'staff-filing') {
-    // Nothing is made: the visitor enters a paper invoice by hand.
+    // Nothing is made: the visitor enters a paper invoice by hand, and adds its case from its number and county.
+    const [paperCounty] = await db.select({ displayName: county.displayName }).from(county).where(eq(county.active, true)).orderBy(asc(county.displayName)).limit(1);
     const lines = [
       { date: month.day(4), description: 'Interviewed the client at the jail', hours: 2 },
       { date: month.day(11), description: 'Located and interviewed a witness', hours: 3.5 },
@@ -175,6 +176,7 @@ export async function createTourMaterial(
         receivedOn: iso(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)),
         invoiceNumber: tourNumber('PAPER'),
         caseNumber: tourNumber('26-TR'),
+        county: paperCounty?.displayName ?? '',
         periodStart: month.start,
         periodEnd: month.end,
         rate: TOUR_RATE,
@@ -234,8 +236,9 @@ export async function createTourMaterial(
     const trip = { serviceDate: busyDay, tripOrigin: TOUR_OFFICE, tripDestination: TOUR_SITE, roundTrip: true, tripKey: 'site' };
     const main = await createInvoice(db, vendorActor(accounts), {
       caseId: null,
-      // As a sender might type it: no dashes.
+      // As a sender might type it: no dashes, in the case's county, so the case step offers it.
       caseNumber: tour.caseNumber.replace(/-/g, ''),
+      countyId: tour.countyId,
       attested: true,
       invoiceNumber: tourNumber('INV'),
       periodStart: month.day(10),

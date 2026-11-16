@@ -1,9 +1,7 @@
 import type { ReactNode } from 'react';
 import { Notice } from './ui/Notice';
 
-// CaseList and PortalCaseList each hand-rolled this same error/loading/
-// empty/content branching under a shared heading — this is that shape,
-// extracted once.
+// A heading over the list, or its loading, error or empty state.
 export function ResourceList<T>({
   heading,
   error,

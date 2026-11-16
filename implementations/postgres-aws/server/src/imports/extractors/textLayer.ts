@@ -485,11 +485,8 @@ async function readRows(
     const named = [...(attachments ?? new Map())].map(([id, file]): [string, string] => [id, file.filename]);
     const embedded = await readEmbedded(document, new Map([...named, ...pageFiles]), OPS);
     const pageNumbers = Array.from({ length: document.numPages }, (_, index) => index + 1);
-    // A file with visible, readable text is read from its text layer; mixed
-    // files keep that only, so scanned attachments behind a digital invoice
-    // aren't read as items. Scans, including searchable ones whose hidden
-    // text another program recognized, and unusable text layers are
-    // recognized here instead, as is all of a file when asked.
+    // Visible, readable text is read from the text layer, and a mixed file keeps only that, so scanned attachments
+    // aren't read as items. Scans (searchable ones too) and unusable text layers are recognized instead.
     const visibleRows = rows.filter((row) => !hiddenTextPages.has(row.page));
     if (!recognizeAll && visibleRows.length > 0 && !textLooksGarbled(visibleRows.map((row) => row.cells.map((cell) => cell.text).join(' ')).join('\n'))) {
       const textlessPages = pageNumbers.some((page) => !visibleRows.some((row) => row.page === page));
@@ -786,11 +783,8 @@ function splitAtColumns(cell: Cell, boundaries: number[]): Cell[] {
   return [left, ...splitAtColumns(right, boundaries)].filter((part) => part.text !== '');
 }
 
-// By overlap, not left edges, because right-aligned values can start left of
-// their heading. Text under no heading goes to the description (even without
-// a description heading, as a receipt's "Item") rather than a neighbouring
-// figure or date column, and with no quantity heading (or nothing under
-// it) the first of two figures under the rate is the quantity.
+// By overlap, not left edges, since right-aligned values can start left of their heading. Text under no heading
+// goes to the description; with no quantity heading, the first of two figures under the rate is the quantity.
 function cellsByColumn(row: Row, columns: Columns): Map<Column, Cell[]> {
   const headings = [...columns.entries()].sort((a, b) => a[1].x - b[1].x);
   const boundaries = headings.map(([, extent]) => extent.x);
@@ -1248,13 +1242,9 @@ export async function extractFromTextLayer(bytes: Buffer, options: ExtractOption
     }
     return figures;
   };
-  // Headings start a table and a total ends it, across pages. After an
-  // amount due, a table on a later page starts the attachments (receipts, a
-  // second invoice); one on the same page, such as expenses after a "total
-  // due for services", is still the invoice's. Outside tables, items written
-  // as sentences or in a form's blanks are read, and a total after the last
-  // of them ends the invoice the same way. Attachments are read too, but
-  // their items are only suggested (see sortAttachments).
+  // Headings start a table and a total ends it, across pages. After an amount due, a table on a later page starts
+  // the attachments, whose items are only suggested (sortAttachments); one on the same page is still the invoice's.
+  // Outside tables, sentence and form-blank items are read, and a total after the last ends the invoice likewise.
   let columns: Columns | undefined;
   let mileage: MileageColumns | undefined;
   let section: Section;

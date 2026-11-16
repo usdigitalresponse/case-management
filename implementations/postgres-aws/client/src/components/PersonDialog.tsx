@@ -1,6 +1,6 @@
 // Adding someone who can send invoices, or changing their details and rates.
 // Someone added can sign in with their email straight away.
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import {
   addProfessional,
   editProfessional,
@@ -30,7 +30,10 @@ export function PersonDialog({
   person,
   onSaved,
   onClose,
+  extraAction,
 }: {
+  // Beside Save, such as removing someone added by mistake.
+  extraAction?: ReactNode;
   // Absent: adding someone new.
   person?: BillingPersonDetail;
   onSaved: (saved: { professionalId: string; displayName: string }) => void;
@@ -103,7 +106,7 @@ export function PersonDialog({
   );
 
   return (
-    <Dialog title={person ? `Edit ${person.displayName ?? 'details'}` : 'Add a person'} onClose={onClose}>
+    <Dialog title={person ? `Edit ${person.displayName ?? 'details'}` : 'Add provider'} onClose={onClose}>
       <form className="person-form" onSubmit={(event) => void submit(event)}>
         {!person && (
           <p>They can send invoices as soon as you add them. Their sign-in code goes to the email below.</p>
@@ -127,7 +130,7 @@ export function PersonDialog({
           </div>
           {errors.professionalKindId && <p className="field-error">{errors.professionalKindId}</p>}
         </fieldset>
-        <div className="dialog-field-pair">
+        <div className="field-pair">
           {field('email', 'Email', 'Used for the sign-in code.', {
             type: 'email',
             required: !person,
@@ -136,7 +139,7 @@ export function PersonDialog({
           {field('phone', 'Phone', undefined, { type: 'tel' })}
         </div>
         {field('paidThrough', 'Paid through', 'The business or firm that is paid.')}
-        <div className="dialog-field-pair">
+        <div className="field-pair">
           {field('hourlyRate', 'Approved rate, an hour', person ? 'A change applies from today.' : undefined)}
           {field('ratePerMile', 'Mileage rate, a mile', person ? undefined : 'Leave blank to use the general mileage rate.')}
         </div>
@@ -149,6 +152,7 @@ export function PersonDialog({
           <button type="button" className="link-button" disabled={busy} onClick={onClose}>
             Cancel
           </button>
+          {extraAction}
         </div>
       </form>
     </Dialog>

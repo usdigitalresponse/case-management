@@ -1,5 +1,5 @@
 // The request log and usage by county (model/rules.yaml request_preauthorization, report_preauthorization_usage).
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { caseOptionLabel, searchCases, searchProviders, type CountyUsage, type PreauthorizationRequestRow } from '../api/client';
 import { useResource } from '../hooks/useResource';
@@ -10,26 +10,20 @@ import { PageHeader } from '../components/PageHeader';
 import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { PreauthorizationRequestForm } from '../components/PreauthorizationRequestForm';
-import { caseText, providerText, rateText, RequestStatus } from '../components/preauthorizationRequest/requestText';
+import { requestColumns } from '../components/preauthorizationRequest/requestText';
 import { PreauthorizationRequestView } from '../components/PreauthorizationRequestView';
 import { downloadCsv } from '../downloadCsv';
-import { formatDay } from '../formatDateTime';
-import { formatMoney } from '../formatMoney';
+import { formatDollars, formatMoney } from '../formatMoney';
 import { FilterTag } from '../components/ui/Tag';
 import { Tabs } from '../components/ui/Tabs';
 import { preauthorizationRequestsRequest, REQUEST_STATUS_TABS, type RequestStatusTab } from '../caseRequests';
 import { Button } from '../components/ui/Button';
-import { Notice } from '../components/ui/Notice';
+import { UsedBar } from '../components/UsedBar';
 
-const STATUS_LABELS: Record<RequestStatusTab, string> = {
-  submitted: 'Waiting',
-  info_requested: 'Waiting for information',
-  approved: 'Approved',
-  not_needed: 'Not needed',
-  denied: 'Denied',
-  withdrawn: 'Withdrawn',
-  all: 'All',
-};
+// Loaded only on this tab, so the chart library stays out of other pages.
+const UsageRunningTotals = lazy(() => import('../components/UsageRunningTotals'));
+
+const STATUS_LABELS: Record<RequestStatusTab, string> = { all: 'All', in_review: 'In review', decided: 'Decided' };
 
 export const preauthorizationPath = (requestId: string) => `/preauthorizations/${requestId}`;
 
@@ -67,6 +61,7 @@ function Requests() {
     // Replaced, so arrowing across tabs leaves one history entry.
     setParams(merged, { preventScrollReset: true, replace: true });
   };
+  const columns = requestColumns(preauthorizationPath);
   return (
     <>
       <div className="list-controls">
@@ -89,7 +84,7 @@ function Requests() {
         )}
         {!recording && (
           <Button kind="secondary" onClick={() => setRecording(true)}>
-            Record a request
+            Record request
           </Button>
         )}
       </div>
@@ -105,27 +100,13 @@ function Requests() {
           rowKey={(row) => row.preauthorizationRequestId}
           emptyMessage="No requests here."
           columns={[
-            {
-              header: 'Number',
-              width: '9%',
-              rowHeader: true,
-              render: (row) => (
-                <>
-                  <Link className="nowrap" to={preauthorizationPath(row.preauthorizationRequestId)}>{row.requestNumber}</Link>
-                  <span className="cell-note nowrap">{formatDay(row.receivedAt)}</span>
-                </>
-              ),
-            },
-            { header: 'Case', width: '13%', render: (row) => <><span className="nowrap">{caseText(row)}</span><span className="cell-note">{row.countyName ?? ''}</span></> },
-            { header: 'Asked by', width: '10%', render: (row) => row.requestedForName ?? row.requestedByName },
-            { header: 'Provider', width: '18%', render: (row) => <>{providerText(row)}<span className="cell-note">{row.kindName ?? row.serviceDescription}</span></> },
-            {
-              header: 'Asked for',
-              width: '12%',
-              render: (row) => <><span className="amount">{formatMoney(row.requestedAmount)}</span><span className="cell-note">{rateText(row)}</span></>,
-            },
-            { header: 'Approved', width: '10%', render: (row) => (row.approvedAmount ? <span className="amount">{formatMoney(row.approvedAmount)}</span> : '—') },
-            { header: 'Status', width: '14%', render: (row) => <RequestStatus request={row} /> },
+            { ...columns.number, width: '9%' },
+            { ...columns.case, width: '12%' },
+            { header: 'Asked by', width: '12%', render: (row) => row.requestedForName ?? row.requestedByName },
+            { ...columns.provider, width: '15%' },
+            { ...columns.askedFor, width: '14%' },
+            { ...columns.approved, width: '9%' },
+            { ...columns.status, width: '17%' },
             { header: 'Billed / left', width: '11%', render: (row) => <LimitCell row={row} /> },
           ]}
         />
@@ -151,13 +132,21 @@ function LimitCell({ row }: { row: PreauthorizationRequestRow }) {
   );
 }
 
+const REQUEST_NOTES: Array<[keyof CountyUsage['requests'], string]> = [
+  ['info_requested', 'waiting for information'],
+  ['not_needed', 'not needed'],
+  ['denied', 'denied'],
+  ['withdrawn', 'withdrawn'],
+];
+
 function UsageByCounty() {
   const [period, setPeriod] = useState(thisYear);
   const { data, error } = useResource(preauthorizationUsage(period));
+  const isTotal = (row: CountyUsage) => row.countyName === 'All';
   const requestsLink = (row: CountyUsage, status: string) =>
     `/preauthorizations?status=${status}${row.countyId ? `&countyId=${row.countyId}` : ''}`;
   const count = (row: CountyUsage, status: string, n: number) =>
-    n > 0 && row.countyName !== 'All' ? <Link to={requestsLink(row, status)}>{n}</Link> : n;
+    n > 0 && !isTotal(row) ? <Link to={requestsLink(row, status)}>{n}</Link> : n;
   const rows = data ? [...data.counties, data.total] : [];
   return (
     <>
@@ -189,6 +178,7 @@ function UsageByCounty() {
                   Withdrawn: row.requests.withdrawn,
                   'Asked for': row.requested,
                   Approved: row.approved,
+                  Authorized: row.authorized,
                   'Billed, approved': row.billedApproved,
                   'Billed, waiting': row.billedWaiting,
                   Left: row.left,
@@ -205,9 +195,14 @@ function UsageByCounty() {
           </Button>
         )}
       </div>
-      <p className="compact-hint">
-        Requests count by date received. Billed, left and over are as of today, for cases with a request or invoice in the period.
-      </p>
+      {data &&
+        (data.months.length > 0 ? (
+          <Suspense fallback={<LoadState error={null} what="chart" />}>
+            <UsageRunningTotals months={data.months} />
+          </Suspense>
+        ) : (
+          <p className="compact-hint">Choose a period of five years or less to see the running total.</p>
+        ))}
       {!data ? (
         <LoadState error={error} what="usage" />
       ) : (
@@ -215,58 +210,101 @@ function UsageByCounty() {
           className="queue-table usage-table"
           label="Pre-authorization use by county"
           rows={rows}
-          rowKey={(row) => (row.countyName === 'All' ? 'total' : (row.countyId ?? 'none'))}
+          rowKey={(row) => (isTotal(row) ? 'total' : (row.countyId ?? 'none'))}
+          rowClassName={(row) => (isTotal(row) ? 'usage-table__total' : undefined)}
           emptyMessage="No requests or invoices in this period."
           columns={[
-            { header: 'County or setting', rowHeader: true, render: (row) => (row.countyName === 'All' ? <strong>All</strong> : row.countyName) },
-            { header: 'Threshold', render: (row) => (row.threshold ? formatMoney(row.threshold) : '—') },
+            { header: 'County or setting', width: '10%', rowHeader: true, render: (row) => row.countyName },
+            { header: 'Threshold', width: '9%', render: (row) => (row.threshold ? formatDollars(row.threshold) : '—') },
             {
               header: 'Requests',
+              width: '20%',
+              render: (row) => {
+                const others = REQUEST_NOTES.filter(([status]) => row.requests[status] > 0);
+                return (
+                  <>
+                    {count(row, 'submitted', row.requests.submitted)} waiting, {count(row, 'approved', row.requests.approved)} approved
+                    {others.length > 0 && (
+                      <span className="cell-note">
+                        {others.map(([status, label], index) => (
+                          <span key={status}>
+                            {index > 0 && ', '}
+                            {count(row, status, row.requests[status])} {label}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    {Number(row.requested) > 0 && (
+                      <span className="cell-note">
+                        {formatDollars(row.requested)} asked for, {formatDollars(row.approved)} approved
+                      </span>
+                    )}
+                  </>
+                );
+              },
+            },
+            { header: 'Authorized', width: '10%', render: (row) => formatDollars(row.authorized) },
+            {
+              header: 'Signed off',
+              width: '10%',
               render: (row) => (
                 <>
-                  {count(row, 'submitted', row.requests.submitted)} waiting, {count(row, 'approved', row.requests.approved)} approved
-                  <span className="cell-note">
-                    {count(row, 'info_requested', row.requests.info_requested)} waiting for information,{' '}
-                    {count(row, 'not_needed', row.requests.not_needed)} not needed, {count(row, 'denied', row.requests.denied)} denied,{' '}
-                    {count(row, 'withdrawn', row.requests.withdrawn)} withdrawn
-                  </span>
+                  {formatDollars(row.billedApproved)}
+                  {Number(row.billedWaiting) > 0 && <span className="cell-note">{formatDollars(row.billedWaiting)} in review</span>}
                 </>
               ),
             },
-            { header: 'Asked for / approved', render: (row) => <>{formatMoney(row.requested)}<span className="cell-note">{formatMoney(row.approved)} approved</span></> },
-            { header: 'Billed', render: (row) => <>{formatMoney(Number(row.billedApproved) + Number(row.billedWaiting))}<span className="cell-note">{formatMoney(row.billedWaiting)} waiting</span></> },
-            { header: 'Left', render: (row) => formatMoney(row.left) },
+            { header: 'Used', width: '12%', render: (row) => <UsedShare row={row} /> },
+            { header: 'Left', width: '8%', render: (row) => formatDollars(row.left) },
             {
               header: 'Over their limit',
+              width: '10%',
               render: (row) =>
                 row.over.providers === 0 ? (
                   <span className="muted">None</span>
                 ) : (
                   <>
-                    <span className="total-figure--cut">{row.over.providers} {row.over.providers === 1 ? 'provider' : 'providers'}, {formatMoney(row.over.amount)}</span>
+                    <span className="total-figure--cut">{row.over.providers} {row.over.providers === 1 ? 'provider' : 'providers'}, {formatDollars(row.over.amount)}</span>
                     <span className="cell-note">{row.over.unexplained} not explained</span>
                   </>
                 ),
             },
             {
               header: 'Within the threshold',
+              width: '10%',
               render: (row) =>
                 row.withinThreshold.providers === 0 ? (
                   <span className="muted">None</span>
                 ) : (
                   <>
                     {row.withinThreshold.providers} {row.withinThreshold.providers === 1 ? 'provider' : 'providers'}
-                    <span className="cell-note">{formatMoney(row.withinThreshold.billed)} billed</span>
+                    <span className="cell-note">{formatDollars(row.withinThreshold.billed)} billed</span>
                   </>
                 ),
             },
           ]}
         />
       )}
-      <Notice tone="info">
-        A provider is over their limit when what they billed on a case passes what was pre-authorized, or the threshold if nothing was.
-        Going over is explained by the sender and flagged for the reviewer, never refused.
-      </Notice>
+      <p className="compact-hint">
+        Requests count by date received. Authorized is each pre-authorization’s current ceiling; signed off, in review and left are as of
+        today, for cases with a request or invoice in the period, against the pre-authorization or else the county’s threshold. Going over
+        a limit is explained by the sender and flagged for the reviewer, never refused.
+      </p>
+    </>
+  );
+}
+
+function UsedShare({ row }: { row: CountyUsage }) {
+  const approved = Number(row.billedApproved);
+  const waiting = Number(row.billedWaiting);
+  const limit = approved + waiting + Number(row.left);
+  const share = (amount: number) => (limit > 0 ? Math.round((amount / limit) * 100) : 0);
+  return (
+    <>
+      <UsedBar approved={approved} waiting={waiting} limit={limit} />
+      <span className="cell-note">
+        {share(approved)}% signed off{waiting > 0 && `, ${share(waiting)}% in review`}
+      </span>
     </>
   );
 }

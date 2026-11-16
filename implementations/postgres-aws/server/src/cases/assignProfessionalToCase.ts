@@ -1,13 +1,5 @@
-// Shared by every case-assignment entry point (external submitter,
-// staff) — they differ only in how the professionalId and
-// assignmentRoleId are resolved, not in how the case_assignment row
-// itself is created or how a double-click/retry collision
-// (case_assignment_open_unique) is recovered from.
-//
-// model/rules.yaml: new assignments must begin while the case is open.
-// The case row is share-locked for the insert, and ./closeCase.ts
-// update-locks it before ending open assignments, so an assignment can't
-// slip in alongside a concurrent close.
+// Every case assignment's insert, recovering from a retried one (case_assignment_open_unique). Assignments begin
+// only on an open case (model/rules.yaml): the case row is share-locked here and update-locked by ./closeCase.ts.
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';
 import { caseAssignment, caseTable, CASE_ASSIGNMENT_OPEN_UNIQUE_CONSTRAINT } from '../db/schema';

@@ -5,10 +5,8 @@ import type { DatabaseOrTransaction } from '../db/client';
 import { invoiceDecisionReasons } from '../db/schema';
 import { NotFoundError, ValidationError } from '../errors';
 
-// Starting reasons for approving a line in part or rejecting it
-// (model/rules.yaml decide_invoice_lines), and for setting a case rate
-// (set_case_rate). Configurable reference data: administrators add, rename
-// and retire them in Settings. "Other" is on every list.
+// Starting reasons for approving in part, rejecting (model/rules.yaml decide_invoice_lines) and setting a case
+// rate (set_case_rate); administrators change them in Settings. "Other" is on every list.
 export const RATE_REASON_CODE = 'rate_above_configured';
 export const OTHER_REASON_CODE = 'other';
 
@@ -19,9 +17,9 @@ export const INVOICE_DECISION_REASONS: Array<{ code: string; displayName: string
   { code: RATE_REASON_CODE, displayName: 'Rate is higher than the approved rate', appliesTo: 'approved_in_part' },
   { code: 'not_billable', displayName: 'Part of the work is not billable', appliesTo: 'approved_in_part' },
   { code: 'excessive_time', displayName: 'More time than the task needs', appliesTo: 'approved_in_part' },
-  { code: 'block_billing', displayName: 'Block billing. List the tasks separately.', appliesTo: 'rejected' },
+  { code: 'block_billing', displayName: 'Several tasks in one entry. List them separately.', appliesTo: 'rejected' },
   { code: 'not_provider_service', displayName: 'Not an investigator or expert service', appliesTo: 'rejected' },
-  { code: 'no_backup', displayName: 'No back-up attached: receipt, map, or breakdown', appliesTo: 'rejected' },
+  { code: 'no_backup', displayName: 'No supporting document attached: receipt, map or breakdown', appliesTo: 'rejected' },
   { code: 'duplicate', displayName: 'Duplicate of another entry', appliesTo: 'both' },
   { code: 'case_rate_agreed', displayName: 'Agreed in advance for this case', appliesTo: 'case_rate' },
   { code: 'case_rate_correction', displayName: 'Corrects an earlier case rate', appliesTo: 'case_rate' },

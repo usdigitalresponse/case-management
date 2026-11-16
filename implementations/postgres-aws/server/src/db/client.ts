@@ -2,9 +2,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schema';
 
-// Shared by the default (dev) connection below, migrate.ts, and
-// __tests__/testDb.ts (test connection) — one place to change pool/drizzle
-// config (SSL, pool size, logging) instead of three.
+// Every connection's pool and drizzle config: the app's, migrations' and tests'.
 export function createDb(connectionString: string) {
   // Without JIT: compiling this app's short queries takes longer than running them (hundreds of ms against tens).
   const pool = new Pool({ connectionString, options: '-c jit=off' });

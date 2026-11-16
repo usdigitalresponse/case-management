@@ -6,11 +6,11 @@ import type { ReviewTotals } from '../reviewTotals';
 import { ConfirmButton } from './ConfirmButton';
 import { Notice } from './ui/Notice';
 import { Button } from './ui/Button';
+import { Tag, type Tone } from './ui/Tag';
 import { Dialog } from './ui/Dialog';
 
-// Rate check: time lines billed above the case rate a reviewer set, else the
-// pre-authorized rate, else the person's approved rate, shown once above the
-// table rather than on every line.
+// Time lines billed above the case rate a reviewer set, else the pre-authorized rate, else the
+// approved rate; shown once above the table.
 export function rateCheck(lines: InvoiceReviewLine[]) {
   const above = lines.filter(
     (line) => line.rateLimit !== null && line.billedRate !== null && Number(line.billedRate) > Number(line.rateLimit),
@@ -72,8 +72,7 @@ function totalsFigures(requested: string, totals: ReviewTotals) {
   ];
 }
 
-// Requested, approved and cut so far, and Finish review once every line is
-// decided.
+// Requested, approved and cut so far, and Finish review once every line is decided.
 export function TotalsBar({
   requested,
   totals,
@@ -236,26 +235,35 @@ export function SignOffPanel({
 }
 
 const SIGN_OFF_WORDS: Record<string, string> = { approved: 'signed off', rejected: 'rejected the invoice', changes_requested: 'sent it back' };
+const SIGN_OFF_TAGS: Record<string, { label: string; tone: Tone }> = {
+  approved: { label: 'Signed off', tone: 'success' },
+  rejected: { label: 'Rejected', tone: 'danger' },
+  changes_requested: { label: 'Sent back', tone: 'warning' },
+};
 
 export function SignOffHistory({ signOffs }: { signOffs: SignOff[] }) {
   if (signOffs.length === 0) {
     return null;
   }
   return (
-    <section className="detail-section">
+    <section className="card compact-card">
       <h2>Sign-off history</h2>
       <ul className="history-list">
-        {signOffs.map((signOff, index) => (
-          <li key={index}>
-            {signOff.displayName ?? 'Someone'} {SIGN_OFF_WORDS[signOff.outcomeCode] ?? 'decided'} on{' '}
-            {formatDateTime(signOff.decidedAt)}
-            {signOff.comment && (
-              <span className="cell-note">
-                “{signOff.comment}” ({signOff.internalOnly ? 'staff only' : 'the sender sees it'})
-              </span>
-            )}
-          </li>
-        ))}
+        {signOffs.map((signOff, index) => {
+          const tag = SIGN_OFF_TAGS[signOff.outcomeCode];
+          return (
+            <li key={index}>
+              {tag && <Tag tone={tag.tone}>{tag.label}</Tag>}
+              {signOff.displayName ?? 'Someone'} {SIGN_OFF_WORDS[signOff.outcomeCode] ?? 'decided'} on{' '}
+              {formatDateTime(signOff.decidedAt)}
+              {signOff.comment && (
+                <span className="cell-note">
+                  “{signOff.comment}” ({signOff.internalOnly ? 'staff only' : 'the sender sees it'})
+                </span>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

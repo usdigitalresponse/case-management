@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 
-// Re-fetches every `intervalMs` while `active`, keeping the last result
-// between fetches so it doesn't flash a loading state. A new `key` (what is
-// being polled) starts afresh. Failed fetches are skipped; the next one tries again.
+// Re-fetches every `intervalMs` while `active`, keeping the last result meanwhile; a new `key` starts
+// afresh, and a failed fetch is skipped.
 export function usePoll<T>(fetchFn: () => Promise<T>, active: boolean, intervalMs: number, key: string = ''): T | null {
   const [data, setData] = useState<{ key: string; value: T } | null>(null);
 

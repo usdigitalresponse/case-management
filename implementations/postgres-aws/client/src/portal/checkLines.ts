@@ -116,7 +116,7 @@ export function totalsNotice({
     const check = warningLine ? ` Check line ${warningLine.number}: ${warningLine.message.charAt(0).toLowerCase()}${warningLine.message.slice(1)}` : '';
     return {
       tone: 'warning',
-      text: `${File} says the total is ${formatMoney(fileSays)}. The lines we read add up to ${formatMoney(readTotal)}, which is ${formatMoney(difference)} ${readTotal > fileSays ? 'more' : 'less'}.${check}`,
+      text: `${File} says the total is ${formatMoney(fileSays)}. The lines read from it add up to ${formatMoney(readTotal)}, which is ${formatMoney(difference)} ${readTotal > fileSays ? 'more' : 'less'}.${check}`,
     };
   }
   if (cents(askingFor) === cents(fileSays)) {

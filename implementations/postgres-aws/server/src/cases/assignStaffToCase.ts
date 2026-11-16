@@ -1,8 +1,4 @@
-// Internal-staff case assignment — the counterpart to
-// ./assignExternalSubmitterToCase.ts. Staff has no professional profile
-// until their first assignment (unlike a vendor's, bootstrapped at
-// email-code login; see ../professionals/ensureProfessional.ts), so one is
-// created lazily here.
+// Staff case assignment; a staff member's professional profile is made at their first assignment.
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { Database } from '../db/client';

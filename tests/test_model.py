@@ -45,13 +45,8 @@ def role_id(fixture, display_name):
     return next(r['role_id'] for r in fixture['records']['role'] if r['display_name'] == display_name)
 
 
-# These fields are plain schema fields (see "Deferred: fields that should
-# become read models" in model/README.md), but prepare_review.py still
-# computes and injects them from event/participant/affiliation history before
-# writing to Dataverse, so the hand-authored fixture deliberately leaves them
-# out rather than duplicating values that must stay consistent with that
-# history. Promote a field out of this set once its source fixture rows
-# supply it directly instead of prepare_review.py computing it.
+# Plain schema fields that prepare_review.py computes from history, so the fixture leaves them out; remove one
+# once its fixture rows supply it.
 COMPUTED_BY_REVIEW_PREPARATION = {
     ('case', 'status_id'), ('case', 'opened_on'), ('case', 'closed_on'),
     ('case', 'external_reference'), ('case', 'client_id'),

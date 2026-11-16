@@ -1,21 +1,12 @@
-// Bootstraps a professional profile for a user_account on first use, the
-// same way oidcProviders.ts bootstraps the user_account itself — so
-// there's something case_assignment can point at without a separate
-// "create professional" form. Called both at email-code login (every
-// external vendor gets one immediately, ../routes/auth.ts) and lazily,
-// the first time a staff user is assigned to a case
-// (../routes/cases.ts POST /:id/staff-assignments) — staff otherwise has
-// no reason to need one.
+// A user account's professional profile, made at an external user's first sign-in or a staff member's first
+// case assignment.
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
 import { person, professional, PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT, userAccount } from '../db/schema';
 import { firstRow, uniqueViolationConstraint } from '../db/rowHelpers';
 import { linkAccountToPerson } from '../auth/userAccounts';
 
-// Read-only lookup, used wherever a route needs "the current session's
-// professional, if any" without creating one (../routes/myCases.ts,
-// ../routes/portal/) — unlike ensureProfessionalForUserAccount below,
-// which only the email-code verify route should call.
+// The account's profile, if any, without making one.
 export async function getProfessionalIdForUserAccount(
   db: DatabaseOrTransaction,
   userAccountId: string,
@@ -77,10 +68,7 @@ export async function ensureProfessionalForUserAccount(
     await linkAccountToPerson(db, userAccountId, personId);
     return professionalRow.professionalId;
   } catch (error) {
-    // Lost the race to a concurrent first-login bootstrap for the same
-    // account (e.g. two emailed codes verified within the same
-    // second) — the unique index on professional.user_account_id caught
-    // it; recover the winner instead of leaving two professional rows.
+    // A concurrent first sign-in made it first: take theirs.
     if (uniqueViolationConstraint(error) === PROFESSIONAL_USER_ACCOUNT_ID_UNIQUE_CONSTRAINT) {
       const professionalId = await getProfessionalIdForUserAccount(db, userAccountId);
       if (professionalId) {

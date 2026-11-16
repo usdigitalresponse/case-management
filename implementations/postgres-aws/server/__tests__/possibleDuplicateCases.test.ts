@@ -7,7 +7,7 @@ import { pool } from '../src/db/client';
 import { resetAndSeedBaselineFixtures, type BaselineFixtureIds } from '../src/db/fixtures';
 import { createCase } from '../src/intake/createCase';
 import { caseTable, county } from '../src/db/schema';
-import { listPossibleDuplicateCases, recordCaseDuplicateReview } from '../src/cases/possibleDuplicateCases';
+import { caseDuplicateMembers, listPossibleDuplicateCases, recordCaseDuplicateReview } from '../src/cases/possibleDuplicateCases';
 
 let fixtures: BaselineFixtureIds;
 
@@ -49,6 +49,17 @@ describe('possible duplicate cases', () => {
     expect(group?.cases.map((one) => one.caseId).sort()).toEqual([a, b, c].sort());
     expect(group?.pairs.every((pair) => pair.reasons.join() === 'same_number,same_county')).toBe(true);
     expect(group?.cases.find((one) => one.caseId === a)?.caseNumber).toBe('26-CR-0418');
+  });
+
+  it('tell each case which others it may be, for the notice on its page', async () => {
+    const a = await addCase('26-CR-0418');
+    const b = await addCase('26CR418');
+    await addCase('26-CR-0419');
+
+    const members = caseDuplicateMembers(await listPossibleDuplicateCases(testDb));
+    expect(members.get(a)).toEqual([{ id: b, label: '26CR418' }]);
+    expect(members.get(b)).toEqual([{ id: a, label: '26-CR-0418' }]);
+    expect(members.size).toBe(2);
   });
 
   it('never pairs cases in different counties, even when flagged', async () => {

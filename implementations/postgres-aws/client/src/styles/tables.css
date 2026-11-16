@@ -16,19 +16,14 @@
 .usa-table--borderless th[aria-sort] { color:var(--color-on-surface); }
 .usa-table--borderless tbody th[scope=row] { border-top:1px solid var(--color-outline-subtle); }
 .usa-table--borderless th, .usa-table--borderless td { border-left:0; border-right:0; }
-/* The single place a table gets its box: rounded/clipped corners, full
-   width, and horizontal scroll on overflow. */
+/* The one place a table gets its box: rounded corners, full width, horizontal scroll on overflow. */
 .data-card { overflow-x: auto; overflow-y: hidden; }
 .data-card .usa-table { margin: 0; width: 100%; }
-/* USWDS's base .usa-table styles every cell with a 1px var(--color-on-surface) border and
-   every <th> (including a tbody row header) with a gray background — the
-   harsh grid and stray-shaded-column look. We own this card's table
-   chrome entirely instead: no per-cell borders, a single row divider,
-   header styling applied only where we actually want it. */
+/* In place of USWDS's cell borders and shaded <th>: one divider between rows. */
 .data-card table td, .data-card table th { padding: calc(var(--space-5) + var(--space-2)) var(--space-7); line-height: 1.4; border: none; border-bottom: 1px solid var(--color-outline-subtle); background: transparent; }
 .data-card table tbody tr:last-child td, .data-card table tbody tr:last-child th { border-bottom: none; }
 /* Table headers: Title/Small. */
-.data-card table thead th { padding: calc(var(--space-4) + var(--space-2)) var(--space-7); border-bottom-color: var(--color-outline-variant); text-transform: uppercase; background: var(--color-surface-container-low); font-size: var(--text-11); letter-spacing: .6px; color: var(--color-on-surface-variant); font-weight: 600; }
+.data-card table thead th { padding: calc(var(--space-4) + var(--space-2)) var(--space-7); border-bottom-color: var(--color-outline-variant); background: var(--color-surface-container-low); color: var(--color-on-surface-variant); font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .data-card table tbody tr:hover { background: var(--color-primary-container-low); }
 .data-card table th[scope="row"] a { color: var(--color-primary); font-weight: 600; text-decoration: none; }
 .data-card table th[scope="row"] a:hover, .data-card table th[scope="row"] a:focus { text-decoration: underline; }
@@ -65,3 +60,5 @@
 
 /* After a list loaded a batch at a time (MoreOnScroll): says when more is loading or failed. */
 .more-on-scroll { min-height: var(--space-6); margin-top: var(--space-4); text-align: center; font-size: var(--text-13); color: var(--color-on-surface-muted); }
+/* A row a check flagged, such as a close match or a trip over the driving route. */
+.data-card table tr.is-flagged, .data-card table tbody tr.is-flagged:hover { background: var(--color-tertiary-container); }

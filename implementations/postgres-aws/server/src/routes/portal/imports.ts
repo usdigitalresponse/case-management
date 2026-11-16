@@ -44,10 +44,8 @@ router.post(
   }),
 );
 
-// A file designated to one professional whose lines name their cases
-// (../../imports/splitByCase.ts): read in the background like an upload, then
-// previewed with a suggested case per line, then split into one import per
-// case from that reading. The raw body is the file.
+// A file for one professional whose lines name their cases (../../imports/splitByCase.ts): read, previewed with
+// a suggested case per line, then split into one import per case. The raw body is the file.
 router.post(
   '/invoice-imports/case-split/reads',
   express.raw({ type: () => true, limit: MAX_UPLOAD_BYTES }),
@@ -85,9 +83,8 @@ router.post(
   }),
 );
 
-// The portal upload (../../imports/splitByCase.ts): each file is read before
-// its case is chosen, then the submitter confirms the case, period and
-// invoice number and it becomes a draft. The raw body is the file.
+// The portal upload: each file is read, then the submitter confirms its details and it becomes a draft. The raw
+// body is the file.
 router.post(
   '/uploads',
   express.raw({ type: () => true, limit: MAX_UPLOAD_BYTES }),

@@ -11,7 +11,7 @@ import { LoadState } from '../components/LoadState';
 import { RecordTable } from '../components/RecordTable';
 import { Button } from '../components/ui/Button';
 import { Notice } from '../components/ui/Notice';
-import { duplicatePeoplePath, mergePath } from '../staffPaths';
+import { duplicatesPath, mergePath } from '../staffPaths';
 import { DuplicatePersonDetails, personLabels } from '../components/DuplicatePeople';
 
 export default function MergePeople() {
@@ -25,7 +25,7 @@ export default function MergePeople() {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const crumbs = [{ label: 'People', to: '/people' }, { label: 'Review duplicates', to: duplicatePeoplePath() }, { label: 'Merge' }];
+  const crumbs = [{ label: 'Settings', to: '/settings' }, { label: 'Merge duplicates', to: duplicatesPath() }, { label: 'Merge' }];
 
   if (!keep || retire.length === 0) {
     return <Notice tone="danger">Choose the records to merge from People’s Review duplicates tab.</Notice>;
@@ -53,7 +53,7 @@ export default function MergePeople() {
     setSaveError(null);
     try {
       const { personMergeIds } = await mergePeople({ keptPersonId: kept.personId, retiredPersonIds: retired.map((plan) => plan.person.personId), note });
-      navigate(duplicatePeoplePath({ merged: personMergeIds.join(',') }));
+      navigate(duplicatesPath({ merged: personMergeIds.join(',') }));
     } catch (err) {
       setSaveError(apiErrorMessage(err, 'They could not be merged.'));
       setSaving(false);
@@ -172,7 +172,7 @@ export default function MergePeople() {
             <Button kind="danger" disabled={!confirmed || blocked || saving} onClick={() => void merge()}>
               {saving ? 'Merging…' : `Merge into ${keptName}`}
             </Button>
-            <button type="button" className="link-button" onClick={() => navigate(duplicatePeoplePath())}>
+            <button type="button" className="link-button" onClick={() => navigate(duplicatesPath())}>
               Cancel
             </button>
           </div>

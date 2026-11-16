@@ -196,20 +196,9 @@ async Task AddComponent(string id, int type) => await Api("POST", "AddSolutionCo
   ComponentId = id, ComponentType = type, SolutionUniqueName = solution, AddRequiredComponents = false, DoNotIncludeSubcomponents = false
 });
 async Task ResetReviewData() {
-  // Deletes every cm_-prefixed custom table (and therefore all its records, forms,
-  // views and relationships) in this environment, so deploy-review can rebuild and
-  // reseed from a clean slate. This is irreversible and is not scoped to only the
-  // entities in the current review package: it also removes tables from earlier
-  // schema revisions (e.g. a since-removed entity) that would otherwise collide with
-  // the rebuild, and any other cm_-prefixed customization sharing this prefix.
-  //
-  // Deleting a whole table removes its own forms, views and relationships together;
-  // deleting any of those individually ahead of time runs into Dataverse invariants
-  // that don't apply to whole-table deletion (a relationship "referenced by" other
-  // components, an entity needing at least one active Main/Card form). The only
-  // ordering constraint that remains is relationship-driven: an entity cannot be
-  // deleted while another entity still has a relationship pointing at it, so tables
-  // are deleted in retry passes until every one succeeds.
+  // Irreversibly deletes every cm_-prefixed table here, not just this package's, so deploy-review
+  // rebuilds from a clean slate. Whole tables take their forms, views and relationships with them
+  // (deleting those alone hits Dataverse invariants); a table still referenced fails, so retry in passes.
   var relationshipNames = (await Api("GET", "RelationshipDefinitions?$select=SchemaName&$filter=IsCustomRelationship eq true"))!
     ["value"]!.AsArray().Select(x => x!["SchemaName"]!.GetValue<string>()).Where(n => n.StartsWith("cm_")).ToArray();
   var entityNames = (await Api("GET", "EntityDefinitions?$select=LogicalName&$filter=IsCustomEntity eq true"))!
@@ -247,9 +236,7 @@ async Task ResetReviewData() {
   if (Console.ReadLine() != token) throw new Exception("Reset aborted: confirmation code did not match.");
 
   Console.WriteLine("Confirmed. Removing the app and sitemap first...");
-  // Every table, form and view was registered as an explicit app module component
-  // when the app was built (AddAppComponents); that registration alone blocks
-  // deleting any of them, so it goes before anything else.
+  // The app's component registrations (AddAppComponents) block deleting tables, so the app goes first.
   var apps = (await Api("GET", $"appmodules?$select=appmoduleid&$filter=uniquename eq '{appName}'"))!["value"]!.AsArray();
   foreach (var app in apps) await Api("DELETE", $"appmodules({app!["appmoduleid"]!.GetValue<string>()})");
   Console.WriteLine($"  Deleted {apps.Count} app module(s).");
@@ -257,11 +244,6 @@ async Task ResetReviewData() {
   foreach (var map in maps) await Api("DELETE", $"sitemaps({map!["sitemapid"]!.GetValue<string>()})");
   Console.WriteLine($"  Deleted {maps.Count} sitemap(s).");
 
-  // Forms and relationships are deliberately not deleted individually here: Dataverse
-  // enforces "at least one active Main form" per entity on standalone form deletion,
-  // and enforces "referenced by other components" on standalone relationship deletion
-  // — neither invariant applies when the whole entity is deleted at once, which takes
-  // its own forms, views and relationships with it.
   Console.WriteLine("Deleting tables...");
   var remaining = entityNames.ToList();
   var lastErrors = new Dictionary<string, string>();
@@ -334,8 +316,7 @@ async Task DeployTablesAndRelationships(bool reviewMode) {
   }
 }
 async Task SyncRequiredLevels(Table table) {
-  // Only the 0.2 review path resyncs requiredness on existing attributes; 0.1 baseline
-  // fields never change requiredness after creation, so this step would be a no-op there.
+  // Only the 0.2 review path changes requiredness on existing fields.
   var attributes = await Api("GET", $"EntityDefinitions(LogicalName='{table.Name}')/Attributes?$select=LogicalName,MetadataId,RequiredLevel");
   foreach (var attribute in attributes!["value"]!.AsArray()) {
     var logical = attribute!["LogicalName"]!.GetValue<string>();
@@ -391,10 +372,7 @@ async Task<(List<string> FormIds, List<string> ViewIds)> DeployFormsAndViews(boo
   return (formIds, viewIds);
 }
 async Task<string> DeployAppAndSiteMap(bool reviewMode, List<string> formIds, List<string> viewIds) {
-  // An app module requires a real web resource as its icon, but that GUID is not
-  // stable across environments — a reset reprovisions system web resources with
-  // new IDs — so discover a usable image web resource at runtime rather than
-  // hardcoding one. Prefer PNG (type 5), fall back to SVG (type 11).
+  // An app needs an icon web resource whose id differs per environment: find one, PNG (5) else SVG (11).
   var icons = (await Api("GET", "webresourceset?$select=webresourceid&$filter=webresourcetype eq 5&$top=1"))!["value"]!.AsArray();
   if (icons.Count == 0) icons = (await Api("GET", "webresourceset?$select=webresourceid&$filter=webresourcetype eq 11&$top=1"))!["value"]!.AsArray();
   if (icons.Count == 0) throw new Exception("No PNG or SVG web resource is available in this environment to use as the app icon.");

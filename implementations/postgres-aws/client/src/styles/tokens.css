@@ -6,6 +6,8 @@
   --color-primary-container: #dff0ff;
   --color-on-primary-container: #0a4370;
   --color-primary-container-low: #f0f8ff;
+  --color-secondary: #4b5563;
+  --color-on-secondary: #ffffff;
   --color-secondary-container: #e5e7eb;
   --color-on-secondary-container: #1f2937;
   --color-tertiary: #eab308;
@@ -18,6 +20,7 @@
   --color-error-container: #fee2e2;
   --color-on-error-container: #7f1d1d;
   --color-success: #15803d;
+  --color-on-success: #ffffff;
   --color-success-container: #dcfce7;
   --color-on-success-container: #14532d;
   --color-surface: #ffffff;
@@ -57,7 +60,8 @@
   --space-16: 120px;
 
   --radius-small: 4px;
-  --radius-medium: 8px;
+  --radius-medium: 6px;
+  --radius-large: 8px;
   --radius-full: 999px;
   --radius-mark: 3px;
   --radius-circle: 50%;
@@ -78,19 +82,25 @@
   --text-26: 26px;
   --text-32: 32px;
 
-  /* Type roles: weight, size, line height where Figma gives one, and face. */
-  --headline-large: 600 var(--text-32) var(--font-serif);
-  --headline-medium: 600 var(--text-26) var(--font-serif);
+  /* Type roles as Figma's text styles: weight, size, line height and face. */
+  --headline-large: 600 var(--text-32)/1.2 var(--font-serif);
+  --headline-medium: 600 var(--text-26)/1.2 var(--font-serif);
   --headline-small: 600 var(--text-20)/1.25 var(--font-serif);
-  --title-large: 600 var(--text-18) var(--font-sans);
-  --title-medium: 600 var(--text-15) var(--font-sans);
-  --title-small: 600 var(--text-11) var(--font-sans);
-  --body-large: 400 var(--text-15) var(--font-sans);
+  --title-large: 600 var(--text-18)/1.25 var(--font-sans);
+  --title-medium: 600 var(--text-15)/1.25 var(--font-sans);
+  --title-small: 600 var(--text-11)/1.25 var(--font-sans);
+  --body-large: 400 var(--text-15)/1.5 var(--font-sans);
   --body-medium: 400 var(--text-13)/1.5 var(--font-sans);
   --body-small: 400 var(--text-11)/1.45 var(--font-sans);
   --label-large: 600 var(--text-13)/1.25 var(--font-sans);
-  --label-medium: 500 var(--text-12) var(--font-sans);
-  --label-small: 600 var(--text-11) var(--font-sans);
+  --label-medium: 500 var(--text-12)/1.25 var(--font-sans);
+  --label-small: 600 var(--text-11)/1.25 var(--font-sans);
+  /* Their letter spacing, which font shorthand can't carry. Title/Small is the one style in capitals. */
+  --tracking-headline-large: -.5px;
+  --tracking-headline-medium: -.4px;
+  --tracking-headline-small: -.2px;
+  --tracking-title-small: .6px;
+  --tracking-label-small: .2px;
 
   --elevation-1: 0 1px 3px 1px rgba(7, 42, 74, .3);
   --elevation-2: 0 2px 6px 1px rgba(7, 42, 74, .3);

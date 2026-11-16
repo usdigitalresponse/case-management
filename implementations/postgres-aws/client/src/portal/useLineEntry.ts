@@ -1,7 +1,5 @@
-// Entering an invoice's lines beside its file, on the check page and on an
-// invoice entered in review. Saves go one at a time, each the whole set of
-// lines; on a failure the page goes back to the last set the server holds,
-// keeping changes made in place.
+// Entering lines beside the file, on the check page and in review. Saves go one at a time, each the whole
+// set; a failure goes back to the last set the server holds, keeping changes made in place.
 import { billableProfessionals } from '../resources';
 import { useResource } from '../hooks/useResource';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -158,6 +156,8 @@ export function useLineEntry({
     const asSaved = (line: LineDraft | undefined) => JSON.stringify(line ? linesFromDrafts([line]) : null);
     const differs = (line: LineDraft) => asSaved(line) !== asSaved(saved.current.find((was) => was.invoiceLineId === line.invoiceLineId));
     const touched = next.filter((line, at) => line !== lines[at] && line.invoiceLineId);
+    // Now, not at the next render, so a reload whose effect is still pending doesn't overwrite this edit.
+    editedNow.current = new Set([...editedNow.current, ...touched.filter(differs).map((line) => line.invoiceLineId!)]);
     setEdited((current) => {
       const updated = new Set(current);
       for (const line of touched) {

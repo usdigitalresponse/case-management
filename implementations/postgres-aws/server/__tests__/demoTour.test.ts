@@ -2,6 +2,7 @@
 // in as its first role; the tour switches only between its demo accounts.
 import express from 'express';
 import cookieSession from 'cookie-session';
+import type { Request } from 'express';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { testDb, testPool } from './testDb';
@@ -21,7 +22,8 @@ import { addMileageRate } from '../src/billing/mileageRates';
 import { giveRate } from './rateHelpers';
 import { memoryStore } from './memoryStore';
 import { signIn } from './httpHelpers';
-import { recordTourRecords, sweepTourRuns, TOUR_RUN_LIFETIME_MS } from '../src/demoTour/tourRuns';
+import { recordTourRecords, sweepTourRuns, tagTourCase, TOUR_RUN_LIFETIME_MS } from '../src/demoTour/tourRuns';
+import { addCaseFromRequest } from '../src/cases/caseStep';
 import { createDraftFromUpload, startUploadRead } from '../src/imports/splitByCase';
 import { extractionsSettled } from '../src/imports/extractionJobs';
 import { resolvePortalActor } from '../src/portal/portalActor';
@@ -322,6 +324,17 @@ describe('removing old tour runs', () => {
     const signedIn = await caller(server, cookieOf(touring))('POST', '/auth/demo-login', { userAccountId: fixtures.staffUserAccountId });
     expect((await addPerson(cookieOf(signedIn), 'After Signing In')).status).toBe(201);
     expect(await testDb.select().from(demoTourRecord).where(eq(demoTourRecord.tableName, 'professional'))).toHaveLength(0);
+  });
+
+  it('removes a case the visitor added through the case step, with the client it was made with', async () => {
+    const before = await counts();
+    const { body } = await start('review');
+    const caseId = await testDb.transaction((tx) =>
+      addCaseFromRequest(tx, fixtures.staffUserAccountId, { caseNumber: 'TOUR-1', countyId: fixtures.countyId, clientName: 'Tour Client', confirmedNew: true }, { invoiceId: body.run.invoiceId! }),
+    );
+    await tagTourCase({ session: { tour: { runId: body.run.runId } } } as unknown as Request, caseId, testDb);
+    expect(await sweepTourRuns(testDb, store, dayLater())).toEqual({ removed: 1, kept: 0 });
+    expect(await counts()).toEqual(before);
   });
 
   it('never removes an existing client a tour case was made for', async () => {

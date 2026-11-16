@@ -1,5 +1,3 @@
-// Shared across case-scoped actions (assignProfessionalToCase.ts,
-// closeCase.ts).
 import { ConflictError, NotFoundError } from '../errors';
 
 export class CaseNotFoundError extends NotFoundError {

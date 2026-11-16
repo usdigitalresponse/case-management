@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { addProviderServiceRate, apiErrorMessage, type RateBasis, linkedDocumentUrl, uploadProviderDocument, type LinkedDocument } from '../../api/client';
+import { addProviderServiceRate, apiErrorMessage, type RateBasis, linkedDocumentUrl, type LinkedDocument, type ProviderDocuments as OnFile } from '../../api/client';
 import { useResource } from '../../hooks/useResource';
 import { providerDocuments } from '../../resources';
 import { formatDate, formatDay } from '../../formatDateTime';
 import { formatMoney } from '../../formatMoney';
 import { Notice } from '../ui/Notice';
 import { Button } from '../ui/Button';
+import { FileButton } from '../ui/FileButton';
+import { RemoveFileButton } from '../ui/RemoveFileButton';
 
 const PURPOSES: Array<{ id: LinkedDocument['purposeCode']; label: string }> = [
   { id: 'cv', label: 'CV' },
@@ -14,21 +16,34 @@ const PURPOSES: Array<{ id: LinkedDocument['purposeCode']; label: string }> = [
   { id: 'supporting', label: 'Something else' },
 ];
 
-export function DocumentList({ documents }: { documents: LinkedDocument[] }) {
+// onRetire, where files may still be added, shows a ✕ that takes one off the list after asking.
+export function DocumentList({ documents, onRetire, from }: { documents: LinkedDocument[]; onRetire?: (doc: LinkedDocument) => unknown; from?: string }) {
   if (documents.length === 0) return <p className="muted">None yet.</p>;
   return (
     <ul className="plain-list">
       {documents.map((doc) => (
         <li key={doc.documentId}>
-          <a href={linkedDocumentUrl(doc.documentId)}>{doc.displayName}</a> <span className="cell-note">{doc.purposeName}, added {formatDay(doc.recordedAt)}</span>
+          <span className="file-name">
+            <a href={linkedDocumentUrl(doc.documentId)}>{doc.displayName}</a>
+            {onRetire && (
+              <RemoveFileButton
+                fileName={doc.displayName}
+                onRemove={() => onRetire(doc)}
+                consequence={<>{doc.displayName} is taken off {from ?? 'this list'}. It is kept, and you can undo this.</>}
+              />
+            )}
+          </span>{' '}
+          <span className="cell-note">{doc.purposeName}, added {formatDay(doc.recordedAt)}</span>
         </li>
       ))}
     </ul>
   );
 }
 
+// A chosen file is only stored once "Add file" is clicked, so one chosen by mistake is simply dropped.
 export function AddDocument({ onAdd, defaultPurpose }: { onAdd: (file: File, purpose: LinkedDocument['purposeCode']) => Promise<unknown>; defaultPurpose: LinkedDocument['purposeCode'] }) {
   const [purpose, setPurpose] = useState(defaultPurpose);
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const id = `doc-${Math.random().toString(36).slice(2, 8)}`;
@@ -42,56 +57,93 @@ export function AddDocument({ onAdd, defaultPurpose }: { onAdd: (file: File, pur
           ))}
         </select>
       </div>
-      <div className="usa-form-group">
-        <label className="usa-label" htmlFor={`${id}-file`}>File (PDF, Word or image)</label>
-        <input
-          id={`${id}-file`}
-          className="usa-file-input"
-          type="file"
-          disabled={busy}
+      {file ? (
+        // In place of "Choose file", so there is one button to press at a time.
+        <span className="file-button">
+          <span className="file-name">
+            {file.name}
+            <RemoveFileButton
+              fileName={file.name}
+              disabled={busy}
+              onRemove={() => {
+                setFile(null);
+                setError(null);
+              }}
+            />
+          </span>
+          <Button
+            kind="primary"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              setError(null);
+              onAdd(file, purpose)
+                .then(() => setFile(null), (err: unknown) => setError(apiErrorMessage(err, 'The file could not be added.')))
+                .finally(() => setBusy(false));
+            }}
+          >
+            {busy ? 'Adding…' : 'Add file'}
+          </Button>
+        </span>
+      ) : (
+        <FileButton
           accept=".pdf,.docx,.png,.jpg,.jpeg"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            setBusy(true);
+          onChoose={(chosen) => {
+            setFile(chosen);
             setError(null);
-            onAdd(file, purpose)
-              .catch((err: unknown) => setError(apiErrorMessage(err, 'The file could not be added.')))
-              .finally(() => {
-                setBusy(false);
-                event.target.value = '';
-              });
           }}
-        />
-      </div>
+        >
+          Choose file
+          <span className="usa-sr-only"> (PDF, Word or image)</span>
+        </FileButton>
+      )}
       {error && <p className="field-error" role="alert">{error}</p>}
     </div>
   );
 }
 
-// model/rules.yaml request_provider_documents.
-export function ProviderOnFile({ professionalId, name }: { professionalId: string; name: string }) {
-  const { data, error, reload } = useResource(providerDocuments(professionalId));
+// A provider's page (design K32): what is on file, to read; staff add files on a pre-authorization request.
+export function ProviderDocuments({ professionalId }: { professionalId: string }) {
+  const { data, error } = useResource(providerDocuments(professionalId));
+  if (!data) return error ? <Notice tone="danger">Failed to load their documents.</Notice> : null;
+  return (
+    <section className="card compact-card">
+      <h2>Documents</h2>
+      <DocumentList documents={data.documents} />
+      {data.rates.length > 0 && (
+        <>
+          <h3>Fees they quote</h3>
+          <ul className="plain-list">
+            {data.rates.map((row) => (
+              <li key={row.providerServiceRateId}>
+                {row.serviceDescription}: {formatMoney(row.rate)} {row.rateBasis === 'flat' ? 'flat' : row.rateBasis === 'hourly' ? 'an hour' : 'a unit'}
+                <span className="cell-note">from {formatDate(row.effectiveFrom)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <p className="compact-hint">These came with their pre-authorization requests and are shown here to read.</p>
+    </section>
+  );
+}
+
+// A provider's quoted fees, and a form to record one (model/rules.yaml request_provider_documents):
+// on a pre-authorization request, where their CV and fee schedule come in.
+export function QuotedFees({ professionalId, rates, onAdded }: { professionalId: string; rates: OnFile['rates']; onAdded: () => void }) {
   const [service, setService] = useState('');
   const [rate, setRate] = useState('');
   const [basis, setBasis] = useState<RateBasis>('hourly');
   const [from, setFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [rateError, setRateError] = useState<string | null>(null);
-  if (!data) return error ? <Notice tone="danger">Failed to load what is on file.</Notice> : null;
   return (
-    <section className="card compact-card preauth-page">
-      <h2>On file for {name}</h2>
-      {data.missing.length > 0 && (
-        <Notice tone="warning">Missing: {data.missing.map((code) => (code === 'cv' ? 'CV' : 'fee schedule or quote')).join(' and ')}.</Notice>
-      )}
-      <DocumentList documents={data.documents} />
-      <AddDocument defaultPurpose={data.missing[0] ?? 'fee_schedule'} onAdd={(file, purpose) => uploadProviderDocument(professionalId, file, purpose).then(reload)} />
+    <>
       <h3>Fees they quote</h3>
-      {data.rates.length === 0 ? (
+      {rates.length === 0 ? (
         <p className="muted">None recorded.</p>
       ) : (
         <ul className="plain-list">
-          {data.rates.map((row) => (
+          {rates.map((row) => (
             <li key={row.providerServiceRateId}>
               {row.serviceDescription}: {formatMoney(row.rate)} {row.rateBasis === 'flat' ? 'flat' : row.rateBasis === 'hourly' ? 'an hour' : 'a unit'}
               <span className="cell-note">from {formatDate(row.effectiveFrom)}</span>
@@ -108,7 +160,7 @@ export function ProviderOnFile({ professionalId, name }: { professionalId: strin
             () => {
               setService('');
               setRate('');
-              void reload();
+              onAdded();
             },
             (err: unknown) => setRateError(apiErrorMessage(err, 'The fee could not be added.')),
           );
@@ -139,6 +191,6 @@ export function ProviderOnFile({ professionalId, name }: { professionalId: strin
         </Button>
         {rateError && <p className="field-error" role="alert">{rateError}</p>}
       </form>
-    </section>
+    </>
   );
 }

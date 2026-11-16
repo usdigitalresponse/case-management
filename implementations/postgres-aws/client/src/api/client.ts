@@ -5,6 +5,7 @@ export type { ValidationErrorBody } from './http';
 export * from './auth';
 export * from './demoTour';
 export * from './cases';
+export * from './editData';
 export * from './people';
 export * from './settings';
 export * from './myCases';

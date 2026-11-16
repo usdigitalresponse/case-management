@@ -1,6 +1,7 @@
 // Files chosen to upload: the drop zone, each file's card and the reads behind them.
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import { apiErrorMessage, deleteInvoice, discardUpload, getUpload, startUpload, type UploadRead } from '../../api/client';
+import { RemoveFileButton } from '../ui/RemoveFileButton';
 import { ImportProgressNote } from '../ImportProgressNote';
 import { countOf } from '../../portal/importProgress';
 import { Button } from '../ui/Button';
@@ -33,12 +34,12 @@ export function Steps({ reviewing = false }: { reviewing?: boolean }) {
     <StepList
       label="Steps"
       current={0}
-      steps={reviewing ? ['Upload', 'Check and review the lines', 'Finish the review'] : ['Upload', 'Check the lines', 'Send for review']}
+      steps={reviewing ? ['Upload', 'Check and review the lines', 'Finish review'] : ['Upload', 'Check', 'Send for review']}
     />
   );
 }
 
-// Files dropped elsewhere (Intake), or manual entry, to start with.
+// Files dropped elsewhere, or manual entry, to start with.
 export interface UploadStart {
   files?: File[];
   manual?: boolean;
@@ -86,13 +87,13 @@ export function DropZone({ hasFiles, onFiles }: { hasFiles: boolean; onFiles: (f
         }}
       />
       <strong>{over ? 'Drop the files to add them' : hasFiles ? 'Drop more invoice files here, or choose files' : 'Drop invoice files here, or choose files'}</strong>
-      <span>PDF, LEDES 1998B, Excel (.xlsx) or CSV. One invoice per file, up to 10 MB each.</span>
+      <span>PDF, Excel (.xlsx), CSV or a LEDES legal billing file. One invoice per file, up to 10 MB each.</span>
       {/* Its click reaches the zone, which opens the picker. */}
       <Button kind="secondary">Choose files</Button>
       {refused.length > 0 && (
         <p className="drop-zone__error" role="alert">
           <span aria-hidden="true">×</span> {refused.join(', ')} {refused.length === 1 ? 'is not a file type' : 'are not file types'} this tool can
-          read. Choose a PDF, LEDES, Excel or CSV file.
+          read. Choose a PDF, Excel, CSV or LEDES legal billing file.
         </p>
       )}
     </div>
@@ -146,17 +147,19 @@ export function FileCard({
     <li className={`card file-card${current && many ? ' file-card--current' : ''}`}>
       <span className="file-card__badge" aria-hidden="true">{fileBadge(entry.file.name)}</span>
       <span className="file-card__name">
-        <strong>{entry.file.name}</strong>
+        <span className="file-card__title">
+          <strong>{entry.file.name}</strong>
+          {onRemove && (
+            <RemoveFileButton
+              fileName={entry.file.name}
+              onRemove={onRemove}
+              consequence={<>{entry.file.name} is taken off this upload, and nothing read from it is kept.</>}
+            />
+          )}
+        </span>
         <span>{meta}</span>
       </span>
-      <span className="file-card__status">
-        {status}
-        {onRemove && (
-          <button type="button" className="link-button" onClick={onRemove}>
-            Remove file
-          </button>
-        )}
-      </span>
+      <span className="file-card__status">{status}</span>
     </li>
   );
 }

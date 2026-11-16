@@ -146,7 +146,7 @@ export function ReviewerPicker({
         disabled={!canChange}
         onClick={() => setOpen(!open)}
       >
-        <span className="muted">Reviewer</span> {reviewer ? reviewer.displayName : 'Not assigned'}
+        <span className="muted">Reviewer</span> {reviewer ? reviewer.displayName : 'No reviewer yet'}
       </Button>
       {open && (
         <div className="card popover" role="dialog" aria-label="Who reviews this invoice?">
@@ -241,7 +241,7 @@ export function SignOffApprovers({
   }
 
   return (
-    <div className="sign-off-approvers">
+    <div className="sign-off-approvers popover-anchor">
       <span>
         <span className="muted">Signs off: </span>
         {approvers.length > 0 ? approvers.map((approver) => approver.displayName).join(', then ') : 'No one chosen yet'}
@@ -250,7 +250,8 @@ export function SignOffApprovers({
         <button type="button" className="link-button" onClick={() => setEditing(true)}>Change</button>
       )}
       {editing && (
-        <div className="card inline-editor">
+        <div className="card popover popover--start" role="dialog" aria-label="Who signs off, in order">
+          <h3>Who signs off, in order</h3>
           {!people ? (
             <p role="status">Loading…</p>
           ) : (

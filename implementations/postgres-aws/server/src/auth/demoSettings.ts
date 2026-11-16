@@ -1,6 +1,4 @@
-// Demo sign-ins are on by default for local development; a production
-// deployment exposes each only when explicitly opted in (the hosted
-// synthetic-data demo does).
+// On by default in development; production turns each on only when opted in.
 function demoSetting(name: string): boolean {
   const value = process.env[name];
   return value ? value === 'true' : process.env.NODE_ENV !== 'production';

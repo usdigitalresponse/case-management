@@ -1,7 +1,9 @@
 // model/rules.yaml explain_preauthorization_overrun: recorded once with the attempt, never exported.
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { DatabaseOrTransaction, Transaction } from '../db/client';
-import { invoice, invoiceOverrunExplanation, userAccount } from '../db/schema';
+import { caseAssignment, caseTable, invoice, invoiceOverrunExplanation, userAccount } from '../db/schema';
+import { currentCaseNumber } from './caseNumbers';
+import { loadCaseNumbers } from './invoiceDetail';
 import { ValidationError } from '../errors';
 import { formatMoney, fromCents, toCents } from './money';
 import { loadPreauthorizationSummaries, summaryForProfessional } from './preauthorizations';
@@ -21,16 +23,41 @@ export async function findOverrun(
   thisInvoiceCounted: boolean,
 ): Promise<Overrun | null> {
   const [row] = await db
-    .select({ caseId: invoice.caseId, professionalId: invoice.professionalId, total: invoice.submittedTotal })
+    .select({
+      caseId: invoice.caseId,
+      professionalId: invoice.professionalId,
+      total: invoice.submittedTotal,
+      caseNumberAsTyped: invoice.caseNumberAsTyped,
+      caseNumberCorrected: invoice.caseNumberCorrected,
+    })
     .from(invoice)
     .where(eq(invoice.invoiceId, invoiceId));
-  if (!row?.caseId) return null;
-  const summaries = await loadPreauthorizationSummaries(db, row.caseId, row.professionalId ? [row.professionalId] : []);
+  if (!row) return null;
+  const caseId = row.caseId ?? (await assignedCaseNamed(db, row.professionalId, currentCaseNumber(row)));
+  if (!caseId) return null;
+  const summaries = await loadPreauthorizationSummaries(db, caseId, row.professionalId ? [row.professionalId] : []);
   const summary = summaryForProfessional(summaries, row.professionalId);
   if (!summary) return null;
-  const total = toCents(summary.approvedSoFar) + toCents(summary.waiting) + (thisInvoiceCounted ? 0 : toCents(row.total));
+  // Off its case, it isn't in the case's waiting yet.
+  const counted = thisInvoiceCounted && row.caseId !== null;
+  const total = toCents(summary.approvedSoFar) + toCents(summary.waiting) + (counted ? 0 : toCents(row.total));
   if (total <= toCents(summary.ceiling)) return null;
   return { professionalId: summary.professionalId, limit: summary.ceiling, source: summary.source, total: fromCents(total) };
+}
+
+// Without a case yet, the open case its number names that the billed person
+// is assigned to: only to warn of the limit, never to match it (design K59).
+async function assignedCaseNamed(db: DatabaseOrTransaction, professionalId: string | null, caseNumber: string | null): Promise<string | null> {
+  if (!professionalId || !caseNumber) return null;
+  const assigned = await db
+    .selectDistinct({ caseId: caseTable.caseId })
+    .from(caseAssignment)
+    .innerJoin(caseTable, eq(caseAssignment.caseId, caseTable.caseId))
+    .where(and(eq(caseAssignment.professionalId, professionalId), isNull(caseAssignment.endedAt), isNull(caseTable.closedOn)));
+  const numbers = await loadCaseNumbers(db, assigned.map((row) => row.caseId));
+  const wanted = caseNumber.toLowerCase();
+  const named = assigned.filter((row) => numbers.get(row.caseId)?.caseNumber?.toLowerCase() === wanted);
+  return named.length === 1 ? named[0]!.caseId : null;
 }
 
 export function overrunMessage(overrun: Overrun): string {

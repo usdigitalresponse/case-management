@@ -1,2 +1,2 @@
 /* The design system's Card: any boxed panel. Its class says what fills it. */
-.card { background: var(--color-surface); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-medium); }
+.card { background: var(--color-surface); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-large); }

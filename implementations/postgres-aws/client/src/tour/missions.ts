@@ -1,8 +1,6 @@
-// The guided tour's missions as data (docs/frontend.md "Guided tour"). A
-// step is done when the app reaches its state — a page, or a change the
-// visitor made — never by pressing Next, except steps that only ask the
-// visitor to look. "Before" lines restate, in generic terms, problems that
-// research named as must-haves; nothing here comes from the research itself.
+// The guided tour's missions (docs/frontend.md "Guided tour"). A step is done when the app reaches its state,
+// a page or a change the visitor made, never by Next unless it only asks them to look. "Before" lines restate
+// research's must-have problems in generic terms only.
 import type { TourMission, TourRole, TourRun, TourSuggestions } from '../api/client';
 
 export interface TourContextValues {
@@ -97,7 +95,7 @@ const staffFiling: MissionDefinition = {
     {
       id: 'receipt',
       role: 'staff',
-      goal: 'Say who billed it and how and when it arrived, then choose “Enter an invoice by hand”.',
+      goal: 'Say how and when it arrived, who billed it and its case number, then choose “Enter an invoice by hand”.',
       before: 'Receipt was recorded only in a hand-kept log, by date, sender and case.',
       now: 'Who billed it, how and when it arrived, and the case number as written are recorded when it is filed, and waiting time counts from that date.',
       path: () => '/upload',
@@ -107,6 +105,7 @@ const staffFiling: MissionDefinition = {
         { label: 'How it arrived', selector: '#upload-received-via', value: suggestion('receivedVia') },
         { label: 'Date received', selector: '#upload-received-on', value: suggestion('receivedOn') },
         { label: 'Billed by', selector: '#upload-from', value: suggestion('billedBy') },
+        { label: 'Case number', selector: '#upload-case-number', value: suggestion('caseNumber') },
       ],
       done: {
         request: {
@@ -116,12 +115,12 @@ const staffFiling: MissionDefinition = {
           capture: (response) => id(response, 'invoiceId'),
         },
       },
-      hint: 'All three fields above the drop zone are needed before the invoice can be entered.',
+      hint: 'All four fields above the drop zone are needed before the invoice can be entered.',
     },
     {
       id: 'enter-lines',
       role: 'staff',
-      goal: 'Copy the paper invoice’s case number and lines into the review page. Lines save as you go.',
+      goal: 'Copy the paper invoice’s lines into the review page. Lines save as you go.',
       before: 'Totals were added up by hand and mistakes caught by eye.',
       now: 'The app adds the lines itself. Compare its total with the paper’s: the paper is off by one hour’s pay.',
       path: entryPath,
@@ -143,6 +142,16 @@ const staffFiling: MissionDefinition = {
       path: entryPath,
       // Three different lines: deciding one again doesn't count twice.
       done: { request: { method: 'PUT', path: (ctx) => new RegExp(`^/api/invoices/${enteredId(ctx)}/lines/${ID}/decision$`), times: 3 } },
+    },
+    {
+      id: 'which-case',
+      role: 'staff',
+      goal: 'Add the paper’s county beside its case number, then add its case under “Which case is it for?”.',
+      before: 'Each case was typed into one more system before its bills could be paid.',
+      now: 'A case is found by its number in its county, or added from them. Work that isn’t for one case says so instead.',
+      path: entryPath,
+      target: { text: 'Which case is it for?' },
+      done: { request: { method: 'PUT', path: (ctx) => new RegExp(`^/api/invoices/${enteredId(ctx)}/case-choice$`) } },
     },
     {
       id: 'finish',
@@ -231,15 +240,14 @@ const preauthSend: MissionDefinition = {
       hint: 'Reading a file takes a few seconds on the demo server.',
     },
     {
-      id: 'choose-case',
+      id: 'check',
       role: 'vendor',
-      goal: 'Check the lines, then choose the tour’s case under “Which case is it?”.',
+      goal: 'Check the lines and give the one without a date its date. The case number was read from your file, so there is no case to choose.',
       before: 'Totals were added up by hand and mistakes caught by eye.',
       now: 'One line was read without its date, and the file’s total doesn’t match its lines: both are pointed out for you to fix before sending.',
       path: (ctx) => (ctx.vars.invoiceId ? `/portal/invoices/${ctx.vars.invoiceId}` : undefined),
-      target: { selector: '#case-choice' },
-      fills: [{ label: 'Case', selector: '#case-choice', value: (ctx) => ctx.run.caseNumber }],
-      done: { request: { method: 'PUT', path: (ctx) => new RegExp(`^/api/portal/invoices/${enteredId(ctx)}/case$`) } },
+      target: { selector: '.file-case-number' },
+      done: { request: { method: 'PUT', path: (ctx) => new RegExp(`^/api/portal/invoices/${enteredId(ctx)}$`) } },
     },
     {
       id: 'send',
@@ -283,12 +291,12 @@ const review: MissionDefinition = {
     {
       id: 'match',
       role: 'staff',
-      goal: 'Match it to its case: the investigator typed the number without dashes, so choose the close match, then Match.',
+      goal: 'Under “Which case is it for?”, the investigator’s file has the number without dashes: choose the similar case, then “Match to this case”.',
       before: 'A second record for the same case could be made without warning.',
-      now: 'A close match is offered, so you choose the existing case. The number as typed stays beside it.',
+      now: 'A similar number in the same county is offered, so you say it is the existing case rather than add another. The number as typed stays beside it.',
       path: invoicePath,
-      target: { text: 'Match' },
-      done: { request: { method: 'POST', path: (ctx) => new RegExp(`^/api/invoices/intake/${tourInvoiceId(ctx)}/case$`) } },
+      target: { text: 'Match to this case' },
+      done: { request: { method: 'PUT', path: (ctx) => new RegExp(`^/api/invoices/${tourInvoiceId(ctx)}/case-choice$`) } },
     },
     {
       id: 'mileage',
@@ -423,12 +431,12 @@ const signOff: MissionDefinition = {
     {
       id: 'overview',
       role: 'director',
-      goal: 'Open “Case overview” to see where every case stands.',
+      goal: 'Open “Invoice overview” to see where every invoice is in review.',
       before: 'Status was kept in several separate logs, so no one saw the whole picture.',
-      now: 'Every case is shown by stage in one place, with the invoices waiting on it.',
-      path: () => '/overview',
-      target: { text: 'Case overview' },
-      done: { route: () => /^\/overview$/ },
+      now: 'Every invoice is shown by its step of review in one place, with what changed last.',
+      path: () => '/invoice-overview',
+      target: { text: 'Invoice overview' },
+      done: { route: () => /^\/invoice-overview$/ },
     },
     {
       id: 'export',

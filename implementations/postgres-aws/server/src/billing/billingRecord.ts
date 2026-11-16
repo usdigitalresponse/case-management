@@ -1,9 +1,5 @@
-// One row per submitted invoice for reporting outside the tool
-// (model/rules.yaml report_billing_results): what reports need, keyed by
-// case number. Line detail stays in the tool. Any route back to an
-// external case system (a direct write, a nightly file or a shared
-// spreadsheet) reads these rows; for now they download as CSV or a
-// spreadsheet.
+// One row per submitted invoice, keyed by case number, for reports outside the tool (model/rules.yaml
+// report_billing_results); downloaded as CSV or a spreadsheet. Line detail stays in the tool.
 import { and, eq, inArray, max, ne } from 'drizzle-orm';
 import writeXlsxFile, { type Row } from 'write-excel-file/node';
 import type { Database } from '../db/client';

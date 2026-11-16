@@ -208,12 +208,8 @@ describe('complete intake', () => {
   });
 });
 
-// scenarios/new-case.md scenario 4, narrowed: createCase only ever creates
-// one new case with one participant, so "add a second client participant to
-// the first case" (an edit to an existing case) is out of scope for this
-// handler — see MAPPING.md. This covers the reachable part: reusing one
-// existing person across two separately-created cases creates no new person
-// row.
+// scenarios/new-case.md scenario 4, narrowed to what createCase does (MAPPING.md): reusing one person
+// across two cases adds no person.
 describe('person reuse', () => {
   it('links the same existing person to two cases without creating a new person', async () => {
     const actor = { userAccountId: fixtures.staffUserAccountId };
@@ -238,11 +234,8 @@ describe('person reuse', () => {
   });
 });
 
-// scenarios/new-case.md scenario 5, narrowed: this handler has no
-// edit-identifier operation to exercise "reviewers can inspect old/new
-// values" (out of scope — see MAPPING.md). This covers the reachable part:
-// the immutability/serialization invariants preserve_case_lifecycle and
-// validate_case_children rely on are enforced at the database level.
+// scenarios/new-case.md scenario 5, narrowed (MAPPING.md): the database enforces the invariants
+// preserve_case_lifecycle and validate_case_children rely on.
 describe('history integrity', () => {
   it('rejects a second lifecycle event with the same sequence number for a case', async () => {
     const actor = { userAccountId: fixtures.staffUserAccountId };
@@ -279,10 +272,7 @@ describe('history integrity', () => {
 
 describe('HTTP-shaped input', () => {
   it('accepts effectiveAt as a JSON string, not just a Date instance', async () => {
-    // Every other test passes a real Date (baseInput() constructs one);
-    // real HTTP bodies never do (JSON has no Date type). Caught a real bug:
-    // z.date() rejected every actual request despite passing all these
-    // Date-based unit tests.
+    // Real request bodies carry dates as strings, unlike the other tests' Date objects.
     const actor = { userAccountId: fixtures.staffUserAccountId };
     const rawInput = { ...baseInput(), effectiveAt: '2026-01-15T12:00:00Z' };
     const result = await createCase(testDb, actor, rawInput);

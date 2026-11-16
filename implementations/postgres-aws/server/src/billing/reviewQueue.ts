@@ -51,7 +51,7 @@ const RATE_LIMIT_NAMES: Record<RateLimit['source'], string> = {
 };
 
 export interface QueueFlag {
-  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case' | 'preauthorization';
+  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case' | 'county' | 'preauthorization';
   message: string;
 }
 
@@ -172,6 +172,9 @@ export async function describeQueue(db: Database, headers: InvoiceHeader[], { no
       const flags: QueueFlag[] = [];
       if (header.caseId === null && !header.caseNumberAsTyped) {
         flags.push({ kind: 'no_case', message: 'No case: the provider and case are not tracked in this system' });
+      }
+      if (header.caseCountyDisplayName) {
+        flags.push({ kind: 'county', message: `County differs from its case’s, ${header.caseCountyDisplayName}` });
       }
       // The highest rate on a time line (a priced line other than mileage) billed above its limit.
       const limits = (header.caseId ? rateLimits.get(header.caseId) : undefined) ?? new Map<string | null, string>();

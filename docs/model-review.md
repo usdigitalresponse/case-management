@@ -169,6 +169,52 @@ rows (`request_provider_documents`), and staff see usage by county
 (`report_preauthorization_usage`). The snapshot layout is unchanged apart from
 `spec_version`.
 
+Model files are now 0.13.0: cases are added through requests. A request filed
+by person answers one case question, `invoice.case_choice` (an existing case
+found by number and county, a new case added from them, or not for one case,
+such as court observation); staff must answer before sending, external
+submitters need not, and sign-off never needs a case (`match_invoice_to_case`).
+Staff add a case with only its number, county and optional client name, refusing
+a number already used in that county and confirming one close to another
+(`add_case_from_request`); `case.added_from_invoice_id` and
+`added_from_preauthorization_request_id` say where it came from. A
+preauthorization request may be not for one case, recording its decision and
+amount without a preauthorization or limit. Administrators fix cases added by
+mistake in Settings, Edit data (`correct_case_records`), recorded in
+`case_correction` and `case_correction_change` so each fix can be undone, and
+`case.closed_as_mistake` takes a case closed that way out of lists. Invoice
+intake and `send_for_matching` are retired. The snapshot layout is unchanged
+apart from `spec_version`.
+
+Model files are now 0.14.0, for design K. External submitters no longer answer
+the case question or type a case number: theirs is the number read from their
+file, and staff add or correct it in review; staff filing a request give its
+case number unless it is not for one case (`match_invoice_to_case`). A request
+with no case yet is checked for going over its limit against the one open case
+its number names that its provider is assigned to, as a warning only
+(`explain_preauthorization_overrun`). Possible duplicate cases and people are
+listed together, flagged on each record's page, and a case "merge" is the
+same-case fix (`flag_possible_duplicate_case`, `correct_case_records`); a
+professional's sign-in is turned on among the providers and a delegate's among
+the office billing staff (`manage_external_sign_in`). The snapshot layout is
+unchanged apart from `spec_version`.
+
+Model files are now 0.15.0. A file added to a preauthorization request or kept
+on file for a provider may be retired, for one added by mistake, by anyone who
+may add it: `document_link.retired_at` and `retired_by_user_account_id` take it
+out of every list while keeping it, and restoring clears them; both are audited
+(`request_provider_documents`). The snapshot layout is unchanged apart from
+`spec_version`.
+
+Model files are now 0.16.0. External submitters may again give a request's
+case number as written on their invoice, or leave it out, so one entered by
+hand without a file can carry it; it starts as the number read from their
+file, is only suggested to the reviewer, never matched, and they still never
+choose a case or answer "not for one case" (`match_invoice_to_case`). Staff
+filing a request may leave its case number out, answering "not for one case"
+in the case step instead. The snapshot layout is unchanged apart from
+`spec_version`.
+
 ## Coverage and changes
 
 | Finding | Existing coverage | Revised model |

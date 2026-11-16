@@ -10,6 +10,8 @@
 .submission__actions .btn { min-height: 2.4rem; }
 /* Whom it is from, its period and number, above the case number (components/InvoiceDetailsFields.tsx). */
 .invoice-details { margin-bottom: var(--space-6); padding: var(--space-6) var(--space-7); }
+/* Fields keep the design's width rather than stretching across the card. */
+.invoice-details > .upload-details { grid-template-columns: repeat(auto-fill, minmax(16rem, 22.5rem)); }
 .invoice-details--missing #invoice-from { border: 2px solid var(--color-tertiary); background: var(--color-tertiary-container); }
 .invoice-details--missing #invoice-from-hint { color: var(--color-on-tertiary-container); }
 .upload-details__field:has(.add-sender) { grid-column: 1 / -1; }
@@ -27,10 +29,20 @@
 .case-number-box .field-hint, .case-number-box .field-error { margin: var(--space-4) 0 0; }
 .case-number-box--missing .usa-input { border: 2px solid var(--color-tertiary); background: var(--color-tertiary-container); }
 .case-number-box--missing .field-error { color: var(--color-on-tertiary-container); }
+/* The case number as one of the invoice's details, its explainer under the hint. */
+.case-number-field .field-hint, .case-number-field .field-error { margin: var(--space-4) 0 0; }
+.case-number-field--missing .usa-input { border: 2px solid var(--color-tertiary); background: var(--color-tertiary-container); }
+.case-number-field__why { grid-column: 1 / -1; order: 1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-3); margin-top: calc(-1 * var(--space-4)); font-size: var(--text-13); color: var(--color-on-surface-variant); }
+.case-number-field__why strong { color: var(--color-on-surface); }
+.case-number-field__why p { margin: 0; font-size: inherit; }
+/* An external sender's case number, read from their file (design K6). */
+.file-case-number { display: grid; grid-template-columns: minmax(14rem, 22rem) 1fr; gap: var(--space-6) var(--space-9); align-items: start; margin-bottom: var(--space-6); padding: var(--space-6) var(--space-7); }
+.file-case-number dl { margin: 0; }
+.file-case-number dd .cell-note { display: block; margin-top: var(--space-3); }
 .case-number-box__why { padding-top: var(--space-8); font-size: var(--text-15); }
 .case-number-box__why p { margin: var(--space-3) 0 0; color: var(--color-on-surface-variant); }
 @media (max-width: 40em) {
-  .case-number-box { grid-template-columns: 1fr; }
+  .case-number-box, .file-case-number { grid-template-columns: 1fr; }
   .case-number-box__why { padding-top: 0; }
 }
 .submission__layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 8fr); gap: var(--space-6); align-items: start; }
@@ -38,7 +50,7 @@
 .submission__lines > .notice { margin-bottom: var(--space-6); }
 .check-lines { overflow-x: auto; }
 .check-lines__table { width: 100%; border-collapse: collapse; font-size: var(--text-15); }
-.check-lines__table th { padding: var(--space-4) var(--space-5); background: var(--color-surface-container-low); border-bottom: 1px solid var(--color-outline-subtle); color: var(--color-on-surface-variant); font-size: var(--text-11); font-weight: 600; letter-spacing: .04em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.check-lines__table th { padding: var(--space-4) var(--space-5); background: var(--color-surface-container-low); border-bottom: 1px solid var(--color-outline-subtle); color: var(--color-on-surface-variant); text-align: left; white-space: nowrap; font: var(--title-small); letter-spacing: var(--tracking-title-small); text-transform: uppercase; }
 .check-lines__table td { padding: var(--space-5) var(--space-5); border-bottom: 1px solid var(--color-outline-subtle); vertical-align: top; }
 .check-lines__table .amount { text-align: right; white-space: nowrap; }
 /* One tbody per line: figures, then what was done below. */
@@ -91,7 +103,7 @@
 .manual-entry__offer .link-button { font-weight: 600; }
 .check-lines__totals { display: flex; gap: var(--space-8); text-align: right; }
 .check-lines__totals > div { display: flex; flex-direction: column; gap: var(--space-2); }
-.check-lines__totals > div > span:first-child { color: var(--color-on-surface-variant); font-size: var(--text-11); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.check-lines__totals > div > span:first-child { color: var(--color-on-surface-variant); font: var(--label-small); letter-spacing: var(--tracking-label-small); }
 .check-lines__asking strong { font-size: var(--text-20); }
 .edit-line { display: flex; flex-direction: column; gap: var(--space-6); padding: var(--space-7) var(--space-8); }
 .edit-line h3 { margin: 0; font-size: var(--text-18); }
@@ -106,11 +118,11 @@
 .edit-line .field-hint { margin: 0; }
 .edit-line__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }
 .edit-line__remove { margin-left: auto; }
-.send-summary { display: grid; grid-template-columns: auto 1fr; gap: var(--space-4) var(--space-8); margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-6); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-medium); background: var(--color-surface-container-low); font-size: var(--text-15); }
+.send-summary { display: grid; grid-template-columns: auto 1fr; gap: var(--space-4) var(--space-8); margin: 0 0 var(--space-6); padding: var(--space-6) var(--space-6); border: 1px solid var(--color-outline-subtle); border-radius: var(--radius-large); background: var(--color-surface-container-low); font-size: var(--text-15); }
 .send-summary dt { color: var(--color-on-surface-variant); font-size: var(--text-11); align-self: center; }
 .send-summary dd { margin: 0; }
 .send-summary__total { font-size: var(--text-18); font-weight: 700; }
-.attest { display: flex; align-items: flex-start; gap: var(--space-4); margin: var(--space-4) 0 var(--space-3); padding: var(--space-5) var(--space-6); border: 1px solid var(--color-primary-fixed-dim); border-radius: var(--radius-medium); background: var(--color-primary-container-low); font: var(--body-medium); cursor: pointer; }
+.attest { display: flex; align-items: flex-start; gap: var(--space-4); margin: var(--space-4) 0 var(--space-3); padding: var(--space-5) var(--space-6); border: 1px solid var(--color-primary-fixed-dim); border-radius: var(--radius-large); background: var(--color-primary-container-low); font: var(--body-medium); cursor: pointer; }
 .attest input { margin: var(--space-2) 0 0; }
 /* Entering: under a line's description, asking about it on the left and
    deciding it on the right, on one row (EntryLines). */

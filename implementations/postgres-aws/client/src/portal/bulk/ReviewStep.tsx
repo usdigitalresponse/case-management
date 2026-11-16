@@ -2,7 +2,7 @@ import { Link as RouterLink } from 'react-router';
 import { type ImportInProgress } from '../../api/client';
 import { ImportProgressNote } from '../../components/ImportProgressNote';
 import { RecordTable } from '../../components/RecordTable';
-import { ConfirmButton } from '../../components/ConfirmButton';
+import { RemoveFileButton } from '../../components/ui/RemoveFileButton';
 import { outstanding, reviewQueue, reviewUrl, sectionOf } from '../bulkImport';
 import { LATER, useShell } from '../useShell';
 import { buttonClass } from '../../components/ui/Button';
@@ -14,14 +14,15 @@ export function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]
   const unreadable = imports.filter((row) => sectionOf(row) === 'unreadable');
   const next = reviewQueue(imports)[0];
   const { newInvoicePath, staff } = useShell();
-  const discardButton = (row: ImportInProgress) => (
-    <ConfirmButton
-      compact
-      label="Discard"
-      prompt="Discard this import? The file is deleted and nothing is submitted."
-      confirmLabel="Yes, discard"
-      onConfirm={() => onDiscard(row.invoiceImportId)}
-    />
+  const fileCell = (row: ImportInProgress) => (
+    <span className="file-name">
+      {row.fileName}
+      <RemoveFileButton
+        fileName={row.fileName}
+        onRemove={() => onDiscard(row.invoiceImportId)}
+        consequence={<>{row.fileName} is deleted, and nothing from it is sent.</>}
+      />
+    </span>
   );
   return (
     <section className="card compact-card bulk-step-section" id="review">
@@ -49,10 +50,9 @@ export function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]
             rowKey={(row) => row.invoiceImportId}
             emptyMessage=""
             columns={[
-              { header: 'File', render: (row) => row.fileName },
+              { header: 'File', render: fileCell },
               { header: 'Case', render: caseOf },
               { header: 'Progress', render: (row) => <ImportProgressNote compact progress={row.progress} /> },
-              { header: '', render: (row) => <span className="row-actions">{discardButton(row)}</span> },
             ]}
           />
         </>
@@ -65,7 +65,7 @@ export function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]
             rowKey={(row) => row.invoiceImportId}
             emptyMessage=""
             columns={[
-              { header: 'File', render: (row) => row.fileName },
+              { header: 'File', render: fileCell },
               { header: 'Case', render: caseOf },
               { header: 'Billed for', render: (row) => row.professionalDisplayName ?? '—' },
               { header: 'Total', render: totalWithFile },
@@ -81,7 +81,6 @@ export function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]
                 render: (row) => (
                   <span className="row-actions">
                     <RouterLink to={reviewUrl(row)}>Review</RouterLink>
-                    {discardButton(row)}
                   </span>
                 ),
               },
@@ -97,7 +96,7 @@ export function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]
             rowKey={(row) => row.invoiceImportId}
             emptyMessage=""
             columns={[
-              { header: 'File', render: (row) => row.fileName },
+              { header: 'File', render: fileCell },
               { header: 'Case', render: caseOf },
               { header: 'Why', render: (row) => row.failureMessage ?? 'The file could not be read.' },
               {
@@ -107,7 +106,6 @@ export function ReviewStep({ imports, onDiscard }: { imports: ImportInProgress[]
                     {(row.caseId || staff) && (
                       <RouterLink to={`${newInvoicePath}?case=${row.caseId ?? LATER}`}>Enter by hand</RouterLink>
                     )}
-                    {discardButton(row)}
                   </span>
                 ),
               },

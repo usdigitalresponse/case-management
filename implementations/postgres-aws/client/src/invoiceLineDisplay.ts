@@ -1,6 +1,4 @@
-// How a line's cells read in every invoice table: staff review
-// (components/InvoiceLinesTable.tsx) and the submitter's lines
-// (portal/CheckLinesTable.tsx) share the kind, quantity and rate wording.
+// How a line's kind, quantity and rate read in every invoice table, staff's and submitters'.
 import type { InvoiceLineType, PortalInvoiceLine } from './api/client';
 import { formatDate } from './formatDateTime';
 import { formatRate } from './formatMoney';
@@ -15,18 +13,19 @@ export function lineKindLabel(kind: InvoiceLineType, { onTrip = false, waiting =
   return KIND_LABELS[kind];
 }
 
-const quantityUnit = (kind: InvoiceLineType) => (kind === 'time' ? 'h' : kind === 'mileage' ? 'mi' : '');
+const quantityUnit = (kind: InvoiceLineType, quantity: number) =>
+  kind === 'time' ? 'hours' : kind === 'mileage' ? (quantity === 1 ? 'mile' : 'miles') : '';
 
-// "1.70 h", "64 mi"; a dash for none.
+// "1.70 hours", "64 miles"; a dash for none.
 export function formatQuantity(kind: InvoiceLineType, quantity: number | null): string {
   if (quantity === null || quantity === 0) return '—';
-  const unit = quantityUnit(kind);
+  const unit = quantityUnit(kind, quantity);
   return kind === 'time' ? `${quantity.toFixed(2)} ${unit}` : unit ? `${quantity} ${unit}` : String(quantity);
 }
 
-// "$150.00", "$0.725/mi"; a dash for none.
+// "$150.00", "$0.725 a mile"; a dash for none.
 export function formatLineRate(kind: InvoiceLineType, rate: number | string | null): string {
-  return rate === null ? '—' : `${formatRate(rate)}${kind === 'mileage' ? '/mi' : ''}`;
+  return rate === null ? '—' : `${formatRate(rate)}${kind === 'mileage' ? ' a mile' : ''}`;
 }
 
 export function isMileage(line: Pick<PortalInvoiceLine, 'expenseTypeCode'>): boolean {

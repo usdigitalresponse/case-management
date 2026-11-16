@@ -102,10 +102,13 @@ generic requirement in the repository.
 - Read `docs/model-review.md` for the 0.2 migration, open decisions and current
   implementation gaps; `model/workflows.yaml` is authoritative for transitions.
 - A submitter's "new" case, provider or timekeeper is proposed details on the
-  request, never a record; staff match or create records on Intake, and the
-  details stay flagged through review. Whether staff may still create a
-  *case* this way is under discussion (see the Postgres/AWS notes below);
-  do not change this principle or `model/rules.yaml` until it is decided.
+  request, never a record, and the details stay flagged through review. Only
+  staff add a case, and only through a request's case step, with just its
+  number, county and optional client (`add_case_from_request`); a request may
+  instead be not for one case, and sign-off never needs one
+  (`match_invoice_to_case`). Administrators fix cases added by mistake in
+  Settings, Edit data (`correct_case_records`), recorded so each fix can be
+  undone.
 - Invoice line decisions are working decisions until the reviewer finishes a
   round; only finished rounds are recorded and never changed. A sign-off
   send-back comment is internal-only and never reaches submitters or
@@ -241,31 +244,51 @@ page `/`, the sidebar's "+ Upload Invoices" and the external upload, check and
 send pages file invoices by the person who sent them with a case number as
 typed (design G, see its `docs/frontend.md`); a person's own rates override their
 role's from their effective date, and reviewers correct a case number beside
-the typed one, never over it. Design I brings cases back: the sidebar has Case
-overview and All cases, and People, Providers, Clients and Organizations; a request
+the typed one, never over it. The staff sidebar follows design K: Invoices
+(Invoice overview, To review, Assigned to you, Finished), Look up
+(Pre-authorizations, All cases, Providers, Clients, Organizations, Exports),
+Your case management system and Administration; Case overview and the old
+People list still work by address, and Providers (`/people`) is read-only, with
+adding and changing providers in Settings › Providers. A request
 filed by person may be matched to a case while it is reviewed, keeping its
-sent prices; a matched request's review page is led by its case card. Design J
-puts starting a case from an invoice out of scope: the review page and Intake
-match an invoice to an existing case only, or it is reviewed without one, and
-`/cases/new` is reached only from matching a pre-authorization request.
-Under discussion with design, so leave as they are until decided: how a case
-gets added at all (no sync with the external system is assumed), whether
-staff may add one in the earlier case-based new-invoice form and upload
-(they still can), and whether a pre-authorization request should keep its
-route to `/cases/new`; `MAPPING.md` lists these under known gaps. The
-earlier case-led queue and Intake (with the case-based upload) are
-off the sidebar but still work by address. The portal's tabs are Your invoices, Your
+sent prices; a matched request's review page is led by its case card. Cases
+are added through invoices (no sync with the external system is assumed):
+one case step, `client/src/components/CaseStep.tsx` with
+`server/src/cases/caseStep.ts`, asks "For a case" or "Not for one case" on
+the staff check page, the review page (including an entry in review) and,
+in its own form, pre-authorization matching. A case is found by its number
+within the request's county: the same number is chosen without asking on a
+staff draft and only suggested in review; a close one makes staff say
+whether it is that case or a new one; a case in another county is never
+offered, only hinted at. The county comes first: no case is chosen or added
+without it, and "not for one case" needs one to be sent. Staff must answer before sending or finishing an entry's first
+round; staff filing an invoice may give its case number on the upload page,
+leaving it blank when it is not for one case, which is answered in the case step. External senders never choose or answer a
+case: they may type or change the case number (it starts as the one read from
+their file, or stay blank), it is only suggested in review, never matched, and
+the billing office adds or corrects it there. A draft keeps the answer
+(`invoice.case_choice`) and is matched or its case added right after it is
+sent (`src/billing/caseChoice.ts`). The case-based new-invoice form and
+upload, Intake's page and `/cases/new` are retired and deleted, their old
+addresses redirecting; this is the one exception to hiding rather than
+deleting. Settings has an administrators' Edit data tab
+(`src/cases/caseCorrections.ts`) to move a case's requests to the same case,
+correct it, or take its requests off it; every change is recorded and can be
+undone, and a case closed as added by mistake (`case.closed_as_mistake`)
+leaves every list; a case "merge" in Settings › Merge duplicates is this same
+move. The earlier case-led queue is off the sidebar but still
+works by address. The portal's tabs are Your invoices, Your
 cases, Pre-authorizations and Upload invoices; Your cases lists only cases staff matched or
 assigned a sender to, and senders don't log time here (it stays in the
 external system). Every case and
 person picker is `client/src/components/PickOrAdd.tsx` (first option adds
 one), except a submitter choosing among the people they bill for, staff
 matching an invoice to a case, which only searches, and "Billed by", whose
-"+ Add new person" is a link under the field. Every
+"+ Add new person" is a link under the field (for administrators, "Not
+listed? Add them in Settings"). Every
 county picker is `client/src/components/CountyPicker.tsx`: settings such as
 post-conviction (`county.is_county` false) first, and a typed county is
-matched by name before one is added (`server/src/cases/counties.ts`). In the
-case-based flow, never block the next step on an unchosen case or provider.
+matched by name before one is added (`server/src/cases/counties.ts`).
 Filed by person, the upload page first asks who billed it ("Billed by", the
 attorney or provider whose work it is, never just whoever sent it) and, of
 staff, how and when it arrived, above both the drop zone and "Enter an
@@ -302,8 +325,7 @@ only the review setting decides whether approving a flagged line's billed hours
 needs the reviewer's reason (`time_log_override`, staff-only, never exported),
 and a name in the log is never matched to a person without an exact match or
 the reviewer's confirmation. Staff and
-external submitters share the new-invoice form (staff use it on Intake) and
-the import pages; links that differ
+external submitters share the upload, check and import pages; links that differ
 between the two apps go through `client/src/portal/useShell.ts`. Its
 `design/` folder holds the current Figma design, one PNG per screen with a
 stable name, versioned by Git rather than in Figma; only exports with
@@ -377,9 +399,10 @@ is withdrawn or deleted (`src/imports/documentRetention.ts`); drafts never
 expire. Never commit or back them up.
 External submitters sign in with an emailed 6-digit code and must tick the
 true-and-correct statement to send (recorded as `invoice_attestation`).
-Only people an administrator turned on in Settings → External users
-(`person.external_sign_in_enabled`, `src/people/externalUsers.ts`) may sign
-in; there is no environment allowlist, tests turn it on for the accounts
+Only people an administrator turned on (`person.external_sign_in_enabled`,
+`src/people/externalUsers.ts`) may sign in: a provider from the Active column
+of Settings › Providers, and office billing staff, who send for an office's
+providers, in Settings › Office billing staff; there is no environment allowlist, tests turn it on for the accounts
 they create, and turning it off ends open sessions. Say "external" for
 these users everywhere, so they are never confused with internal staff.
 Real invoice files for local extraction testing go in the gitignored
@@ -391,12 +414,12 @@ PDF imports are read in a background queue in the server process (one
 instance only), entirely in-process on the demo server's 1 GB; any model or
 service added to reading needs its hosting cost agreed first.
 Possible duplicate people (`src/people/possibleDuplicates.ts`) and cases
-are reviewed in a "Review duplicates" tab of People and of All cases, shown
-only while there is something to review, for administrators too; there is
-no separate page. The pages load only a count the server keeps for five
-minutes (`src/duplicateCounts.ts`, forgotten on any review, merge, undo or
-case close, so a new person or case may take that long to count); working
-the count out runs the full comparison, as opening the tab does.
+are reviewed together in Settings › Merge duplicates
+(`client/src/components/MergeDuplicates.tsx`), which always works them out
+afresh. A case's and a provider's page show a notice when it may be a
+duplicate, from who each record may be a duplicate of, which the server keeps
+for five minutes (`src/duplicateMembers.ts`, forgotten on any review, merge,
+undo or case fix, so a new duplicate may take that long to show).
 Possible duplicate people are listed for staff only; any staff member flags a pair or records they are different
 people, and only an administrator merges, after a preview of exactly what
 moves (`src/people/personMerges.ts`). A merge never deletes the retired
@@ -404,8 +427,11 @@ person or replaces a detail on the kept one, records every value it changes
 so it can be undone, and a merged-away person is left out of every list,
 search, email check and sign-in match. Duplicates show in groups, and one
 merge may take several records, all or none. Possible duplicate cases
-(`src/cases/possibleDuplicateCases.ts`) are review only: cases belong to the
-external system and are never merged here; staff close the extra one.
+(`src/cases/possibleDuplicateCases.ts`) belong to the external system and are
+never truly merged: an administrator's "merge" of a group moves the others'
+invoices and pre-authorizations to the case kept and closes them as added by
+mistake, all or none, each as its own Edit data same-case fix, undone there.
+Settings shows one section per tab (`?tab=`), loading only that tab's data.
 Cases in different counties are never listed or flagged as duplicates.
 Possible double billing (`src/billing/billingOverlaps.ts`) only warns, never
 refuses; a submitter sees only invoices they may read, and only on a draft.
@@ -413,7 +439,8 @@ Pre-authorization limits are per provider per case: the ceiling of their one
 pre-authorization (asking for more revises it; never add ceilings), else the
 case county's configured threshold for kinds it applies to. Going over is
 explained by the sender and flagged, never refused. Providers' CVs and fee
-schedules are kept records, unlike invoice working copies.
+schedules are kept records, unlike invoice working copies: one added by
+mistake is retired (`document_link.retired_at`, audited, restorable), never deleted.
 Driving-distance lookups for the mileage rule (`ROUTE_CHECK_PROVIDER=aws`)
 are billed per request: keep them to submission with the rule on and cached
 by address pair, and have tests use `setRouteProviderForTests`, never AWS.

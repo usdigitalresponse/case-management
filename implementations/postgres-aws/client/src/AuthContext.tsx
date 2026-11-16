@@ -25,6 +25,8 @@ interface AuthContextValue {
   refreshUser: () => Promise<void>;
   // Counts sign-ins and sign-outs, so saved scroll positions don't carry over.
   signIns: number;
+  // Whether the latest sign-in or sign-out was the guided tour's own switch.
+  signInByTour: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -34,7 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [signIns, setSignIns] = useState(0);
-  const switchUser = useCallback((next: AuthenticatedUser | null) => {
+  const [signInByTour, setSignInByTour] = useState(false);
+  const switchUser = useCallback((next: AuthenticatedUser | null, byTour = false) => {
     window.history.replaceState(null, '', '/');
     // The header's organization name is the same for everyone; kept so it doesn't flash.
     const providers = queryClient.getQueryData(authProviders.key);
@@ -43,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // No navigation happens, so the page would keep the sign-in page's scroll.
     window.scrollTo(0, 0);
     setSignIns((count) => count + 1);
+    setSignInByTour(byTour);
     setUser(next);
   }, []);
 
@@ -76,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [switchUser]);
 
   const adoptSignIn = useCallback(async () => {
-    switchUser(await getCurrentUser());
+    switchUser(await getCurrentUser(), true);
   }, [switchUser]);
 
   const handleLogout = useCallback(async () => {
@@ -105,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout: handleLogout,
         refreshUser,
         signIns,
+        signInByTour,
       }}
     >
       {children}

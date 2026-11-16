@@ -105,15 +105,18 @@ function matching(q: string | undefined): SQL {
 }
 
 // Everyone whose sign-in is on, or was turned off here, by name, a batch at a time.
-export async function listExternalUsers(db: DatabaseOrTransaction, q: string | undefined, batch: BatchRequest) {
+// officeStaff: only office billing staff, people who aren't providers or send for an office;
+// providers' sign-in is on Settings › Providers (design K51).
+export async function listExternalUsers(db: DatabaseOrTransaction, q: string | undefined, batch: BatchRequest, { officeStaff = false } = {}) {
   const from = await fromExternalPeople(db);
+  const officeOnly = officeStaff ? sql`and (pr.professional_id is null or d.offices is not null)` : sql``;
   const { rows, next } = await oneBatch(batch, async (after, limit) => {
     const position = afterCursor(BY_NAME, after);
     const result = await db.execute<Row>(sql`
       select ${COLUMNS}, ${cursorColumn(BY_NAME)} as cursor ${from}
         and (p.external_sign_in_enabled or exists (select 1 from audit_event e where e.entity_type = 'person'
           and e.entity_id = p.person_id and e.event_type in (${sql.join(SIGN_IN_EVENTS.map((type) => sql`${type}`), sql`, `)})))
-        ${matching(q)} ${position ? sql`and ${position}` : sql``}
+        ${officeOnly} ${matching(q)} ${position ? sql`and ${position}` : sql``}
       order by ${sql.join(orderByKeys(BY_NAME), sql`, `)} limit ${limit}`);
     return result.rows;
   });
@@ -147,7 +150,12 @@ export async function listDelegateOffices(db: DatabaseOrTransaction) {
 const email = z.email('Enter the email they will sign in with.').trim().toLowerCase();
 const name = z.string().trim().min(2, 'Enter their name.').max(200);
 
-const existingSchema = z.object({ personId: z.uuid('Choose who should be able to sign in.'), email: email.optional() });
+// officeId: they send for that office too, from today (Settings › Office billing staff).
+const existingSchema = z.object({
+  personId: z.uuid('Choose who should be able to sign in.'),
+  email: email.optional(),
+  officeId: z.uuid('Choose the office they send invoices for.').optional(),
+});
 const newProviderSchema = addProfessionalSchema.extend({ email });
 const newDelegateSchema = z.object({ displayName: name, email, officeId: z.uuid('Choose the office they send invoices for.') });
 
@@ -225,7 +233,11 @@ export async function turnOnExternalSignIn(db: Database, actorUserAccountId: str
     }
 
     const existing = await lockExternalUser(tx, input.personId);
-    if (existing.signInEnabled) throw new ConflictError('already_on', `${existing.displayName} can already sign in.`);
+    if (input.officeId) await addDelegateInTx(tx, actorUserAccountId, existing, input.officeId);
+    if (existing.signInEnabled) {
+      if (input.officeId) return existing.personId;
+      throw new ConflictError('already_on', `${existing.displayName} can already sign in.`);
+    }
     if (existing.email) {
       const problem = await accountSignInProblem(tx, existing.email, existing.personId);
       if (problem) throw new ValidationError({ email: problem });
@@ -279,30 +291,32 @@ export async function addDelegateOffice(db: Database, actorUserAccountId: string
   const parsed = z.object({ officeId: z.uuid('Choose the office they send invoices for.') }).safeParse(rawInput);
   if (!parsed.success) throw new ValidationError(fieldErrorsFromZodIssues(parsed.error.issues));
   const { officeId } = parsed.data;
-  await db.transaction(async (tx) => {
-    const existing = await lockExternalUser(tx, personId);
-    const [chosen] = await tx
-      .select({ organizationId: office.organizationId })
-      .from(office)
-      .where(and(eq(office.officeId, officeId), eq(office.active, true), isNotNull(office.organizationId)));
-    if (!chosen?.organizationId) throw new ValidationError({ officeId: 'Choose the office they send invoices for.' });
-    if (existing.delegateFor.some((one) => one.officeId === officeId)) {
-      throw new ConflictError('already_delegate', `${existing.displayName} already sends invoices for this office.`);
-    }
-    const [added] = await tx
-      .insert(personAffiliation)
-      .values({ personId, organizationId: chosen.organizationId, officeId, affiliationRoleId: await getDelegateAffiliationRoleId(tx), startedAt: new Date() })
-      .returning({ id: personAffiliation.personAffiliationId });
-    await tx.insert(auditEvent).values({
-      entityType: 'person',
-      entityId: personId,
-      eventType: 'external_delegate_office_added',
-      actorUserAccountId,
-      occurredAt: new Date(),
-      priorValues: { personAffiliationId: added!.id, officeId },
-    });
-  });
+  await db.transaction(async (tx) => addDelegateInTx(tx, actorUserAccountId, await lockExternalUser(tx, personId), officeId));
   return getExternalUser(db, personId);
+}
+
+// They send invoices for the office's providers from now, recorded on the person.
+async function addDelegateInTx(tx: Transaction, actorUserAccountId: string, existing: ExternalUser, officeId: string) {
+  const [chosen] = await tx
+    .select({ organizationId: office.organizationId })
+    .from(office)
+    .where(and(eq(office.officeId, officeId), eq(office.active, true), isNotNull(office.organizationId)));
+  if (!chosen?.organizationId) throw new ValidationError({ officeId: 'Choose the office they send invoices for.' });
+  if (existing.delegateFor.some((one) => one.officeId === officeId)) {
+    throw new ConflictError('already_delegate', `${existing.displayName} already sends invoices for this office.`);
+  }
+  const [added] = await tx
+    .insert(personAffiliation)
+    .values({ personId: existing.personId, organizationId: chosen.organizationId, officeId, affiliationRoleId: await getDelegateAffiliationRoleId(tx), startedAt: new Date() })
+    .returning({ id: personAffiliation.personAffiliationId });
+  await tx.insert(auditEvent).values({
+    entityType: 'person',
+    entityId: existing.personId,
+    eventType: 'external_delegate_office_added',
+    actorUserAccountId,
+    occurredAt: new Date(),
+    priorValues: { personAffiliationId: added!.id, officeId },
+  });
 }
 
 // Ends, never deletes, their delegation for the office.

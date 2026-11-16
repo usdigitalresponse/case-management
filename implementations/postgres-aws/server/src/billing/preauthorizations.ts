@@ -38,7 +38,7 @@ export interface PreauthorizationSummary {
 }
 
 // Each invoice's approved total from its latest finished round; 0 without one.
-async function approvedCentsByInvoice(db: DatabaseOrTransaction, invoiceIds: string[]): Promise<Map<string, number>> {
+export async function approvedCentsByInvoice(db: DatabaseOrTransaction, invoiceIds: string[]): Promise<Map<string, number>> {
   if (invoiceIds.length === 0) {
     return new Map();
   }

@@ -1,0 +1,3 @@
+ALTER TABLE "document_link" ADD COLUMN "retired_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "document_link" ADD COLUMN "retired_by_user_account_id" uuid;--> statement-breakpoint
+ALTER TABLE "document_link" ADD CONSTRAINT "document_link_retired_by_user_account_id_user_account_user_account_id_fk" FOREIGN KEY ("retired_by_user_account_id") REFERENCES "public"."user_account"("user_account_id") ON DELETE no action ON UPDATE no action;

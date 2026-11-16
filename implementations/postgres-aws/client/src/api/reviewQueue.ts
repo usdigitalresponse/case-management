@@ -4,6 +4,8 @@ import type { CountyChoice, SavedCounty } from './cases';
 import type { ProposedCase, ProposedProvider } from './myInvoices';
 
 // One invoice's header, as the staff queue and the portal both show it.
+export type CaseChoice = 'existing' | 'new' | 'none';
+
 export interface QueuedInvoice {
   invoiceId: string;
   // Null while held in intake, or when staff reviewed it without a case.
@@ -40,6 +42,13 @@ export interface QueuedInvoice {
   countyDisplayName: string | null;
   // A staff upload, under review from the start.
   enteredInReview: boolean;
+  // Which case it is for: existing, new or none (not for one case); null while unanswered.
+  caseChoice: CaseChoice | null;
+  // On a draft: the existing case it is matched to, or the client of the case added, when sent.
+  chosenCaseId: string | null;
+  newCaseClientName: string | null;
+  // Its case's county, only when it differs from the invoice's own.
+  caseCountyDisplayName: string | null;
   // While its lines are being entered: their version, sent back with each
   // save, and who changed them last, when.
   linesVersion: number;
@@ -56,7 +65,7 @@ export interface AssignedPerson {
 }
 
 export interface QueueFlag {
-  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case' | 'preauthorization';
+  kind: 'rate' | 'rate_changed' | 'arithmetic' | 'rule' | 'no_case' | 'county' | 'preauthorization';
   message: string;
 }
 
@@ -89,7 +98,7 @@ export interface ReviewQueueItem extends QueuedInvoice {
 
 export type QueueView = 'open' | 'finished' | 'lines_decided' | 'all';
 // A person's: 'waiting' (in review) and 'done' (decided).
-export type QueueShow = 'all' | 'mine' | 'unassigned' | 'flagged' | 'month' | 'sign_off' | 'decided' | 'completed' | 'approved' | 'waiting' | 'done';
+export type QueueShow = 'all' | 'mine' | 'unassigned' | 'reviewing' | 'flagged' | 'month' | 'sign_off' | 'decided' | 'completed' | 'approved' | 'waiting' | 'done';
 // search: exact matches before close ones, each newest first.
 export type QueueSort = 'waiting' | 'newest' | 'finished' | 'search';
 
@@ -220,4 +229,32 @@ export function billingRecordUrl(format: 'csv' | 'xlsx', filter: BillingRecordFi
   if (filter.signedOffOnly) params.set('status', 'signed-off');
   if (filter.omit?.length) params.set('omit', filter.omit.join(','));
   return `/api/invoices/billing-record?${params}`;
+}
+
+export type OverviewStep = 'no_reviewer' | 'being_reviewed' | 'sign_off' | 'not_completed';
+
+export interface OverviewInvoice {
+  invoiceId: string;
+  senderDisplayName: string | null;
+  caseNumber: string | null;
+  submittedTotal: string;
+}
+
+export interface InvoiceChange {
+  invoiceId: string;
+  senderDisplayName: string | null;
+  caseNumber: string | null;
+  periodStart: string | null;
+  what: string;
+  when: string;
+  by: string | null;
+}
+
+export interface InvoiceOverview {
+  steps: Array<{ step: OverviewStep; count: number; invoices: OverviewInvoice[] }>;
+  changes: InvoiceChange[];
+}
+
+export function getInvoiceOverview(): Promise<InvoiceOverview> {
+  return request('/api/invoices/overview');
 }

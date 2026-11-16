@@ -51,7 +51,7 @@ export function SubmissionLines({ s }: { s: Submission }) {
           <Notice tone="success">
             {staff
               ? `Sent for review on ${formatDateTime(data.submissionAttempt.submittedAt)}.`
-              : `Sent for review on ${formatDateTime(data.submissionAttempt.submittedAt)}. We emailed a receipt to ${user?.email}. You can withdraw it until review starts.`}
+              : `Sent for review on ${formatDateTime(data.submissionAttempt.submittedAt)}. A receipt was emailed to ${user?.email}. You can withdraw it until review starts.`}
           </Notice>
         )}
         {!isDraft &&
@@ -105,7 +105,7 @@ export function SubmissionLines({ s }: { s: Submission }) {
           edited={(index) => edited.has(lines[index]?.invoiceLineId ?? '')}
           extra={sent ? decisionFor : undefined}
           detail={sent ? questionsFor : undefined}
-          addLabel={fileSource ? 'Add a line we missed' : 'Add a line'}
+          addLabel={fileSource ? 'Add a missing line' : 'Add a line'}
           footer={
             <div className="check-lines__totals">
               {fileSays !== null && (
@@ -128,7 +128,9 @@ export function SubmissionLines({ s }: { s: Submission }) {
               : 'Add each line of the invoice, and correct any line where it is. Changes save when you send or save for later.'
             : invoice.statusCode === 'submitted' || awaiting
               ? 'This invoice is with the billing office, so the lines are locked. Withdraw it if you need to change something.'
-              : 'The lines are locked while the billing office reviews them.'}
+              : decided
+                ? 'The lines are locked. Contact the billing office if you have a question about a decision.'
+                : 'The lines are locked while the billing office reviews them.'}
         </p>
       </div>
     </div>

@@ -1,7 +1,5 @@
-// Administrator-set pricing of travel and waiting time (model/rules.yaml
-// apply_time_category_rates). Settings are only added: the one for a category
-// on a date is its latest effective on or before it; with none, that time is
-// priced like work.
+// Pricing of travel and waiting time (model/rules.yaml apply_time_category_rates). Only added: a category's
+// setting on a date is its latest effective by then; with none, it is priced like work.
 import { z } from 'zod';
 import { asc } from 'drizzle-orm';
 import type { DatabaseOrTransaction } from '../db/client';

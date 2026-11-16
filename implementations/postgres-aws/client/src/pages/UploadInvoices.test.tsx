@@ -73,4 +73,30 @@ describe('uploading an invoice', () => {
     expect(api.callsTo('POST', /\/draft$/)).toEqual([]);
     expect(api.unhandled).toEqual([]);
   });
+
+  it('fills staff’s case number from the file, and lets them leave it blank', async () => {
+    const api = fakeApi({
+      ...lineEditorRoutes(),
+      ...signedIn(REVIEWER),
+      'GET /api/portal/receipt-channels': { channels: [{ code: 'email', displayName: 'Email' }] },
+      'POST /api/portal/uploads': { uploadReadId: 'read-1' },
+      'GET /api/portal/uploads/:id': ready,
+    });
+    await renderPage(<UploadInvoices />, { path: '/upload', url: '/upload' });
+    const input = (await screen.findByLabelText(/./, { selector: 'input[type="file"]' })) as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['%PDF-1.7'], 'august.pdf', { type: 'application/pdf' })] } });
+    const caseNumber = (await screen.findByLabelText('Case number')) as HTMLInputElement;
+    await waitFor(() => expect(caseNumber.value).toBe('26-CR-0001'));
+
+    fireEvent.change(caseNumber, { target: { value: '' } });
+    const go = await screen.findByRole('button', { name: 'Continue' });
+    await waitFor(() => expect((go as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(go);
+
+    // Not for one case is answered in the case step, not here.
+    expect(await screen.findByText('Choose how it arrived.')).toBeTruthy();
+    expect(screen.queryByText(/Enter the case number/)).toBeNull();
+    expect(screen.queryByLabelText('Not for one case')).toBeNull();
+    expect(api.unhandled).toEqual([]);
+  });
 });

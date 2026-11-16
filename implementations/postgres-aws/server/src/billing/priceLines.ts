@@ -1,8 +1,5 @@
-// Prices an invoice's time and mileage lines at their stated rate, or their
-// default rate when none is stated (./defaultRates.ts; model/rules.yaml
-// apply_professional_rates, apply_time_category_rates, apply_mileage_rates),
-// records where each default came from, and refreshes its total. A linked
-// time entry's date and hours govern; before one exists, the line's own.
+// Prices time and mileage lines at their stated rate, else their default (./defaultRates.ts), recording where
+// each default came from, and refreshes the total. A linked time entry's date and hours govern.
 import { and, eq } from 'drizzle-orm';
 import type { Transaction } from '../db/client';
 import { expenseTypes, invoice, invoiceLine, invoiceLineTypes, timeEntry } from '../db/schema';

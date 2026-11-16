@@ -11,11 +11,11 @@ describe('line cells shared by every invoice table', () => {
   });
 
   it('shows quantities and rates with their units', () => {
-    expect(formatQuantity('time', 1.7)).toBe('1.70 h');
-    expect(formatQuantity('mileage', 64)).toBe('64 mi');
+    expect(formatQuantity('time', 1.7)).toBe('1.70 hours');
+    expect(formatQuantity('mileage', 64)).toBe('64 miles');
     expect(formatQuantity('other', null)).toBe('—');
     expect(formatLineRate('time', '150')).toBe('$150.00');
-    expect(formatLineRate('mileage', 0.725)).toBe('$0.725/mi');
+    expect(formatLineRate('mileage', 0.725)).toBe('$0.725 a mile');
     expect(formatLineRate('time', null)).toBe('—');
   });
 });

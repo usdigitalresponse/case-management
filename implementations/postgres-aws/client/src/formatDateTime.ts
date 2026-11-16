@@ -9,13 +9,17 @@ const dayMonthYearFormat = (timeZone: string | undefined) => {
   return format;
 };
 
-// The design's date: day, short month, year ("3 Aug 2026"); null for an invalid date.
-function dayMonthYear(date: Date, timeZone?: string): string | null {
+function partsOf(date: Date, timeZone?: string): Record<string, string> | null {
   if (Number.isNaN(date.getTime())) {
     return null;
   }
-  const parts = Object.fromEntries(dayMonthYearFormat(timeZone).formatToParts(date).map((part) => [part.type, part.value]));
-  return `${parts.day} ${parts.month} ${parts.year}`;
+  return Object.fromEntries(dayMonthYearFormat(timeZone).formatToParts(date).map((part) => [part.type, part.value]));
+}
+
+// The American date, as in design K: short month, day, year ("Aug 3, 2026"); null for an invalid date.
+function dayMonthYear(date: Date, timeZone?: string): string | null {
+  const parts = partsOf(date, timeZone);
+  return parts ? `${parts.month} ${parts.day}, ${parts.year}` : null;
 }
 
 // Server timestamps are raw ISO 8601; shown as the viewer's local date and time, without seconds.
@@ -34,8 +38,18 @@ export function formatDate(isoDate: string | null | undefined): string {
   return dayMonthYear(new Date(`${isoDate}T00:00:00Z`), 'UTC') ?? isoDate;
 }
 
+// "Feb 1 to 28, 2026", "Jan 30 to Feb 2, 2026" or "Dec 15, 2025 to Jan 10, 2026".
 export function formatPeriod(start: string | null, end: string | null): string {
-  return start || end ? `${formatDate(start)} – ${formatDate(end)}` : '—';
+  if (!start || !end) {
+    return start || end ? `${formatDate(start)} to ${formatDate(end)}` : '—';
+  }
+  const from = partsOf(new Date(`${start}T00:00:00Z`), 'UTC');
+  const to = partsOf(new Date(`${end}T00:00:00Z`), 'UTC');
+  if (!from || !to || from.year !== to.year) {
+    return `${formatDate(start)} to ${formatDate(end)}`;
+  }
+  const last = from.month === to.month ? to.day : `${to.month} ${to.day}`;
+  return `${from.month} ${from.day} to ${last}, ${to.year}`;
 }
 
 // A timestamp's date in the viewer's zone, so an evening submission isn't shown as the next day.

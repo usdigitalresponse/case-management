@@ -1,6 +1,4 @@
-// clientDisplayName/externalReference are both optional, but a link to a
-// case always needs something better than a raw caseId — fall through to
-// the best candidate, then a date, never the id itself.
+// A case link's label: its client or reference, else a date, never the raw id.
 export function caseDisplayLabel(
   candidates: Array<string | null | undefined>,
   dateFallback: { label: string; date: string | null } | undefined,

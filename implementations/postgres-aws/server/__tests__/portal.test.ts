@@ -113,9 +113,7 @@ describe('createInvoice', () => {
     const result = await createInvoice(testDb, { userAccountId, professionalId }, { attested: true,
       caseId,
       lines: [{ amount: 100 }, { amount: 50.5 }],
-      // A client-sent total, if present, must be ignored — not part of
-      // CreateInvoiceInput's type, so this only exercises the runtime
-      // behavior (extra JSON fields a real HTTP body could include).
+      // Not in CreateInvoiceInput, but a request body could carry it; it must be ignored.
       submittedTotal: 999999,
     });
 
@@ -230,11 +228,7 @@ describe('createInvoice', () => {
   });
 });
 
-// Exercised directly against the table, not through
-// POST /:id/external-assignments (src/routes/cases.ts): there's no HTTP
-// test harness in this project (see __tests__/createCase.test.ts and
-// siblings, all handler-level), and the route's own duplicate-handling
-// is just a catch around this same constraint.
+// Against the table directly: the route's duplicate handling is a catch around this constraint.
 describe('case_assignment_open_unique', () => {
   it('rejects a second open assignment for the same case/professional pair', async () => {
     const { professionalId } = await createVendorProfessional('vendor-dup@example.com');

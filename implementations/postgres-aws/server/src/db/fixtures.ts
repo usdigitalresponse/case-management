@@ -1,6 +1,4 @@
-// Baseline synthetic fixtures shared between the dev/demo seed script
-// (src/db/seed.ts) and the intake handler tests (__tests__/), so both reset
-// to the same known state rather than maintaining two copies.
+// Baseline synthetic fixtures shared by the demo seed and the tests.
 import { sql } from 'drizzle-orm';
 import { faker } from '@faker-js/faker';
 import type { Database } from './client';
@@ -39,10 +37,7 @@ import {
   USER_ACCOUNT_IDS,
 } from './syntheticIds';
 
-// LSC (Legal Services Corporation) Case Service Report major problem
-// categories, matching the general shape of NCSC case-type standards —
-// published, sector-wide taxonomies, not any organization's confidential
-// configuration, so real category names are safe here.
+// Published, sector-wide case categories (LSC Case Service Report), not any organization's configuration.
 const LSC_CASE_CATEGORIES = [
   { code: 'consumer_finance', displayName: 'Consumer/Finance' },
   { code: 'education', displayName: 'Education' },
@@ -89,13 +84,9 @@ export interface BaselineFixtureIds {
   staffUserAccountId: string;
 }
 
-// Resets every table this implementation owns, then re-inserts a known-good
-// baseline. Safe to call repeatedly (dev seed script) or between tests.
-// TRUNCATE ... CASCADE resolves FK dependencies itself, so table order here
-// doesn't matter (unlike a manually-ordered sequence of DELETEs).
+// Truncates every table this implementation owns, then inserts the baseline.
 export async function resetAndSeedBaselineFixtures(db: Database): Promise<BaselineFixtureIds> {
-  // Fixed seed so Faker output (below) is deterministic across runs,
-  // rather than changing every time this function is called.
+  // The same Faker output every run.
   faker.seed(20260115);
 
   await db.execute(sql`
@@ -196,8 +187,6 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     active: true,
   });
 
-  // Rows every environment needs come from the same provisioning code
-  // production runs at migrate time, not a second hand-maintained copy.
   await ensureReferenceData(db);
   const [
     activityTypeSampleId,
@@ -227,9 +216,7 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     getStaffAssignmentRoleId(db),
   ]);
 
-  // The first row of each list has a stable ID (returned below and used by
-  // tests and the demo seed); the rest only give the intake dropdowns
-  // realistic choices.
+  // Each list's first row has a stable ID, returned for tests and the demo seed.
   await db.insert(county).values([
     { countyId: COUNTY_IDS.SAMPLE_COUNTY_A, displayName: 'County A', active: true },
     { displayName: 'County B', active: true },
@@ -260,9 +247,7 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     { displayName: 'Eastside Office', organizationId: familyJusticeCenter.organizationId, active: true },
   ]);
 
-  // Faker-generated names — no provenance link to any real dataset. Person
-  // creation is out of scope for this slice (see ../../MAPPING.md); these
-  // are the only two person rows that exist.
+  // Faker names, from no real dataset.
   const clientGivenName = faker.person.firstName();
   const clientFamilyName = faker.person.lastName();
   const staffGivenName = faker.person.firstName();
@@ -282,10 +267,7 @@ export async function resetAndSeedBaselineFixtures(db: Database): Promise<Baseli
     },
   ]);
 
-  // A synthetic dev-only account (example.invalid domain, per
-  // scenarios/fixtures conventions) used for local testing without a real
-  // SSO login. Real accounts are created on first login, matched by email
-  // (see ../auth).
+  // A synthetic account (example.invalid) for testing without SSO.
   await db.insert(userAccount).values([
     {
       userAccountId: USER_ACCOUNT_IDS.SYNTHETIC_STAFF,

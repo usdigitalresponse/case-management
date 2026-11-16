@@ -62,10 +62,10 @@ describe('invoices to review', () => {
     expect(screen.getByRole('button', { name: /Assigned to you/ }).textContent).toContain('4');
     // Only the rows themselves can tell which have flags, so that tag has no count.
     expect(screen.getByRole('button', { name: /Has a flag/ }).textContent).toBe('Has a flag');
-    expect(Object.fromEntries(api.calls.find((call) => call.path === '/api/invoices')!.query)).toEqual({ view: 'open', show: 'all', sort: 'waiting', counts: 'all,mine,unassigned,flagged' });
+    expect(Object.fromEntries(api.calls.find((call) => call.path === '/api/invoices')!.query)).toEqual({ view: 'open', show: 'all', sort: 'waiting', counts: 'all,mine,unassigned,reviewing,flagged' });
 
     fireEvent.click(screen.getByRole('button', { name: /Has a flag/ }));
-    expect(await screen.findByText(/Flagged Sender/)).toBeTruthy();
+    expect(await screen.findByRole('rowheader', { name: /Flagged Sender/ })).toBeTruthy();
     await waitFor(() => expect(api.calls.some((call) => call.path === '/api/invoices' && call.query.get('show') === 'flagged')).toBe(true));
   });
 });

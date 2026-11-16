@@ -18,6 +18,7 @@ export function submissionFacts(data: PortalInvoice, { userId, staff, filedByPer
     status: submissionStatus(invoice),
     decided: invoice.statusCode === 'approved' || invoice.statusCode === 'rejected',
     period: formatSpan(invoice.periodStart, invoice.periodEnd),
+    title: invoice.periodStart || invoice.periodEnd ? `Invoice for ${formatSpan(invoice.periodStart, invoice.periodEnd)}` : 'Invoice',
     month: invoice.periodStart ? `${MONTHS[Number(invoice.periodStart.slice(5, 7)) - 1]} ${invoice.periodStart.slice(0, 4)}` : 'invoice',
     proposed,
     client: invoice.caseClientDisplayName ?? proposed?.clientName ?? 'Invoice',

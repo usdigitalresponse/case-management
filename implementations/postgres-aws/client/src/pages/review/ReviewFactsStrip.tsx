@@ -1,4 +1,6 @@
+import { Link } from 'react-router';
 import { Fact, FactsStrip, Progress } from '../../components/FactsStrip';
+import { personPath } from '../../staffPaths';
 import { formatDay, formatPeriod } from '../../formatDateTime';
 import { formatMoney } from '../../formatMoney';
 import type { ReviewFacts } from './reviewFacts';
@@ -28,7 +30,10 @@ export function ReviewFactsStrip({ facts }: { facts: ReviewFacts }) {
       <Fact label="Approved so far" note={totals.cut > 0 ? `${formatMoney(totals.cut / 100)} cut` : undefined}>
         {formatMoney(totals.approved / 100)}
       </Fact>
-      <Fact label={`${senderFirstName}'s approved rate`} note="Set on their page under People">
+      <Fact
+        label={`${senderFirstName}'s approved rate`}
+        note={invoice.professionalId ? <Link to={personPath(invoice.professionalId)}>See their provider page</Link> : undefined}
+      >
         <strong>{data.approvedRate ? `${formatMoney(data.approvedRate)} an hour` : 'None set'}</strong>
       </Fact>
       <Fact label="Lines decided">

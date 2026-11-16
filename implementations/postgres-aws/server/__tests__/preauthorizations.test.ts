@@ -15,13 +15,17 @@ import { listReviewQueue } from '../src/billing/reviewQueue';
 import { loadPreauthorizationSummaries, setPreauthorizedAmount } from '../src/billing/preauthorizations';
 import { addThreshold, getThresholdSettings, setKindThresholdApplies, thresholdFor } from '../src/billing/preauthorizationThresholds';
 import { loadOverrunExplanations } from '../src/billing/overrunExplanation';
-import { addDocument, providerDocumentStatus } from '../src/billing/preauthorizationRequests/providerRecords';
-import { answerRequestQuestion, askRequestQuestion, decidePreauthorizationRequest, withdrawPreauthorizationRequest } from '../src/billing/preauthorizationRequests/decide';
+import { addDocument, listLinkedDocuments, providerDocumentStatus, readLinkedDocument, setDocumentRetired } from '../src/billing/preauthorizationRequests/providerRecords';
+import { answerRequestQuestion, askRequestQuestion, decidePreauthorizationRequest, matchPreauthorizationRequest, withdrawPreauthorizationRequest } from '../src/billing/preauthorizationRequests/decide';
 import { createPreauthorizationRequest, previewRequest } from '../src/billing/preauthorizationRequests/submit';
 import { getPreauthorizationRequest, listOwnPreauthorizationRequests, listPreauthorizationRequests } from '../src/billing/preauthorizationRequests/read';
 import { preauthorizationUsageByCounty } from '../src/billing/preauthorizationUsage';
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from '../src/errors';
-import { caseAssignment, county, preauthorizationDecision, userAccount } from '../src/db/schema';
+import { auditEvent, caseAssignment, caseTable, county, documentLink, invoice, invoiceEvent, invoiceLine, preauthorizationDecision, preauthorizationRequest, userAccount } from '../src/db/schema';
+import { reviewInvoiceLine } from '../src/billing/reviewInvoiceLine';
+import { finishReview, signOffInvoice } from '../src/billing/reviewRounds';
+import { setSignOffApprovers } from '../src/billing/reviewAssignment';
+import { fixCase, undoCaseFix } from '../src/cases/caseCorrections';
 
 let fixtures: BaselineFixtureIds;
 let admin: string;
@@ -181,7 +185,22 @@ describe('requests', () => {
 
     const first = await listPreauthorizationRequests(testDb, staff, { status: 'approved' }, { limit: 1, after: null });
     expect(first.items.map((row) => row.preauthorizationRequestId)).toEqual([approved.preauthorizationRequestId]);
-    expect('summary' in first && first.summary.counts).toEqual({ submitted: 1, info_requested: 1, approved: 1, not_needed: 0, denied: 0, withdrawn: 0, all: 3 });
+    expect('summary' in first && first.summary.counts).toEqual({
+      submitted: 1,
+      info_requested: 1,
+      approved: 1,
+      not_needed: 0,
+      denied: 0,
+      withdrawn: 0,
+      in_review: 2,
+      decided: 1,
+      all: 3,
+    });
+    // In review is waiting and waiting for information together (design K54).
+    const inReview = await listPreauthorizationRequests(testDb, staff, { status: 'in_review' }, { limit: 10, after: null });
+    expect(inReview.items.map((row) => row.preauthorizationRequestId).sort()).toEqual([waiting.preauthorizationRequestId, asked.preauthorizationRequestId].sort());
+    // A name an object inherits is just an unknown status.
+    expect((await listPreauthorizationRequests(testDb, staff, { status: 'constructor' }, { limit: 10, after: null })).items).toEqual([]);
 
     const more = await createPreauthorizationRequest(testDb, attorney, request(caseId, expert.professionalId, 700));
     const open = await listPreauthorizationRequests(testDb, staff, { status: 'submitted' }, { limit: 1, after: null });
@@ -203,10 +222,88 @@ describe('requests', () => {
     await expect(
       decidePreauthorizationRequest(testDb, staff, preauthorizationRequestId, { outcome: 'approved', approvedAmount: 1200 }),
     ).rejects.toThrow(
-      expect.objectContaining({ fieldErrors: { outcome: 'Match the case and provider before approving.' } }),
+      expect.objectContaining({ fieldErrors: { outcome: expect.stringContaining('Match the provider') } }),
     );
     const view = await getPreauthorizationRequest(testDb, staff, preauthorizationRequestId);
     expect(view.request).toMatchObject({ proposedCaseNumber: 'SYN-404', proposedProviderName: 'Synthetic Investigations' });
+  });
+
+  it('add the case from its number and county when staff match it', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, {
+      ...request(caseId, attorney.professionalId, 1200),
+      caseId: null,
+      proposedCase: { caseNumber: 'SYN-405', countyId: fixtures.countyId },
+    });
+    const matched = await matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, {
+      newCase: { caseNumber: 'SYN-405', countyId: fixtures.countyId },
+    });
+    expect(matched.addedCaseId).toBeTruthy();
+    const [added] = await testDb.select().from(caseTable).where(eq(caseTable.caseId, matched.addedCaseId!));
+    expect(added).toMatchObject({ externalReference: 'SYN-405', addedFromPreauthorizationRequestId: preauthorizationRequestId });
+    await decidePreauthorizationRequest(testDb, staff, preauthorizationRequestId, { outcome: 'approved', approvedAmount: 1200 });
+    const [limit] = await loadPreauthorizationSummaries(testDb, matched.addedCaseId!, [attorney.professionalId]);
+    expect(limit).toMatchObject({ source: 'preauthorized', ceiling: '1200.00' });
+  });
+
+  it('refuse a case in another county than the request’s', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const [other] = await testDb.insert(county).values({ displayName: 'Synthetic County C' }).returning();
+    const elsewhere = await newCase(other!.countyId);
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, {
+      ...request(caseId, attorney.professionalId, 1200),
+      caseId: null,
+      proposedCase: { caseNumber: 'SYN-406', countyId: fixtures.countyId },
+    });
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId: elsewhere })).rejects.toThrow(ValidationError);
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId })).resolves.toMatchObject({ request: { caseId } });
+  });
+
+  it('need a county for work not for one case, and to find a chosen case in', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, {
+      ...request(caseId, attorney.professionalId, 600),
+      caseId: null,
+      proposedCase: { caseNumber: 'SYN-407' },
+    });
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { notForCase: true })).rejects.toThrow(ValidationError);
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId })).rejects.toThrow(ValidationError);
+    await expect(matchPreauthorizationRequest(testDb, staff, preauthorizationRequestId, { caseId, countyId: fixtures.countyId })).resolves.toMatchObject({ request: { caseId } });
+  });
+
+  it('keep their own county when an administrator takes them off a case added by mistake', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const [other] = await testDb.insert(county).values({ displayName: 'Synthetic County D' }).returning();
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, request(caseId, attorney.professionalId, 900));
+    await testDb.update(preauthorizationRequest).set({ countyId: other!.countyId }).where(eq(preauthorizationRequest.preauthorizationRequestId, preauthorizationRequestId));
+
+    const { caseCorrectionId } = await fixCase(testDb, admin, { kind: 'not_for_case', caseId });
+    const [taken] = await testDb.select().from(preauthorizationRequest).where(eq(preauthorizationRequest.preauthorizationRequestId, preauthorizationRequestId));
+    expect(taken).toMatchObject({ caseId: null, notForCase: true, countyId: other!.countyId });
+    await undoCaseFix(testDb, admin, caseCorrectionId);
+    const [back] = await testDb.select().from(preauthorizationRequest).where(eq(preauthorizationRequest.preauthorizationRequestId, preauthorizationRequestId));
+    expect(back).toMatchObject({ caseId, notForCase: false, countyId: other!.countyId });
+  });
+
+  it('record only the decision for work not for one case, setting no limit', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const decisionsBefore = await testDb.select().from(preauthorizationDecision);
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, {
+      ...request(caseId, attorney.professionalId, 900),
+      caseId: null,
+      notForCase: true,
+      countyId: fixtures.countyId,
+      serviceDescription: 'Court observation',
+    });
+    await decidePreauthorizationRequest(testDb, staff, preauthorizationRequestId, { outcome: 'approved', approvedAmount: 900 });
+    const view = await getPreauthorizationRequest(testDb, staff, preauthorizationRequestId);
+    expect(view.request).toMatchObject({ caseId: null, notForCase: true, statusCode: 'approved', approvedAmount: '900.00', countyId: fixtures.countyId });
+    expect(await testDb.select().from(preauthorizationDecision)).toHaveLength(decisionsBefore.length);
   });
 });
 
@@ -235,6 +332,23 @@ describe('overruns', () => {
   });
 });
 
+describe('overruns before a case is matched', () => {
+  it('are found by the number read from the file, on a case the provider is assigned to', async () => {
+    const caseId = await newCase();
+    const investigator = await newProvider(caseId, { bound: true });
+    await addThreshold(testDb, admin, { countyId: null, amount: 1000, effectiveFrom: '2025-01-01' });
+    await createInvoice(testDb, investigator, { attested: true, caseId, lines: [hours(8)] });
+    const caseNumber = 'CR-26-0042';
+    await testDb.update(caseTable).set({ externalReference: caseNumber }).where(eq(caseTable.caseId, caseId));
+    await expect(createInvoice(testDb, investigator, { attested: true, caseId: null, caseNumber, lines: [hours(4)] })).rejects.toThrow(
+      expect.objectContaining({ fieldErrors: { overrunExplanation: expect.stringMatching(/over the \$1,000\.00 threshold/) } }),
+    );
+    const { invoiceId } = await createInvoice(testDb, investigator, { attested: true, caseId: null, caseNumber, lines: [hours(4)], overrunExplanation: 'Synthetic' });
+    const [sent] = await testDb.select({ caseId: invoice.caseId }).from(invoice).where(eq(invoice.invoiceId, invoiceId));
+    expect(sent?.caseId).toBeNull();
+  });
+});
+
 describe('usage by county', () => {
   it('counts requests, billing, overruns and work within the threshold', async () => {
     const caseId = await newCase();
@@ -255,14 +369,60 @@ describe('usage by county', () => {
       requests: { submitted: 1, approved: 1 },
       requested: '2400.00',
       approved: '1500.00',
+      authorized: '1500.00',
       billedWaiting: '1700.00',
       left: '1000.00',
       over: { providers: 1, amount: '200.00', unexplained: 0 },
       withinThreshold: { providers: 0 },
     });
+    const month = new Date().toISOString().slice(0, 7);
+    expect(usage.months).toHaveLength(12);
+    // Only the investigator's invoice is covered by a pre-authorization; nothing is signed off yet.
+    expect(usage.months.find((row) => row.month === month)).toEqual({ month, authorized: '1500.00', signedOff: '0.00', withInReview: '500.00' });
+    expect(usage.months.find((row) => row.month > month)?.authorized ?? null).toBeNull();
     await expect(preauthorizationUsageByCounty(testDb, investigator.userAccountId, { from: `${year}-01-01`, to: `${year}-12-31` })).rejects.toThrow(
       ForbiddenError,
     );
+  });
+});
+
+describe('usage running totals', () => {
+  const monthStart = (monthsAgo: number) => {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsAgo, 1));
+  };
+  const month = (monthsAgo: number) => monthStart(monthsAgo).toISOString().slice(0, 7);
+
+  it('count a sign-off from its pre-authorization’s grant, and today’s waiting only in this month', async () => {
+    const caseId = await newCase();
+    const provider = await newProvider(caseId, { bound: true });
+    const { invoiceId } = await createInvoice(testDb, provider, { attested: true, caseId, lines: [hours(5)] });
+    const approver = await createStaff('approver');
+    for (const { id } of await testDb.select({ id: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId))) {
+      await reviewInvoiceLine(testDb, staff, invoiceId, id, { outcome: 'approved' });
+    }
+    await setSignOffApprovers(testDb, staff, invoiceId, { userAccountIds: [approver] });
+    await finishReview(testDb, staff, invoiceId);
+    await signOffInvoice(testDb, approver, invoiceId, { outcome: 'approved' });
+    await testDb.update(invoiceEvent).set({ occurredAt: new Date(monthStart(3).getTime() + 86_400_000) }).where(eq(invoiceEvent.invoiceId, invoiceId));
+    await setPreauthorizedAmount(testDb, staff, caseId, { professionalId: provider.professionalId, amount: 1000 });
+    await testDb.update(preauthorizationDecision).set({ effectiveAt: new Date(monthStart(1).getTime() + 86_400_000) });
+    await createInvoice(testDb, provider, { attested: true, caseId, lines: [hours(2)] });
+
+    const period = { from: `${month(4)}-01`, to: `${month(0)}-28` };
+    const { months } = await preauthorizationUsageByCounty(testDb, staff, period);
+    expect(months.map((row) => [row.authorized, row.signedOff, row.withInReview])).toEqual([
+      ['0.00', '0.00', null],
+      ['0.00', '0.00', null],
+      ['0.00', '0.00', null],
+      ['1000.00', '500.00', '500.00'],
+      ['1000.00', '500.00', '700.00'],
+    ]);
+
+    const past = await preauthorizationUsageByCounty(testDb, staff, { from: `${month(4)}-01`, to: `${month(2)}-28` });
+    expect(past.months.every((row) => row.withInReview === null)).toBe(true);
+    const long = await preauthorizationUsageByCounty(testDb, staff, { from: '2000-01-01', to: '2026-12-31' });
+    expect(long.months).toEqual([]);
   });
 });
 
@@ -291,6 +451,47 @@ describe('provider documents', () => {
     await expect(
       addDocument(testDb, memoryStore(), attorney, { preauthorizationRequestId }, { bytes: pdf, fileName: 'q.pdf', purpose: 'quote' }),
     ).rejects.toThrow(ConflictError);
+  });
+});
+
+describe('retiring a file', () => {
+  it('takes it off every list but keeps it, audited, until it is restored', async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const expert = await newProvider(caseId, { bound: true });
+    const outsider = await newProvider(await newCase(), { bound: false });
+    const pdf = Buffer.from('%PDF-1.4 synthetic');
+    const store = memoryStore();
+    const listed = await addDocument(testDb, store, attorney, { professionalId: expert.professionalId }, { bytes: pdf, fileName: 'cv.pdf', purpose: 'cv' });
+    const { documentId } = (listed as Awaited<ReturnType<typeof providerDocumentStatus>>).documents[0]!;
+
+    // Worded as for a file that doesn't exist, so it never says whether one does.
+    await expect(setDocumentRetired(testDb, outsider, documentId, true)).rejects.toThrow('File not found.');
+    await setDocumentRetired(testDb, attorney, documentId, true);
+    await setDocumentRetired(testDb, attorney, documentId, true);
+    await expect(readLinkedDocument(testDb, store, attorney, documentId)).rejects.toThrow(NotFoundError);
+    const status = await providerDocumentStatus(testDb, expert.professionalId);
+    expect(status.documents).toEqual([]);
+    expect(status.missing).toEqual(['cv', 'fee_schedule']);
+    const [link] = await testDb.select().from(documentLink).where(eq(documentLink.documentId, documentId));
+    expect(link!.retiredByUserAccountId).toBe(attorney.userAccountId);
+
+    await setDocumentRetired(testDb, attorney, documentId, false);
+    expect((await providerDocumentStatus(testDb, expert.professionalId)).documents.map((row) => row.documentId)).toEqual([documentId]);
+    expect((await readLinkedDocument(testDb, store, attorney, documentId)).fileName).toBe('cv.pdf');
+    const events = await testDb.select().from(auditEvent).where(eq(auditEvent.entityId, link!.documentLinkId));
+    expect(events.map((event) => event.eventType).sort()).toEqual(['document_restored', 'document_retired']);
+  });
+
+  it("is refused on a decided or withdrawn request's file", async () => {
+    const caseId = await newCase();
+    const attorney = await newProvider(caseId, { bound: false });
+    const { preauthorizationRequestId } = await createPreauthorizationRequest(testDb, attorney, request(caseId, attorney.professionalId, 900));
+    const pdf = Buffer.from('%PDF-1.4 synthetic');
+    await addDocument(testDb, memoryStore(), attorney, { preauthorizationRequestId }, { bytes: pdf, fileName: 'q.pdf', purpose: 'quote' });
+    const { documentId } = (await listLinkedDocuments(testDb, { preauthorizationRequestId }))[0]!;
+    await withdrawPreauthorizationRequest(testDb, attorney.userAccountId, preauthorizationRequestId);
+    await expect(setDocumentRetired(testDb, attorney, documentId, true)).rejects.toThrow(ConflictError);
   });
 });
 

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { faker } from '@faker-js/faker';
 import { db } from './client';
 import { resetAndSeedBaselineFixtures } from './fixtures';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import {
   person,
   personAffiliation,
@@ -12,9 +12,17 @@ import {
   userAccount,
   caseCategories,
   caseAssignment,
+  caseLifecycleEvent,
+  caseTable,
+  county,
   caseIdentifier,
   invoice,
+  invoiceApprovalChain,
+  invoiceApprovalDecision,
+  invoiceAttestation,
+  invoiceEvent,
   invoiceLine,
+  invoiceReviewAssignment,
   invoiceStatuses,
   preauthorization,
   preauthorizationDecision,
@@ -33,6 +41,9 @@ import { createCase } from '../intake/createCase';
 import { applyLineRate } from '../billing/caseRates';
 import { createTimeEntry } from '../portal/createTimeEntry';
 import { createInvoice } from '../portal/createInvoice';
+import { setDraftCaseNumber, setDraftCounty } from '../billing/invoiceLifecycle/drafts';
+import { submitInvoice } from '../billing/invoiceLifecycle/submit';
+import { applyCaseChoiceAfterSend, setDraftCaseChoice } from '../billing/caseChoice';
 import { ensureUserAccountForEmail } from '../auth/userAccounts';
 import { ensureProfessionalForUserAccount } from '../professionals/ensureProfessional';
 import { assignStaffToCase } from '../cases/assignStaffToCase';
@@ -51,9 +62,7 @@ import { firstRow } from './rowHelpers';
 import { seedDemoUploads } from './demoUploads';
 import { addProfessional } from '../professionals/addProfessional';
 
-// Dev/demo data only — deliberately not part of resetAndSeedBaselineFixtures,
-// which __tests__/ also calls and relies on staying minimal (several tests
-// assert zero pre-existing cases).
+// Not in resetAndSeedBaselineFixtures, which tests rely on staying minimal.
 const DEMO_CASE_COUNT = 10;
 const DEMO_PROFESSIONAL_COUNT = 4;
 // All three are staff; the third is the Director, the only one who signs off (seedDemoReviewers).
@@ -64,6 +73,13 @@ const ASSIGNED_CASE_COUNT = 6;
 async function seedDemoCases(fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>): Promise<string[]> {
   const categories = await db.select().from(caseCategories);
   const caseIds: string[] = [];
+  // Spread across counties, so By county and the case step's county matching show.
+  const counties = await db
+    .select({ countyId: county.countyId })
+    .from(county)
+    .where(and(eq(county.active, true), eq(county.isCounty, true)))
+    .orderBy(asc(county.displayName))
+    .limit(3);
 
   for (let i = 0; i < DEMO_CASE_COUNT; i += 1) {
     const givenName = faker.person.firstName();
@@ -91,7 +107,7 @@ async function seedDemoCases(fixtures: Awaited<ReturnType<typeof resetAndSeedBas
         participantRoleId: fixtures.clientParticipantRoleId,
         statusId: fixtures.caseStatusOpenId,
         effectiveAt: faker.date.recent({ days: 180 }),
-        countyId: fixtures.countyId,
+        countyId: counties[i % counties.length]?.countyId ?? fixtures.countyId,
         caseCategoryId: category.id,
       },
     );
@@ -127,9 +143,7 @@ async function seedDemoProfessionals(): Promise<DemoProfessional[]> {
   return professionals;
 }
 
-// Every demo vendor is in one office, and the first (the demo partner
-// sign-in) is its delegate, so one sign-in bills for itself and several
-// colleagues.
+// Every demo vendor is in one office, whose delegate is the first (the external demo sign-in), billing for all.
 async function seedDemoDelegate(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   professionals: DemoProfessional[],
@@ -239,10 +253,7 @@ const DEMO_OWN_RATES: Array<{ hourlyRate: number; ratePerMile?: number } | undef
   { hourlyRate: 150 },
 ];
 
-// Other full (SSO) users to search for and assign in the "Assign staff"
-// form (client/src/components/AssignStaffForm.tsx) — distinct from
-// fixtures.staffUserAccountId, the one synthetic account every demo case
-// is already created by, so there's someone else to find and assign.
+// Staff besides fixtures.staffUserAccountId, who creates every demo case, to find and assign.
 async function seedDemoStaff(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
 ): Promise<string[]> {
@@ -335,8 +346,6 @@ async function seedDemoTimeEntriesAndInvoices(assignments: DemoAssignment[]): Pr
       await createTimeEntry(db, actor, { caseId: assignment.caseId, ...entry });
     }
 
-    // Leave the last un-invoiced and keep the second-to-last as a draft, so
-    // status actually varies.
     if (index === assignments.length - 1) {
       continue;
     }
@@ -479,9 +488,7 @@ async function seedDemoMileage(
   });
 }
 
-// Closes one never-assigned case via the same path as the "Close case"
-// UI, so the demo data covers a case that has left the overview board
-// entirely (../cases/caseStage.ts: a closed case has no stage).
+// Closes one never-assigned case as "Close case" does, so the demo has a closed case.
 async function seedClosedCase(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   caseIds: string[],
@@ -493,10 +500,7 @@ async function seedClosedCase(
   await closeCase(db, fixtures.staffUserAccountId, caseId, { reasonDetail: 'Demo closure' });
 }
 
-// Assigns one of the still-unassigned demo cases (index ASSIGNED_CASE_COUNT,
-// just past seedDemoAssignments' range) to a demo staff member via the
-// same path the "Assign staff" UI uses, so the represented stage has an
-// example reached through internal assignment, not only external.
+// Assigns the case just past seedDemoAssignments' range to a demo staff member, as "Assign staff" does.
 async function seedStaffAssignment(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   caseIds: string[],
@@ -533,11 +537,14 @@ async function seedDemoReviewers(
   });
 }
 
-// Review demo data: case and court numbers and pre-authorizations on the
-// cases (used only by the case pages; invoices filed by person are checked
-// against configured rates), an invoice billed above the configured rate,
-// and invoices at each review state, one waiting long enough to be called
-// out. Every value is synthetic.
+// Relative to today, so the demo's history stays recent.
+function monthsAgo(months: number, day: number): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - months, day, 15));
+}
+
+// Case and court numbers, pre-authorizations, an invoice billed above the configured rate, and invoices at each
+// review state, one waiting long enough to be called out. All synthetic.
 async function seedDemoReview(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
   caseIds: string[],
@@ -573,7 +580,10 @@ async function seedDemoReview(
   ]);
   const preauthorized = assignments.slice(0, 4);
   const rates = await listRates(db, preauthorized.map((assignment) => assignment.professionalId));
+  // Granted over the past months, so the By county running total climbs.
+  const grantedOn = [monthsAgo(10, 6), monthsAgo(8, 4), monthsAgo(6, 12), monthsAgo(4, 8)];
   for (const [index, assignment] of preauthorized.entries()) {
+    const granted = grantedOn[index]!;
     // Pre-authorized at their configured rate.
     const configured = rates.filter((rate) => rate.professionalId === assignment.professionalId).at(-1)?.hourlyRate ?? '125.00';
     const approvedHourlyRate = index === 2 ? '125.00' : configured;
@@ -586,7 +596,7 @@ async function seedDemoReview(
           professionalId: assignment.professionalId,
           statusId: approvedStatusId,
           requestedAmount: '2500.00',
-          requestedAt: new Date('2026-01-05T15:00:00Z'),
+          requestedAt: new Date(granted.getTime() - 24 * 60 * 60 * 1000),
           authorizationNumber: `PA-${assignment.caseId.slice(0, 6).toUpperCase()}`,
         })
         .returning(),
@@ -598,10 +608,26 @@ async function seedDemoReview(
       outcomeId: approvedOutcomeId,
       approvedAmount: '2500.00',
       approvedHourlyRate,
-      effectiveAt: new Date('2026-01-06T15:00:00Z'),
-      decidedAt: new Date('2026-01-06T15:00:00Z'),
+      effectiveAt: granted,
+      decidedAt: granted,
       decidedByUserAccountId: fixtures.staffUserAccountId,
     });
+    if (index === 0) {
+      // Raised once, for a ceiling revision on the chart and case page.
+      const raised = monthsAgo(3, 18);
+      // eslint-disable-next-line no-await-in-loop
+      await db.insert(preauthorizationDecision).values({
+        preauthorizationId,
+        sequenceNumber: 2,
+        outcomeId: approvedOutcomeId,
+        approvedAmount: '4000.00',
+        approvedHourlyRate,
+        effectiveAt: raised,
+        decidedAt: raised,
+        decidedByUserAccountId: fixtures.staffUserAccountId,
+        reason: 'Raised for a second round of interviews.',
+      });
+    }
   }
 
   // An imported-style invoice stating a rate above the investigator's
@@ -894,8 +920,81 @@ async function seedDemoPossibleDuplicate(staffUserAccountId: string, colleague: 
   });
 }
 
-// Destructive: deletes all application data, including accounts, then
-// recreates the synthetic demo data.
+// Signed-off invoices against the seeded pre-authorizations, backdated over the past months.
+async function seedDemoPreauthorizedBilling(assignments: DemoAssignment[], staffUserAccountIds: string[]): Promise<void> {
+  const [firstReviewer, , director] = staffUserAccountIds as [string, string, string];
+  const rates = await listRates(db, assignments.slice(0, 4).map((assignment) => assignment.professionalId));
+  const day = 24 * 60 * 60 * 1000;
+  // [assignment, months ago worked, hours, day signed off the next month]; each within its ceiling (3's is nearly used).
+  const billed: Array<[number, number, number[], number]> = [
+    [0, 9, [3, 2.5], 11],
+    [0, 7, [2, 1.5], 14],
+    [1, 7, [2, 1], 27],
+    [0, 5, [2], 9],
+    [1, 4, [2.5], 20],
+    [2, 3, [2.5, 2], 17],
+    [0, 2, [3, 1.5], 8],
+    [2, 2, [2], 22],
+  ];
+  /* eslint-disable no-await-in-loop */
+  for (const [index, workedAgo, hours, signedOnDay] of billed) {
+    const assignment = assignments[index]!;
+    const actor = { userAccountId: assignment.userAccountId, professionalId: assignment.professionalId };
+    const rate = Number(rates.filter((row) => row.professionalId === assignment.professionalId).at(-1)?.hourlyRate ?? '125.00');
+    const descriptions = DEMO_TIME_DESCRIPTIONS[DEMO_VENDOR_KINDS[index % DEMO_VENDOR_KINDS.length]!]!;
+    const month = monthsAgo(workedAgo, 1).toISOString().slice(0, 7);
+    const { invoiceId } = await createInvoice(db, actor, {
+      caseId: assignment.caseId,
+      attested: true,
+      periodStart: `${month}-01`,
+      periodEnd: `${month}-28`,
+      lines: hours.map((quantity, line) => ({
+        lineType: 'time' as const,
+        serviceDate: `${month}-${String(6 + line * 9).padStart(2, '0')}`,
+        quantity,
+        unitRate: rate,
+        description: descriptions[line % descriptions.length]!,
+      })),
+    });
+    const lines = await db.select({ id: invoiceLine.invoiceLineId }).from(invoiceLine).where(eq(invoiceLine.invoiceId, invoiceId));
+    for (const { id } of lines) {
+      await reviewInvoiceLine(db, firstReviewer, invoiceId, id, { outcome: 'approved' });
+    }
+    await finishReview(db, firstReviewer, invoiceId);
+    await signOffInvoice(db, director, invoiceId, { outcome: 'approved' });
+
+    // Its whole history moved back: events a day apart ending at sign-off, the lines decided the day before.
+    const signedOff = monthsAgo(workedAgo - 1, signedOnDay).getTime();
+    const events = await db
+      .select({ id: invoiceEvent.invoiceEventId, sequenceNumber: invoiceEvent.sequenceNumber })
+      .from(invoiceEvent)
+      .where(eq(invoiceEvent.invoiceId, invoiceId));
+    const last = Math.max(...events.map((event) => event.sequenceNumber));
+    for (const event of events) {
+      await db
+        .update(invoiceEvent)
+        .set({ occurredAt: new Date(signedOff - (last - event.sequenceNumber) * day) })
+        .where(eq(invoiceEvent.invoiceEventId, event.id));
+    }
+    const sent = new Date(signedOff - (last - Math.min(...events.map((event) => event.sequenceNumber))) * day);
+    await db.update(invoice).set({ submittedAt: sent }).where(eq(invoice.invoiceId, invoiceId));
+    await db.update(invoiceReviewAssignment).set({ assignedAt: sent }).where(eq(invoiceReviewAssignment.invoiceId, invoiceId));
+    const chainIds = (
+      await db.update(invoiceApprovalChain).set({ createdAt: sent }).where(eq(invoiceApprovalChain.invoiceId, invoiceId)).returning()
+    ).map((chain) => chain.invoiceApprovalChainId);
+    await db.update(invoiceAttestation).set({ attestedAt: sent }).where(inArray(invoiceAttestation.invoiceApprovalChainId, chainIds));
+    await db
+      .update(invoiceApprovalDecision)
+      .set({ decidedAt: new Date(signedOff - day) })
+      .where(and(inArray(invoiceApprovalDecision.invoiceApprovalChainId, chainIds), isNotNull(invoiceApprovalDecision.invoiceLineId)));
+    await db
+      .update(invoiceApprovalDecision)
+      .set({ decidedAt: new Date(signedOff) })
+      .where(and(inArray(invoiceApprovalDecision.invoiceApprovalChainId, chainIds), isNull(invoiceApprovalDecision.invoiceLineId)));
+  }
+  /* eslint-enable no-await-in-loop */
+}
+
 // A synthetic threshold and three requests: waiting for an answer, not needed, approved for less.
 async function seedDemoPreauthorizationRequests(
   fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>,
@@ -973,6 +1072,8 @@ async function seedDemoPreauthorizationRequests(
   });
 }
 
+// Destructive: deletes all application data, including accounts, then
+// recreates the synthetic demo data.
 export async function resetToDemoData(): Promise<DemoDataSummary> {
   const fixtures = await resetAndSeedBaselineFixtures(db);
   const caseIds = await seedDemoCases(fixtures);
@@ -990,11 +1091,91 @@ export async function resetToDemoData(): Promise<DemoDataSummary> {
   await seedDemoInvoicesWithoutReviewer(fixtures, caseIds, professionals);
   await seedDemoReview(fixtures, caseIds, assignments, staffUserAccountIds);
   await seedDemoPreauthorizationRequests(fixtures, assignments, professionals);
+  await seedDemoPreauthorizedBilling(assignments, staffUserAccountIds);
   const [partner, colleague] = professionals;
   if (!partner || !colleague) {
     throw new Error('Expected two demo vendors for the uploads.');
   }
   await seedDemoUploads({ partner, colleague, staffUserAccountId: fixtures.staffUserAccountId });
   await seedDemoPossibleDuplicate(fixtures.staffUserAccountId, colleague);
+  await seedDemoCaseStep(fixtures, professionals);
   return { caseCount: DEMO_CASE_COUNT, assignmentCount: assignments.length, staffCount: staffUserAccountIds.length };
+}
+
+// Each demo case is recorded as added from its first invoice (model/rules.yaml add_case_from_request), with an
+// example of each of the case step's other outcomes.
+async function seedDemoCaseStep(fixtures: Awaited<ReturnType<typeof resetAndSeedBaselineFixtures>>, professionals: DemoProfessional[]): Promise<void> {
+  await db.update(invoice).set({ caseChoice: 'existing' }).where(isNotNull(invoice.caseId));
+  await db.execute(sql`
+    update ${caseTable} c set added_from_invoice_id = first.invoice_id
+    from (select distinct on (case_id) case_id, invoice_id from ${invoice} where case_id is not null order by case_id, submitted_at nulls last) first
+    where first.case_id = c.case_id`);
+  await db.execute(sql`
+    update ${caseLifecycleEvent} set reason_detail = 'Added from an invoice'
+    where sequence_number = 1 and case_id in (select case_id from ${caseTable} where added_from_invoice_id is not null)`);
+  // A number typed exactly as a case's, in that case's county.
+  await db.execute(sql`
+    update ${invoice} i set county_id = c.county_id
+    from ${caseTable} c
+    where i.case_id is null and c.county_id is not null
+      and exists (
+        select 1 from case_identifier ci
+        where ci.case_id = c.case_id and upper(ci.value) = upper(coalesce(i.case_number_corrected, i.case_number_as_typed)))`);
+
+  const staff = await resolvePortalActor(db, fixtures.staffUserAccountId);
+  const [attorney, , investigator] = professionals;
+  if (!attorney || !investigator) {
+    throw new Error('Expected demo professionals for the case step.');
+  }
+  const [countyC] = await db.select({ countyId: county.countyId }).from(county).where(eq(county.displayName, 'County C'));
+  const receipt = { filedByPerson: true, receivedVia: 'email', receivedOn: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10) };
+  const sendAs = async (input: { professionalId: string; caseNumber?: string; countyId: string; choice: 'new' | 'none'; lines: Array<{ lineType: 'time'; serviceDate: string; quantity: number; description: string }> }) => {
+    const { invoiceId } = await createInvoice(db, staff, { caseId: null, professionalId: input.professionalId, submit: false, lines: input.lines });
+    if (input.caseNumber) await setDraftCaseNumber(db, staff, invoiceId, { caseNumber: input.caseNumber });
+    await setDraftCounty(db, staff, invoiceId, { countyId: input.countyId });
+    await setDraftCaseChoice(db, staff, invoiceId, input.choice === 'new' ? { choice: 'new', confirmedNew: true } : { choice: 'none' });
+    await submitInvoice(db, staff, invoiceId, receipt);
+    await applyCaseChoiceAfterSend(db, fixtures.staffUserAccountId, invoiceId);
+    return invoiceId;
+  };
+
+  // Not for one case: court observation, counted by its county alone.
+  if (countyC) {
+    await sendAs({
+      professionalId: attorney.professionalId,
+      countyId: countyC.countyId,
+      choice: 'none',
+      lines: [{ lineType: 'time', serviceDate: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10), quantity: 3, description: 'Court observation' }],
+    });
+    await createPreauthorizationRequest(db, staff, {
+      notForCase: true,
+      countyId: countyC.countyId,
+      professionalId: attorney.professionalId,
+      serviceDescription: 'Court observation across the term',
+      rateBasis: 'hourly',
+      requestedRate: 95,
+      estimatedQuantity: 12,
+      requestedAmount: 1140,
+      justification: 'Observing the calendar before several clients’ hearings; not for one case.',
+      receivedVia: 'Email',
+    });
+  }
+
+  // Added by mistake: a number written without its dashes, close to a case in the same county, said to be new.
+  const [listed] = await db
+    .select({ value: caseIdentifier.value, countyId: caseTable.countyId })
+    .from(caseIdentifier)
+    .innerJoin(caseTable, eq(caseIdentifier.caseId, caseTable.caseId))
+    .where(and(eq(caseIdentifier.isPrimary, true), isNotNull(caseTable.countyId), isNull(caseTable.closedOn)))
+    .orderBy(asc(caseIdentifier.value))
+    .limit(1);
+  if (listed?.countyId) {
+    await sendAs({
+      professionalId: investigator.professionalId,
+      caseNumber: listed.value.replace(/-/g, ''),
+      countyId: listed.countyId,
+      choice: 'new',
+      lines: [{ lineType: 'time', serviceDate: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10), quantity: 2, description: 'Interviewed a witness' }],
+    });
+  }
 }

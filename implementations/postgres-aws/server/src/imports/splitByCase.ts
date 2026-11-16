@@ -9,7 +9,7 @@ import { caseAssignment, caseIdentifier, caseTable, invoice, person, supportingI
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues, withBillingPeriod } from '../intake/validation';
 import { NotAssignedToCaseError } from '../portal/caseAssignmentAuthorization';
-import { billableProfessionalIds, representedProfessionalIds, type PortalActor } from '../portal/portalActor';
+import { billableProfessionalIds, isStaffAccount, representedProfessionalIds, type PortalActor } from '../portal/portalActor';
 import type { DocumentStore } from './documentStore';
 import { detectInvoiceFile } from './detectFormat';
 import { extractIntoDraft } from './invoiceImports/read';
@@ -76,13 +76,8 @@ export async function splitCases(db: Database, actor: PortalActor, professionalI
   }));
 }
 
-// A file being read, then waiting for its lines to be given cases. Reads
-// run like single uploads: in the background extraction queue (quick
-// formats straight away), in the isolated process, with progress; the
-// stored file and the reading are then used to make the drafts, so nothing
-// is read twice. Held in this process, like the queue: an unused read is
-// dropped with its file after an hour, and a restart forgets them all
-// (removeUnreferencedFiles clears their files at startup).
+// A file being read, then waiting for its lines to be given cases; read once, like an upload. Held in this
+// process: dropped with its file after an hour unused, and forgotten on restart (removeUnreferencedFiles).
 interface SplitRead {
   // Each kind is only reachable through its own routes.
   kind: 'split' | 'upload';
@@ -472,7 +467,8 @@ export async function createDraftFromUpload(db: Database, actor: PortalActor, ra
         proposedProvider: input.proposedProvider,
       });
       await recordReceipt(tx, invoiceId, { receivedVia: input.receivedVia, receivedOn: input.receivedOn });
-      const caseNumber = cleanCaseNumber(input.caseNumber);
+      // An external sender's is the one read from their file, never typed.
+      const caseNumber = (await isStaffAccount(tx, actor.userAccountId)) ? cleanCaseNumber(input.caseNumber) : (readCaseNumber(parsed)?.value ?? null);
       if (caseNumber) {
         await tx.update(invoice).set({ caseNumberAsTyped: caseNumber }).where(eq(invoice.invoiceId, invoiceId));
       }

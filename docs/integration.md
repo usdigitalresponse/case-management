@@ -57,6 +57,43 @@ wherever they're already tracked.
 - **Expect custom work.** Case matching (`cases/casesByNumber.ts`) and the
   time log check (`billing/reviewTimeLog.ts`) read only local data.
 
+## Email and mailbox integration
+
+This is a gap for a future vendor or contributor. Some organizations want the
+invoice review conversation tied to their email, such as Outlook, rather
+than only to the portal. Today a reviewer's question to the submitter
+appears only on the invoice. A submitter who answers by email has their
+answer typed in by a reviewer, who is named as the one who recorded it
+(`billing/reviewQuestions.ts`). The email itself isn't stored or linked.
+
+Possible additions:
+
+- Email the submitter when a question is waiting, with a link to the
+  invoice, not the question's text.
+- Save an emailed reply, or a record of it (sender, time, message ID), with
+  the answer it backs up.
+- Answer by replying to the email, through a shared mailbox read by Microsoft
+  Graph or a similar service.
+
+Each of these must keep the rules for questions:
+
+- A question and its answer are each recorded once and never changed. A
+  saved email adds evidence to an answer; it never edits or replaces one.
+- Questions, answers and saved emails are never put in exports or the
+  billing record.
+- An email is matched to a question only by an exact identifier, such as a
+  reply token, or when a reviewer confirms it. Never match by sender name or
+  subject alone.
+- Only people who may read the invoice can see saved emails.
+
+Still to be decided:
+
+- Whether saved emails are kept records, like providers' CVs, or working
+  copies deleted when the request ends, like uploaded invoice files.
+- Which mailbox and service is used, and what it costs.
+- How replies from an unknown address, or about several questions, are
+  handled.
+
 ## Building these features into your case management system
 
 You don't need a second application or a connection layer. Build invoice

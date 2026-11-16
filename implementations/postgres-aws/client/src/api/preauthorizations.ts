@@ -14,6 +14,9 @@ export interface PreauthorizationRequestRow {
   caseId: string | null;
   caseNumber: string | null;
   proposedCaseNumber: string | null;
+  proposedCountyId: string | null;
+  // Work not for one case: its decision is kept on the request alone.
+  notForCase: boolean;
   countyId: string | null;
   countyName: string | null;
   professionalId: string | null;
@@ -89,7 +92,7 @@ export interface NewPreauthorizationRequest {
   receivedOn?: string;
 }
 
-export type RequestStatusCounts = Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn' | 'all', number>;
+export type RequestStatusCounts = Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn' | 'in_review' | 'decided' | 'all', number>;
 
 // Latest received first; staff filter them and get each status's count, a requester gets their own.
 export function listPreauthorizationRequests(
@@ -144,7 +147,16 @@ export function answerPreauthorizationQuestion(requestId: string, questionId: st
   });
 }
 
-export function matchPreauthorizationRequest(requestId: string, input: { caseId?: string; professionalId?: string }) {
+export type PreauthorizationMatch = {
+  caseId?: string;
+  professionalId?: string;
+  // Added from its number and county (server/src/cases/caseStep.ts).
+  newCase?: { caseNumber: string; countyId: string | null; clientName?: string; confirmedNew?: boolean };
+  notForCase?: boolean;
+  countyId?: string;
+};
+
+export function matchPreauthorizationRequest(requestId: string, input: PreauthorizationMatch) {
   return request<PreauthorizationRequestDetail>(`/api/preauthorizations/requests/${requestId}/match`, { method: 'POST', body: JSON.stringify(input) });
 }
 
@@ -164,6 +176,15 @@ export function uploadRequestDocument(requestId: string, file: File, purpose: Li
     window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
     return result;
   });
+}
+
+// Takes a request's or provider's file off its list, keeping it; restoreDocument puts it back.
+export function retireDocument(documentId: string) {
+  return request<void>(`/api/preauthorizations/documents/${documentId}/retire`, { method: 'POST' });
+}
+
+export function restoreDocument(documentId: string) {
+  return request<void>(`/api/preauthorizations/documents/${documentId}/restore`, { method: 'POST' });
 }
 
 export function getProviderDocuments(professionalId: string) {
@@ -190,6 +211,7 @@ export interface CountyUsage {
   requests: Record<'submitted' | 'info_requested' | 'approved' | 'not_needed' | 'denied' | 'withdrawn', number>;
   requested: string;
   approved: string;
+  authorized: string;
   billedApproved: string;
   billedWaiting: string;
   left: string;
@@ -197,8 +219,16 @@ export interface CountyUsage {
   withinThreshold: { providers: number; billed: string };
 }
 
+// Month-end totals; null for months not yet begun. withInReview is only on this month, and last month to join the line.
+export interface UsageMonth {
+  month: string;
+  authorized: string | null;
+  signedOff: string | null;
+  withInReview: string | null;
+}
+
 export function getPreauthorizationUsage(period: { from: string; to: string }) {
-  return request<{ from: string; to: string; counties: CountyUsage[]; total: CountyUsage }>(
+  return request<{ from: string; to: string; counties: CountyUsage[]; total: CountyUsage; months: UsageMonth[] }>(
     `/api/preauthorizations/usage-by-county?${new URLSearchParams(period)}`,
   );
 }

@@ -1,9 +1,6 @@
-// Email address normalization and shared parsing for comma-separated
-// allowlists configured via env vars (GOOGLE_ALLOWED_DOMAINS,
-// MICROSOFT_ALLOWED_DOMAINS — see .env.example).
+// Email normalization, and the comma-separated domain lists in env vars (.env.example).
 
-// Every email stored or compared goes through this, so the same address
-// from different login paths (an IdP may return mixed case) matches.
+// Every email stored or compared goes through this, so one address matches across sign-in paths.
 export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }

@@ -57,7 +57,7 @@ describe('merging people', () => {
 
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(merge);
-    await waitFor(() => expect(page.elsewhere()).toBe('/people'));
+    await waitFor(() => expect(page.elsewhere()).toBe('/settings'));
     expect(api.callsTo('POST', '/api/people/merges')[0]?.body).toMatchObject({ keptPersonId: 'person-a', retiredPersonIds: ['person-b'] });
     expect(api.unhandled).toEqual([]);
   });

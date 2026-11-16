@@ -9,5 +9,5 @@ export interface LogPerson {
 
 export type LineCheck = TimeLogCheck['lines'][number];
 
-export const hours = (value: number) => `${Number(value.toFixed(2))} h`;
+export const hours = (value: number) => `${Number(value.toFixed(2))} hours`;
 export const entryLabel = (entry: TimeLogEntryCheck) => entry.entryId ?? `row ${entry.key.slice(1)}`;

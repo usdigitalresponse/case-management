@@ -1,6 +1,5 @@
-// Fixed-window counts in this process, for slowing down code requests and
-// guesses. Fine for the single server instance; several instances would need
-// a shared store.
+// Fixed-window counts in this process, slowing code requests and guesses; several instances would need a
+// shared store.
 export interface Limit {
   max: number;
   windowMs: number;

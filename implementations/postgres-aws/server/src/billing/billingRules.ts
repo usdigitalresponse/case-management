@@ -20,6 +20,7 @@ import {
 import { NotFoundError, ValidationError } from '../errors';
 import { fieldErrorsFromZodIssues } from '../intake/validation';
 import { UNSUBMITTED_INVOICE_STATUS_CODES } from './invoiceStatusCodes';
+import { formatCalendarDate } from '../formatDate';
 
 export type Enforcement = 'off' | 'warn' | 'require';
 
@@ -49,7 +50,7 @@ export const BILLING_RULES = {
   },
   long_entry: {
     label: 'Long entries',
-    description: 'A single time item over this many hours may be block billing. Can only warn.',
+    description: 'A single time line over this many hours may be several tasks in one entry. Can only warn.',
     warnOnly: true,
     parameters: z.object({ hours: hours(0.5, 24) }),
     defaults: { hours: 6 },
@@ -203,11 +204,13 @@ export interface RuleFinding {
 }
 
 function formatHours(value: number): string {
-  return `${Number(value.toFixed(2))} h`;
+  const shown = Number(value.toFixed(2));
+  return `${shown} ${shown === 1 ? 'hour' : 'hours'}`;
 }
 
 function formatMiles(value: number): string {
-  return `${Number(value.toFixed(1))} mi`;
+  const shown = Number(value.toFixed(1));
+  return `${shown} ${shown === 1 ? 'mile' : 'miles'}`;
 }
 
 export async function evaluateBillingRules(db: DatabaseOrTransaction, invoiceId: string): Promise<RuleFinding[]> {
@@ -312,7 +315,7 @@ export async function evaluateBillingRules(db: DatabaseOrTransaction, invoiceId:
           const total = day.hours + (elsewhere.get(key) ?? 0);
           if (total > cap + 1e-6) {
             add(
-              `${names.get(day.professionalId) ?? 'Someone'} has ${formatHours(total)} billed on ${day.date}, counting submitted invoices; the daily cap is ${formatHours(cap)}.`,
+              `${names.get(day.professionalId) ?? 'Someone'} has ${formatHours(total)} billed on ${formatCalendarDate(day.date)}, counting submitted invoices; the daily cap is ${formatHours(cap)}.`,
             );
           }
         }
@@ -352,7 +355,7 @@ export async function evaluateBillingRules(db: DatabaseOrTransaction, invoiceId:
           // Half a mile of slack for rounding on short trips.
           if (claimed > route * (1 + tolerance / 100) + 0.5) {
             add(
-              `${trip} claims ${formatMiles(claimed)}, more than ${tolerance}% over the ${formatMiles(route)} driving route${line.roundTrip ? ' there and back' : ''}.`,
+              `${trip} claims ${formatMiles(claimed)}, over the ${tolerance}% allowed above the ${formatMiles(route)} driving route${line.roundTrip ? ' there and back' : ''}.`,
               line.invoiceLineId,
             );
           }

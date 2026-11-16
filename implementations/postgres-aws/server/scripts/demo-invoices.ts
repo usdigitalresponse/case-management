@@ -1,9 +1,6 @@
-// Writes supporting invoice files that name the demo seed's own vendors, for
-// cases they're really assigned to, so importing one in the demo shows
-// timekeeper matching working. Read-only against the database; the files
-// go to ../demo-invoices/ (gitignored), since the names come from Faker at
-// seed time and change whenever the seed does. The portable, committed
-// samples live in scenarios/fixtures/invoices/.
+// Writes invoice files naming the demo seed's vendors on their own cases, to show timekeeper matching on import.
+// Read-only against the database; the files go to the gitignored ../demo-invoices/, since the seed's Faker names
+// change with it (committed samples are in scenarios/fixtures/invoices/).
 import 'dotenv/config';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

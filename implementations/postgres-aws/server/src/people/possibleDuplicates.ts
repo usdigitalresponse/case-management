@@ -1,7 +1,6 @@
-// People who may be one person recorded twice (model/rules.yaml
-// flag_possible_duplicate_client): found by matching details, or flagged by
-// staff. Staff may record that a pair are different people; only an
-// administrator merges them (./personMerges.ts). Nothing is merged here.
+// People who may be one recorded twice (model/rules.yaml flag_possible_duplicate_client), by matching details
+// or staff flags. Nothing is merged here (./personMerges.ts).
+import { membersOf } from '../duplicateMembers';
 import { z } from 'zod';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';
@@ -208,4 +207,10 @@ export async function recordDuplicateReview(db: Database, actorUserAccountId: st
     recordedByUserAccountId: actorUserAccountId,
     recordedAt: new Date(),
   });
+}
+
+// Who each person may be a duplicate of, for a provider's page.
+export function personDuplicateMembers(groups: PossibleDuplicate[]) {
+  const names = new Map(groups.flatMap((group) => group.people.map((one) => [one.personId, one.displayName] as const)));
+  return membersOf(groups.flatMap((group) => group.pairs.map((pair) => pair.personIds)), (personId) => names.get(personId) ?? 'someone else');
 }

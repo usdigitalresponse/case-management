@@ -13,9 +13,17 @@ export function reviewPath(invoiceId: string): string {
 
 export const MERGE_PEOPLE_PATH = '/people/merge';
 
-// People's Review duplicates tab, with any of its own parameters, such as `merged`.
-export function duplicatePeoplePath(params: Record<string, string> = {}): string {
-  return `/people?${new URLSearchParams({ tab: 'duplicates', ...params }).toString()}`;
+// Settings' tabs, one section each (pages/Settings.tsx).
+export const SETTINGS_TABS = ['review', 'people', 'rates', 'preauthorization', 'rules', 'providers', 'office-staff', 'duplicates', 'edit-data', 'demo'] as const;
+export type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+export function settingsPath(tab: SettingsTab, params: Record<string, string> = {}): string {
+  return `/settings?${new URLSearchParams({ tab, ...params }).toString()}`;
+}
+
+// Settings › Merge duplicates (design K67).
+export function duplicatesPath(params: Record<string, string> = {}): string {
+  return settingsPath('duplicates', params);
 }
 
 export function mergePath(keptPersonId: string, retiredPersonIds: string[]): string {

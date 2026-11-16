@@ -42,7 +42,7 @@ export default function Overview() {
               {count === 0 ? (
                 <p className="muted">No cases in this stage</p>
               ) : (
-                <>
+                <div className="stage-card__list">
                   <ul>
                     {stageCases.map((record) => (
                       <li key={record.caseId}>
@@ -56,7 +56,7 @@ export default function Overview() {
                       View all {count} <span aria-hidden="true">→</span>
                     </Link>
                   )}
-                </>
+                </div>
               )}
             </section>
           );

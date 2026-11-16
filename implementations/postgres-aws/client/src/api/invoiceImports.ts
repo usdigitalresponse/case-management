@@ -2,7 +2,6 @@ import { fileBytes, request, sendFile } from './http';
 import type { CountyChoice } from './cases';
 import type { InvoiceLineType, InvoiceReceipt, ProposedCase, ProposedProvider, SourceRegion } from './myInvoices';
 
-// --- Supporting invoice import ---------------------------------------------
 
 
 export interface ImportWarning {

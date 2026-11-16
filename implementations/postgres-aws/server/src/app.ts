@@ -16,6 +16,7 @@ import myCasesRouter from './routes/myCases';
 import portalRouter from './routes/portal';
 import referenceDataRouter from './routes/referenceData';
 import settingsRouter from './routes/settings';
+import editDataRouter from './routes/editData';
 import preauthorizationsRouter from './routes/preauthorizations';
 import { AppError } from './errors';
 import { db } from './db/client';
@@ -65,6 +66,7 @@ export function createApp() {
   app.use('/api/reference-data', referenceDataRouter);
   app.use('/api/settings', settingsRouter);
   app.use('/api/preauthorizations', preauthorizationsRouter);
+  app.use('/api/edit-data', editDataRouter);
 
   app.get('/healthz', (_req, res) => res.json({ ok: true }));
 

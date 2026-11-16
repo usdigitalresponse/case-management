@@ -1,7 +1,5 @@
-// Edits and deletes a time entry while no live invoice bills it
-// (model/rules.yaml validate_activity_and_time_context), by whoever may
-// record time for its professional on the case. Each change keeps the
-// prior values in audit_event.
+// Edits or deletes a time entry no live invoice bills (model/rules.yaml validate_activity_and_time_context),
+// keeping the prior values in audit_event.
 import { z } from 'zod';
 import { eq, sql, type SQL } from 'drizzle-orm';
 import type { Database, Transaction } from '../db/client';

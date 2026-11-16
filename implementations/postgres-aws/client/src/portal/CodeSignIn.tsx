@@ -1,7 +1,5 @@
-// External sign-in: an email, then a 6-digit code sent to it. No password.
-// The first step looks the same whether or not the email is on file, so it
-// can't reveal who is allowed in. See ../../docs/api.md "Emailed-code sign-in
-// for external users".
+// External sign-in: an email, then a 6-digit code sent to it. The first step looks the same whether or not
+// the email is on file, so it can't reveal who may sign in (../../docs/api.md).
 import { useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { apiErrorMessage, requestSignInCode } from '../api/client';
 import { useAuth } from '../AuthContext';
@@ -129,7 +127,7 @@ export function CodeSignIn({ headingLevel = 'h1' }: { headingLevel?: 'h1' | 'h2'
       <form className="code-sign-in" onSubmit={onEmailSubmit} noValidate>
         <Heading>Send an invoice</Heading>
         <p className="code-sign-in__lead">
-          Enter the email address the billing office has on file for you. We will email you a 6-digit code to sign in.
+          Enter the email address the billing office has on file for you. The tool emails you a 6-digit code to sign in.
           There is no password.
         </p>
         <div className="code-sign-in__field">
@@ -160,14 +158,14 @@ export function CodeSignIn({ headingLevel = 'h1' }: { headingLevel?: 'h1' | 'h2'
     <form className="code-sign-in" onSubmit={(event) => void onCodeSubmit(event)} noValidate>
       <Heading>Check your email</Heading>
       <p className="code-sign-in__lead">
-        We sent a 6-digit code to {sentTo}. It works once, for the next 10 minutes.
+        A 6-digit code was sent to {sentTo}. It works once, for the next 10 minutes.
       </p>
       <div className="code-sign-in__field">
         <label className="usa-label" htmlFor="sign-in-code">Code</label>
         <CodeBoxes digits={digits} onChange={setDigits} disabled={busy} />
       </div>
       {error && <p className="field-error" role="alert">{error}</p>}
-      {resent && !error && <p className="code-sign-in__hint" role="status">We sent a new code. Earlier codes no longer work.</p>}
+      {resent && !error && <p className="code-sign-in__hint" role="status">A new code was sent. Earlier codes no longer work.</p>}
       <div>
         <Button type="submit" kind="primary" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}

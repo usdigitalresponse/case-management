@@ -38,7 +38,7 @@ interface TourApi {
 const TourContext = createContext<TourApi | null>(null);
 
 export function TourProvider({ children }: { children: ReactNode }) {
-  const { adoptSignIn } = useAuth();
+  const { adoptSignIn, signIns, signInByTour } = useAuth();
   const [state, setStateRaw] = useState<TourState | null>(() => loadTour());
   const [pendingPath, setPendingPath] = useState<{ path: string; role: TourRole } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -51,6 +51,11 @@ export function TourProvider({ children }: { children: ReactNode }) {
       return next;
     });
   }, []);
+
+  // Any other sign-in or sign-out ends the run on the server, so drop it here too.
+  useEffect(() => {
+    if (signIns > 0 && !signInByTour) setState(() => null);
+  }, [signIns, signInByTour, setState]);
 
   useEffect(() => {
     const listener = (event: Event) => {
@@ -73,9 +78,8 @@ export function TourProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Starts a mission's material and signs in as its first role, on that
-  // role's home page: the visitor takes the first step themselves. The tour
-  // moves on only once the app has taken on that sign-in, so the two agree.
+  // Makes a mission's material and signs in as its first role, on its home page; the tour moves on only once
+  // the app has taken on that sign-in.
   const begin = useCallback(
     async (mission: TourMission, make: (start: TourStart) => TourState) => {
       const started = await startTour(mission);

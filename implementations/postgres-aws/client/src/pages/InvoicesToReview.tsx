@@ -5,7 +5,6 @@ import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router';
 import { apiErrorMessage, enterInReview, type ReviewQueueItem } from '../api/client';
 import { reviewPath } from '../staffPaths';
 import { checkLinesPath } from '../portal/checkQueue';
-import { INTAKE_PATH } from '../portal/useShell';
 import { useAuth } from '../AuthContext';
 import { useResource } from '../hooks/useResource';
 import { useBatchedResource } from '../hooks/useBatchedResource';
@@ -28,10 +27,8 @@ import { submittedByLabel } from '../reviewTotals';
 import { useSearchParamState } from '../hooks/useSearchParamState';
 import { FilterTag } from '../components/ui/Tag';
 
-// This staff member's unfinished work, and, since Intake is off the sidebar,
-// anything held there. For a reviewer: invoices they're still entering, and
-// any draft from before uploads went straight into review, continued the
-// same way. For other staff: their unsent drafts.
+// This staff member's unfinished work: a reviewer's invoices still being entered (and older drafts, continued
+// the same way), or other staff's unsent drafts.
 function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccountId: string; entering: ReviewQueueItem[]; onDeletedEntry: () => void }) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -40,7 +37,6 @@ function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccou
   const { data, reload } = useResource(invoiceIntake);
   const items = data?.items ?? [];
   const drafts = items.filter((item) => item.invoiceId && item.stage !== 'sent' && item.enteredByUserAccountId === userAccountId);
-  const held = items.filter((item) => item.stage === 'sent');
   const onDeleted = () => {
     void reload();
     onDeletedEntry();
@@ -68,12 +64,6 @@ function YourUnfinished({ userAccountId, entering, onDeletedEntry }: { userAccou
   );
   return (
     <>
-      {held.length > 0 && (
-        <Notice tone="warning">
-          {held.length} {held.length === 1 ? 'invoice waits' : 'invoices wait'} on <RouterLink to={INTAKE_PATH}>Intake</RouterLink> to be
-          matched.
-        </Notice>
-      )}
       {(drafts.length > 0 || (reviews && entering.length > 0)) && (
         <section className="your-drafts" aria-labelledby="your-drafts-heading">
           <h2 id="your-drafts-heading">Your unfinished drafts</h2>
@@ -227,7 +217,7 @@ export default function InvoicesToReview() {
             ),
           },
           { header: 'Case number', className: 'case-number-cell', render: (invoice) => <CaseNumberCell invoice={invoice} /> },
-          { header: 'Submitted', render: (invoice) => (invoice.submittedAt ? formatDay(invoice.submittedAt) : '—') },
+          { header: 'Submitted', className: 'nowrap', render: (invoice) => (invoice.submittedAt ? formatDay(invoice.submittedAt) : '—') },
           { header: 'Requested', align: 'right', render: (invoice) => <strong>{formatMoney(invoice.submittedTotal)}</strong> },
           { header: 'Decided', render: (invoice) => `${invoice.decidedCount} of ${invoice.lineCount}` },
           {
@@ -235,13 +225,13 @@ export default function InvoicesToReview() {
             render: (invoice) =>
               invoice.holder ? (
                 <>
-                  {invoice.holder.displayName}
+                  <span className="nowrap">{invoice.holder.displayName}</span>
                   {invoice.statusCode === 'awaiting_sign_off' && <span className="cell-note">To sign off</span>}
                   <QuestionChips invoice={invoice} />
                 </>
               ) : (
                 <>
-                  <span className="muted">Not assigned</span>
+                  <span className="muted">No reviewer yet</span>
                   {canAssign && (
                     <span className="cell-note">
                       <AssignReviewer
@@ -261,7 +251,7 @@ export default function InvoicesToReview() {
             className: (invoice) => (isLate(invoice) ? 'late' : undefined),
             render: (invoice) => `${invoice.workingDaysWaiting} ${invoice.workingDaysWaiting === 1 ? 'day' : 'days'}`,
           },
-          openInvoiceColumn(() => 'Review'),
+          openInvoiceColumn(),
         ]}
       />
       <MoreOnScroll list={list} what="invoices" />

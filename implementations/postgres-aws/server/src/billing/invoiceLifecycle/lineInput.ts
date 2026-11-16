@@ -35,10 +35,8 @@ export const invoiceLineInputSchema = z
     // Someone not listed, named by the submitter (../proposedDetails.ts).
     proposedTimekeeperName: z.string().trim().min(1).max(200).optional(),
     proposedTimekeeperEmail: optionalEmail,
-    // Lines sharing a key are one trip (model/rules.yaml
-    // apply_travel_time_rates): a time line on one is travel time. A mileage
-    // line without one is a trip of its own. The trip's route is given on
-    // each of its lines; the first line's governs.
+    // Lines sharing a key are one trip (model/rules.yaml apply_travel_time_rates), a time line on it travel time;
+    // a mileage line without one is its own trip. Each line gives the route; the first line's governs.
     tripKey: z.string().trim().min(1).max(100).optional(),
     // A time line off a trip may be waiting time, priced at its own rate.
     timeCategory: z.literal('waiting').optional(),

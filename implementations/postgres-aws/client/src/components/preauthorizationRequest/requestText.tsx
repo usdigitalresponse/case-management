@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router';
 import type { PreauthorizationRequestRow } from '../../api/client';
+import { formatDay } from '../../formatDateTime';
 import { formatMoney } from '../../formatMoney';
+import type { RecordTableColumn } from '../RecordTable';
 import { StatusPill, type Tone } from '../StatusPill';
 import { Tag } from '../ui/Tag';
 
@@ -30,4 +33,31 @@ export function caseText(request: Pick<PreauthorizationRequestRow, 'caseNumber' 
 
 export function providerText(request: Pick<PreauthorizationRequestRow, 'providerName' | 'proposedProviderName'>): ReactNode {
   return request.providerName ?? (request.proposedProviderName ? <>{request.proposedProviderName} <Tag tone="warning">Not matched</Tag></> : '—');
+}
+
+// The columns staff and requesters' request lists share (design K).
+export function requestColumns(pathOf: (requestId: string) => string): Record<
+  'number' | 'case' | 'provider' | 'askedFor' | 'approved' | 'status',
+  RecordTableColumn<PreauthorizationRequestRow>
+> {
+  return {
+    number: {
+      header: 'Number',
+      rowHeader: true,
+      render: (row) => (
+        <>
+          <Link className="nowrap" to={pathOf(row.preauthorizationRequestId)}>{row.requestNumber}</Link>
+          <span className="cell-note nowrap">{formatDay(row.receivedAt)}</span>
+        </>
+      ),
+    },
+    case: { header: 'Case', render: (row) => <><span className="nowrap">{caseText(row)}</span><span className="cell-note">{row.countyName ?? ''}</span></> },
+    provider: { header: 'Provider', render: (row) => <>{providerText(row)}<span className="cell-note">{row.kindName ?? row.serviceDescription}</span></> },
+    askedFor: {
+      header: 'Asked for',
+      render: (row) => <><span className="amount">{formatMoney(row.requestedAmount)}</span><span className="cell-note">{rateText(row)}</span></>,
+    },
+    approved: { header: 'Approved', render: (row) => (row.approvedAmount ? <span className="amount">{formatMoney(row.approvedAmount)}</span> : '—') },
+    status: { header: 'Status', render: (row) => <RequestStatus request={row} /> },
+  };
 }

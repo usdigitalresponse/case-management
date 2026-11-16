@@ -27,8 +27,7 @@ export function showTarget(element: HTMLElement): void {
   window.setTimeout(() => element.classList.remove('tour-highlight'), 3000);
 }
 
-// React listens for the native input event, so the value is set the way the
-// browser would set it.
+// React listens for the native input event, so set the value as the browser would.
 function setNativeValue(element: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, value: string): void {
   const prototype = Object.getPrototypeOf(element) as object;
   const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;

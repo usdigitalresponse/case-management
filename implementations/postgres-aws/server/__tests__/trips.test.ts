@@ -123,7 +123,7 @@ describe('trips', () => {
     expect(entry?.activityCode).toBe('travel');
     const [chain] = await testDb.select().from(invoiceApprovalChain).where(eq(invoiceApprovalChain.invoiceId, invoiceId));
     const snapshot = chain!.submissionSnapshot as { spec_version: string; records: { trip: Array<{ tripId: string }> } };
-    expect(snapshot.spec_version).toBe('0.12.0');
+    expect(snapshot.spec_version).toBe('0.16.0');
     expect(snapshot.records.trip).toEqual([expect.objectContaining({ tripId: travel.tripId, tripDate: '2026-02-02' })]);
   });
 
@@ -136,7 +136,7 @@ describe('trips', () => {
     // 30 miles at 30 mph is an hour; 2 hours is over.
     const { invoiceId } = await createInvoice(testDb, actor, { attested: true, caseId, lines: tripLines() });
     expect((await loadInvoiceDetail(testDb, invoiceId))!.ruleFindings).toEqual([
-      expect.objectContaining({ rule: 'travel_time_distance', message: expect.stringMatching(/claims 2 h of travel for 30 mi, about 1 h at 30 mph/) }),
+      expect.objectContaining({ rule: 'travel_time_distance', message: expect.stringMatching(/claims 2 hours of travel for 30 miles, about 1 hour at 30 mph/) }),
     ]);
     const [time, miles] = tripLines('near');
     const within = await createInvoice(testDb, actor, { attested: true, caseId, lines: [{ ...time!, quantity: 1 }, miles!] });

@@ -92,7 +92,10 @@ reviewers' and approver's roles, the sign-off default and the callout
 threshold. The demo partner also has invoices uploaded as synthetic PDFs
 (`src/db/demoUploads.ts`): one not yet checked, one with a changed and a
 removed line, one misread, one sent with changes for review beside its file,
-one entered by hand, and staff have an upload waiting on Intake for a case.
+one entered by hand, and staff have an upload being entered in their own review.
+Cases are spread over Counties A to C and were added through their invoices;
+one staff invoice is court observation not for one case, and one added a case
+with a similar number, for Settings, Edit data.
 The sidebar's Cases group has the case overview board and all cases. Links
 to an external case management system are disabled placeholders. See
 `docs/api.md` "Invoice review".
@@ -422,7 +425,8 @@ or scheduled here; each links to where it is described.
 
 1. Production sign-in: which identity provider staff use (`MAPPING.md`
    "Known gaps", Auth). External users are let in by administrators in
-   Settings → External users.
+   Settings › Providers (a provider's Active column) and Settings › Office
+   billing staff.
 2. Scan uploaded files for malware before reading them, which
    `validate_invoice_import` requires (`MAPPING.md` "Known gaps", Upload
    scanning).

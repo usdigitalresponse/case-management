@@ -1,8 +1,4 @@
-// Request-shape validation for model/forms.yaml:new_case, kept separate from
-// createCase.ts's business-rule/reference-existence checks. Using a schema
-// library (rather than hand-rolled presence checks) means malformed input
-// (e.g. a non-UUID personId) is rejected here, before any DB query — the
-// query layer never sees a value that could produce a raw driver error.
+// Request shape for model/forms.yaml new_case, checked before any query; createCase.ts checks the rules.
 import { z } from 'zod';
 import { optionalEmail } from '../people/emails';
 

@@ -1,9 +1,4 @@
-// Where a case sits in its working lifecycle, derived rather than stored,
-// for the case overview and list (client/src/pages/Overview.tsx).
-//
-// Cases come in with their invoices (design I), so the stages follow the
-// invoices and their reviewers. Buckets are checked in this order, so a case lands in the first
-// one that matches:
+// A case's stage on the overview and list, derived from its invoices; the first that matches:
 //   needs-assignment  an invoice is waiting and no reviewer is assigned to it
 //   billing           an invoice is waiting for review or sign-off
 //   closing           an approved invoice is waiting on the close action

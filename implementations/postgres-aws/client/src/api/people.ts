@@ -21,8 +21,11 @@ export function searchPeople(query: string, after: string | null): Promise<Batch
 // Providers (attorneys, experts and vendors): the sidebar's Providers list.
 export interface VendorRecord {
   professionalId: string;
+  personId: string;
   displayName: string | null;
   active: boolean;
+  // Whether they may sign in; set in Settings › Providers.
+  externalSignInEnabled: boolean;
   // Null for one added without it; fixed once they sign in with it.
   email: string | null;
   signedIn: boolean;
@@ -76,7 +79,7 @@ export interface BillingPerson {
   active: boolean;
   email: string | null;
   signedIn: boolean;
-  // Turned on in Settings → External users.
+  // Turned on in Settings › Providers.
   externalSignInEnabled: boolean;
   phone: string | null;
   paidThrough: string | null;
@@ -194,11 +197,6 @@ export interface PossibleDuplicate {
 
 export function listPossibleDuplicates(): Promise<{ duplicates: PossibleDuplicate[] }> {
   return request('/api/people/possible-duplicates');
-}
-
-// Remembered by the server for a few minutes; the list is always worked out afresh.
-export function countPossibleDuplicates(): Promise<{ groups: number }> {
-  return request('/api/people/possible-duplicates/count');
 }
 
 export function reviewPossibleDuplicate(input: { personIds: [string, string]; outcome: 'possible_duplicate' | 'not_duplicate'; note?: string }) {

@@ -1,7 +1,5 @@
-// A reviewer sets aside a mileage line's distance warning because the trip
-// made stops on the way, or puts it back (model/rules.yaml
-// dismiss_mileage_warning). Each change is a new row; the latest stands.
-// Staff only, shown to sign-off; the warning itself stays as submitted.
+// A reviewer sets aside a mileage warning for stops on the way, or puts it back (model/rules.yaml
+// dismiss_mileage_warning): a new row each time, staff only; the warning stays as submitted.
 import { z } from 'zod';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import type { Database, DatabaseOrTransaction } from '../db/client';

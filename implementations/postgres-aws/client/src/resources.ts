@@ -8,14 +8,15 @@ import {
   listPersonMerges,
   listPossibleDuplicates,
   listPossibleDuplicateCases,
-  countPossibleDuplicates,
-  countPossibleDuplicateCases,
   getOwnDemoRole,
   getPerson,
   searchPeople,
   getPortalBillingRules,
   getProviderDocuments,
   findCaseMatches,
+  findDraftCaseMatches,
+  listAddedCases,
+  listCaseFixes,
   listAuthProviders,
   listDemoAccounts,
   listReceiptChannels,
@@ -45,7 +46,10 @@ import {
   getReferenceData,
   listCases,
   getCaseCounts,
+  getCaseDuplicateOthers,
   getCaseOverview,
+  getProviderDuplicateOthers,
+  getInvoiceOverview,
   type CaseRequest,
   listCounties,
   listDecisionReasons,
@@ -88,6 +92,14 @@ export const cases = (query: CaseRequest) => batched({ key: ['cases', query], lo
 export const caseCounts = resource({ key: ['case-counts'], load: getCaseCounts });
 
 export const caseOverview = resource({ key: ['case-overview'], load: getCaseOverview });
+
+export const caseDuplicateOthers = (caseId: string) =>
+  resource({ key: ['case-duplicate-others', caseId], load: () => getCaseDuplicateOthers(caseId).then((result) => result.others) });
+
+export const providerDuplicateOthers = (professionalId: string) =>
+  resource({ key: ['provider-duplicate-others', professionalId], load: () => getProviderDuplicateOthers(professionalId).then((result) => result.others) });
+
+export const invoiceOverview = resource({ key: ['invoice-overview'], load: getInvoiceOverview });
 
 export const recentCaseChanges = resource({ key: ['recent-case-changes'], load: listRecentCaseChanges });
 
@@ -204,8 +216,12 @@ export const preauthorizationRequest = (requestId: string) =>
 export const providerDocuments = (professionalId: string) =>
   edited({ key: ['provider-documents', professionalId], load: () => getProviderDocuments(professionalId) });
 
-export const caseMatches = (invoiceId: string, caseNumber: string) =>
-  edited({ key: ['case-matches', invoiceId, caseNumber], load: () => findCaseMatches(invoiceId) });
+// Keyed by what they look for, so a changed number or county looks again.
+export const caseMatches = (invoiceId: string, caseNumber: string, countyId: string | null, draft = false) =>
+  edited({
+    key: ['case-matches', invoiceId, caseNumber, countyId, draft],
+    load: () => (draft ? findDraftCaseMatches(invoiceId) : findCaseMatches(invoiceId, caseNumber)),
+  });
 
 
 export const receiptChannels = resource({ key: ['receipt-channels'], load: () => listReceiptChannels().then((result) => result.channels), reference: true });
@@ -222,15 +238,7 @@ export const providerList = (query: string) =>
 export const personRecords = (query: string) =>
   batched({ key: ['person-records', query], load: (after) => searchPeople(query, after), keepPrevious: true });
 
-// How many groups each Review duplicates tab has, for whether to show it; its list loads only when opened.
-export const possibleDuplicateCount = edited({ key: ['possible-duplicate-count'], load: () => countPossibleDuplicates().then((result) => result.groups) });
-
-export const possibleDuplicateCaseCount = edited({
-  key: ['possible-duplicate-case-count'],
-  load: () => countPossibleDuplicateCases().then((result) => result.groups),
-});
-
-// Possible duplicate people and merges; acted on from their pages.
+// Possible duplicate people and merges, for Settings › Merge duplicates.
 export const possibleDuplicates = edited({ key: ['possible-duplicates'], load: () => listPossibleDuplicates().then((result) => result.duplicates) });
 
 export const personMerges = edited({ key: ['person-merges'], load: () => listPersonMerges().then((result) => result.merges) });
@@ -242,3 +250,7 @@ export const possibleDuplicateCases = edited({
 
 export const mergePreview = (keptPersonId: string, retiredPersonIds: string[]) =>
   edited({ key: ['merge-preview', keptPersonId, ...retiredPersonIds], load: () => getMergePreview(keptPersonId, retiredPersonIds) });
+
+// Settings, Edit data: administrators only.
+export const addedCases = (show: 'added' | 'similar') => edited({ key: ['edit-data-cases', show], load: () => listAddedCases(show).then((result) => result.cases) });
+export const caseFixes = edited({ key: ['edit-data-fixes'], load: () => listCaseFixes().then((result) => result.fixes) });

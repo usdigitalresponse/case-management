@@ -209,8 +209,9 @@ export interface ExternalUser {
   signInChangedAt: string | null;
 }
 
+// Office billing staff only: providers' sign-in is in Settings › Providers.
 export function listExternalUsers(q: string, after: string | null): Promise<Batch<ExternalUser>> {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams({ officeStaff: '1' });
   if (q.trim()) params.set('q', q.trim());
   return request(`/api/settings/external-users?${batchParams(params, after)}`);
 }
@@ -224,7 +225,7 @@ export function listDelegateOffices(): Promise<{ offices: Array<{ officeId: stri
 }
 
 export type TurnOnExternalSignIn =
-  | { personId: string; email?: string }
+  | { personId: string; email?: string; officeId?: string }
   | { newProvider: { displayName: string; email: string; professionalKindId: string } }
   | { newDelegate: { displayName: string; email: string; officeId: string } };
 

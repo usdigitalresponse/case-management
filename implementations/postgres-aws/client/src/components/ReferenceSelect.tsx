@@ -1,9 +1,6 @@
 import { ErrorMessage, FormGroup, Label, Select } from '@trussworks/react-uswds';
 
-// Label + select + reference-data options, shared by NewCaseIntake's
-// reference-data fields. Call sites normalize their options to
-// `{ id, label }[]` (a one-line `.map()`), keeping this component itself
-// free of any reference-data-specific typing.
+// A labelled select of reference-data options, which callers map to `{ id, label }`.
 export interface ReferenceSelectOption {
   id: string;
   label: string;
